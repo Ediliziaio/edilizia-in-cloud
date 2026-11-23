@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SoloTabletDesktop({
   children,
@@ -25,11 +26,12 @@ export function SoloTabletDesktop({
   torna?: string;
 }) {
   const isMobile = useIsMobile();
+  const t = useT();
 
   useEffect(() => {
     // id fisso: niente avvisi doppi (StrictMode in sviluppo, rimandi ripetuti).
-    if (isMobile) toast.info(avviso, { id: "solo-tablet-desktop" });
-  }, [isMobile, avviso]);
+    if (isMobile) toast.info(t(avviso), { id: "solo-tablet-desktop" });
+  }, [isMobile, avviso, t]);
 
   if (isMobile) return <Navigate to={torna} replace />;
   return <>{children}</>;

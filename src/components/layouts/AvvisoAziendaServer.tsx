@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useAziendaDelServer } from "@/hooks/useAziendaDelServer";
-import { controlloNecessario, testoAvviso } from "@/lib/auth/aziendaServer";
+import { controlloNecessario } from "@/lib/auth/aziendaServer";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Barra rossa quando la schermata mostra un'azienda e il server ne usa un'altra.
@@ -23,6 +24,7 @@ export const AvvisoAziendaServer = memo(function AvvisoAziendaServer({
     riportaServerSuAzienda,
     passaAdAziendaDelServer,
   } = useAuth();
+  const t = useT();
 
   const mostrata = isImpersonating ? impersonatedCompanyId : (effectiveCompany?.id ?? null);
   const attivo = controlloNecessario({
@@ -56,8 +58,20 @@ export const AvvisoAziendaServer = memo(function AvvisoAziendaServer({
 
   if (!attivo || esito.stato === "allineata") return null;
 
-  const nomeMostrata = effectiveCompany?.name ?? "questa azienda";
-  const { titolo, dettaglio } = testoAvviso(esito, nomeMostrata, nomeServer);
+  const nomeMostrata = effectiveCompany?.name ?? t("questa azienda");
+  // Stesse frasi di testoAvviso (lib/auth/aziendaServer), qui con i segnaposto per la traduzione.
+  const { titolo, dettaglio } = esito.stato === "nessuna_azienda"
+    ? {
+        titolo: t("L'accesso a {nome} non è più attivo", { nome: nomeMostrata }),
+        dettaglio: t("È scaduto o è stato chiuso da un'altra finestra: elenchi vuoti e salvataggi rifiutati finché non lo riattivi."),
+      }
+    : {
+        titolo: t("Stai guardando {nome}, ma il server sta lavorando su {altra}", {
+          nome: nomeMostrata,
+          altra: nomeServer ?? t("un'altra azienda"),
+        }),
+        dettaglio: t("L'ha cambiata un'altra finestra. Elenchi vuoti o salvataggi sull'azienda sbagliata: riallinea prima di continuare."),
+      };
 
   const esegui = async (azione: () => Promise<boolean>) => {
     setInCorso(true);
@@ -88,7 +102,7 @@ export const AvvisoAziendaServer = memo(function AvvisoAziendaServer({
           onClick={() => void esegui(riportaServerSuAzienda)}
         >
           {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {esito.stato === "nessuna_azienda" ? `Riattiva ${nomeMostrata}` : `Riporta su ${nomeMostrata}`}
+          {esito.stato === "nessuna_azienda" ? t("Riattiva {nome}", { nome: nomeMostrata }) : t("Riporta su {nome}", { nome: nomeMostrata })}
         </Button>
         {aziendaServer && (
           <Button
@@ -98,7 +112,7 @@ export const AvvisoAziendaServer = memo(function AvvisoAziendaServer({
             className="border-destructive-foreground bg-transparent text-destructive-foreground hover:bg-destructive-foreground/10 hover:text-destructive-foreground"
             onClick={() => void esegui(() => passaAdAziendaDelServer(aziendaServer))}
           >
-            {nomeServer ? `Apri ${nomeServer} qui` : "Apri l'altra azienda qui"}
+            {nomeServer ? t("Apri {nome} qui", { nome: nomeServer }) : t("Apri l'altra azienda qui")}
           </Button>
         )}
       </div>

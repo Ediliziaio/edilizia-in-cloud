@@ -17,6 +17,7 @@ import {
   sezioneDaPercorso,
 } from "@/lib/impostazioni/gruppiImpostazioni";
 import { titoloDaPercorso } from "@/lib/impostazioni/titoliImpostazioni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Il titolo e la frase di ogni pagina stanno in titoliImpostazioni.ts (con un test che li controlla);
 // le pagine con le schede hanno il titolo del loro gruppo.
@@ -28,6 +29,7 @@ import { titoloDaPercorso } from "@/lib/impostazioni/titoliImpostazioni";
 // ─── Layout wrapper per tutte le route /azienda/impostazioni/* ───────────────
 export function SettingsLayout() {
   const { pathname } = useLocation();
+  const t = useT();
   const permissions = usePermissions();
   const { stato: piano } = useStatoPiano();
   // Pagine raggruppate (Listino, Modelli preventivi e contratti, Firma e condizioni): titolo
@@ -64,7 +66,7 @@ export function SettingsLayout() {
           {!isHubRoot && (
             <Link
               to="/azienda/impostazioni"
-              aria-label="Torna a tutte le impostazioni"
+              aria-label={t("Torna a tutte le impostazioni")}
               className="tap-compact md:hidden flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background hover:bg-muted transition-colors -ml-1 max-sm:ml-0 max-sm:h-8 max-sm:w-8 max-sm:border-0"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -72,10 +74,10 @@ export function SettingsLayout() {
           )}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 flex-1 min-w-0">
             <div className="min-w-0">
-              <h1 className="text-xl font-semibold tracking-tight break-words max-sm:text-lg">{title}</h1>
+              <h1 className="text-xl font-semibold tracking-tight break-words max-sm:text-lg">{t(title)}</h1>
               {/* Descrizione nascosta su mobile: su 375px occupava fino a 3 righe
                   prima del contenuto in ogni sotto-pagina impostazioni. */}
-              <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{description}</p>
+              <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{t(description)}</p>
             </div>
             {/* v8.6.71 — Search settings: nascosta su mobile (richiesto), resta su desktop */}
             <div className="hidden md:block">
@@ -85,7 +87,7 @@ export function SettingsLayout() {
         </div>
         {schede.length > 1 && (
           <nav
-            aria-label={`Schede di ${title}`}
+            aria-label={t("Schede di {titolo}", { titolo: t(title) })}
             className={cn("-mb-4 mt-3 flex gap-1 overflow-x-auto md:-mb-5 max-sm:mb-0 max-sm:mt-1 max-sm:border-b", gruppo?.id === "modelli" && "max-md:hidden")}
           >
             {schede.map((scheda) => {
@@ -102,7 +104,7 @@ export function SettingsLayout() {
                       : "border-transparent text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {scheda.etichetta}
+                  {t(scheda.etichetta)}
                 </Link>
               );
             })}
@@ -113,13 +115,13 @@ export function SettingsLayout() {
       {/* Contenuto della pagina figlia — larghezza piena */}
       <div className="settings-content min-w-0 flex-1 px-4 py-4 md:px-6 md:py-6 max-sm:px-0 max-sm:py-2">
         {nelPiano ? (
-          <Suspense key={pathname} fallback={<p role="status" aria-busy="true">Caricamento della sezione…</p>}>
+          <Suspense key={pathname} fallback={<p role="status" aria-busy="true">{t("Caricamento della sezione…")}</p>}>
             <Outlet />
             <CollegamentiImpostazioni sezione={sezione} />
           </Suspense>
         ) : (
           <NonNelPiano
-            titolo={title}
+            titolo={t(title)}
             serve={nomiRequisito(pathname)}
             puoCambiarePiano={permissions.isAdmin && !isIOSNativePlatform}
           />

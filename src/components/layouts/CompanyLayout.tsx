@@ -113,6 +113,7 @@ import { useAuditAccountantPageView } from "@/hooks/accountant/useAccountantAudi
 import { useAccountantRevocationWatch } from "@/hooks/accountant/useAccountantRevocationWatch";
 import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 import { accountingHome, isCompanyPathAvailable } from "@/lib/companyManagementMode";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const SupportChatSheet = lazyWithRetry(() => import("./SupportChatSheet"));
 const SupportChannelDialog = lazyWithRetry(() => import("./SupportChannelDialog"));
@@ -120,11 +121,14 @@ const CommandPalette = lazyWithRetry(() => import("@/components/CommandPalette")
 const NpsModal = lazyWithRetry(() => import("@/components/onboarding/NpsModal"));
 const SilvioFAB = lazyWithRetry(() => import("@/components/silvio/SilvioFAB"));
 
-const aperturaPannello = (
-  <div role="status" className="fixed inset-x-4 top-4 z-50 mx-auto w-fit rounded-lg border bg-background px-4 py-2 text-sm shadow">
-    Apertura in corso…
-  </div>
-);
+function AperturaPannello() {
+  const t = useT();
+  return (
+    <div role="status" className="fixed inset-x-4 top-4 z-50 mx-auto w-fit rounded-lg border bg-background px-4 py-2 text-sm shadow">
+      {t("Apertura in corso…")}
+    </div>
+  );
+}
 
 /** Attiva i servizi accessori dopo il primo contenuto della pagina e il suo effetto di lettura. */
 function DopoPrimaPagina({ onReady }: { onReady: () => void }): null {
@@ -140,6 +144,7 @@ function DopoPrimaPagina({ onReady }: { onReady: () => void }): null {
 }
 
 function AssistenteAzienda({ mostraPulsante }: { mostraPulsante: boolean }) {
+  const t = useT();
   const [pulsanteCaricato, setPulsanteCaricato] = useState(false);
   const [richiestaChat, setRichiestaChat] = useState<{ draft?: string } | null>(null);
   useEffect(() => {
@@ -156,8 +161,8 @@ function AssistenteAzienda({ mostraPulsante }: { mostraPulsante: boolean }) {
 
   if (!pulsanteCaricato && !richiestaChat) return null;
   return (
-    <ErrorBoundary title="Silvio non è al momento disponibile">
-      <Suspense fallback={richiestaChat ? aperturaPannello : null}>
+    <ErrorBoundary title={t("Silvio non è al momento disponibile")}>
+      <Suspense fallback={richiestaChat ? <AperturaPannello /> : null}>
         <SilvioFAB richiestaChat={richiestaChat} />
       </Suspense>
     </ErrorBoundary>
@@ -175,8 +180,9 @@ const CompanyBrandHeader = memo(function CompanyBrandHeader({
   platformName?: string | null;
   homeTo?: string;
 }) {
+  const t = useT();
   const logoSrc = logoUrl ?? (isCollapsed ? ediliziaLogoSmall : ediliziaLogo);
-  const logoAlt = logoUrl ? (platformName ?? "Logo piattaforma") : "EdiliziaInCloud";
+  const logoAlt = logoUrl ? (platformName ?? t("Logo piattaforma")) : "EdiliziaInCloud";
 
   return (
     <Tooltip>
@@ -211,6 +217,7 @@ const CompanyBrandHeader = memo(function CompanyBrandHeader({
 const ImpersonationBanner = memo(function ImpersonationBanner() {
   const { isImpersonating, exitImpersonation } = useAuth();
   const navigate = useNavigate();
+  const t = useT();
 
   if (!isImpersonating) return null;
 
@@ -233,7 +240,7 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
     <div className="sticky top-0 z-50 bg-warning text-warning-foreground px-3 py-2 flex items-center justify-between gap-2 shadow-md">
       <div className="flex items-center gap-2 min-w-0">
         <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse" />
-        <span className="hidden shrink-0 text-sm font-medium sm:inline">Stai visualizzando:</span>
+        <span className="hidden shrink-0 text-sm font-medium sm:inline">{t("Stai visualizzando:")}</span>
         <SuperAdminCompanySwitcher />
       </div>
       <div className="flex items-center gap-2 shrink-0">
@@ -244,7 +251,7 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
           onClick={handleExit}
         >
           <ArrowLeft className="h-4 w-4 sm:mr-2" />
-          <span className="hidden sm:inline">Torna a Admin</span>
+          <span className="hidden sm:inline">{t("Torna a Admin")}</span>
         </Button>
       </div>
     </div>
@@ -256,6 +263,7 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
 // Vista completa = bypass super admin (supporto dentro piani parziali).
 const ImpersonationViewToggle = memo(function ImpersonationViewToggle() {
   const clientView = useImpersonationClientView();
+  const t = useT();
   return (
     <Button
       variant="secondary"
@@ -263,12 +271,12 @@ const ImpersonationViewToggle = memo(function ImpersonationViewToggle() {
       onClick={() => setImpersonationClientView(!clientView)}
       title={
         clientView
-          ? "Stai vedendo ciò che vede il cliente (piano e funzioni applicati). Clicca per la vista completa super admin."
-          : "Vista completa super admin: tutti i moduli aperti. Clicca per vedere ciò che vede il cliente."
+          ? t("Stai vedendo ciò che vede il cliente (piano e funzioni applicati). Clicca per la vista completa super admin.")
+          : t("Vista completa super admin: tutti i moduli aperti. Clicca per vedere ciò che vede il cliente.")
       }
     >
       {clientView ? <Eye className="h-4 w-4 sm:mr-2" /> : <EyeOff className="h-4 w-4 sm:mr-2" />}
-      <span className="hidden sm:inline">{clientView ? "Vista cliente" : "Vista completa"}</span>
+      <span className="hidden sm:inline">{clientView ? t("Vista cliente") : t("Vista completa")}</span>
     </Button>
   );
 });
@@ -280,7 +288,8 @@ const CommercialistaModeBanner = memo(function CommercialistaModeBanner({
   companyName?: string | null;
   returnTo: string;
 }) {
-  const resolvedCompanyName = companyName ?? "azienda selezionata";
+  const t = useT();
+  const resolvedCompanyName = companyName ?? t("azienda selezionata");
 
   return (
     <div className="border-b-2 border-blue-300 bg-gradient-to-r from-blue-100 to-blue-50 px-3 py-3 text-blue-950">
@@ -291,15 +300,15 @@ const CommercialistaModeBanner = memo(function CommercialistaModeBanner({
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-700">
-              Modalità Commercialista — stai operando per
+              {t("Modalità Commercialista — stai operando per")}
             </p>
-            <p className="truncate text-sm font-bold text-blue-950">
+            <p dir="auto" className="truncate text-sm font-bold text-blue-950">
               {resolvedCompanyName}
             </p>
           </div>
         </div>
         <Button asChild size="sm" variant="outline" className="h-9 shrink-0 border-blue-300 bg-white font-medium hover:bg-blue-50">
-          <Link to={returnTo}>← Torna allo studio</Link>
+          <Link to={returnTo}>← {t("Torna allo studio")}</Link>
         </Button>
       </div>
     </div>
@@ -423,6 +432,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
     if (item.moduleKey && isModuleDemo?.(item.moduleKey)) return true;
     return false;
   };
+  const t = useT();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const toggleGroup = (label: string) => {
@@ -491,7 +501,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                     "flex items-center justify-center transition-colors",
                     active ? "bg-sidebar-primary/10 text-sidebar-primary" : "text-sidebar-foreground/60 hover:text-sidebar-foreground/90",
                   )}
-                  title={item.title}
+                  title={t(item.title)}
                 >
                   <ItemIcon className="h-4 w-4" />
                 </NavLink>
@@ -517,7 +527,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                 )}
               >
                 <ItemIcon className="h-4 w-4 shrink-0" />
-                <span className="truncate">{item.title}</span>
+                <span className="truncate">{t(item.title)}</span>
                 {item.isBeta && (
                   <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">
                     BETA
@@ -555,7 +565,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                 className="z-50 w-52 p-1.5 bg-sidebar border border-sidebar-border shadow-lg rounded-lg"
               >
                 <p className="px-2 py-1.5 text-xs font-semibold uppercase tracking-normal text-sidebar-foreground/50 truncate">
-                  {area.title}
+                  {t(area.title)}
                 </p>
                 <div className="flex flex-col gap-0.5">
                   {(() => {
@@ -586,7 +596,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                           )}
                         >
                           <ItemIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{item.title}</span>
+                          <span className="truncate">{t(item.title)}</span>
                           {isDemo ? (
                             <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-amber-100 text-amber-800 border-amber-300">DEMO</Badge>
                           ) : item.isBeta && (
@@ -637,7 +647,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
         )}>
           <span className="flex items-center gap-1.5 min-w-0">
             <AreaIcon className={cn("h-4 w-4 shrink-0 transition-colors duration-150", (open || hasActiveChild) && "text-sidebar-primary")} />
-            <span className="truncate">{area.title}</span>
+            <span className="truncate">{t(area.title)}</span>
           </span>
           <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200 opacity-60 group-hover:opacity-100", open && "rotate-180")} />
         </CollapsibleTrigger>
@@ -675,7 +685,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                           )}
                         >
                           <ItemIcon className="h-4 w-4" />
-                          <span>{item.title}</span>
+                          <span>{t(item.title)}</span>
                           {isLocked ? (
                             <Lock className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
                           ) : isDemo ? (
@@ -727,6 +737,7 @@ function CruscottoNavItems({ filterNavItems, badgePronti }: {
   const conversazioniUnread = useConversazioniNonLette(leggiChat);
   const permissions = usePermissions();
   const { role } = useAuth();
+  const t = useT();
 
   return (
     <SidebarGroup className="py-2">
@@ -756,15 +767,20 @@ function CruscottoNavItems({ filterNavItems, badgePronti }: {
                 ? ((emailCounts?.urgent ?? 0) > 0 ? "destructive" : "secondary")
                 : "secondary";
             const showBadge = (isTaskItem || isEmailItem) && badgeCount > 0;
-            const tooltipExtra = isEmailItem && emailCounts
-              ? ` — ${emailCounts.unread} da leggere${emailCounts.urgent ? `, ${emailCounts.urgent} urgenti` : ""}`
+            const voce = t(item.title);
+            const tooltip = isEmailItem && emailCounts
+              ? (emailCounts.urgent
+                ? t("{voce} — {n} da leggere, {urgenti} urgenti", { voce, n: emailCounts.unread, urgenti: emailCounts.urgent })
+                : t("{voce} — {n} da leggere", { voce, n: emailCounts.unread }))
               : isTaskItem && taskCounts && taskCounts.total > 0
-                ? ` — ${taskCounts.total} attività${taskCounts.overdue ? ` (${taskCounts.overdue} scadute)` : ""}`
-                : "";
+                ? (taskCounts.overdue
+                  ? t("{voce} — {n} attività ({scadute} scadute)", { voce, n: taskCounts.total, scadute: taskCounts.overdue })
+                  : t("{voce} — {n} attività", { voce, n: taskCounts.total }))
+                : voce;
 
             return (
               <SidebarMenuItem key={item.url}>
-                <SidebarMenuButton asChild tooltip={`${item.title}${tooltipExtra}`}>
+                <SidebarMenuButton asChild tooltip={tooltip}>
                   <NavLink
                     to={itemUrl}
                     end={itemUrl === "/azienda" || itemUrl === "/azienda/marketing"}
@@ -772,7 +788,7 @@ function CruscottoNavItems({ filterNavItems, badgePronti }: {
                     activeClassName="bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
                   >
                     <item.icon className="h-4 w-4" />
-                    <span className="font-medium">{item.title}</span>
+                    <span className="font-medium">{voce}</span>
                     {/* «Chat»: due badge di colore diverso, entrambi dai token del tema.
                         - Team interno → navy (secondary): identico ai conteggi di Email/Attività.
                         - Conversazioni esterne (WhatsApp/email/IG…) → verde (success): il canale coi clienti. */}
@@ -782,7 +798,7 @@ function CruscottoNavItems({ filterNavItems, badgePronti }: {
                           <Badge
                             variant="secondary"
                             className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold"
-                            title={`${internalChatUnread} messaggi del team da leggere`}
+                            title={t("{n} messaggi del team da leggere", { n: internalChatUnread })}
                           >
                             {internalChatUnread > 99 ? "99+" : internalChatUnread}
                           </Badge>
@@ -790,7 +806,7 @@ function CruscottoNavItems({ filterNavItems, badgePronti }: {
                         {conversazioniUnread > 0 && (
                           <Badge
                             className="h-5 min-w-[20px] border-transparent bg-success px-1.5 text-[10px] font-bold text-success-foreground hover:bg-success/80"
-                            title={`${conversazioniUnread} conversazioni con messaggi da leggere`}
+                            title={t("{n} conversazioni con messaggi da leggere", { n: conversazioniUnread })}
                           >
                             {conversazioniUnread > 99 ? "99+" : conversazioniUnread}
                           </Badge>
@@ -831,6 +847,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
   navigate: ReturnType<typeof useNavigate>;
 }) {
   const [query, setQuery] = useState("");
+  const t = useT();
   const { pathname } = useLocation();
   const { stato: piano } = useStatoPiano();
   const isMobile = useIsMobile();
@@ -872,9 +889,9 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
           onClick={() => navigate("/azienda")}
         >
           <ArrowLeft className="h-4 w-4" />
-          Torna indietro
+          {t("Torna indietro")}
         </Button>
-        <h2 className="text-lg font-semibold px-3 mb-3">Impostazioni</h2>
+        <h2 className="text-lg font-semibold px-3 mb-3">{t("Impostazioni")}</h2>
 
         {/* Barra di ricerca fuzzy */}
         <div className="relative mb-2">
@@ -882,9 +899,9 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
           <Input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Cerca impostazioni…"
+            placeholder={t("Cerca impostazioni…")}
             className="pl-8 h-8 text-sm bg-muted/40 border-0 focus-visible:ring-1"
-            aria-label="Cerca nelle impostazioni"
+            aria-label={t("Cerca nelle impostazioni")}
           />
         </div>
       </div>
@@ -893,7 +910,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
       {/* Gruppi filtrati */}
       {filteredGroups.map(group => (
         <SidebarGroup key={group.label}>
-          <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+          <SidebarGroupLabel>{t(group.label)}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {group.items.map(item => (
@@ -905,7 +922,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
                       activeClassName={navLinkActive}
                     >
                       {item.icon}
-                      <span>{item.label}</span>
+                      <span>{t(item.label)}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -919,7 +936,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
       {filteredGroups.length === 0 && (
         <div className="px-5 py-8 text-center text-sm text-muted-foreground">
           <Search className="h-8 w-8 mx-auto mb-2 opacity-30" />
-          Nessun risultato per <strong>"{query}"</strong>
+          {t("Nessun risultato per \"{testo}\"", { testo: query })}
         </div>
       )}
     </div>
@@ -935,6 +952,7 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
   // così la sidebar riflette esattamente quello che vedrebbe quell'utente.
   const permissions = usePermissions();
   const { schede: schedeManodopera } = useSchedeManodopera();
+  const t = useT();
   // Le regole del piano (super admin, azienda demo, piano completo o limitato)
   // stanno in useStatoPiano: le stesse valgono per le impostazioni.
   const {
@@ -1225,14 +1243,14 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
             {isCommercialistaMode && (
               <div className="mx-3 mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-950">
                 <Badge variant="outline" className="mb-2 border-blue-200 bg-white text-blue-700">
-                  Vista commercialista
+                  {t("Vista commercialista")}
                 </Badge>
-                <p className="text-sm font-semibold leading-tight">{commercialistaCompanyName}</p>
+                <p dir="auto" className="text-sm font-semibold leading-tight">{commercialistaCompanyName}</p>
                 <p className="mt-1 text-xs text-blue-800">
-                  Menu limitato a cantieri, magazzino, controllo gestione e finanza.
+                  {t("Menu limitato a cantieri, magazzino, controllo gestione e finanza.")}
                 </p>
                 <Button asChild size="sm" variant="outline" className="mt-3 h-8 w-full bg-white">
-                  <Link to={commercialistaReturnTo}>Torna allo studio</Link>
+                  <Link to={commercialistaReturnTo}>{t("Torna allo studio")}</Link>
                 </Button>
               </div>
             )}
@@ -1247,7 +1265,7 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
                 rows invece di nascondere voci (evita flicker e mancanza
                 momentanea di sezioni a pagamento). */}
             {showMenuSkeleton ? (
-              <div className="px-3 py-2 space-y-2" aria-label="Caricamento menu">
+              <div className="px-3 py-2 space-y-2" aria-label={t("Caricamento menu")}>
                 {Array.from({ length: 6 }).map((_, i) => (
                   <Skeleton key={i} className="h-7 w-full" />
                 ))}
@@ -1294,12 +1312,12 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-foreground"
                           onClick={toggleSidebar}
-                          aria-label="Espandi menu"
+                          aria-label={t("Espandi menu")}
                         >
                           <PanelLeft className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="right">Espandi menu</TooltipContent>
+                      <TooltipContent side="right">{t("Espandi menu")}</TooltipContent>
                     </Tooltip>
                     {showDriveLink && (
                       <Tooltip>
@@ -1337,8 +1355,8 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
                       </TooltipTrigger>
                       <TooltipContent side="right">
                         {isCommercialistaMode
-                          ? "Torna allo studio"
-                          : `${profile?.first_name} ${profile?.last_name} — Il mio profilo`}
+                          ? t("Torna allo studio")
+                          : t("{nome} — Il mio profilo", { nome: `${profile?.first_name} ${profile?.last_name}` })}
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -1353,7 +1371,7 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent side="right">
-                        {isImpersonating ? "Torna a Admin" : "Esci"}
+                        {isImpersonating ? t("Torna a Admin") : t("Esci")}
                       </TooltipContent>
                     </Tooltip>
                   </>
@@ -1367,19 +1385,19 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
+                        <p dir="auto" className="text-sm font-medium truncate">
                           {profile?.first_name} {profile?.last_name}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {etichettaRuoloAzienda(role, userRoles, { isImpersonating })}
+                          {t(etichettaRuoloAzienda(role, userRoles, { isImpersonating }))}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={toggleSidebar}
                         className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors"
-                        aria-label={sidebarAPannello ? "Chiudi menu" : "Comprimi menu a icone"}
-                        title={sidebarAPannello ? "Chiudi menu" : "Comprimi a icone"}
+                        aria-label={sidebarAPannello ? t("Chiudi menu") : t("Comprimi menu a icone")}
+                        title={sidebarAPannello ? t("Chiudi menu") : t("Comprimi a icone")}
                       >
                         <PanelLeftClose className="h-4 w-4" />
                       </button>
@@ -1408,7 +1426,7 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
                             className="w-full justify-start gap-2.5 h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
                           >
                             <Settings className="h-3.5 w-3.5" />
-                            Impostazioni
+                            {t("Impostazioni")}
                           </Button>
                         </Link>
                       )}
@@ -1419,7 +1437,7 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
                         onClick={handleLogoutOrExit}
                       >
                         <LogOut className="h-3.5 w-3.5" />
-                        {isImpersonating ? "Torna a Admin" : "Esci"}
+                        {isImpersonating ? t("Torna a Admin") : t("Esci")}
                       </Button>
                     </div>
                   </div>
@@ -1445,6 +1463,7 @@ export function CompanyLayout() {
     userRoles,
   } = useAuth();
   const permissions = usePermissions();
+  const t = useT();
   const { isModuleEnabled } = useSubscriptionLimits({ includeUsageCounts: false });
   const isMobile = useIsMobile();
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
@@ -1589,13 +1608,13 @@ export function CompanyLayout() {
   useEffect(() => {
     const companyName = effectiveCompany?.name;
     if (page) {
-      document.title = `${page} · ${companyName || "Edilizia in Cloud"}`;
+      document.title = `${t(page)} · ${companyName || "Edilizia in Cloud"}`;
     } else if (area) {
-      document.title = `${area} · ${companyName || "Edilizia in Cloud"}`;
+      document.title = `${t(area)} · ${companyName || "Edilizia in Cloud"}`;
     } else {
       document.title = companyName || "Edilizia in Cloud";
     }
-  }, [page, area, effectiveCompany?.name]);
+  }, [page, area, effectiveCompany?.name, t]);
 
   // Cmd+K / Ctrl+K global shortcut
   useEffect(() => {
@@ -1695,7 +1714,7 @@ export function CompanyLayout() {
             href="#main-content"
             className="sr-only focus:not-sr-only focus:absolute focus:z-[9999] focus:top-2 focus:left-2 focus:bg-background focus:text-foreground focus:border focus:rounded focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-md"
           >
-            Vai al contenuto principale
+            {t("Vai al contenuto principale")}
           </a>
           <QuickLoginReturnBanner />
           <AvvisoAziendaServer commercialista={isCommercialistaMode} />
@@ -1713,7 +1732,7 @@ export function CompanyLayout() {
           <header data-app-header className="flex h-14 shrink-0 items-center gap-1.5 border-b bg-background px-2 md:gap-2 md:px-3 xl:gap-4">
             {/* Mobile: back arrow on sub-pages (no hamburger — bottom nav "App" replaces sidebar) */}
             {isSubPage && (
-              <Button variant="ghost" size="icon" className="md:hidden h-10 w-10 -ml-1 shrink-0" onClick={() => navigate(-1)} aria-label="Torna indietro">
+              <Button variant="ghost" size="icon" className="md:hidden h-10 w-10 -ml-1 shrink-0" onClick={() => navigate(-1)} aria-label={t("Torna indietro")}>
                 <ArrowLeft className="h-5 w-5" aria-hidden="true" />
               </Button>
             )}
@@ -1728,13 +1747,13 @@ export function CompanyLayout() {
 
             {/* Desktop: breadcrumb */}
             {area && (
-              <nav aria-label="Percorso della pagina" className="hidden min-w-0 items-center gap-1.5 text-sm text-muted-foreground md:flex">
+              <nav aria-label={t("Percorso della pagina")} className="hidden min-w-0 items-center gap-1.5 text-sm text-muted-foreground md:flex">
                 {AreaIcon && <AreaIcon aria-hidden="true" className="size-3.5 shrink-0" />}
-                <span className="min-w-0 truncate text-xs font-medium">{area}</span>
+                <span className="min-w-0 truncate text-xs font-medium">{t(area)}</span>
                 {page && (
                   <>
                     <ChevronRight aria-hidden="true" className="size-3 shrink-0" />
-                    <span className="min-w-0 truncate text-xs font-medium text-foreground" aria-current="page">{page}</span>
+                    <span className="min-w-0 truncate text-xs font-medium text-foreground" aria-current="page">{t(page)}</span>
                   </>
                 )}
               </nav>
@@ -1748,7 +1767,7 @@ export function CompanyLayout() {
             <TimbraHeaderButton />
             {/* v8.6.72 — Search Command Palette nascosta su mobile: spazio header limitato,
                 la ricerca dentro l'App grid + le ricerche per-pagina coprono i casi mobile. */}
-            {!/^\/azienda\/impostazioni(?:\/|$)/.test(location.pathname) && <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0 hidden md:inline-flex" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)" aria-label="Cerca (⌘K)">
+            {!/^\/azienda\/impostazioni(?:\/|$)/.test(location.pathname) && <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0 hidden md:inline-flex" onClick={() => setCommandOpen(true)} title={t("Cerca (⌘K)")} aria-label={t("Cerca (⌘K)")}>
               <Search className="h-4 w-4" aria-hidden="true" />
             </Button>}
             {/* 29/10/2026 — La rotellina Impostazioni non e' piu' qui.
@@ -1800,7 +1819,7 @@ export function CompanyLayout() {
             {showSupport && (
               <Button variant="outline" size="sm" className="relative hidden md:flex bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 hover:border-emerald-600 shadow-md hover:shadow-lg transition-shadow" onClick={() => setChannelDialogOpen(true)}>
                 <HeadphonesIcon className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Assistenza</span>
+                <span className="hidden sm:inline">{t("Assistenza")}</span>
                 {unreadCount > 0 && (
                   <Badge variant="destructive" className="ml-1 sm:ml-2 h-5 min-w-[20px] px-1 flex items-center justify-center text-xs">
                     {unreadCount}
@@ -1814,11 +1833,11 @@ export function CompanyLayout() {
               "spazi vuoti ai lati quando scrollo") — le tabelle scrollano nei loro wrapper */}
           {/* pb mobile ≈ altezza pillola flottante + safe-area: l'ultimo
               elemento resta raggiungibile sopra il vetro della bottom-nav. */}
-          <main className={`flex-1 ${altezzaBloccata ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden ${paddingMain} bg-muted/30`} id="main-content" aria-label="Contenuto principale">
-            <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
+          <main className={`flex-1 ${altezzaBloccata ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden ${paddingMain} bg-muted/30`} id="main-content" aria-label={t("Contenuto principale")}>
+            <ErrorBoundary title={t("Errore nel caricamento della pagina")} resetKey={location.pathname}>
               {/* Skeleton (non spinner) al cambio pagina: percezione di velocità sul primo paint mobile */}
               <Suspense fallback={
-                <div className="space-y-4" aria-busy="true" aria-label="Caricamento pagina">
+                <div className="space-y-4" aria-busy="true" aria-label={t("Caricamento pagina")}>
                   <Skeleton className="h-8 w-48" />
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <Skeleton className="h-24 rounded-xl" />
@@ -1848,7 +1867,7 @@ export function CompanyLayout() {
               Con h-[100dvh] + overflow-hidden sul container e overflow-y-auto
               sul main, la nav resta sempre visibile senza fixed. */}
           {isMobile && (
-            <ErrorBoundary key={location.pathname} title="Errore navigazione mobile">
+            <ErrorBoundary key={location.pathname} title={t("Errore navigazione mobile")}>
               <MobileBottomNav badgePronti={deferredRealtimeReady} />
             </ErrorBoundary>
           )}
@@ -1856,12 +1875,12 @@ export function CompanyLayout() {
       </div>
       {/* La chiamata passata dall'assistente arriva mentre lavori, non mentre
           guardi il centralino: la scheda vive nel guscio, non in una pagina. */}
-      <ErrorBoundary title="Errore scheda chiamata">
+      <ErrorBoundary title={t("Errore scheda chiamata")}>
         <SchedaPassaggioChiamata />
       </ErrorBoundary>
       {showSupport && (channelDialogOpen !== null || supportOpen !== null) && (
-        <ErrorBoundary title="Errore nell’apertura dell’assistenza">
-          <Suspense fallback={aperturaPannello}>
+        <ErrorBoundary title={t("Errore nell’apertura dell’assistenza")}>
+          <Suspense fallback={<AperturaPannello />}>
             {channelDialogOpen !== null && (
               <SupportChannelDialog
                 open={channelDialogOpen}
@@ -1874,16 +1893,16 @@ export function CompanyLayout() {
         </ErrorBoundary>
       )}
       {commandOpen !== null && (
-        <ErrorBoundary title="Errore nell’apertura della ricerca">
-          <Suspense fallback={commandOpen ? aperturaPannello : null}>
+        <ErrorBoundary title={t("Errore nell’apertura della ricerca")}>
+          <Suspense fallback={commandOpen ? <AperturaPannello /> : null}>
             <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
           </Suspense>
         </ErrorBoundary>
       )}
       {deferredRealtimeReady && <PWAInstallBanner />}
       {npsOpen && (
-        <ErrorBoundary title="Errore nell’apertura del questionario">
-          <Suspense fallback={aperturaPannello}>
+        <ErrorBoundary title={t("Errore nell’apertura del questionario")}>
+          <Suspense fallback={<AperturaPannello />}>
             <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
           </Suspense>
         </ErrorBoundary>

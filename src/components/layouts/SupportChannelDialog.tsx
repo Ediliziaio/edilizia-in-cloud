@@ -44,6 +44,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** In assistenza i link operativi restano circoscritti al portale e al centro guide. */
 function safeSupportMarkdown(content: string): string {
@@ -82,6 +83,7 @@ const PRIORITY_LABELS: Record<Priority, { label: string; emoji: string; descript
 
 export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: SupportChannelDialogProps) {
   const { user, effectiveCompany } = useAuth();
+  const t = useT();
   const [mode, setMode] = useState<DialogMode>("channels");
 
   // AI chat state
@@ -203,7 +205,7 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
 
   const submitEscalation = async () => {
     if (!ticketTitolo.trim() || !ticketDescrizione.trim()) {
-      toast.error("Titolo e descrizione sono obbligatori");
+      toast.error(t("Titolo e descrizione sono obbligatori"));
       return;
     }
     setEscalating(true);
@@ -220,10 +222,10 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
       if (error) throw error;
       setCreatedTicketId(data?.ticket_id ?? null);
       setMode("ticket_success");
-      toast.success(`Ticket #${data?.ticket_id ?? ""} aperto al supporto`);
+      toast.success(t("Ticket #{id} aperto al supporto", { id: data?.ticket_id ?? "" }));
     } catch (err) {
       console.error("[SupportChannelDialog] escalate error:", err);
-      toast.error("Errore nell'apertura del ticket. Riprova o usa la chat diretta.");
+      toast.error(t("Errore nell'apertura del ticket. Riprova o usa la chat diretta."));
     } finally {
       setEscalating(false);
     }
@@ -246,7 +248,7 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
       sender_role: "company",
       message,
     });
-    toast.success("Richiesta di richiamata inviata!");
+    toast.success(t("Richiesta di richiamata inviata!"));
     setCallbackSending(false);
     handleOpenChange(false);
   };
@@ -270,9 +272,9 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
         {mode === "channels" && (
           <>
             <DialogHeader>
-              <DialogTitle>Come possiamo aiutarti?</DialogTitle>
+              <DialogTitle>{t("Come possiamo aiutarti?")}</DialogTitle>
               <DialogDescription>
-                Risolvi subito con Silvio AI o scegli un altro canale di supporto
+                {t("Risolvi subito con Silvio AI o scegli un altro canale di supporto")}
               </DialogDescription>
             </DialogHeader>
 
@@ -284,19 +286,19 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                 className="w-full text-left rounded-xl border-2 border-primary/40 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-5 hover:border-primary hover:shadow-md transition-all relative overflow-hidden group"
               >
                 <Badge className="absolute top-3 right-3 bg-primary text-primary-foreground text-[10px]">
-                  CONSIGLIATO
+                  {t("CONSIGLIATO")}
                 </Badge>
                 <div className="flex items-start gap-4">
                   <div className="p-3 rounded-xl bg-primary/15 group-hover:bg-primary/25 transition-colors">
                     <Sparkles className="h-6 w-6 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <p className="font-semibold text-base">Silvio Assistente AI</p>
+                    <p className="font-semibold text-base">{t("Silvio Assistente AI")}</p>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                      Risolvi subito il tuo problema. Se non basta, apriamo insieme un ticket al supporto.
+                      {t("Risolvi subito il tuo problema. Se non basta, apriamo insieme un ticket al supporto.")}
                     </p>
                     <div className="flex items-center gap-1.5 mt-2 text-xs text-primary font-medium">
-                      <span>Chatta ora</span>
+                      <span>{t("Chatta ora")}</span>
                       <span className="group-hover:translate-x-0.5 transition-transform">→</span>
                     </div>
                   </div>
@@ -305,7 +307,7 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
 
               {/* Altri canali — più piccoli, in colonna */}
               <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium pt-2 px-1">
-                Oppure contattaci direttamente
+                {t("Oppure contattaci direttamente")}
               </p>
 
               <div className="grid gap-2">
@@ -318,9 +320,9 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                     <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">Chat con il team</p>
+                    <p className="font-medium text-sm">{t("Chat con il team")}</p>
                     <p className="text-xs text-muted-foreground truncate">
-                      Parla in tempo reale con un operatore umano
+                      {t("Parla in tempo reale con un operatore umano")}
                     </p>
                   </div>
                 </button>
@@ -334,7 +336,7 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                     <Mail className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">Email</p>
+                    <p className="font-medium text-sm">{t("Email")}</p>
                     <p className="text-xs text-muted-foreground truncate">supporto@ediliziacloud.it</p>
                   </div>
                 </button>
@@ -348,9 +350,9 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                     <PhoneCall className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">Richiamata</p>
+                    <p className="font-medium text-sm">{t("Richiamata")}</p>
                     <p className="text-xs text-muted-foreground truncate">
-                      Ti chiamiamo noi all'orario che preferisci
+                      {t("Ti chiamiamo noi all'orario che preferisci")}
                     </p>
                   </div>
                 </button>
@@ -375,10 +377,10 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                 <div className="flex-1">
                   <DialogTitle className="flex items-center gap-2 text-base">
                     <Sparkles className="h-4 w-4 text-primary" />
-                    Silvio Assistente AI
+                    {t("Silvio Assistente AI")}
                   </DialogTitle>
                   <DialogDescription className="text-xs">
-                    Domanda libera. Se serve, escaliamo al team.
+                    {t("Domanda libera. Se serve, escaliamo al team.")}
                   </DialogDescription>
                 </div>
               </div>
@@ -440,7 +442,7 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                     onClick={goToEscalateForm}
                   >
                     <Ticket className="h-3.5 w-3.5" />
-                    Apri ticket al supporto
+                    {t("Apri ticket al supporto")}
                   </Button>
                 )}
                 <div className="flex gap-2">
@@ -453,7 +455,7 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                         sendAiMessage();
                       }
                     }}
-                    placeholder="Scrivi a Silvio..."
+                    placeholder={t("Scrivi a Silvio...")}
                     disabled={aiLoading}
                   />
                   <Button
@@ -486,10 +488,10 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                 <div>
                   <DialogTitle className="flex items-center gap-2 text-base">
                     <Ticket className="h-4 w-4 text-amber-600" />
-                    Apri ticket al supporto
+                    {t("Apri ticket al supporto")}
                   </DialogTitle>
                   <DialogDescription className="text-xs">
-                    Il team risponde entro 24h. Verrà inclusa la conversazione con Silvio.
+                    {t("Il team risponde entro 24h. Verrà inclusa la conversazione con Silvio.")}
                   </DialogDescription>
                 </div>
               </div>
@@ -498,19 +500,19 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="ticket-titolo" className="text-sm font-medium">
-                  Titolo *
+                  {t("Titolo *")}
                 </Label>
                 <Input
                   id="ticket-titolo"
                   value={ticketTitolo}
                   onChange={(e) => setTicketTitolo(e.target.value)}
-                  placeholder="es. Errore caricamento fattura SDI"
+                  placeholder={t("es. Errore caricamento fattura SDI")}
                   maxLength={120}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Priorità</Label>
+                <Label className="text-sm font-medium">{t("Priorità")}</Label>
                 <RadioGroup value={ticketPriorita} onValueChange={(v) => setTicketPriorita(v as Priority)}>
                   <div className="grid gap-1.5">
                     {(Object.entries(PRIORITY_LABELS) as Array<[Priority, typeof PRIORITY_LABELS[Priority]]>).map(
@@ -526,8 +528,8 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                           <RadioGroupItem id={`prio-${key}`} value={key} />
                           <span className="text-base">{info.emoji}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{info.label}</p>
-                            <p className="text-xs text-muted-foreground">{info.description}</p>
+                            <p className="text-sm font-medium">{t(info.label)}</p>
+                            <p className="text-xs text-muted-foreground">{t(info.description)}</p>
                           </div>
                         </label>
                       ),
@@ -538,18 +540,18 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
 
               <div className="space-y-2">
                 <Label htmlFor="ticket-descr" className="text-sm font-medium">
-                  Descrizione *
+                  {t("Descrizione *")}
                 </Label>
                 <Textarea
                   id="ticket-descr"
                   value={ticketDescrizione}
                   onChange={(e) => setTicketDescrizione(e.target.value)}
-                  placeholder="Spiega il problema con dettagli (modulo, schermata, errore visto...)"
+                  placeholder={t("Spiega il problema con dettagli (modulo, schermata, errore visto...)")}
                   rows={4}
                   maxLength={2000}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {ticketDescrizione.length}/2000 caratteri
+                  {t("{n}/2000 caratteri", { n: ticketDescrizione.length })}
                 </p>
               </div>
 
@@ -557,15 +559,15 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                 <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground border">
                   <p className="font-medium text-foreground flex items-center gap-1.5 mb-1">
                     <Sparkles className="h-3 w-3 text-primary" />
-                    Conversazione AI inclusa
+                    {t("Conversazione AI inclusa")}
                   </p>
-                  Includeremo automaticamente la chat con Silvio ({messages.length} messaggi) per dare contesto al team.
+                  {t("Includeremo automaticamente la chat con Silvio ({n} messaggi) per dare contesto al team.", { n: messages.length })}
                 </div>
               )}
 
               <div className="flex gap-2 pt-2">
                 <Button variant="outline" className="flex-1" onClick={() => setMode("ai_chat")} disabled={escalating}>
-                  Torna alla chat
+                  {t("Torna alla chat")}
                 </Button>
                 <Button
                   className="flex-1 gap-2"
@@ -575,12 +577,12 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                   {escalating ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Apertura...
+                      {t("Apertura...")}
                     </>
                   ) : (
                     <>
                       <Ticket className="h-4 w-4" />
-                      Apri ticket
+                      {t("Apri ticket")}
                     </>
                   )}
                 </Button>
@@ -603,9 +605,9 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div>
-                  <DialogTitle className="text-base">Richiedi richiamata</DialogTitle>
+                  <DialogTitle className="text-base">{t("Richiedi richiamata")}</DialogTitle>
                   <DialogDescription className="text-xs">
-                    Ti contattiamo noi all'orario indicato
+                    {t("Ti contattiamo noi all'orario indicato")}
                   </DialogDescription>
                 </div>
               </div>
@@ -613,7 +615,7 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Numero di telefono *</Label>
+                <Label className="text-sm font-medium">{t("Numero di telefono *")}</Label>
                 <Input
                   placeholder="+39 333 1234567"
                   value={phone}
@@ -621,23 +623,23 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Orario preferito</Label>
+                <Label className="text-sm font-medium">{t("Orario preferito")}</Label>
                 <Input
-                  placeholder="es. 10:00 - 12:00"
+                  placeholder={t("es. 10:00 - 12:00")}
                   value={preferredTime}
                   onChange={(e) => setPreferredTime(e.target.value)}
                 />
               </div>
               <div className="flex gap-2 pt-2">
                 <Button variant="outline" className="flex-1" onClick={() => setMode("channels")}>
-                  Indietro
+                  {t("Indietro")}
                 </Button>
                 <Button
                   className="flex-1"
                   onClick={handleCallback}
                   disabled={!phone.trim() || callbackSending}
                 >
-                  {callbackSending ? "Invio..." : "Invia richiesta"}
+                  {callbackSending ? t("Invio...") : t("Invia richiesta")}
                 </Button>
               </div>
             </div>
@@ -648,8 +650,8 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
         {mode === "ticket_success" && (
           <>
             <DialogHeader>
-              <DialogTitle className="sr-only">Ticket aperto</DialogTitle>
-              <DialogDescription className="sr-only">Conferma apertura ticket al supporto</DialogDescription>
+              <DialogTitle className="sr-only">{t("Ticket aperto")}</DialogTitle>
+              <DialogDescription className="sr-only">{t("Conferma apertura ticket al supporto")}</DialogDescription>
             </DialogHeader>
 
             <div className="flex flex-col items-center text-center py-4 space-y-4">
@@ -657,10 +659,10 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                 <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
-                <p className="text-lg font-semibold">Ticket aperto!</p>
+                <p className="text-lg font-semibold">{t("Ticket aperto!")}</p>
                 {createdTicketId && (
                   <p className="text-sm text-muted-foreground mt-1">
-                    Numero: <span className="font-mono font-medium">#{createdTicketId}</span>
+                    {t("Numero:")} <span className="font-mono font-medium">#{createdTicketId}</span>
                   </p>
                 )}
               </div>
@@ -668,18 +670,19 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                   <div className="text-left">
-                    Il team del supporto ha ricevuto il ticket con tutta la conversazione di contesto.
-                    Risponderà direttamente nella <strong>chat di supporto</strong> entro 24h.
+                    {/* Senza il grassetto su «chat di supporto»: la frase intera si traduce in un pezzo solo. */}
+                    {t("Il team del supporto ha ricevuto il ticket con tutta la conversazione di contesto.")}{" "}
+                    {t("Risponderà direttamente nella chat di supporto entro 24h.")}
                   </div>
                 </div>
               </div>
               <div className="flex gap-2 w-full pt-2">
                 <Button variant="outline" className="flex-1" onClick={() => handleOpenChange(false)}>
-                  Chiudi
+                  {t("Chiudi")}
                 </Button>
                 <Button className="flex-1 gap-2" onClick={handleChatTeam}>
                   <MessageSquare className="h-4 w-4" />
-                  Apri chat supporto
+                  {t("Apri chat supporto")}
                 </Button>
               </div>
             </div>

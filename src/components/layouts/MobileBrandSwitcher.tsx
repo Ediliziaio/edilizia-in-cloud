@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { getCompanyAccessRoleLabel } from "@/lib/auth/multiCompany";
 import { cn } from "@/lib/utils";
 import ediliziaLogoSmall from "@/assets/edilizia-in-cloud-logo-small.webp";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function getCompanyInitials(name?: string | null) {
   const words = (name ?? "Azienda").trim().split(/\s+/).filter(Boolean);
@@ -34,11 +35,12 @@ export function MobileBrandSwitcher() {
     selectedMultiCompanyId,
     switchMultiCompany,
   } = useAuth();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
   const hasMultiple = multiCompanyAccesses.length > 1;
-  const activeName = effectiveCompany?.name ?? "Azienda";
+  const activeName = effectiveCompany?.name ?? t("Azienda");
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -46,9 +48,10 @@ export function MobileBrandSwitcher() {
     return multiCompanyAccesses.filter((a) => {
       const companyName = a.company?.name ?? a.company_id;
       const roleLabel = getCompanyAccessRoleLabel(a.access_role);
-      return `${companyName} ${roleLabel}`.toLowerCase().includes(term);
+      // Il ruolo si trova sia in italiano sia nella lingua scelta.
+      return `${companyName} ${roleLabel} ${t(roleLabel)}`.toLowerCase().includes(term);
     });
-  }, [multiCompanyAccesses, query]);
+  }, [multiCompanyAccesses, query, t]);
 
   /**
    * Stack visivo: logo EiC sopra + nome azienda sotto, entrambi flush a sx.
@@ -62,7 +65,7 @@ export function MobileBrandSwitcher() {
         className="h-8 w-auto block select-none pointer-events-none"
         loading="eager"
       />
-      <span className="block text-left font-semibold text-[11px] truncate w-full text-foreground leading-none mt-1">
+      <span dir="auto" className="block text-left font-semibold text-[11px] truncate w-full text-foreground leading-none mt-1">
         {activeName}
       </span>
     </span>
@@ -90,7 +93,7 @@ export function MobileBrandSwitcher() {
         <button
           type="button"
           className="flex items-start gap-1 min-w-0 flex-1 rounded-md py-1 -ml-1 pl-1 hover:bg-muted/60 active:bg-muted transition-colors md:hidden"
-          aria-label={`Cambia azienda — attualmente ${activeName}`}
+          aria-label={t("Cambia azienda — attualmente {nome}", { nome: activeName })}
         >
           {brandStack}
           <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-1.5" aria-hidden="true" />
@@ -103,9 +106,9 @@ export function MobileBrandSwitcher() {
         className="w-[calc(100vw-1rem)] max-w-sm p-2"
       >
         <div className="px-2 py-1.5">
-          <p className="text-sm font-semibold">Cambia azienda</p>
+          <p className="text-sm font-semibold">{t("Cambia azienda")}</p>
           <p className="text-xs text-muted-foreground">
-            Dati, permessi e moduli si aggiornano sull'azienda scelta.
+            {t("Dati, permessi e moduli si aggiornano sull'azienda scelta.")}
           </p>
         </div>
         {multiCompanyAccesses.length > 4 && (
@@ -114,16 +117,16 @@ export function MobileBrandSwitcher() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cerca azienda…"
+              placeholder={t("Cerca azienda…")}
               className="h-9 pl-8 text-base"
-              aria-label="Cerca azienda"
+              aria-label={t("Cerca azienda")}
             />
           </div>
         )}
         <div className="max-h-[60vh] overflow-y-auto pr-1 mt-1">
           {filtered.length === 0 ? (
             <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-              Nessuna azienda trovata
+              {t("Nessuna azienda trovata")}
             </div>
           ) : (
             filtered.map((access) => {
@@ -147,15 +150,15 @@ export function MobileBrandSwitcher() {
                     </AvatarFallback>
                   </Avatar>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">
+                    <span dir="auto" className="block truncate text-sm font-semibold">
                       {companyName}
                     </span>
                     <span className="block truncate text-[11px] text-muted-foreground">
-                      {roleLabel}
+                      {t(roleLabel)}
                     </span>
                   </span>
                   {selected && (
-                    <Check className="h-4 w-4 shrink-0 text-primary" aria-label="Azienda attiva" />
+                    <Check className="h-4 w-4 shrink-0 text-primary" aria-label={t("Azienda attiva")} />
                   )}
                 </button>
               );

@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { useVociImpostazioni } from "@/hooks/useVociImpostazioni";
 import { PIU_CERCATE, cercaImpostazioni, type VoceRicercabile } from "@/lib/impostazioni/indiceImpostazioni";
 import { confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SettingsSearchProps {
   /** Se true, mostra solo il dialog senza pulsante (controllato dal parent). */
@@ -42,6 +43,7 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
+  const t = useT();
   // Le impostazioni fuori dal piano, senza permesso o assenti da telefono non si cercano.
   const { voci } = useVociImpostazioni(open);
 
@@ -94,8 +96,8 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
     >
       <ArrowRight className="mr-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
-        <span className="block whitespace-normal font-medium">{entry.title}</span>
-        {entry.description && <span className="block whitespace-normal text-xs text-muted-foreground">{entry.description}</span>}
+        <span className="block whitespace-normal font-medium">{t(entry.title)}</span>
+        {entry.description && <span className="block whitespace-normal text-xs text-muted-foreground">{t(entry.description)}</span>}
       </div>
     </CommandItem>
   );
@@ -108,10 +110,10 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
           size="sm"
           className="gap-2 text-muted-foreground"
           onClick={() => setOpen(true)}
-          aria-label="Cerca nelle impostazioni"
+          aria-label={t("Cerca nelle impostazioni")}
         >
           <Search className="h-4 w-4" />
-          <span className="hidden md:inline">Cerca...</span>
+          <span className="hidden md:inline">{t("Cerca...")}</span>
           <kbd className="hidden md:inline pointer-events-none ml-2 select-none rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
             {tastoRicerca()}
           </kbd>
@@ -121,24 +123,24 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
       {/* shouldFilter={false}: il filtro è quello dell'indice (cercaImpostazioni), non quello di cmdk. */}
       <CommandDialog open={open} onOpenChange={setOpen} shouldFilter={false}>
         <CommandInput
-          placeholder="Cerca impostazioni (es. prezzo a mano, logo, firma, IBAN)"
+          placeholder={t("Cerca impostazioni (es. prezzo a mano, logo, firma, IBAN)")}
           value={query}
           onValueChange={setQuery}
         />
         {query.trim() && <p role="status" aria-live="polite" className="border-b px-4 py-2 text-xs text-muted-foreground">
-          {results.length === 1 ? "1 risultato" : `${results.length} risultati`} · Seleziona una voce per aprire la pagina o la sezione indicata
+          {t(results.length === 1 ? "{n} risultato · Seleziona una voce per aprire la pagina o la sezione indicata" : "{n} risultati · Seleziona una voce per aprire la pagina o la sezione indicata", { n: results.length })}
         </p>}
         <CommandList>
           {results.length === 0 && (
             <CommandEmpty>
-              Nessun risultato. Prova con un&apos;altra parola, per esempio «prezzo», «logo», «firma» o «fattura».
+              {t("Nessun risultato. Prova con un'altra parola, per esempio «prezzo», «logo», «firma» o «fattura».")}
             </CommandEmpty>
           )}
           {piuCercate.length > 0 && (
-            <CommandGroup heading="Le più cercate">{piuCercate.map((entry) => riga(entry, "piu:"))}</CommandGroup>
+            <CommandGroup heading={t("Le più cercate")}>{piuCercate.map((entry) => riga(entry, "piu:"))}</CommandGroup>
           )}
           {grouped.map(([group, items]) => (
-            <CommandGroup key={group} heading={group}>
+            <CommandGroup key={group} heading={t(group)}>
               {items.map((entry) => riga(entry, ""))}
             </CommandGroup>
           ))}

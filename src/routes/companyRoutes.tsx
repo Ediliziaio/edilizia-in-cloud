@@ -153,6 +153,7 @@ import { FeatureRoute } from "@/components/auth/FeatureRoute";
 // RequireCompanyPermission + CompanyPermissionKey usati via ./company/_shared
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CompanyLayout } from "@/components/layouts/CompanyLayout";
+import { LinguaCampoProvider } from "@/lib/campo/lingua/LinguaCampo";
 import { SoloTabletDesktop } from "@/components/layouts/SoloTabletDesktop";
 
 // Company pages
@@ -649,7 +650,11 @@ export default function CompanyRoutesContainer() {
             <CompanyAppGuard>
               <ErrorBoundary title="Errore nell'area azienda">
                 <BillingActivationGuard>
-                  <CompanyLayout />
+                  {/* Lingua anche nell'ufficio (23/11/2026): si traduce a blocchi, prima rumeno e albanese.
+                      Da destra a sinistra non ancora: le pagine non tradotte resterebbero girate al contrario. */}
+                  <LinguaCampoProvider rtl={false}>
+                    <CompanyLayout />
+                  </LinguaCampoProvider>
                 </BillingActivationGuard>
               </ErrorBoundary>
             </CompanyAppGuard>

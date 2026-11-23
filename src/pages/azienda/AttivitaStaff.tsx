@@ -17,7 +17,7 @@ import {
   format, isToday, isBefore, startOfDay, addDays,
   parseISO,
 } from "date-fns";
-import { it } from "date-fns/locale";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   Clock, ClipboardCheck, CheckCircle2, PlayCircle,
   CheckCircle, Loader2, ExternalLink, Palmtree, Receipt,
@@ -117,6 +117,7 @@ function InlineLoadError({
   description?: string;
   onRetry: () => void;
 }) {
+  const t = useT();
   return (
     <div className="rounded-lg border border-red-200 bg-red-50/70 p-4 text-sm text-red-900">
       <div className="flex items-start gap-3">
@@ -126,7 +127,7 @@ function InlineLoadError({
           {description && <p className="mt-1 text-xs text-red-800">{description}</p>}
         </div>
         <Button variant="outline" size="sm" className="h-7 border-red-200 bg-white text-red-700 hover:bg-red-100" onClick={onRetry}>
-          Riprova
+          {t("Riprova")}
         </Button>
       </div>
     </div>
@@ -165,9 +166,10 @@ function useCompanyLocation() {
 // ─────────────────────────────────────────────────────────────────────────────
 function AttivitaHeader() {
   const { profile } = useAuth();
-  const oggi = format(new Date(), "EEEE d MMMM yyyy", { locale: it });
+  const t = useT();
+  const oggi = format(new Date(), "EEEE d MMMM yyyy", { locale: dateFnsCampo() });
   const ora = new Date().getHours();
-  const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
+  const saluto = t(ora < 12 ? "Buongiorno, {nome}" : ora < 18 ? "Buon pomeriggio, {nome}" : "Buonasera, {nome}", { nome: profile?.first_name ?? "" });
 
   const isMobile = useIsMobile();
   // Su telefono niente data e saluto: la pagina parte dalle linguette.
@@ -176,7 +178,7 @@ function AttivitaHeader() {
     <div>
       <p className="text-muted-foreground text-xs sm:text-sm capitalize">{oggi}</p>
       <h1 className="text-xl sm:text-2xl font-bold">
-        {saluto}, {profile?.first_name ?? ""}
+        {saluto}
       </h1>
     </div>
   );
@@ -186,6 +188,7 @@ function AttivitaHeader() {
 // Widget Meteo
 // ─────────────────────────────────────────────────────────────────────────────
 function MeteoWidget({ compatto = false }: { compatto?: boolean }) {
+  const t = useT();
   const { data: location, isLoading: loadingLoc } = useCompanyLocation();
   // ?? garantisce coordinate stabili dal primo render, evita cambio query key
   // quando location carica (che causava il "meteo sparisce" durante il refetch)
@@ -214,13 +217,13 @@ function MeteoWidget({ compatto = false }: { compatto?: boolean }) {
       <Card>
         <CardContent className="p-4 text-center text-sm text-muted-foreground">
           <CloudSun className="h-8 w-8 mx-auto mb-1 opacity-40" />
-          <p>Meteo non disponibile</p>
+          <p>{t("Meteo non disponibile")}</p>
           {weatherError && (
             <button
               onClick={() => refetchWeather()}
               className="mt-2 text-xs text-primary underline hover:no-underline"
             >
-              Riprova
+              {t("Riprova")}
             </button>
           )}
         </CardContent>
@@ -247,7 +250,7 @@ function MeteoWidget({ compatto = false }: { compatto?: boolean }) {
           <span className="ml-auto flex items-center gap-2 shrink-0">
             {forecastDays.map(({ date, weather }) => (
               <span key={date} className="flex items-center gap-0.5">
-                <span className="capitalize">{format(new Date(date), "EEEEE", { locale: it })}</span>
+                <span className="capitalize">{format(new Date(date), "EEEEE", { locale: dateFnsCampo() })}</span>
                 <span className="leading-none">{weatherCodeToEmoji(weather.code)}</span>
                 <span className="tabular-nums text-foreground">{weather.maxTemp}°</span>
               </span>
@@ -268,7 +271,7 @@ function MeteoWidget({ compatto = false }: { compatto?: boolean }) {
               {todayWeather.maxTemp}°<span className="text-xs font-normal text-muted-foreground"> / {todayWeather.minTemp}°</span>
             </p>
             <p className="text-[10px] text-muted-foreground leading-none mt-0.5 flex items-center gap-1 truncate">
-              <MapPin className="h-2.5 w-2.5 shrink-0" />{location?.city ?? "Milano"} · {weatherCodeToLabel(todayWeather.code)}
+              <MapPin className="h-2.5 w-2.5 shrink-0" />{location?.city ?? "Milano"} · {t(weatherCodeToLabel(todayWeather.code))}
             </p>
           </div>
           {todayWeather.precip > 0 && (
@@ -280,7 +283,7 @@ function MeteoWidget({ compatto = false }: { compatto?: boolean }) {
             <div className="ml-auto flex items-center gap-3">
               {forecastDays.map(({ date, weather }) => (
                 <div key={date} className="flex items-center gap-1 text-[10px]">
-                  <span className="capitalize text-muted-foreground">{format(new Date(date), "EEE", { locale: it })}</span>
+                  <span className="capitalize text-muted-foreground">{format(new Date(date), "EEE", { locale: dateFnsCampo() })}</span>
                   <span className="text-base leading-none">{weatherCodeToEmoji(weather.code)}</span>
                   <span className="font-medium tabular-nums">{weather.maxTemp}°</span>
                 </div>
@@ -338,9 +341,10 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
 
 export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear, openTaskRequest, filter: controlledFilter, onFilterChange }: { initialDueDate?: AddTaskRequest | null; calendarDate?: string | null; onCalendarDateClear?: () => void; openTaskRequest?: { id: string; requestId: number } | null; filter?: TaskFilter; onFilterChange?: (filter: TaskFilter) => void }) {
   const { user, effectiveCompany, role } = useAuth();
+  const tr = useT();
   const isAdmin = role === "company_admin";
   const { canViewTeamTasks, solaLettura, canViewMarketingContacts, canViewMarketingOpportunities, canViewOrders, canEditOrders } = usePermissions();
-  const creaTitle = solaLettura ? "Sei in sola lettura" : undefined;
+  const creaTitle = solaLettura ? tr("Sei in sola lettura") : undefined;
   // La lista è sempre personale. Il permesso team abilita il passaggio alla
   // Regia, dove la lettura segue i permessi e la visibilità assegnata.
   const seesTeamTasks = isAdmin || canViewTeamTasks;
@@ -447,16 +451,16 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
     try {
       const { error } = await supabase.rpc("attivita_prendi_in_carico" as never, { p_task: id, p_rilascia: release } as never);
       if (error) throw error;
-      toast.success(release ? "Attività restituita all’area" : "Presa in carico confermata");
-    } catch (error) { toast.error(error instanceof Error ? error.message : String((error as { message?: string })?.message ?? "Presa in carico non confermata")); }
+      toast.success(release ? tr("Attività restituita all’area") : tr("Presa in carico confermata"));
+    } catch (error) { toast.error(error instanceof Error ? error.message : String((error as { message?: string })?.message ?? tr("Presa in carico non confermata"))); }
     finally { setClaimingTaskId(null); await invalidate(); }
   };
-  const checkWrite = () => { if (!companyId || !user?.id || solaLettura) throw new Error("Non puoi modificare le attività in questo momento."); };
+  const checkWrite = () => { if (!companyId || !user?.id || solaLettura) throw new Error(tr("Non puoi modificare le attività in questo momento.")); };
 
   const createTask = useMutation({
     mutationFn: async (task: { title: string; notes?: string; priority: string; due_date?: string; category: string; assigned_to?: string; ufficio_id?: string; order_id?: string; collegamento?: CollegamentoAttivita | null }) => {
       checkWrite();
-      if (task.order_id && !canLinkOrder) throw new Error("Non puoi collegare attività a questa commessa.");
+      if (task.order_id && !canLinkOrder) throw new Error(tr("Non puoi collegare attività a questa commessa."));
       const { data, error } = await supabase.from("tasks").insert({
         company_id: companyId!, ...taskAssignment({ officeId: task.ufficio_id, assigneeId: task.assigned_to, userId: user!.id, offices: availableOffices, canAssignOthers: isAdmin }), created_by: user!.id,
         title: task.title, notes: task.notes || null,
@@ -468,12 +472,12 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
         ...collegamentiDelModulo(task.collegamento),
       } as any).select("id").single();
       if (error) throw error;
-      if (!data?.id) throw new Error("Creazione dell’attività non confermata.");
+      if (!data?.id) throw new Error(tr("Creazione dell’attività non confermata."));
       return data;
     },
-    onSuccess: async (_data, variables) => { toast.success("Attività creata"); if (variables.order_id) invalidateOfficeWorkspace(queryClient, variables.order_id); await invalidate(); },
+    onSuccess: async (_data, variables) => { toast.success(tr("Attività creata")); if (variables.order_id) invalidateOfficeWorkspace(queryClient, variables.order_id); await invalidate(); },
     onSettled: () => { taskSaveRef.current = false; },
-    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
+    onError: (err: any) => { toast.error(tr("Errore: {messaggio}", { messaggio: err.message ?? tr("Riprovare") })); void invalidate(); },
   });
 
   const updateTask = useMutation({
@@ -485,9 +489,9 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
       const { error } = await q.select("id").single();
       if (error) throw error;
     },
-    onSuccess: async (_data, variables) => { toast.success("Attività aggiornata"); if (variables.order_id) invalidateOfficeWorkspace(queryClient, variables.order_id); await invalidate(); },
+    onSuccess: async (_data, variables) => { toast.success(tr("Attività aggiornata")); if (variables.order_id) invalidateOfficeWorkspace(queryClient, variables.order_id); await invalidate(); },
     onSettled: () => { taskSaveRef.current = false; },
-    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
+    onError: (err: any) => { toast.error(tr("Errore: {messaggio}", { messaggio: err.message ?? tr("Riprovare") })); void invalidate(); },
   });
 
   const deleteTask = useMutation({
@@ -499,8 +503,8 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
       const { error } = await q.select("id").single();
       if (error) throw error;
     },
-    onSuccess: async () => { toast.success("Attività eliminata"); await invalidate(); },
-    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
+    onSuccess: async () => { toast.success(tr("Attività eliminata")); await invalidate(); },
+    onError: (err: any) => { toast.error(tr("Errore: {messaggio}", { messaggio: err.message ?? tr("Riprovare") })); void invalidate(); },
   });
 
   // Bulk update mutation
@@ -513,15 +517,15 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
 
       const { data, error } = await q.select("id");
       if (error) throw error;
-      if (data?.length !== new Set(ids).size) throw new Error("Alcune attività non sono più modificabili. Aggiorna la lista prima di riprovare.");
+      if (data?.length !== new Set(ids).size) throw new Error(tr("Alcune attività non sono più modificabili. Aggiorna la lista prima di riprovare."));
     },
     onSuccess: async (_, { ids, status }) => {
       const label = getTaskStatusLabel(status, taskStatuses);
-      toast.success(`${ids.length} attività → ${label}`);
+      toast.success(tr("{n} attività → {stato}", { n: ids.length, stato: tr(label) }));
       setSelectedIds(new Set());
       await invalidate();
     },
-    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
+    onError: (err: any) => { toast.error(tr("Errore: {messaggio}", { messaggio: err.message ?? tr("Riprovare") })); void invalidate(); },
   });
 
   const bulkDelete = useMutation({
@@ -532,14 +536,14 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
 
       const { data, error } = await q.select("id");
       if (error) throw error;
-      if (data?.length !== new Set(ids).size) throw new Error("Alcune attività non sono più modificabili. Aggiorna la lista prima di riprovare.");
+      if (data?.length !== new Set(ids).size) throw new Error(tr("Alcune attività non sono più modificabili. Aggiorna la lista prima di riprovare."));
     },
     onSuccess: async (_, ids) => {
-      toast.success(`${ids.length} attività eliminate`);
+      toast.success(tr("{n} attività eliminate", { n: ids.length }));
       setSelectedIds(new Set());
       await invalidate();
     },
-    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
+    onError: (err: any) => { toast.error(tr("Errore: {messaggio}", { messaggio: err.message ?? tr("Riprovare") })); void invalidate(); },
   });
 
   const postponeMutation = useMutation({
@@ -551,8 +555,8 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
       const { error } = await q.select("id").single();
       if (error) throw error;
     },
-    onSuccess: async () => { toast.success("Scadenza posticipata di 7 giorni"); await invalidate(); },
-    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
+    onSuccess: async () => { toast.success(tr("Scadenza posticipata di 7 giorni")); await invalidate(); },
+    onError: (err: any) => { toast.error(tr("Errore: {messaggio}", { messaggio: err.message ?? tr("Riprovare") })); void invalidate(); },
   });
 
   const mutationBusy = createTask.isPending || updateTask.isPending || deleteTask.isPending || bulkUpdateStatus.isPending || bulkDelete.isPending || postponeMutation.isPending;
@@ -605,13 +609,13 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
 
   const handleSave = () => {
     if (readOnlyDialog || mutationBusy || taskSaveRef.current) return;
-    if (!formTitle.trim()) { toast.error("Inserisci un titolo"); return; }
-    if (formTitle.trim().length > 250) { toast.error("Il titolo può contenere al massimo 250 caratteri"); return; }
+    if (!formTitle.trim()) { toast.error(tr("Inserisci un titolo")); return; }
+    if (formTitle.trim().length > 250) { toast.error(tr("Il titolo può contenere al massimo 250 caratteri")); return; }
     const assignmentChanged = !editingTask || (editingTask.assigned_to ?? "") !== formAssignedTo;
-    if (assignmentChanged && (offices.isLoading || offices.isError)) { toast.error("Attendi il caricamento delle aree o riprova."); return; }
+    if (assignmentChanged && (offices.isLoading || offices.isError)) { toast.error(tr("Attendi il caricamento delle aree o riprova.")); return; }
     if (assignmentChanged) {
       try { taskAssignment({ officeId: formOffice, assigneeId: formAssignedTo, userId: user!.id, offices: availableOffices, canAssignOthers: isAdmin }); }
-      catch (error) { toast.error(error instanceof Error ? error.message : "Assegnazione non disponibile"); return; }
+      catch (error) { toast.error(error instanceof Error ? error.message : tr("Assegnazione non disponibile")); return; }
     }
     taskSaveRef.current = true;
     if (editingTask) {
@@ -704,36 +708,36 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               disabled={blocked || mutationBusy}
               onChange={() => toggleSelect(t.id)}
               className="h-4 w-4 rounded border-muted-foreground/40 accent-primary shrink-0"
-              aria-label={isSelected ? "Deseleziona attività" : "Seleziona attività"}
+              aria-label={isSelected ? tr("Deseleziona attività") : tr("Seleziona attività")}
             />
           ) : (
             <button
               onClick={() => !isDone && !blocked && canManage && markDone(t)}
               disabled={isDone || blocked || !canManage}
               className={`shrink-0 transition-colors ${isDone ? "text-green-500" : canManage ? "text-muted-foreground/30 hover:text-green-500" : "text-muted-foreground/20"}`}
-              aria-label={`${isDone ? "Attività completata" : blocked ? "Attività in attesa" : `Passa a ${nextStatus.label}`}: ${t.title}`}
-              title={isDone ? "Completata" : blocked ? "In attesa dell’attività precedente" : canManage ? `Passa a ${nextStatus.label}` : "Attività in sola lettura"}
+              aria-label={`${isDone ? tr("Attività completata") : blocked ? tr("Attività in attesa") : tr("Passa a {stato}", { stato: tr(nextStatus.label) })}: ${t.title}`}
+              title={isDone ? tr("Completata") : blocked ? tr("In attesa dell’attività precedente") : canManage ? tr("Passa a {stato}", { stato: tr(nextStatus.label) }) : tr("Attività in sola lettura")}
             >
               {isDone ? <CheckCircle className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
             </button>
           )}
           {/* Title */}
-          <button type="button" className={`flex-1 truncate text-left ${isDone ? "line-through text-muted-foreground" : ""}`} onClick={() => openEdit(t)}>{t.title}</button>
+          <button type="button" dir="auto" className={`flex-1 truncate text-left ${isDone ? "line-through text-muted-foreground" : ""}`} onClick={() => openEdit(t)}>{t.title}</button>
           {/* Assignee avatar */}
           {assigneeName && (
             <span className="text-[10px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 px-1.5 py-0.5 rounded-full shrink-0 font-medium">{assigneeName.split(" ").map((n: string) => n[0]).join("")}</span>
           )}
           {/* Priority dot */}
-          <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} title={cfg.label} />
+          <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} title={tr(cfg.label)} />
           {/* Due date */}
           {t.ufficio_id && <span className="text-xs" onClick={e => e.stopPropagation()}>
-              <span>{(offices.data ?? []).find(o => o.id === t.ufficio_id)?.nome ?? "Area"} · {t.assignee ? [t.assignee.first_name,t.assignee.last_name].filter(Boolean).join(" ") : "Da prendere in carico"}</span>
+              <span>{(offices.data ?? []).find(o => o.id === t.ufficio_id)?.nome ?? tr("Area")} · {t.assignee ? [t.assignee.first_name,t.assignee.last_name].filter(Boolean).join(" ") : tr("Da prendere in carico")}</span>
               {!solaLettura && !isDone && (!t.assigned_to || t.assigned_to === user?.id) &&
-                <Button variant="outline" size="sm" disabled={claimingTaskId !== null} onClick={() => void claimAreaTask(t.id, !!t.assigned_to)}>{t.assigned_to ? "Rilascia all’area" : "Me ne occupo io"}</Button>}
+                <Button variant="outline" size="sm" disabled={claimingTaskId !== null} onClick={() => void claimAreaTask(t.id, !!t.assigned_to)}>{t.assigned_to ? tr("Rilascia all’area") : tr("Me ne occupo io")}</Button>}
             </span>}
             {t.due_date && (
             <span className={`text-[10px] shrink-0 ${scaduta ? "text-red-500 font-semibold" : isToday(parseISO(t.due_date.slice(0, 10))) ? "text-amber-600" : "text-muted-foreground"}`}>
-              {isToday(parseISO(t.due_date.slice(0, 10))) ? "Oggi" : format(parseISO(t.due_date.slice(0, 10)), "d/MM", { locale: it })}
+              {isToday(parseISO(t.due_date.slice(0, 10))) ? tr("Oggi") : format(parseISO(t.due_date.slice(0, 10)), "d/MM", { locale: dateFnsCampo() })}
             </span>
           )}
           {/* Posticipa +7gg — visibile subito sulle scadute */}
@@ -741,8 +745,8 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
             <button
               onClick={(e) => { e.stopPropagation(); postponeMutation.mutate({ id: t.id, newDate: format(addDays(new Date(), 7), "yyyy-MM-dd") }); }}
               className="p-1 -m-0.5 text-amber-500 hover:text-amber-600 shrink-0 transition-colors"
-              title="Posticipa di 7 giorni"
-              aria-label="Posticipa di 7 giorni"
+              title={tr("Posticipa di 7 giorni")}
+              aria-label={tr("Posticipa di 7 giorni")}
             >
               <CalendarClock className="h-3.5 w-3.5" />
             </button>
@@ -750,10 +754,10 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
           {/* Quick actions: visibili sempre su mobile (no hover), opacity transition solo su md+ */}
           {canManage && (
             <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity">
-              <button onClick={() => openEdit(t)} className="p-1 -m-0.5 text-muted-foreground hover:text-foreground" title="Modifica" aria-label="Modifica attività">
+              <button onClick={() => openEdit(t)} className="p-1 -m-0.5 text-muted-foreground hover:text-foreground" title={tr("Modifica")} aria-label={tr("Modifica attività")}>
                 <Pencil className="h-3.5 w-3.5" />
               </button>
-              <button onClick={() => setTaskToDelete(t.id)} className="p-1 -m-0.5 text-muted-foreground hover:text-red-500" title="Elimina" aria-label="Elimina attività">
+              <button onClick={() => setTaskToDelete(t.id)} className="p-1 -m-0.5 text-muted-foreground hover:text-red-500" title={tr("Elimina")} aria-label={tr("Elimina attività")}>
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -776,15 +780,15 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               disabled={blocked || mutationBusy}
               onChange={() => toggleSelect(t.id)}
               className="h-[18px] w-[18px] rounded border-muted-foreground/40 accent-primary"
-              aria-label={isSelected ? "Deseleziona attività" : "Seleziona attività"}
+              aria-label={isSelected ? tr("Deseleziona attività") : tr("Seleziona attività")}
             />
           ) : (
             <button
               onClick={() => !isDone && !blocked && canManage && markDone(t)}
               disabled={isDone || blocked || !canManage}
               className={`tap-compact -m-1 p-1 transition-colors ${isDone ? "text-green-500" : canManage ? "text-muted-foreground/30 hover:text-green-500" : "text-muted-foreground/20"}`}
-              aria-label={`${isDone ? "Attività completata" : blocked ? "Attività in attesa" : `Passa a ${nextStatus.label}`}: ${t.title}`}
-              title={isDone ? "Completata" : blocked ? "In attesa dell’attività precedente" : canManage ? `Passa a ${nextStatus.label}` : "Attività in sola lettura"}
+              aria-label={`${isDone ? tr("Attività completata") : blocked ? tr("Attività in attesa") : tr("Passa a {stato}", { stato: tr(nextStatus.label) })}: ${t.title}`}
+              title={isDone ? tr("Completata") : blocked ? tr("In attesa dell’attività precedente") : canManage ? tr("Passa a {stato}", { stato: tr(nextStatus.label) }) : tr("Attività in sola lettura")}
             >
               {isDone ? <CheckCircle className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
             </button>
@@ -795,25 +799,25 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
             una sola riga meta. La priorità è un pallino colorato: non ruba
             spazio al titolo e alleggerisce il testo. */}
         <div className="flex-1 min-w-0">
-          <button type="button" onClick={() => openEdit(t)} className={`w-full text-left font-medium text-[13px] leading-snug line-clamp-2 ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</button>
+          <button type="button" dir="auto" onClick={() => openEdit(t)} className={`w-full text-left font-medium text-[13px] leading-snug line-clamp-2 ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</button>
           {/* Riga meta su UNA sola riga: priorità (pallino) · stato · scadenza.
               overflow-hidden: le voci meno importanti (categoria/assegnatario/
               ordine) si troncano invece di mandare a capo la card. */}
           <div className="mt-1 flex items-center gap-1.5 overflow-hidden text-[11px] text-muted-foreground">
-            <span className={`h-2 w-2 shrink-0 rounded-full ${cfg.dotClass}`} title={`Priorità ${cfg.label}`} />
+            <span className={`h-2 w-2 shrink-0 rounded-full ${cfg.dotClass}`} title={tr("Priorità {livello}", { livello: tr(cfg.label) })} />
             {/* Telefono: «Da fare» è lo stato di quasi tutte e non distingue niente; gli altri stati restano. */}
             <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 shrink-0", stCfg.className, stCfg.label === "Da fare" && "max-sm:hidden")}>{stCfg.label}</Badge>
             {t.ufficio_id && <span className="text-xs" onClick={e => e.stopPropagation()}>
-              <span>{(offices.data ?? []).find(o => o.id === t.ufficio_id)?.nome ?? "Area"} · {t.assignee ? [t.assignee.first_name,t.assignee.last_name].filter(Boolean).join(" ") : "Da prendere in carico"}</span>
+              <span>{(offices.data ?? []).find(o => o.id === t.ufficio_id)?.nome ?? tr("Area")} · {t.assignee ? [t.assignee.first_name,t.assignee.last_name].filter(Boolean).join(" ") : tr("Da prendere in carico")}</span>
               {!solaLettura && !isDone && (!t.assigned_to || t.assigned_to === user?.id) &&
-                <Button variant="outline" size="sm" disabled={claimingTaskId !== null} onClick={() => void claimAreaTask(t.id, !!t.assigned_to)}>{t.assigned_to ? "Rilascia all’area" : "Me ne occupo io"}</Button>}
+                <Button variant="outline" size="sm" disabled={claimingTaskId !== null} onClick={() => void claimAreaTask(t.id, !!t.assigned_to)}>{t.assigned_to ? tr("Rilascia all’area") : tr("Me ne occupo io")}</Button>}
             </span>}
             {t.due_date && (
               <span className={`shrink-0 ${scaduta ? "text-red-500 font-semibold" : isDone ? "" : isToday(parseISO(t.due_date.slice(0, 10))) ? "text-amber-600 font-medium" : ""}`}>
-                {isToday(parseISO(t.due_date.slice(0, 10))) ? "Oggi" : format(parseISO(t.due_date.slice(0, 10)), t.due_date.slice(0, 4) === String(today.getFullYear()) ? "d MMM" : "d MMM yyyy", { locale: it })}
+                {isToday(parseISO(t.due_date.slice(0, 10))) ? tr("Oggi") : format(parseISO(t.due_date.slice(0, 10)), t.due_date.slice(0, 4) === String(today.getFullYear()) ? "d MMM" : "d MMM yyyy", { locale: dateFnsCampo() })}
               </span>
             )}
-            {catLabel && <span className="flex min-w-0 items-center gap-1"><Tag className="w-3 h-3 shrink-0" /><span className="truncate">{catLabel}</span></span>}
+            {catLabel && <span className="flex min-w-0 items-center gap-1"><Tag className="w-3 h-3 shrink-0" /><span className="truncate">{tr(catLabel)}</span></span>}
             {assigneeName && <span className="flex shrink-0 items-center gap-1 text-violet-600 dark:text-violet-400 font-medium"><Users className="w-3 h-3" />{assigneeName}</span>}
             {/* Telefono: il codice commessa non si ripete se è già nel titolo. */}
             {t.order?.order_code && (canViewOrders && t.order_id ? <Link to={`/azienda/ordini/${t.order_id}`} onClick={(e) => e.stopPropagation()} className={cn("flex shrink-0 items-center gap-1 hover:text-foreground transition-colors", t.title.includes(t.order.order_code) && "max-sm:hidden")}><ExternalLink className="w-3 h-3" />{t.order.order_code}</Link> : <span>{t.order.order_code}</span>)}
@@ -822,13 +826,13 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                 to={hrefCollegata}
                 onClick={(e) => e.stopPropagation()}
                 className="flex min-w-0 items-center gap-1 text-foreground/70 hover:text-foreground hover:underline transition-colors"
-                title={collegata.icona === "opportunita" ? "Apri l'opportunità collegata" : "Apri il contatto collegato"}
+                title={collegata.icona === "opportunita" ? tr("Apri l'opportunità collegata") : tr("Apri il contatto collegato")}
               >
                 {collegata.icona === "opportunita" ? <Target className="w-3 h-3 shrink-0" /> : <UserIcon className="w-3 h-3 shrink-0" />}
                 <span className="truncate">{collegata.testo}</span>
               </Link>
             ) : (
-              <span className="flex min-w-0 items-center gap-1 text-foreground/70" title={collegata.icona === "opportunita" ? "Opportunità collegata" : "Cliente collegato"}>
+              <span className="flex min-w-0 items-center gap-1 text-foreground/70" title={collegata.icona === "opportunita" ? tr("Opportunità collegata") : tr("Cliente collegato")}>
                 {collegata.icona === "opportunita" ? <Target className="w-3 h-3 shrink-0" /> : <UserIcon className="w-3 h-3 shrink-0" />}
                 <span className="truncate">{collegata.testo}</span>
               </span>
@@ -839,16 +843,16 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
         {/* Actions */}
         {canManage && <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity" aria-label="Azioni attività"><MoreHorizontal className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity" aria-label={tr("Azioni attività")}><MoreHorizontal className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {/* Mobile: «Modifica» è il tocco sulla card e «Segna come fatta» il cerchio. */}
-            {!isMobile && <DropdownMenuItem onClick={() => openEdit(t)}><Pencil className="h-3.5 w-3.5 mr-2" />Modifica</DropdownMenuItem>}
-            {!isDone && !blocked && !isMobile && <DropdownMenuItem onClick={() => markDone(t)}><CheckCircle2 className="h-3.5 w-3.5 mr-2" />Passa a {nextStatus.label}</DropdownMenuItem>}
-            {scaduta && <DropdownMenuItem onClick={() => postponeMutation.mutate({ id: t.id, newDate: format(addDays(new Date(), 7), "yyyy-MM-dd") })}><CalendarClock className="h-3.5 w-3.5 mr-2" />Posticipa +7 giorni</DropdownMenuItem>}
-            {t.status === "da_fare" && <DropdownMenuItem onClick={() => updateTask.mutate({ id: t.id, status: "in_corso" })}><PlayCircle className="h-3.5 w-3.5 mr-2" />Inizia (In corso)</DropdownMenuItem>}
+            {!isMobile && <DropdownMenuItem onClick={() => openEdit(t)}><Pencil className="h-3.5 w-3.5 mr-2" />{tr("Modifica")}</DropdownMenuItem>}
+            {!isDone && !blocked && !isMobile && <DropdownMenuItem onClick={() => markDone(t)}><CheckCircle2 className="h-3.5 w-3.5 mr-2" />{tr("Passa a {stato}", { stato: tr(nextStatus.label) })}</DropdownMenuItem>}
+            {scaduta && <DropdownMenuItem onClick={() => postponeMutation.mutate({ id: t.id, newDate: format(addDays(new Date(), 7), "yyyy-MM-dd") })}><CalendarClock className="h-3.5 w-3.5 mr-2" />{tr("Posticipa +7 giorni")}</DropdownMenuItem>}
+            {t.status === "da_fare" && <DropdownMenuItem onClick={() => updateTask.mutate({ id: t.id, status: "in_corso" })}><PlayCircle className="h-3.5 w-3.5 mr-2" />{tr("Inizia (In corso)")}</DropdownMenuItem>}
             {(!isMobile || scaduta || t.status === "da_fare") && <DropdownMenuSeparator />}
-            <DropdownMenuItem className="text-red-600" onClick={() => setTaskToDelete(t.id)}><Trash2 className="h-3.5 w-3.5 mr-2" />Elimina</DropdownMenuItem>
+            <DropdownMenuItem className="text-red-600" onClick={() => setTaskToDelete(t.id)}><Trash2 className="h-3.5 w-3.5 mr-2" />{tr("Elimina")}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>}
       </div>
@@ -862,7 +866,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
       <div key={key} className="space-y-1.5">
         <button aria-expanded={!isCollapsed} onClick={() => toggleGroup(key)} className="flex items-center gap-2 w-full text-left py-1 hover:bg-muted/30 rounded px-1 -mx-1">
           <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isCollapsed ? "" : "rotate-90"}`} />
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{key}</span>
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{tr(key)}</span>
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{tasks.length}</Badge>
         </button>
         {!isCollapsed && <div className={compact ? "space-y-1" : "space-y-2"}>{tasks.map(renderTask)}</div>}
@@ -879,24 +883,24 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
 
   return (
     <>
-      <Card data-testid="dashboard-task-manager" role="region" aria-label="Gestione delle attività">
+      <Card data-testid="dashboard-task-manager" role="region" aria-label={tr("Gestione delle attività")}>
         <CardHeader className="p-3 sm:p-4 sm:pb-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <h2 className="flex items-center gap-2 text-base font-semibold shrink-0 max-md:text-[15px]">
-                <ClipboardCheck className="h-4 w-4 text-primary" /><span className="max-sm:hidden">Attività mie e delle mie aree</span>
+                <ClipboardCheck className="h-4 w-4 text-primary" /><span className="max-sm:hidden">{tr("Attività mie e delle mie aree")}</span>
                 {/* Telefono: titolo corto, così «+ Nuova» resta sulla stessa riga. */}
-                <span className="sm:hidden">Attività</span>
+                <span className="sm:hidden">{tr("Attività")}</span>
                 {!calendarDate && stats.total > 0 && <Badge variant="secondary" className="text-xs">{stats.total}</Badge>}
               </h2>
               {calendarDate && (
                 <button
                   onClick={() => { onCalendarDateClear?.(); }}
                   className="tap-compact inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
-                  title="Rimuovi filtro data"
+                  title={tr("Rimuovi filtro data")}
                 >
                   <CalendarDays className="h-3 w-3" />
-                  {format(parseISO(calendarDate), calendarDate.slice(0, 4) === String(today.getFullYear()) ? "d MMM" : "d MMM yyyy", { locale: it })}
+                  {format(parseISO(calendarDate), calendarDate.slice(0, 4) === String(today.getFullYear()) ? "d MMM" : "d MMM yyyy", { locale: dateFnsCampo() })}
                   <X className="h-3 w-3 opacity-60" />
                 </button>
               )}
@@ -905,7 +909,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft: `Cosa conta ora? Ho ${stats.overdue > 0 ? `${stats.overdue} attività scadute` : "alcune attività aperte"} — dimmi cosa prioritizzare oggi.` } }))}
                 className="hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-xs font-medium bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 transition-colors dark:bg-orange-950/20 dark:text-orange-300 dark:border-orange-900/40"
-                title="Chiedi a Silvio come prioritizzare"
+                title={tr("Chiedi a Silvio come prioritizzare")}
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 {/* A 768px la colonna è di 320px: solo l'icona, se no «Nuova» va a capo. */}
@@ -915,10 +919,10 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                   di aggiunta veloce (titolo e invio). Silvio ha già il bottone
                   centrale in basso. */}
               <Button size="sm" className="hidden sm:inline-flex h-8 gap-1.5" disabled={solaLettura || mutationBusy} title={creaTitle} onClick={() => openCreate(calendarDate || undefined)}>
-                <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Nuova</span>
+                <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">{tr("Nuova")}</span>
               </Button>
               <Button size="sm" className="tap-compact sm:hidden h-8 gap-1 px-3" disabled={solaLettura} title={creaTitle} onClick={apriAggiunta}>
-                <Plus className="h-4 w-4" />Nuova
+                <Plus className="h-4 w-4" />{tr("Nuova")}
               </Button>
             </div>
           </div>
@@ -940,7 +944,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
             ] as const).map(f => (
               <button key={f.key} aria-pressed={!calendarDate && filter === f.key} onClick={() => { onCalendarDateClear?.(); setFilter(f.key); setSelectedIds(new Set()); }}
                 className={`tap-compact inline-flex shrink-0 items-center gap-1 h-8 md:h-7 px-3 sm:px-2.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${!calendarDate && filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
-                {f.label}
+                {tr(f.label)}
                 {/* Il totale da tablet è già accanto al titolo: su «Tutte» era un doppione. */}
                 {f.count != null && f.count > 0 && <span className={`text-[10px] ${filter === f.key ? "opacity-80" : ""} ${f.key === "tutte" ? "sm:hidden" : ""}`}>({f.count})</span>}
               </button>
@@ -952,23 +956,23 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
           <div className="flex flex-row items-center gap-2 mt-2">
             <div className="flex-1 min-w-0 relative">
               <Input
-                aria-label="Cerca attività" placeholder="Cerca attività..."
+                aria-label={tr("Cerca attività")} placeholder={tr("Cerca attività...")}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="h-9 text-base md:text-sm pl-8"
               />
               <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground" aria-label="Pulisci ricerca"><X className="h-3 w-3" /></button>}
+              {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground" aria-label={tr("Pulisci ricerca")}><X className="h-3 w-3" /></button>}
             </div>
             {/* Mobile: raggruppamento e opzioni della lista personale. */}
             <button
               type="button"
               onClick={() => setFiltriAperti(true)}
               className="sm:hidden inline-flex items-center gap-1.5 h-9 max-w-[45%] shrink-0 rounded-md border bg-background px-2.5 text-xs font-medium"
-              aria-label="Filtri attività"
+              aria-label={tr("Filtri attività")}
             >
               <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="truncate">Opzioni</span>
+              <span className="truncate">{tr("Opzioni")}</span>
               {(groupBy !== "none" || areaView !== "all") && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />}
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </button>
@@ -978,20 +982,20 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                   la vista non è quella di base. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="relative h-9 w-9 shrink-0 p-0" aria-label="Opzioni della lista">
+                  <Button variant="outline" size="sm" className="relative h-9 w-9 shrink-0 p-0" aria-label={tr("Opzioni della lista")}>
                     <MoreHorizontal className="h-4 w-4" />
                     {(groupBy !== "none" || compact) && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">Raggruppa per</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">{tr("Raggruppa per")}</DropdownMenuLabel>
                   <DropdownMenuRadioGroup value={groupBy} onValueChange={v => { setGroupBy(v as GroupBy); setCollapsedGroups(new Set()); }}>
-                    {GROUP_OPTIONS.map(g => <DropdownMenuRadioItem key={g.value} value={g.value}>{g.value === "none" ? "Nessun gruppo" : g.label}</DropdownMenuRadioItem>)}
+                    {GROUP_OPTIONS.map(g => <DropdownMenuRadioItem key={g.value} value={g.value}>{g.value === "none" ? tr("Nessun gruppo") : tr(g.label)}</DropdownMenuRadioItem>)}
                   </DropdownMenuRadioGroup>
                   <DropdownMenuSeparator />
-                  <DropdownMenuCheckboxItem checked={compact} onCheckedChange={v => setCompact(v === true)}>Vista compatta</DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem checked={compact} onCheckedChange={v => setCompact(v === true)}>{tr("Vista compatta")}</DropdownMenuCheckboxItem>
                   <DropdownMenuItem onClick={() => setSelectionMode(v => { if (v) setSelectedIds(new Set()); return !v; })}>
-                    <ListChecks className="mr-2 h-3.5 w-3.5" />{selectionMode ? "Esci dalla selezione" : "Seleziona più attività"}
+                    <ListChecks className="mr-2 h-3.5 w-3.5" />{selectionMode ? tr("Esci dalla selezione") : tr("Seleziona più attività")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1003,8 +1007,8 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
           {/* Sul telefono la scelta «di chi» sta nel pannello «Opzioni»: qui era una riga intera
               in più tra la ricerca e l'elenco. */}
           <Select value={areaView} onValueChange={setAreaView}>
-            <SelectTrigger aria-label="Ambito attività" className="mb-3 max-sm:hidden"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">Mie e delle mie aree</SelectItem><SelectItem value="personal">Solo individuali</SelectItem>
+            <SelectTrigger aria-label={tr("Ambito attività")} className="mb-3 max-sm:hidden"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">{tr("Mie e delle mie aree")}</SelectItem><SelectItem value="personal">{tr("Solo individuali")}</SelectItem>
               {(offices.data ?? []).filter(o => o.membri.includes(user?.id ?? "")).map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -1013,36 +1017,36 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
           {(hasSelection || selectionMode) && (
             <div className="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                <input type="checkbox" checked={selectedIds.size > 0 && selectedIds.size === visibleTasks.filter(t => !solaLettura && !isTaskBlockedStatus(t.status, taskStatuses) && (isAdmin || t.assigned_to === user?.id)).length} onChange={selectAll} className="h-4 w-4 accent-primary shrink-0" aria-label="Seleziona le attività gestibili di questa pagina" />
+                <input type="checkbox" checked={selectedIds.size > 0 && selectedIds.size === visibleTasks.filter(t => !solaLettura && !isTaskBlockedStatus(t.status, taskStatuses) && (isAdmin || t.assigned_to === user?.id)).length} onChange={selectAll} className="h-4 w-4 accent-primary shrink-0" aria-label={tr("Seleziona le attività gestibili di questa pagina")} />
                 <span className="text-xs font-medium truncate">
                   {selectedIds.size > 0
-                    ? `${selectedIds.size} ${selectedIds.size === 1 ? "selezionata" : "selezionate"}`
-                    : "Tocca le attività da selezionare"}
+                    ? tr(selectedIds.size === 1 ? "{n} selezionata" : "{n} selezionate", { n: selectedIds.size })
+                    : tr("Tocca le attività da selezionare")}
                 </span>
-                <button onClick={() => { setSelectedIds(new Set()); setSelectionMode(false); }} className="p-1 text-muted-foreground hover:text-foreground ml-auto sm:hidden" aria-label="Chiudi selezione"><X className="h-4 w-4" /></button>
+                <button onClick={() => { setSelectedIds(new Set()); setSelectionMode(false); }} className="p-1 text-muted-foreground hover:text-foreground ml-auto sm:hidden" aria-label={tr("Chiudi selezione")}><X className="h-4 w-4" /></button>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
                 <Button size="sm" variant="outline" disabled={solaLettura || mutationBusy || selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "completata" })}>
-                  <CheckCircle className="h-3.5 w-3.5" />Fatte
+                  <CheckCircle className="h-3.5 w-3.5" />{tr("Fatte")}
                 </Button>
                 <Button size="sm" variant="outline" disabled={solaLettura || mutationBusy || selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "in_corso" })}>
-                  <PlayCircle className="h-3.5 w-3.5" />In corso
+                  <PlayCircle className="h-3.5 w-3.5" />{tr("In corso")}
                 </Button>
                 <Button size="sm" variant="outline" disabled={solaLettura || mutationBusy || selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "da_fare" })}>
-                  <Circle className="h-3.5 w-3.5" />Da fare
+                  <Circle className="h-3.5 w-3.5" />{tr("Da fare")}
                 </Button>
                 <Button size="sm" variant="outline" disabled={solaLettura || mutationBusy || selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none text-red-600 hover:text-red-700" onClick={() => setBulkConfirmOpen(true)}>
-                  <Trash2 className="h-3.5 w-3.5" />Elimina
+                  <Trash2 className="h-3.5 w-3.5" />{tr("Elimina")}
                 </Button>
-                <button onClick={() => { setSelectedIds(new Set()); setSelectionMode(false); }} className="hidden sm:inline-flex p-1 text-muted-foreground hover:text-foreground ml-1" aria-label="Chiudi selezione"><X className="h-3.5 w-3.5" /></button>
+                <button onClick={() => { setSelectedIds(new Set()); setSelectionMode(false); }} className="hidden sm:inline-flex p-1 text-muted-foreground hover:text-foreground ml-1" aria-label={tr("Chiudi selezione")}><X className="h-3.5 w-3.5" /></button>
               </div>
             </div>
           )}
 
           {isError ? (
             <InlineLoadError
-              title="Errore nel caricamento attività"
-              description={error instanceof Error ? error.message : "Non riesco a leggere le attività in questo momento."}
+              title={tr("Errore nel caricamento attività")}
+              description={error instanceof Error ? error.message : tr("Non riesco a leggere le attività in questo momento.")}
               onRetry={() => refetch()}
             />
           ) : isLoading ? (
@@ -1053,27 +1057,27 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               {(!isMobile || aggiuntaAperta) && (
               <div className="flex items-center gap-2">
                 <div className="flex-1 relative">
-                  <Input ref={quickAddRef} aria-label="Titolo della nuova attività rapida" placeholder={solaLettura ? "Sei in sola lettura" : "Aggiungi attività…"} value={quickAddTitle}
+                  <Input ref={quickAddRef} aria-label={tr("Titolo della nuova attività rapida")} placeholder={solaLettura ? tr("Sei in sola lettura") : tr("Aggiungi attività…")} value={quickAddTitle}
                     disabled={solaLettura || mutationBusy}
                     onBlur={() => { if (isMobile && !quickAddTitle.trim()) setAggiuntaAperta(false); }}
                     onChange={e => setQuickAddTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !createTask.isPending) handleQuickAdd(); if (e.key === "Escape") { setQuickAddTitle(""); quickAddRef.current?.blur(); } }}
                     className="h-9 text-base md:text-sm pr-8" />
-                  {quickAddTitle && <button aria-label="Cancella il titolo della nuova attività" onClick={() => setQuickAddTitle("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
+                  {quickAddTitle && <button aria-label={tr("Cancella il titolo della nuova attività")} onClick={() => setQuickAddTitle("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
                 </div>
-                <Button variant="outline" size="sm" className="h-9 shrink-0" aria-label="Aggiungi attività rapida" onClick={handleQuickAdd} disabled={solaLettura || !quickAddTitle.trim() || mutationBusy} title={creaTitle}>
+                <Button variant="outline" size="sm" className="h-9 shrink-0" aria-label={tr("Aggiungi attività rapida")} onClick={handleQuickAdd} disabled={solaLettura || !quickAddTitle.trim() || mutationBusy} title={creaTitle}>
                   {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 </Button>
               </div>
               )}
 
               {/* Grouped view */}
-              <div className="max-h-[560px] space-y-4 overflow-y-auto pr-1" aria-label="Elenco attività">
+              <div className="max-h-[560px] space-y-4 overflow-y-auto pr-1" aria-label={tr("Elenco attività")}>
               {groupBy !== "none" && groupedTasks ? (
                 groupedTasks.size === 0 ? (
                   <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
                     <Filter className="h-6 w-6 mx-auto mb-2 text-muted-foreground opacity-40" />
-                    <p className="text-sm text-muted-foreground">Nessuna attività trovata</p>
+                    <p className="text-sm text-muted-foreground">{tr("Nessuna attività trovata")}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1081,7 +1085,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                   </div>
                 )
               ) : showDefaultSections ? (
-                <div className="space-y-4">{defaultGroups.map(group => <section key={group.label} className="space-y-2" aria-label={`${group.label}: ${group.tasks.length} attività in questa pagina`}><h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label} <span className="font-normal">({group.tasks.length})</span></h3><div className={compact ? "space-y-1" : "space-y-2"}>{group.tasks.map(renderTask)}</div></section>)}</div>
+                <div className="space-y-4">{defaultGroups.map(group => <section key={group.label} className="space-y-2" aria-label={tr("{gruppo}: {n} attività in questa pagina", { gruppo: tr(group.label), n: group.tasks.length })}><h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{tr(group.label)} <span className="font-normal">({group.tasks.length})</span></h3><div className={compact ? "space-y-1" : "space-y-2"}>{group.tasks.map(renderTask)}</div></section>)}</div>
               ) : filteredTasks.length === 0 ? (
                 <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
                   <Filter className="h-6 w-6 mx-auto mb-2 text-muted-foreground opacity-40" />
@@ -1090,12 +1094,20 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                       // Messaggio contestuale: dice ESATTAMENTE quale combinazione
                       // di filtri è vuota (es. "Nessuna attività scaduta di Mario
                       // Bianchi"), invece del generico "per questo filtro".
-                      const who = " assegnata a te";
-                      const what = filter === "scadute" ? " scaduta"
-                        : filter === "oggi" ? " per oggi"
-                          : filter === "settimana" ? " questa settimana"
-                            : filter === "completate" ? " completata" : "";
-                      return `Nessuna attività${what}${who}${searchQuery ? ` per «${searchQuery}»` : ""}`;
+                      // Frasi intere, una per combinazione: si traducono senza incollare pezzi.
+                      if (searchQuery) {
+                        const q = searchQuery;
+                        return filter === "scadute" ? tr("Nessuna attività scaduta assegnata a te per «{q}»", { q })
+                          : filter === "oggi" ? tr("Nessuna attività per oggi assegnata a te per «{q}»", { q })
+                            : filter === "settimana" ? tr("Nessuna attività questa settimana assegnata a te per «{q}»", { q })
+                              : filter === "completate" ? tr("Nessuna attività completata assegnata a te per «{q}»", { q })
+                                : tr("Nessuna attività assegnata a te per «{q}»", { q });
+                      }
+                      return filter === "scadute" ? tr("Nessuna attività scaduta assegnata a te")
+                        : filter === "oggi" ? tr("Nessuna attività per oggi assegnata a te")
+                          : filter === "settimana" ? tr("Nessuna attività questa settimana assegnata a te")
+                            : filter === "completate" ? tr("Nessuna attività completata assegnata a te")
+                              : tr("Nessuna attività assegnata a te");
                     })()}
                   </p>
                   {(filter !== "tutte" || !!searchQuery) && (
@@ -1104,7 +1116,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                       onClick={() => { setFilter("tutte"); setSearchQuery(""); setSelectedIds(new Set()); }}
                       className="mt-2 text-xs font-semibold text-primary hover:underline"
                     >
-                      Mostra tutte le mie attività
+                      {tr("Mostra tutte le mie attività")}
                     </button>
                   )}
                 </div>
@@ -1112,7 +1124,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                 <div className={compact ? "space-y-1" : "space-y-2"}>{visibleTasks.map(renderTask)}</div>
               )}
               </div>
-              {filteredTasks.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3"><p role="status" className="text-xs text-muted-foreground">{(currentPage - 1) * 20 + 1}–{Math.min(currentPage * 20, filteredTasks.length)} di {filteredTasks.length} attività</p><div className="flex gap-1"><Button variant="outline" size="sm" className="h-8 text-xs" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); setSelectedIds(new Set()); }}>Precedenti</Button><Button variant="outline" size="sm" className="h-8 text-xs" disabled={currentPage === pageCount} onClick={() => { setPage(currentPage + 1); setSelectedIds(new Set()); }}>Successive</Button></div></div>}
+              {filteredTasks.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3"><p role="status" className="text-xs text-muted-foreground">{tr("{da}–{a} di {totale} attività", { da: (currentPage - 1) * 20 + 1, a: Math.min(currentPage * 20, filteredTasks.length), totale: filteredTasks.length })}</p><div className="flex gap-1"><Button variant="outline" size="sm" className="h-8 text-xs" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); setSelectedIds(new Set()); }}>{tr("Precedenti")}</Button><Button variant="outline" size="sm" className="h-8 text-xs" disabled={currentPage === pageCount} onClick={() => { setPage(currentPage + 1); setSelectedIds(new Set()); }}>{tr("Successive")}</Button></div></div>}
             </div>
           )}
         </CardContent>
@@ -1122,25 +1134,25 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
       <Dialog open={dialogOpen} onOpenChange={next => { if (!taskSaveRef.current && !mutationBusy) setDialogOpen(next); }}>
         <DialogContent ampiezza="modulo" struttura="scorrevole" className="task-editor-dialog gap-3">
           <DialogHeader>
-            <DialogTitle>{readOnlyDialog ? "Dettagli attività" : editingTask ? "Modifica attività" : "Nuova attività"}</DialogTitle>
-            <DialogDescription>{readOnlyDialog ? "Consulta assegnazione, scadenza e collegamenti dell’attività." : editingTask ? "Aggiorna dettagli, responsabile e scadenza dell’attività." : "Organizza il lavoro, scegli l’area e il responsabile."}</DialogDescription>
+            <DialogTitle>{readOnlyDialog ? tr("Dettagli attività") : editingTask ? tr("Modifica attività") : tr("Nuova attività")}</DialogTitle>
+            <DialogDescription>{readOnlyDialog ? tr("Consulta assegnazione, scadenza e collegamenti dell’attività.") : editingTask ? tr("Aggiorna dettagli, responsabile e scadenza dell’attività.") : tr("Organizza il lavoro, scegli l’area e il responsabile.")}</DialogDescription>
           </DialogHeader>
           <form id="attivita-modulo" onSubmit={e => { e.preventDefault(); handleSave(); }}>
           <fieldset disabled={readOnlyDialog || mutationBusy} aria-busy={mutationBusy} className="min-w-0 space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="task-title">Titolo *</Label>
-              <Input id="task-title" placeholder="Es. Confermare l’ordine al fornitore" required maxLength={250} value={formTitle} onChange={e => setFormTitle(e.target.value)} autoFocus={!isMobile || !editingTask} />
+              <Label htmlFor="task-title">{tr("Titolo *")}</Label>
+              <Input id="task-title" placeholder={tr("Es. Confermare l’ordine al fornitore")} required maxLength={250} value={formTitle} onChange={e => setFormTitle(e.target.value)} autoFocus={!isMobile || !editingTask} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="task-notes">Descrizione</Label>
-              <Textarea id="task-notes" placeholder="Aggiungi dettagli, link, note..." value={formNotes} onChange={e => setFormNotes(e.target.value)} rows={2} className="resize-none" />
+              <Label htmlFor="task-notes">{tr("Descrizione")}</Label>
+              <Textarea id="task-notes" placeholder={tr("Aggiungi dettagli, link, note...")} value={formNotes} onChange={e => setFormNotes(e.target.value)} rows={2} className="resize-none" />
             </div>
             <TaskAssignmentFields offices={availableOffices}
               people={[
-                ...(user ? [{ id: user.id, name: "Me stesso" }] : []),
-                ...teamMembers.filter(m => m.id !== user?.id).map(m => ({ id: m.id, name: [m.first_name, m.last_name].filter(Boolean).join(" ") || "Nome non disponibile" })),
+                ...(user ? [{ id: user.id, name: tr("Me stesso") }] : []),
+                ...teamMembers.filter(m => m.id !== user?.id).map(m => ({ id: m.id, name: [m.first_name, m.last_name].filter(Boolean).join(" ") || tr("Nome non disponibile") })),
                 ...(editingTask?.assigned_to && editingTask.assigned_to !== user?.id && !teamMembers.some(m => m.id === editingTask.assigned_to)
-                  ? [{ id: editingTask.assigned_to as string, name: [editingTask.assignee?.first_name, editingTask.assignee?.last_name].filter(Boolean).join(" ") || "Responsabile assegnato" }] : []),
+                  ? [{ id: editingTask.assigned_to as string, name: [editingTask.assignee?.first_name, editingTask.assignee?.last_name].filter(Boolean).join(" ") || tr("Responsabile assegnato") }] : []),
               ]}
               manageOffices={isAdmin} userId={user?.id} officeId={formOffice} assigneeId={formAssignedTo}
               onOfficeChange={office => { setFormOffice(office); setFormAssignedTo(office ? "" : user?.id ?? ""); }}
@@ -1149,16 +1161,16 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               onRetry={() => { void offices.refetch(); }} />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="task-priority">Priorità</Label>
-                <OfficeSelect id="task-priority" label="Priorità" value={formPriority} onValueChange={setFormPriority}
-                  options={Object.entries(PRIORITY_CONFIG).map(([value, config]) => ({ value, label: config.label }))} />
+                <Label htmlFor="task-priority">{tr("Priorità")}</Label>
+                <OfficeSelect id="task-priority" label={tr("Priorità")} value={formPriority} onValueChange={setFormPriority}
+                  options={Object.entries(PRIORITY_CONFIG).map(([value, config]) => ({ value, label: tr(config.label) }))} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="task-due">Scadenza</Label>
+                <Label htmlFor="task-due">{tr("Scadenza")}</Label>
                 <Input id="task-due" type="date" value={formDueDate} onChange={e => setFormDueDate(e.target.value)} />
               </div>
             </div>
-            <section className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2" aria-label="Collegamenti e organizzazione">
+            <section className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2" aria-label={tr("Collegamenti e organizzazione")}>
               {canViewOrders && <div className="sm:col-span-2">
                 <TaskOrderLink companyId={companyId} value={formOrder} fixed={!!editingTask?.order_id}
                   disabled={!canLinkOrder} onChange={order => { setFormOrder(order); if (order && formCategory === "altro") setFormCategory("ordini"); }} />
@@ -1166,42 +1178,42 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
             {/* Senza questo campo l'attività nasceva slegata: non si vedeva né
                 nella scheda del cliente né in quella dell'opportunità. */}
             <div className={cn("space-y-1.5", editingTask && "sm:col-span-2")}>
-              <Label htmlFor="task-link">Cliente / Opportunità</Label>
+              <Label htmlFor="task-link">{tr("Cliente / Opportunità")}</Label>
               <CollegaAttivitaPicker id="task-link" companyId={companyId} valore={formCollegamento} onChange={setFormCollegamento} />
               {formCollegamento?.tipo === "opportunita" && canViewMarketingOpportunities && (
                 <Link to={linkOpportunita("/azienda/marketing", formCollegamento.id)} onClick={() => setDialogOpen(false)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
                   <ExternalLink className="h-3 w-3" />
-                  Apri l'opportunità
+                  {tr("Apri l'opportunità")}
                 </Link>
               )}
               {formCollegamento?.tipo === "contatto" && canViewMarketingContacts && (
                 <Link to={linkContatto("/azienda/marketing", formCollegamento.id)} onClick={() => setDialogOpen(false)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
                   <ExternalLink className="h-3 w-3" />
-                  Apri il contatto
+                  {tr("Apri il contatto")}
                 </Link>
               )}
             </div>
               <div className="contents">
                 <div className="space-y-1.5">
-                  <Label htmlFor="task-category">Categoria</Label>
-                  <OfficeSelect id="task-category" label="Categoria" value={formCategory} onValueChange={setFormCategory}
-                    options={CATEGORY_OPTIONS.map(c => ({ value: c.value, label: c.label }))} />
+                  <Label htmlFor="task-category">{tr("Categoria")}</Label>
+                  <OfficeSelect id="task-category" label={tr("Categoria")} value={formCategory} onValueChange={setFormCategory}
+                    options={CATEGORY_OPTIONS.map(c => ({ value: c.value, label: tr(c.label) }))} />
                 </div>
                 {editingTask && <div className="space-y-1.5">
-                  <Label htmlFor="task-status">Stato</Label>
-                  <OfficeSelect id="task-status" label="Stato" disabled={isTaskBlockedStatus(editingTask.status, taskStatuses)}
-                    value={formStatus} onValueChange={setFormStatus} options={taskStatuses.map(v => ({ value: v.value, label: v.label }))} />
+                  <Label htmlFor="task-status">{tr("Stato")}</Label>
+                  <OfficeSelect id="task-status" label={tr("Stato")} disabled={isTaskBlockedStatus(editingTask.status, taskStatuses)}
+                    value={formStatus} onValueChange={setFormStatus} options={taskStatuses.map(v => ({ value: v.value, label: tr(v.label) }))} />
                 </div>}
               </div>
             </section>
           </fieldset>
           </form>
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" disabled={mutationBusy} onClick={() => setDialogOpen(false)}>{readOnlyDialog ? "Chiudi" : "Annulla"}</Button>
-            {editingTask && seesTeamTasks && <Button asChild variant="outline" className="gap-1 text-xs"><Link to={`/azienda/attivita?tab=regia&attivita=${encodeURIComponent(editingTask.id)}`} onClick={() => setDialogOpen(false)}><ExternalLink className="h-3 w-3" />Gestione completa</Link></Button>}
+            <Button type="button" variant="outline" disabled={mutationBusy} onClick={() => setDialogOpen(false)}>{readOnlyDialog ? tr("Chiudi") : tr("Annulla")}</Button>
+            {editingTask && seesTeamTasks && <Button asChild variant="outline" className="gap-1 text-xs"><Link to={`/azienda/attivita?tab=regia&attivita=${encodeURIComponent(editingTask.id)}`} onClick={() => setDialogOpen(false)}><ExternalLink className="h-3 w-3" />{tr("Gestione completa")}</Link></Button>}
             {!readOnlyDialog && <Button type="submit" form="attivita-modulo" disabled={!formTitle.trim() || mutationBusy || (!editingTask && (offices.isLoading || offices.isError))}>
               {(createTask.isPending || updateTask.isPending) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              {editingTask ? "Salva modifiche" : "Crea attività"}
+              {editingTask ? tr("Salva modifiche") : tr("Crea attività")}
             </Button>}
           </DialogFooter>
         </DialogContent>
@@ -1211,11 +1223,11 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
       <AlertDialog open={!!taskToDelete} onOpenChange={(o) => !o && setTaskToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questa attività?</AlertDialogTitle>
-            <AlertDialogDescription>L'azione è irreversibile.</AlertDialogDescription>
+            <AlertDialogTitle>{tr("Eliminare questa attività?")}</AlertDialogTitle>
+            <AlertDialogDescription>{tr("L'azione è irreversibile.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 text-white"
               onClick={() => {
@@ -1223,7 +1235,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                 setTaskToDelete(null);
               }}
             >
-              Elimina
+              {tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1233,14 +1245,14 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
       <AlertDialog open={bulkConfirmOpen} onOpenChange={setBulkConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare {selectedIds.size} attività?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminare {n} attività?", { n: selectedIds.size })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Stai per eliminare {selectedIds.size} {selectedIds.size === 1 ? "attività" : "attività"}. L'azione è irreversibile.
+              {tr("Stai per eliminare {n} attività. L'azione è irreversibile.", { n: selectedIds.size })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <ConfermaQuantita stato={confermaBulk} cosa="attività" />
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 text-white"
               disabled={!confermaBulk.valida}
@@ -1250,7 +1262,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                 setBulkConfirmOpen(false);
               }}
             >
-              Elimina
+              {tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1260,14 +1272,14 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
       <Sheet open={filtriAperti} onOpenChange={setFiltriAperti}>
         <SheetContent side="bottom" className="rounded-t-2xl max-sm:rounded-none px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-h-[80dvh] max-sm:max-h-none overflow-y-auto">
           <SheetHeader className="text-left">
-            <SheetTitle>Filtri</SheetTitle>
-            <SheetDescription>Quali attività vedere e come raggrupparle.</SheetDescription>
+            <SheetTitle>{tr("Filtri")}</SheetTitle>
+            <SheetDescription>{tr("Quali attività vedere e come raggrupparle.")}</SheetDescription>
           </SheetHeader>
           <div className="mt-4 space-y-5">
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quali</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{tr("Quali")}</p>
               <div className="grid grid-cols-2 gap-2">
-                {[{ id: "all", nome: "Mie e delle mie aree" }, { id: "personal", nome: "Solo individuali" }, ...(offices.data ?? []).filter(o => o.membri.includes(user?.id ?? ""))].map(o => (
+                {[{ id: "all", nome: tr("Mie e delle mie aree") }, { id: "personal", nome: tr("Solo individuali") }, ...(offices.data ?? []).filter(o => o.membri.includes(user?.id ?? ""))].map(o => (
                   <button key={o.id} type="button" onClick={() => setAreaView(o.id)}
                     className={`min-h-11 rounded-lg border px-2 text-sm font-medium transition-colors ${areaView === o.id ? "border-primary bg-primary/10 text-primary" : "bg-background"}`}>
                     {o.nome}
@@ -1276,18 +1288,18 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               </div>
             </div>
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Raggruppa per</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{tr("Raggruppa per")}</p>
               <div className="grid grid-cols-2 gap-2">
                 {GROUP_OPTIONS.map(g => (
                   <button key={g.value} type="button"
                     onClick={() => { setGroupBy(g.value); setCollapsedGroups(new Set()); }}
                     className={`h-11 rounded-lg border text-sm font-medium transition-colors ${groupBy === g.value ? "border-primary bg-primary/10 text-primary" : "bg-background"}`}>
-                    {g.value === "none" ? "Nessun gruppo" : g.label}
+                    {g.value === "none" ? tr("Nessun gruppo") : tr(g.label)}
                   </button>
                 ))}
               </div>
             </div>
-            <Button className="w-full h-11" onClick={() => setFiltriAperti(false)}>Fatto</Button>
+            <Button className="w-full h-11" onClick={() => setFiltriAperti(false)}>{tr("Fatto")}</Button>
           </div>
         </SheetContent>
       </Sheet>
@@ -1300,6 +1312,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
 // ─────────────────────────────────────────────────────────────────────────────
 function TabAttivita() {
   const { user, effectiveCompany } = useAuth();
+  const tr = useT();
   const isMobile = useIsMobile();
   const [addTaskDate, setAddTaskDate] = useState<AddTaskRequest | null>(null);
   const [calendarDate, setCalendarDate] = useState<string | null>(null);
@@ -1352,7 +1365,7 @@ function TabAttivita() {
         {focusTiles.map((t) => (
           <button key={t.key} type="button" disabled={taskQuery.isLoading || taskQuery.isError} onClick={t.onClick} className={cn("flex min-w-[88px] flex-1 flex-col rounded-xl border px-3 py-2 text-left transition hover:brightness-[0.97] disabled:cursor-default", t.cls)}>
             <span className="text-xl font-bold tabular-nums">{taskQuery.isLoading || taskQuery.isError ? "—" : t.n}</span>
-            <span className="text-xs font-medium">{t.label}</span>
+            <span className="text-xs font-medium">{tr(t.label)}</span>
           </button>
         ))}
       </div>
@@ -1388,14 +1401,14 @@ function TabAttivita() {
         {/* Secondaria: meteo compatto, agenda (parte da «Giorno») e priorità del team. */}
         <div className="min-w-0 space-y-3 sm:space-y-4">
           <MeteoWidget compatto />
-          {isMobile && <Button variant="outline" className="w-full justify-between" onClick={() => setMobileAgenda(v => !v)} aria-expanded={mobileAgenda}><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />Agenda personale</span><ChevronDown className={cn("h-4 w-4", mobileAgenda && "rotate-180")} /></Button>}
+          {isMobile && <Button variant="outline" className="w-full justify-between" onClick={() => setMobileAgenda(v => !v)} aria-expanded={mobileAgenda}><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />{tr("Agenda personale")}</span><ChevronDown className={cn("h-4 w-4", mobileAgenda && "rotate-180")} /></Button>}
           {(!isMobile || mobileAgenda) && <DashboardAgenda
             tasks={agendaTasks} tasksLoading={taskQuery.isLoading} tasksError={taskQuery.isError} onTasksRetry={() => taskQuery.refetch()}
             statuses={statuses} selectedDate={calendarDate} onDateSelect={setCalendarDate}
             onAddTask={date => setAddTaskDate({ date, requestId: ++requestSequence.current })}
             onTaskOpen={id => setOpenTaskRequest({ id, requestId: ++requestSequence.current })}
           />}
-          {seesTeam && (isMobile ? <div className="space-y-3"><Button variant="outline" className="w-full justify-between" onClick={() => setMobileTeam(v => !v)} aria-expanded={mobileTeam}><span className="flex items-center gap-2"><Users className="h-4 w-4" />Priorità del team</span><ChevronDown className={cn("h-4 w-4", mobileTeam && "rotate-180")} /></Button>{mobileTeam && <TeamTaskPulse compact />}</div> : <TeamTaskPulse compact />)}
+          {seesTeam && (isMobile ? <div className="space-y-3"><Button variant="outline" className="w-full justify-between" onClick={() => setMobileTeam(v => !v)} aria-expanded={mobileTeam}><span className="flex items-center gap-2"><Users className="h-4 w-4" />{tr("Priorità del team")}</span><ChevronDown className={cn("h-4 w-4", mobileTeam && "rotate-180")} /></Button>{mobileTeam && <TeamTaskPulse compact />}</div> : <TeamTaskPulse compact />)}
         </div>
       </div>
 
@@ -1408,6 +1421,7 @@ function TabAttivita() {
 // ─────────────────────────────────────────────────────────────────────────────
 export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
   const { effectiveCompany } = useAuth();
+  const t = useT();
   const companyId = effectiveCompany?.id;
 
   const permissions = usePermissions();
@@ -1447,26 +1461,26 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
   if (!seesTeam) return null;
 
   return (
-    <Card role="region" aria-label="Priorità del team">
+    <Card role="region" aria-label={t("Priorità del team")}>
       {/* Telefono: il titolo c'è già sul bottone che apre il riquadro; qui resta solo «Apri regia». */}
       <CardHeader className="pb-3 max-sm:hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 max-sm:justify-end">
           <CardTitle className="flex items-center gap-2 text-base max-sm:hidden">
-            <ArrowUpCircle className="h-4 w-4" />{compact ? "Priorità del team" : "Regia rapida"}
+            <ArrowUpCircle className="h-4 w-4" />{compact ? t("Priorità del team") : t("Regia rapida")}
           </CardTitle>
           <Button variant="outline" size="sm" className="h-8 gap-1.5" asChild>
             <Link to="/azienda/attivita?tab=regia">
-              Apri regia <ExternalLink className="h-3.5 w-3.5" />
+              {t("Apri regia")} <ExternalLink className="h-3.5 w-3.5" />
             </Link>
           </Button>
         </div>
       </CardHeader>
       <CardContent className="max-sm:p-3">
-        <p className="mb-3 text-xs text-muted-foreground max-sm:hidden">Attività del team che sei autorizzato a consultare. La tua agenda resta personale.</p>
+        <p className="mb-3 text-xs text-muted-foreground max-sm:hidden">{t("Attività del team che sei autorizzato a consultare. La tua agenda resta personale.")}</p>
         {isError ? (
           <InlineLoadError
-            title="Errore nel caricamento della regia"
-            description={error instanceof Error ? error.message : "Non riesco a leggere le attività aziendali in questo momento."}
+            title={t("Errore nel caricamento della regia")}
+            description={error instanceof Error ? error.message : t("Non riesco a leggere le attività aziendali in questo momento.")}
             onRetry={() => refetch()}
           />
         ) : isLoading ? (
@@ -1477,7 +1491,7 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
             <Skeleton className="h-16 w-full" />
           </div>
         ) : pulse.openCount === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessuna attività aperta da gestire</p>
+          <p className="text-sm text-muted-foreground">{t("Nessuna attività aperta da gestire")}</p>
         ) : (
           <div className="space-y-4 max-sm:space-y-3">
             {/* Telefono: i numeri in una riga (solo quelli diversi da zero), non quattro riquadri alti. */}
@@ -1485,12 +1499,12 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
               {metrics.filter((m) => m.value > 0).map((m, i) => (
                 <Fragment key={m.label}>{i > 0 && " · "}<span className={cn("font-semibold tabular-nums", m.label === "Scadute" ? "text-red-700" : "text-foreground")}>{m.value}</span> {m.label.toLowerCase()}</Fragment>
               ))}
-              {" · "}<Link to="/azienda/attivita?tab=regia" className="font-medium text-primary underline-offset-2 hover:underline">Vai alla regia</Link>
+              {" · "}<Link to="/azienda/attivita?tab=regia" className="font-medium text-primary underline-offset-2 hover:underline">{t("Vai alla regia")}</Link>
             </p>
             <div className={cn("grid grid-cols-2 gap-3 max-sm:hidden", !compact && "md:grid-cols-4")}>
               {metrics.map((metric) => (
                 <div key={metric.label} className={`rounded-lg border p-3 ${metric.className}`}>
-                  <p className="text-xs font-medium opacity-80">{metric.label}</p>
+                  <p className="text-xs font-medium opacity-80">{t(metric.label)}</p>
                   <p className="mt-1 text-2xl font-bold tabular-nums">{metric.value}</p>
                 </div>
               ))}
@@ -1499,18 +1513,18 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
                 card, dentro la pagina. */}
             <div>
               <div className="flex items-center justify-between pb-1.5">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Priorità da guardare</p>
-                <span className="text-xs tabular-nums text-muted-foreground">{pulse.openCount} aperte</span>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("Priorità da guardare")}</p>
+                <span className="text-xs tabular-nums text-muted-foreground">{t("{n} aperte", { n: pulse.openCount })}</span>
               </div>
               {pulse.priorities.length === 0 ? (
-                <p className="py-3 text-sm text-muted-foreground">Nessuna criticità immediata.</p>
+                <p className="py-3 text-sm text-muted-foreground">{t("Nessuna criticità immediata.")}</p>
               ) : (
                 <div className="divide-y border-y">
                   {pulse.priorities.slice(0, compact ? 3 : 6).map(task => {
                     const priority = PRIORITY_CONFIG[task.priority as keyof typeof PRIORITY_CONFIG] ?? PRIORITY_CONFIG.normale;
                     const dueDate = task.due_date ? parseISO(task.due_date) : null;
                     const scaduta = dueDate && isBefore(dueDate, startOfDay(new Date())) && !isToday(dueDate);
-                    const assigneeName = [task.assignee?.first_name, task.assignee?.last_name].filter(Boolean).join(" ") || "Non assegnata";
+                    const assigneeName = [task.assignee?.first_name, task.assignee?.last_name].filter(Boolean).join(" ") || t("Non assegnata");
 
                     return (
                       compact ? (
@@ -1523,7 +1537,7 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
                             <p className="mt-0.5 truncate text-xs text-muted-foreground">
                               {assigneeName}
                               {task.category && <> · {CATEGORY_OPTIONS.find(c => c.value === task.category)?.label || task.category}</>}
-                              {dueDate && <> · <span className={cn(scaduta ? "font-medium text-red-700" : isToday(dueDate) && "font-medium text-amber-700")}>{scaduta ? `scaduta il ${format(dueDate, "d MMM", { locale: it })}` : isToday(dueDate) ? "oggi" : format(dueDate, "d MMM", { locale: it })}</span></>}
+                              {dueDate && <> · <span className={cn(scaduta ? "font-medium text-red-700" : isToday(dueDate) && "font-medium text-amber-700")}>{scaduta ? t("scaduta il {dueDate}", { dueDate: format(dueDate, "d MMM", { locale: dateFnsCampo() }) }) : isToday(dueDate) ? t("oggi") : format(dueDate, "d MMM", { locale: dateFnsCampo() })}</span></>}
                             </p>
                           </div>
                         </div>
@@ -1532,10 +1546,10 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
                         <div className={`h-2 w-2 shrink-0 rounded-full ${priority.dotClass}`} />
                         <Link to={`/azienda/attivita?tab=regia&attivita=${encodeURIComponent(task.id)}`} className="min-w-[180px] flex-1 truncate font-medium text-primary hover:underline">{task.title}</Link>
                         <span className="text-xs text-muted-foreground">{assigneeName}</span>
-                        {task.category && <Badge variant="outline" className="text-[10px]">{CATEGORY_OPTIONS.find(c => c.value === task.category)?.label || task.category}</Badge>}
+                        {task.category && <Badge variant="outline" className="text-[10px]">{t(CATEGORY_OPTIONS.find(c => c.value === task.category)?.label || task.category)}</Badge>}
                         {dueDate && (
                           <Badge variant="outline" className={`text-[10px] ${scaduta ? "border-red-200 bg-red-50 text-red-700" : isToday(dueDate) ? "border-amber-200 bg-amber-50 text-amber-700" : ""}`}>
-                            {scaduta ? "Scaduta" : isToday(dueDate) ? "Oggi" : format(dueDate, "d MMM", { locale: it })}
+                            {scaduta ? t("Scaduta") : isToday(dueDate) ? t("Oggi") : format(dueDate, "d MMM", { locale: dateFnsCampo() })}
                           </Badge>
                         )}
                       </div>
@@ -1564,13 +1578,15 @@ function TabFallback() {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AttivitaStaff() {
   const { effectiveCompany, user } = useAuth();
-  if (!user?.id) return <p role="status">Caricamento attività…</p>;
-  if (!effectiveCompany?.id) return <Card><CardContent className="p-4">Seleziona un’azienda per consultare le attività.</CardContent></Card>;
+  const t = useT();
+  if (!user?.id) return <p role="status">{t("Caricamento attività…")}</p>;
+  if (!effectiveCompany?.id) return <Card><CardContent className="p-4">{t("Seleziona un’azienda per consultare le attività.")}</CardContent></Card>;
   return <AttivitaAzienda key={`${effectiveCompany.id}:${user.id}`} companyId={effectiveCompany.id} />;
 }
 
 function AttivitaAzienda({ companyId }: { companyId: string }) {
   const { role } = useAuth();
+  const t = useT();
   const isAdmin = role === "company_admin";
   // La Regia è lo strumento "di team": la vede l'admin e chi ha il permesso
   // esplicito "Attività del team" (che già vedeva i filtri per persona nella
@@ -1622,21 +1638,21 @@ function AttivitaAzienda({ companyId }: { companyId: string }) {
           <AttivitaHeader />
           {isAdmin ? (
           <TabsList className="grid w-full max-w-full sm:w-96 grid-cols-3 h-auto">
-            <TabsTrigger value="attivita" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><ClipboardCheck className="h-4 w-4" /><span>Dashboard</span></TabsTrigger>
-            <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><Users className="h-4 w-4" /><span className="truncate">Regia<span className="hidden sm:inline"> attività</span></span></TabsTrigger>
-            <TabsTrigger value="eccezioni" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><AlertCircle className="h-4 w-4" /><span>Eccezioni</span></TabsTrigger>
+            <TabsTrigger value="attivita" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><ClipboardCheck className="h-4 w-4" /><span>{t("Dashboard")}</span></TabsTrigger>
+            <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><Users className="h-4 w-4" /><span className="truncate">{t("Regia")}<span className="hidden sm:inline"> {t("attività")}</span></span></TabsTrigger>
+            <TabsTrigger value="eccezioni" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><AlertCircle className="h-4 w-4" /><span>{t("Eccezioni")}</span></TabsTrigger>
           </TabsList>
         ) : (
           <TabsList className={cn("grid w-full h-auto", layoutSchede)}>
-            <TabsTrigger value="attivita" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><ClipboardCheck className="h-4 w-4" /><span className="truncate">Attività</span></TabsTrigger>
+            <TabsTrigger value="attivita" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><ClipboardCheck className="h-4 w-4" /><span className="truncate">{t("Attività")}</span></TabsTrigger>
             {seesRegia && (
-              <TabsTrigger value="regia" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Users className="h-4 w-4" /><span className="truncate">Regia</span></TabsTrigger>
+              <TabsTrigger value="regia" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Users className="h-4 w-4" /><span className="truncate">{t("Regia")}</span></TabsTrigger>
             )}
-            <TabsTrigger value="timbrature" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Clock className="h-4 w-4" /><span className="truncate">Timbra</span></TabsTrigger>
-            <TabsTrigger value="ferie" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Palmtree className="h-4 w-4" /><span className="truncate">Ferie</span></TabsTrigger>
-            <TabsTrigger value="cedolini" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Receipt className="h-4 w-4" /><span className="truncate">Cedolini</span></TabsTrigger>
+            <TabsTrigger value="timbrature" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Clock className="h-4 w-4" /><span className="truncate">{t("Timbra")}</span></TabsTrigger>
+            <TabsTrigger value="ferie" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Palmtree className="h-4 w-4" /><span className="truncate">{t("Ferie")}</span></TabsTrigger>
+            <TabsTrigger value="cedolini" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Receipt className="h-4 w-4" /><span className="truncate">{t("Cedolini")}</span></TabsTrigger>
             {vedeEccezioni && (
-              <TabsTrigger value="eccezioni" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><AlertCircle className="hidden h-4 w-4 sm:block" /><span className="truncate">Eccezioni</span></TabsTrigger>
+              <TabsTrigger value="eccezioni" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><AlertCircle className="hidden h-4 w-4 sm:block" /><span className="truncate">{t("Eccezioni")}</span></TabsTrigger>
             )}
           </TabsList>
           )}

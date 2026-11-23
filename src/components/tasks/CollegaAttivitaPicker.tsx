@@ -17,6 +17,7 @@ import { Check, ChevronsUpDown, Loader2, Target, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks/useDebounce";
 import { filtriRicercaContatti, filtriRicercaParole } from "@/lib/ricerca/ricercaContatti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface CollegamentoAttivita {
   tipo: "contatto" | "opportunita";
@@ -39,6 +40,7 @@ export function CollegaAttivitaPicker({
   disabled?: boolean;
   id?: string;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [ricerca, setRicerca] = useState("");
   // Una ricerca ogni 300 ms di pausa, non a ogni lettera.
@@ -78,13 +80,13 @@ export function CollegaAttivitaPicker({
       const opportunita: CollegamentoAttivita[] = (risOpp.data ?? []).map((o) => ({
         tipo: "opportunita",
         id: o.id as string,
-        etichetta: (o.name as string) || "Opportunità senza nome",
+        etichetta: (o.name as string) || t("Opportunità senza nome"),
         contactId: (o.contact_id as string | null) ?? null,
       }));
       const persone: CollegamentoAttivita[] = (risCont?.data ?? []).map((c) => ({
         tipo: "contatto",
         id: c.id as string,
-        etichetta: [c.first_name, c.last_name].filter(Boolean).join(" ") || (c.email as string) || "Contatto",
+        etichetta: [c.first_name, c.last_name].filter(Boolean).join(" ") || (c.email as string) || t("Contatto"),
       }));
       return [...opportunita, ...persone];
     },
@@ -107,32 +109,32 @@ export function CollegaAttivitaPicker({
             disabled={disabled}
             className="h-9 w-full justify-between gap-2 px-3 font-normal"
           >
-            <span className={cn("truncate", !valore && "text-muted-foreground")}>
-              {valore ? valore.etichetta : "Cerca cliente o opportunità…"}
+            <span dir="auto" className={cn("truncate", !valore && "text-muted-foreground")}>
+              {valore ? valore.etichetta : t("Cerca cliente o opportunità…")}
             </span>
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[min(420px,calc(100vw-2rem))] p-0" align="start">
           <Command shouldFilter={false}>
-            <CommandInput placeholder="Cerca cliente o opportunità…" value={ricerca} onValueChange={setRicerca} />
+            <CommandInput placeholder={t("Cerca cliente o opportunità…")} value={ricerca} onValueChange={setRicerca} />
             <CommandList className="max-h-64">
               {isError ? (
                 <div role="alert" className="space-y-2 p-4 text-sm">
-                  <p>Non riesco a caricare clienti e opportunità.</p>
+                  <p>{t("Non riesco a caricare clienti e opportunità.")}</p>
                   <Button type="button" size="sm" variant="outline" disabled={isFetching} onClick={() => void refetch()}>
-                    {isFetching ? "Riprovo…" : "Riprova"}
+                    {isFetching ? t("Riprovo…") : t("Riprova")}
                   </Button>
                 </div>
               ) : isFetching && risultati.length === 0 ? (
                 <div role="status" className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Cerco…
+                  <Loader2 className="h-4 w-4 animate-spin" /> {t("Cerco…")}
                 </div>
               ) : (
-                <CommandEmpty>Nessun risultato</CommandEmpty>
+                <CommandEmpty>{t("Nessun risultato")}</CommandEmpty>
               )}
               {!isError && opportunita.length > 0 && (
-                <CommandGroup heading="Opportunità">
+                <CommandGroup heading={t("Opportunità")}>
                   {opportunita.map((o) => (
                     <CommandItem
                       key={`opp-${o.id}`}
@@ -148,7 +150,7 @@ export function CollegaAttivitaPicker({
                 </CommandGroup>
               )}
               {!isError && contatti.length > 0 && (
-                <CommandGroup heading="Clienti e contatti">
+                <CommandGroup heading={t("Clienti e contatti")}>
                   {contatti.map((c) => (
                     <CommandItem
                       key={`cont-${c.id}`}
@@ -173,8 +175,8 @@ export function CollegaAttivitaPicker({
           variant="ghost"
           size="icon"
           className="h-9 w-9 shrink-0 text-muted-foreground"
-          title="Togli il collegamento"
-          aria-label="Togli il collegamento"
+          title={t("Togli il collegamento")}
+          aria-label={t("Togli il collegamento")}
           onClick={() => onChange(null)}
         >
           <X className="h-4 w-4" />

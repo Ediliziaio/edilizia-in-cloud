@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Sidebar ridotta a icone: mostra solo l'icona, il testo lo dà il title. */
@@ -26,11 +27,12 @@ interface Props {
 export function AreaSwitcher({ isCollapsed = false, className }: Props) {
   const { puoCambiareArea, areaCorrente } = useAuth();
   const navigate = useNavigate();
+  const t = useT();
 
   if (!puoCambiareArea) return null;
 
   const versoCampo = areaCorrente === "gestionale";
-  const etichetta = versoCampo ? "Vai all'area cantiere" : "Torna al gestionale";
+  const etichetta = versoCampo ? t("Vai all'area cantiere") : t("Torna al gestionale");
   const Icona = versoCampo ? HardHat : Building2;
 
   return (

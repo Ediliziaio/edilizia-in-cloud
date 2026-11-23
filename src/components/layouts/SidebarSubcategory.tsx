@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SidebarSubcategoryProps {
   label: string;
@@ -27,6 +28,8 @@ export function SidebarSubcategory({
   onToggle,
   children,
 }: SidebarSubcategoryProps) {
+  // Le etichette dei gruppi arrivano in italiano dalla configurazione del menu.
+  const t = useT();
   return (
     <div className="select-none">
       <button
@@ -63,7 +66,7 @@ export function SidebarSubcategory({
               : "group-hover/sub:font-medium",
           )}
         >
-          {label}
+          {t(label)}
         </span>
         <span className="flex items-center gap-1.5 shrink-0">
           {typeof badge === "number" && badge > 0 && (

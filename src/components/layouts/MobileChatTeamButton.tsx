@@ -12,9 +12,11 @@ import { useNavigate } from "react-router-dom";
 import { MessagesSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useInternalChatUnreadTotal } from "@/hooks/useInternalChatUnreadTotal";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function MobileChatTeamButton({ badgePronti = true }: { badgePronti?: boolean }) {
   const navigate = useNavigate();
+  const t = useT();
   const unread = useInternalChatUnreadTotal(badgePronti);
 
   return (
@@ -23,8 +25,8 @@ export function MobileChatTeamButton({ badgePronti = true }: { badgePronti?: boo
       size="icon"
       className="relative h-9 w-9 shrink-0 md:hidden"
       onClick={() => navigate("/azienda/chat")}
-      aria-label={unread > 0 ? `Chat team — ${unread} messaggi non letti` : "Chat team"}
-      title="Chat Team"
+      aria-label={unread > 0 ? t("Chat team — {n} messaggi non letti", { n: unread }) : t("Chat team")}
+      title={t("Chat Team")}
     >
       <MessagesSquare className="h-4 w-4" aria-hidden="true" />
       {unread > 0 && (

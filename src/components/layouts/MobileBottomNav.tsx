@@ -42,6 +42,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileAppGrid } from "@/components/layouts/MobileAppGrid";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /* ── Tipi ──────────────────────────────────────────────── */
 interface BottomNavItem {
@@ -144,6 +145,7 @@ function appendSearchToAziendaUrl(url: string, search: string) {
 /* ── Componente ────────────────────────────────────────── */
 export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean }) {
   const location = useLocation();
+  const t = useT();
   const { unreadCount } = useNotifications(badgePronti, { elenco: false });
   const permissions = usePermissions();
   const { role, effectiveCompany } = useAuth();
@@ -193,7 +195,7 @@ export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean 
       <nav
         className="shrink-0 bg-background border-t border-border/50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-        aria-label="Navigazione commercialista"
+        aria-label={t("Navigazione commercialista")}
       >
         <div className="flex items-stretch h-16">
           {scopedItems.map((item) => {
@@ -204,7 +206,7 @@ export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean 
                 key={item.label}
                 to={item.href}
                 className="flex-1 flex flex-col items-center justify-center gap-1 relative min-w-0"
-                aria-label={item.label}
+                aria-label={t(item.label)}
                 aria-current={active ? "page" : undefined}
               >
                 <div
@@ -226,7 +228,7 @@ export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean 
                     active ? "text-blue-600 font-semibold" : "text-muted-foreground font-medium",
                   )}
                 >
-                  {item.label}
+                  {t(item.label)}
                 </span>
               </Link>
             );
@@ -322,7 +324,7 @@ export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean 
         // +16px: la pillola sta leggermente più in alto, staccata dall'home indicator.
         paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)",
       }}
-      aria-label="Navigazione principale"
+      aria-label={t("Navigazione principale")}
     >
       <div className={cn(
         // Scrollando GIÙ la barra NON sparisce (richiesta utente): si attenua
@@ -351,7 +353,7 @@ export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean 
                 key="app"
                 className="flex-1 flex flex-col items-center justify-center gap-1 relative min-w-0"
                 onClick={() => { tabHaptic(); setAppGridOpen(true); }}
-                aria-label="Apri menu app"
+                aria-label={t("Apri menu app")}
                 type="button"
               >
                 <div className="relative flex h-8 w-12 items-center justify-center">
@@ -369,7 +371,7 @@ export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean 
                   "text-[10px] leading-none font-medium",
                   appGridOpen ? "text-blue-600 font-semibold" : "text-muted-foreground"
                 )}>
-                  App
+                  {t("App")}
                 </span>
               </button>
             );
@@ -384,7 +386,7 @@ export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean 
                 to="/azienda/silvio-ai"
                 onClick={tabHaptic}
                 className="flex-1 flex flex-col items-center justify-end gap-1 relative min-w-0 pb-1"
-                aria-label="Apri Silvio AI"
+                aria-label={t("Apri Silvio AI")}
               >
                 {/* Punch button: tondo, gradient arancione, leggermente sollevato */}
                 <div className="-mt-4 h-12 w-12 rounded-full bg-gradient-to-br from-orange-500 to-eic-amber text-white flex items-center justify-center shadow-lg shadow-orange-300/50 ring-4 ring-background active:scale-95 transition-transform">
@@ -405,7 +407,7 @@ export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean 
               to={slot.href}
               onClick={tabHaptic}
               className="flex-1 flex flex-col items-center justify-center gap-1 relative min-w-0"
-              aria-label={slot.label}
+              aria-label={t(slot.label)}
               aria-current={active ? "page" : undefined}
             >
               <div className="relative flex h-8 w-12 items-center justify-center">
@@ -426,7 +428,7 @@ export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean 
                     : "text-muted-foreground font-medium"
                 )}
               >
-                {slot.label}
+                {t(slot.label)}
               </span>
             </Link>
           );

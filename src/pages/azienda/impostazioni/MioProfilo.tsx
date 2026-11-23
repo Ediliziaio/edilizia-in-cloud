@@ -103,7 +103,7 @@ export default function MioProfilo() {
     if (notificheAltrove) navigate("/azienda/impostazioni/notifiche", { replace: true });
   }, [notificheAltrove, navigate]);
   const activeTab: ProfileTab =
-    isProfileTab(tabParam) && !(isMobile && schedaSoloDesktop) && !notificheAltrove && (schedaNotifiche || tabParam !== "notifiche") && (nelCampo || tabParam !== "lingua")
+    isProfileTab(tabParam) && !(isMobile && schedaSoloDesktop) && !notificheAltrove && (schedaNotifiche || tabParam !== "notifiche") 
       ? tabParam
       : "profilo";
   const handleTabChange = (tab: string) => {
@@ -539,7 +539,7 @@ export default function MioProfilo() {
             piattaforma), dove non esiste la pagina Notifiche. */}
         <div className="relative mb-6 max-sm:mb-3">
           <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:mx-0 max-sm:px-0">
-            <TabsList className={`inline-flex h-auto min-w-max w-max justify-start gap-0.5 sm:gap-1 bg-muted/50 p-1 max-sm:grid max-sm:w-full max-sm:min-w-0 ${nelCampo ? "max-sm:grid-cols-4" : schedaNotifiche ? "max-sm:grid-cols-3" : "max-sm:grid-cols-2"}`}>
+            <TabsList className={`inline-flex h-auto min-w-max w-max justify-start gap-0.5 sm:gap-1 bg-muted/50 p-1 max-sm:grid max-sm:w-full max-sm:min-w-0 ${nelCampo || schedaNotifiche ? "max-sm:grid-cols-4" : "max-sm:grid-cols-3"}`}>
               <TabsTrigger value="profilo" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
                 <User className="h-3.5 w-3.5" /> {t("Profilo")}
               </TabsTrigger>
@@ -557,12 +557,10 @@ export default function MioProfilo() {
                   <Bell className="h-3.5 w-3.5" /> {t("Notifiche")}
                 </TabsTrigger>
               )}
-              {/* Lingua dell'app: per ora solo nel campo (operai e subappaltatori, 23/11/2026). */}
-              {nelCampo && (
-                <TabsTrigger value="lingua" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
-                  <Languages className="h-3.5 w-3.5" /> {t("Lingua")}
-                </TabsTrigger>
-              )}
+              {/* Lingua dell'app: area operai (23/11/2026) e, a blocchi, anche l'ufficio. */}
+              <TabsTrigger value="lingua" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
+                <Languages className="h-3.5 w-3.5" /> {t("Lingua")}
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -990,11 +988,14 @@ export default function MioProfilo() {
             <AvvisiPerEvento conDispositivo={!nelCampo} />
           </TabsContent>
         )}
-        {nelCampo && (
-          <TabsContent value="lingua" className="mt-0">
-            <SceltaLinguaCampo />
-          </TabsContent>
-        )}
+        <TabsContent value="lingua" className="mt-0">
+          <SceltaLinguaCampo />
+          {!nelCampo && (
+            <p className="mt-2 px-1 text-sm text-muted-foreground">
+              {t("Nell'app dell'ufficio le traduzioni arrivano a blocchi: prima rumeno e albanese. Le pagine non ancora tradotte restano in italiano.")}
+            </p>
+          )}
+        </TabsContent>
       </Tabs>
     </div>
   );

@@ -104,7 +104,11 @@ async function salvaSulProfilo(idProfilo: string, codice: CodiceLingua): Promise
   }
 }
 
-export function LinguaCampoProvider({ children }: { children: ReactNode }) {
+/**
+ * `rtl`: se la lingua è araba, girare la pagina da destra a sinistra. Nell'app dell'ufficio è spento finché le sue
+ * pagine non sono tradotte (una pagina in italiano girata al contrario è peggio): lì l'arabo arriva dopo.
+ */
+export function LinguaCampoProvider({ children, rtl: rtlConsentito = true }: { children: ReactNode; rtl?: boolean }) {
   const { profile } = useAuth();
   const profilo = (profile as ProfiloLingua | null) ?? null;
   const idProfilo = profilo?.id ?? null;
@@ -175,12 +179,12 @@ export function LinguaCampoProvider({ children }: { children: ReactNode }) {
     const radice = document.documentElement;
     const prima = { lang: radice.lang, dir: radice.dir };
     radice.lang = lingua.locale.split("-")[0];
-    radice.dir = lingua.rtl ? "rtl" : "ltr";
+    radice.dir = lingua.rtl && rtlConsentito ? "rtl" : "ltr";
     return () => { radice.lang = prima.lang; radice.dir = prima.dir; };
-  }, [lingua]);
+  }, [lingua, rtlConsentito]);
 
   const voci = codice !== "it" && dizionario?.codice === codice ? dizionario.voci : null;
-  const rtl = Boolean(lingua.rtl);
+  const rtl = Boolean(lingua.rtl) && rtlConsentito;
   const t = useCallback((testo: string, valori?: Valori) => {
     // Solo in sviluppo: annota le frasi senza traduzione (anche quelle passate come variabile, che i test non vedono).
     // In console: [...window.__frasiSenzaTraduzione]. In produzione questo ramo non esiste.

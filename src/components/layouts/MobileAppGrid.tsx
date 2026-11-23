@@ -26,6 +26,7 @@ import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface MobileAppGridProps {
   open: boolean;
@@ -277,6 +278,7 @@ function badgeForUrl(url: string, notifications: NotificationLike[]): number {
 /* ── Componente ───────────────────────────────────────────────────────── */
 
 export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
+  const t = useT();
   const permissions = usePermissions();
   const { isModuleEnabled, isLoading: limitsLoading } = useSubscriptionLimits({ includeUsageCounts: false });
   const { mode: billingMode } = useBillingMode();
@@ -340,7 +342,8 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         let items = filterNavItems(area.items);
         if (search.trim()) {
           const q = search.toLowerCase();
-          items = items.filter((item) => item.title.toLowerCase().includes(q));
+          // Si cerca sia nel nome italiano sia in quello tradotto.
+          items = items.filter((item) => item.title.toLowerCase().includes(q) || t(item.title).toLowerCase().includes(q));
         }
         return { ...area, items };
       })
@@ -356,13 +359,13 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
     ];
     const q = search.trim().toLowerCase();
     const impostazioni = q
-      ? vociImpostazioni.filter((v) => v.title.toLowerCase().includes(q))
+      ? vociImpostazioni.filter((v) => v.title.toLowerCase().includes(q) || t(v.title).toLowerCase().includes(q))
       : vociImpostazioni;
 
     return impostazioni.length > 0
       ? [...aree, { id: "area_impostazioni", title: "Impostazioni", items: impostazioni }]
       : aree;
-  }, [filterNavItems, search]);
+  }, [filterNavItems, search, t]);
 
   /**
    * Mappa URL → { item, areaId } per risolvere i recenti alle voci attuali
@@ -443,7 +446,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
             isActive ? "text-foreground font-semibold" : "text-foreground",
           )}
         >
-          {item.title}
+          {t(item.title)}
         </span>
       </Link>
     );
@@ -455,15 +458,15 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         side="bottom"
         className="h-[92dvh] rounded-t-3xl p-0 overflow-hidden [&>button]:hidden max-sm:p-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:pb-[env(safe-area-inset-bottom)]"
       >
-        <SheetTitle className="sr-only">Menu app</SheetTitle>
+        <SheetTitle className="sr-only">{t("Menu app")}</SheetTitle>
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between px-3 sm:px-5 pt-3 sm:pt-5 pb-2">
-            <h2 className="text-lg font-bold text-foreground">App</h2>
+            <h2 className="text-lg font-bold text-foreground">{t("App")}</h2>
             <button
               onClick={() => { onOpenChange(false); setSearch(""); }}
               className="w-10 h-10 -mr-1 rounded-full flex items-center justify-center hover:bg-muted active:bg-muted/70 transition-colors"
-              aria-label="Chiudi"
+              aria-label={t("Chiudi")}
             >
               <X className="h-5 w-5" />
             </button>
@@ -475,11 +478,11 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Cerca app"
+                placeholder={t("Cerca app")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full h-10 pl-10 pr-4 rounded-xl border border-border/60 bg-muted/30 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                aria-label="Cerca app"
+                aria-label={t("Cerca app")}
               />
             </div>
           </div>
@@ -487,7 +490,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
           {/* Grid content */}
           <div className="flex-1 overflow-y-auto px-2 sm:px-5 pb-8">
             {gatingLoading && (
-              <div className="space-y-3" aria-label="Caricamento menu">
+              <div className="space-y-3" aria-label={t("Caricamento menu")}>
                 {Array.from({ length: 3 }).map((_, areaIdx) => (
                   <div key={areaIdx} className="bg-background border border-border/60 rounded-2xl p-3">
                     <Skeleton className="h-3 w-24 mb-3" />
@@ -510,7 +513,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wide mb-1 px-1 flex items-center gap-1.5 text-muted-foreground">
                     <Clock className="h-3 w-3" />
-                    Recenti
+                    {t("Recenti")}
                   </p>
                   <div className="grid grid-cols-5 gap-x-0.5 gap-y-2">
                     {recentsItems.map(({ item, areaId }) => renderTile(item, areaId))}
@@ -530,7 +533,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
                       "text-[11px] font-semibold uppercase tracking-wide mb-1 px-1",
                       tone.sectionLabel,
                     )}>
-                      {area.title}
+                      {t(area.title)}
                     </p>
                     <div className="grid grid-cols-5 gap-x-0.5 gap-y-2">
                       {area.items.map((item) => renderTile(item, area.id))}
@@ -543,7 +546,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
             {/* Empty state quando search non trova nulla */}
             {!gatingLoading && search.trim() && filteredAreas.length === 0 && recentsItems.length === 0 && (
               <div className="text-center py-10 text-sm text-muted-foreground">
-                Nessuna app trovata per &quot;{search}&quot;
+                {t("Nessuna app trovata per \"{testo}\"", { testo: search })}
               </div>
             )}
           </div>

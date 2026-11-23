@@ -13,6 +13,7 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   richiestaConferma,
   confermaValida,
@@ -58,14 +59,15 @@ export function ConfermaQuantita({
   /** Come si chiamano le righe, per il testo: «anagrafiche», «costi»… */
   cosa?: string;
 }) {
+  const t = useT();
   if (!stato.richiesta.serve) return null;
   return (
     <div className="space-y-1.5 rounded-lg border border-red-200 bg-red-50 p-3">
       <p className="text-sm font-semibold text-red-900">
-        Stai eliminando {stato.richiesta.parola} {cosa}. Non si torna indietro.
+        {t("Stai eliminando {n} {cosa}. Non si torna indietro.", { n: stato.richiesta.parola, cosa: t(cosa) })}
       </p>
       <Label htmlFor="conferma-quantita" className="text-sm font-medium text-red-900">
-        Per procedere scrivi quanti ne stai eliminando:{" "}
+        {t("Per procedere scrivi quanti ne stai eliminando:")}{" "}
         <span className="font-bold">{stato.richiesta.parola}</span>
       </Label>
       <Input

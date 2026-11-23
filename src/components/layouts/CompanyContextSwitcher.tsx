@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function getCompanyInitials(name?: string | null) {
   const words = (name ?? "Azienda").trim().split(/\s+/).filter(Boolean);
@@ -75,13 +76,14 @@ export const CompanyContextSwitcher = memo(function CompanyContextSwitcher({
   showSecurityNote = true,
 }: CompanyContextSwitcherProps) {
   const { user, effectiveCompany, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany } = useAuth();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [favoriteCompanyIds, setFavoriteCompanyIds] = useState<string[]>([]);
   const [recentCompanyIds, setRecentCompanyIds] = useState<string[]>([]);
 
   const hasMultipleCompanies = multiCompanyAccesses.length > 1;
-  const activeCompanyName = effectiveCompany?.name ?? "Azienda";
+  const activeCompanyName = effectiveCompany?.name ?? t("Azienda");
   const activeAccess = multiCompanyAccesses.find((access) => access.company_id === selectedMultiCompanyId);
   const activeRoleLabel = getCompanyAccessRoleLabel(activeAccess?.access_role);
   const knownCompanyIds = useMemo(
@@ -114,9 +116,10 @@ export const CompanyContextSwitcher = memo(function CompanyContextSwitcher({
     return multiCompanyAccesses.filter((access) => {
       const companyName = access.company?.name ?? access.company_id;
       const roleLabel = getCompanyAccessRoleLabel(access.access_role);
-      return `${companyName} ${roleLabel}`.toLowerCase().includes(term);
+      // Il ruolo si trova sia in italiano sia nella lingua scelta.
+      return `${companyName} ${roleLabel} ${t(roleLabel)}`.toLowerCase().includes(term);
     });
-  }, [multiCompanyAccesses, query]);
+  }, [multiCompanyAccesses, query, t]);
 
   const groupedAccesses = useMemo(() => {
     const term = query.trim();
@@ -205,16 +208,16 @@ export const CompanyContextSwitcher = memo(function CompanyContextSwitcher({
             isCollapsed ? "w-10 justify-center px-0" : "w-full",
             className,
           )}
-          title="Cambia azienda"
-          aria-label="Cambia azienda"
+          title={t("Cambia azienda")}
+          aria-label={t("Cambia azienda")}
         >
           {brandMark}
           {!isCollapsed && (
             <>
               <span className="min-w-0 flex-1 text-left">
-                <span className="block truncate text-sm font-semibold leading-tight">{activeCompanyName}</span>
+                <span dir="auto" className="block truncate text-sm font-semibold leading-tight">{activeCompanyName}</span>
                 <span className="block truncate text-[11px] leading-tight text-sidebar-foreground/60">
-                  {activeRoleLabel} · {multiCompanyAccesses.length} aziende
+                  {t("{ruolo} · {n} aziende", { ruolo: t(activeRoleLabel), n: multiCompanyAccesses.length })}
                 </span>
               </span>
               <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50" />
@@ -230,22 +233,22 @@ export const CompanyContextSwitcher = memo(function CompanyContextSwitcher({
         className="w-[22rem] max-w-[calc(100vw-1rem)] p-2"
       >
         <div className="px-2 py-2">
-          <p className="text-sm font-semibold">Cambia azienda</p>
-          <p className="text-xs text-muted-foreground">Dati, permessi e moduli si aggiornano sul contesto scelto.</p>
+          <p className="text-sm font-semibold">{t("Cambia azienda")}</p>
+          <p className="text-xs text-muted-foreground">{t("Dati, permessi e moduli si aggiornano sul contesto scelto.")}</p>
         </div>
         <div className="relative mb-2 px-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Cerca azienda o ruolo..."
+            placeholder={t("Cerca azienda o ruolo...")}
             className="h-9 pl-8 text-sm"
           />
         </div>
         <div className="max-h-72 overflow-y-auto pr-1">
           {filteredAccesses.length === 0 ? (
             <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-              Nessuna azienda trovata
+              {t("Nessuna azienda trovata")}
             </div>
           ) : (
             groupedAccesses.map((group) => {
@@ -254,7 +257,7 @@ export const CompanyContextSwitcher = memo(function CompanyContextSwitcher({
                 <div key={group.label} className="space-y-1 pb-2 last:pb-0">
                   <div className="flex items-center gap-1.5 px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                     <GroupIcon className="h-3 w-3" />
-                    {group.label}
+                    {t(group.label)}
                   </div>
                   {group.accesses.map((access) => {
                     const selected = access.company_id === selectedMultiCompanyId;
@@ -280,9 +283,9 @@ export const CompanyContextSwitcher = memo(function CompanyContextSwitcher({
                             </AvatarFallback>
                           </Avatar>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium">{companyName}</span>
+                            <span dir="auto" className="block truncate text-sm font-medium">{companyName}</span>
                             <span className="mt-0.5 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                              {getCompanyAccessRoleLabel(access.access_role)}
+                              {t(getCompanyAccessRoleLabel(access.access_role))}
                             </span>
                           </span>
                           {selected && <Check className="h-4 w-4 shrink-0 text-primary" />}
@@ -294,8 +297,8 @@ export const CompanyContextSwitcher = memo(function CompanyContextSwitcher({
                             favorite && "text-amber-500",
                           )}
                           onClick={() => toggleFavoriteCompany(access.company_id)}
-                          aria-label={favorite ? `Rimuovi ${companyName} dai preferiti` : `Aggiungi ${companyName} ai preferiti`}
-                          title={favorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+                          aria-label={favorite ? t("Rimuovi {nome} dai preferiti", { nome: companyName }) : t("Aggiungi {nome} ai preferiti", { nome: companyName })}
+                          title={favorite ? t("Rimuovi dai preferiti") : t("Aggiungi ai preferiti")}
                         >
                           <Star className={cn("h-3.5 w-3.5", favorite && "fill-current")} />
                         </button>
@@ -309,7 +312,7 @@ export const CompanyContextSwitcher = memo(function CompanyContextSwitcher({
         </div>
         {showSecurityNote && (
           <div className="mt-2 rounded-lg bg-muted/60 px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">
-            Il cambio azienda resetta cache, permessi e dati caricati per evitare contaminazioni tra società.
+            {t("Il cambio azienda resetta cache, permessi e dati caricati per evitare contaminazioni tra società.")}
           </div>
         )}
       </PopoverContent>
