@@ -370,3 +370,9 @@ pausa. Non li ho cancellati: si tolgono dall'ufficio o con una riga SQL, se il f
 - Provato nel browser a 375 px: verde (scheda demo di Florin con corso e visita di prova), rosso (Marco Verdi, scheda non attiva), codice inventato. Test 5/5. Pagina del tesserino tradotta in 10 lingue; la pagina di verifica è in italiano (per chi controlla).
 - Dati di prova aggiunti in Demo 2: 2 documenti «DEMO ·» sulla scheda di Florin, codici tesserino per Florin e Marco Verdi. Buoni pasto accesi in Demo 2 (8 €, soglia 6 h) con Marco Verdi abilitato: 73 buoni.
 - Non fatto: pulsante «Rigenera QR» nella scheda del dipendente (la funzione c'è); operaio2 non ha scheda del personale, quindi il suo tesserino non ha QR.
+
+## Unione in locale (23/11/2026, ok del founder)
+- Ramo `campo-lingua-23nov` nel worktree `~/edilizia-campo-lingua` (la cartella principale, con lavoro non salvato di altre sessioni, resta su main). Commit: collaudo area operai, pacchetto della sessione lingua, traduzioni delle frasi arrivate da main, test fasi, «Rigenera QR». Rebase su origin/main fatto (61 conflitti risolti tenendo main + traduzioni). Non pubblicato.
+- Tipi: puliti su tutti i file cambiati (controllo a lotti). Test dell'area operai: 2.807/2.809; i 2 rossi (rapportinoFirmaFineLavori, rapportinoTrasportiDatabase) e orderCampoManagement falliscono già su main; anche indirizziUnaRicerca (PosizioneOperativa:66) è rosso su main.
+- Scheda dipendente → Documenti: riquadro «Tesserino di cantiere» con «Rigenera QR» (solo per chi lavora in cantiere).
+- Demo 2: Marco Verdi riattivato; scheda del personale «Marco Operaio» collegata a operaio2; corso e visita «DEMO ·» su entrambi: i tesserini risultano «In regola».
