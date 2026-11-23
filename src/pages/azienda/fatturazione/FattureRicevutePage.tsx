@@ -49,6 +49,7 @@ import type { QuotaOrdine } from "@/lib/fatturazione/quoteOrdini";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -393,6 +394,9 @@ export default function FattureRicevutePage() {
   // L'import vive tutto nel popup: file, anteprima riga per riga, spunte, esito.
   const [moduloUscitaAperto, setModuloUscitaAperto] = useState(false);
   const [importaAperto, setImportaAperto] = useState(false);
+  // 23/11/2026: «Paga» nella riga apre il pagamento già pronto (importo, oggi, conto), con i
+  // movimenti di banca della fattura. Prima c'era solo un'icona muta che segnava pagata oggi.
+  const [pagaCosto, setPagaCosto] = useState<{ costId: string; importo: number } | null>(null);
   const [confermaClassifica, setConfermaClassifica] = useState(false);
   const [classProgress, setClassProgress] = useState<{ fatte: number; totale: number } | null>(null);
   // Mobile: anno e stato in un pannello dal basso; una fattura si apre in un
@@ -1563,7 +1567,11 @@ export default function FattureRicevutePage() {
                     ) : (
                       <span className={cn("inline-flex items-center gap-1 whitespace-nowrap text-xs", daPagare(f) ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
                         {testoSaldo(saldo)}
-                        {daPagare(f) && <PagamentoRicevutaCella forma="icona" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={null} />}
+                        {daPagare(f) && (f.company_cost_id && permessiCosti.canViewCosts && !permessiCosti.solaLettura
+                          ? <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs font-semibold"
+                              onClick={() => setPagaCosto({ costId: f.company_cost_id!, importo: Number(saldo?.residuo ?? 0) })}
+                              aria-label={`Registra il pagamento della fattura ${f.numero_fattura}`}>Paga</Button>
+                          : <PagamentoRicevutaCella forma="icona" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={null} />)}
                       </span>
                     )}
                   </TableCell>}
@@ -1928,6 +1936,8 @@ export default function FattureRicevutePage() {
       />
 
       <IntegrazioneRicevutaDialog fattura={daIntegrare} onClose={() => setDaIntegrare(null)} />
+      {pagaCosto && <ExpensePaymentDialog key={pagaCosto.costId} costId={pagaCosto.costId} importoProposto={pagaCosto.importo}
+        apriInRegistrazione onClose={() => setPagaCosto(null)} />}
       <ImportaFattureDialog
         aperto={importaAperto}
         companyId={companyId}

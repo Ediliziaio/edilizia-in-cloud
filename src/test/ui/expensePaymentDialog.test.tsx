@@ -50,12 +50,41 @@ describe('Pagamento contestuale di una spesa',()=>{
     const calls=fake.rpc.mock.calls.filter(([name])=>name==='registra_pagamento_costo_con_conto');
     expect(calls).toHaveLength(2);expect(calls[0][1].p_richiesta).toBe(calls[1][1].p_richiesta);
   });
+  it('con un solo conto possibile il conto è già scelto: si conferma subito',async()=>{
+    fake.conti=[{valore:'banca:beta',etichetta:'Banca Beta · …5678',account_label:'Banca Beta',bank_account_id:'beta',conto_liquidita_id:null}];
+    mount();fireEvent.click(await screen.findByRole('button',{name:'Registra pagamento'}));
+    expect(screen.getByRole('button',{name:'Conferma pagamento'})).not.toBeDisabled();
+    fireEvent.click(screen.getByRole('button',{name:'Conferma pagamento'}));
+    await waitFor(()=>expect(fake.rpc).toHaveBeenCalledWith('registra_pagamento_costo_con_conto',expect.objectContaining({p_conto_banca:'beta',p_importo:1220})));
+  });
+  it('dallo scadenzario si apre già sul modulo, con l\'importo della rata',async()=>{
+    fake.conti=[{valore:'banca:beta',etichetta:'Banca Beta · …5678',account_label:'Banca Beta',bank_account_id:'beta',conto_liquidita_id:null}];
+    const client=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});
+    render(<QueryClientProvider client={client}><ExpensePaymentDialog costId="cost" importoProposto={400} apriInRegistrazione onClose={vi.fn()}/></QueryClientProvider>);
+    const importo=await screen.findByLabelText('Importo') as HTMLInputElement;
+    expect(importo.value).toBe('400');
+    fireEvent.click(screen.getByRole('button',{name:'Conferma pagamento'}));
+    await waitFor(()=>expect(fake.rpc).toHaveBeenCalledWith('registra_pagamento_costo_con_conto',expect.objectContaining({p_importo:400,p_conto_banca:'beta'})));
+    // Registrato: il modulo si chiude e il residuo scende, senza riaprirsi da solo.
+    await waitFor(()=>expect(screen.queryByLabelText('Importo')).toBeNull());
+    expect(screen.getByText('820,00 €',{exact:false})).toBeTruthy();
+  });
+  it('un importo proposto oltre il residuo si ferma al residuo, e «Annulla» chiude il modulo',async()=>{
+    const client=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});
+    render(<QueryClientProvider client={client}><ExpensePaymentDialog costId="cost" importoProposto={5000} apriInRegistrazione onClose={vi.fn()}/></QueryClientProvider>);
+    expect((await screen.findByLabelText('Importo') as HTMLInputElement).value).toBe('1220');
+    fireEvent.click(screen.getByRole('button',{name:'Annulla'}));
+    await waitFor(()=>expect(screen.queryByLabelText('Importo')).toBeNull());
+    expect(screen.getByRole('button',{name:'Registra pagamento'})).toBeTruthy();
+  });
   it('permette la consultazione in sola lettura senza offrire la registrazione',async()=>{
     fake.readonly=true;mount();await screen.findByText('Fattura DEMO');
     expect(screen.queryByRole('button',{name:'Registra pagamento'})).toBeNull();
   });
   it('registra il conto bancario effettivo, accetta il formato italiano e rifiuta millesimi e date future',async()=>{
-    fake.conti=[{valore:'banca:beta',etichetta:'Banca Beta · …5678',account_label:'Banca Beta',bank_account_id:'beta',conto_liquidita_id:null}];
+    // Con due conti possibili si deve scegliere quello vero (con uno solo è già scelto: vedi sotto).
+    fake.conti=[{valore:'banca:beta',etichetta:'Banca Beta · …5678',account_label:'Banca Beta',bank_account_id:'beta',conto_liquidita_id:null},
+      {valore:'banca:gamma',etichetta:'Banca Gamma · …9012',account_label:'Banca Gamma',bank_account_id:'gamma',conto_liquidita_id:null}];
     mount();fireEvent.click(await screen.findByRole('button',{name:'Registra pagamento'}));
     expect(screen.getByRole('button',{name:'Conferma pagamento'})).toBeDisabled();
     fireEvent.keyDown(screen.getByLabelText('Conto del pagamento'),{key:'ArrowDown'});

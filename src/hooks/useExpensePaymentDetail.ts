@@ -28,3 +28,25 @@ export function useExpensePaymentDetail(costId: string | null | undefined, enabl
     }, staleTime: 0,
   });
 }
+
+/** Un movimento di banca che il motore propone come pagamento (o prova) di questa fattura. */
+export interface MovimentoBancaProposto {
+  transaction_id: string; data: string; importo: number; conto: string; causale: string | null;
+  chiave: string; forza: string; prova: boolean;
+  righe: { tipo: string; id: string; importo: number; titolo: string | null; di_questo_costo: boolean }[];
+}
+
+/**
+ * «C'è in banca» (23/11/2026): se il pagamento è già passato in banca va collegato, non
+ * riscritto a mano — altrimenti risulta due volte. Solo proposte che riguardano questa fattura.
+ */
+export function usePagamentiBancaProposti(costId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['pagamento-costo-banca', costId, 'proposti'], enabled: enabled && !!costId,
+    queryFn: async (): Promise<{ candidati: MovimentoBancaProposto[]; puo_collegare: boolean }> => {
+      const { data, error } = await supabase.rpc('pagamenti_banca_candidati_costo' as never, { p_costo: costId! } as never);
+      if (error) throw new Error((error as { message: string }).message);
+      return (data ?? { candidati: [], puo_collegare: false }) as unknown as { candidati: MovimentoBancaProposto[]; puo_collegare: boolean };
+    }, staleTime: 0,
+  });
+}

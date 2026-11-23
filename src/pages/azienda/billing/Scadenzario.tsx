@@ -43,6 +43,7 @@ import { percheScadenzaNonModificabile } from "@/lib/finance/modificaScadenza";
 import { formatCurrency } from "@/lib/formatters";
 import { FiltriScadenzario, FiltriScadenzarioAttivi, FiltroStatoScadenzeCompatto, type ValoriFiltriScadenzario } from "@/components/scadenzario/FiltriScadenzario";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
 const MESI_BREVI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
 
 // Periodi rapidi nella barra; le date personalizzate stanno in «Altri filtri».
@@ -98,6 +99,17 @@ export default function Scadenzario() {
   const [tab, setTab] = useState("aperte");
   const [search, setSearch] = useState("");
   const [payDialog, setPayDialog] = useState<Scadenza | null>(null);
+  // 23/11/2026: la rata di una fattura fornitore si paga qui. Prima «Segna pagata» portava alla
+  // pagina Costi, e da lì riepilogo, popup e modulo: Impresa Vulcano non riusciva a registrare.
+  const [pagaCosto, setPagaCosto] = useState<{ costId: string; importo: number } | null>(null);
+  const apriPagamento = (s: Scadenza) => {
+    if (s.auto_source === "fonte_costo" && s.cost_id && permessi.canViewCosts && !permessi.solaLettura) {
+      setPagaCosto({ costId: s.cost_id, importo: Math.max(0, Number(s.amount) - Number(s.paid_amount ?? 0)) });
+      return;
+    }
+    const href = linkFonteScadenza(s);
+    if (href) navigate(href); else setPayDialog(s);
+  };
   const [newOpen, setNewOpen] = useState(false);
   // Anno selezionato (default anno corrente): scopa KPI + lista a quell'anno invece
   // di mostrare il cumulato di tutti gli anni. "all" = tutti gli anni.
@@ -539,7 +551,7 @@ export default function Scadenzario() {
             <ScadenzarioTable
               scadenze={filtered}
               onNota={(s, nota) => updateNotes(s.id, nota)}
-              onMarkPaid={(s) => { const href = linkFonteScadenza(s); if (href) navigate(href); else setPayDialog(s); }}
+              onMarkPaid={apriPagamento}
               onCancel={(id) => { const s = scadenze.find((x) => x.id === id); if (s) void annullaSingola(s); }}
               onModifica={!permessi.solaLettura ? setDaModificare : undefined}
               selezionate={selezione.ids}
@@ -634,13 +646,15 @@ export default function Scadenzario() {
         <ScadenzaDettaglio
           scadenza={scadenzaAperta}
           onClose={() => setDettaglio(null)}
-          onMarkPaid={(x) => { setDettaglio(null); const href = linkFonteScadenza(x); if (href) navigate(href); else setPayDialog(x); }}
+          onMarkPaid={(x) => { setDettaglio(null); apriPagamento(x); }}
           onAnnullaIncasso={(x) => { setDettaglio(null); setDaAnnullare(x); }}
           onNota={(x, nota) => updateNotes(x.id, nota)}
           onModifica={!permessi.solaLettura ? (s) => { setDettaglio(null); setDaModificare(s); } : undefined}
           onAnnullaScadenza={!permessi.solaLettura ? (s) => void annullaSingola(s) : undefined}
         />
       )}
+      {pagaCosto && <ExpensePaymentDialog key={pagaCosto.costId} costId={pagaCosto.costId} importoProposto={pagaCosto.importo}
+        apriInRegistrazione onClose={() => setPagaCosto(null)} />}
       <MarkPaidDialog
         scadenza={payDialog}
         open={!!payDialog}
