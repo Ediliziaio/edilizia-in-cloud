@@ -202,6 +202,13 @@ interface FatturaRicevuta {
   fornitore_id?: string | null;
 }
 
+/**
+ * I saldi finché non sono arrivati: una mappa vuota, sempre la stessa, così la
+ * striscia dei mesi si disegna subito con pagato e residuo a zero invece di
+ * lasciare il posto alla testata di «tutti gli anni» e poi sostituirla.
+ */
+const SALDI_IN_ARRIVO: ReadonlyMap<string, SaldoRicevuta> = new Map();
+
 // ─── Stato Badge ──────────────────────────────────────────────
 
 const STATO_CONFIG: Record<
@@ -669,8 +676,17 @@ export default function FattureRicevutePage() {
   }, [fatture]);
 
   // I dodici mesi dell'anno scelto, dalle fatture già caricate (stesse regole della tabella).
+  //
+  // Quale testata si vede dipende SOLO dall'anno scelto, non dal fatto che i dati
+  // siano arrivati: con un anno è la striscia dei mesi, con «tutti gli anni» la
+  // testata blu. Prima qui c'era `|| !saldi`, e i saldi arrivano dopo (la query
+  // aspetta l'azienda, che a sua volta si risolve dopo il primo disegno): partiva
+  // la testata blu e mezzo secondo dopo veniva sostituita dalla striscia. È il
+  // lampo che si vedeva sulle fatture ricevute (23/11/2026). I numeri dei mesi si
+  // riempiono da sé quando i saldi rispondono; finché non ci sono, pagato e
+  // residuo valgono zero e la striscia è già alla sua altezza definitiva.
   const mesi = useMemo(
-    () => annoFilter === "all" || !saldi ? null : mesiRicevute(fatture, Number(annoFilter), saldi, oggiIso),
+    () => annoFilter === "all" ? null : mesiRicevute(fatture, Number(annoFilter), saldi ?? SALDI_IN_ARRIVO, oggiIso),
     [fatture, annoFilter, saldi, oggiIso],
   );
 
