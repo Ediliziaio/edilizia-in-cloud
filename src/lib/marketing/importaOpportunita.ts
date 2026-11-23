@@ -104,7 +104,7 @@ async function contattiEsistenti(ctx: ContestoOpportunita, pronte: OpportunitaPr
   const emails = [...new Set(pronte.map((p) => p.contatto.email).filter(Boolean) as string[])];
   const phones = [...new Set(pronte.map((p) => p.contatto.phone).filter(Boolean) as string[])];
   for (const lotto of aLotti(emails, 100)) {
-    const { data, error } = await ctx.db.from("marketing_contacts").select("id, email").eq("company_id", ctx.companyId).is("deleted_at", null).in("email", lotto);
+    const { data, error } = await ctx.db.rpc("contatti_per_email", { p_company_id: ctx.companyId, p_emails: lotto });
     if (error) throw error;
     for (const c of (data ?? []) as { id: string; email: string }[]) if (!perEmail.has(c.email.toLowerCase())) perEmail.set(c.email.toLowerCase(), c.id);
   }

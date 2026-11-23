@@ -130,8 +130,8 @@ export async function cercaEsistenti(ctx: ContestoContatti, pronti: ContattoPron
   const emails = [...new Set(pronti.map((p) => p.data.email).filter(Boolean) as string[])];
   const phones = [...new Set(pronti.map((p) => p.data.phone).filter(Boolean) as string[])];
   for (const lotto of aLotti(emails, 100)) {
-    const { data, error } = await ctx.db.from("marketing_contacts")
-      .select("id, email, tags").eq("company_id", ctx.companyId).is("deleted_at", null).in("email", lotto);
+    // Senza guardare maiuscole e spazi, come il giro a scaglioni: «Mario@X.it» è mario@x.it.
+    const { data, error } = await ctx.db.rpc("contatti_per_email", { p_company_id: ctx.companyId, p_emails: lotto });
     if (error) throw error;
     for (const e of (data ?? []) as { id: string; email: string | null; tags: string[] | null }[]) {
       if (e.email) {

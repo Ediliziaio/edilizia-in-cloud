@@ -10,7 +10,14 @@ function dbFinto(esistenti: { id: string; email?: string | null; phone?: string 
   const aggiornati: Record<string, unknown>[] = [];
   let id = 0;
   let insertContatti = 0;
-  const rpc = vi.fn(async (_nome: string, arg: { p_entity_ids: string[] }) => ({ data: { enrolled: arg.p_entity_ids.length }, error: null as null }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rpc = vi.fn(async (nome: string, arg: any): Promise<{ data: any; error: null }> => {
+    if (nome === "contatti_per_email") {
+      const cercate = (arg.p_emails as string[]).map((e) => e.trim().toLowerCase());
+      return { data: esistenti.filter((e) => e.email && cercate.includes(e.email.toLowerCase())), error: null };
+    }
+    return { data: { enrolled: (arg.p_entity_ids as string[]).length }, error: null };
+  });
   const from = (tabella: string) => {
     let filtroIn: { col: string; valori: string[] } | null = null;
     const catena = {
@@ -199,5 +206,34 @@ describe("programmazione che non può partire", () => {
     expect(programmazioneValida({ ...base, giorni: [] })).toBe(false);
     expect(programmazioneValida({ ...base, fasciaDa: "22:00", fasciaA: "06:00" })).toBe(false);
     expect(programmazioneValida({ ...base, fasciaDa: undefined, fasciaA: undefined })).toBe(true);
+  });
+});
+
+describe("email con maiuscole diverse", () => {
+  it("«Mario@X.it» in archivio e «mario@x.it» nel file sono lo stesso contatto", async () => {
+    const f = dbFinto([{ id: "mario", email: "Mario@Esempio.IT" }]);
+    const esito = await importaContatti(ctx(f.db), [{ first_name: "Mario", email: "mario@esempio.it" }], { mode: "upsert" });
+    expect(esito).toMatchObject({ creati: 0, aggiornati: 1 });
+    expect(f.inseriti.marketing_contacts).toBeUndefined();
+  });
+});
+
+describe("righe andate male di un'importazione a scaglioni", () => {
+  it("si scaricano col numero di riga del file e un motivo senza parole tecniche", async () => {
+    const { csvRigheProgrammate } = await import("@/components/shared/import-wizard/scaricaRighe");
+    const csv = csvRigheProgrammate("contatti", [
+      { ordine: 2, esito: 'value too long for type character varying(50)', dati: { riga: 9, contatto: { first_name: "Bea", phone: "+393331112222", tags: ["fiera", "nov"] } } },
+      { ordine: 1, esito: 'duplicate key value violates unique constraint "x"', dati: { riga: 4, contatto: { first_name: "Anna", email: "anna@x.it" } } },
+    ]).split("\r\n");
+    expect(csv[0]).toBe("﻿Riga del file;Nome;Cognome;Email;Telefono;Azienda;Città;Provincia;Etichette;Note;Motivo");
+    expect(csv[1]).toBe("4;Anna;;anna@x.it;;;;;;;c'è già un elemento uguale");
+    expect(csv[2]).toBe("9;Bea;;;+393331112222;;;;fiera, nov;;un testo è troppo lungo");
+    expect(csv.join("\n")).not.toMatch(/duplicate|varying/);
+  });
+  it("per le opportunità ci sono anche nome e valore", async () => {
+    const { csvRigheProgrammate } = await import("@/components/shared/import-wizard/scaricaRighe");
+    const csv = csvRigheProgrammate("opportunita", [{ ordine: 1, esito: "boh", dati: { riga: 3, opportunita: { name: "Infissi", value: 1200 }, contatto: { first_name: "Ugo" } } }]).split("\r\n");
+    expect(csv[0]).toContain("Riga del file;Opportunità;Valore;Etichette;Note;Nome contatto");
+    expect(csv[1]).toBe("3;Infissi;1200;;;Ugo;;;;;;;non è entrata per un errore: controlla i dati della riga");
   });
 });

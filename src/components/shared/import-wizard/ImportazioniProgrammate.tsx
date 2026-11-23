@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Pause, Play, X } from "lucide-react";
+import { useState } from "react";
+import { CalendarClock, Download, Pause, Play, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { descriviProgrammazione, fineStimata, formatoData } from "@/lib/importazione/programmata";
+import { csvRigheProgrammate, scaricaCsv, type RigaProgrammataFallita } from "./scaricaRighe";
 
 interface Riga {
   id: string; nome_file: string | null; stato: "attiva" | "in_pausa" | "completata" | "annullata";
@@ -19,7 +21,7 @@ const ora = (t: string | null) => (t ? t.slice(0, 5) : undefined);
 /**
  * Le importazioni a scaglioni dell'azienda: quante righe sono entrate, quando finisce,
  * e i pulsanti per metterle in pausa, riprenderle o annullarle. Le concluse restano
- * visibili per un giorno, poi spariscono.
+ * visibili per una settimana, con le righe andate male da scaricare, poi spariscono.
  */
 export function ImportazioniProgrammate({ companyId, oggetto }: { companyId: string | undefined; oggetto: "contatti" | "opportunita" }) {
   const queryClient = useQueryClient();
@@ -29,12 +31,12 @@ export function ImportazioniProgrammate({ companyId, oggetto }: { companyId: str
     enabled: !!companyId,
     refetchInterval: 60_000,
     queryFn: async () => {
-      const ieri = new Date(Date.now() - 24 * 3600_000).toISOString();
+      const settimana = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).from("importazioni_programmate")
         .select("id, nome_file, stato, totale, fatte, creati, aggiornati, saltati, errori, per_giro, ogni_minuti, inizio, prossimo_giro, fascia_da, fascia_a, giorni, ultimo_errore, updated_at")
         .eq("company_id", companyId).eq("oggetto", oggetto)
-        .or(`stato.in.(attiva,in_pausa),updated_at.gte.${ieri}`)
+        .or(`stato.in.(attiva,in_pausa),updated_at.gte.${settimana}`)
         .neq("stato", "annullata")
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -55,6 +57,29 @@ export function ImportazioniProgrammate({ companyId, oggetto }: { companyId: str
     },
     onError: (e) => toast.error(userErrorMessage(e, "Non sono riuscito a cambiare l'importazione")),
   });
+
+  const [scaricando, setScaricando] = useState<string | null>(null);
+  const scaricaErrori = async (r: Riga) => {
+    setScaricando(r.id);
+    try {
+      const tutte: RigaProgrammataFallita[] = [];
+      for (let da = 0; ; da += 1000) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any).from("importazioni_programmate_righe")
+          .select("ordine, esito, dati").eq("importazione_id", r.id).eq("stato", "errore")
+          .order("ordine").range(da, da + 999);
+        if (error) throw error;
+        tutte.push(...((data ?? []) as RigaProgrammataFallita[]));
+        if (!data || data.length < 1000) break;
+      }
+      const base = (r.nome_file ?? "importazione").replace(/\.[^.]+$/, "");
+      scaricaCsv(`${base} - righe da correggere.csv`, csvRigheProgrammate(oggetto, tutte));
+    } catch (e) {
+      toast.error(userErrorMessage(e, "Non sono riuscito a scaricare le righe da correggere"));
+    } finally {
+      setScaricando(null);
+    }
+  };
 
   if (!righe.length) return null;
   const nome = oggetto === "contatti" ? "contatti" : "opportunità";
@@ -102,6 +127,12 @@ export function ImportazioniProgrammate({ companyId, oggetto }: { companyId: str
               {r.errori ? ` · ${r.errori} con errore` : ""}
             </p>
             {r.ultimo_errore && <p className="mt-1 text-xs text-amber-800">{r.ultimo_errore}</p>}
+            {r.errori > 0 && (
+              <Button size="sm" variant="outline" className="mt-2" disabled={scaricando === r.id} onClick={() => void scaricaErrori(r)}>
+                <Download className="mr-1 h-3.5 w-3.5" />
+                {scaricando === r.id ? "Preparo il file…" : `Scarica le ${r.errori} righe da correggere (Excel)`}
+              </Button>
+            )}
           </div>
         );
       })}
