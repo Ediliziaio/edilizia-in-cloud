@@ -8,7 +8,9 @@ import { StepStart, type ObjectType } from "./import-wizard/StepStart";
 import { StepUpload, type ImportMode } from "./import-wizard/StepUpload";
 import { StepMap } from "./import-wizard/StepMap";
 import { StepReview } from "./import-wizard/StepReview";
-import type { AutomazioneScelta } from "./import-wizard/OpzioniImportazione";
+import type { AnteprimaImport, AutomazioneScelta, EsitoImportazione, OpzioniImport } from "@/lib/importazione/tipi";
+import type { Programmazione } from "@/lib/importazione/programmata";
+import { scaricaRigheDaRivedere } from "./import-wizard/scaricaRighe";
 import { PAGINA_IMPORTAZIONE } from "./import-wizard/useImportaDaUrl";
 import { campiObbligatoriMancanti, type ImportField } from "./CSVImportDialog";
 
@@ -21,32 +23,14 @@ export interface ImportWizardProps {
   contactFields: ImportField[];
   opportunityFields: ImportField[];
   onImportContacts: (rows: Record<string, string>[], options: OpzioniImport) => Promise<EsitoImportazione>;
-  onImportOpportunities: (rows: Record<string, string>[], options: { mode: ImportMode }) => Promise<EsitoImportazione>;
-  /** Al passo 4 si scelgono etichette e automazioni per i contatti importati. */
-  opzioniContatti?: boolean;
+  onImportOpportunities: (rows: Record<string, string>[], options: OpzioniImport) => Promise<EsitoImportazione>;
+  /** Al passo 4 si scelgono etichette, automazioni e quando importare. */
+  conOpzioni?: boolean;
+  /** Cosa succederà premendo «Importa», calcolato prima. */
+  onAnteprima?: (rows: Record<string, string>[], options: OpzioniImport) => Promise<AnteprimaImport>;
 }
 
-export interface OpzioniImport {
-  mode: ImportMode;
-  etichette?: string[];
-  automazioni?: AutomazioneScelta[];
-}
-
-/** Com'è andata: i numeri, cosa è stato fatto dopo, e le righe da guardare. */
-export interface EsitoImportazione {
-  success: number;
-  /** Righe non importate per un errore. */
-  errors: string[];
-  creati?: number;
-  aggiornati?: number;
-  saltati?: number;
-  /** Righe non importate di proposito (doppie nel file): da controllare, non errori. */
-  avvisi?: string[];
-  /** Cosa è stato fatto dopo l'importazione: etichette, automazioni. */
-  fatto?: string[];
-  /** Cosa non è riuscito dopo l'importazione (le righe sono entrate lo stesso). */
-  nonRiuscito?: string[];
-}
+export type { OpzioniImport, EsitoImportazione, AnteprimaImport } from "@/lib/importazione/tipi";
 
 function autoMatch(fileHeaders: string[], fields: ImportField[]): Record<string, string> {
   const mapping: Record<string, string> = {};
@@ -122,7 +106,7 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
 
 export function ImportWizard({
   open, onClose, defaultObjectType, contactFields, opportunityFields,
-  onImportContacts, onImportOpportunities, destinazione, opzioniContatti,
+  onImportContacts, onImportOpportunities, destinazione, conOpzioni, onAnteprima,
 }: ImportWizardProps) {
   const [step, setStep] = useState(0);
   const [objectType, setObjectType] = useState<ObjectType>(defaultObjectType);
@@ -137,6 +121,8 @@ export function ImportWizard({
   const [result, setResult] = useState<EsitoImportazione | null>(null);
   const [etichette, setEtichette] = useState<string[]>([]);
   const [automazioni, setAutomazioni] = useState<AutomazioneScelta[]>([]);
+  const [programmazione, setProgrammazione] = useState<Programmazione | null>(null);
+  const [anteprima, setAnteprima] = useState<{ dati: AnteprimaImport | null; errore: boolean } | null>(null);
 
   const navigate = useNavigate();
   const prefissoMarketing = useMarketingRoutePrefix();
@@ -174,31 +160,52 @@ export function ImportWizard({
     return true;
   };
 
+  // Ogni riga porta il suo numero nel file (l'intestazione è la riga 1): gli avvisi e le righe
+  // da scaricare devono parlare delle righe che l'utente vede nel suo file.
+  const righeMappate = useCallback(() => fileRows.map((row, n) => {
+    const obj: Record<string, string> = {};
+    fileHeaders.forEach((header, idx) => {
+      const fieldKey = mapping[header];
+      if (fieldKey) obj[fieldKey] = row[idx] || "";
+    });
+    return { obj, riga: n + 2 };
+  }).filter(({ obj }) => Object.values(obj).some((v) => v.trim()))
+    .map(({ obj, riga }) => ({ ...obj, __riga: String(riga) })), [fileRows, fileHeaders, mapping]);
+
+  const opzioniCorrenti = (): OpzioniImport => ({
+    mode: importMode, etichette, automazioni, programmazione, nomeFile: file?.name,
+  });
+
+  const calcolaAnteprima = useCallback(async () => {
+    if (!onAnteprima) return;
+    setAnteprima({ dati: null, errore: false });
+    try {
+      setAnteprima({ dati: await onAnteprima(righeMappate(), { mode: importMode }), errore: false });
+    } catch {
+      setAnteprima({ dati: null, errore: true });
+    }
+  }, [onAnteprima, righeMappate, importMode]);
+
   const handleImport = useCallback(async () => {
     setIsImporting(true);
-    const mappedRows = fileRows.map((row) => {
-      const obj: Record<string, string> = {};
-      fileHeaders.forEach((header, idx) => {
-        const fieldKey = mapping[header];
-        if (fieldKey) obj[fieldKey] = row[idx] || "";
-      });
-      return obj;
-    }).filter((r) => Object.values(r).some((v) => v.trim()));
+    const mappedRows = righeMappate();
 
     try {
       const res = objectType === "contacts"
-        ? await onImportContacts(mappedRows, { mode: importMode, etichette, automazioni })
-        : await onImportOpportunities(mappedRows, { mode: importMode });
+        ? await onImportContacts(mappedRows, opzioniCorrenti())
+        : await onImportOpportunities(mappedRows, opzioniCorrenti());
       setResult(res);
     } catch (err: any) {
       setResult({ success: 0, errors: [err?.message || "Errore durante l'importazione"] });
     } finally {
       setIsImporting(false);
     }
-  }, [fileRows, fileHeaders, mapping, objectType, importMode, etichette, automazioni, onImportContacts, onImportOpportunities]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [righeMappate, objectType, importMode, etichette, automazioni, programmazione, file, onImportContacts, onImportOpportunities]);
 
   const handleNext = () => {
     if (step === 3) { handleImport(); return; }
+    if (step === 2) void calcolaAnteprima();
     setStep((s) => s + 1);
   };
 
@@ -260,8 +267,13 @@ export function ImportWizard({
             onConsentChange={setConsent}
             isImporting={isImporting}
             result={result}
-            opzioni={opzioniContatti && objectType === "contacts"
-              ? { etichette, onEtichetteChange: setEtichette, automazioni, onAutomazioniChange: setAutomazioni }
+            opzioni={conOpzioni
+              ? { etichette, onEtichetteChange: setEtichette, automazioni, onAutomazioniChange: setAutomazioni, programmazione, onProgrammazioneChange: setProgrammazione }
+              : undefined}
+            anteprima={anteprima}
+            onRiprovaAnteprima={calcolaAnteprima}
+            onScaricaRighe={result?.righeDaRivedere?.length
+              ? () => scaricaRigheDaRivedere(file?.name ?? "importazione", fileHeaders, fileRows, result.righeDaRivedere!)
               : undefined}
           />
         )}
@@ -286,7 +298,7 @@ export function ImportWizard({
             <Button onClick={onClose}>Chiudi</Button>
           ) : (
             <Button onClick={handleNext} disabled={!canNext(step) || isImporting}>
-              {step === 3 ? "Avvia importazione in blocco" : "Successivo"}
+              {step === 3 ? (programmazione ? "Programma l'importazione" : "Importa adesso") : "Successivo"}
             </Button>
           )}
         </div>

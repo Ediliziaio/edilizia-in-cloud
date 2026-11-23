@@ -23,7 +23,8 @@ import {
 import { OpportunityDetailDialog } from "@/components/opportunities/OpportunityDetailDialog";
 import { OpportunitaCestinoDialog } from "@/components/opportunities/OpportunitaCestinoDialog";
 import { useContactCustomFields, useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
-import { campiContattoImport, datiContattoDaRiga, valoriCustomContatto } from "@/lib/marketing/importaOpportunita";
+import { anteprimaOpportunita, campiContattoImport, importaOpportunita } from "@/lib/marketing/importaOpportunita";
+import { ImportazioniProgrammate } from "@/components/shared/import-wizard/ImportazioniProgrammate";
 import { ImportWizard } from "@/components/shared/ImportWizard";
 import { useImportaDaUrl } from "@/components/shared/import-wizard/useImportaDaUrl";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
@@ -51,7 +52,6 @@ import { cn } from "@/lib/utils";
 import { formatCount } from "@/lib/formatters";
 import { CercaConFiltri, GruppoFiltri, PannelloFiltri, PilloleFiltro, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { CreateListDialog } from "@/components/marketing/CreateListDialog";
-import { formeTelefono, telefonoInternazionale } from "@/lib/contactUtils";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -60,7 +60,6 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { normalizeTagList } from "@/lib/marketingTags";
 import { useLossReasons } from "@/hooks/useLossReasons";
 import { EsportaOpportunitaDialog, type SceltaDialog } from "@/components/opportunities/EsportaOpportunitaDialog";
 import { accessoDettagli, celleAppuntamenti, celleNote, leggiAppuntamentiEsportazione, leggiNomiPersone, leggiNoteEsportazione, leggiPerBlocchi, perOpportunita, righeFoglioAppuntamenti, righeFoglioNote } from "@/lib/opportunita/dettagliEsportazione";
@@ -640,6 +639,17 @@ function MarketingOpportunitiesContent() {
   const filtriMobileAttivi = (onlyMine ? 1 : 0) + (filtroStrip ? 1 : 0) + activeFilterCount;
   const ordineAttuale = `${sortField}:${sortDir}`;
 
+  const contestoImportOpp = companyId && selectedPipelineId && stages.length > 0
+    ? {
+        db: supabase,
+        companyId,
+        pipelineId: selectedPipelineId,
+        faseId: [...stages].sort((x: { position: number }, y: { position: number }) => x.position - y.position)[0].id as string,
+        customKeys: oppCustomFields.map((f) => `custom_${f.id}`),
+        nomeCampoContatto: (id: string) => contactCustomFields.find((f) => f.id === id)?.name ?? "personalizzato",
+      }
+    : null;
+
   if (importOpen) {
     return (
       <ImportWizard
@@ -650,81 +660,16 @@ function MarketingOpportunitiesContent() {
         contactFields={[]}
         opportunityFields={oppImportFields}
         onImportContacts={async () => ({ success: 0, errors: [] })}
-        onImportOpportunities={async (rows) => {
-          if (!companyId || !selectedPipelineId || stages.length === 0) {
+        conOpzioni
+        onAnteprima={contestoImportOpp ? (rows) => anteprimaOpportunita(contestoImportOpp, rows) : undefined}
+        onImportOpportunities={async (rows, opzioni) => {
+          if (!contestoImportOpp) {
             return { success: 0, errors: ["Seleziona una pipeline con almeno una fase"] };
           }
           if (!canEditOpportunities) {
             return { success: 0, errors: ["Non hai i permessi per importare opportunità"] };
           }
-          const customKeys = oppCustomFields.map(f => `custom_${f.id}`);
-          const defaultStageId = [...stages].sort((a: any, b: any) => a.position - b.position)[0].id;
-          let success = 0;
-          const errors: string[] = [];
-          for (let i = 0; i < rows.length; i++) {
-            const r = rows[i];
-            try {
-              const firstName = r.contact_first_name?.trim() || "Senza nome";
-              const lastName = r.contact_last_name?.trim() || null;
-              const email = r.contact_email?.trim().toLowerCase() || null;
-              const phone = r.contact_phone?.trim() ? telefonoInternazionale(r.contact_phone) : null;
-              const value = r.value?.trim() ? Number(r.value) : 0;
-              if (!Number.isFinite(value) || value < 0) {
-                throw new Error("Valore economico non valido");
-              }
-              let contactId: string | null = null;
-              let contattoNuovo = false;
-              if (email) {
-                const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).eq("email", email).limit(1).maybeSingle();
-                if (found) contactId = found.id;
-              }
-              if (!contactId && phone) {
-                const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).in("phone", formeTelefono(phone)).limit(1).maybeSingle();
-                if (found) contactId = found.id;
-              }
-              if (!contactId) {
-                const { data: newContact, error: cErr } = await supabase.from("marketing_contacts").insert({ company_id: companyId, first_name: firstName, last_name: lastName, email, phone, ...datiContattoDaRiga(r) }).select("id").single();
-                if (cErr) throw cErr;
-                contactId = newContact!.id;
-                contattoNuovo = true;
-              }
-              const tags = r.tags ? normalizeTagList(r.tags.split(",")) : [];
-              const { data: oppData, error: oErr } = await supabase.from("marketing_opportunities").insert({
-                company_id: companyId, pipeline_id: selectedPipelineId, stage_id: defaultStageId,
-                contact_id: contactId!, name: r.name?.trim() || `Opportunità ${i + 1}`,
-                value, source: r.source?.trim() || "importazione", tags, notes: r.notes?.trim() || null,
-              }).select("id").single();
-              if (oErr) throw oErr;
-              // Dopo l'opportunità, uno alla volta: un valore rifiutato non deve far perdere
-              // gli altri, e l'avviso può dire con certezza che l'opportunità esiste.
-              if (contattoNuovo) {
-                for (const valore of valoriCustomContatto(r, contactId!)) {
-                  const { error: vErr } = await supabase.from("marketing_contact_field_values").insert(valore);
-                  if (vErr) {
-                    const campo = contactCustomFields.find((f) => f.id === valore.field_id)?.name ?? "personalizzato";
-                    errors.push(`Riga ${i + 2}: campo «${campo}» del contatto non salvato (${vErr.message}). L'opportunità è creata: non reimportare il file o la creeresti due volte.`);
-                  }
-                }
-              }
-              // Save custom field values
-              if (oppData && customKeys.length > 0) {
-                const fieldValues = customKeys
-                  .filter(key => r[key]?.trim())
-                  .map(key => ({
-                    opportunity_id: oppData.id,
-                    field_id: key.replace("custom_", ""),
-                    value: r[key].trim(),
-                  }));
-                if (fieldValues.length > 0) {
-                  await supabase.from("marketing_opportunity_field_values").insert(fieldValues);
-                }
-              }
-              success++;
-            } catch (err: any) {
-              errors.push(`Riga ${i + 2}: ${err?.message || "errore sconosciuto"}`);
-            }
-          }
-          return { success, errors };
+          return importaOpportunita(contestoImportOpp, rows, opzioni);
         }}
       />
     );
@@ -812,6 +757,9 @@ function MarketingOpportunitiesContent() {
     // barre sopra, finivano sotto il bordo: si scorreva la pagina E la colonna.
     <div className="flex flex-col h-full min-h-0 gap-3 md:h-[calc(100vh-137px)] md:pb-0">
       <h1 className="sr-only">Opportunità</h1>
+      <div className="shrink-0 empty:hidden">
+        <ImportazioniProgrammate companyId={companyId} oggetto="opportunita" />
+      </div>
       <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:flex-wrap sm:gap-3 max-md:rounded-none max-md:border-0 max-md:bg-none max-md:p-0 max-md:shadow-none">
         <div className="flex min-w-0 items-center gap-2 max-md:flex-1">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
