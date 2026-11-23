@@ -323,6 +323,9 @@ const LOOK: Record<string, { trama: string; metri: number; metallo?: number; ruv
   pavimento_gres: { trama: "lastre", metri: 1.2 },
 };
 
+/** Altezza in metri della fascia bassa quando è in pietra, in mattoni o scura. */
+export const ALTEZZA_ZOCCOLO_DECORATIVO = .6;
+
 // ─── Il motore dell'aspetto ──────────────────────────────────────────────────
 
 export interface Aspetto {
@@ -621,16 +624,23 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
           const chiave = o.userData.materiale as string | undefined;
           if (!o.userData.materialeBase) o.userData.materialeBase = o.material;
           const base = o.userData.materialeBase as THREE.MeshStandardMaterial;
+          if ((!attiva || !chiave) && o.scale.y !== 1) { o.scale.y = 1; o.updateMatrix(); }
           if (!attiva || !chiave) { o.material = base; return; }
           const nuovo = materialeAspetto(chiave, base, opz);
           if (!nuovo) { o.material = base; return; }
           o.material = nuovo;
           const metri = nuovo.userData.metri as number;
+          // uno zoccolo in pietra, mattoni o scuro è una fascia vera: alta 60 cm invece dei 30 del battente d'intonaco
+          const alza = chiave === "zoccolo" && !opz.dentro && opz.zoccolo && opz.zoccolo !== "intonaco" ? ALTEZZA_ZOCCOLO_DECORATIVO / .3 : 1;
+          if (chiave === "zoccolo" && o.scale.y !== alza) { o.scale.y = alza; o.updateMatrix(); }
           if (metri && nuovo.map) {
             const geo = o.geometry as THREE.BufferGeometry;
-            const chiaveUv = `uv|${metri}`;
+            const chiaveUv = `uv|${metri}|${alza}`;
             if (o.userData.uv !== chiaveUv) {
-              geo.setAttribute("uv", new THREE.BufferAttribute(uvPerProiezione(geo.getAttribute("position").array, geo.getAttribute("normal").array, metri), 2));
+              const uv = uvPerProiezione(geo.getAttribute("position").array, geo.getAttribute("normal").array, metri);
+              // la fascia è alzata in scala: le coordinate seguono, così pietre e mattoni restano della misura vera
+              if (alza !== 1) { const n = geo.getAttribute("normal").array; for (let i = 0; i < uv.length / 2; i++) if (Math.abs(n[3 * i + 1]) < .5) uv[2 * i + 1] *= alza; }
+              geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
               o.userData.uv = chiaveUv;
             }
           }

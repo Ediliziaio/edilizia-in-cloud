@@ -108,6 +108,10 @@ Sulla tela vera sono una ogni 7,5 cm, misurate sui pixel.
   nella frase per il render AI.
   ![stile](piano-3d-planimetrie-immagini/dopo-stile-mediterraneo.jpg)
 
+- **Zoccolo decorativo.** Scelto in pietra, in mattoni o scuro, lo zoccolo diventa una fascia alta 60 cm (prima
+  30, e non si notava), anche con giardino e lotto. Pietre e mattoni restano della misura vera.
+  ![zoccolo](piano-3d-planimetrie-immagini/dopo-zoccolo-pietra.jpg)
+
 ### Solo impostato o non fatto
 
 - **Inquadratura della camera**: parte ancora con mezzo fotogramma coperto. Ho provato una correzione al
@@ -116,8 +120,6 @@ Sulla tela vera sono una ogni 7,5 cm, misurate sui pixel.
   prato con fili d'erba veri, cancello carrabile e posto auto posati da soli, vialetti con curve.
   Nella vista tagliata dall'alto la facciata scelta (mattoni, pietra) si vede anche sulle facce interne dei
   muri: era già così, ora si nota di più.
-- **Zoccolo quando c'è il giardino**: la fascia bassa della facciata oggi viene disegnata solo nelle piante senza
-  aree esterne e senza terreno, quindi con prato o lotto la scelta dello zoccolo non si vede.
 - **Finiture chieste in chat (lotto 5)**: «arreda …» in chat c'era già e ora fa di più; i comandi per le
   finiture («parquet a spina in soggiorno», «gres in diagonale in bagno») non sono stati scritti: si fanno
   dallo Studio. Il file dei comandi (`editor/comandiChat.ts`) ha modifiche non pubblicate di un'altra sessione.
