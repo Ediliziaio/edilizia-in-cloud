@@ -1,7 +1,7 @@
 import { describe, expect,it } from "vitest";
 import { piantaTrecento } from "@/test/fixtures/studioFrazionamento";
 import { alternativeFrazionamento, frazionaContorno, inserisciFrazionamento } from "@/lib/planimetrie/frazionamento";
-import { computoStudio,computoStudioRevisionato,idComputoStudio,studioVariante } from "@/lib/planimetrie/studioImmobiliare";
+import { computoStudio,computoStudioRevisionato,eLavorazioneIndotta,idComputoStudio,studioVariante } from "@/lib/planimetrie/studioImmobiliare";
 import { ipotesiDaPlanimetria } from "@/lib/orders/generali/ipotesiDaPlanimetria";
 import { calcolaIpotesi } from "@/lib/orders/generali/simulatore";
 import { operazioneDaIpotesi } from "@/lib/orders/generali/simulatoreOperazione";
@@ -66,7 +66,9 @@ describe("Frazionamento prima dell’acquisto",()=>{
     expect(due.unita.map(u=>u.mqNetti)).toEqual([125.4,173.4]);
     expect(tre.unita.map(u=>u.mqNetti)).toEqual([99.39,98.82,99.39]);
     expect(tre.muriMq).toBe(2.4);
-    expect(tre.righe.map(r=>[r.gruppo,r.quantita])).toEqual([["Parti comuni",27],["Parti comuni",27]]);
+    expect(tre.righe.filter(r=>!eLavorazioneIndotta(r)).map(r=>[r.gruppo,r.quantita])).toEqual([["Parti comuni",27],["Parti comuni",27]]);
+    // ogni tramezzo nuovo si porta intonaco, tinteggiatura e battiscopa sulle due facce
+    expect(tre.righe.filter(eLavorazioneIndotta).map(r=>[r.id.split("-").at(-1),r.quantita])).toEqual([["intonaco",54],["tinteggiatura",54],["battiscopa",20],["intonaco",54],["tinteggiatura",54],["battiscopa",20]]);
     expect(doc.livelli[0].fatto.locali).toHaveLength(1);
   });
 
@@ -114,7 +116,7 @@ describe("Frazionamento prima dell’acquisto",()=>{
     expect(studio.comuni).toBe(99.39);
     expect(studio.unita.map(u=>u.sigla)).toEqual(["A","B"]);
     const fonte = {planimetriaId,varianteId:"B",versione:7};
-    const bozza=leggiBozzaComputo(JSON.stringify(computoStudio(fonte, "Tre porzioni",studio.righe)));
+    const bozza=leggiBozzaComputo(JSON.stringify(computoStudio(fonte, "Tre porzioni",studio.righe.filter(r=>!eLavorazioneIndotta(r)))));
     expect(bozza.fontePlanimetria).toEqual(fonte);
     expect(bozza.voci).toHaveLength(2);
     expect(calcolaVoce(bozza.voci[0]).importo).toBeNull();
@@ -134,7 +136,7 @@ describe("Frazionamento prima dell’acquisto",()=>{
   });
 
   it("riporta prezzi, fonte e misure corrette a mano senza sostituire il computo precedente",()=>{
-    const studio=studioVariante(conVarianti(),"B");
+    const studio={righe:studioVariante(conVarianti(),"B").righe.filter(r=>!eLavorazioneIndotta(r))};
     const fonte={planimetriaId,versione:3,varianteId:"B"};
     const base=computoStudio(fonte,"Variante",studio.righe);
     const precedente={...base,voci:[

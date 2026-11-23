@@ -1,4 +1,5 @@
 import { FabbisognoMateriali } from "./FabbisognoMateriali";
+import { PrevisioneLavori } from "./PrevisioneLavori";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -11,6 +12,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { leggiComputoCloud } from "@/lib/computo/cloudComputo";
 import { differenzeLavorazioni, idComputoStudio, importiLavorazioni, percorsoMisuraSullaPianta, studioVariante } from "@/lib/planimetrie/studioImmobiliare";
 import { apriComputoDaVariante } from "@/lib/planimetrie/computoDaVariante";
+import { useFontiPrezzi } from "@/lib/planimetrie/fontiPrezzi";
+import { conPrezziProposti, tipiDaCercare } from "@/lib/planimetrie/prezziProposti";
 import { accessiDellaVariante } from "@/lib/planimetrie/accessiPlanimetria";
 import { useSalvaVersionePlanimetria, useVersionePlanimetria, useVersioniPlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsoVariantePlanimetria, percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
@@ -42,9 +45,14 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
     const base = documento.livelli.flatMap(l => l.proposte).find(p => p.id === variante)?.alternativaDi;
     return base && varianti.some(v => v.propostaId === base) ? base : "fatto";
   });
-  const studio = useMemo(() => variante ? studioVariante(documento,variante) : null,[documento,variante]);
+  const studioGrezzo = useMemo(() => variante ? studioVariante(documento,variante) : null,[documento,variante]);
   const bilocali = documento.livelli.some(l => l.proposte.some(p => p.id === variante && p.distribuzioneBilocali));
-  const altro = useMemo(() => confronto !== variante ? studioVariante(documento,confronto === "fatto" ? null : confronto) : null,[documento,confronto,variante]);
+  const altroGrezzo = useMemo(() => confronto !== variante ? studioVariante(documento,confronto === "fatto" ? null : confronto) : null,[documento,confronto,variante]);
+  // Le voci senza prezzo nascono quotate (listino dell'azienda, prezzario di zona, prezzo indicativo): solo per chi vede gli importi.
+  const tipiPrezzi = useMemo(() => tipiDaCercare([...(studioGrezzo?.righe ?? []), ...(altroGrezzo?.righe ?? [])]),[studioGrezzo,altroGrezzo]);
+  const { fonti: fontiPrezzi } = useFontiPrezzi(companyId, tipiPrezzi, permessi.canViewPreventivi && effectiveCompany?.id === companyId);
+  const studio = useMemo(() => studioGrezzo && permessi.canViewPreventivi ? { ...studioGrezzo, righe: conPrezziProposti(studioGrezzo.righe, fontiPrezzi) } : studioGrezzo,[studioGrezzo,fontiPrezzi,permessi.canViewPreventivi]);
+  const altro = useMemo(() => altroGrezzo && permessi.canViewPreventivi ? { ...altroGrezzo, righe: conPrezziProposti(altroGrezzo.righe, fontiPrezzi) } : altroGrezzo,[altroGrezzo,fontiPrezzi,permessi.canViewPreventivi]);
   const accessi = useMemo(()=>accessiDellaVariante(documento,variante),[documento,variante]);
   const [computi, setComputi] = useState<Record<string,string>>({});
   const [occupato, setOccupato] = useState(false);
@@ -347,6 +355,7 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
         </div>
       </div>
       {/* Cambia con la variante: frazionare o spostare un tramezzo aggiorna i materiali. */}
+      {permessi.canViewPreventivi && studio && <PrevisioneLavori key={variante} righe={studio.righe} />}
       <FabbisognoMateriali documento={documento} ambito={`progetto:${variante}`} titolo={`Materiali da comprare · ${varianti.find(v=>v.propostaId===variante)?.nome ?? "variante"}`} />
       <AccessiProposta accessi={accessi}/>
       {puoSimulare && !!studio.unita.length && !studio.sovrapposti.length && !localiDaRivedere.length && <div className="flex flex-wrap items-center gap-2">

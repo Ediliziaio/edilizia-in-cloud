@@ -3,7 +3,7 @@ import { aperturaNellaVista, aPlanimetria, daPlanimetria, piantaVuota } from "@/
 import { comandiDaChatDisegno } from "@/components/planimetrie/editor/comandiChat";
 import { aggiungiStanzaDaMisure, eliminaMuro, modificaMuro } from "@/components/planimetrie/editor/comandi";
 import { analizzaProgetto } from "@/lib/planimetrie/analisiProgetto";
-import { studioVariante } from "@/lib/planimetrie/studioImmobiliare";
+import { eLavorazioneIndotta, studioVariante } from "@/lib/planimetrie/studioImmobiliare";
 import { controllaPlanimetria } from "../../../shared/planimetrie/controllo";
 import { areaPoligono } from "../../../shared/planimetrie/geometria";
 import { validaPlanimetria } from "../../../shared/planimetrie/modello";
@@ -247,7 +247,7 @@ it("taglia il locale CAD senza trasformare un vuoto chiuso in una stanza della v
 
   const verificata = modificaMuro(modificata, tramezzo.id, { altezza: 245, origineAltezza: "rilevata" });
   const finale = aPlanimetria(verificata, ingressoCad, livello.id);
-  expect(studioVariante(finale, proposta.id).righe).toMatchObject([{ id: tramezzo.id, quantita: 7.28, stimata: true }]);
+  expect(studioVariante(finale, proposta.id).righe.filter(r => !eLavorazioneIndotta(r))).toMatchObject([{ id: tramezzo.id, quantita: 7.28, stimata: true }]);
   const finaleSenzaScala = { ...finale, livelli: [{ ...finale.livelli[0], riscontroScala: { stato: "da_verificare" as const } }] };
   expect(studioVariante(finaleSenzaScala, proposta.id).righe).toMatchObject([{ id: tramezzo.id, quantita: null, quantificazioneSospesa: true }]);
   expect(finale.livelli[0].fatto.locali).toEqual(livello.fatto.locali);

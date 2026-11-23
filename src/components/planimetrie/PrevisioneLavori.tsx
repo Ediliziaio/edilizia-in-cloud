@@ -1,0 +1,84 @@
+/**
+ * «Previsione dei lavori» di una variante (23/11/2026): costo per fase con manodopera e
+ * materiali, costi extra da accendere o spegnere, durata e intervallo di spesa.
+ * Il calcolo e le sue regole sono in `lib/planimetrie/previsioneLavori.ts`.
+ */
+import { useMemo, useState } from "react";
+import { CalendarClock } from "lucide-react";
+import { COSTI_EXTRA, extraPredefiniti, previsioneLavori } from "@/lib/planimetrie/previsioneLavori";
+import type { RigaStudio } from "@/lib/planimetrie/studioImmobiliare";
+
+const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const giorni = (n: number) => `${n.toLocaleString("it-IT")} ${n === 1 ? "giorno" : "giorni"}`;
+
+export function PrevisioneLavori({ righe }: { righe: readonly RigaStudio[] }) {
+  const iniziali = useMemo(() => extraPredefiniti(righe), [righe]);
+  const [scelti, setScelti] = useState<string[] | null>(null);
+  const accesi = scelti ?? iniziali;
+  const p = previsioneLavori(righe, accesi);
+  if (!p.lavori) return null;
+  const fuori = p.fuori.senzaPrezzo + p.fuori.senzaQuantita;
+  return (
+    <section aria-label="Previsione dei lavori" className="space-y-3 rounded-2xl border bg-card p-4 shadow-sm">
+      <div>
+        <h3 className="flex items-center gap-2 text-sm font-semibold"><CalendarClock className="h-4 w-4 text-primary" />Previsione dei lavori</h3>
+        <p className="text-xs text-muted-foreground">Costo, extra e durata stimati dalle lavorazioni della pianta, con rese tipiche di una squadra di due persone. È un ordine di grandezza per decidere, non un consuntivo.</p>
+      </div>
+      <dl className="grid gap-2 sm:grid-cols-3">
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <dt className="text-xs text-muted-foreground">Spesa probabile</dt>
+          <dd className="text-lg font-semibold tabular-nums">{euro.format(p.intervallo.probabile)}</dd>
+          <dd className="text-xs text-muted-foreground">da {euro.format(p.intervallo.minimo)} a {euro.format(p.intervallo.massimo)}</dd>
+        </div>
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <dt className="text-xs text-muted-foreground">Durata</dt>
+          <dd className="text-lg font-semibold tabular-nums">{giorni(p.giorniCalendario)}</dd>
+          <dd className="text-xs text-muted-foreground">{giorni(p.giorniLavoro)} di squadra{p.giorniAttesa ? ` · ${p.giorniAttesa} di attesa` : ""}</dd>
+        </div>
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <dt className="text-xs text-muted-foreground">Manodopera e materiali</dt>
+          <dd className="text-lg font-semibold tabular-nums">{euro.format(p.manodopera)} · {euro.format(p.materiali)}</dd>
+          <dd className="text-xs text-muted-foreground">quote tipiche per lavorazione</dd>
+        </div>
+      </dl>
+      {(p.indicativi > 0 || fuori > 0) && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+        {p.indicativi > 0 && <>{p.indicativi} {p.indicativi === 1 ? "voce ha" : "voci hanno"} un prezzo indicativo: l’intervallo è largo (±{p.intervallo.incertezzaPct}% sui lavori). Mettile nel listino per stringerlo. </>}
+        {fuori > 0 && <>{fuori} {fuori === 1 ? "voce è fuori" : "voci sono fuori"} dal conto perché senza prezzo o senza quantità.</>}
+      </p>}
+      <table className="w-full text-xs" aria-label="Costo e durata per fase">
+        <thead><tr className="text-left text-muted-foreground"><th className="py-1 font-medium">Fase</th><th className="px-2 text-right font-medium">Manodopera</th><th className="px-2 text-right font-medium">Materiali</th><th className="px-2 text-right font-medium">Importo</th><th className="text-right font-medium">Durata</th></tr></thead>
+        <tbody className="divide-y">
+          {p.fasi.map((f) => <tr key={f.fase} className="align-top">
+            <th scope="row" className="py-1.5 text-left font-medium">{f.fase}{f.attesa > 0 && <span className="block font-normal text-muted-foreground">dopo {f.attesa} giorni: {f.perche}</span>}</th>
+            <td className="px-2 py-1.5 text-right tabular-nums">{euro.format(f.manodopera)}</td>
+            <td className="px-2 py-1.5 text-right tabular-nums">{euro.format(f.materiali)}</td>
+            <td className="px-2 py-1.5 text-right font-medium tabular-nums">{euro.format(f.importo)}</td>
+            <td className="py-1.5 text-right tabular-nums">{giorni(f.giorni)}</td>
+          </tr>)}
+          {p.fuori.nonStimate > 0 && <tr><th scope="row" className="py-1.5 text-left font-normal text-muted-foreground" colSpan={3}>Altre voci quotate (impianti e opere a corpo), senza stima dei tempi</th>
+            <td className="px-2 py-1.5 text-right font-medium tabular-nums">{euro.format(p.lavori - p.fasi.reduce((s, f) => s + f.importo, 0))}</td><td className="py-1.5 text-right">—</td></tr>}
+          <tr><th scope="row" className="py-1.5 text-left font-semibold" colSpan={3}>Lavori</th><td className="px-2 py-1.5 text-right font-semibold tabular-nums">{euro.format(p.lavori)}</td><td /></tr>
+        </tbody>
+      </table>
+      <div className="space-y-1.5">
+        <p className="text-xs font-semibold">Costi in più <span className="font-normal text-muted-foreground">accendi quelli che valgono per questo lavoro</span></p>
+        <ul className="divide-y rounded-lg border text-xs">
+          {COSTI_EXTRA.map((e) => {
+            const acceso = accesi.includes(e.id);
+            const importo = p.extra.find((x) => x.id === e.id);
+            return <li key={e.id}>
+              <label className="flex cursor-pointer items-start gap-2 px-3 py-2">
+                <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-primary" checked={acceso}
+                  onChange={() => setScelti(acceso ? accesi.filter((x) => x !== e.id) : [...accesi, e.id])} />
+                <span className="min-w-0 flex-1"><span className="block font-medium">{e.nome}</span><span className="block text-muted-foreground">{e.perche}</span></span>
+                <span className="shrink-0 text-right tabular-nums">{importo ? euro.format(importo.importo) : "—"}<span className="block text-muted-foreground">{e.regola.tipo === "a_corpo" ? "a corpo" : `${e.regola.percento}% dei lavori`}</span></span>
+              </label>
+            </li>;
+          })}
+        </ul>
+        <p className="flex justify-between text-sm font-semibold"><span>Totale previsto</span><span className="tabular-nums">{euro.format(p.totale)}</span></p>
+        <p className="text-xs text-muted-foreground">Spese generali e utile sono già nei prezzi delle voci. Gli importi a corpo sono valori tipici: correggili nel computo.</p>
+      </div>
+    </section>
+  );
+}

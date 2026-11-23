@@ -6,8 +6,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { numeroEditor } from "@/lib/computo/editorNativo";
 import { unitaCompatibili } from "@/lib/prezzario/confronto";
 import { differenzeLavorazioni, studioVariante, type RigaStudio } from "@/lib/planimetrie/studioImmobiliare";
+import { useAuth } from "@/contexts/AuthContext";
+import { useFontiPrezzi } from "@/lib/planimetrie/fontiPrezzi";
+import { conPrezziProposti, tipiDaCercare } from "@/lib/planimetrie/prezziProposti";
 import type { PrezzoVocePlanimetria } from "../../../../shared/planimetrie/modello.ts";
-import { aPlanimetria, ID_PROPOSTA, type Punto } from "./adattatore";
+import { aPlanimetria, ID_PROPOSTA, type Pianta, type Punto } from "./adattatore";
 import type { Vista } from "./comandi";
 import type { ContestoChatDisegno, PassoChatDisegno } from "./comandiChat";
 import { cercaQuoteLibere, modificaIntervento, selezionatiInterventi, type InterventoChat, type RevisioneInterventi } from "./interventiChat";
@@ -133,18 +136,26 @@ function CostiInterventi({ proposta, revisione, contesto, consentiListino, onMod
   const titolo = useRef<HTMLHeadingElement>(null);
   const { documento, livelloId, propostaId = ID_PROPOSTA } = contesto;
   const muroInConfronto = proposta.confrontoTramezzo?.prima.id;
-  const righe = useMemo(() => {
+  const { effectiveCompany } = useAuth();
+  const grezze = useMemo(() => {
     const piano = livelloId ?? documento.livelli[0].id;
-    const voci = (p: typeof proposta.pianta) => studioVariante(aPlanimetria(p, documento, livelloId, propostaId), propostaId).righe.filter(r => r.livelloId === piano);
-    const prima = voci(revisione.base);
-    const dopo = voci(revisione.prezzi ? { ...proposta.pianta, prezziProgetto: { ...proposta.pianta.prezziProgetto, ...revisione.prezzi } } : proposta.pianta);
+    const voci = (p: Pianta) => studioVariante(aPlanimetria(p, documento, livelloId, propostaId), propostaId).righe.filter(r => r.livelloId === piano);
+    return { prima: voci(revisione.base),
+      dopo: voci(revisione.prezzi ? { ...proposta.pianta, prezziProgetto: { ...proposta.pianta.prezziProgetto, ...revisione.prezzi } } : proposta.pianta) };
+  }, [documento, livelloId, propostaId, revisione.base, revisione.prezzi, proposta.pianta]);
+  // Le voci senza prezzo nascono quotate (listino, prezzario di zona, indicativo): «Cambia prezzo» le corregge.
+  const tipi = useMemo(() => tipiDaCercare([...grezze.prima, ...grezze.dopo]), [grezze]);
+  const { fonti: fontiPrezzi } = useFontiPrezzi(effectiveCompany?.id, tipi, consentiListino);
+  const righe = useMemo(() => {
+    const prima = consentiListino ? conPrezziProposti(grezze.prima, fontiPrezzi) : grezze.prima;
+    const dopo = consentiListino ? conPrezziProposti(grezze.dopo, fontiPrezzi) : grezze.dopo;
     const differenze = differenzeLavorazioni(prima, dopo);
     if (muroInConfronto && !differenze.some(d => (d.dopo ?? d.prima)?.id === muroInConfronto)) {
       const a = prima.find(r => r.id === muroInConfronto), b = dopo.find(r => r.id === muroInConfronto);
       if (a && b) differenze.unshift({ prima: a, dopo: b, delta: 0 });
     }
     return differenze;
-  }, [documento, livelloId, propostaId, revisione.base, revisione.prezzi, proposta.pianta, muroInConfronto]);
+  }, [grezze, muroInConfronto, consentiListino, fontiPrezzi]);
   if (!righe.length) return <p className="py-1 text-muted-foreground">Gli interventi selezionati non cambiano le quantità del computo.</p>;
   const attiva = righe.find(r => r.dopo?.id === rigaAttiva)?.dopo;
   const assegna = (r: RigaStudio, prezzo: PrezzoVocePlanimetria) => {

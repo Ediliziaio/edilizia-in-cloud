@@ -158,6 +158,7 @@ describe("controlli e misure professionali della variante",()=>{
     expect(calcolaQuantita(doc)["progetto:A:demolizioni.muri_mq"].valore).toBe(9);
     expect(studioVariante(doc,"A").righe).toMatchObject([
       {quantita:9,criterio:"5 m × 3 m − 6 m² di vuoti detraibili"},{descrizione:"Rimozione varco",quantita:1},
+      {id:"m1-macerie",unita:"a corpo",criterio:"4,5 m³ di macerie · 5 m × 3 m × 30 cm"},{id:"m1-ripristino",quantita:1.5},
     ]);
   });
 

@@ -64,6 +64,26 @@ export function materialiCoerentiDaSalvare(m: MaterialiProgetto): MaterialiProge
   return formato ? { ...m, pavimento: cambiaFormatoPavimento(m.pavimento!, formato) } : m;
 }
 
+/** Dove il pavimento del resto della casa di solito non va: locali umidi, di servizio ed esterni. */
+const DESTINAZIONI_A_PARTE: readonly string[] = ["bagno", "lavanderia", "balcone", "terrazzo", "garage", "cantina", "giardino"];
+const statiDellAmbito = (doc: Planimetria, ambito: string): StatoPianta[] => doc.livelli.flatMap((l) =>
+  ambito === "fatto" ? [l.fatto] : l.proposte.filter((p) => `progetto:${p.id}` === ambito));
+
+/** Le stanze per cui chiedere «anche qui il pavimento comune?»: quelle che non hanno già un pavimento loro. */
+export function stanzeConPavimentoAParte(doc: Planimetria, ambito: string): { id: string; nome: string }[] {
+  return statiDellAmbito(doc, ambito).flatMap((s) => s.locali)
+    .filter((l) => DESTINAZIONI_A_PARTE.includes(l.destinazione) && !l.finiture?.pavimentoSpecifico)
+    .map((l) => ({ id: l.id, nome: l.nome }));
+}
+
+/** Risposta «no»: quelle stanze tengono il loro pavimento e il comune non le tocca più. */
+export function escludiDalPavimentoComune(doc: Planimetria, ambito: string, ids: readonly string[]): Planimetria {
+  const fuori = new Set(ids);
+  const stato = <T extends StatoPianta>(s: T): T => ({ ...s, locali: s.locali.map((l) => fuori.has(l.id) ? { ...l, finiture: { ...l.finiture, pavimentoSpecifico: true } } : l) });
+  return { ...doc, livelli: doc.livelli.map((l) => ambito === "fatto" ? { ...l, fatto: stato(l.fatto) }
+    : { ...l, proposte: l.proposte.map((p) => `progetto:${p.id}` === ambito ? stato(p) : p) }) };
+}
+
 export function statoConMateriali(s: StatoPianta, materiali: MaterialiProgetto): StatoPianta {
   if (!materiali.pavimento) return s;
   const pavimento = descrizionePavimento(materiali.pavimento);

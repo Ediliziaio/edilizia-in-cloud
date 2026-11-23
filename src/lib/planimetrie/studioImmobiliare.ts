@@ -306,6 +306,8 @@ export function studioVariante(doc: Planimetria, variante: string | null) {
     spostamenti.daRivedere.forEach(nome => bagniDaRivedere.add(nome));
     spostamentiCucina.daRivedere.forEach(nome => cucineDaRivedere.add(nome));
     const paretiFrazionamento = new Set(p.frazionamenti?.flatMap(f => f.pareti));
+    // In coda al piano, dopo pareti, aperture e finiture: l'ordine delle voci principali non cambia.
+    const indotte: RigaStudio[] = [];
     for (const m of p.muri) {
       if (m.stato === "esistente") continue;
       const nuovo = m.stato === "nuovo";
@@ -332,6 +334,34 @@ export function studioVariante(doc: Planimetria, variante: string | null) {
           `${italiano(lunghezza)} m × ${italiano(altezza)} m${vuoti}`,
         stimata: q?.origine === "stimata", riferimento:{tipo:"muro",id:m.id,fatto:!!prima}, quantificazioneSospesa:strutturaSospesa || scalaNonCalibrata,
       });
+      // Le lavorazioni che una parete si porta dietro: chi demolisce porta via le macerie e
+      // richiude la traccia nel pavimento; chi costruisce intonaca, tinteggia e mette il battiscopa
+      // sulle due facce. Si calcolano solo quando la parete stessa ha una quantità certa.
+      const principale = righe[righe.length - 1];
+      if (principale.quantita !== null) {
+        const indotta = (codice: string, fase: string, descrizione: string, unita: RigaStudio["unita"], quantita: number, criterio: string): RigaStudio => ({
+          id: `${m.id}-${codice}`, livelloId: piano.id, piano: piano.nome, fase, descrizione, gruppo: principale.gruppo, unita,
+          quantita: arrotonda(quantita), criterio, stimata: principale.stimata, riferimento: principale.riferimento,
+        });
+        const spessore = misurato.spessore / 100;
+        if (nuovo) {
+          const porte = p.aperture.filter(a => a.muroId === m.id && a.stato !== "da_demolire" && a.tipo !== "finestra")
+            .reduce((s, a) => s + a.larghezza / 100, 0);
+          indotte.push(
+            indotta("intonaco", "Intonaci", "Intonaco sulle due facce della nuova parete", "m²", principale.quantita * 2, `2 facce × ${italiano(principale.quantita)} m²`),
+            indotta("tinteggiatura", "Tinteggiature", "Tinteggiatura delle due facce della nuova parete", "m²", principale.quantita * 2, `2 facce × ${italiano(principale.quantita)} m²`),
+            indotta("battiscopa", "Finiture", "Battiscopa ai piedi della nuova parete", "m", Math.max(0, (lunghezza - porte) * 2),
+              `2 lati × (${italiano(lunghezza)} m${porte ? ` − ${italiano(porte)} m di porte` : ""})`),
+          );
+        } else {
+          indotte.push(
+            indotta("macerie", "Demolizioni", "Carico, trasporto e smaltimento delle macerie", "a corpo", 1,
+              `${italiano(arrotonda(lunghezza * altezza * spessore))} m³ di macerie · ${italiano(lunghezza)} m × ${italiano(altezza)} m × ${italiano(misurato.spessore)} cm`),
+            indotta("ripristino", "Finiture", "Ripristino del pavimento nella traccia della parete demolita", "m²", lunghezza * spessore,
+              `${italiano(lunghezza)} m × ${italiano(misurato.spessore)} cm di traccia`),
+          );
+        }
+      }
     }
     for (const a of p.aperture) {
       const prima = piano.fatto.aperture.find(x => x.id === a.id);
@@ -377,7 +407,7 @@ export function studioVariante(doc: Planimetria, variante: string | null) {
         });
       }
     }
-    righe.push(...impiantiNelComputo(doc, piano, p, scalaNonCalibrata, mappa), ...radianteNelComputo(piano, p, scalaNonCalibrata),
+    righe.push(...indotte, ...impiantiNelComputo(doc, piano, p, scalaNonCalibrata, mappa), ...radianteNelComputo(piano, p, scalaNonCalibrata),
       ...verificheBilocaliNelComputo(piano, p));
   }
   const prezzi = new Map(doc.livelli.map(p => [p.id, p.proposte.find(pr => pr.id === variante)?.prezziLavorazioni]));
@@ -400,6 +430,9 @@ export function importiLavorazioni(righe: RigaStudio[]) {
 }
 
 export interface FonteStudio { planimetriaId: string; versione: number; varianteId: string }
+
+/** Lavorazione che discende da una parete (macerie, ripristino, intonaco, tinteggiatura, battiscopa). */
+export const eLavorazioneIndotta = (r: Pick<RigaStudio, "id">) => /-(macerie|ripristino|intonaco|tinteggiatura|battiscopa)$/.test(r.id);
 
 export function differenzeLavorazioni(prima: RigaStudio[], dopo: RigaStudio[]) {
   const chiave = (r: RigaStudio) => `${r.livelloId}:${r.id}`;

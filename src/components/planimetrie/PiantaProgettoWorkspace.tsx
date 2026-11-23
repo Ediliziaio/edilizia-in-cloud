@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { cn } from "@/lib/utils";
+import { CostoProposta } from "./CostoProposta";
 import { useSalvaVersionePlanimetria } from "@/lib/planimetrie/archivio";
 import { useUrlTavolaOriginale } from "@/lib/planimetrie/anteprime";
 import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
@@ -160,6 +161,7 @@ export function PiantaProgettoWorkspace({ documento, titolo, livello, ambito, no
           <Sparkles className="h-3.5 w-3.5"/>
           {confronta ? "Prima delle modifiche" : "Anteprima della proposta"}
         </span>
+        <CostoProposta documento={documento} proposta={bozza.documento} ambito={bozza.ambito} companyId={companyId} />
         {bozza.piani.length>1 && <UniformSelect aria-label="Piano dell’anteprima" value={livelloVista.id} className="h-7 text-xs"
           onChange={e=>{setPianoBozza(e.target.value);setSegnalazione(null);}}>
           {bozza.piani.map(p=><option key={p.livelloId} value={p.livelloId}>{p.nome}</option>)}

@@ -2,6 +2,8 @@ import { ConflittoComputoCloud, leggiComputoCloud, primoComputoCloudEsistente, s
 import { chiaveBozzaComputo } from "@/lib/computo/editorNativo";
 import { caricaPlanimetria, caricaVersione, elencaVersioni } from "./archivio";
 import { computoStudio, computoStudioRevisionato, idComputoStudio, studioVariante, type FonteStudio } from "./studioImmobiliare";
+import { caricaFontiPrezzi } from "./fontiPrezzi";
+import { conPrezziProposti, tipiDaCercare } from "./prezziProposti";
 import { ambitiDi } from "../../../shared/planimetrie/modello.ts";
 import { verificaUrbanisticaAperta } from "../../../shared/planimetrie/urbanistica.ts";
 
@@ -21,7 +23,9 @@ export async function apriComputoDaVariante(companyId: string, userId: string, f
   if (!studio.righe.length) throw new Error("Aggiungi lavorazioni alla variante per generare il computo.");
   if (studio.bagniDaRivedere.length || studio.cucineDaRivedere.length) throw new Error("Rivedi i locali degli spostamenti nella variante.");
   const aperte = verificaUrbanisticaAperta(documento.urbanistica,varianteId,versione);
-  let bozza = computoStudio(fonte,`${documento.titolo || corrente.riga.titolo} · ${variante.nome}`,studio.righe,aperte);
+  // Il computo nasce già quotato (listino dell'azienda, prezzario di zona, prezzo indicativo): si corregge dopo.
+  const fontiPrezzi = await caricaFontiPrezzi(companyId, tipiDaCercare(studio.righe));
+  let bozza = computoStudio(fonte,`${documento.titolo || corrente.riga.titolo} · ${variante.nome}`,conPrezziProposti(studio.righe,fontiPrezzi),aperte);
   let precedente: number | null = null;
   const fonti = await Promise.all((await elencaVersioni(planimetriaId)).filter(v => v.numero < versione).map(async v => ({
     numero:v.numero, id:await idComputoStudio({...fonte,versione:v.numero}),
@@ -33,7 +37,7 @@ export async function apriComputoDaVariante(companyId: string, userId: string, f
     if (cloud) {
       const vecchia = await caricaVersione(planimetriaId,daRiprendere.numero);
       bozza = computoStudioRevisionato(bozza,cloud.bozza,
-        computoStudio({...fonte,versione:daRiprendere.numero},"",studioVariante(vecchia.documento,varianteId).righe),
+        computoStudio({...fonte,versione:daRiprendere.numero},"",conPrezziProposti(studioVariante(vecchia.documento,varianteId).righe,fontiPrezzi)),
         new Set(studio.righe.filter(r=>r.quantificazioneSospesa).map(r=>r.id)));
       precedente = daRiprendere.numero;
     }
