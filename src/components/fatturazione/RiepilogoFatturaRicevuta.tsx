@@ -23,6 +23,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
 import { PagamentoRicevutaCella, isNotaCreditoRicevuta } from "@/components/fatturazione/PagamentoRicevuta";
 import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
+import { useContabilizzaPerPagare } from "@/hooks/useContabilizzaPerPagare";
 import { fatturaVerificata, quoteDelCosto, quotaMagazzinoDelCosto } from "@/lib/fatturazione/ripartizioneFattura";
 import { usePermissions } from "@/hooks/usePermissions";
 import { CollegamentiFattura } from "@/components/fatturazione/CollegamentiFattura";
@@ -304,6 +305,14 @@ function ContenutoRiepilogo({
     requestAnimationFrame(() => sezionePagamenti.current?.scrollIntoView?.({ block: "start", behavior: "smooth" }));
   };
   const [vistaCompleta, setVistaCompleta] = useState<FatturaRicevutaVista | null>(null);
+  // Una sola strada per pagare, contabilizzata o no: senza costo, «Pagamenti e residuo»
+  // contabilizza la fattura e apre lo stesso pannello (prima: il vecchio «Segna pagata»).
+  const perPagare = useContabilizzaPerPagare();
+  const pagaFattura = () => {
+    if (d?.costo) { apriPagamenti(d.costo.id); return; }
+    if (!fatturaId || perPagare.isPending) return;
+    perPagare.mutate(fatturaId, { onSuccess: (costo) => apriPagamenti(costo) });
+  };
   const pagamentoCosto = useExpensePaymentDetail(d?.costo?.id, !!permessi.canViewCosts);
   const statoPagamento = pagamentoCosto.data?.id === d?.costo?.id && Number.isFinite(Number(pagamentoCosto.data?.totale)) ? pagamentoCosto.data : null;
   const queryClient = useQueryClient();
@@ -419,6 +428,10 @@ function ContenutoRiepilogo({
     onClose();
   };
   const nota = isNotaCreditoRicevuta(String(f?.tipo_documento ?? ""));
+  // Il pannello dei pagamenti vale per ogni fattura che si paga: contabilizzata (ha il costo)
+  // o da contabilizzare al momento. Note di credito, rifiutate e documenti che non si pagano no.
+  const siPagaNelPannello = !!d && !!f && !!permessi.canViewCosts && (!!d.costo ||
+    (!permessi.solaLettura && !nota && !nonSiPaga(String(f.tipo_documento ?? "")) && f.stato !== "rifiutata"));
   // Con la contabilità generale accesa una riga può diventare un cespite (registro dei beni ammortizzabili).
   const cespitiPerRiga = !!f && contiRighe.modo === "piano" && permessi.canViewCosts && !permessi.solaLettura && f.stato !== "rifiutata" && !nota;
   const cespitiFattura = useCespitiDellaFattura(companyId ?? "", String(f?.id ?? ""), cespitiPerRiga);
@@ -678,7 +691,7 @@ function ContenutoRiepilogo({
                       <span>Rata {r.numero} · {r.scadenza ? formatDateShort(r.scadenza) : "senza scadenza"}{r.importo != null && ` · ${formatCurrency(r.importo)}`}</span>
                       {r.stato === "da_bloccare" && <span className="text-muted-foreground">Da bloccare</span>}
                       {r.stato === "richiamata" && <span className="text-muted-foreground">Richiamata</span>}
-                      {!d.costo && permessi.canViewCosts && !permessi.solaLettura && r.id && r.importo != null && r.updated_at && statoConsentePagamentoRata(r.stato) &&
+                      {!d.costo && !siPagaNelPannello && permessi.canViewCosts && !permessi.solaLettura && r.id && r.importo != null && r.updated_at && statoConsentePagamentoRata(r.stato) &&
                         <Button size="sm" variant="link" className="h-auto min-h-0 p-0 text-xs" aria-label={`Segna pagata la rata ${r.numero}`}
                           onClick={() => setRataScelta({ id: r.id, stato: r.stato, importo: r.importo!, updated_at: r.updated_at,
                             titolo: `Rata ${r.numero} · ${f.numero_fattura ?? ""} · ${formatCurrency(r.importo!)}` })}>Segna pagata</Button>}
@@ -689,9 +702,13 @@ function ContenutoRiepilogo({
 
 
               </dl>
-              {d.costo && permessi.canViewCosts && (pagamenti === d.costo.id
+              {d.costo && permessi.canViewCosts && pagamenti === d.costo.id
                 ? <ExpensePaymentDialog inline key={pagamenti} costId={pagamenti} onClose={() => { setPagamenti(null); aggiorna(); }} />
-                : <Button variant="outline" size="sm" onClick={() => apriPagamenti(d.costo!.id)}>Vedi movimenti e registra pagamento</Button>)}
+                : siPagaNelPannello && <div className="space-y-1">
+                  <Button variant="outline" size="sm" disabled={perPagare.isPending} onClick={pagaFattura}>
+                    {perPagare.isPending ? "Preparo il pagamento…" : "Vedi movimenti e registra pagamento"}</Button>
+                  {!d.costo && <p className="text-xs text-muted-foreground">Non ancora contabilizzata: aprendo i pagamenti la fattura viene contabilizzata.</p>}
+                </div>}
             {/* Pagamento (01/11/2026): rate, metodo e quello che cambia quanto si paga al fornitore. */}
             {(() => {
               const p = nota ? null : pianoDocumento;
@@ -848,7 +865,7 @@ function ContenutoRiepilogo({
           </Button>}
 
           <Button variant="outline" onClick={chiudiRiepilogo}>Chiudi riepilogo</Button>
-          {!isLoading && d && f && (d.costo && permessi.canViewCosts ? <Button onClick={()=>apriPagamenti(d.costo!.id)}>Pagamenti e residuo</Button> : <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura??'')} tipo={String(f.tipo_documento??'')} pagataIl={f.pagata_il?String(f.pagata_il):null} />)}
+          {!isLoading && d && f && (siPagaNelPannello ? <Button disabled={perPagare.isPending} onClick={pagaFattura}>Pagamenti e residuo</Button> : <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura??'')} tipo={String(f.tipo_documento??'')} pagataIl={f.pagata_il?String(f.pagata_il):null} />)}
         </DialogFooter>
       </Contenuto>
     </Radice>}

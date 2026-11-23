@@ -224,19 +224,38 @@ describe("riepilogo della fattura ricevuta", () => {
     const label = await screen.findByText("Prossima scadenza");
     expect(label.nextElementSibling).toHaveTextContent("10 ott 2026 · 125,00 € · Ri.Ba.");
   });
-  it("pagando una sola rata ricarica la scadenza successiva e il residuo", async () => {
+  it("non ancora contabilizzata: «Pagamenti e residuo» la contabilizza e apre lo stesso pannello, niente «Segna pagata»", async () => {
+    // 23/11/2026: le fatture senza costo mostravano il vecchio «Segna pagata» (rata per rata o
+    // tutto), quelle contabilizzate il pannello con residuo e banca. Adesso è uno solo.
     finto.dati["rate_fornitori[]"] = [
       { id:"r1", numero:1, stato:"da_pagare", scadenza:"2025-10-10", importo:120, metodo:"MP12", updated_at:"2025-09-01T10:00:00Z" },
-      { id:"r2", numero:2, stato:"da_pagare", scadenza:"2025-11-10", importo:80, metodo:"MP12", updated_at:"2025-09-01T10:00:00Z" },
     ];
+    finto.rpc.mockImplementation(async (name: string, args?: Record<string, unknown>) => {
+      if (name === "contabilizza_fattura_ricevuta") {
+        expect(args).toEqual({ p_fattura_id: "f1" });
+        finto.dati.fatture_ricevute = { ...FIC, stato: "contabilizzata", company_cost_id: "c1" };
+        finto.dati.company_costs = { id: "c1", amount: 356 };
+        return { data: { esito: "creato", company_cost_id: "c1" }, error: null };
+      }
+      if (name === "dettaglio_pagamento_costo") return { data: { id: "c1", company_id: "co", nome: "Costo c1", totale: 434.32, pagato: 0, residuo: 434.32, da_verificare: false, movimenti: [] }, error: null };
+      return { data: null, error: null };
+    });
     apri();
-    fireEvent.click(await screen.findByRole("button", {name:"Segna pagata la rata 1"}));
-    fireEvent.change(screen.getByLabelText("Data effettiva del pagamento"), {target:{value:"2025-10-09"}});
-    fireEvent.click(screen.getByRole("button", {name:"Conferma pagamento"}));
-    await screen.findByText("Rata 1 · pagata il 9 ott 2025");
-    expect(screen.getByText("Prossima scadenza").nextElementSibling).toHaveTextContent("10 nov 2025");
-    expect(screen.getByText(/Residuo fattura/)).toHaveTextContent("80,00 €");
-    expect(screen.queryByRole("button", {name:"Segna pagata la rata 1"})).toBeNull();
+    expect(await screen.findByText(/viene contabilizzata/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Segna pagata la rata 1" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Segna pagata/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Pagamenti e residuo" }));
+    const sezione = within(screen.getByLabelText("Pagamenti della fattura"));
+    expect(await sezione.findByRole("button", { name: "Registra pagamento" })).toBeVisible();
+    expect(finto.rpc).toHaveBeenCalledWith("contabilizza_fattura_ricevuta", { p_fattura_id: "f1" });
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+  it("nota di credito non contabilizzata: nessun pannello dei pagamenti", async () => {
+    finto.dati.fatture_ricevute = { ...FIC, tipo_documento: "TD04" };
+    apri();
+    await screen.findByText("Pagamenti e residuo");
+    expect(screen.queryByRole("button", { name: "Vedi movimenti e registra pagamento" })).toBeNull();
+    expect(finto.rpc).not.toHaveBeenCalledWith("contabilizza_fattura_ricevuta", expect.anything());
   });
   it("mostra la data effettiva della singola rata anche senza piano XML", async () => {
     finto.dati["rate_fornitori[]"] = [{ numero: 2, pagata_il: "2026-11-17" }];
