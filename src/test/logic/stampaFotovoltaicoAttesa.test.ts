@@ -14,6 +14,8 @@ function browser(ready: Promise<unknown>) {
   Object.defineProperty(frame, "contentDocument", { value: {
     open: vi.fn(), write: vi.fn(), close: vi.fn(), title: "", readyState: "complete",
     body: { offsetHeight: 1 }, images: [], fonts: { ready },
+    // La stampa aggiunge il suo stile nella testata del documento.
+    head: document.createElement("head"), createElement: (tag: string) => document.createElement(tag),
   } });
   Object.defineProperty(frame, "contentWindow", { value: {
     focus: vi.fn(), print, addEventListener: (event: string, fn: () => void) => listeners.set(event, fn),

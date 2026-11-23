@@ -1,6 +1,11 @@
 /** I livelli trasformati di Google possono indurre Chromium a ridurre tutti i
  * fogli per includere le tile esterne. Il ritaglio conserva foto e attribuzioni
- * dentro la mappa. I nodi di servizio dopo i fogli non generano pagine vuote. */
+ * dentro la mappa. I nodi di servizio dopo i fogli non generano pagine vuote.
+ *
+ * Lo stesso stile passa per la stampa nativa condivisa (`stampaPreventivoNativo`),
+ * che stampa anche fatture e fatture ricevute: lì non ci sono `.page` e un
+ * `body > :not(.page)` nudo nascondeva l'intero documento (stampa bianca, 23/11/2026).
+ * Ogni regola che nasconde vale quindi solo se il documento è fatto di `.page`. */
 export const STILE_STAMPA_PAGINE_FV = `
 /* Conserva spazio per le note senza ridurre i caratteri di prezzo e pagamenti. */
 .page:has(.invest-hero) .invest-hero { padding-top: 5mm; padding-bottom: 5mm; }
@@ -9,6 +14,6 @@ export const STILE_STAMPA_PAGINE_FV = `
   html, body { width: 210mm; max-width: 210mm; }
   body > .page { contain: paint; }
   [data-fv-google-map] { contain: strict; clip-path: inset(0); }
-  body > :not(.page) { display: none !important; }
+  body:has(> .page) > :not(.page) { display: none !important; }
   body > .page:not(:has(~ .page)) { break-after: auto !important; page-break-after: auto !important; }
 }`;
