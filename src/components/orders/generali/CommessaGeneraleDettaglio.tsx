@@ -20,7 +20,7 @@ import { useAvanzamentoCantiere } from "@/hooks/useAvanzamentoCantiere";
 import { AvvisiPiano } from "@/components/orders/generali/design/AvvisiPiano";
 import { RiquadroCantiereOperazione } from "@/components/orders/generali/design/RiquadroCantiereOperazione";
 import { STILE_STATO } from "@/components/orders/generali/unita/aspetto";
-import { STATI_VENDITA, type StatoVendita } from "@/lib/orders/generali/unita";
+import { STATI_VENDITA, statoVenditaConfermato, type StatoVendita } from "@/lib/orders/generali/unita";
 import "./design/commessa-generale.css";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -111,7 +111,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
   // Finché non si vende, il lavoro di un'operazione immobiliare sta nel cantiere: il bottone
   // principale porta lì, «nuova unità» va fra le altre azioni (stessa regola della testata).
   const inCostruzione = immobiliare && schede.some((s) => s.id === "cantiere")
-    && !r.figlie.some((f) => !!f.statoVendita && f.statoVendita !== "libera") && (totali.fatturato ?? 0) <= 0 && (totali.incassato ?? 0) <= 0;
+    && !r.figlie.some((f) => !f.divisa && !!f.statoVendita && f.statoVendita !== "libera") && (totali.fatturato ?? 0) <= 0 && (totali.incassato ?? 0) <= 0;
   const riquadri = riquadriDelModello(r.generale.modello);
   const propsScheda = { riepilogo: r, totali, puoModificare };
   const iconeSchede = { dati: ClipboardList, unita: Building2, contratto: FileCheck2, piano: ChartNoAxesCombined, cantiere: HardHat, investitori: Landmark, documenti: FolderOpen };
@@ -362,9 +362,9 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare }: { r: RiepilogoGene
   const appalto = r.generale.modello === "appalto";
   // Un'operazione immobiliare che non ha ancora venduto né fatturato sta costruendo: la testata
   // parla di spesa contro budget, non di «da incassare 0 €» e barre di vendita vuote (14/11/2026).
-  const inVendita = r.figlie.some((f) => !!f.statoVendita && f.statoVendita !== "libera") || (t.fatturato ?? 0) > 0 || (t.incassato ?? 0) > 0;
+  const inVendita = r.figlie.some((f) => !f.divisa && !!f.statoVendita && f.statoVendita !== "libera") || (t.fatturato ?? 0) > 0 || (t.incassato ?? 0) > 0;
   const costruzione = !appalto && !inVendita;
-  const n = useGeneralePianoNumeri(r, { enabled: aperto || costruzione });
+  const n = useGeneralePianoNumeri(r, { enabled: aperto || !appalto });
   const piano = pianoPerNumeri(n.piano);
   // Il SAL è del contratto: senza il valore del contratto non c'è né la riga né il residuo.
   const contratto = useDatiContratto(r.generale.id, appalto && aperto && r.permessi.importi);
@@ -378,6 +378,7 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare }: { r: RiepilogoGene
   const spesoReale = n.piano?.confronto.totali.costi.reale ?? (quote ? (t.costo ?? 0) + quote.totale : null);
   const speso = r.permessi.costi ? spesoReale : null;
   const budgetCompleto = n.piano?.budgetCompleto !== false;
+  const budgetInBozza = n.inVista?.stato === "bozza";
   const conCapitale = numeri.some((x) => x.id === "capitale") && r.permessi.margini && n.piano?.calendarioCompleto !== false;
   // Appalto: quanto manca alla fine contrattuale (con le proroghe) e la penale se si è in ritardo (T3, 14/11/2026).
   const oggi = oggiIso();
@@ -399,11 +400,17 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare }: { r: RiepilogoGene
     mqVendibili: r.generale.dati?.area?.mq_vendibili,
     immobileMq: r.generale.dati?.immobile?.mq,
   });
-  // Venduto davvero: le unità non più libere. Per un appalto è quello che si è fatturato.
-  const vendutoUnita = r.figlie
-    .filter((f) => f.statoVendita && f.statoVendita !== "libera")
-    .reduce((somma, f) => somma + (f.importo ?? 0), 0);
-  const venduto = !r.permessi.importi ? null : appalto ? t.fatturato : vendutoUnita > 0 ? vendutoUnita : t.fatturato;
+  const confermate = r.figlie.filter(f => !f.divisa && statoVenditaConfermato(f.statoVendita));
+  const daFatture = appalto || (confermate.length === 0 && (t.fatturato ?? 0) > 0);
+  const nomeVendite = daFatture ? "Fatturato" : "Vendite confermate";
+  const venduto = !r.permessi.importi ? null : daFatture
+    ? t.fatturato
+    : confermate.reduce((somma, f) => somma + (f.importo ?? 0), 0);
+  // Una caparra di prenotazione può essere incassata, ma il saldo entra tra i crediti al preliminare.
+  const daIncassare = appalto ? t.daIncassare : totaliGenerale({
+    ...r,
+    figlie: r.figlie.filter(f => !f.divisa).map(f => f.statoVendita === "prenotata" ? { ...f, residuoUnita: 0 } : f),
+  }).daIncassare;
   const numeriPrevReale = numeriOperazione({
     venditaPrevista: r.permessi.importi ? r.generale.valore ?? t.assegnato : null,
     costiPrevisti: budget,
@@ -454,7 +461,7 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare }: { r: RiepilogoGene
   return (
     <section aria-labelledby="generale-numeri-titolo" className="generale-hero">
       <header className="generale-hero-heading">
-        <div><span className="generale-hero-icon"><LayoutDashboard aria-hidden="true" /></span><h2 id="generale-numeri-titolo">La commessa in numeri</h2></div>
+        <div className="flex-wrap"><span className="generale-hero-icon"><LayoutDashboard aria-hidden="true" /></span><h2 id="generale-numeri-titolo">La commessa in numeri</h2>{budgetInBozza && <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-xs">Piano in bozza</span>}</div>
         {mostraDettaglio && <button type="button" className="generale-kpi-toggle" aria-label={aperto ? "Riduci i numeri" : "Dettaglio dei numeri"} aria-expanded={aperto} aria-controls="generale-numeri-dettaglio" onClick={() => setAperto(v => !v)}>
           <span>{aperto ? "Riduci" : "Dettaglio"}<span className="generale-kpi-toggle-suffisso"> {aperto ? "i numeri" : "dei numeri"}</span></span><ChevronDown className={cn("size-3.5", aperto && "rotate-180")} aria-hidden="true" />
         </button>}
@@ -463,18 +470,18 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare }: { r: RiepilogoGene
         {r.permessi.importi
           ? <Numero etichetta={nomeValore} valore={euro(r.generale.valore ?? t.assegnato)} nota={notaValore} />
           : <Numero etichetta={def.figlia.tante} valore={String(t.figlie)} />}
-        <Numero tipo="avanzamento" etichetta="Avanzamento" valore={avanzamento === null ? "—" : percento(avanzamento)} />
+        <Numero tipo="avanzamento" etichetta="Avanzamento" valore={avanzamento === null ? "—" : percento(avanzamento)} nota={avanzamento === null ? "Dalle fasi di cantiere" : undefined} />
         {costruzione ? (
           <>
             {r.permessi.costi && <Numero tipo="capitale" etichetta="Speso finora" valore={euro(speso)}
-              nota={budget !== null && budget > 0 ? `su ${euro(budget)} di budget${budgetCompleto ? "" : ", stime da completare"}` : undefined} />}
-            {r.permessi.importi && conCapitale && <Numero tipo="capitale" etichetta="Capitale impegnato" valore={euro(di("capitale"))} nota="il massimo previsto" />}
+              nota={budget !== null && budget > 0 ? `su ${euro(budget)} ${budgetInBozza ? "di costi in bozza" : "di budget"}${budgetCompleto ? "" : " · stime da completare"}` : undefined} />}
+            {r.permessi.importi && conCapitale && <Numero tipo="capitale" etichetta="Fabbisogno stimato" valore={euro(di("capitale"))} nota="picco di capitale previsto" />}
           </>
         ) : r.permessi.importi && (
           <>
-            <Numero tipo="fatturato" etichetta={appalto ? "Fatturato" : "Venduto"} valore={euro(venduto)}
+            <Numero tipo="fatturato" etichetta={nomeVendite} valore={euro(venduto)}
               nota={t.incassato !== null ? `Incassato ${euro(t.incassato)}` : undefined} />
-            <Numero tipo="incasso" etichetta="Da incassare" valore={euro(t.daIncassare)} />
+            <Numero tipo="incasso" etichetta="Da incassare" valore={euro(daIncassare)} />
           </>
         )}
       </div>
@@ -492,7 +499,7 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare }: { r: RiepilogoGene
                   nota={giorniAllaFine >= 0 ? `scadenza contrattuale ${dataIt(fineContratto!)}` : penale ? `penale maturata ${euro(penale.importo)}${penale.alTetto ? " (al tetto)" : ""}` : `scadenza ${dataIt(fineContratto!)}, penale non indicata`}
                 />
               )}
-              {!costruzione && numeri.some((x) => x.id === "capitale") && r.permessi.margini && <Numero tipo="capitale" etichetta="Capitale impegnato" valore={euro(di("capitale"))} nota={n.piano?.calendarioCompleto === false ? (n.voci.some((v) => v.importo > 0 && !v.mese) ? "completa il calendario del piano" : "completa le stime del piano") : "il massimo previsto"} />}
+              {!costruzione && numeri.some((x) => x.id === "capitale") && r.permessi.margini && <Numero tipo="capitale" etichetta="Fabbisogno stimato" valore={euro(di("capitale"))} nota={n.piano?.calendarioCompleto === false ? (n.voci.some((v) => v.importo > 0 && !v.mese) ? "completa il calendario del piano" : "completa le stime del piano") : "picco di capitale previsto"} />}
               {numeri.some((x) => x.id === "assegnare") && (
                 <Numero
                   etichetta="Da assegnare"
@@ -513,7 +520,7 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare }: { r: RiepilogoGene
                   : senzaCosti
                   ? "nessun costo registrato"
                   : piano
-                    ? "stima dal piano economico"
+                    ? budgetInBozza ? "stima dal piano in bozza" : "stima dal piano economico"
                     : quote
                       ? (quote.totale > 0 ? `${def.figlia.tante.toLowerCase()} ${euro(t.margine)} − costi comuni ${euro(quote.totale)}` : "ricavi meno costi registrati")
                       : undefined}
@@ -530,9 +537,9 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare }: { r: RiepilogoGene
           {conPrevReale && (
             <QuadroPrevisionale
               n={numeriPrevReale}
-              etichettaVendita={appalto ? "Fatturato" : "Venduto"}
+              etichettaVendita={nomeVendite}
               incassato={t.incassato}
-              budgetParziale={!budgetCompleto}
+              budgetParziale={!budgetCompleto} budgetInBozza={budgetInBozza}
               notaCostiPrevisti={r.permessi.costi ? "il piano non ha ancora un budget" : "costi non visibili"}
               appalto={appalto}
               superficieAMano={puoModificare ? { generaleId: r.generale.id, area: r.generale.dati?.area } : undefined}
@@ -542,7 +549,7 @@ function QuadroGenerale({ r, t, costiComuni, puoModificare }: { r: RiepilogoGene
           {/* In costruzione: speso contro lavori fatti, non due barre di cui una sempre al 100%. */}
           {/* La compravendita tiene la sua catena acquisto → lavori → rivendita. */}
           {conBudget && !catena ? (
-            <SpesaControLavori speso={speso!} budget={budget!} avanzamento={lavori.percento} fasi={lavori.fasi} budgetParziale={!budgetCompleto} />
+            <SpesaControLavori speso={speso!} budget={budget!} avanzamento={lavori.percento} fasi={lavori.fasi} budgetParziale={!budgetCompleto} budgetInBozza={budgetInBozza} />
           ) : r.permessi.importi && barre.length > 0 && (
             <div className="generale-hero-progress">
               <dl className={cn("space-y-1.5 lg:grid lg:gap-5 lg:space-y-0", colonne)}>

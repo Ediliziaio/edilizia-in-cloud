@@ -19,9 +19,10 @@ interface Props {
   /** Quante fasi di cantiere lo dicono: zero fasi non è «0% fatto», è «non lo sappiamo». */
   fasi?: number;
   budgetParziale?: boolean;
+  budgetInBozza?: boolean;
 }
 
-export function SpesaControLavori({ speso, budget, avanzamento, fasi, budgetParziale }: Props) {
+export function SpesaControLavori({ speso, budget, avanzamento, fasi, budgetParziale, budgetInBozza }: Props) {
   const spesoPct = budget > 0 ? (speso / budget) * 100 : 0;
   const resta = budget - speso;
   // Lo scarto fra i due: spendere più di quanto si costruisce è il segnale da dare.
@@ -32,13 +33,13 @@ export function SpesaControLavori({ speso, budget, avanzamento, fasi, budgetParz
     <div className="generale-hero-progress">
       <div className="spesa-lavori">
         <Barra
-          etichetta="Speso del budget"
+          etichetta={budgetInBozza ? "Speso sui costi in bozza" : "Speso del budget"}
           valore={euro(speso)}
           percento={spesoPct}
           tono={spesoPct > 100 ? "bg-red-400" : "bg-orange-400"}
           nota={resta >= 0
             ? `restano ${euro(resta)}${budgetParziale ? " · stime da completare" : ""}`
-            : `oltre il budget di ${euro(-resta)}`}
+            : `oltre ${budgetInBozza ? "la bozza" : "il budget"} di ${euro(-resta)}`}
         />
         {avanzamento !== null && (
           <Barra

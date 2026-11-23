@@ -320,10 +320,12 @@ describe("le schede dei moduli", () => {
     m.riepilogo = {
       ...base,
       generale: { ...base.generale, modello: "sviluppo" },
-      figlie: base.figlie.map((f, i) => ({ ...f, statoVendita: i === 0 ? "prenotata" : "libera", fatturato: 0, incassato: 0 })),
+      figlie: base.figlie.map((f, i) => ({ ...f, statoVendita: i === 0 ? "prenotata" : "libera", fatturato: 0, incassato: 0, residuoUnita: i === 0 ? f.importo : 0 })),
     };
     disegna();
-    expect(screen.getByText("Da incassare")).toBeVisible();
+    const numeri = screen.getByRole("region", { name: "La commessa in numeri" });
+    expect(within(numeri).getByText("Vendite confermate").parentElement).toHaveTextContent("0 €");
+    expect(within(numeri).getByText("Da incassare").parentElement).toHaveTextContent("0 €");
     expect(screen.queryByText("Speso finora")).not.toBeInTheDocument();
   });
 

@@ -83,12 +83,12 @@ export function AvvisiPiano({
       });
       passi.push({
         id: "approva",
-        titolo: "Il budget di riferimento",
+        titolo: "Approva il budget",
         fatto: approvato,
         testo: approvato
           ? "Approvato: è il riferimento per gli scostamenti."
-          : "Una volta approvato, diventa il riferimento per gli scostamenti.",
-        azione: puoModificare ? { etichetta: "Vai all'approvazione", apri: () => vai("piano") } : undefined,
+          : "Il piano è ancora in bozza. L’approvazione fissa il riferimento per gli scostamenti.",
+        azione: puoModificare ? { etichetta: "Apri il piano economico", apri: () => vai("piano") } : undefined,
       });
       if (quanteFonti !== null)
         passi.push({

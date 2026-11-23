@@ -30,7 +30,9 @@ function Indirizzo() {
 }
 const disegna = () => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <MemoryRouter><RiquadroCantiereOperazione riepilogo={riepilogo} /><Indirizzo /></MemoryRouter>
+    <MemoryRouter initialEntries={["/?ambito-cantiere=figlia&fase-cantiere=vecchia"]}>
+      <RiquadroCantiereOperazione riepilogo={riepilogo} /><Indirizzo />
+    </MemoryRouter>
   </QueryClientProvider>,
 );
 
@@ -52,7 +54,10 @@ describe("il cantiere in Panoramica", () => {
     disegna();
     expect(await screen.findByText("Nessuna fase")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Imposta le fasi/ }));
-    expect(screen.getByTestId("indirizzo").textContent).toContain("vista-cantiere=lavorazioni");
+    const p = new URLSearchParams(screen.getByTestId("indirizzo").textContent ?? "");
+    expect(p.get("vista-cantiere")).toBe("lavorazioni");
+    expect(p.get("ambito-cantiere")).toBe(riepilogo.generale.id);
+    expect(p.has("fase-cantiere")).toBe(false);
   });
 
   it("con le fasi: avanzamento, quelle in corso e le prossime", async () => {

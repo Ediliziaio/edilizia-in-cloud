@@ -115,11 +115,7 @@ export function FattureOperazione({ riepilogo }: { riepilogo: RiepilogoGenerale 
         )}
       </header>
 
-      {d.fatture.length === 0 ? (
-        <p className="px-4 py-3 text-sm text-muted-foreground">
-          Nessuna fattura è ancora attribuita a questa operazione.
-        </p>
-      ) : (
+      {d.fatture.length > 0 && (
         <ul className="divide-y">
           {d.fatture.slice(0, 6).map((f) => (
             <li key={f.id} className="flex items-baseline gap-3 px-4 py-2 text-sm">
@@ -142,17 +138,20 @@ export function FattureOperazione({ riepilogo }: { riepilogo: RiepilogoGenerale 
       )}
 
       {d.senzaCommessa.quante > 0 && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
-          <span className="min-w-0 flex-1">
-            {d.senzaCommessa.quante === 1
-              ? "Una fattura dell'azienda non ha ancora una commessa"
-              : `${d.senzaCommessa.quante} fatture dell'azienda non hanno ancora una commessa`}
-            {" "}<span className="tabular-nums">({euro(d.senzaCommessa.totale)})</span>: finché non ce l'hanno, non entrano nello speso di nessuna operazione.
-          </span>
-          <Link to="/azienda/documenti/fatture-ricevute" className="generale-text-link shrink-0">
-            Assegnale <ArrowUpRight aria-hidden="true" />
-          </Link>
-        </div>
+        <details className="border-t bg-amber-50/60 px-4 py-2.5 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+          <summary className="w-fit cursor-pointer font-medium">
+            {d.senzaCommessa.quante === 1 ? "1 costo aziendale da attribuire" : `${d.senzaCommessa.quante} costi aziendali da attribuire`}
+          </summary>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <p className="min-w-0 flex-1">
+              {euro(d.senzaCommessa.totale)} complessivi da ripartire tra le commesse dell’azienda.
+              {d.fatture.length === 0 && " 0 fatture collegate a questa operazione."}
+            </p>
+            <Link to="/azienda/documenti/fatture-ricevute" className="generale-text-link shrink-0">
+              Apri fatture ricevute <ArrowUpRight aria-hidden="true" />
+            </Link>
+          </div>
+        </details>
       )}
     </section>
   );

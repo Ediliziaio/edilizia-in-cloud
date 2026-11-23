@@ -39,7 +39,15 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
   const apri = (vista?: string) => {
     const dopo = new URLSearchParams(parametri);
     dopo.set("scheda", "cantiere");
-    if (vista) dopo.set("vista-cantiere", vista);
+    if (vista) {
+      dopo.set("vista-cantiere", vista);
+      dopo.set("ambito-cantiere", generaleId);
+      dopo.delete("fase-cantiere");
+    } else {
+      dopo.delete("vista-cantiere");
+      dopo.delete("ambito-cantiere");
+      dopo.delete("fase-cantiere");
+    }
     setParametri(dopo, { replace: true });
   };
 
@@ -81,7 +89,9 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
         <div className="min-w-0 px-4 py-3">
           <p className="text-xs text-muted-foreground">Lavori</p>
           {fasi.isLoading ? (
-            <p className="mt-1 text-sm text-muted-foreground">…</p>
+            <p role="status" className="mt-1 text-sm text-muted-foreground">Caricamento delle fasi…</p>
+          ) : fasi.isError ? (
+            <p className="mt-1 text-sm text-muted-foreground">Fasi non disponibili. <button type="button" onClick={() => void fasi.refetch()} className="text-primary hover:underline">Riprova</button></p>
           ) : elenco.length === 0 ? (
             <>
               <p className="mt-0.5 text-sm font-medium">Nessuna fase</p>
@@ -94,7 +104,7 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
                     </button>
                   )}
                   <button type="button" onClick={() => apri("lavorazioni")} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                    {puoModificare && conVoci ? "o a mano" : "Imposta le fasi"} <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                    {puoModificare && conVoci ? "Aggiungi fasi a mano" : "Imposta le fasi"} <ArrowRight className="h-3 w-3" aria-hidden="true" />
                   </button>
                 </div>
               )}
