@@ -18,7 +18,6 @@ import {
   MousePointer2,
   PenTool,
   Plus,
-  RectangleHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,7 +99,7 @@ export function FvMappaTetto(
     ),
     [attiva, setAttiva] = useState(piano?.mappa?.falde[0]?.id ?? "");
   const [tool, setTool] = useState<
-      "pin" | "poligono" | "rettangolo" | "modifica" | "sposta"
+      "pin" | "poligono" | "modifica" | "sposta"
     >(
       riferimento || piano?.mappa ? "modifica" : "sposta",
     ),
@@ -359,22 +358,6 @@ export function FvMappaTetto(
               </Button>
               <Button
                 type="button"
-                variant={tool === "rettangolo" ? "default" : "outline"}
-                aria-pressed={tool === "rettangolo"}
-                aria-label="Falda rettangolare"
-                disabled={!modificabile || !confermato ||
-                  !(larghezza >= 1 && larghezza <= 100 && altezza >= 1 &&
-                    altezza <= 100 && Math.abs(rotazione) <= 180)}
-                onClick={() => {
-                  setTool("rettangolo");
-                  setPunti([]);
-                  setCursore(null);
-                }}
-              >
-                <RectangleHorizontal aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">Rettangolo</span><span className="fv-comando-esteso">Rettangolo rapido</span>
-              </Button>
-              <Button
-                type="button"
                 variant={tool === "modifica" ? "default" : "outline"}
                 aria-pressed={tool === "modifica"}
                 aria-label="Seleziona e sposta"
@@ -388,14 +371,14 @@ export function FvMappaTetto(
             <div className="fv-mappa-aiuto">
               <p role="status" className="text-xs leading-relaxed text-slate-600">
                 {tool === "poligono"
-                  ? punti.length ? `${punti.length} ${punti.length === 1 ? "vertice" : "vertici"} · Tocca gli angoli.` : "Tocca gli angoli della falda."
-                  : tool === "rettangolo"
-                  ? "Tocca il centro della falda."
+                  ? punti.length >= 3
+                    ? `${punti.length} punti · tocca «Chiudi falda» o il primo punto per crearla.`
+                    : punti.length ? `${punti.length} ${punti.length === 1 ? "punto" : "punti"} · tocca gli angoli, uno per uno.` : "Tocca gli angoli della falda, uno per uno."
                   : tool === "pin"
                   ? falde.length ? "Sposta il pin. Le falde lo seguono." : "Tocca il tetto per posizionare il pin."
                   : tool === "sposta"
                   ? satellite.pronto && mappaCompatta ? "Usa due dita per spostare la mappa." : "Trascina la mappa."
-                  : falde.length ? "Trascina la falda o i suoi vertici." : "Scegli Disegna o Rettangolo."}
+                  : falde.length ? "Trascina la falda o i suoi vertici." : "Scegli «Disegna falda» e tocca gli angoli."}
               </p>
               {(!confermato || tool === "pin") && (
                 <Button
@@ -508,8 +491,7 @@ export function FvMappaTetto(
                   touchAction: "none",
                   cursor: tool === "sposta"
                     ? "grab"
-                    : tool === "pin" || tool === "poligono" ||
-                        tool === "rettangolo"
+                    : tool === "pin" || tool === "poligono"
                     ? "crosshair"
                     : "default",
                 }}
@@ -556,17 +538,6 @@ export function FvMappaTetto(
                     setPin(p);
                     pinDrag.current = { iniziale: pin, posizione: p, ancora: p };
                     svg.current?.setPointerCapture(e.pointerId);
-                    return;
-                  }
-                  if (tool === "rettangolo" && confermato) {
-                    aggiungi(
-                      rettangoloRuotatoFv(
-                        metriDaCoordinate(p, origine),
-                        larghezza,
-                        altezza,
-                        rotazione,
-                      ),
-                    );
                     return;
                   }
                   if (tool === "poligono" && punti.length < 64) {
@@ -966,7 +937,7 @@ export function FvMappaTetto(
             <>
               <details className="my-3">
                 <summary className="cursor-pointer text-sm font-medium text-slate-600">
-                  Rettangolo rapido e misure precise
+                  Misure precise e rotazione della falda
                 </summary>
                 <div className="mt-3 flex flex-wrap items-end gap-3">
                   <label className="text-sm">
@@ -1002,24 +973,6 @@ export function FvMappaTetto(
                       onChange={(e) => setRotazione(Number(e.target.value))}
                     />
                   </label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!modificabile ||
-                      !(larghezza >= 1 && larghezza <= 100 && altezza >= 1 &&
-                        altezza <= 100 && Math.abs(rotazione) <= 180)}
-                    onClick={() =>
-                      aggiungi(
-                        rettangoloRuotatoFv(
-                          metriDaCoordinate(centro, origine),
-                          larghezza,
-                          altezza,
-                          rotazione,
-                        ),
-                      )}
-                  >
-                    Aggiungi rettangolo ruotato
-                  </Button>
                 </div>
               </details>
               {falde.length > 0 && (
