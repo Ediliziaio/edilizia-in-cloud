@@ -212,6 +212,19 @@ export function VocaleDocumento({ companyId, messageId }: { companyId: string; m
 }
 
 /** Le letture non ancora registrate condividono l’elenco con i DDT, senza duplicare i registrati. */
+/**
+ * Il nome da mostrare per una bolla in ingresso. Le foto arrivate da WhatsApp o dal telefono
+ * hanno per nome un codice tecnico («69407923-c37d-4ac7-…»): al posto suo si dice da dove
+ * è arrivata e quando.
+ */
+export function nomeDocumentoInIngresso(j: Pick<DocumentoPersistente, "files" | "source" | "created_at">): string {
+  const nome = j.files[0]?.name?.trim();
+  if (nome && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-/i.test(nome)) return nome;
+  const fonte = j.source === "whatsapp" ? "da WhatsApp" : j.source === "campo" ? "dal cantiere" : "caricata";
+  const data = new Date(j.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" });
+  return `Bolla ${fonte} del ${data}`;
+}
+
 export function RigaDocumentoInIngresso({
   documento: j,
   apri,

@@ -1,4 +1,5 @@
 import { progressoOrdine } from "@/lib/ddt/controlloOrdini";
+import { cn } from "@/lib/utils";
 import { documentiDb } from "@/lib/ddt/documentiPersistenti";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { PaginaDocumentoGenerale, useAspettoOperativo } from "@/components/orders/generali/design/ContestoOperativo";
@@ -112,6 +113,8 @@ function ContenutoPurchaseOrderDetail() {
 
   const [ordineFiltroResidui, setOrdineFiltroResidui] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  // Telefono: gli articoli si leggono in elenco; la tabella completa si apre per modificarli.
+  const [tabellaSuTelefono, setTabellaSuTelefono] = useState(false);
   const [previewOpen,setPreviewOpen]=useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
@@ -406,6 +409,7 @@ function ContenutoPurchaseOrderDetail() {
 
       <QuotePageHeader
         numero={order.oda_number}
+        numeroSoloDaComputer
         stato={
           <QuoteChip variant={STATUS_CHIP_VARIANT[order.status] || "default"}>
             {STATUS_LABELS[order.status] || order.status}
@@ -413,6 +417,8 @@ function ContenutoPurchaseOrderDetail() {
         }
         chips={
           <>
+            {/* Sul telefono il sottotitolo «Fornitore: …» non si vede: il nome va qui. */}
+            {supplier?.name && <span className="max-w-full truncate text-xs font-semibold text-slate-700 sm:hidden">{supplier.name}</span>}
             {order.orders?.order_code ? (
               <Link to={`/azienda/ordini/${order.order_id}`} className="inline-flex">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors">
@@ -576,10 +582,10 @@ function ContenutoPurchaseOrderDetail() {
                 </Button>
               )}
             </div>
-            {!senzaPrezzi && <p className="px-5 pb-3 text-xs text-slate-500">Prezzi di acquisto IVA esclusa. Puoi lasciare il prezzo vuoto e indicarlo come «Da confermare» in attesa del fornitore. Su schermi stretti puoi scorrere la tabella orizzontalmente.</p>}
+            {!senzaPrezzi && <p className="px-5 pb-3 text-xs text-slate-500 max-sm:hidden">Prezzi di acquisto IVA esclusa. Puoi lasciare il prezzo vuoto e indicarlo come «Da confermare» in attesa del fornitore. Su schermi stretti puoi scorrere la tabella orizzontalmente.</p>}
             {totaliRighe.daConfermare > 0 && <p role="status" className="mx-5 mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{totaliRighe.daConfermare} {totaliRighe.daConfermare === 1 ? "voce con prezzo da confermare" : "voci con prezzi da confermare"}. Gli importi visibili comprendono solo le voci già valorizzate.</p>}
             {isEditable && (
-              <p className="px-5 sm:px-6 pb-3 text-xs text-muted-foreground" role="status">
+              <p className="px-5 sm:px-6 pb-3 text-xs text-muted-foreground max-sm:hidden" role="status">
                 Le modifiche si salvano automaticamente uscendo dal campo. Le righe già ricevute non possono essere eliminate o sostituite.
                 {order.status !== "bozza" && " Se l’ordine cambia, prepara una nuova email dalle azioni rapide."}
               </p>
@@ -592,7 +598,47 @@ function ContenutoPurchaseOrderDetail() {
               ) : articoliVisibili.length === 0 ? (
                 <p className="p-5 text-sm">Tutti gli articoli sono stati ricevuti.</p>
               ) : (
-                <div className="overflow-x-auto" role="region" aria-label="Articoli dell’ordine" tabIndex={0}>
+                <>
+                {/* Telefono (collaudo 23/11/2026): l'elenco da leggere — cosa, quanto, cosa manca
+                    da ricevere, quanto costa. La tabella da 790px scorreva di lato; si apre con
+                    «Modifica articoli» per chi deve correggere prezzi o quantità da qui. */}
+                {!tabellaSuTelefono && (
+                  <div className="sm:hidden">
+                    <ul aria-label="Articoli dell’ordine" className="divide-y">
+                      {articoliVisibili.map((item) => {
+                        const mancano = Math.max(0, Number(item.quantity) - Number(item.quantity_received ?? 0));
+                        return (
+                          <li key={item.id} className="flex items-start gap-3 px-4 py-2.5">
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm font-medium leading-snug">{item.description || "Articolo senza nome"}</span>
+                              <span className="block text-xs text-muted-foreground">
+                                {Number(item.quantity).toLocaleString("it-IT")} {item.unit_of_measure || ""}
+                                {mostraRicezione && (mancano > 0 ? ` · da ricevere ${mancano.toLocaleString("it-IT")}` : " · ricevuto")}
+                              </span>
+                            </span>
+                            {!senzaPrezzi && (
+                              <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
+                                {item.price_pending ? <span className="text-xs font-medium text-amber-700">Da confermare</span> : fmtEur(Number(item.line_total ?? 0))}
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {!senzaPrezzi && (
+                      <p className="flex items-baseline justify-between border-t px-4 py-2.5 text-sm font-bold">
+                        <span>{totaliRighe.daConfermare ? "Totale parziale" : "Totale"}</span>
+                        <span className="tabular-nums">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.totale)}</span>
+                      </p>
+                    )}
+                    {isEditable && (
+                      <div className="border-t px-4 py-2.5">
+                        <Button variant="outline" className="w-full" onClick={() => setTabellaSuTelefono(true)}>Modifica articoli</Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className={cn("overflow-x-auto", !tabellaSuTelefono && "max-sm:hidden")} role="region" aria-label="Articoli dell’ordine" tabIndex={0}>
                   <table className="w-full min-w-[790px] text-sm">
                     <thead><tr className="border-b bg-muted/50">
                       <th className="text-left p-2 pl-4 font-medium">Descrizione</th>
@@ -649,6 +695,7 @@ function ContenutoPurchaseOrderDetail() {
                     </tfoot>}
                   </table>
                 </div>
+                </>
               )}
             </div>
           </QuoteCard>
@@ -740,7 +787,7 @@ function ContenutoPurchaseOrderDetail() {
         </div>
       </div>
 
-      <section id="ddt-ricezione-oda" aria-label="Ricezione, documenti e contabilità" className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-2">
+      <section id="ddt-ricezione-oda" aria-label="Ricezione, documenti e contabilità" className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-2 [&>*]:min-w-0">
           <section ref={sezioneDdt} aria-label="DDT collegati all’ordine" className="scroll-mt-4">
           <QuoteCard
             title={

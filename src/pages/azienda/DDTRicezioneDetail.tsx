@@ -64,8 +64,11 @@ import {
   ArrowLeft, FileCheck, Loader2, Truck, FileText,
   Package, Plus, CheckCircle2, Trash2, Edit3, Save, X, ExternalLink,
   Camera, User, Phone, Clock, MapPin, AlertTriangle, ShieldCheck,
-  FilePlus2, Hash, Calendar, PenLine, ListTree, ArrowLeftRight,
+  FilePlus2, Hash, Calendar, PenLine, ListTree, ArrowLeftRight, MoreHorizontal,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
   useDDTRicezioneDetail,
@@ -535,7 +538,7 @@ function ContenutoDDTRicezioneDetail() {
           </Button>}
           <div
             className={cn(
-              "h-10 w-10 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0",
+              "h-10 w-10 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0 max-sm:hidden",
               "bg-gradient-to-br from-primary/10 to-primary/20 border border-primary/20"
             )}
           >
@@ -600,7 +603,7 @@ function ContenutoDDTRicezioneDetail() {
               size="sm"
               variant="outline"
               onClick={markNonConforme}
-              className="gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50"
+              className="gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50 max-sm:hidden"
               disabled={updateDDT.isPending}
             >
               <AlertTriangle className="h-4 w-4" />
@@ -609,7 +612,7 @@ function ContenutoDDTRicezioneDetail() {
           )}
           {!isEditingHeader ? (
             <>
-              <Button variant="outline" size="sm" onClick={startEditHeader}>
+              <Button variant="outline" size="sm" onClick={startEditHeader} className="max-sm:hidden">
                 <Edit3 className="h-4 w-4 sm:mr-1" />
                 <span className="hidden sm:inline">Modifica</span>
               </Button>
@@ -617,10 +620,33 @@ function ContenutoDDTRicezioneDetail() {
                 variant="outline"
                 size="sm"
                 onClick={handleDelete}
-                className="text-destructive hover:text-destructive"
+                className="text-destructive hover:text-destructive max-sm:hidden"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
+              {/* Telefono: un'azione in vista (Verifica), le altre nel menu. Prima: quattro
+                  bottoni in fila con il cestino rosso a portata di pollice. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="sm:hidden" aria-label="Altre azioni sul DDT">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  {ddt.stato !== "non_conforme" && (
+                    <DropdownMenuItem onSelect={() => void markNonConforme()} disabled={updateDDT.isPending}>
+                      <AlertTriangle className="mr-2 h-4 w-4 text-rose-600" />Segna non conforme
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onSelect={startEditHeader}>
+                    <Edit3 className="mr-2 h-4 w-4" />Modifica i dati
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => void handleDelete()} className="text-destructive focus:text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />Elimina il DDT
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <>
@@ -669,13 +695,16 @@ function ContenutoDDTRicezioneDetail() {
               e destinazione li dicono già la tabella e i Collegamenti, lo
               stato «verificata» la testata. */}
           {!isEditingHeader ? (
-            <div className="grid grid-cols-3 gap-4 sm:max-w-2xl">
+            // Sul telefono numero e data sono già nel titolo: qui resta la merce.
+            <div className="grid grid-cols-3 gap-4 sm:max-w-2xl max-sm:grid-cols-1">
               <MetaCell
+                className="max-sm:hidden"
                 icon={Hash}
                 label="Numero"
                 value={<span className="font-mono font-medium">{ddt.numero_ddt}</span>}
               />
               <MetaCell
+                className="max-sm:hidden"
                 icon={Calendar}
                 label="Data ricezione"
                 value={format(new Date(ddt.data_ricezione), "dd/MM/yyyy", { locale: it })}
@@ -1652,14 +1681,16 @@ function MetaCell({
   label,
   value,
   muted = false,
+  className,
 }: {
+  className?: string;
   icon: React.ElementType;
   label: string;
   value: React.ReactNode;
   muted?: boolean;
 }) {
   return (
-    <div className="commessa-document-meta min-w-0">
+    <div className={cn("commessa-document-meta min-w-0", className)}>
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
         <Icon className="h-3 w-3" />
         {label}

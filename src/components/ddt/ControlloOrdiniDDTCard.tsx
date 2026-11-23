@@ -195,13 +195,14 @@ export function ControlloOrdiniDDTCard({ ddt, apertoDallaScheda, onApertoChange 
   ]}/>;
   const tabella = (
     <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full min-w-[520px] table-fixed text-[13px]">
+      {/* Sul telefono tre colonne (articolo, quanto manca, stato): ordinati, ricevuti e «in questo DDT» stanno da computer. */}
+      <table className="w-full min-w-[520px] table-fixed text-[13px] max-sm:min-w-0">
         <caption className="sr-only">
           Quantità ordinate, ricevute su tutti i DDT e ancora da ricevere
         </caption>
         <colgroup>
           {[34, 10, 12, 14, 10, 20].map((width, i) => (
-            <col key={i} style={{ width: `${width}%` }} />
+            <col key={i} style={{ width: `${width}%` }} className={i >= 1 && i <= 3 ? "max-sm:hidden" : undefined} />
           ))}
         </colgroup>
         <thead className="h-12 bg-slate-50 text-[11px] text-slate-600">
@@ -216,7 +217,7 @@ export function ControlloOrdiniDDTCard({ ddt, apertoDallaScheda, onApertoChange 
             ].map((t, i) => (
               <th
                 key={t}
-                className={`px-2 py-2 font-medium ${i ? "text-right" : "text-left"}`}
+                className={`px-2 py-2 font-medium ${i ? "text-right" : "text-left"} ${i >= 1 && i <= 3 ? "max-sm:hidden" : ""}`}
               >
                 {t}
               </th>
@@ -243,14 +244,14 @@ export function ControlloOrdiniDDTCard({ ddt, apertoDallaScheda, onApertoChange 
                   {r.unit_of_measure || "Unità da verificare"}
                 </span>
               </td>
-              <td className="px-2 text-right tabular-nums">
+              <td className="px-2 text-right tabular-nums max-sm:hidden">
                 {numero(Number(r.quantity))}
               </td>
-              <td className="px-2 text-right tabular-nums">
+              <td className="px-2 text-right tabular-nums max-sm:hidden">
                 {numero(Number(r.quantity_received ?? 0))}
               </td>
               <td
-                className="px-2 text-right tabular-nums"
+                className="px-2 text-right tabular-nums max-sm:hidden"
                 title={`Accettati da questo DDT: ${numero(r.accettataQui)}`}
               >
                 {numero(r.inBolla)}

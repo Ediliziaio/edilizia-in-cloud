@@ -105,6 +105,7 @@ import {
   scriviFiltroAcquisti,
 } from "@/lib/acquisti/pipelineAcquisti";
 import { OperationalViewSwitch } from "@/components/orders/OperationalViewSwitch";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { PipelineAcquisti } from "@/components/acquisti/PipelineAcquisti";
 import {
   QuotePageHeader,
@@ -385,10 +386,14 @@ export default function PurchaseOrdersList() {
     },
     [setParams],
   );
-  const vistaPrincipale = filtri.vista;
+  // Sul telefono le colonne affiancate non ci stanno: sempre l'elenco (a righe, vedi più sotto),
+  // anche quando l'indirizzo chiede «vista=pipeline» (es. «Acquisti da fare»).
+  const telefono = useIsMobile(640);
+  const vistaPrincipale = telefono ? "elenco" : filtri.vista;
   const archive = useOperationalArchive(
     "oda_ambito",
-    filtri.stato || vistaPrincipale === "elenco" ? "all" : "active",
+    // Conta la vista chiesta, non quella mostrata: sul telefono «Acquisti da fare» resta sugli attivi.
+    filtri.stato || filtri.vista === "elenco" ? "all" : "active",
   );
   const tab = filtri.stato ?? "tutti";
   const setTab = (v: string) =>
@@ -1162,7 +1167,7 @@ export default function PurchaseOrdersList() {
 
       {/* Vista e filtri comuni: valgono per la pipeline e per l'elenco, e stanno nell'URL. */}
       <section aria-label="Filtri acquisti" className="rounded-xl border bg-white p-2.5 shadow-sm">
-        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto"><div className="relative min-w-[180px] flex-1 sm:max-w-xs">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:flex-wrap"><div className="relative min-w-[180px] flex-1 max-sm:min-w-0 max-sm:basis-full sm:max-w-xs">
             <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder={
@@ -1175,7 +1180,7 @@ export default function PurchaseOrdersList() {
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 border-slate-200 pl-8 text-xs shadow-none"
             />
-          </div>{(vistaPrincipale === "elenco" || ["tutte", "ordini"].includes(fonte)) && <Select value={tab} onValueChange={setTab}><SelectTrigger aria-label="Stato degli OdA" className="h-8 w-[180px] max-w-full text-xs"><SelectValue /></SelectTrigger><SelectContent>{hubTabs.map(item => <SelectItem key={item.key} value={item.key}>{item.key === "tutti" ? "Tutti gli stati" : item.label}</SelectItem>)}</SelectContent></Select>}<OperationalViewSwitch
+          </div>{(vistaPrincipale === "elenco" || ["tutte", "ordini"].includes(fonte)) && <Select value={tab} onValueChange={setTab}><SelectTrigger aria-label="Stato degli OdA" className="h-8 w-[180px] max-w-full text-xs max-sm:w-auto max-sm:shrink-0"><SelectValue /></SelectTrigger><SelectContent>{hubTabs.map(item => <SelectItem key={item.key} value={item.key}>{item.key === "tutti" ? "Tutti gli stati" : item.label}</SelectItem>)}</SelectContent></Select>}{!telefono && <OperationalViewSwitch
             value={vistaPrincipale}
             onChange={(v) =>
               setParams(
@@ -1191,7 +1196,7 @@ export default function PurchaseOrdersList() {
                 { replace: true },
               )
             }
-          /><OperationalExtraFilters count={Number(!!filtri.commessa) + Number(!!filtri.fornitore) + Number(!!filtri.fase) + Number(filtri.soloRitardo) + Number(filterPeriodo !== "tutto") + Number(params.has("oda_fonte")) + Number(archive.scope !== "all")}>      <div className="space-y-3">
+          />}<OperationalExtraFilters count={Number(!!filtri.commessa) + Number(!!filtri.fornitore) + Number(!!filtri.fase) + Number(filtri.soloRitardo) + Number(filterPeriodo !== "tutto") + Number(params.has("oda_fonte")) + Number(archive.scope !== "all")}>      <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
 
           {vistaPrincipale === "pipeline" && (
@@ -1550,6 +1555,39 @@ export default function PurchaseOrdersList() {
         <>
           {selection.toolbar}
           {selection.confirmation}
+          {/* Telefono (collaudo 23/11/2026): schede invece della tabella, che da 390px
+              tagliava fornitore e importi e scorreva di lato. Stessi dati, stessa pagina. */}
+          {vista === "elenco" && (
+            <ul aria-label="Ordini d’acquisto" className="divide-y overflow-hidden rounded-lg border bg-card sm:hidden">
+              {visibili.map((o) => {
+                const ritardo = giorniDiRitardo(o);
+                return (
+                  <li key={o.id} className={o.status === "annullato" ? "opacity-50" : undefined}>
+                    <button type="button" onClick={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}
+                      className="flex w-full items-start gap-3 px-3 py-2.5 text-left active:bg-muted">
+                      <span className="min-w-0 flex-1">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground">{o.oda_number}</span>
+                          <QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>{STATUS_LABELS[o.status] || o.status}</QuoteChip>
+                        </span>
+                        <span className="mt-0.5 block truncate text-sm font-semibold">{o.suppliers?.name || "Fornitore da scegliere"}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{o.orders?.order_code ? `Commessa ${o.orders.order_code}${o.orders.deleted_at ? " · nel cestino" : ""}` : "Senza commessa"}</span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        {vedeCosti && <span className="block text-sm font-bold tabular-nums">{formatCurrency(Number(o.total))}</span>}
+                        {o.expected_delivery_date && (
+                          <span className={cn("block text-[11px]", ritardo !== null ? "font-semibold text-destructive" : "text-muted-foreground")}>
+                            {ritardo !== null ? `In ritardo ${ritardo}gg` : `Arrivo ${format(new Date(o.expected_delivery_date), "dd/MM", { locale: it })}`}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div className={cn(vista === "elenco" && "max-sm:hidden")}>
           <OperationalTable label="Elenco ordini d’acquisto">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -1660,6 +1698,7 @@ export default function PurchaseOrdersList() {
                   })}
             </tbody>
           </OperationalTable>
+          </div>
           <nav
             aria-label="Pagine ordini di acquisto"
             className={cn(

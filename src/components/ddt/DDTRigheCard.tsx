@@ -179,6 +179,8 @@ export function DDTRigheCard({
   const daScegliere = righe.filter((r) => !r.purchase_order_item_id && r.abbinamento !== "manuale").length;
 
   const [inModifica, setInModifica] = useState<string | null>(null);
+  // Sul telefono la tabella si stringe solo quando nessuna riga è in modifica.
+  const stretta = inModifica === null;
   const [bozza, setBozza] = useState<Bozza>(BOZZA_VUOTA);
   const [nuova, setNuova] = useState<Bozza | null>(null);
 
@@ -307,14 +309,17 @@ export function DDTRigheCard({
           </p>
         ) : (
           <div className="overflow-x-auto rounded-md border">
+            {/* Sul telefono, fuori dalla modifica, tre colonne: descrizione, quantità con unità e
+                importo. Codice, UM e prezzo unitario tornano quando si corregge una riga. Prima la
+                tabella era larga il doppio dello schermo e la colonna Codice era quasi sempre «—». */}
             <table className="w-full text-xs">
               <thead className="bg-muted/40 text-muted-foreground">
                 <tr className="[&>th]:px-2 [&>th]:py-1.5 [&>th]:text-left [&>th]:font-medium">
-                  <th className="w-[15%]">Codice</th>
+                  <th className={cn("w-[15%]", stretta && "max-sm:hidden")}>Codice</th>
                   <th>Descrizione</th>
                   <th className="w-[10%] text-right">Q.tà</th>
-                  <th className="w-[8%]">UM</th>
-                  <th className="w-[13%] text-right">€/UM</th>
+                  <th className={cn("w-[8%]", stretta && "max-sm:hidden")}>UM</th>
+                  <th className={cn("w-[13%] text-right", stretta && "max-sm:hidden")}>€/UM</th>
                   <th className="w-[13%] text-right">Importo</th>
                   {modificabile && <th className="w-[8%]" />}
                 </tr>
@@ -399,10 +404,10 @@ export function DDTRigheCard({
                     </tr>
                   ) : (
                     <tr key={r.id} className="[&>td]:px-2 [&>td]:py-1.5 hover:bg-muted/20">
-                      <td className="font-mono text-[11px] text-muted-foreground">
+                      <td className={cn("font-mono text-[11px] text-muted-foreground", stretta && "max-sm:hidden")}>
                         {r.codice_articolo || "—"}
                       </td>
-                      <td className="max-w-[260px]">
+                      <td className={cn("max-w-[260px]", stretta && "max-sm:w-full max-sm:max-w-0")}>
                         <span className="flex items-center gap-1.5">
                           <span className="block truncate" title={r.descrizione}>
                             {r.descrizione}
@@ -431,9 +436,12 @@ export function DDTRigheCard({
                             onScegli={(poi) => abbina.mutate({ riga: r.id, poi })} />
                         )}
                       </td>
-                      <td className="text-right tabular-nums">{numero(r.quantita)}</td>
-                      <td className="text-muted-foreground">{r.unita_misura || "—"}</td>
-                      <td className="text-right tabular-nums">
+                      <td className="whitespace-nowrap text-right tabular-nums">
+                        {numero(r.quantita)}
+                        {stretta && r.unita_misura && <span className="text-muted-foreground sm:hidden"> {r.unita_misura}</span>}
+                      </td>
+                      <td className={cn("text-muted-foreground", stretta && "max-sm:hidden")}>{r.unita_misura || "—"}</td>
+                      <td className={cn("text-right tabular-nums", stretta && "max-sm:hidden")}>
                         {r.prezzo_unitario != null ? euro(r.prezzo_unitario) : "—"}
                       </td>
                       <td
@@ -459,7 +467,7 @@ export function DDTRigheCard({
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-6 w-6 text-destructive hover:text-destructive"
+                              className="h-6 w-6 text-destructive hover:text-destructive max-sm:hidden"
                               onClick={() => eliminaRiga.mutate(r.id)}
                               title="Togli la riga"
                             >
@@ -550,7 +558,7 @@ export function DDTRigheCard({
                     <td colSpan={2} className="text-muted-foreground">
                       Totale
                     </td>
-                    <td colSpan={3} className="text-right tabular-nums">
+                    <td colSpan={3} className={cn("text-right tabular-nums", stretta && "max-sm:hidden")}>
                       {[...quantitaPerUnita].map(([um, q]) => `${numero(q)} ${um}`).join(" · ") || "—"}
                     </td>
                     <td className="text-right tabular-nums">

@@ -75,7 +75,8 @@ import {
   DDT_STATO_META,
 } from "@/components/ddt/DDTStatusBadge";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
-import { RevisioneDocumento, RiepilogoInviiWhatsApp, RigaDocumentoInIngresso, StatoDocumentoInIngresso, VocaleDocumento } from "@/components/ddt/DocumentiInIngresso";
+import { RevisioneDocumento, RiepilogoInviiWhatsApp, RigaDocumentoInIngresso, StatoDocumentoInIngresso, VocaleDocumento, nomeDocumentoInIngresso } from "@/components/ddt/DocumentiInIngresso";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { AvvisoPossibileDuplicatoDDT } from "@/components/ddt/AvvisoPossibileDuplicatoDDT";
 import { useDocumentiInIngresso } from "@/hooks/useDocumentiInIngresso";
 import { OriginaliConfronto } from "@/components/fatturazione/OriginaliConfronto";
@@ -379,7 +380,9 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
     update({ stato: v, focus: null, invio: null, ambito: "all" });
   const search = params.get("ddt_cerca") ?? "";
   const setSearch = (v: string) => update({ cerca: v });
-  const view = params.get("ddt_vista") === "pipeline" ? "pipeline" : "elenco";
+  // Sul telefono le colonne affiancate non ci stanno: sempre l'elenco, a righe.
+  const telefono = useIsMobile(640);
+  const view = !telefono && params.get("ddt_vista") === "pipeline" ? "pipeline" : "elenco";
   const archive = useOperationalArchive(
     "ddt_ambito",
     params.has("ddt_stato") || view === "elenco" ? "all" : "active",
@@ -953,7 +956,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
       </OperationalSummary>
 
       <section aria-label="Filtri DDT" className="rounded-xl border bg-white p-2.5 shadow-sm">
-        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto"><div className="relative min-w-[200px] flex-1">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:flex-wrap max-sm:overflow-visible"><div className="relative min-w-[200px] flex-1 max-sm:basis-full">
             <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               aria-label="Cerca DDT"
@@ -962,10 +965,10 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 pl-9 text-xs"
             />
-          </div><Select value={tab} onValueChange={value => setTab(value as FilterKey)}><SelectTrigger aria-label="Stato DDT" className="h-8 w-[180px] max-w-full text-xs"><SelectValue /></SelectTrigger><SelectContent>{FILTERS.map(f => <SelectItem key={f.key} value={f.key}>{f.key === "tutti" ? "Tutti gli stati" : f.label}</SelectItem>)}</SelectContent></Select><OperationalViewSwitch
+          </div><Select value={tab} onValueChange={value => setTab(value as FilterKey)}><SelectTrigger aria-label="Stato DDT" className="h-8 w-[180px] max-w-full text-xs max-sm:flex-1"><SelectValue /></SelectTrigger><SelectContent>{FILTERS.map(f => <SelectItem key={f.key} value={f.key}>{f.key === "tutti" ? "Tutti gli stati" : f.label}</SelectItem>)}</SelectContent></Select>{!telefono && <OperationalViewSwitch
             value={view}
             onChange={(v) => update({ vista: v, ambito: archive.scope })}
-          /><OperationalExtraFilters count={Number(filterOrder !== "all") + Number(filterSupplier !== "all") + Number(filterPeriodo !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">
+          />}<OperationalExtraFilters count={Number(filterOrder !== "all") + Number(filterSupplier !== "all") + Number(filterPeriodo !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
 
           <OperationalHelp>
@@ -1182,6 +1185,46 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
         <>
           {selection.toolbar}
           {selection.confirmation}
+          {telefono ? (
+            <ul aria-label="Elenco DDT" className="divide-y overflow-hidden rounded-lg border bg-card">
+              {visibleRows.map((row) => {
+                if (row.tipo === "documento") {
+                  const j = row.documento;
+                  return (
+                    <li key={j.id} className="bg-amber-50/40">
+                      <button type="button" onClick={() => ingresso.apri(j)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
+                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">{nomeDocumentoInIngresso(j)}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {ingresso.duplicati.get(j.id) ? "Possibile duplicato · " : ""}{j.order_id ? "Commessa assegnata" : "Da associare"}
+                          </span>
+                        </span>
+                        <span className="shrink-0 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+                          {STATO_DOCUMENTO[j.status]}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                }
+                const ddt = row.ddt;
+                const fornitore = fornitoreNomeDi(ddt) ?? ddt.purchase_orders?.oda_number ?? "Fornitore da indicare";
+                return (
+                  <li key={ddt.id}>
+                    <Link to={`/azienda/ddt/${ddt.id}`} className="flex w-full items-center gap-2 px-3 py-2.5">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{fornitore}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          DDT {ddt.numero_ddt}{ddt.data_ricezione ? ` · ${new Date(ddt.data_ricezione).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })}` : ""}{ddt.has_damages ? " · con danni" : ""}
+                        </span>
+                      </span>
+                      <DDTStatusBadge stato={ddt.stato} size="sm" />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
           <OperationalTable label="Elenco DDT">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -1416,6 +1459,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
               })}
             </tbody>
           </OperationalTable>
+          )}
           <OperationalPagination
             page={page}
             total={rows.length}
