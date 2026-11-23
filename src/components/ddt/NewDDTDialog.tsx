@@ -62,6 +62,9 @@ import { FinestraBollaFotoRighe, SezioneBolla } from "./FinestraBollaFotoRighe";
 import { CampoConProposte } from "./CampoConProposte";
 import { useProposteTrasporto } from "@/hooks/useProposteTrasporto";
 import { leggiDDTdaAI, quantitaTotale } from "@/lib/ddt/letturaAI";
+import { useLetturaBolleTelefono } from "@/hooks/useImpostazioniAcquisti";
+import { commessaDallaDestinazione, type CommessaProposta } from "../../../shared/acquisti/destinazioneBolla";
+import { confrontaNumeri, giorniFra, numeroDocumento } from "../../../shared/acquisti/normalizza";
 import { abbinaFornitore, type FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
 import { erroreVerificaDDT } from "@/lib/ddt/verificaNuovoDDT";
 import { problemiBolla } from "@/lib/ddt/righeBolla";
@@ -138,7 +141,11 @@ export function NewDDTDialog({
   // ── Documento e testata ───────────────────────────
   const [pagine, setPagine] = useState<LocalFile[]>([]);
   const [extraFiles, setExtraFiles] = useState<LocalFile[]>([]);
-  const [conAI, setConAI] = useState(false);
+  // L'interruttore parte come ha scelto l'azienda per le bolle (23/11/2026): con «Legge l'AI
+  // subito» acceso, con «Solo la foto» spento. Chi lo tocca decide per questa bolla.
+  const letturaAzienda = useLetturaBolleTelefono(companyId);
+  const [conAIScelto, setConAI] = useState<boolean | null>(null);
+  const conAI = conAIScelto ?? letturaAzienda.data === "ai_subito";
   const [poId, setPoId] = useState(prefillPurchaseOrderId ?? "");
   const [orderId, setOrderId] = useState<string | null>(prefillOrderId ?? null);
   const [supplierId, setSupplierId] = useState<string | undefined>(undefined);
@@ -154,6 +161,8 @@ export function NewDDTDialog({
   const [aiConfidenza, setAiConfidenza] = useState<number | null>(null);
   const [aiAvvisi, setAiAvvisi] = useState<string[]>([]);
   const [fornitoreLetto, setFornitoreLetto] = useState<string | null>(null);
+  const [destinazioneLetta, setDestinazioneLetta] = useState<string | null>(null);
+  const [propostaCommessa, setPropostaCommessa] = useState<CommessaProposta | null>(null);
 
   // ── Trasporto ─────────────────────────────────────
   const [trasportoACuraDi, setTrasportoACuraDi] = useState<TrasportoACuraDi | null>(null);
@@ -234,6 +243,7 @@ export function NewDDTDialog({
     setAiConfidenza(letta.confidenza);
     setAiAvvisi(letta.avvisi);
     setFornitoreLetto(letta.fornitoreNome);
+    setDestinazioneLetta(letta.luogoDestinazione);
     setSupplierId((s) => s ?? abbinaFornitore(letta, fornitori)?.id);
   };
 
@@ -260,11 +270,12 @@ export function NewDDTDialog({
     if (open) return;
     const timerId = window.setTimeout(() => {
       setFase("scelta");
-      setPagine([]); setExtraFiles([]); setConAI(false);
+      setPagine([]); setExtraFiles([]);
       setPoId(prefillPurchaseOrderId ?? ""); setOrderId(prefillOrderId ?? null);
       setRiferimentiOrdini(""); setCollegaCitati(true);
       setSupplierId(undefined); setNumero(""); setData(format(new Date(), "yyyy-MM-dd"));
       setLettura("no"); setRighe([]); setAiLettura(null); setAiConfidenza(null); setAiAvvisi([]); setFornitoreLetto(null);
+      setDestinazioneLetta(null); setPropostaCommessa(null); setConAI(null); propostaFattaPer.current = null;
       setTrasportoACuraDi(null); setPorto(null); setCorriere(""); setTargaMezzo(""); setAutistaNome("");
       setAutistaTelefono(""); setOraArrivo(""); setOraPartenza("");
       setDestinazioneScelta(prefillOrderId ? "cantiere" : "magazzino"); setDestinazioneToccata(false);
@@ -273,6 +284,52 @@ export function NewDDTDialog({
     }, 200);
     return () => window.clearTimeout(timerId);
   }, [open, prefillPurchaseOrderId, prefillOrderId]);
+
+  // La destinazione letta sulla bolla propone la commessa con lo stesso indirizzo di cantiere.
+  const cantieri = useQuery({
+    queryKey: ["ddt-cantieri-indirizzi", companyId],
+    enabled: open && !!companyId && !!destinazioneLetta,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await documentiDb.from("orders").select("id, order_code, work_address, indirizzo_lavori")
+        .eq("company_id", companyId).is("deleted_at", null).order("created_at", { ascending: false }).limit(5000);
+      if (error) throw error;
+      return ((data ?? []) as Array<{ id: string; order_code: string | null; work_address: string | null; indirizzo_lavori: string | null }>)
+        .map((o) => ({ id: o.id, codice: o.order_code, indirizzo: o.indirizzo_lavori || o.work_address }));
+    },
+  });
+  // Una proposta sola per destinazione letta: chi la toglie, o sceglie altro, ha deciso.
+  const propostaFattaPer = useRef<string | null>(null);
+  useEffect(() => {
+    if (!destinazioneLetta || !cantieri.data || poId || orderId || propostaFattaPer.current === destinazioneLetta) return;
+    propostaFattaPer.current = destinazioneLetta;
+    const proposta = commessaDallaDestinazione(destinazioneLetta, cantieri.data);
+    if (!proposta) return;
+    setOrderId(proposta.id);
+    setPropostaCommessa(proposta);
+    if (!destinazioneToccata) setDestinazioneScelta("cantiere");
+  }, [destinazioneLetta, cantieri.data, poId, orderId, destinazioneToccata]);
+
+  // La stessa bolla c'è già (registrata dalla fattura, o due volte per sbaglio): lo si dice prima di
+  // registrarne una seconda (23/11/2026). Stesso fornitore, stesso numero letto, data entro 10 giorni.
+  const chiaveNumero = numeroDocumento(numero)?.chiave ?? "";
+  const fornitoreDoppio = supplierId ?? null;
+  const doppione = useQuery({
+    queryKey: ["ddt-stesso-numero", companyId, fornitoreDoppio, chiaveNumero],
+    enabled: open && fase === "compila" && !!companyId && !!fornitoreDoppio && chiaveNumero.length >= 2,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data: trovate, error } = await documentiDb.from("ddt_ricezione").select("id, numero_ddt, data_ricezione, note")
+        .eq("company_id", companyId).eq("supplier_id", fornitoreDoppio).ilike("numero_ddt", `%${chiaveNumero}%`).limit(20);
+      if (error) return null;
+      return ((trovate ?? []) as Array<{ id: string; numero_ddt: string; data_ricezione: string; note: string | null }>);
+    },
+  });
+  const bollaGiaRegistrata = (doppione.data ?? []).find((d) => {
+    const esito = confrontaNumeri(numeroDocumento(d.numero_ddt), numeroDocumento(numero));
+    const giorni = giorniFra(d.data_ricezione, data);
+    return esito === "uguale" || (esito === "compatibile" && giorni != null && Math.abs(giorni) <= 10);
+  }) ?? null;
 
   const availablePOs = useMemo(() => orders.filter((o) => o.status !== "annullato"), [orders]);
   const selectedPO = useMemo(() => availablePOs.find((o) => o.id === poId) ?? null, [availablePOs, poId]);
@@ -581,6 +638,18 @@ export function NewDDTDialog({
                 </SelectContent>
               </Select>
             </div>
+          )}
+          {bollaGiaRegistrata && (
+            <p role="alert" className="col-span-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200 sm:col-span-4">
+              Questo fornitore ha già la bolla {bollaGiaRegistrata.numero_ddt} del {bollaGiaRegistrata.data_ricezione.split("-").reverse().join("/")}
+              {bollaGiaRegistrata.note?.startsWith("Registrata dalla fattura") ? ", registrata dalla fattura" : ""}.{" "}
+              <button type="button" className="font-medium underline" onClick={() => { onOpenChange(false); navigate(`/azienda/ddt/${bollaGiaRegistrata.id}`); }}>Aprila e allega lì l’originale</button> invece di registrarne una seconda.
+            </p>
+          )}
+          {propostaCommessa && orderId === propostaCommessa.id && !poId && (
+            <p role="status" className="col-span-2 rounded-md bg-primary/5 px-3 py-2 text-xs sm:col-span-4">
+              Commessa {propostaCommessa.codice ?? ""} proposta dall’indirizzo scritto sulla bolla ({propostaCommessa.motivo}). Controlla prima di registrare.
+            </p>
           )}
           <div className="col-span-2 space-y-1 sm:col-span-4">
             <Label htmlFor="ddt-ordini-citati">Riferimenti ordini d’acquisto</Label>

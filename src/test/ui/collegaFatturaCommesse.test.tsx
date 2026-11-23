@@ -107,10 +107,13 @@ describe("Collegare una fattura alle commesse", () => {
     expect(screen.getByText("dalla bolla caricata")).toBeInTheDocument();
     // La seconda bolla: una scelta per due voci.
     fireEvent.click(screen.getAllByRole("button", { name: "Commessa…" })[1]);
+    expect(screen.getByRole("checkbox", { name: /Registra anche la bolla mancante/ })).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("fattura_collega_commesse", expect.objectContaining({
       p_quote: [expect.objectContaining({ order_id: "cantiere", importo: 468, righe: [1] }), expect.objectContaining({ order_id: "c1", importo: 532, righe: [2, 3] })],
     })));
+    // La bolla mai caricata si registra dalla fattura, sulla commessa scelta; quella caricata no.
+    await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("fattura_crea_bolle", { p_fattura: "f1", p_bolle: [{ numero: "2026-DT03-0001841", data: "2026-09-16", order_id: "c1" }] }));
   });
   it("voce per voce: ogni voce va sulla sua commessa", async () => {
     stato.righe = [{ numero_linea: 1, descrizione: "Moduli", imponibile: 700 }, { numero_linea: 2, descrizione: "Trasporto", imponibile: 300 }];

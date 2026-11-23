@@ -78,6 +78,7 @@ import {
   modificaBolleSelezionate,
   riabbinaFornitori,
   bollaDaFile,
+  bollaDaCompletare,
   chiaveBolla,
   eUnPdf,
   conLettura,
@@ -89,6 +90,7 @@ import {
   problemiBloccanti,
   pronte,
   type BollaLetta,
+  type BollaSenzaOriginale,
 } from "@/lib/ddt/importBolle";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -395,7 +397,35 @@ function BolleAperte({
     }
   };
 
-  const doppi = useMemo(() => doppioni(bolle, esistenti), [bolle, esistenti]);
+  // Le bolle registrate senza originale (dalla fattura, o a mano senza foto): la bolla letta che è
+  // il loro originale si allega lì invece di diventare una seconda bolla (23/11/2026).
+  const { data: senzaOriginale = [] } = useQuery<BollaSenzaOriginale[]>({
+    queryKey: ["ddt-senza-originale", companyId],
+    enabled: open && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await db.from("ddt_ricezione")
+        .select("id, numero_ddt, data_ricezione, supplier_id, order_id, destinazione, note")
+        .eq("company_id", companyId).is("ddt_file_url", null).is("ddt_file_bucket", null)
+        .order("created_at", { ascending: false }).limit(5000);
+      if (error) return [];
+      return (data ?? []) as BollaSenzaOriginale[];
+    },
+  });
+  const daCompletare = useMemo(() => new Map(bolle.map((b) => [b.id,
+    b.stato === "letta" && !b.ddtCreatoId ? bollaDaCompletare(b, senzaOriginale) : null])), [bolle, senzaOriginale]);
+  // La bolla da completare ha già commessa e destinazione: la riga le prende, così è pronta.
+  useEffect(() => {
+    for (const b of bolle) {
+      const m = daCompletare.get(b.id);
+      if (m && !b.orderId && m.order_id) cambia(b.id, { orderId: m.order_id, destinazione: m.destinazione === "magazzino" ? "magazzino" : "cantiere" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [daCompletare]);
+  const doppi = useMemo(() => {
+    const d = doppioni(bolle, esistenti);
+    for (const [id, m] of daCompletare) if (m) d.set(id, null);
+    return d;
+  }, [bolle, esistenti, daCompletare]);
   const elenco = useMemo(() => perAttenzione(bolle, doppi), [bolle, doppi]);
   const daSalvare = useMemo(
     () =>
@@ -460,6 +490,21 @@ function BolleAperte({
     daAbbinare.current = 0;
     await inParallelo(lista, QUANTE_INSIEME, async (b) => {
       try {
+        const completa = b.ddtCreatoId ? null : daCompletare.get(b.id);
+        if (completa) {
+          if (b.documentoJobId) {
+            const { error } = await documentiDb.rpc("ddt_documento_allega", {
+              p_id: b.documentoJobId, p_ddt: completa.id,
+              p_dati: { corriere: b.corriere, targa_mezzo: b.targaMezzo, autista_nome: b.autistaNome, trasporto_a_cura_di: b.trasportoACuraDi, porto: b.porto },
+            });
+            if (error) throw error;
+          } else {
+            await uploadMainDDT.mutateAsync({ ddtId: completa.id, file: b.file, silenzioso: true });
+          }
+          cambia(b.id, { ddtCreatoId: completa.id, esito: "salvata", motivoEsito: null });
+          setSelezionate((ids) => new Set([...ids].filter((id) => id !== b.id)));
+          return;
+        }
         const creata = b.ddtCreatoId
           ? {
               id: b.ddtCreatoId,
@@ -930,6 +975,15 @@ function BolleAperte({
                     className={`space-y-3 rounded-xl border bg-background p-4 text-sm shadow-sm ${b.esito === "salvata" ? "border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20" : attenzione ? "border-amber-200 dark:border-amber-800" : ""}`}
                   >
                     {b.possibileDuplicato && <AvvisoPossibileDuplicatoDDT duplicato={b.possibileDuplicato} />}
+                    {(() => {
+                      const m = daCompletare.get(b.id);
+                      return m && b.esito !== "salvata" ? (
+                        <p className="text-xs text-primary">
+                          È l’originale della bolla {m.numero_ddt} del {m.data_ricezione.split("-").reverse().join("/")}
+                          {m.note?.startsWith("Registrata dalla fattura") ? ", registrata dalla fattura" : ", registrata senza originale"}: si allega a quella, senza crearne un’altra.
+                        </p>
+                      ) : null;
+                    })()}
                     <div className="flex flex-wrap items-center gap-2">
                       <Checkbox
                         aria-label={`Seleziona ${b.file.name}`}

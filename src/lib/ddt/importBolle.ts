@@ -8,6 +8,7 @@ import type { DDTRigaNuova } from "@/hooks/useDDTRicezione";
 import { leggiDDTdaAI, type LetturaDDT } from "@/lib/ddt/letturaAI";
 import { normalizzaPiva, abbinaFornitore, type FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
 import { problemiBolla } from "@/lib/ddt/righeBolla";
+import { confrontaNumeri, giorniFra, numeroDocumento } from "../../../shared/acquisti/normalizza";
 import type { PossibileDuplicatoDDT } from "@/lib/ddt/documentiPersistenti";
 
 /** Il limite di `ddt-ai-extract`. */
@@ -273,4 +274,36 @@ export function conflittoFornitore(b: BollaLetta, rubrica: FornitoreInRubrica[])
   const letta = normalizzaPiva(leggiDDTdaAI(b.grezzo).fornitorePiva);
   const scelta = normalizzaPiva(rubrica.find(f => f.id === b.supplierId)?.vat_number);
   return !!letta && !!scelta && letta !== scelta;
+}
+
+/** Una bolla registrata senza originale (dalla fattura, o a mano senza foto): il suo originale va lì. */
+export interface BollaSenzaOriginale {
+  id: string;
+  numero_ddt: string;
+  data_ricezione: string;
+  supplier_id: string | null;
+  order_id: string | null;
+  destinazione: "cantiere" | "magazzino" | string;
+  note: string | null;
+}
+
+/**
+ * La bolla letta è l'originale di una bolla già registrata senza originale? (23/11/2026)
+ * Stesso fornitore, stesso numero letto anche se scritto diverso («4727/05» = «2026-DT05-0004727»),
+ * data entro 10 giorni, e una sola candidata: nel dubbio si registra come sempre.
+ */
+export function bollaDaCompletare(
+  b: Pick<BollaLetta, "supplierId" | "numero" | "data">,
+  senzaOriginale: ReadonlyArray<BollaSenzaOriginale>,
+): BollaSenzaOriginale | null {
+  if (!b.supplierId || !b.numero.trim()) return null;
+  const letto = numeroDocumento(b.numero);
+  const trovate = senzaOriginale.filter((e) => {
+    if (e.supplier_id !== b.supplierId) return false;
+    const esito = confrontaNumeri(numeroDocumento(e.numero_ddt), letto);
+    if (esito === "diverso") return false;
+    const giorni = giorniFra(e.data_ricezione, b.data);
+    return giorni != null && Math.abs(giorni) <= 10;
+  });
+  return trovate.length === 1 ? trovate[0] : null;
 }

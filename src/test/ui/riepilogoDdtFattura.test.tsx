@@ -4,9 +4,11 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RiepilogoDdtFattura, type RiepilogoDdt } from "@/components/fatturazione/RiepilogoDdtFattura";
+const consegne=vi.hoisted(()=>({conferma:vi.fn()}));
+vi.mock("@/lib/ddt/consegneFattura",()=>({confermaConsegneFattura:consegne.conferma}));
 
-const stato=vi.hoisted(()=>({data:null as RiepilogoDdt|null,error:null as {message:string}|null}));
-vi.mock("@/integrations/supabase/client",()=>({supabase:{rpc:async()=>stato}}));
+const stato=vi.hoisted(()=>({data:null as RiepilogoDdt|null,error:null as {message:string}|null,chiamate:[] as string[]}));
+vi.mock("@/integrations/supabase/client",()=>({supabase:{rpc:async(nome:string)=>{stato.chiamate.push(nome);return stato;}}}));
 const bolla=(n:number,esito:RiepilogoDdt['ddt'][number]['esito']='collegato'):RiepilogoDdt['ddt'][number]=>({id:`l${n}`,numero:`DDT-${n}`,data:null,ddt_id:esito==='mancante'?null:`d${n}`,esito,destinazioni:esito==='collegato'?[{tipo:'commessa',id:`c${n}`,codice:`C-${n}`,valida:true}]:[]});
 const monta=(p:Partial<RiepilogoDdt>,onCollegaDdt?:()=>void)=>{
   stato.data={ddt:[],completo:false,motivo:'Verifica le quote',automatico:true,senza_costo:false,allineata:false,manuale:false,gestita_altrove:false,...p};stato.error=null;
@@ -20,6 +22,33 @@ describe('Avvisi DDT della fattura',()=>{
     expect(screen.getByText('2 DDT da collegare: DDT-9, DDT-10.')).toHaveAttribute('role','alert');
     expect(screen.getByText('1 DDT senza cantiere o magazzino: DDT-8.')).toHaveAttribute('role','alert');
     expect(screen.getByRole('link',{name:'C-1'})).toHaveAttribute('href','/azienda/ordini/c1');
+  });
+  it('molti DDT da collegare: una riga che si apre invece dell\'elenco intero (23/11/2026)',async()=>{
+    monta({ddt:Array.from({length:12},(_,i)=>bolla(i+1,i>=1?'mancante':'collegato'))});
+    expect(await screen.findByText('11 DDT da collegare')).toBeInTheDocument();
+  });
+  it('bolle tutte caricate e collegamento automatico spento: «Dividi come le bolle» (23/11/2026)',async()=>{
+    monta({ddt:[bolla(1),bolla(2)],completo:true,automatico:false});
+    stato.chiamate=[];
+    fireEvent.click(await screen.findByRole('button',{name:'Dividi come le bolle'}));
+    await vi.waitFor(()=>expect(stato.chiamate).toContain('fattura_ddt_applica_bolle'));
+  });
+  it('divisione a mano che non torna: si sostituisce solo dopo la conferma',async()=>{
+    const conferma=vi.spyOn(window,'confirm').mockReturnValue(false);
+    monta({ddt:[bolla(1)],completo:true,manuale:true});
+    stato.chiamate=[];
+    fireEvent.click(await screen.findByRole('button',{name:'Dividi come le bolle'}));
+    expect(conferma).toHaveBeenCalled();
+    expect(stato.chiamate).not.toContain('fattura_ddt_applica_bolle');
+    conferma.mockRestore();
+  });
+  it('«Conferma le consegne» conferma le bolle collegate, dopo la domanda (23/11/2026)',async()=>{
+    const domanda=vi.spyOn(window,'confirm').mockReturnValue(true);
+    consegne.conferma.mockReset().mockResolvedValue({confermate:2,righe:5,saltate:[]});
+    monta({ddt:[bolla(1),bolla(2),bolla(3,'mancante')]});
+    fireEvent.click(await screen.findByRole('button',{name:'Conferma le consegne'}));
+    await vi.waitFor(()=>expect(consegne.conferma).toHaveBeenCalledWith(['d1','d2']));
+    domanda.mockRestore();
   });
   it('non presenta il magazzino come un cantiere mancante né una ripartizione ambigua come completata',async()=>{
     monta({ddt:[{...bolla(1),destinazioni:[{tipo:'magazzino',id:'m',codice:'Magazzino',valida:true}]}],motivo:'Più commesse: mancano le quote delle righe.'});

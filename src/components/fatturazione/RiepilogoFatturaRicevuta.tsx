@@ -49,6 +49,7 @@ import { fatturaRicevutaHtml, type FatturaRicevutaVista } from "@/lib/fatturazio
 import { FatturaRicevutaCompletaDialog } from "./FatturaRicevutaCompletaDialog";
 import { useExpensePaymentDetail } from "@/hooks/useExpensePaymentDetail";
 import { VerificaPrimaDelPagamento } from "@/components/operazioni/VerificaPrimaDelPagamento";
+import { PrezziListinoFattura } from "@/components/fatturazione/PrezziListinoFattura";
 import { ExpensePaymentSummary } from "@/components/orders/ExpensePaymentSummary";
 import "./riepilogo-ricevuta.css";
 
@@ -664,6 +665,8 @@ function ContenutoRiepilogo({
               </dl>
               {!nota && companyId && !saldata &&
                 <VerificaPrimaDelPagamento companyId={companyId} fatturaId={String(f.id)} />}
+              {!nota && permessi.canViewCosts && f.fornitore_id &&
+                <PrezziListinoFattura fornitoreId={String(f.fornitore_id)} righe={f.righe} xmlRaw={typeof f.xml_raw === "string" ? f.xml_raw : null} indiceCorpo={f.indice_corpo == null ? null : Number(f.indice_corpo)} puoModificare={!permessi.solaLettura} />}
               {azioni.extraCollegamenti?.(d)}
             </section>
 

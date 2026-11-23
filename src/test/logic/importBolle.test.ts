@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bollaDaCompletare,
   richiedeCaricoManuale, riabbinaFornitori, articoloCerto, articoloSimile, bollaDaFile, chiaveBolla, conLettura, doppioni, dubbi, motivoScartoFile, perAttenzione, problemiBloccanti, pronte,
   quantitaAPezzi, scelteCerte, type BollaLetta, type RigaDaCaricare,
 } from "@/lib/ddt/importBolle";
@@ -149,5 +150,20 @@ describe("DDT reali: controlli prima del carico", () => {
     expect(richiedeCaricoManuale({intestazione:{causale:"Restituzione noleggio"}})).toBe(true);
     expect(richiedeCaricoManuale({riferimenti:{note_libere:"Lasciate in cantiere 20 matassine resto in magazzino"}})).toBe(true);
     expect(richiedeCaricoManuale({intestazione:{causale:"Vendita"}})).toBe(false);
+  });
+});
+
+describe("l'originale di una bolla già registrata senza originale (23/11/2026)", () => {
+  const registrate = [
+    { id: "f1", numero_ddt: "2026-DT05-0004727", data_ricezione: "2026-09-15", supplier_id: "s", order_id: "c1", destinazione: "cantiere", note: "Registrata dalla fattura n. F-1: l'originale della bolla è da allegare." },
+    { id: "f2", numero_ddt: "2026-DT01-0004727", data_ricezione: "2026-09-15", supplier_id: "s", order_id: "c2", destinazione: "cantiere", note: null },
+  ];
+  it("«4727/05» della carta va sulla 2026-DT05-0004727, non sulla DT01", () => {
+    expect(bollaDaCompletare({ supplierId: "s", numero: "4727/05", data: "2026-09-15" }, registrate)?.id).toBe("f1");
+  });
+  it("altro fornitore, data lontana o numero senza serie che torna con due bolle: niente", () => {
+    expect(bollaDaCompletare({ supplierId: "x", numero: "4727/05", data: "2026-09-15" }, registrate)).toBeNull();
+    expect(bollaDaCompletare({ supplierId: "s", numero: "4727/05", data: "2026-11-15" }, registrate)).toBeNull();
+    expect(bollaDaCompletare({ supplierId: "s", numero: "4727", data: "2026-09-15" }, registrate)).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-const m = vi.hoisted(() => ({ rpc: vi.fn(), carica: vi.fn(), create: vi.fn(), upload: vi.fn() }));
+const m = vi.hoisted(() => ({ rpc: vi.fn(), carica: vi.fn(), create: vi.fn(), upload: vi.fn(), senzaOriginale: [] as unknown[] }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c" }, role: "company_admin", user: { id: "u" } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ solaLettura: false, canEditWarehouse: true }) }));
 vi.mock("@/hooks/useDDTRicezione", () => ({
@@ -11,7 +11,8 @@ vi.mock("@/hooks/useDDTRicezione", () => ({
 }));
 vi.mock("@/integrations/supabase/client", () => {
   const q: Record<string, unknown> = {};
-  Object.assign(q, { select: () => q, eq: () => q, order: () => q, range: () => Promise.resolve({ data: [], error: null }) });
+  Object.assign(q, { select: () => q, eq: () => q, is: () => q, order: () => q, range: () => Promise.resolve({ data: [], error: null }),
+    limit: () => Promise.resolve({ data: m.senzaOriginale, error: null }) });
   return { supabase: { from: () => q, functions: { invoke: vi.fn() } } };
 });
 vi.mock("@/lib/ddt/documentiPersistenti", () => ({ documentiDb: { rpc: m.rpc, from: vi.fn() }, inviaDocumentoPersistente: vi.fn(), attendiLetturaPersistente: vi.fn() }));
@@ -33,6 +34,7 @@ import { bollaDaFile, type BollaLetta } from "@/lib/ddt/importBolle";
 beforeEach(() => {
   m.rpc.mockReset().mockResolvedValue({ data: "ddt-1", error: null });
   m.carica.mockReset().mockResolvedValue({ stato: "caricato", righe: 1, escluse: [] });
+  m.senzaOriginale = [];
   URL.createObjectURL = vi.fn(() => "blob:foto");
   URL.revokeObjectURL = vi.fn();
 });
@@ -72,4 +74,14 @@ it("una bolla letta senza righe apre da sola la finestra; chiusa, non si riapre"
   fireEvent.click(screen.getAllByRole("button", { name: "Chiudi" }).at(-1)!);
   await waitFor(() => expect(screen.queryByRole("heading", { name: "Controlla la bolla" })).not.toBeInTheDocument());
   expect(screen.getByRole("button", { name: "Compila le righe guardando la foto" })).toBeInTheDocument();
+});
+
+it("l'originale di una bolla registrata dalla fattura si allega a quella, senza crearne un'altra (23/11/2026)", async () => {
+  m.senzaOriginale = [{ id: "f1", numero_ddt: "2026-DT05-0004727", data_ricezione: "2026-09-15", supplier_id: "s", order_id: "o", destinazione: "cantiere", note: "Registrata dalla fattura n. F-1: l'originale della bolla è da allegare." }];
+  apri([{ ...bollaDaFile(file, "b9", { destinazione: "magazzino" }), stato: "letta", numero: "4727/05", data: "2026-09-15", supplierId: "s", documentoJobId: "job9",
+    righe: [{ posizione: 1, codice_articolo: null, descrizione: "Cls", unita_misura: "mc", quantita: 4, prezzo_unitario: null, importo: null, iva_percentuale: null, order_item_id: null, origine: "ai", ai_originale: null, testo_grezzo: null, note: null }] }]);
+  expect(await screen.findByText(/È l’originale della bolla 2026-DT05-0004727 del 15\/09\/2026, registrata dalla fattura/)).toBeInTheDocument();
+  fireEvent.click(await screen.findByRole("button", { name: /Registra 1 bolla/ }));
+  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("ddt_documento_allega", expect.objectContaining({ p_id: "job9", p_ddt: "f1" })));
+  expect(m.rpc).not.toHaveBeenCalledWith("ddt_documento_registra", expect.anything());
 });

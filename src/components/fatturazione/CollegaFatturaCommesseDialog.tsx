@@ -115,6 +115,13 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
   const [magazzino, setMagazzino] = useState("");
   const [scelte, setScelte] = useState<Record<number, string | undefined>>({});
   const [salvataggio, setSalvataggio] = useState(false);
+  // Bolla per bolla: le bolle citate e mai caricate si possono registrare dalla fattura (23/11/2026).
+  const [registraBolle, setRegistraBolle] = useState(true);
+  const bolleDaRegistrare = perBolla ? gruppi.bolle.flatMap((b) => {
+    if (b.ddtId) return [];
+    const dest = [...new Set(b.voci.map((n) => scelte[n] ?? ""))];
+    return dest.length === 1 && dest[0] && dest[0] !== DESTINAZIONE_MAGAZZINO ? [{ numero: b.numero, data: b.data, order_id: dest[0] }] : [];
+  }) : [];
   const [letto, setLetto] = useState(false);
 
   // Si riparte da come è ora: cambiare una quota non deve voler dire riscriverle tutte.
@@ -214,6 +221,17 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
         p_magazzino_righe: righeMagazzino.length ? righeMagazzino : null,
       });
       if (error) throw error;
+      if (registraBolle && bolleDaRegistrare.length > 0) {
+        const { data: esito, error: errBolle } = await db.rpc("fattura_crea_bolle", { p_fattura: fattura.id, p_bolle: bolleDaRegistrare });
+        if (errBolle) toast.error("Bolle non registrate", { description: errBolle.message });
+        else {
+          const e = (esito ?? {}) as { create?: number; saltate?: Array<{ motivo: string }> };
+          const giaCi = (e.saltate ?? []).filter((x) => x.motivo === "esiste_gia").length;
+          if (e.create) toast.success(e.create === 1 ? "1 bolla registrata dalla fattura" : `${e.create} bolle registrate dalla fattura`,
+            { description: giaCi ? `${giaCi} c'erano già: collegale dalla fattura.` : "L'originale di ogni bolla è da allegare." });
+          for (const k of ["ddt-ricezione", "fattura-ddt-riepilogo", "commessa-fatture-fornitori"]) void queryClient.invalidateQueries({ queryKey: [k] });
+        }
+      }
       toast.success(
         quote.length === 0 && inMagazzino === 0 ? "Fattura scollegata dalle commesse"
         : quote.length === 0 ? "Fattura messa tutta a magazzino"
@@ -329,6 +347,12 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                       {voci.filter((v) => gruppi.vociSenzaBolla.includes(v.numero)).map(rigaVoce)}
                     </ul>
                   </>
+                )}
+                {bolleDaRegistrare.length > 0 && (
+                  <label className="flex items-start gap-2 rounded-md bg-muted/40 p-2 text-xs">
+                    <input type="checkbox" className="mt-0.5" checked={registraBolle} onChange={(e) => setRegistraBolle(e.target.checked)} />
+                    <span>Registra anche {bolleDaRegistrare.length === 1 ? "la bolla mancante" : `le ${bolleDaRegistrare.length} bolle mancanti`} sulla commessa scelta, con righe e prezzi della fattura. L’originale si allega dopo.</span>
+                  </label>
                 )}
                 <button type="button" className={linkDiscreto} onClick={() => setVistaBolle(false)}>Voce per voce</button>
               </>

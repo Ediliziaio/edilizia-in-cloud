@@ -18,6 +18,7 @@ import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { useProcurementAnalysis } from "@/hooks/useProcurementAnalysis";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { FattureDaSistemare } from "@/components/fatturazione/FattureDaSistemare";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -56,7 +57,7 @@ import {
 const eur0 = (v: number) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
 
-const SCHEDE = ["panoramica", "fornitori", "commesse", "prezzi", "scadenze"] as const;
+const SCHEDE = ["panoramica", "fornitori", "commesse", "prezzi", "scadenze", "da-sistemare"] as const;
 type Scheda = (typeof SCHEDE)[number];
 
 const PERIODI: Array<{ id: SceltaPeriodo; label: string }> = [
@@ -701,6 +702,7 @@ export default function AnalisiAcquisti() {
             Scadenze
             {t && t.scadutoConteggio > 0 && <span className="ml-1.5 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white">{t.scadutoConteggio}</span>}
           </TabsTrigger>
+          <TabsTrigger value="da-sistemare">Da sistemare</TabsTrigger>
         </TabsList>
 
         {/* ── Panoramica ── */}
@@ -944,6 +946,11 @@ export default function AnalisiAcquisti() {
               ),
             )}
           </Sezione>
+        </TabsContent>
+
+        {/* ── Fatture da sistemare (23/11/2026) ── */}
+        <TabsContent value="da-sistemare" className="mt-4">
+          {scheda === "da-sistemare" && <FattureDaSistemare />}
         </TabsContent>
       </Tabs>
     </div>

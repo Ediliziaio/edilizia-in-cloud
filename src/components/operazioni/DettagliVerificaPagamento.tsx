@@ -16,13 +16,27 @@ export function DettagliVerificaPagamento({ esito }: { esito: ControlloPagamento
   const bolle = esito.ddt ?? [];
   const problemi = esito.problemi ?? [];
   if (!bolle.length && !problemi.length) return null;
+  const bolla = (r: (typeof bolle)[number]) => <>
+    {r.numero ? "DDT " + r.numero : "Riferimento DDT incompleto"}
+    {r.data ? " del " + formatDateIt(r.data) : ""}
+  </>;
+  // Più bolle possibili è una scelta da fare: resta in vista. Le bolle solo da collegare, oltre 3,
+  // diventano una riga che si apre (23/11/2026: 41 righe uguali coprivano il resto del riepilogo).
+  const ambigue = bolle.filter((r) => r.candidati > 1);
+  const daCollegare = bolle.filter((r) => !(r.candidati > 1));
   return (
     <ul className="list-disc space-y-1 pl-4 text-sm">
-      {bolle.map((r, i) => <li key={i}>
-        {r.numero ? "DDT " + r.numero : "Riferimento DDT incompleto"}
-        {r.data ? " del " + formatDateIt(r.data) : ""}
-        {r.candidati > 1 ? " · più bolle possibili" : " · da collegare"}
-      </li>)}
+      {ambigue.map((r, i) => <li key={`a${i}`}>{bolla(r)} · più bolle possibili</li>)}
+      {daCollegare.length > 3 ? (
+        <li>
+          <details>
+            <summary className="cursor-pointer">{daCollegare.length} bolle citate in fattura ancora da caricare o collegare</summary>
+            <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+              {daCollegare.map((r, i) => <li key={i}>{bolla(r)}</li>)}
+            </ul>
+          </details>
+        </li>
+      ) : daCollegare.map((r, i) => <li key={`c${i}`}>{bolla(r)} · da collegare</li>)}
       {problemi.map((p, i) => <li key={i}>
         {p.riga != null && <span className="text-muted-foreground">Riga {p.riga}{p.descrizione ? " · " + p.descrizione : ""} · </span>}
         {p.tipo === "quantita" && p.fatturata != null && p.ricevuta != null && p.mancante != null

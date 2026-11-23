@@ -33,7 +33,7 @@ export function BolleDalTelefono({ puoModificare }: { puoModificare: boolean }) 
     <SezioneImpostazione
       id="bolle-telefono"
       titolo="Letture automatiche: bolle dal telefono"
-      descrizione="Cosa succede quando un operaio fotografa una bolla dall'app cantiere. Per l'ufficio non cambia nulla: dal telefono decide ogni volta con l'interruttore «Leggi con l'AI»."
+      descrizione="Cosa succede quando un operaio fotografa una bolla dall'app cantiere. In ufficio l'interruttore «Leggi con l'AI» della bolla nuova parte come scegli qui, e si può cambiare bolla per bolla."
     >
       <RadioGroup
         value={valore}

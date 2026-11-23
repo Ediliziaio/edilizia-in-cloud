@@ -37,6 +37,7 @@ import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DDTRigheCard } from "@/components/ddt/DDTRigheCard";
 import { DocumentiBollaCard } from "@/components/ddt/DocumentiBollaCard";
+import { RileggiOriginaleBolla } from "@/components/ddt/RileggiOriginaleBolla";
 import { ConsegneDDTCard } from "@/components/ddt/ConsegneDDTCard";
 import { ControlloOrdiniDDTCard } from "@/components/ddt/ControlloOrdiniDDTCard";
 import { OriginaliConfronto } from "@/components/fatturazione/OriginaliConfronto";
@@ -914,6 +915,8 @@ function ContenutoDDTRicezioneDetail() {
             onCaricaAllegati={(files) => uploadAttachments.mutate({ ddtId: ddt.id, files })}
             onEliminaAllegato={(path) => deleteAttachment.mutate({ ddtId: ddt.id, path })}
           />
+          {/* 23/11/2026: la bolla scritta a mano si completa dall'originale allegato, senza riscriverla. */}
+          {!ddt.ddt_file_bucket && !!ddt.ddt_file_url && <RileggiOriginaleBolla ddt={ddt} fileUrl={fileDocumento.data} />}
 
           {/* ─── 3. TORNA CON L'ORDINE? ricezioni per articolo e articoli dell'ODA ─── */}
           {(!(ddt.ricezione_esplicita || consegneDocumento.data?.length) || receipts.length > 0) && <Card>

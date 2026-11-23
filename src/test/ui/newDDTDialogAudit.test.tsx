@@ -6,7 +6,9 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { ContestoDocumentoPopup } from "@/lib/orders/documentoPopup";
 const m = vi.hoisted(() => ({
   create: vi.fn(), upload: vi.fn(), close: vi.fn(), created: vi.fn(), invoke: vi.fn(), carica: vi.fn(),
+  lettura: undefined as "ai_subito" | "solo_foto" | undefined, cantieri: [] as unknown[], bolle: [] as unknown[], fornitori: [] as unknown[],
 }));
+vi.mock("@/hooks/useImpostazioniAcquisti", () => ({ useLetturaBolleTelefono: () => ({ data: m.lettura }) }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda" } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ solaLettura: false, canEditWarehouse: true, isAdmin: false }) }));
 vi.mock("@/hooks/useWarehouses", () => ({
@@ -15,9 +17,12 @@ vi.mock("@/hooks/useWarehouses", () => ({
 vi.mock("@/hooks/usePurchaseOrders", () => ({ usePurchaseOrders: () => ({ orders: [{ id: "p", oda_number: "ODA-P", status: "bozza", order_id: null as string | null, suppliers: { name: "Fornitore demo" } }] }) }));
 vi.mock("@/hooks/useDDTRicezione", () => ({ useDDTRicezioneMutations: () => ({ createDDT: { mutateAsync: m.create } }), useDDTAttachments: () => ({ uploadMainDDT: { mutateAsync: m.upload }, uploadAttachments: { mutateAsync: m.upload } }) }));
 vi.mock("@/integrations/supabase/client", () => {
-  const q: Record<string, unknown> = {};
-  Object.assign(q, { select: () => q, eq: () => q, is: () => q, order: () => q, limit: () => Promise.resolve({ data: [], error: null }) });
-  return { supabase: { from: () => q, functions: { invoke: m.invoke } } };
+  const da = (t: string) => {
+    const q: Record<string, unknown> = {};
+    Object.assign(q, { select: () => q, eq: () => q, is: () => q, order: () => q, ilike: () => q, limit: () => Promise.resolve({ data: t === "orders" ? m.cantieri : t === "ddt_ricezione" ? m.bolle : t === "suppliers" ? m.fornitori : [], error: null }) });
+    return q;
+  };
+  return { supabase: { from: da, functions: { invoke: m.invoke } } };
 });
 vi.mock("@/lib/ddt/caricoAlSalvataggio", async (orig) => ({
   ...(await orig<typeof import("@/lib/ddt/caricoAlSalvataggio")>()),
@@ -43,6 +48,7 @@ beforeEach(() => {
   m.upload.mockReset().mockResolvedValue(undefined);
   m.close.mockReset(); m.created.mockReset();
   m.invoke.mockReset();
+  m.lettura = undefined; m.cantieri = []; m.bolle = []; m.fornitori = [];
   m.carica.mockReset().mockResolvedValue({ stato: "caricato", righe: 1, escluse: [] });
   URL.createObjectURL = vi.fn(() => "blob:foto");
   URL.revokeObjectURL = vi.fn();
@@ -151,6 +157,40 @@ describe("Nuovo DDT in un solo passaggio (12/11/2026)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Registra DDT" }));
     await waitFor(() => expect(m.carica).toHaveBeenCalledWith("d"));
     expect(m.create.mock.calls[0][0].righe[0]).toMatchObject({ descrizione: "Coppi", prezzo_unitario: 1.2 });
+  });
+
+  it("con «Legge l'AI subito» l'interruttore parte acceso, e la destinazione letta propone la commessa (23/11/2026)", async () => {
+    m.lettura = "ai_subito";
+    m.cantieri = [
+      { id: "c1", order_code: "ROSSI-GARIBALDI", work_address: "Via Garibaldi 2, Montesilvano (PE)", indirizzo_lavori: null },
+      { id: "c2", order_code: "BIANCHI", work_address: "Via Roma 10, Pescara (PE)", indirizzo_lavori: null },
+    ];
+    m.invoke.mockResolvedValue({
+      data: { success: true, ddt: { intestazione: { numero_ddt: "4727/05", data_ddt: "2026-09-15" }, luogo_destinazione: { indirizzo: "VIA GARIBALDI MONTESILVANO" }, righe_merce: [{ descrizione: "Cls C28/35", quantita: 4, unita_misura: "mc" }] } },
+      error: null,
+    });
+    open(null);
+    fireEvent.click(screen.getByRole("button", { name: "Carica foto finta" }));
+    expect(screen.getByRole("switch", { name: "Leggi con l'AI" })).toBeChecked();
+    compila();
+    expect(await screen.findByText(/Commessa ROSSI-GARIBALDI proposta dall’indirizzo scritto sulla bolla \(via garibaldi, montesilvano\)/)).toBeInTheDocument();
+  });
+
+  it("la bolla di carta di una bolla già registrata dalla fattura: avviso, non una seconda bolla zitta (23/11/2026)", async () => {
+    m.lettura = "ai_subito";
+    m.fornitori = [{ id: "s1", name: "Calcestruzzi Demo", vat_number: "01234567890", fiscal_code: null }];
+    m.bolle = [{ id: "b1", numero_ddt: "2026-DT05-0004727", data_ricezione: "2026-09-15", note: "Registrata dalla fattura n. F-1: l'originale della bolla è da allegare." }];
+    m.invoke.mockResolvedValue({
+      data: { success: true, ddt: { intestazione: { numero_ddt: "4727/05", data_ddt: "2026-09-15" }, mittente: { ragione_sociale: "Calcestruzzi Demo", partita_iva: "01234567890" }, righe_merce: [{ descrizione: "Cls", quantita: 4, unita_misura: "mc" }] } },
+      error: null,
+    });
+    open(null);
+    fireEvent.click(screen.getByRole("button", { name: "Carica foto finta" }));
+    // La rubrica dei fornitori arriva prima della lettura, come nell'app.
+    await new Promise((r) => setTimeout(r, 50));
+    compila();
+    expect(await screen.findByText(/Questo fornitore ha già la bolla 2026-DT05-0004727 del 15\/09\/2026, registrata dalla fattura/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aprila e allega lì l’originale" })).toBeInTheDocument();
   });
 
   it("senza l'AI non parte nessuna lettura e togliendo la spunta non si carica", async () => {
