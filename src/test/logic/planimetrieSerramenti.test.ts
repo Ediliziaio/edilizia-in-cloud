@@ -7,11 +7,23 @@ describe("serramenti", () => {
   it("sistema e ante di default", () => {
     expect(sistemaDi({ tipo: "porta", larghezza: 80, manovra: "battente" })).toBe("battente");
     expect(sistemaDi({ tipo: "porta", larghezza: 80, manovra: "scorrevole" })).toBe("scorrevole");
-    expect(anteDi({ tipo: "finestra", larghezza: 120, manovra: "battente" })).toBe(1);
+    expect(anteDi({ tipo: "finestra", larghezza: 90, manovra: "battente" })).toBe(1);
+    expect(anteDi({ tipo: "finestra", larghezza: 100, manovra: "battente" })).toBe(1);
+    // 23/11/2026: una finestra da 120 cm nasceva a un'anta da 115 e la verifica «ante molto larghe» la segnalava
+    expect(anteDi({ tipo: "finestra", larghezza: 120, manovra: "battente" })).toBe(2);
+    expect(anteDi({ tipo: "portafinestra", larghezza: 120, manovra: "battente" })).toBe(2);
     expect(anteDi({ tipo: "finestra", larghezza: 160, manovra: "battente" })).toBe(2);
     expect(anteDi({ tipo: "porta", larghezza: 160, manovra: "battente" })).toBe(1);
     expect(anteDi({ tipo: "finestra", larghezza: 160, manovra: "battente", ante: 3 })).toBe(3);
     expect(anteDi({ tipo: "varco", larghezza: 100, manovra: "nessuna" })).toBe(0);
+  });
+  it("le ante di default non fanno mai scattare la verifica «ante molto larghe»", () => {
+    for (let larghezza = 40; larghezza <= 400; larghezza += 1) {
+      for (const tipo of ["finestra", "portafinestra"] as const) {
+        const a = { tipo, larghezza, altezza: 140, manovra: "battente" as const };
+        expect(misureSerramento(a).anta, `${tipo} ${larghezza} cm`).toBeLessThanOrEqual(100);
+      }
+    }
   });
   it("la manovra segue il sistema", () => {
     expect(manovraDi("scorrevole_scomparsa")).toBe("scorrevole");

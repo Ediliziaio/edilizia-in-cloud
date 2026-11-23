@@ -39,7 +39,7 @@ import { GalleriaStanza } from "@/components/planimetrie/GalleriaStanza";
 import { UnitaEdificio } from "@/components/planimetrie/UnitaEdificio";
 import { VerifichePianta } from "@/components/planimetrie/VerifichePianta";
 import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
-import { fotorealisticoLocaleDisponibile } from "@/lib/planimetrie/renderFotorealisticoLocale";
+import { fotorealisticoDisponibile } from "@/lib/planimetrie/renderFotorealisticoLocale";
 import { usePlanimetria, useVersionePlanimetria, useVersioniPlanimetria } from "@/lib/planimetrie/archivio";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -244,7 +244,7 @@ export default function RenderPlanimetriaScheda() {
 
   const nomeAmbito=ambito==="fatto" ? "Stato di fatto" : ambiti.find(a=>a.chiave===ambito)?.nome ?? "Variante";
   const puoChat=permessi.canViewRenderAi && data.riga.company_id===effectiveCompany?.id;
-  const puoRenderLocale = fotorealisticoLocaleDisponibile() && stanzeEdificio.some(eAmbienteInterno);
+  const puoRenderLocale = fotorealisticoDisponibile() && stanzeEdificio.some(eAmbienteInterno);
   const apriRenderStanze = (aperto: boolean) => setParams(p => {
     const n = new URLSearchParams(p);
     if (aperto) n.set("renderStanze", "1");

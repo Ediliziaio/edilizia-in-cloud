@@ -510,11 +510,11 @@ function EditorRenderStanza() {
             <div className="relative h-40 overflow-hidden rounded-xl">
               <img src={anteprima} alt="Partenza" className="h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              <div className="absolute bottom-2 left-3 text-xs font-medium text-white">{partenza === "foto" ? "Foto caricata" : daCycles?.fotogramma === fotogramma ? "Render Cycles della pianta" : "Vista del 3D"}</div>
+              <div className="absolute bottom-2 left-3 text-xs font-medium text-white">{partenza === "foto" ? "Foto caricata" : daCycles?.fotogramma === fotogramma ? "Render fotorealistico della pianta" : "Vista del 3D"}</div>
               {partenza === "vista_3d" && daCycles?.fotogramma === fotogramma && (
                 <Button asChild variant="secondary" size="sm" className="absolute right-2 top-2 gap-1.5">
                   <a href={anteprima} download={`cycles-${vincoli.locale.id.replace(/[^a-z0-9_-]+/gi, "-")}.png`}>
-                    <Download className="size-4" aria-hidden="true" />Scarica immagine Cycles
+                    <Download className="size-4" aria-hidden="true" />Scarica il render
                   </a>
                 </Button>
               )}

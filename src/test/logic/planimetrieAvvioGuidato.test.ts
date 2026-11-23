@@ -20,6 +20,16 @@ describe("Avvio guidato della planimetria", () => {
     expect(ambienti[1].larghezzaM).toBeUndefined();
   });
 
+  it("l'altezza scritta in fondo, dopo un punto, vale per tutte le stanze e non solo per l'ultima", () => {
+    const ambienti = ambientiDaAppunti("Soggiorno con cucina 5,00 x 4,20 m, camera 3.80 x 3.60 m, bagno 2,40 x 2,10 m, disimpegno 3,00 x 1,20 m. Altezza 2,70 m.");
+    expect(ambienti.map((a) => [a.nome, a.altezzaM])).toEqual([
+      ["Soggiorno con cucina", 2.7], ["camera", 2.7], ["bagno", 2.7], ["disimpegno", 2.7],
+    ]);
+    // il punto dei decimali («3.80») non spezza la stanza
+    expect(ambienti[1].superficieMq).toBeCloseTo(13.68);
+    expect(ambienti[3].superficieMq).toBeCloseTo(3.6);
+  });
+
   it("legge mq e altezza del sopralluogo in unità diverse ed esclude le falde", () => {
     const aree = [stanzaSalvata("Cucina", { mq: "13,12", altezza_soffitto: 285 })];
     const campi: FieldDefinition[] = [{ key: "altezza_soffitto", label: "Altezza", type: "dimension", unit: "cm" }];

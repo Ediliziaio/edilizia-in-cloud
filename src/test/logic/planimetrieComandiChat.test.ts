@@ -136,6 +136,17 @@ it("ridimensiona una stanza e restituisce la superficie calcolata", () => {
   expect(passi[0].pianta.locali[0].id).toBe(originale.locali[0].id);
 });
 
+it("le misure date a una stanza che esiste già la correggono, anche per due stanze nella stessa frase", () => {
+  const base = comandiDaChatDisegno(piantaVuota(), "fatto", "Disimpegno 4,20 × 1,23 m").passi[0].pianta;
+  const { passi, avvisi } = comandiDaChatDisegno(base, "fatto", "Il disimpegno misura 3,00 x 1,20 m e la cameretta 3,00 x 2,80 m a destra del disimpegno");
+  expect(avvisi).toEqual([]);
+  expect(passi).toHaveLength(2);
+  expect(passi[0].pianta.locali[0].id).toBe(base.locali[0].id);
+  expect(passi[0].testo).toContain("3,6 m²");
+  expect(passi[1].testo).toContain("8,4 m²");
+  expect(passi[1].pianta.locali).toHaveLength(2);
+});
+
 it("segnala gli ordini ambigui, conserva le stanze e protegge lo stato di fatto nel progetto", () => {
   const originale = comandiDaChatDisegno(piantaVuota(), "fatto", "Cucina 3 × 4 m").passi[0].pianta;
   const { passi, avvisi } = comandiDaChatDisegno(originale, "progetto", "Ridimensiona cucina a 4 × 5 m\nBagno 2 × 2 m a destra dello studio\nPorta tra ingresso e cucina");

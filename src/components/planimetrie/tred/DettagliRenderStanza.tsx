@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Armchair, DoorOpen, Focus, Loader2, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ function InquadraturaDettaglio({ pianta, vista, localeId, dimensioni, soggetto, 
   nomeFile: string;
   onSalva: (anteprima: Blob, png: Blob, localeCamera: string) => Promise<void>;
 }) {
+  const companyId = useEffectiveCompanyId();
   const [vistaPronta, setVistaPronta] = useState<{ anteprima: Blob; scena: Scena3D; telecamera: Telecamera3D; localeCamera: string }>();
   const [erroreVista, setErroreVista] = useState("");
   const [erroreRender, setErroreRender] = useState("");
@@ -79,7 +81,7 @@ function InquadraturaDettaglio({ pianta, vista, localeId, dimensioni, soggetto, 
       if (!inquadratura) throw new Error("Lo spazio per la camera è insufficiente.");
       controller.signal.throwIfAborted();
       const { anteprima, scena, telecamera, localeCamera } = inquadratura;
-      const png = await renderFotorealisticoLocale(scena, { telecamera, ...dimensioni, ambiente: "interni" }, controller.signal);
+      const png = await renderFotorealisticoLocale(scena, { telecamera, ...dimensioni, ambiente: "interni" }, controller.signal, undefined, { companyId });
       if (controller.signal.aborted) return;
       await onSalva(anteprima, png, localeCamera).catch(() => {
         if (!controller.signal.aborted) setErroreSalvataggio(true);
@@ -121,7 +123,7 @@ function InquadraturaDettaglio({ pianta, vista, localeId, dimensioni, soggetto, 
       {erroreVista || "Lo spazio per la camera è insufficiente. Puoi controllare il dettaglio nella pianta."}
     </p> : <ConfrontoRender3D nome={soggetto.nome} nomeFile={nomeFile} rapporto={rapporto}
       riferimento={salvata?.anteprima ?? vistaPronta?.anteprima} risultato={salvata?.render} errore={erroreRender || undefined}
-      testoAttesa={inCorso ? "Blender Cycles sta calcolando il render." : "Calcola il render dalla stessa inquadratura."} />}
+      testoAttesa={inCorso ? "Sto calcolando il render fotorealistico: può servire fino a un paio di minuti." : "Calcola il render dalla stessa inquadratura."} />}
   </article>;
 }
 

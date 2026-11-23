@@ -296,7 +296,7 @@ export function EditorConSalvataggio({
   );
   const statoPianta = anteprimaChat ? "Anteprima della chat" : modificata ? "Modifiche da salvare" : nuova ? "" : "Versione salvata";
   return (
-    <div className={nelComputo ? "quote-wizard-ai-project-editor flex min-w-0 flex-col gap-2" : intero ? "fixed inset-0 z-50 flex flex-col gap-2 bg-background p-3" : "flex h-[calc(100dvh-7rem)] min-h-[560px] flex-col gap-3 pb-2 max-md:h-[calc(100dvh-11.5rem)] max-md:min-h-[420px] max-md:gap-2"}>
+    <div className={nelComputo ? "quote-wizard-ai-project-editor flex min-w-0 flex-col gap-2" : intero ? "fixed inset-0 z-50 flex flex-col gap-2 bg-background p-3" : "flex min-h-[max(560px,calc(100dvh-7rem))] flex-col gap-3 pb-2 max-md:h-[calc(100dvh-11.5rem)] max-md:min-h-[420px] max-md:gap-2"}>
       {nelComputo ? <div className="flex flex-wrap items-center justify-between gap-2">
         {statoPianta && (!nelComputo.inSilvio || anteprimaChat || modificata) && <p role="status" className="text-xs text-muted-foreground">{statoPianta}</p>}
         <div className="ml-auto flex flex-wrap items-center gap-1.5">{azioni}</div>
@@ -333,7 +333,7 @@ export function EditorConSalvataggio({
 
       {sopra}
 
-      <EditorPlanimetria companyId={companyId} className={nelComputo ? "quote-wizard-ai-project-canvas h-[min(56dvh,575px)] min-h-[440px]" : "min-h-0 flex-1"} piantaIniziale={iniziale} livelloIniziale={livelloIniziale} propostaIniziale={propostaIniziale}
+      <EditorPlanimetria companyId={companyId} className={nelComputo ? "quote-wizard-ai-project-canvas h-[min(56dvh,575px)] min-h-[440px]" : "min-h-0 flex-1 md:min-h-[640px]"} piantaIniziale={iniziale} livelloIniziale={livelloIniziale} propostaIniziale={propostaIniziale}
         muroIniziale={muroIniziale}
         onChange={suCambio} onContesto={cambiaContesto} onAnteprimaChat={cambiaStatoChat} ricalco={ricalcoEditor} sorgenteDocumento={sorgenteDocumento}
         ambitoComputo={nelComputo?.ambitoComputo} inSilvio={nelComputo?.inSilvio} onSelezione={nelComputo?.onSelezione} controlli={nelComputo?.controlli}

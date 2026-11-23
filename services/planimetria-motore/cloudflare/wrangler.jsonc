@@ -1,0 +1,24 @@
+{
+  // Motore planimetrie online: render Cycles e DWG. Si pubblica dal workflow
+  // .github/workflows/planimetria-motore.yml (serve Docker per l'immagine).
+  "name": "eic-planimetria-motore",
+  "main": "worker.ts",
+  "compatibility_date": "2026-11-01",
+  "containers": [
+    {
+      "class_name": "MotorePlanimetrie",
+      "image": "../Dockerfile",
+      "image_build_context": "../../..",
+      // 4 vCPU e 12 GB: un render «rapida» 1–2 minuti, «alta» 3–5.
+      // La CPU si paga solo mentre calcola; memoria e disco mentre è acceso.
+      "instance_type": { "vcpu": 4, "memory_mib": 12288, "disk_mb": 12000 },
+      "max_instances": 3
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "MOTORE", "class_name": "MotorePlanimetrie" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MotorePlanimetrie"] }],
+  "vars": { "ISTANZE": "3" },
+  "observability": { "enabled": true }
+}

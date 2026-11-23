@@ -33,7 +33,10 @@ const AREA = new RegExp(String.raw`(${CIFRE})\s*(?:m²|m2|m\s*q\b|metri\s+quadra
 const ALTEZZA = new RegExp(String.raw`\baltezza(?:\s+(?:del\s+soffitto|netta|interna))?\s*(?:di|è|:|=)?\s*${LATO}`, "i");
 const TIPI_AMBIENTE = String.raw`\b(?:soggiorno|cucina|cucinino|camera|cameretta|bagno|wc|ingresso|disimpegno|corridoio|ripostiglio|lavanderia|sala|studio|taverna|tavernetta|mansarda|sottotetto|garage|autorimessa|cantina|terrazzo|balcone|ufficio|locale|stanza|capannone|magazzino|laboratorio|negozio|kitchen|living room|family room|bedroom|bathroom)\b`;
 const NOME_AMBIENTE = new RegExp(TIPI_AMBIENTE, "i");
-const SEPARATORE_AMBIENTI = new RegExp(String.raw`[;\n]+|[:,]\s*(?=(?:il |la |un |una )?${TIPI_AMBIENTE})`, "i");
+// Anche il punto a fine frase separa: «… disimpegno 3 × 1,2 m. Altezza 2,70 m.» è
+// un'altezza di tutta la casa, non del disimpegno (23/11/2026). I decimali col
+// punto («3.20») non hanno lo spazio dopo e restano interi.
+const SEPARATORE_AMBIENTI = new RegExp(String.raw`[;\n]+|\.\s+|[:,]\s*(?=(?:il |la |un |una )?${TIPI_AMBIENTE})`, "i");
 const QUOTE_DI_ELEMENTI = /\b(?:porta|finestra|portafinestra|parete|altezza|infisso|serramento)\b/i;
 const FINE_NOME = /(?:[\s:=-]+|\s+(?:misura|misurano|di|da|circa|larga|lungo|è|invece|ora|in realtà))+$/iu;
 

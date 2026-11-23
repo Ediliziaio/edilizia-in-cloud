@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Building2, Check, Download, Focus, ImageIcon, Loader2, RotateCcw, Ruler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,7 +9,7 @@ import {
 } from "@/lib/planimetrie/tred";
 import { leggiAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
 import { definizioneCampo } from "@/lib/planimetrie/campiSport";
-import { renderFotorealisticoLocale } from "@/lib/planimetrie/renderFotorealisticoLocale";
+import { descrizioneMotoreFotorealistico, renderFotorealisticoLocale } from "@/lib/planimetrie/renderFotorealisticoLocale";
 import { riscontroRenderLocale, riscontroStanzaRenderLocale, type RiscontroRenderLocale } from "@/lib/planimetrie/riscontroRenderLocale";
 import { leggiRenderVisita, salvaRenderVisita, type RenderVisitaSalvato, type VersioneRenderVisita } from "@/lib/planimetrie/renderVisitaArchivio";
 import { scaricaBlob } from "@/components/orders/generali/vendita/scarica";
@@ -123,6 +124,7 @@ export default function RenderCasaDialog({ documento, vista, propostaId, modo = 
   archivio?: VersioneRenderVisita;
   onChiudi: () => void;
 }) {
+  const companyId = useEffectiveCompanyId();
   const fotorealistico = modo.startsWith("foto:");
   const modoBase = (fotorealistico ? modo.slice(5) : modo) as RenderChatDisegno;
   const [piani] = useState(() => pianiDaPlanimetria(documento, propostaId));
@@ -193,7 +195,7 @@ export default function RenderCasaDialog({ documento, vista, propostaId, modo = 
               : riscontroRenderLocale(scena, pianiInScena, vista);
             setEsiti(old => ({ ...old, [lavoro.id]: { riferimento, riscontri, telecamera } }));
             const ambiente = campo || modoBase === "render-sport" ? "sport" : esterno ? "facciata" : lavoro.tipo === "locale" ? "interni" : "tecnico";
-            const png = await renderFotorealisticoLocale(scena, { telecamera, ...DIMENSIONI, ambiente }, controller.signal);
+            const png = await renderFotorealisticoLocale(scena, { telecamera, ...DIMENSIONI, ambiente }, controller.signal, undefined, { companyId });
             if (chiuso) return;
             const esito = { png, riferimento, riscontri, telecamera };
             setEsiti(old => ({ ...old, [lavoro.id]: esito }));
@@ -221,7 +223,7 @@ export default function RenderCasaDialog({ documento, vista, propostaId, modo = 
       }
     })();
     return () => { chiuso = true; controller.abort(); };
-  }, [fotorealistico, lavori, modoBase, piani, serie, soloInterni, tentativo, vista]);
+  }, [companyId, fotorealistico, lavori, modoBase, piani, serie, soloInterni, tentativo, vista]);
 
   const pronte = Object.values(esiti).filter(e => e.png).length;
   const mancanti = Object.values(esiti).filter(e => e.errore).length;
@@ -271,7 +273,7 @@ export default function RenderCasaDialog({ documento, vista, propostaId, modo = 
     <DialogContent className="flex max-h-[94dvh] max-w-6xl flex-col gap-4 overflow-hidden p-4 sm:p-6">
       <DialogHeader className="shrink-0 pr-6 text-left">
         <DialogTitle className="flex items-center gap-2"><Building2 className="size-5 text-primary" aria-hidden="true" />{titolo}</DialogTitle>
-        <DialogDescription>{fotorealistico ? "Stessa geometria e stessa camera. Blender Cycles in locale · 0 crediti." :
+        <DialogDescription>{fotorealistico ? `Stessa geometria e stessa camera. ${descrizioneMotoreFotorealistico()}.` :
           "Viste generate nel browser dalla geometria, dagli arredi e dalle finiture della pianta."} {vista === "progetto" ? "Progetto" : "Com’è oggi"}</DialogDescription>
       </DialogHeader>
       {lavori.length > 0 ? <>

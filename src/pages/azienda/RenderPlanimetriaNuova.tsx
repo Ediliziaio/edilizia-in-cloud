@@ -43,7 +43,7 @@ import { percorsiPlanimetrie, ritornoProgettoValido, type ModoNuovaPianta } from
 import { ACCETTA_DOCUMENTO_PIANTA, eHeic, normalizzaDocumento, notaLetturaPianta, type RitaglioPianta } from "@/lib/planimetrie/documentoImmagine";
 import { AttesaLetturaPianta } from "@/components/planimetrie/AttesaLetturaPianta";
 import { EsitoLetturaPianta } from "@/components/planimetrie/EsitoLetturaPianta";
-import { dwgLocaleDisponibile, eDwg, erroreDwg, leggiTavolaDwg, ricostruisciModelloDwg } from "@/lib/planimetrie/dwgLocale";
+import { dwgDisponibile, eDwg, erroreDwg, leggiTavolaDwg, ricostruisciModelloDwg } from "@/lib/planimetrie/dwgLocale";
 import { METRI_PER_UNITA_DWG, UNITA_DWG, validaRichiestaModelloDwg, type RiferimentoDwg, type RichiestaModelloDwg, type RiscontroQuotaDwg } from "@/lib/planimetrie/coordinateDwg";
 import { PianiDaDwg } from "@/components/planimetrie/PianiDaDwg";
 import { PianiDaPdf, type PianoPdf } from "@/components/planimetrie/PianiDaPdf";
@@ -187,7 +187,7 @@ function NuovaPiantaAzienda({ companyId, modo, per, fileIniziale, onSalvata }: {
     <nav aria-label="Origine della planimetria" className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
       {ORIGINI.map(({modo:valore,titolo,icona:Icona})=>{
         const attiva=modo===valore;
-        const descrizione=valore==="documento" ? (dwgLocaleDisponibile() ? "DWG, PDF o foto" : "PDF o foto")
+        const descrizione=valore==="documento" ? (dwgDisponibile() ? "DWG, PDF o foto" : "PDF o foto")
           : valore==="disegno" ? "Parti da un foglio vuoto"
           : valore==="testo" ? "Descrivi le stanze in chat" : "Rilievo, schizzo o scheda salvata";
         return <Link key={valore} to={per.percorso(valore)} aria-current={attiva ? "page" : undefined}
@@ -218,7 +218,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
   onPronta: (g: Generata) => void;
   onImportata: (importazione: ImportazioneEditor) => void;
 }) {
-  const importaDwg = modo === "documento" && dwgLocaleDisponibile();
+  const importaDwg = modo === "documento" && dwgDisponibile();
   const provaSenzaAI = import.meta.env.DEV && import.meta.env.MODE === "planimetria-locale";
   const [foto, setFoto] = useState<File[]>([]);
   const [dettando, setDettando] = useState(false);
@@ -431,7 +431,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
     const controller = new AbortController();
     conversione.current = controller;
     try {
-      const pronta = cad ? await leggiTavolaDwg(f, controller.signal) : { file: await normalizzaDocumento(f), riferimento: null };
+      const pronta = cad ? await leggiTavolaDwg(f, controller.signal, { companyId }) : { file: await normalizzaDocumento(f), riferimento: null };
       if (numero !== sceltaFile.current) return;
       setFile(pronta.file);
       if (cad) setFonteCad({ originale: f, riferimento: pronta.riferimento });
@@ -638,7 +638,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
     setErrore(null);
     try {
       const { documento, piani } = await ricostruisciModelloDwg(
-        fonteCad.originale, validaRichiestaModelloDwg({ ...richiesta, controlloGeometria: true }), controller.signal,
+        fonteCad.originale, validaRichiestaModelloDwg({ ...richiesta, controlloGeometria: true }), controller.signal, { companyId },
       );
       const tavole: Record<string, File> = {};
       for (const [i, piano] of documento.livelli.entries()) {

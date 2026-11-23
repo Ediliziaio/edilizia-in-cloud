@@ -84,7 +84,9 @@ const RIFERIMENTO = /^(?:a\s+)?(destra|sinistra|sopra|sotto)\s+(?:(?:del|della|d
 const NOMI_MOVIMENTO = /^(?:ridimensiona|allarga|allunga|stringi|porta)\s+/iu;
 const QUOTE = /^(?:misura|quote(?:\s+di)?|quanti metri(?:\s+ha)?)\s+/iu;
 const COMANDO_SUCCESSIVO = String.raw`(?:aggiungi|disegna|crea|fai|genera|metti|apri|fammi vedere|proponi|render|arreda|misura|ridimensiona|sposta|demolisci|tramezzo|porta|finestra|zanzariera|impianto|cucina|bagno|garage|camera|soggiorno|ingresso)\s`;
-const TAGLIO = new RegExp(String.raw`\s*(?:\r?\n|;)\s*|[.!?,]\s*(?=(?:(?:e\s+)?(?:poi|quindi|infine)\s+)?${COMANDO_SUCCESSIVO})|\s+(?:e\s+)?(?:poi|quindi|infine)\s+(?=${COMANDO_SUCCESSIVO})`, "iu");
+// «… 3 × 1,2 m e la cameretta 3 × 2,8 m»: «e» + stanza + misure è una seconda richiesta.
+const ALTRA_STANZA_CON_MISURE = String.raw`,?\s+e\s+(?=(?:(?:il|lo|la|i|gli|le)\s+|l['’])?[\p{L}' ]{2,40}?\s+(?:misura\s+|di\s+|a\s+)?${MISURA}\s*(?:×|x|\bper\b)\s*${MISURA})`;
+const TAGLIO = new RegExp(String.raw`\s*(?:\r?\n|;)\s*|[.!?,]\s*(?=(?:(?:e\s+)?(?:poi|quindi|infine)\s+)?${COMANDO_SUCCESSIVO})|\s+(?:e\s+)?(?:poi|quindi|infine)\s+(?=${COMANDO_SUCCESSIVO})|${ALTRA_STANZA_CON_MISURE}`, "iu");
 const DEMOLIZIONE = /^demolisci\s+(?:(?:il|la|un|una)\s+)?(?:tramezzo|parete)\s+tra\s+(.+?\s+e\s+.+)$/iu;
 const DEMOLIZIONE_TRATTO = /^demolisci\s+(?:(?:il|la)\s+)?(?:tramezzo|parete)\s+([\w-]+)$/iu;
 const NUOVO_TRAMEZZO = new RegExp(String.raw`^tramezzo\s+(?:in|nel|nella|nello)\s+(.+?)\s+a\s+(${MISURA})\s+dal\s+lato\s+(sinistro|destro|alto|basso)(?:\s+alto\s+(${MISURA}))?$`, "iu");
@@ -815,7 +817,12 @@ export function eseguiComandoChat(pianta: Pianta, vista: C.Vista, frase: string,
     return { pianta: cambiata, evidenza: { tipo: "locale", id: locale.id }, testo: epilogoMisure(cambiata, dopo, vista) };
   }
   if (pianta.locali.some(l => C.visibile(l.stato, vista) && l.stato !== "da_demolire" && chiave(nomeLocale(pianta, vista, l)) === chiave(nome))) {
-    throw new Error(`«${nome}» esiste già. Scrivi «Ridimensiona ${nome} a …» per cambiarne le misure.`);
+    // «Il disimpegno misura 3 × 1,2 m»: la stanza c'è già, quindi le misure sono una
+    // correzione. Fino al 23/11/2026 qui si chiedeva di riscrivere «Ridimensiona …».
+    const locale = localeConNome(pianta, vista, nome);
+    const cambiata = ridimensiona(pianta, vista, locale, w, h);
+    const dopo = cambiata.locali.find(l => l.id === locale.id)!;
+    return { pianta: cambiata, evidenza: { tipo: "locale", id: locale.id }, testo: epilogoMisure(cambiata, dopo, vista) };
   }
   const posizione = istruzione.slice(coppia.index + coppia[0].length).trim();
   const riferimento = posizione.match(RIFERIMENTO);

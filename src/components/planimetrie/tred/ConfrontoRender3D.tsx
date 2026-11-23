@@ -3,7 +3,7 @@ import { Columns2, Download, ImageIcon, Layers2 } from "lucide-react";
 import { useBlobRef } from "../useBlobRef";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-export function ConfrontoRender3D({ nome, riferimento, risultato, nomeFile, errore, testoAttesa = "In attesa del calcolo Cycles", rapporto = 1120 / 744 }: {
+export function ConfrontoRender3D({ nome, riferimento, risultato, nomeFile, errore, testoAttesa = "In attesa del render fotorealistico", rapporto = 1120 / 744 }: {
   nome: string; riferimento?: Blob; risultato?: Blob; nomeFile: string; errore?: string; testoAttesa?: string; rapporto?: number;
 }) {
   const [confronto, setConfronto] = useState("lati");

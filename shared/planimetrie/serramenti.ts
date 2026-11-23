@@ -42,11 +42,21 @@ export function manovraDi(s: SistemaApertura): Apertura["manovra"] {
   return eScorrevole(s) ? "scorrevole" : s === "fisso" ? "nessuna" : "battente";
 }
 
-/** Quante ante ha: quelle scritte, altrimenti una (due per finestre e portefinestre larghe più di 1,4 m). */
+/**
+ * Quante ante ha: quelle scritte, altrimenti una per le porte e, per finestre e
+ * portefinestre, quante bastano perché nessuna anta superi i 100 cm.
+ *
+ * È la soglia della verifica «ante molto larghe» (`interferenze.ts`): con il
+ * telaio (5 cm) e i montanti (6 cm) ogni anta resta ≤ 100 cm se le ante sono
+ * almeno (larghezza + 1) / 106. Fino al 23/11/2026 la regola era «due sopra
+ * 1,4 m»: ogni finestra da 120 cm nasceva a un'anta da 115 cm e la verifica la
+ * segnalava subito (sul trilocale demo, cinque avvisi su cinque finestre).
+ */
 export function anteDi(a: Dati): number {
   if (a.ante && a.ante >= 1) return Math.round(a.ante);
   if (a.tipo === "varco") return 0;
-  return a.tipo !== "porta" && a.larghezza > 140 ? 2 : 1;
+  if (a.tipo === "porta") return 1;
+  return Math.max(1, Math.ceil((a.larghezza + 1) / 106));
 }
 
 export const NOMI_OSCURANTE: Record<TipoOscurante, string> = {

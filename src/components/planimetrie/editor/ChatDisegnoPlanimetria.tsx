@@ -1,4 +1,5 @@
 import { lazy, Suspense, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { AppWindow, Armchair, ArrowUpRight, Box, Check, ClipboardList, DoorOpen, Droplet, Eraser, FileText, Focus, ImageIcon, MessageSquare, Mic, MicOff, Paperclip, Rows3, Ruler, ScanLine, ScanSearch, SquareDashed, TriangleAlert, Undo2, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,7 +9,7 @@ import { ConversazioneProgettoSilvio } from "@/components/quotes/conversazionePr
 import { isQuoteProviderNotice } from "@/lib/preventivi/quoteChatPresentation";
 import { creaRiconoscitore, dettaturaDisponibile, type Riconoscitore } from "@/lib/planimetrie/dettatura";
 import { ACCETTA_DOCUMENTO_PIANTA, normalizzaDocumento, type RitaglioPianta } from "@/lib/planimetrie/documentoImmagine";
-import { dwgLocaleDisponibile, eDwg, leggiTavolaDwg, ricostruisciModelloDwg, type LetturaDwg } from "@/lib/planimetrie/dwgLocale";
+import { dwgDisponibile, eDwg, leggiTavolaDwg, ricostruisciModelloDwg, type LetturaDwg } from "@/lib/planimetrie/dwgLocale";
 import { ritaglioInCoordinateDwg, UNITA_DWG, unitaDwgValida, validaRichiestaModelloDwg } from "@/lib/planimetrie/coordinateDwg";
 import type { AngoliSchizzo } from "@/lib/planimetrie/prospettivaSchizzo";
 import { controllaAccessiPiano } from "@/lib/planimetrie/accessiPlanimetria";
@@ -160,6 +161,7 @@ export function ChatDisegnoPlanimetria({
   onCambiaFonte, onEvidenzia, onInquadraPunto, onMostra, onInCorso, onApplica, onRivediNelComputo, puoRivedereNelComputo, inSilvio, onCreaAlternativa, onSalvaDaChat, consentiComputo,
   onVerifica, onApriConfronto, onRiferimento, onVista, onApriStudioBilocali, onChiudi,
 }: Props) {
+  const companyId = useEffectiveCompanyId();
   const [testo, setTesto] = useState("");
   const conversazione = useContext(ConversazioneProgettoSilvio);
   const [messaggiDisegno, setMessaggiDisegno] = useState<Messaggio[]>([]);
@@ -496,7 +498,7 @@ export function ChatDisegnoPlanimetria({
         return;
       }
       if (eDwg(file)) {
-        const lettura = await leggiTavolaDwg(file, controller.signal);
+        const lettura = await leggiTavolaDwg(file, controller.signal, { companyId });
         controller.signal.throwIfAborted();
         setCad({ originale: file, lettura });
         setSchizzo(null);
@@ -645,7 +647,7 @@ export function ChatDisegnoPlanimetria({
     try {
       const rettangolo = ritaglio ? ritaglioInCoordinateDwg(riferimento.rettangolo, ritaglio) : riferimento.rettangolo;
       const richiesta = validaRichiestaModelloDwg({ unita: misura, altezza: 270, piani: [{ nome: piano, quota: 0, rettangolo }], controlloGeometria: true });
-      const { documento, piani } = await ricostruisciModelloDwg(cad.originale, richiesta, controller.signal);
+      const { documento, piani } = await ricostruisciModelloDwg(cad.originale, richiesta, controller.signal, { companyId });
       const immagine = ritaglio ? await preparaImmagine(cad.lettura.file, 0, undefined, ritaglio, { squadra: false }) : null;
       controller.signal.throwIfAborted();
       if (ritaglio && !immagine) throw new Error("Il ritaglio della tavola non si è preparato. Riprova.");
@@ -966,7 +968,7 @@ export function ChatDisegnoPlanimetria({
         disabled={detta} maxLength={MAX_TESTO} textareaRef={el => { textarea.current = el; }}
         tools={<>
           <input ref={fileInput} type="file" className="hidden" aria-label="File per la planimetria"
-            accept={`.txt,text/plain,${ACCETTA_DOCUMENTO_PIANTA}${dwgLocaleDisponibile() ? ",.dwg" : ""}`}
+            accept={`.txt,text/plain,${ACCETTA_DOCUMENTO_PIANTA}${dwgDisponibile() ? ",.dwg" : ""}`}
             onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void allega(file); }} />
           <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label="Allega alla chat" title={proposta ? "Applica o scarta prima di allegare un file" : "Allega schizzo, PDF, DWG o appunti"}
             disabled={!!fase || !!proposta || detta} onClick={() => fileInput.current?.click()}><Paperclip className="h-4 w-4" /></Button>

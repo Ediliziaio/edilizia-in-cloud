@@ -92,7 +92,7 @@ describe("preparazione del documento", () => {
 
     fireEvent.change(screen.getByLabelText("DWG, PDF o foto della pianta"), { target: { files: [dwg] } });
     await screen.findByRole("img", { name: "Anteprima del foglio" });
-    expect(api.leggiDwg).toHaveBeenCalledWith(dwg, expect.any(AbortSignal));
+    expect(api.leggiDwg).toHaveBeenCalledWith(dwg, expect.any(AbortSignal), { companyId: "azienda-test" });
     expect(api.anteprima.mock.lastCall?.[0]).toBe(png);
     fireEvent.click(screen.getByRole("button", {name:"Ricalca nell’editor"}));
     expect(await screen.findByText("Origine: importazione")).toBeInTheDocument();

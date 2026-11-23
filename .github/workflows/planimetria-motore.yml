@@ -1,0 +1,59 @@
+# Motore planimetrie online (render Cycles + DWG) su Cloudflare Containers.
+# Costruisce l'immagine (Blender 4.5.3 + LibreDWG 0.14) e pubblica il Worker.
+#
+# Segreti del repository richiesti:
+#   CLOUDFLARE_API_TOKEN   — token con «Workers Scripts: Edit» e «Containers: Edit»
+#   CLOUDFLARE_ACCOUNT_ID
+# Il segreto del motore (PLANIMETRIE_MOTORE_SEGRETO) e l'indirizzo dell'esito
+# si impostano UNA volta con `wrangler secret put`, non stanno qui.
+name: Planimetria motore
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - services/planimetria-motore/**
+      - dev/planimetria-editor/renderFotorealistico.py
+      - dev/planimetria-editor/renderParametri.mts
+      - dev/planimetria-editor/cadPreviewPlugin.mts
+      - dev/planimetria-editor/anteprimaDxf.py
+      - dev/planimetria-editor/ricostruisciDxf.py
+      - dev/planimetria-editor/requirements-dwg.txt
+      - shared/planimetrie/bigliettoMotore.ts
+      - shared/planimetrie/renderLocale.ts
+
+concurrency:
+  group: planimetria-motore
+  cancel-in-progress: false
+
+jobs:
+  pubblica:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Salta se Cloudflare non è configurato
+        id: pronto
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN mancante: motore non pubblicato." >> "$GITHUB_STEP_SUMMARY"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.pronto.outputs.ok == 'true'
+        with:
+          node-version: 24
+      - name: Pubblica Worker e container
+        if: steps.pronto.outputs.ok == 'true'
+        working-directory: services/planimetria-motore/cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm install --no-audit --no-fund
+          npx wrangler deploy

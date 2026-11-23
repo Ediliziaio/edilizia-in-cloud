@@ -26,7 +26,7 @@ import { Switch } from "@/components/ui/switch";
 import { pianiProspetto, prospettoQuotato, sezione, type Disegno2D, type PianoProspetto } from "@/lib/planimetrie/prospetti";
 import { allegaSchedeTecniche } from "@/lib/quotes/allegatiPreventivo";
 import { renderVisitaPerFascicolo } from "@/lib/planimetrie/renderVisitaArchivio";
-import { fotorealisticoLocaleDisponibile } from "@/lib/planimetrie/renderFotorealisticoLocale";
+import { fotorealisticoDisponibile } from "@/lib/planimetrie/renderFotorealisticoLocale";
 import { PaginaPdfProgetto, SfogliaPdfProgetto } from "./AnteprimaPdfProgetto";
 import {
   allegatoPreventivo,
@@ -452,7 +452,7 @@ export function EsportaPiantaDialog({
               <div className="space-y-3 rounded-lg border p-3">
                 {formato === "fascicolo" && <>
                   <p className="text-xs font-medium">Versione {versione} salvata · Indice cliccabile</p>
-                  {fotorealisticoLocaleDisponibile() && <p className="text-xs text-muted-foreground">Le inquadrature contrassegnate con «Includi nel PDF» vengono aggiunte da questo browser.</p>}
+                  {fotorealisticoDisponibile() && <p className="text-xs text-muted-foreground">Le inquadrature contrassegnate con «Includi nel PDF» vengono aggiunte da questo browser.</p>}
                   <div className="space-y-1.5">
                     <Label htmlFor="fascicolo-render" className="text-xs">Render da includere</Label>
                     <Select value={renderDaIncludere} onValueChange={(v) => setRenderDaIncludere(v as "ultimi" | "tutti")}>

@@ -41,7 +41,7 @@ import type { StratoEsploso3D } from "@/lib/planimetrie/tred/tipi";
 import { adattaAmbiente, aggiornaGruppo, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./tred/scenaThree";
 import { creaAspetto, finestraPerLuce, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, type Aspetto, type OpzioniAspetto } from "./tred/aspetto";
 import { leggiAspetto, salvaAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
-import { fotorealisticoLocaleDisponibile } from "@/lib/planimetrie/renderFotorealisticoLocale";
+import { fotorealisticoDisponibile } from "@/lib/planimetrie/renderFotorealisticoLocale";
 import { esportaGlbConFiniture } from "@/lib/planimetrie/esportaGlbConFiniture";
 import { eCampo } from "@/lib/planimetrie/campiSport";
 import type { InquadraturaSalvata, StanzaDaInquadrare, VersioneRenderVisita } from "@/lib/planimetrie/renderVisitaArchivio";
@@ -799,7 +799,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       nome: luogo.nome, piano: luogo.piano, ambiente: luogo.esterno ? "facciata" : "interni",
       esterno: luogo.esterno, versione, archivio, pianoId: pianoInVisita.id, quotaPiano: pianoInVisita.quota });
   };
-  const puoRenderDaQui = inVisita && !!luogo && !attraversamento && !errore && fotorealisticoLocaleDisponibile();
+  const puoRenderDaQui = inVisita && !!luogo && !attraversamento && !errore && fotorealisticoDisponibile();
   const stanzaInquadrature = modo === "dentro" && !errore && !compatta && locali.find(l => l.id === localeId);
   const archivioStanza = archivioInquadrature ?? (archivioRender && livelloIniziale
     ? { planimetriaId: archivioRender.planimetriaId, livelloId: livelloIniziale } : undefined);
@@ -881,7 +881,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             risistemaInquadratura(n => n + 1);
             return true;
           }}
-          onRender={fotorealisticoLocaleDisponibile() ? vista => {
+          onRender={fotorealisticoDisponibile() ? vista => {
             if (!cameraNellaStanza(vista.telecamera)) return false;
             preparaRenderDaQui(vista);
             return true;
@@ -1136,8 +1136,8 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">{suggerimento}</p>
         {puoRenderDaQui && <Button size="sm" variant="outline" className="gap-1.5 sm:hidden" onClick={() => preparaRenderDaQui()}><Sparkles className="size-3.5"/>Render da qui</Button>}
-        {!schemaCanali && !inVisita && scena.mesh.length > 0 && !errore && fotorealisticoLocaleDisponibile() && <Button size="sm" variant="outline" className="gap-1.5" onClick={() => preparaRenderDaQui()}>
-          <Sparkles className="size-3.5" />Render fotorealistico locale
+        {!schemaCanali && !inVisita && scena.mesh.length > 0 && !errore && fotorealisticoDisponibile() && <Button size="sm" variant="outline" className="gap-1.5" onClick={() => preparaRenderDaQui()}>
+          <Sparkles className="size-3.5" />Render fotorealistico
         </Button>}
         {modo === "dentro" && studio?.onRender && <Button size="sm" className="gap-1.5" disabled={studio.renderDisabilitato || !!errore} onClick={() => {
           if (!motore.current) return;

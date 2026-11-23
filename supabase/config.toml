@@ -1237,3 +1237,9 @@ verify_jwt = false
 # Aggiornamento giornaliero richiesto dal pg_cron. Verifica del segreto nel worker.
 [functions.carburante-mimit-sync]
 verify_jwt = false
+
+# Biglietti per render fotorealistico e DWG online (23/11/2026). verify_jwt
+# false perché l'esito «render fallito» lo manda il container, senza utente:
+# vale la firma HMAC; il biglietto vero richiede comunque la sessione (requireAuth).
+[functions.planimetria-motore]
+verify_jwt = false

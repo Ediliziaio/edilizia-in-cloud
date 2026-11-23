@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useNavigate } from "react-router-dom";
 import { Check, FileText, LoaderCircle, Paintbrush, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { campioneDaTela } from "@/lib/planimetrie/esportaGlbConFiniture";
 import { FOTO_FINITURE } from "@/lib/planimetrie/fotoFiniture";
-import { renderFotorealisticoLocale } from "@/lib/planimetrie/renderFotorealisticoLocale";
+import { descrizioneMotoreFotorealistico, renderFotorealisticoLocale } from "@/lib/planimetrie/renderFotorealisticoLocale";
 import { salvaRenderVisita, type VersioneRenderVisita } from "@/lib/planimetrie/renderVisitaArchivio";
 import { preparaFotogrammaDaCycles } from "@/lib/planimetrie/render/fotogrammaDaCycles";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
@@ -37,6 +38,7 @@ const misuraMetri = (cm: number) => new Intl.NumberFormat("it-IT", { maximumFrac
 
 export default function RenderInquadratura3D({ data, onChiudi }: { data: InquadraturaRender3D; onChiudi: () => void }) {
   const navigate = useNavigate();
+  const companyId = useEffectiveCompanyId();
   const [rif, setRif] = useState<Blob>();
   const [png, setPng] = useState<Blob>();
   const [errore, setErrore] = useState("");
@@ -90,7 +92,7 @@ export default function RenderInquadratura3D({ data, onChiudi }: { data: Inquadr
         const risultato = await renderFotorealisticoLocale({ ...scena, materiali }, {
           telecamera, larghezza, altezza, ambiente: data.ambiente, luce: calcolo.luce, qualita: calcolo.qualita, ora: calcolo.ora,
           alberi: esterno && aspetto.realistico && aspetto.alberi && ammetteAlberiDiContesto(scena),
-        }, controller.signal, campioni);
+        }, controller.signal, campioni, { companyId });
         if (!controller.signal.aborted) setPng(risultato);
       } catch (e) {
         if (!controller.signal.aborted) setErrore(e instanceof Error ? e.message : "Render non disponibile.");
@@ -98,7 +100,7 @@ export default function RenderInquadratura3D({ data, onChiudi }: { data: Inquadr
     };
     void esegui();
     return () => controller.abort();
-  }, [data, larghezza, altezza, calcolo]);
+  }, [companyId, data, larghezza, altezza, calcolo]);
 
   const inCorso = !png && !errore;
   const locale = data.pianta.locali.find(l => l.id === data.localeId);
@@ -173,7 +175,7 @@ export default function RenderInquadratura3D({ data, onChiudi }: { data: Inquadr
     <DialogContent className="flex max-h-[94dvh] max-w-6xl flex-col gap-3 overflow-hidden p-4 sm:p-6">
       <DialogHeader className="shrink-0 pr-6 text-left">
         <DialogTitle className="flex items-center gap-2"><Sparkles className="size-5 text-primary" />Render dalla vista 3D</DialogTitle>
-        <DialogDescription>{[data.nome, data.piano, data.versione ? `Versione ${data.versione}` : null, "Blender Cycles in locale · 0 crediti"].filter(Boolean).join(" · ")}</DialogDescription>
+        <DialogDescription>{[data.nome, data.piano, data.versione ? `Versione ${data.versione}` : null, descrizioneMotoreFotorealistico()].filter(Boolean).join(" · ")}</DialogDescription>
       </DialogHeader>
       <div className="flex shrink-0 flex-wrap items-end gap-2">
         <label className="space-y-1 text-xs font-medium">Illuminazione

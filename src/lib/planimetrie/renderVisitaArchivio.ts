@@ -1,5 +1,5 @@
 import { createStore, get, update } from "idb-keyval";
-import { fotorealisticoLocaleDisponibile } from "./renderFotorealisticoLocale";
+import { fotorealisticoDisponibile } from "./renderFotorealisticoLocale";
 import type { RiscontroRenderLocale } from "./riscontroRenderLocale";
 import type { Telecamera3D } from "./tred/tipi";
 
@@ -20,7 +20,7 @@ export async function salvaRenderVisita(v: VersioneRenderVisita, immagine: Rende
 }
 
 export async function leggiRenderVisita(v: VersioneRenderVisita) {
-  if (!fotorealisticoLocaleDisponibile()) return [];
+  if (!fotorealisticoDisponibile()) return [];
   return (await get<RenderVisitaSalvato[]>(chiave(v), archivio)) ?? [];
 }
 
