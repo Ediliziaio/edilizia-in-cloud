@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { BILOCALE_DA_RISTRUTTURARE, costruisciScena, pianteDaPlanimetria, esportaGlb, esportaObj } from "./index";
+import { CAMPIONI_PBR, chiaveMappaPbr } from "./campioniPbr";
+import { istanzeGlb } from "./istanzeGlb";
+import type { PiantaPer3D } from "./tipi";
 
 const scena = costruisciScena(pianteDaPlanimetria(BILOCALE_DA_RISTRUTTURARE).progetto, { vista: "confronto" });
 
@@ -43,6 +46,97 @@ describe("GLB", () => {
     }
     const triangoli = json.meshes.reduce((s: number, m: { primitives: { indices: number }[] }) => s + json.accessors[m.primitives[0].indices].count / 3, 0);
     expect(triangoli).toBe(scena.mesh.reduce((s, m) => s + m.indici.length / 3, 0));
+  });
+
+  it("condivide la geometria del catalogo con pose e materiali distinti", () => {
+    const sorgente = scena.mesh[0];
+    const geometria = { posizioni: [1, 0, 0, 0, 0, 1, 0, 1, 0], normali: [0, 1, 0, 0, 1, 0, 0, 1, 0] };
+    const prima = { ...sorgente, posizioni: [12, 0, 0, 10, 0, 4, 10, 3, 0], normali: geometria.normali, indici: [0, 1, 2] };
+    const seconda = { ...prima, posizioni: [20, 1, 6, 15, 1, 4, 20, 4, 4], materiale: "seconda-auto" };
+    istanzeGlb.set(prima.posizioni, { geometria, posa: { modello: "highland", centro: [10, 0, 0], misure: [2, 3, 4], rotazione: 0 } });
+    istanzeGlb.set(seconda.posizioni, { geometria, posa: { modello: "highland", centro: [20, 1, 4], misure: [2, 3, 5], rotazione: Math.PI / 2 } });
+    const { json: dati } = leggiGlb(esportaGlb({
+      ...scena, mesh: [prima, seconda], materiali: { ...scena.materiali, "seconda-auto": { ...scena.materiali[prima.materiale], colore: "#345678" } },
+    }));
+    const [a, b] = dati.meshes.map((m: { primitives: unknown[] }) => m.primitives[0]);
+    expect(b.attributes).toEqual(a.attributes);
+    expect(b.indices).toBe(a.indices);
+    expect(b.material).not.toBe(a.material);
+    expect(dati.nodes[0]).toMatchObject({ translation: [10, 0, 0], scale: [2, 3, 4] });
+    expect(dati.nodes[1]).toMatchObject({ translation: [20, 1, 4], scale: [2, 3, 5] });
+    expect(dati.nodes[1].rotation[1]).toBeCloseTo(-Math.sqrt(0.5));
+    expect(dati.nodes[1].rotation[3]).toBeCloseTo(Math.sqrt(0.5));
+
+    // I derivati che spostano le geometrie già risolte esportano le nuove coordinate.
+    const traslata = { ...prima, posizioni: prima.posizioni.map((v, i) => i % 3 === 1 ? v + 10 : v) };
+    const { json: spostata } = leggiGlb(esportaGlb({ ...scena, mesh: [traslata] }));
+    expect(spostata.nodes[0].translation).toBeUndefined();
+    expect(spostata.accessors[0].min[1]).toBe(10);
+  });
+
+  it("incorpora la finitura fotografica e le UV senza cambiare le coordinate della scena", () => {
+    const campione = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64"));
+    const indiceMesh = scena.mesh.findIndex((m) => scena.materiali[m.materiale]?.tessitura?.trama === "rovere");
+    expect(indiceMesh).toBeGreaterThanOrEqual(0);
+
+    const conFinitura = esportaGlb(scena, new Map([["rovere", { dati: campione, mimeType: "image/png" }]]));
+    const { json: dati, lJson: lunghezzaJson } = leggiGlb(conFinitura);
+    const immagine = dati.images[0];
+    expect(immagine).toEqual({ name: "rovere", bufferView: 0, mimeType: "image/png" });
+    const vistaImmagine = dati.bufferViews[immagine.bufferView];
+    const inizio = 28 + lunghezzaJson + vistaImmagine.byteOffset;
+    expect(conFinitura.subarray(inizio, inizio + vistaImmagine.byteLength)).toEqual(campione);
+
+    const primitiva = dati.meshes[indiceMesh].primitives[0];
+    const attributi = primitiva.attributes;
+    const posizioni = dati.accessors[attributi.POSITION];
+    const uv = dati.accessors[attributi.TEXCOORD_0];
+    const materiale = dati.materials[primitiva.material];
+    expect(dati.textures[materiale.pbrMetallicRoughness.baseColorTexture.index].source).toBe(0);
+    expect(uv).toMatchObject({ count: posizioni.count, type: "VEC2" });
+
+    const posizionePrima = json.accessors[json.meshes[indiceMesh].primitives[0].attributes.POSITION];
+    const vistaPrima = json.bufferViews[posizionePrima.bufferView];
+    const vistaDopo = dati.bufferViews[posizioni.bufferView];
+    expect(vistaDopo.byteLength).toBe(vistaPrima.byteLength);
+    expect(conFinitura.subarray(28 + lunghezzaJson + vistaDopo.byteOffset, 28 + lunghezzaJson + vistaDopo.byteOffset + vistaDopo.byteLength))
+      .toEqual(glb.subarray(28 + lJson + vistaPrima.byteOffset, 28 + lJson + vistaPrima.byteOffset + vistaPrima.byteLength));
+  });
+
+  it("assegna colore, rugosità e normale del parquet alla stessa proiezione metrica", () => {
+    const campione = { dati: new Uint8Array([1, 2, 3, 4]), mimeType: "image/png" } as const;
+    const trame = new Map((["colore", "rugosita", "normale"] as const).map(canale => [chiaveMappaPbr("rovere", canale), campione]));
+    const { json: dati, dv: binario, lJson: lunghezzaJson } = leggiGlb(esportaGlb(scena, trame));
+    const indice = scena.mesh.findIndex(m => m.genere === "pavimento" && scena.materiali[m.materiale]?.tessitura?.trama === "rovere");
+    expect(indice).toBeGreaterThanOrEqual(0);
+    const primitiva = dati.meshes[indice].primitives[0];
+    const { normalTexture, pbrMetallicRoughness } = dati.materials[primitiva.material];
+    const nomeImmagine = ({ index }: { index: number }) => dati.images[dati.textures[index].source].name;
+    expect(nomeImmagine(pbrMetallicRoughness.baseColorTexture)).toBe("rovere");
+    expect(nomeImmagine(pbrMetallicRoughness.metallicRoughnessTexture)).toBe("rovere:rugosita");
+    expect(pbrMetallicRoughness.roughnessFactor).toBe(1);
+    expect(nomeImmagine(normalTexture)).toBe("rovere:normale");
+    expect(normalTexture.scale).toBe(CAMPIONI_PBR.rovere.rilievo);
+
+    const uv = dati.accessors[primitiva.attributes.TEXCOORD_0];
+    const inizioUv = 28 + lunghezzaJson + dati.bufferViews[uv.bufferView].byteOffset;
+    const { posizioni } = scena.mesh[indice];
+    for (let i = 0; i < uv.count; i++) {
+      expect(binario.getFloat32(inizioUv + i * 8, true)).toBeCloseTo(posizioni[i * 3] / 1.8);
+      expect(binario.getFloat32(inizioUv + i * 8 + 4, true)).toBeCloseTo(1 - posizioni[i * 3 + 2] / 1.8);
+    }
+  });
+
+  it("esporta l'emissione del sottopensile LED solo quando quel modello è presente", () => {
+    const cucina = { id: "cucina", tipo: "cucina", centro: { x: 0, y: 0 }, rotazione: 0 };
+    const base: PiantaPer3D = { muri: [], aperture: [], locali: [], elementi: [{ ...cucina, modello: "pensili" }] };
+    const normale = leggiGlb(esportaGlb(costruisciScena(base))).json;
+    expect(normale.extensionsUsed).toBeUndefined();
+    const conLed = leggiGlb(esportaGlb(costruisciScena({ ...base, elementi: [{ ...cucina, modello: "pensili_led" }] }))).json;
+    expect(conLed.extensionsUsed).toContain("KHR_materials_emissive_strength");
+    const materiale = conLed.materials.find((m: { extras: { chiave: string } }) => m.extras.chiave === "luce_calda");
+    expect(materiale.emissiveFactor[0]).toBeCloseTo(1);
+    expect(materiale.extensions.KHR_materials_emissive_strength.emissiveStrength).toBeGreaterThan(1);
   });
 });
 

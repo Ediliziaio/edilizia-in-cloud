@@ -4,20 +4,27 @@ import bilocale from "../../../shared/planimetrie/esempi/bilocale.json";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { EsportaPiantaDialog } from "@/components/planimetrie/EsportaPiantaDialog";
 
-const mocks = vi.hoisted(() => ({ esporta: vi.fn(async () => ({ dati: new Uint8Array([1]), pagine: 1, immaginiRender: 0 })) }));
+const mocks = vi.hoisted(() => ({ esporta: vi.fn(async () => ({ dati: new Uint8Array([1]), pagine: 1, immaginiRender: 0, avvisi: 0 })) }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda", name: "Demo" } }) }));
 vi.mock("@/hooks/useBranding", () => ({ useBranding: () => ({ branding: null as null }) }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: ({ queryKey }: { queryKey: string[] }): { data: unknown[] | { name: string } } => ({ data: queryKey[0].includes("preventivi") ? [] : { name: "Demo" } }) }));
 vi.mock("@/components/shared/CampoIndirizzo", () => ({ CampoIndirizzo: () => <input aria-label="Indirizzo del cantiere" /> }));
 vi.mock("@/lib/planimetrie/fascicoloDati", () => ({ renderPerFascicolo: async (): Promise<unknown[]> => [], sorgentePerFascicolo: async (): Promise<null> => null, campioniPersonaliPerFascicolo: async (): Promise<unknown[]> => [], documentoOriginalePerFascicolo: async (): Promise<null> => null }));
 vi.mock("@/lib/planimetrie/fascicoloPdf", () => ({ esportaFascicolo: mocks.esporta }));
+vi.mock("@/components/planimetrie/editor/paginaPdf", () => ({ conPaginePdf: async (): Promise<null> => null }));
 
 beforeEach(() => {
   mocks.esporta.mockClear();
   vi.stubGlobal("URL", class extends URL { static createObjectURL() { return "blob:prova"; } static revokeObjectURL() {} });
   vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(async () => {
+  cleanup();
+  // Radix ripristina il focus con un timer dopo lo smontaggio del dialogo.
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("stato del progetto conservato fino al fascicolo", () => {
   it.each([
@@ -37,5 +44,17 @@ describe("stato del progetto conservato fino al fascicolo", () => {
     fireEvent.click(screen.getByRole("button", { name: "Scarica Fascicolo completo PDF" }));
     await waitFor(() => expect(mocks.esporta).toHaveBeenCalledWith(expect.objectContaining({ ambito, versione: 3, renderDaIncludere: "ultimi" })));
     await waitFor(() => expect(screen.getByRole("button", { name: "Scarica Fascicolo completo PDF" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Sfoglia il PDF" }));
+    expect(screen.getByRole("region", { name: "Lettura del fascicolo" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Torna alle opzioni" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scarica Fascicolo completo PDF" }));
+    expect(mocks.esporta).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText("Committente (facoltativo)"), { target: { value: "Cliente Prova" } });
+    expect(screen.queryByRole("button", { name: "Sfoglia il PDF" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Scarica Fascicolo completo PDF" }));
+    await waitFor(() => expect(mocks.esporta).toHaveBeenCalledWith(expect.objectContaining({
+      cartiglio: expect.objectContaining({ cliente: "Cliente Prova" }),
+    })));
   });
 });

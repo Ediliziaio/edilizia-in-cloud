@@ -151,12 +151,18 @@ export function facceTetto(r: Rettangolo, h: number, t: TettoGeom): Faccia[] {
   const meta = (b1 - b0) / 2, bc = (b0 + b1) / 2, colmo = h + meta * p;
   if (t.tipo === "due_falde") {
     const s = t.sporto;
-    const zt = h + (meta - s) * p;
+    const quotaAiMuri = h + s * p;
+    const chiusura = (lungo: number, inizio: number, fine: number) => {
+      const base = [P(lungo, inizio, h), P(lungo, fine, h)];
+      const cima = P(lungo, bc, colmo);
+      if (quotaAiMuri <= h) return timpano([...base, cima]);
+      return timpano([...base, P(lungo, fine, quotaAiMuri), cima, P(lungo, inizio, quotaAiMuri)]);
+    };
     return [
       falda([P(a0, b0, h), P(a1, b0, h), P(a1, bc, colmo), P(a0, bc, colmo)]),
       falda([P(a1, b1, h), P(a0, b1, h), P(a0, bc, colmo), P(a1, bc, colmo)]),
-      timpano([P(a0 + s, b0 + s, h), P(a0 + s, b1 - s, h), P(a0 + s, bc, zt)]),
-      timpano([P(a1 - s, b1 - s, h), P(a1 - s, b0 + s, h), P(a1 - s, bc, zt)]),
+      chiusura(a0 + s, b0 + s, b1 - s),
+      chiusura(a1 - s, b1 - s, b0 + s),
     ];
   }
   const c0 = Math.min(a0 + meta, (a0 + a1) / 2), c1 = Math.max(a1 - meta, (a0 + a1) / 2);

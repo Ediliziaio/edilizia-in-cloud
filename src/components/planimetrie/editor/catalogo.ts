@@ -3,6 +3,7 @@
  * (`src/lib/planimetrie/esporta/simboli.ts`), con le misure più comuni in cm.
  */
 import { CAMPI } from "@/lib/planimetrie/campiSport";
+import { MISURE_MODEL_3_HIGHLAND } from "../../../../shared/planimetrie/modelliArredo.ts";
 
 export interface VoceCatalogo {
   tipo: string;
@@ -11,6 +12,7 @@ export interface VoceCatalogo {
   larghezza: number;
   profondita: number;
   altezza: number;
+  modello?: string;
 }
 
 export const CATALOGO: VoceCatalogo[] = [
@@ -20,6 +22,7 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "doccia", nome: "Doccia", gruppo: "Bagno", larghezza: 80, profondita: 80, altezza: 200 },
   { tipo: "vasca", nome: "Vasca", gruppo: "Bagno", larghezza: 170, profondita: 70, altezza: 55 },
   { tipo: "specchio_parete", nome: "Specchio a parete", gruppo: "Bagno", larghezza: 60, profondita: 4, altezza: 185 },
+  { tipo: "scaldasalviette", nome: "Scaldasalviette", gruppo: "Bagno", larghezza: 52, profondita: 13, altezza: 165 },
   { tipo: "lavatrice", nome: "Lavatrice", gruppo: "Bagno", larghezza: 60, profondita: 60, altezza: 85 },
   { tipo: "cucina", nome: "Cucina lineare", gruppo: "Cucina", larghezza: 240, profondita: 60, altezza: 90 },
   { tipo: "cucina_angolare", nome: "Cucina ad angolo", gruppo: "Cucina", larghezza: 300, profondita: 240, altezza: 90 },
@@ -37,11 +40,17 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "divano_angolare", nome: "Divano angolare", gruppo: "Soggiorno", larghezza: 280, profondita: 170, altezza: 85 },
   { tipo: "poltrona", nome: "Poltrona", gruppo: "Soggiorno", larghezza: 85, profondita: 85, altezza: 90 },
   { tipo: "lampada_piantana", nome: "Lampada a piantana", gruppo: "Soggiorno", larghezza: 35, profondita: 35, altezza: 154 },
+  { tipo: "lampada_sospensione", nome: "Lampada a sospensione", gruppo: "Soggiorno", larghezza: 36, profondita: 36, altezza: 280 },
   { tipo: "tavolino", nome: "Tavolino", gruppo: "Soggiorno", larghezza: 102, profondita: 60, altezza: 42 },
+  { tipo: "tappeto", nome: "Tappeto", gruppo: "Soggiorno", larghezza: 240, profondita: 170, altezza: 2 },
   { tipo: "mobile_tv", nome: "Mobile TV", gruppo: "Soggiorno", larghezza: 180, profondita: 45, altezza: 50 },
   { tipo: "libreria", nome: "Libreria", gruppo: "Soggiorno", larghezza: 160, profondita: 35, altezza: 200 },
+  { tipo: "vetrinetta", nome: "Vetrinetta illuminata", gruppo: "Soggiorno", larghezza: 112, profondita: 39, altezza: 164 },
+  { tipo: "tenda", nome: "Tenda a binario", gruppo: "Soggiorno", larghezza: 320, profondita: 18, altezza: 275 },
+  { tipo: "quadro", nome: "Quadro a parete", gruppo: "Soggiorno", larghezza: 82, profondita: 4, altezza: 181 },
+  { tipo: "pianta_vaso", nome: "Pianta in vaso", gruppo: "Soggiorno", larghezza: 37, profondita: 37, altezza: 32 },
   { tipo: "tavolo_rotondo", nome: "Tavolo rotondo", gruppo: "Soggiorno", larghezza: 110, profondita: 110, altezza: 75 },
-  { tipo: "auto", nome: "Auto", gruppo: "Esterni e garage", larghezza: 190, profondita: 400, altezza: 144 },
+  { tipo: "auto", nome: "Auto", gruppo: "Esterni e garage", modello: "highland", ...MISURE_MODEL_3_HIGHLAND },
   { tipo: "scaffale", nome: "Scaffalatura", gruppo: "Esterni e garage", larghezza: 300, profondita: 100, altezza: 400 },
   { tipo: "banco_lavoro", nome: "Banco da lavoro", gruppo: "Esterni e garage", larghezza: 200, profondita: 80, altezza: 90 },
   { tipo: "caldaia", nome: "Caldaia", gruppo: "Impianti", larghezza: 45, profondita: 35, altezza: 75 },

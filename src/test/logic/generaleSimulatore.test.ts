@@ -358,6 +358,19 @@ describe("ipotesi → operazione", () => {
     expect(controllaSerie(righe, []).errori).toBe(0);
   });
 
+  it("usa il ricavo complessivo modificato nel business plan come somma dei listini", () => {
+    const scenario = semplice({
+      tipologie: [
+        { id: "a", nome: "Unità A", sigla: "A", quante: 1, mq: 267.3, prezzoMq: 0, costoMq: null },
+        { id: "b", nome: "Box", quante: 3, mq: 15, prezzoMq: 1_000, costoMq: null },
+      ],
+      ritocchi: { "vendite:a": { importo: 330_000 }, "vendite:b": { importo: 24_000.01 } },
+    });
+    const { unita, valore } = operazioneDaIpotesi(scenario, { nome: "Collaudo DWG", conUnita: true });
+    expect(unita.map((u) => u.prezzo_listino)).toEqual([330_000, 8_000.01, 8_000, 8_000]);
+    expect(unita.reduce((s, u) => s + Math.round((u.prezzo_listino ?? 0) * 100), 0)).toBe(Math.round(valore * 100));
+  });
+
   it("senza unità se non richieste; due tipologie con la stessa iniziale hanno sigle diverse", () => {
     expect(operazioneDaIpotesi(ip, { nome: "x", conUnita: false }).unita).toEqual([]);
     const doppia = unitaDaIpotesi(semplice({

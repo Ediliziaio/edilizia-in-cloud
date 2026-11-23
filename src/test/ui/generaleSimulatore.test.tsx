@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ipotesiDiPartenza } from "@/lib/orders/generali/simulatore";
@@ -30,6 +31,9 @@ vi.mock("@/hooks/useGeneraleSimulatore", () => {
   const muta = () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
   return {
     useIpotesiSalvate: () => ({ data: m.salvate, isPending: false }),
+    useIpotesiSalvata: (id: string | null) => ({
+      data: m.salvate.map(x => x as IpotesiSalvata).find(s => s.id === id) ?? null, isPending: false,
+    }),
     useSalvaIpotesi: () => ({ mutate: vi.fn(), mutateAsync: m.salva, isPending: false }),
     useEliminaIpotesi: muta,
     useDiventaOperazione: muta,
@@ -44,7 +48,11 @@ const salvata = (id: string, nome: string, quante: number): IpotesiSalvata => {
   return { id, nome, modello: "sviluppo", ipotesi: ip, generaleId: null, creataIl: "2026-10-30T10:00:00Z", aggiornataIl: "2026-10-30T10:00:00Z" };
 };
 
-const monta = () => render(<MemoryRouter><SimulatorePagina /></MemoryRouter>);
+const monta = (percorso = "/") => render(
+  <QueryClientProvider client={new QueryClient()}>
+    <MemoryRouter initialEntries={[percorso]}><SimulatorePagina /></MemoryRouter>
+  </QueryClientProvider>,
+);
 const numero = (titolo: string) => screen.getByText(titolo).parentElement!;
 
 beforeEach(() => {
@@ -103,6 +111,21 @@ describe("Valuta un'operazione", () => {
     const riga = within(tabella).getByText("Ricavi").closest("tr")!;
     expect(riga.textContent).toContain("1.920.000");
     expect(riga.textContent).toContain("1.280.000");
+  });
+
+  it("riapre dal link le due ipotesi nell'ordine indicato e mostra il costo dei lavori", () => {
+    const prima = salvata("prima","Solo bagno",1);
+    const seconda = salvata("seconda","Ristrutturazione completa",1);
+    prima.ipotesi.ritocchi.costruzione = {importo:4608.19};
+    seconda.ipotesi.ritocchi.costruzione = {importo:12938.89};
+    m.salvate = [seconda,prima];
+    monta("/?riferimento=prima&confronta=seconda");
+    const tabella = screen.getByRole("table");
+    expect(within(tabella).getAllByRole("columnheader")[1].textContent).toContain("Solo bagno");
+    const riga = within(tabella).getByText("Costo lavori").closest("tr")!;
+    expect(riga.textContent).toContain("4.608,19");
+    expect(riga.textContent).toContain("12.938,89");
+    expect(riga.textContent).toContain("+8.330,70");
   });
 
   it("da telefono: solo lettura delle ipotesi salvate", () => {

@@ -33,6 +33,7 @@ export interface RichiestaFotogramma {
   aspetto?: OpzioniAspetto;
   /** Geometria già costruita, da usare anche nel confronto con un altro motore. */
   scena?: Scena3D;
+  quotaPiano?: number;
 }
 
 export interface Fotogramma {
@@ -40,7 +41,7 @@ export interface Fotogramma {
   metadati: MetadatiFotogramma;
 }
 
-export async function catturaFotogramma(r: RichiestaFotogramma): Promise<Fotogramma> {
+export function descriviFotogramma(r: RichiestaFotogramma): MetadatiFotogramma {
   const larghezza = r.larghezza ?? 1024;
   const altezza = r.altezza ?? 768;
   const vista = r.vista ?? "progetto";
@@ -50,6 +51,11 @@ export async function catturaFotogramma(r: RichiestaFotogramma): Promise<Fotogra
   const posizioni = metadati.arredi_inclusi ? posizioniArrediInquadrati(r.pianta, r.localeId, r.telecamera, larghezza / altezza) : [];
   metadati.posizioni_arredi = posizioni;
   metadati.arredi_inquadrati = posizioni.map(e => e.id);
+  return metadati;
+}
+
+export async function catturaFotogramma(r: RichiestaFotogramma): Promise<Fotogramma> {
+  const metadati = descriviFotogramma(r);
   const png = await disegnaFotogramma(r);
   return { png, metadati };
 }
@@ -67,8 +73,8 @@ async function disegnaFotogramma(r: RichiestaVistaProgetto & { localeId?: string
   const vista = r.vista ?? "progetto";
   const opzioni = { vista, soffitto: r.soffitto ?? true, elementi: r.elementi ?? true, terreno: r.terreno };
   const base = r.scena ?? (r.piani && r.piani.length > 1 ? scenaEdificio(r.piani, opzioni) : costruisciScena(r.pianta, opzioni));
-  const scena = base.mesh.some(m => m.auto)
-    ? await (await import("@/lib/planimetrie/tred/modelliAuto")).scenaConModelliAuto(base)
+  const scena = base.mesh.some(m => m.auto || m.arredoCatalogo)
+    ? await (await import("@/lib/planimetrie/tred/modelliDettagliati")).scenaConModelliDettagliati(base)
     : base;
   const canvas = document.createElement("canvas");
   canvas.width = larghezza;
@@ -89,7 +95,7 @@ async function disegnaFotogramma(r: RichiestaVistaProgetto & { localeId?: string
     await attendiTexture(gruppo);
     if (aspetto && r.aspetto) {
       aspetto.dimensiona(larghezza, altezza);
-      aspetto.applica(gruppo, scena, r.aspetto, ambiente, r.aspetto.dentro && r.localeId ? finestraPerLuce(r.pianta, r.localeId, vista) : undefined);
+      aspetto.applica(gruppo, scena, r.aspetto, ambiente, r.aspetto.dentro && r.localeId ? finestraPerLuce(r.pianta, r.localeId, vista, r.quotaPiano) : undefined);
       aspetto.disegna();
     } else {
       renderer.render(scene, camera);

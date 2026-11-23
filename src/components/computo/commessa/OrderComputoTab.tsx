@@ -9,6 +9,7 @@ import { UniformSelect } from "@/components/ui/uniform-select";
  * dati da lavoro pubblico con il quadro economico, esportazione Excel e PDF.
  */
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
 import { toast } from "sonner";
 import { CheckCircle2, FileDown, FileSpreadsheet, Loader2, Lock, Map as IconaPianta, Search, XCircle } from "lucide-react";
@@ -25,7 +26,10 @@ import VociImpiantiDallaPianta from "./pianta/VociImpiantiDallaPianta";
 import PrendiDallaPianta from "./pianta/PrendiDallaPianta";
 import { CaricaComputo as Caricamento } from "./CaricaComputo";
 import { usePianteDelComputo } from "@/hooks/useComputoPianta";
+import { usePermissions } from "@/hooks/usePermissions";
 import { ETICHETTA_ORIGINE } from "@/lib/planimetrie/computo";
+import { percorsoVariantePlanimetria } from "@/lib/planimetrie/render/percorsi";
+import { idComputoValido, percorsoComputoCommessa, percorsoComputoNativo } from "@/lib/computo/percorsiComputo";
 import { filtraVoci, numeroVoce, type VoceComputo } from "@/lib/computo/alberoComputo";
 import { controllaTotali, formatEuro, type ComputoVoceStrutturata, type ControlloTotali } from "@/lib/computo/computoStrutturato";
 import { quadroEconomicoCompleto, sezioneVoce, type QuadroEconomicoCompleto } from "@/lib/computo/quadroEconomico";
@@ -46,6 +50,16 @@ const COLORE_STATO: Record<StatoComputo, string> = {
   bozza: "border-slate-300 text-slate-700", verificato: "border-sky-300 text-sky-800",
   contrattuale: "border-emerald-400 bg-emerald-50 text-emerald-800", archiviato: "border-slate-200 text-slate-500",
 };
+
+function CollegamentiComputoVariante({ fonte, torna, puoPianta, puoBozza }: {
+  fonte: NonNullable<ComputoCommessa["fonte_variante"]>; torna: string; puoPianta: boolean; puoBozza: boolean;
+}) {
+  return <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+    <span className="text-muted-foreground">Copia in commessa · Planimetria v{fonte.versione}</span>
+    {puoPianta && <Link className="font-medium text-primary underline underline-offset-2" to={percorsoVariantePlanimetria(fonte, { torna })}>Variante di origine</Link>}
+    {puoBozza && idComputoValido(fonte.bozzaId) && <Link className="font-medium text-primary underline underline-offset-2" to={`${percorsoComputoNativo(fonte.bozzaId)}&fase=3`}>Bozza del computo</Link>}
+  </div>;
+}
 
 function EsitoControllo({ controllo, onApriVoce }: { controllo: ControlloTotali; onApriVoce: (numero: string) => void }) {
   const [tutte, setTutte] = useState(false);
@@ -134,6 +148,7 @@ function LavoroPubblico({ computo, voci, bloccato, onSalva }: {
 export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAmounts = true, orderLabel, computoInizialeId, soloEsistenti = false }: {
   orderId: string; companyId: string; canEdit: boolean; canViewAmounts?: boolean; orderLabel?: string | null; computoInizialeId?: string; soloEsistenti?: boolean;
 }) {
+  const { canViewRenderAi, canViewPreventivi } = usePermissions();
   const confirm = useConfirm();
   const { data: computi = [], isLoading, error } = useComputiCommessa(orderId, companyId);
   // Le perizie di variante non approvate stanno nella scheda «Varianti».
@@ -141,7 +156,9 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
   const [sceltoId, setSceltoId] = useState<string | null>(computoInizialeId ?? null);
   const computo = attivi.find(c => c.id === sceltoId) ?? (sceltoId ? null : attivi[0]) ?? null;
   const letto = computoLetto(computo);
-  const { data: voci = [], isLoading: vociLoading } = useVociComputo(computo?.id, letto);
+  const { data: vociCaricate = [], isLoading: vociLoading } = useVociComputo(computo?.id, letto);
+  const voci = vociCaricate.map(v => v.is_detrazione && v.importo_computo !== null
+    ? { ...v, importo_computo: -Math.abs(v.importo_computo) } : v);
   const modifica = useModificaComputo(orderId, companyId);
   const scarta = useScartaComputo(orderId, companyId);
   const riprova = useRiprovaLetturaComputo(orderId, companyId);
@@ -164,7 +181,7 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
   if (computo && letto && voci.length) {
     controllo = computo.controllo_totali && typeof computo.controllo_totali === "object" && "sintesi" in computo.controllo_totali
       ? computo.controllo_totali
-      : controllaTotali({ voci: voci.map(aStrutturata), totale_dichiarato: computo.totale_dichiarato, riepiloghi: [] });
+      : controllaTotali({ voci: vociCaricate.map(aStrutturata), totale_dichiarato: computo.totale_dichiarato, riepiloghi: [] });
   }
   const filtrate = filtraVoci(voci, ricerca);
   const bloccato = !canEdit || computo?.stato === "contrattuale";
@@ -220,12 +237,19 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
     setEsportando(tipo);
     try {
       const { esportaComputoPdf, esportaComputoXlsx } = await import("@/lib/computo/esportaComputo");
+      const fonte = computo.fonte_variante;
+      let planimetria;
+      if (tipo === "pdf" && fonte && canViewRenderAi) {
+        const { preparaComputoConPlanimetria } = await import("@/lib/planimetrie/computoConPlanimetria");
+        planimetria = (await preparaComputoConPlanimetria(companyId, fonte)).pdf;
+      }
       const intestazione = {
         titolo: computo.titolo || computo.file_name, commessa: orderLabel ? `Commessa ${orderLabel}` : null,
         stazioneAppaltante: computo.lavoro_pubblico ? computo.stazione_appaltante : null,
         cig: computo.lavoro_pubblico ? computo.cig : null, cup: computo.lavoro_pubblico ? computo.cup : null,
         stato: `Stato: ${ETICHETTA_STATO[computo.stato]}`,
         quadro: quadroCompleto?.quadro ?? null,
+        planimetria,
       };
       if (tipo === "xlsx") await esportaComputoXlsx(voci, intestazione); else await esportaComputoPdf(voci, intestazione);
     } catch (e) {
@@ -279,10 +303,12 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
                 <Badge variant="outline" className={COLORE_STATO[computo.stato]}>{computo.stato === "contrattuale" && <Lock className="mr-1 h-3 w-3" />}{ETICHETTA_STATO[computo.stato]}</Badge>
               </h3>
               <p className="text-xs text-slate-500">
-                {computo.file_name}
+                {computo.file_name !== computo.titolo && computo.file_name}
                 {computo.extraction_method === "xpwe_parse" ? " · letto dall'XPWE" : computo.controllo_totali ? " · letto dal PDF di PriMus" : ""}
                 {computo.oggetto_lavori ? ` · ${computo.oggetto_lavori.slice(0, 140)}` : ""}
               </p>
+              {computo.fonte_variante && <CollegamentiComputoVariante fonte={computo.fonte_variante} puoPianta={canViewRenderAi} puoBozza={canViewPreventivi}
+                torna={`${percorsoComputoCommessa(orderId, computo.id)}${soloEsistenti ? "&scheda=cantiere&vista-cantiere=computi" : ""}`} />}
               {attivi.length > 1 && (
                 <label className="mt-1 flex items-center gap-2 text-xs text-slate-600">Altri computi della commessa:
                   <UniformSelect className="rounded border px-1 py-0.5" value={computo.id} onChange={e => setSceltoId(e.target.value)}>

@@ -68,7 +68,7 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
   const materiali: Scena3D["materiali"] = {};
   const avvisi: string[] = [];
   const scaviPiscine: ScavoPiscina[] = [];
-  const impiantiTot = new Map<string, { linea: string; nome: string; colore: string; metri: number }>();
+  const impiantiTot = new Map<string, NonNullable<Scena3D["impianti"]>[number]>();
   const pianteDi = (p: PianoPer3D) => (vista === "fatto" ? p.piante.fatto : p.piante.progetto);
   // la cabina dell'ascensore sta al piano terra (quota 0, o il più basso se non c'è)
   const pianoCabina = scelti.find((p) => p.quota === 0)?.id ?? scelti[0]?.id;
@@ -106,19 +106,29 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
       const posizioni = m.posizioni.slice();
       for (let k = 1; k < posizioni.length; k += 3) posizioni[k] += dy;
       mesh.push({ ...m, id: `${piano.id}/${m.id}`, nome: `${piano.nome} · ${m.nome}`, posizioni,
-        ...(m.auto ? { auto: { ...m.auto, centro: [m.auto.centro[0], m.auto.centro[1] + dy, m.auto.centro[2]] } } : {}) });
+        ...(m.auto ? { auto: { ...m.auto, centro: [m.auto.centro[0], m.auto.centro[1] + dy, m.auto.centro[2]] } } : {}),
+        ...(m.arredoCatalogo ? { arredoCatalogo: { ...m.arredoCatalogo,
+          centro: [m.arredoCatalogo.centro[0], m.arredoCatalogo.centro[1] + dy, m.arredoCatalogo.centro[2]] } } : {}),
+      });
     }
     Object.assign(materiali, s.materiali);
     avvisi.push(...s.avvisi.map((a) => `${piano.nome}: ${a}`));
     for (const im of s.impianti ?? []) {
       const gia = impiantiTot.get(im.linea);
-      impiantiTot.set(im.linea, gia ? { ...gia, metri: Math.round((gia.metri + im.metri) * 10) / 10 } : im);
+      if (!gia) impiantiTot.set(im.linea, im);
+      else if (im.superficieMq !== undefined) impiantiTot.set(im.linea, {
+        ...gia, metri: gia.metri + im.metri, superficieMq: (gia.superficieMq ?? 0) + im.superficieMq,
+        ...((gia.circuiti || im.circuiti) && { circuiti: [...(gia.circuiti ?? []), ...(im.circuiti ?? [])] }),
+      });
+      else impiantiTot.set(im.linea, { ...gia, metri: Math.round((gia.metri + im.metri) * 10) / 10 });
     }
   });
   const limiti = limitiDi(mesh);
   const margineTerreno = opzioni.terreno ?? (scaviPiscine.length ? 2 : 0);
   if (margineTerreno > 0 && mesh.length) {
-    mesh.push(meshTerreno(limiti, margineTerreno, piani[0]?.piante.fatto.terreno, limitiDi(mesh, (g) => g === "muro"), scaviPiscine));
+    const pianoTerra = scelti.find(piano => Math.abs(piano.quota) < 5);
+    mesh.push(meshTerreno(limiti, margineTerreno, piani[0]?.piante.fatto.terreno, limitiDi(mesh, (g) => g === "muro"),
+      scaviPiscine, pianoTerra ? pianteDi(pianoTerra).aree : undefined));
     materiali.prato = MATERIALI.prato;
   }
   return { mesh, nord: scelti[0] && pianteDi(scelti[0]).nord, materiali, limiti, avvisi, ...(impiantiTot.size ? { impianti: [...impiantiTot.values()] } : {}) };

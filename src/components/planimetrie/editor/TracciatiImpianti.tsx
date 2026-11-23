@@ -3,8 +3,10 @@ import { Route, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { chiaveTratto, type AttraversamentoImpianto, type Percorso } from "../../../../shared/planimetrie/impianti.ts";
-import { LINEE_IMPIANTO, type Elemento, type LineaImpianto, type Punto, type TracciatoImpianto } from "../../../../shared/planimetrie/modello.ts";
+import { LINEE_IMPIANTO, type CollettoreRadiante, type Elemento, type LineaImpianto, type Punto, type StatoPianta, type TracciatoImpianto,
+  type ZonaRadiante } from "../../../../shared/planimetrie/modello.ts";
 import { CATALOGO } from "./catalogo";
+import { PavimentoRadiantePanel } from "./PavimentoRadiantePanel";
 
 export const NOMI_LINEE: Record<LineaImpianto, string> = {
   elettrica: "Elettrico", acqua: "Acqua", scarico: "Scarichi", frigorifera: "Rame clima", condensa: "Condensa", riscaldamento: "Riscaldamento",
@@ -22,6 +24,12 @@ type Props = {
   sposta: number | null;
   attraversamenti: AttraversamentoImpianto[];
   scalaIncerta: boolean;
+  stato: StatoPianta;
+  soloRadiante: boolean;
+  onCambiaRadiante: (localeId: string, zona: ZonaRadiante | null) => void;
+  posaCollettore: boolean;
+  onPosaCollettore: (impostazioni: Omit<CollettoreRadiante, "posizione"> | null) => void;
+  onCambiaCollettore: (collettore: CollettoreRadiante | null) => void;
   onScegli: (chiave: string) => void;
   onModifica: () => void;
   onSposta: (indice: number | null) => void;
@@ -34,7 +42,10 @@ type Props = {
 };
 
 export function TracciatiImpianti({ percorsi, daRicollegare, elementi, selezionato, anteprima, vertici, sposta, attraversamenti,
-  scalaIncerta, onScegli, onModifica, onSposta, onTogliUltimo, onAzzera, onAnnulla, onApplica, onRipristina, onChiudi }: Props) {
+  scalaIncerta, stato, soloRadiante, onCambiaRadiante, posaCollettore, onPosaCollettore, onCambiaCollettore,
+  onScegli, onModifica, onSposta, onTogliUltimo, onAzzera, onAnnulla, onApplica, onRipristina, onChiudi }: Props) {
+  const [sezione, setSezione] = useState<"tracciati" | "radiante">(stato.pavimentoRadiante?.length || !percorsi.length ? "radiante" : "tracciati");
+  const radiante = soloRadiante || (sezione === "radiante" && !selezionato);
   const reti = LINEE_IMPIANTO.filter(rete => percorsi.some(p => p.linea === rete));
   const [preferita, setPreferita] = useState<LineaImpianto | undefined>(reti[0]);
   const rete = selezionato?.linea ?? (preferita && reti.includes(preferita) ? preferita : reti[0]);
@@ -42,13 +53,20 @@ export function TracciatiImpianti({ percorsi, daRicollegare, elementi, seleziona
   const nome = (t: Pick<TracciatoImpianto, "daId" | "aId">) => `${simboli.get(t.daId) ?? t.daId} → ${simboli.get(t.aId) ?? t.aId}`;
   const chiave = selezionato ? chiaveTratto(selezionato) : "";
   const corrente = anteprima ?? selezionato;
-  return <aside aria-label="Tracciati impianti" className="z-[1] max-h-[44dvh] shrink-0 space-y-3 overflow-y-auto border-t bg-background p-3 lg:max-h-none lg:w-[19rem] lg:border-l lg:border-t-0">
+  return <aside aria-label={soloRadiante ? "Pavimento radiante" : "Tracciati impianti"} className="z-[1] max-h-[44dvh] shrink-0 space-y-3 overflow-y-auto border-t bg-background p-3 lg:max-h-none lg:w-[19rem] lg:border-l lg:border-t-0">
     <div className="flex items-center gap-2">
       <Route className="size-4 text-primary" aria-hidden="true" />
-      <h3 className="flex-1 text-sm font-semibold">Tracciati impianti</h3>
+      <h3 className="flex-1 text-sm font-semibold">{soloRadiante ? "Pavimento radiante" : "Tracciati impianti"}</h3>
       <Button variant="ghost" size="icon" className="size-7" aria-label="Chiudi tracciati impianti" onClick={onChiudi}><X className="size-4" /></Button>
     </div>
+    {!soloRadiante && <div className="flex gap-1.5">
+      <Button type="button" size="sm" variant={radiante ? "outline" : "secondary"} aria-pressed={!radiante}
+        onClick={() => { onPosaCollettore(null); setSezione("tracciati"); }}>Percorsi</Button>
+      <Button type="button" size="sm" variant={radiante ? "secondary" : "outline"} aria-pressed={radiante} onClick={() => { onScegli(""); setSezione("radiante"); }}>Pavimento radiante</Button>
+    </div>}
     {scalaIncerta && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">Riscontra la scala prima di usare i metri nel computo.</p>}
+    {radiante ? <PavimentoRadiantePanel stato={stato} scalaIncerta={scalaIncerta} inPosa={posaCollettore} onCambia={onCambiaRadiante}
+      onPosa={onPosaCollettore} onCollettore={onCambiaCollettore} /> : <>
     {rete ? <>
       <label className="block space-y-1 text-xs font-medium"><span>Rete</span>
         <UniformSelect value={rete} onChange={e => { setPreferita(e.target.value as LineaImpianto); onScegli(""); }}>
@@ -108,5 +126,6 @@ export function TracciatiImpianti({ percorsi, daRicollegare, elementi, seleziona
         <Button variant="ghost" size="sm" className="h-7" onClick={() => onRipristina(chiaveTratto(t))}>Rimuovi</Button>
       </div>)}
     </div>}
+    </>}
   </aside>;
 }

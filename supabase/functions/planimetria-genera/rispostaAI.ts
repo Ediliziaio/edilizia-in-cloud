@@ -109,11 +109,18 @@ export const TIPI_ELEMENTO_AI = [
   "pilastro", "wc", "bidet", "lavabo", "doccia", "vasca", "lavatrice", "cucina", "frigorifero", "tavolo", "sedia",
   "letto_matrimoniale", "letto_singolo", "comodino", "armadio", "scrivania", "divano", "caldaia",
   "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "auto", "scala",
-  "piscina", "pergola", "albero",
+  "piscina", "pergola", "albero", "tenda", "quadro", "vetrinetta", "pianta_vaso", "scaldasalviette", "specchio_parete", "barbecue",
   "campo_tennis", "campo_padel", "campo_calcio5", "campo_calcio7", "campo_calcio11", "campo_basket", "campo_pallavolo", "campo_beach_volley", "campo_pickleball", "campo_bocce",
 ] as const;
 
 const SINONIMI_ELEMENTO: Array<[RegExp, string]> = [
+  [/scaldasalviett|termoarred/i, "scaldasalviette"],
+  [/tend[ae]\b/i, "tenda"],
+  [/quadro.*(paret|arte|astratt)|^quadro$/i, "quadro"],
+  [/vetrinett|vetrina.*(mobile|rovere)/i, "vetrinetta"],
+  [/pianta.*vaso|haworthia/i, "pianta_vaso"],
+  [/specchi/i, "specchio_parete"],
+  [/barbecue|grill/i, "barbecue"],
   [/pilastr|colonn/i, "pilastro"],
   [/padel/i, "campo_padel"],
   [/tennis/i, "campo_tennis"],

@@ -253,17 +253,55 @@ export default function RenderCategoryHub() {
 
   if (isScopriPlan) return <UpgradeScopriWall type="render_ai" inline />;
 
-  return <div className="space-y-5 sm:space-y-7">
-    <header className="flex flex-wrap items-start justify-between gap-4">
-      <div><h1 className="text-2xl font-bold tracking-tight">Render AI</h1><p className="mt-1 hidden text-sm text-muted-foreground sm:block">Crea nuove viste e ritrova i risultati, stanza per stanza.</p></div>
-      <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-        <RenderCreditsWidget />
-        {(permessi.isAdmin || permessi.canViewSettingsCustomization) && <Button asChild variant="ghost" size="sm" className="h-9 w-9 p-0 sm:w-auto sm:px-3"><Link to="/azienda/impostazioni/catalogo-render" aria-label="Catalogo render" title="Catalogo render"><Image className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Catalogo render</span></Link></Button>}
-        <Button asChild variant="outline" size="sm" className="h-9 w-9 p-0 sm:w-auto sm:px-3"><Link to={percorsiPlanimetrie.elenco} aria-label="Planimetrie e progetti" title="Planimetrie e progetti"><LayoutPanelTop className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Planimetrie e progetti</span></Link></Button>
-        <Button size="sm" className="px-2.5 text-xs sm:px-3 sm:text-sm" onClick={openModulePicker}><Plus className="mr-1.5 h-4 w-4" />Nuovo render</Button>
+  return <div className="mx-auto max-w-[96rem] space-y-6 sm:space-y-7">
+    <header className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Render AI</h1>
+        <div className="flex flex-wrap items-center gap-1 sm:gap-3">
+          {(permessi.isAdmin || permessi.canViewSettingsCustomization) && (
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/azienda/impostazioni/catalogo-render" aria-label="Catalogo render" title="Catalogo render">
+                <Image className="h-4 w-4 sm:mr-1.5" aria-hidden="true" />
+                <span className="hidden sm:inline">Catalogo render</span>
+              </Link>
+            </Button>
+          )}
+          <RenderCreditsWidget />
+        </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={openModulePicker}
+          aria-label="Nuovo render"
+          className="group flex min-w-0 items-center gap-3 rounded-xl bg-primary p-3.5 text-left text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:p-4"
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/15">
+            <Plus className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold sm:text-base">Nuovo render</span>
+            <span className="mt-0.5 block text-xs text-primary-foreground/90 sm:text-sm">Scegli un ambiente o un intervento e carica una foto.</span>
+          </span>
+          <ArrowUpRight className="h-4 w-4 shrink-0 opacity-75 group-hover:opacity-100" aria-hidden="true" />
+        </button>
+        <Link
+          to={percorsiPlanimetrie.elenco}
+          aria-label="Planimetrie e progetti"
+          className="group flex min-w-0 items-center gap-3 rounded-xl border bg-card p-3.5 shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:p-4"
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+            <LayoutPanelTop className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold sm:text-base">Planimetrie e progetti</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground sm:text-sm">Importa una tavola o apri un progetto per lavorare sulle stanze.</span>
+          </span>
+          <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden="true" />
+        </Link>
       </div>
     </header>
-    <RecentRendersPanel key={companyId} items={recentRenders} modules={categories} isLoading={history.isLoading} isFetching={history.isFetching} error={history.isError && !history.items.length ? history.error : null} onRefresh={() => { void history.refetch(); }} companyId={companyId} total={history.total} hasMore={history.hasNextPage} loadingMore={history.isFetchingNextPage} moreError={history.isFetchNextPageError} scanning={history.scanAll} onLoadMore={() => { void history.fetchNextPage(); }} onExpandHistory={history.expandHistory} onNewRender={openModulePicker} />
+    <RecentRendersPanel key={companyId} title="Archivio render" items={recentRenders} modules={categories} isLoading={history.isLoading} isFetching={history.isFetching} error={history.isError && !history.items.length ? history.error : null} onRefresh={() => { void history.refetch(); }} companyId={companyId} total={history.total} hasMore={history.hasNextPage} loadingMore={history.isFetchingNextPage} moreError={history.isFetchNextPageError} scanning={history.scanAll} onLoadMore={() => { void history.fetchNextPage(); }} onExpandHistory={history.expandHistory} onNewRender={openModulePicker} />
     <Dialog open={modulePicker} onOpenChange={setModulePicker}>
       <DialogContent className="max-h-[85dvh] max-w-4xl overflow-y-auto">
         <DialogHeader><DialogTitle>Che cosa vuoi trasformare?</DialogTitle><DialogDescription>Scegli un ambiente o un intervento per iniziare il render.</DialogDescription></DialogHeader>

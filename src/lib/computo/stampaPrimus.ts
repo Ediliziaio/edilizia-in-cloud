@@ -360,7 +360,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     const blocchi = ([
       ["Riferimenti dei prezzi", [i.riferimentoPrezzi, ...fonti.map((f, k) => `[${k + 1}] ${f}`)].filter(Boolean).join("\n")],
       ["Voci opzionali, non comprese nel totale", (i.vociOpzionali ?? []).map(o => `${o.descrizione.split("\n")[0]} - ${o.quantita ?? "-"} ${o.unita}${conPrezzi && o.importo != null ? `: ${formatEuro(o.importo)} €` : ""}`).join("\n")],
-      ["Piano dei pagamenti", testoPianoPagamenti(i.ratePagamento, i.ivaModalita === "applicata", i.mostraImporti !== false, i.ritenutaPagamenti)],
+      ["Piano dei pagamenti", testoPianoPagamenti(i.ratePagamento, i.ivaModalita === "applicata", conPrezzi, i.ritenutaPagamenti)],
       ["Modalità di pagamento", i.pagamenti ?? ""],
       ["Note e condizioni", i.condizioni ?? ""],
       ["Condizioni contrattuali", i.condizioniContrattuali ? [i.contrattoOrigine && `${i.contrattoOrigine.nome} · versione ${i.contrattoOrigine.versione}`, i.condizioniContrattuali].filter(Boolean).join("\n\n") : ""],

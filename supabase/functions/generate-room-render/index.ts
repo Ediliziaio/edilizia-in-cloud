@@ -27,7 +27,7 @@ import { contrattoModificheQaStanza, qualitaImmagineStanza, vincoloColoriSoffitt
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
 import { ROOM_REWRITER_PROFILE } from "../_shared/ai-provider/roomRewriterProfile.ts";
 import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
-import { bloccoPartenza3D, bloccoPianta, correzionePianta, righeQaPianta } from "../../../shared/render-planimetria/prompt.ts";
+import { bloccoModelliInquadrati, bloccoPartenza3D, bloccoPianta, correzionePianta, righeQaPianta } from "../../../shared/render-planimetria/prompt.ts";
 import { caricaPiantaDelRender } from "./pianta.ts";
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ Deno.serve(async (req: Request) => {
     const pianta = await caricaPiantaDelRender(
       supabase,
       companyId as string,
-      ((config || session.config) as Record<string, unknown> | null)?.planimetria,
+      (session.config as Record<string, unknown> | null)?.planimetria ?? (config as Record<string, unknown> | null)?.planimetria,
       (entry) => console.log(JSON.stringify({ fn: "generate-room-render", session_id, ...entry })),
     );
 
@@ -318,8 +318,10 @@ Deno.serve(async (req: Request) => {
 
       // Foto prodotto del catalogo dell'azienda: dichiarate qui perche' nella stanza
       // il prompt viene salvato PRIMA di generare, quindi la legenda va appesa ora.
-      let catalogReferences: ImageReferenceInput[] = materialBoards ? [...materialBoards] : [];
-      if (materialBoards) fullPrompt = `${fullPrompt}\n\n${buildSharedReferenceLegend(materialBoards, 2)}`;
+      const massimoCampioni = pianta?.immagine ? 3 : 4;
+      const campioniMateriali = materialBoards?.slice(0, massimoCampioni) ?? [];
+      let catalogReferences: ImageReferenceInput[] = [...campioniMateriali];
+      if (campioniMateriali.length) fullPrompt = `${fullPrompt}\n\n${buildSharedReferenceLegend(campioniMateriali, 2)}`;
       // CATALOGO RENDER — le foto dei prodotti dell'azienda scelte nel wizard
       // diventano immagini di riferimento per il modello, con una legenda appesa
       // DOPO la prosa (come le liste di preservazione).
@@ -332,8 +334,9 @@ Deno.serve(async (req: Request) => {
           log: (entry) => console.log(JSON.stringify({ fn: "generate-room-render", session_id, ...entry })),
         });
         if (catalogo.references.length > 0) {
-          catalogReferences = catalogo.references;
-          fullPrompt = `${fullPrompt}\n\n${catalogo.legend}`;
+          catalogReferences = catalogo.references.slice(0, massimoCampioni);
+          const legenda = catalogReferences.length === catalogo.references.length ? catalogo.legend : buildSharedReferenceLegend(catalogReferences, 2);
+          fullPrompt = `${fullPrompt}\n\n${legenda}`;
         }
         if (catalogo.missing.length > 0) {
           console.warn(JSON.stringify({
@@ -404,7 +407,10 @@ Deno.serve(async (req: Request) => {
       }
 
       if (pianta?.partenza === "vista_3d") {
-        fullPrompt += `\n\nFINAL INVENTORY CONTRACT — floorplan furniture counts in this room: ${JSON.stringify(pianta.inventario)}. Render ONLY the existing items visible in Image 1, at the same footprints. ${pianta.inventario.mobile_tv ? "The saved mobile_tv item is an EXISTING low media cabinet PLUS its TV screen, not just a screen. Render that cabinet and screen in their original footprint; it is not an added piece of furniture." : "Never add a media cabinet or console beneath a screen when no such item is in the saved inventory or visibly present in the source."} Do not furnish empty adjoining rooms visible through doorways. Material and style panels never authorize additional furniture. Explicit user additions or full furniture replacement may override this inventory; a request to preserve the layout does not.`;
+        const modelli = bloccoModelliInquadrati(pianta.modelliInquadrati);
+        if (modelli) fullPrompt += `\n\n${modelli}`;
+        fullPrompt += "\n\nFINAL INVENTORY CONTRACT — render the existing items visible in Image 1 at their source footprints and scale. Match each visible part of a cabinet, sanitary fixture or appliance to its own outline. Keep out-of-frame items out of frame. Do not furnish empty adjoining rooms visible through doorways. Material and style panels never authorize new furniture. Explicit user additions or full furniture replacement may override the visible inventory.";
+        if (pianta.inventario.mobile_tv) fullPrompt += " If a media cabinet and TV are visible in the source, preserve their visible parts as one paired unit.";
       }
       if (pianta?.materiali.pavimento || pianta?.materiali.infissi) fullPrompt += "\n\nPROJECT MATERIALS TAKE PRIORITY over ready-made style descriptions. Keep the selected common floor and window material/finish identical across rooms; never replace them to match a style example.";
 
@@ -505,7 +511,7 @@ Deno.serve(async (req: Request) => {
       try {
         providerResult = await generateCandidate(fullPrompt, true);
       } catch (primoErr) {
-        if (qualitaAlta) throw primoErr;
+        if (qualitaAlta || pianta) throw primoErr;
         console.warn(JSON.stringify({
           lvl: "warn", fn: "generate-room-render", session_id,
           msg: "provider_diretto_fallito_si_passa_alla_catena",
@@ -524,6 +530,7 @@ Deno.serve(async (req: Request) => {
       let renderNonConforme = false;
       let qaAudit: { checked: boolean; pass: boolean; model: string; issues: Array<{ category: string; detail: string }> } | null = null;
       const contestoQa = { daPianta: !!pianta, materiali: !!materialBoards, da3D: pianta?.partenza === "vista_3d" };
+      const riferimentiQa = [...campioniMateriali, ...(pianta?.immagine ? [pianta.immagine] : [])];
       try {
         const qaPrompt = [
           pianta?.partenza === "vista_3d" ? "You inspect whether a floorplan render faithfully preserves the source geometry and the identity and position of every visible furniture item. Photorealism and styling do not excuse moved, swapped or invented objects." : "You are a LENIENT quality inspector for an interior room restyling render.",
@@ -537,14 +544,19 @@ Deno.serve(async (req: Request) => {
           ...(ceilingColourLock ? [ceilingColourLock] : []),
           'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
           "Fail ONLY on clear, unambiguous violations:",
-          ...(materialBoards ? ["Images 3 onward are the selected-material boards. Compare the CANDIDATE with every numbered panel ONLY on the panel's named target.", "- selected_material_mismatch: an explicitly selected wallpaper motif, floor/wood grain, cladding, furniture material, curtain, ceiling or fixture is clearly missing or substituted by a different one. Respect explicit colour overrides and dimensions; do not fail for minor lighting differences."] : []),
+          ...(campioniMateriali.length ? [`Images 3 through ${2 + campioniMateriali.length} are the selected-material boards. Compare the CANDIDATE with each panel only on its named target.`, "- selected_material_mismatch: an explicitly selected wallpaper motif, floor/wood grain, cladding, furniture material, curtain, ceiling or fixture is clearly missing or substituted by a different one. Respect explicit colour overrides and dimensions; do not fail for minor lighting differences."] : []),
+          ...(pianta?.immagine ? [`Image ${3 + campioniMateriali.length} is the saved floor plan, viewed from above. Use it to verify the wall arrangement and openings together with the SOURCE viewpoint. Do not expect hidden doors or windows to appear in the candidate view.`] : []),
           "- duplicated_furniture: the candidate shows TWO of a fixture that exists once (two beds in one bedroom, two identical sofas, two dining tables).",
           "- invented_openings: windows or doors added, removed or relocated compared to the source walls.",
           "- geometry_change: camera angle, perspective or crop clearly different from the source.",
           "- unrealistic_scale: furniture rendered at impossible size for the room.",
           ...QA_BLOCCO_RICOMPOSIZIONE_RESTYLING,
           ...(pianta ? righeQaPianta(pianta.vincoli, { partenza: pianta.partenza, inquadrate: pianta.inquadrate }) : []),
-          pianta?.partenza === "vista_3d" ? "PASS only when visible items keep their identities and source positions, openings and selected materials are preserved, and no unrequested furniture or rug appears. Compare labelled source positions when supplied. A toilet swapped with a washing machine, a shifted bed or a missing desk is a geometry_change even when the total count matches. Explicitly requested additions, full furniture replacement, ceiling details and colour overrides remain allowed." : materialBoards ? "When in doubt, PASS. Fail only clear geometry violations or clear substitutions of the selected material/pattern/fixture shown in the boards. An intentional colour override from the brief is allowed." : "When in doubt, PASS. Style and furniture CHANGES are expected and fine — only duplications, invented openings and geometry breaks fail.",
+          ...(pianta?.modelliInquadrati.length ? [
+            bloccoModelliInquadrati(pianta.modelliInquadrati),
+            "- selected_material_mismatch: flag a clear change of model or mounting visibly contradicted by Image 1, such as a floor pedestal added below a wall-hung toilet or a vessel placed on an inset countertop. Ignore small lighting differences and details hidden in the source. Honour explicit replacement requests for that item.",
+          ] : []),
+          pianta?.partenza === "vista_3d" ? "PASS only when visible items keep their identities and source positions, openings and selected materials are preserved, and no unrequested furniture or rug appears. Use supplied image coordinates to distinguish different objects. Compare what is visible at the edges without guessing the hidden part. A toilet swapped with a washing machine, a shifted bed or a missing desk is a geometry_change even when the total count matches. Explicitly requested additions, full furniture replacement, ceiling details and colour overrides remain allowed." : materialBoards ? "When in doubt, PASS. Fail only clear geometry violations or clear substitutions of the selected material/pattern/fixture shown in the boards. An intentional colour override from the brief is allowed." : "When in doubt, PASS. Style and furniture CHANGES are expected and fine — only duplications, invented openings and geometry breaks fail.",
         ].join("\n");
 
         const sourceBytes = new Uint8Array(await imgBlob.arrayBuffer());
@@ -557,7 +569,7 @@ Deno.serve(async (req: Request) => {
           sourceImageDataUrl: sourceDataUrl,
           candidateImageDataUrl: providerResult.imageDataUrl,
           qaPrompt,
-          referenceImages: materialBoards ?? undefined,
+          referenceImages: riferimentiQa.length ? riferimentiQa : undefined,
           ...(qualitaAlta ? { models: ["anthropic/claude-sonnet-4.5", "anthropic/claude-haiku-4.5"] } : {}),
           timeoutMs: Math.max(1_000, Math.min(18_000, STANZA_BUDGET_MS - jobElapsed() - 8_000)),
           metadata: {
@@ -657,7 +669,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
           }));
         }
         if (renderNonConforme && generationAttempts > 1) {
-          const verifica = await callVisionQa({ requireExplicitPass: !!pianta, sourceImageDataUrl: sourceDataUrl, candidateImageDataUrl: providerResult.imageDataUrl, qaPrompt, referenceImages: materialBoards ?? undefined, timeoutMs: Math.max(1_000, Math.min(18_000, STANZA_BUDGET_MS - jobElapsed() - 8_000)), metadata: { task_kind: "render_image_qa", company_id: companyId as string, session_id } });
+          const verifica = await callVisionQa({ requireExplicitPass: !!pianta, sourceImageDataUrl: sourceDataUrl, candidateImageDataUrl: providerResult.imageDataUrl, qaPrompt, referenceImages: riferimentiQa.length ? riferimentiQa : undefined, timeoutMs: Math.max(1_000, Math.min(18_000, STANZA_BUDGET_MS - jobElapsed() - 8_000)), metadata: { task_kind: "render_image_qa", company_id: companyId as string, session_id } });
           qaAudit = { checked: verifica.checked, pass: verifica.pass, model: verifica.modelUsed, issues: verifica.issues.map((issue) => typeof issue === "string" ? { category: "unspecified", detail: issue } : issue) };
           renderNonConforme = rifiutaRenderStanza(qaAudit, contestoQa, true);
         }
@@ -670,6 +682,12 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
       }
       // Il candidato finale deve avere un controllo positivo: anche un errore del QA ferma i render da pianta.
       renderNonConforme = renderNonConforme || rifiutaRenderStanza(qaAudit, contestoQa);
+      if (pianta && srcW && srcH) {
+        const dimensioni = detectImageDimensions(dataUrlToBytes(providerResult.imageDataUrl).bytes);
+        if (!dimensioni || describeFormatMismatch({ width: srcW, height: srcH }, dimensioni)) {
+          throw new Error("Il render ha un’inquadratura con proporzioni diverse dalla vista di partenza. Il credito viene restituito.");
+        }
+      }
       if (renderNonConforme) {
         // Campione rifiutato conservato PRIVATO per distinguere un difetto reale da un falso positivo QA.
         let rejectedPath: string | null = null;

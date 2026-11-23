@@ -688,8 +688,8 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       }
       const contorniDaVerificare = piani.reduce((tot, piano) => tot + (piano.contorniDaVerificare ?? 0), 0);
       if (contorniDaVerificare > 0) {
-        const messaggio = contorniDaVerificare === 1 ? "Un contorno di locale da verificare. Controlla la destinazione e le misure sulla tavola."
-          : `${contorniDaVerificare} contorni di locali da verificare. Controlla destinazioni e misure sulla tavola.`;
+        const trovati = contorniDaVerificare === 1 ? "Un contorno di locale stimato" : `${contorniDaVerificare} contorni di locali stimati`;
+        const messaggio = `${trovati}. Confronta il DWG originale per verificare destinazioni, aperture e locali mancanti prima di usare le superfici nel computo.`;
         avvisi.push(messaggio);
         documento.riferimenti.note += " " + messaggio;
       }

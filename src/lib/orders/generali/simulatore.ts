@@ -26,6 +26,7 @@ import {
 } from "@/lib/orders/generali/investitoriConti";
 import type { OrigineIpotesi } from "./simulatoreImport";
 import { storedContractFromDraft } from "../contractPreparation";
+import type { FonteStudio } from "@/lib/planimetrie/studioImmobiliare";
 
 export const MODELLI_SIMULATI = ["sviluppo", "compravendita"] as const;
 export type ModelloSimulato = typeof MODELLI_SIMULATI[number];
@@ -34,6 +35,7 @@ export const isModelloSimulato = (v: unknown): v is ModelloSimulato => v === "sv
 /** Un tipo di unità da vendere: «6 appartamenti da 95 m² a 3.200 €/m²», «2 box da 15 m²». */
 export interface Tipologia {
   id: string;
+  sigla?: string;
   nome: string;
   quante: number;
   /** m² commerciali di una unità. */
@@ -82,6 +84,7 @@ export interface VoceAggiunta {
 
 export interface Ipotesi {
   importazione?: OrigineIpotesi;
+  planimetria?: FonteStudio & { confermata: boolean; computoImportato?: boolean };
   versione: 1;
   modello: ModelloSimulato;
   /** Il mese dell'acquisto, «2027-01». */
@@ -167,9 +170,14 @@ export function leggiIpotesi(dati: unknown, modello: ModelloSimulato, oggi: Mese
   const source = imp.originale && typeof imp.originale === "object" ? imp.originale as Record<string, unknown> : {};
   const sourceCompany = typeof source.path === "string" ? source.path.split("/")[0] : "";
   const originale = storedContractFromDraft(source, sourceCompany);
+  const f = d.planimetria && typeof d.planimetria === "object" ? d.planimetria as Record<string,unknown> : {};
+  const planimetria = typeof f.planimetriaId === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(f.planimetriaId)
+    && typeof f.versione === "number" && Number.isSafeInteger(f.versione) && f.versione > 0 && typeof f.varianteId === "string" && /^[-\w]{1,36}$/.test(f.varianteId)
+    ? { planimetriaId: f.planimetriaId, versione: f.versione, varianteId: f.varianteId, confermata: f.confermata === true, computoImportato: f.computoImportato === true } : null;
   const tipologie = Array.isArray(d.tipologie)
     ? (d.tipologie as Record<string, unknown>[]).filter((t) => t && typeof t === "object").map((t) => ({
       id: str(t.id, nuovoId()),
+      ...(typeof t.sigla === "string" && !!t.sigla.trim() && t.sigla.length <= 40 ? { sigla:t.sigla.trim() } : {}),
       nome: str(t.nome, "Unità"),
       quante: Math.max(0, Math.round(num(t.quante, 0))),
       mq: Math.max(0, num(t.mq, 0)),
@@ -190,6 +198,7 @@ export function leggiIpotesi(dati: unknown, modello: ModelloSimulato, oggi: Mese
   }
   return {
     versione: 1,
+    ...(planimetria ? { planimetria } : {}),
     ...(originale && typeof imp.hash === "string" && /^[a-f0-9]{64}$/.test(imp.hash) && typeof imp.scenario === "string" ? { importazione: { originale, hash: imp.hash, scenario: imp.scenario, confermata: imp.confermata === true, avvisi: Array.isArray(imp.avvisi) ? imp.avvisi.filter((a): a is string => typeof a === "string") : [] } } : {}),
     modello,
     inizio: p.inizio,
@@ -458,6 +467,7 @@ export function fontiIpotesi(ip: Ipotesi): Fonte[] {
 export interface NumeriIpotesi {
   ricavi: number;
   costi: number;
+  costoLavori: number;
   /** Prima del costo del debito. */
   margine: number;
   marginePct: number | null;
@@ -518,6 +528,7 @@ export function calcolaIpotesi(ip: Ipotesi, leve: Leve = {}): RisultatoIpotesi {
   const numeri: NumeriIpotesi = {
     ricavi: ind.ricavi,
     costi: ind.costi,
+    costoLavori: simulate.find(v => v.chiave === "costruzione")?.importo ?? 0,
     margine: ind.margine,
     marginePct: ind.marginePct,
     oneriFinanziari,
@@ -597,6 +608,7 @@ export interface Metrica {
 export const METRICHE: Metrica[] = [
   { chiave: "ricavi", nome: "Ricavi", formato: "euro", meglio: "alto" },
   { chiave: "costi", nome: "Costi", formato: "euro", meglio: "basso" },
+  { chiave: "costoLavori", nome: "Costo lavori", formato: "euro", meglio: "basso" },
   { chiave: "margine", nome: "Margine prima degli interessi", formato: "euro", meglio: "alto" },
   { chiave: "marginePct", nome: "Margine sui ricavi", formato: "percento", meglio: "alto" },
   { chiave: "oneriFinanziari", nome: "Interessi e spese del debito", formato: "euro", meglio: "basso" },

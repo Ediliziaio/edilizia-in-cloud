@@ -1,6 +1,6 @@
 import { ControlloUsoBloccato } from "@/components/planimetrie/ControlloPrimaDellUso";
 import { controlloPrimaDellUso, esigiVerificaDocumento } from "../../../shared/planimetrie/verificaDocumento.ts";
-import { applicaMaterialiProgetto, materialiDelProgetto, descrizionePavimento, PROFILI_PROGETTO, COLORI_INFISSI_PROGETTO } from "../../../shared/planimetrie/materialiProgetto.ts";
+import { applicaMaterialiProgetto, materialiDellaStanza, descrizionePavimento, PROFILI_PROGETTO, COLORI_INFISSI_PROGETTO } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { preparaMaterialiStanza } from "@/lib/render/roomMaterialsBoard";
 /**
  * «Fai il render di questa stanza» da una pianta (Planimetrie, fase 5b).
@@ -16,7 +16,7 @@ import { preparaMaterialiStanza } from "@/lib/render/roomMaterialsBoard";
  * rilegge dalla pianta salvata: dal browser arriva solo la scelta.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Box, Camera, CheckCircle2, Download, ImagePlus, Loader2, RefreshCw, Sofa, Upload, Wand2, Zap } from "lucide-react";
 import { toast } from "sonner";
@@ -33,11 +33,13 @@ import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { StanzaConfigForm, DEFAULT_STANZA_CONFIG } from "@/components/render-stanza/StanzaConfigForm";
 import { Vista3DPigra, type Fotogramma } from "@/components/planimetrie/Vista3DPigra";
+import type { InquadraturaVista3D } from "@/components/planimetrie/Vista3D";
 import { pianteDaPlanimetria } from "@/lib/planimetrie/tred";
-import { descrizioneArrediInquadrati } from "@/lib/planimetrie/tred/inquadraturaArredi";
-import { configPerApertureInquadrate } from "@/lib/planimetrie/render/configFotogramma";
-import { usePlanimetria } from "@/lib/planimetrie/archivio";
-import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
+import { configPerApertureInquadrate, riferimentiFotogramma } from "@/lib/planimetrie/render/configFotogramma";
+import { leggiFotogrammaDaCycles } from "@/lib/planimetrie/render/fotogrammaDaCycles";
+import { pavimentoDaCampione } from "../../../shared/planimetrie/materialiProgetto.ts";
+import { usePlanimetria, useVersionePlanimetria } from "@/lib/planimetrie/archivio";
+import { percorsoVariantePlanimetria, percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import { chiaviRenderPianta, fraseErroreRender, pngDaSvg, tipoStanzaDaDestinazione, type PlanimetriaNelRender } from "@/lib/planimetrie/render/renderDallaPianta";
 import { preloadImage } from "@/lib/render/preloadImage";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
@@ -66,11 +68,28 @@ function dimensioniImmagine(url: string): Promise<{ w: number; h: number } | nul
 export default function RenderPlanimetriaStanza() {
   const { id = "", localeId: localeParam = "" } = useParams();
   const [params] = useSearchParams();
+  return <EditorRenderStanza key={`${id}:${localeParam}:${params}`}/>;
+}
+
+function EditorRenderStanza() {
+  const { id = "", localeId: localeParam = "" } = useParams();
+  const [params] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const statoNavigazione = location.state as { inquadratura3D?: InquadraturaVista3D; cycles?: string } | null;
+  const vistaScelta = statoNavigazione?.inquadratura3D;
+  const [daCycles] = useState(() => leggiFotogrammaDaCycles(location.pathname + location.search, statoNavigazione?.cycles));
+  const inquadratura = vistaScelta?.localeId === localeParam ? vistaScelta : undefined;
   const queryClient = useQueryClient();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
-  const { data, isLoading, error } = usePlanimetria(id);
+  const corrente = usePlanimetria(id);
+  const numeroRichiesto = Number(params.get("versione"));
+  const storica = !!corrente.data && Number.isSafeInteger(numeroRichiesto) && numeroRichiesto>0 && numeroRichiesto!==corrente.data.versione.numero;
+  const revisione = useVersionePlanimetria(storica ? id : null,storica ? numeroRichiesto : null);
+  const data = storica ? revisione.data && corrente.data ? {...corrente.data,versione:revisione.data} : undefined : corrente.data;
+  const isLoading = corrente.isLoading || (storica && revisione.isLoading);
+  const error = corrente.error || (storica ? revisione.error : null);
   const documento = data?.versione.documento;
 
   const livelloId = params.get("livello") ?? documento?.livelli[0]?.id ?? "";
@@ -78,6 +97,12 @@ export default function RenderPlanimetriaStanza() {
   // «com'è oggi» invece del progetto: il render segue l'inquadratura scelta.
   const [scelta, setScelta] = useState<{ ambito: string; localeId: string }>({ ambito: params.get("ambito") ?? "fatto", localeId: localeParam });
   const materialiAmbito = params.get("materiali_ambito") ?? scelta.ambito;
+  const ambitoRitorno = materialiAmbito.startsWith("progetto:") ? materialiAmbito : scelta.ambito;
+  const percorsoPianta = id ? percorsoVariantePlanimetria({
+    planimetriaId:id,versione:data?.versione.numero ?? (numeroRichiesto>0 ? numeroRichiesto : 1),
+    varianteId:ambitoRitorno.startsWith("progetto:") ? ambitoRitorno.slice(9) : "",
+  },{livello:livelloId,torna:params.get("torna") ?? undefined}) : percorsiPlanimetrie.elenco;
+  const tornaAllaPianta = id && inquadratura ? percorsoPianta + "&vista=3d&locale=" + encodeURIComponent(localeParam) : percorsoPianta;
   const vincoli = useMemo(
     () => (documento ? vincoliDellaStanza(documento, { livello_id: livelloId, ambito: scelta.ambito, locale_id: scelta.localeId }) : null),
     [documento, livelloId, scelta],
@@ -85,17 +110,19 @@ export default function RenderPlanimetriaStanza() {
   const propostaId = scelta.ambito.startsWith("progetto:") ? scelta.ambito.slice("progetto:".length) : undefined;
   const piante3D = useMemo(() => (documento ? pianteDaPlanimetria(documento, { livelloId, propostaId, ...(params.get("materiali_ambito") ? { materialiAmbito } : {}) }) : null), [documento, livelloId, propostaId, params, materialiAmbito]);
 
-  const [passo, setPasso] = useState<Passo>(1);
+  const [passo, setPasso] = useState<Passo>(daCycles ? 2 : 1);
   const [partenza, setPartenza] = useState<PartenzaRender>("vista_3d");
   const [foto, setFoto] = useState<File | null>(null);
-  const [fotogramma, setFotogramma] = useState<Fotogramma | null>(null);
+  const [fotogramma, setFotogramma] = useState<Fotogramma | null>(daCycles?.fotogramma ?? null);
   const [anteprima, setAnteprima] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [config, setConfig] = useState<ConfigurazioneStanza>(() => ({ ...structuredClone(DEFAULT_STANZA_CONFIG), qualita_render: "alta" }));
-  const [eccezionePavimento, setEccezionePavimento] = useState(false);
-  const materialiComuni = documento ? materialiDelProgetto(documento, materialiAmbito) : {};
-  const configEffettiva = applicaMaterialiProgetto({ ...config, eccezioni_materiali_progetto: { pavimento: eccezionePavimento } }, materialiComuni);
+  const [config, setConfig] = useState<ConfigurazioneStanza>(() => ({ ...structuredClone(DEFAULT_STANZA_CONFIG), qualita_render: "alta",
+    ...(daCycles?.pavimento ? { pavimento: pavimentoDaCampione(daCycles.pavimento) } : {}),
+  }));
+  const [eccezionePavimento, setEccezionePavimento] = useState(!!daCycles?.pavimento);
+  const materiali = useMemo(()=>documento ? materialiDellaStanza(documento,materialiAmbito,vincoli?.locale.finiture) : {},[documento,materialiAmbito,vincoli]);
+  const configEffettiva = applicaMaterialiProgetto({ ...config, eccezioni_materiali_progetto: { pavimento: eccezionePavimento } }, materiali);
   const configIniziale = useRef(false);
   useEffect(() => {
     if (!vincoli || configIniziale.current) return;
@@ -120,9 +147,15 @@ export default function RenderPlanimetriaStanza() {
     orologio.current = null;
   }, []);
   useEffect(() => fermaAttesa, [fermaAttesa]);
-  useEffect(() => () => {
-    if (anteprima?.startsWith("blob:")) URL.revokeObjectURL(anteprima);
-  }, [anteprima]);
+  const immagine = partenza === "foto" ? foto : fotogramma?.png;
+  useEffect(() => {
+    const url = immagine ? URL.createObjectURL(immagine) : null;
+    const frame = requestAnimationFrame(() => setAnteprima(url));
+    return () => {
+      cancelAnimationFrame(frame);
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [immagine]);
 
   const scegliFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -134,7 +167,6 @@ export default function RenderPlanimetriaStanza() {
     }
     setFoto(f);
     setFotogramma(null);
-    setAnteprima(URL.createObjectURL(f));
     setSessione(null);
   };
 
@@ -158,7 +190,6 @@ export default function RenderPlanimetriaStanza() {
     }
     setFotogramma(f);
     setFoto(null);
-    setAnteprima(URL.createObjectURL(f.png));
     setSessione(null);
   };
 
@@ -198,7 +229,9 @@ export default function RenderPlanimetriaStanza() {
         fermaAttesa();
         setInCorso(false);
         setPasso(2);
-        toast.error(r.error_message?.includes("insufficient_credits") ? "Crediti render finiti: ricaricali per continuare." : "Il render non è riuscito: il credito è stato restituito. Riprova.");
+        const errore = r.error_message ?? "";
+        const esitoControllo = /^(?:Il render non rispetta la pianta|Il render ha un’inquadratura|Il controllo di porte, finestre)/.test(errore);
+        toast.error(esitoControllo || errore.includes("insufficient_credits") ? fraseErroreRender(errore) : "Il render non è riuscito: il credito è stato restituito. Riprova.");
         return;
       }
       timer.current = setTimeout(giro, ATTESE[Math.min(giri++, ATTESE.length - 1)]);
@@ -216,9 +249,8 @@ export default function RenderPlanimetriaStanza() {
     setSalvato(false);
     try {
       esigiVerificaDocumento(data.versione.documento, "render");
-      const posizioni = partenza === "vista_3d" && fotogramma && fotogramma.metadati.arredi_inclusi !== false && piante3D ? descrizioneArrediInquadrati(fotogramma.metadati.vista === "fatto" ? piante3D.fatto : piante3D.progetto, fotogramma.metadati.locale.id, fotogramma.metadati.telecamera, fotogramma.metadati.telecamera.larghezza_px / fotogramma.metadati.telecamera.altezza_px) : "";
       const scelteInquadrate = partenza === "vista_3d" && fotogramma ? configPerApertureInquadrate(config, fotogramma.metadati) : config;
-      const configRender = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...scelteInquadrate, note_libere: [posizioni, config.note_libere].filter(Boolean).join("\n"), eccezioni_materiali_progetto: { pavimento: eccezionePavimento } }, materialiDelProgetto(data.versione.documento, materialiAmbito)), companyId);
+      const configRender = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...scelteInquadrate, eccezioni_materiali_progetto: { pavimento: eccezionePavimento } }, materiali), companyId);
       let sid = sessione;
       const rif: PlanimetriaNelRender = {
         planimetria_id: id,
@@ -229,9 +261,7 @@ export default function RenderPlanimetriaStanza() {
         locale_id: scelta.localeId,
         locale_nome: vincoli.locale.nome,
         partenza,
-        inquadrate: partenza === "vista_3d" && fotogramma
-          ? fotogramma.metadati.aperture_visibili.map((a) => ({ id: a.id, posizione: a.posizione, riquadro: a.riquadro }))
-          : [],
+        ...(partenza === "vista_3d" && fotogramma ? riferimentiFotogramma(fotogramma.metadati) : {}),
         pianta_path: null,
       };
       if (!sid) {
@@ -263,10 +293,11 @@ export default function RenderPlanimetriaStanza() {
       } else {
         const { data: vecchia } = await supabase.from("render_stanza_sessions").select("config").eq("id", sid).single();
         rif.pianta_path = ((vecchia as { config?: { planimetria?: PlanimetriaNelRender } } | null)?.config?.planimetria?.pianta_path) ?? null;
-        await supabase
+        const { error: errAggiornamento } = await supabase
           .from("render_stanza_sessions")
           .update({ config: { ...configRender, planimetria: rif } as never, status: "pending", result_urls: null, error_message: null })
           .eq("id", sid);
+        if (errAggiornamento) throw new Error("Non riesco a salvare la vista e le impostazioni della stanza. Riprova.");
       }
 
       const dim = anteprima ? await dimensioniImmagine(anteprima) : null;
@@ -294,7 +325,7 @@ export default function RenderPlanimetriaStanza() {
       setPasso(2);
       toast.error(fraseErroreRender(e instanceof Error ? e.message : ""));
     }
-  }, [anteprima, companyId, config, eccezionePavimento, controlla, data, fermaAttesa, foto, fotogramma, id, inCorso, livelloId, materialiAmbito, partenza, piante3D, scelta, sessione, user, vincoli]);
+  }, [anteprima, companyId, config, eccezionePavimento, controlla, data, fermaAttesa, foto, fotogramma, id, inCorso, livelloId, materiali, materialiAmbito, partenza, scelta, sessione, user, vincoli]);
 
   const salvaInGalleria = async () => {
     if (!sessione) return;
@@ -309,7 +340,7 @@ export default function RenderPlanimetriaStanza() {
     setSalvato(true);
     void queryClient.invalidateQueries({ queryKey: chiaviRenderPianta.dellaPianta(id) });
     toast.success(`Salvato nella galleria di «${vincoli?.locale.nome ?? "questa stanza"}»`, {
-      action: { label: "Apri", onClick: () => navigate(`${percorsiPlanimetrie.pianta(id)}?galleria=${encodeURIComponent(scelta.localeId)}`) },
+      action: { label: "Apri", onClick: () => navigate(`${tornaAllaPianta}&galleria=${encodeURIComponent(scelta.localeId)}`) },
     });
   };
 
@@ -328,7 +359,7 @@ export default function RenderPlanimetriaStanza() {
           <CardContent className="space-y-3 p-6 text-sm">
             <p>{error instanceof Error ? error.message : "Questa stanza non si trova nella pianta: forse è stata cambiata."}</p>
             <Button asChild variant="outline" size="sm">
-              <Link to={id ? percorsiPlanimetrie.pianta(id) : percorsiPlanimetrie.elenco}>Torna alla pianta</Link>
+              <Link to={tornaAllaPianta}>Torna alla pianta</Link>
             </Button>
           </CardContent>
         </Card>
@@ -336,7 +367,8 @@ export default function RenderPlanimetriaStanza() {
     );
   }
 
-  if (!controlloPrimaDellUso(documento, "render").ok) return <div className="mx-auto max-w-3xl space-y-4"><ControlloUsoBloccato documento={documento} uso="render" modifica={percorsiPlanimetrie.modifica(id)} /><Button asChild variant="outline"><Link to={percorsiPlanimetrie.pianta(id)}>Torna alla pianta</Link></Button></div>;
+  const renderDaVerificare = !controlloPrimaDellUso(documento, "render").ok;
+  if (renderDaVerificare && !inquadratura) return <div className="mx-auto max-w-3xl space-y-4"><ControlloUsoBloccato documento={documento} uso="render" modifica={percorsiPlanimetrie.modifica(id,livelloId)} /><Button asChild variant="outline"><Link to={tornaAllaPianta}>Torna alla pianta</Link></Button></div>;
 
   const misureStimate = vincoli.locale.stimata || vincoli.aperture.some((a) => a.stimata);
 
@@ -345,9 +377,9 @@ export default function RenderPlanimetriaStanza() {
       <RenderWizardHeader
         onBack={() => {
           if (passo === 2 && !inCorso) setPasso(1);
-          else if (passo !== 3) navigate(percorsiPlanimetrie.pianta(id));
+          else if (passo !== 3) navigate(tornaAllaPianta);
         }}
-        eyebrow={data.riga.titolo}
+        eyebrow={`${data.riga.titolo} · Versione ${data.versione.numero}`}
         title={`Render: ${vincoli.locale.nome}`}
         mobileTitle={vincoli.locale.nome}
         description="Il render rispetta le misure della stanza e tiene porte e finestre dove sono nella pianta."
@@ -356,6 +388,10 @@ export default function RenderPlanimetriaStanza() {
         currentStep={passo}
         accent="blue"
       />
+      {renderDaVerificare && <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+        L’inquadratura è pronta da esplorare. Verifica la tavola prima di generare il render.{" "}
+        <Link to={percorsoPianta + "&sezione=verifica"} className="font-semibold underline underline-offset-2">Apri le verifiche</Link>
+      </p>}
 
       {/* La stanza come la vede il render: misure e aperture con i loro nomi. */}
       {passo <= 2 && (
@@ -381,7 +417,7 @@ export default function RenderPlanimetriaStanza() {
               )}
               {misureStimate && (
                 <p className="text-xs text-primary">
-                  Alcune misure sono state dedotte dall'AI e nessuno le ha ancora controllate: il render le usa come indicative. Confermale nella pianta per un risultato più fedele.
+                  Alcune quote della stanza e delle aperture sono indicative. Confrontale con la tavola originale o il rilievo prima di confermarle nell’editor.
                 </p>
               )}
             </div>
@@ -415,6 +451,10 @@ export default function RenderPlanimetriaStanza() {
                   modoIniziale="dentro"
                   vistaIniziale={scelta.ambito === "fatto" ? "fatto" : "progetto"}
                   localeIniziale={scelta.localeId}
+                  telecameraIniziale={inquadratura?.telecamera}
+                  proporzioniIniziali={inquadratura?.proporzioni}
+                  aspettoIniziale={inquadratura?.aspetto}
+                  archivioInquadrature={{ planimetriaId: id, livelloId }}
                   onFotogramma={usaVista}
                 />
                 {fotogramma && anteprima && (
@@ -470,7 +510,14 @@ export default function RenderPlanimetriaStanza() {
             <div className="relative h-40 overflow-hidden rounded-xl">
               <img src={anteprima} alt="Partenza" className="h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              <div className="absolute bottom-2 left-3 text-xs font-medium text-white">{partenza === "foto" ? "Foto caricata" : "Vista del 3D"}</div>
+              <div className="absolute bottom-2 left-3 text-xs font-medium text-white">{partenza === "foto" ? "Foto caricata" : daCycles?.fotogramma === fotogramma ? "Render Cycles della pianta" : "Vista del 3D"}</div>
+              {partenza === "vista_3d" && daCycles?.fotogramma === fotogramma && (
+                <Button asChild variant="secondary" size="sm" className="absolute right-2 top-2 gap-1.5">
+                  <a href={anteprima} download={`cycles-${vincoli.locale.id.replace(/[^a-z0-9_-]+/gi, "-")}.png`}>
+                    <Download className="size-4" aria-hidden="true" />Scarica immagine Cycles
+                  </a>
+                </Button>
+              )}
             </div>
           )}
           <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
@@ -481,14 +528,14 @@ export default function RenderPlanimetriaStanza() {
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
-              {(materialiComuni.pavimento || materialiComuni.infissi) && <div className="mb-4 space-y-2 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-semibold">Materiali comuni del progetto</p>{materialiComuni.pavimento && <><p>{descrizionePavimento(materialiComuni.pavimento)}</p><label className="flex items-center gap-2"><input type="checkbox" checked={eccezionePavimento} onChange={(e) => setEccezionePavimento(e.target.checked)} />Usa un pavimento diverso solo per questo render</label></>}{materialiComuni.infissi && <p>Infissi: {PROFILI_PROGETTO[materialiComuni.infissi.profilo]}, {COLORI_INFISSI_PROGETTO[materialiComuni.infissi.colore].nome}. Stesso materiale, misure proprie di ogni apertura.</p>}<Link className="inline-block underline" to={percorsiPlanimetrie.pianta(id)}>Modifica i materiali per tutte le stanze</Link></div>}
-              <StanzaConfigForm value={configEffettiva} onChange={setConfig} pavimentoBloccato={!!materialiComuni.pavimento && !eccezionePavimento} companyId={companyId} />
+              {(materiali.pavimento || materiali.infissi) && <div className="mb-4 space-y-2 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-semibold">Materiali dalla planimetria</p>{materiali.pavimento && <><p>{descrizionePavimento(materiali.pavimento)}</p><label className="flex items-center gap-2"><input type="checkbox" checked={eccezionePavimento} onChange={(e) => setEccezionePavimento(e.target.checked)} />Usa un pavimento diverso solo per questo render</label></>}{materiali.infissi && <p>Infissi {PROFILI_PROGETTO[materiali.infissi.profilo]} · {COLORI_INFISSI_PROGETTO[materiali.infissi.colore].nome}</p>}<Link className="inline-block underline" to={tornaAllaPianta}>Apri la planimetria</Link></div>}
+              <StanzaConfigForm value={configEffettiva} onChange={setConfig} pavimentoBloccato={!!materiali.pavimento && !eccezionePavimento} companyId={companyId} />
               {partenza === "vista_3d" && fotogramma && config.tende.attivo && !fotogramma.metadati.aperture_visibili.some((a) => a.tipo === "finestra" || a.tipo === "portafinestra") && <p className="mt-3 rounded-lg bg-muted p-3 text-sm text-muted-foreground">Le finestre sono fuori campo: le tende non saranno applicate a questa inquadratura. Porte e finestre restano quelle della pianta.</p>}
             </CardContent>
           </Card>
           {/* Senza crediti avvisa e blocca, come negli altri render. */}
           <RenderCreditGate hardBlock>
-            <Button className="w-full gap-2 bg-primary hover:bg-primary/90" size="lg" disabled={inCorso} onClick={genera}>
+            <Button className="w-full gap-2 bg-primary hover:bg-primary/90" size="lg" disabled={inCorso || renderDaVerificare} onClick={genera}>
               {preparo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
               {preparo ? "Preparo il render…" : "Genera il render"}
             </Button>
@@ -527,10 +574,10 @@ export default function RenderPlanimetriaStanza() {
               Un'altra variante
             </Button>
             <Button asChild variant="outline">
-              <Link to={salvato ? `${percorsiPlanimetrie.pianta(id)}?galleria=${encodeURIComponent(scelta.localeId)}` : percorsiPlanimetrie.pianta(id)}>{salvato ? "Apri la galleria della stanza" : "Torna alla pianta"}</Link>
+              <Link to={salvato ? `${tornaAllaPianta}&galleria=${encodeURIComponent(scelta.localeId)}` : tornaAllaPianta}>{salvato ? "Apri la galleria della stanza" : "Torna alla pianta"}</Link>
             </Button>
           </div>
-          <Button asChild className="w-full gap-2"><Link to={`${percorsiPlanimetrie.pianta(id)}?esporta=fascicolo&ambito=${encodeURIComponent(materialiAmbito)}&livello=${encodeURIComponent(livelloId)}`}><Download className="h-4 w-4" />Prepara il fascicolo completo della casa</Link></Button>
+          <Button asChild className="w-full gap-2"><Link to={`${tornaAllaPianta}&esporta=fascicolo`}><Download className="h-4 w-4" />Prepara il fascicolo completo della casa</Link></Button>
         </div>
       )}
     </div>

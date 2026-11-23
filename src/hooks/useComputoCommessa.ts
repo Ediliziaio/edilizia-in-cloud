@@ -14,6 +14,7 @@ import type { VoceImportata } from "@/lib/computo/importaVoci";
 import { improntaVoci, metodoLettura, rigaDaVoce, tipoArchivio, tipoFileComputo, titoloComputo, type FileOrigine } from "@/lib/computo/computoDaVoci";
 
 export type StatoComputo = "bozza" | "verificato" | "contrattuale" | "archiviato";
+type FonteVarianteComputo = { bozzaId:string; planimetriaId:string; versione:number; varianteId:string };
 
 export interface ComputoCommessa {
   id: string;
@@ -41,10 +42,11 @@ export interface ComputoCommessa {
   numero_variante: number | null;
   motivo_variante: string | null;
   contrattuale_dal: string | null;
+  fonte_variante?: FonteVarianteComputo | null;
 }
 
 // Stringa non letterale: il tipo della select resta quello dichiarato sotto (ComputoCommessa).
-const COLONNE: string = "id, titolo, file_name, file_type, stato, extraction_status, extraction_error, extraction_method, progresso:raw_extracted_json->>progress, oggetto_lavori, committente, totale_dichiarato, totale_calcolato, controllo_totali, lavoro_pubblico, stazione_appaltante, cig, cup, ribasso_percentuale, oneri_sicurezza, created_at, variante_di, numero_variante, motivo_variante, contrattuale_dal";
+const COLONNE: string = "id, titolo, file_name, file_type, stato, extraction_status, extraction_error, extraction_method, progresso:raw_extracted_json->>progress, fonte_variante:raw_extracted_json->variante, oggetto_lavori, committente, totale_dichiarato, totale_calcolato, controllo_totali, lavoro_pubblico, stazione_appaltante, cig, cup, ribasso_percentuale, oneri_sicurezza, created_at, variante_di, numero_variante, motivo_variante, contrattuale_dal";
 const IN_CORSO = ["uploading", "extracting_text", "analyzing_ai", "validating"];
 export const computoInLettura = (c: Pick<ComputoCommessa, "extraction_status"> | null | undefined) => !!c && IN_CORSO.includes(c.extraction_status);
 export const computoLetto = (c: Pick<ComputoCommessa, "extraction_status"> | null | undefined) => !!c && ["review", "completed"].includes(c.extraction_status);
@@ -209,6 +211,8 @@ export interface ComputoDaSalvare {
   titolo?: string;
   /** Da dove vengono le voci, se non da un file letto qui. */
   origine?: string;
+  /** Una bozza nativa già salvata e la variante da cui è nata. */
+  fonteVariante?: FonteVarianteComputo;
 }
 
 /**
@@ -216,10 +220,10 @@ export interface ComputoDaSalvare {
  * creazione della commessa da un computo caricato in «Carica contratto» (così non si ricarica due volte).
  */
 export async function salvaComputoImportato(orderId: string, companyId: string, userId: string | undefined,
-  { voci, file, totaleDocumento, sostituisce, titolo, origine }: ComputoDaSalvare): Promise<{ id: string; riusato: boolean; nonArchiviati: string[] }> {
+  { voci, file, totaleDocumento, sostituisce, titolo, origine, fonteVariante }: ComputoDaSalvare): Promise<{ id: string; riusato: boolean; nonArchiviati: string[] }> {
   if (!userId) throw new Error("Accesso scaduto: rientra e riprova.");
   if (!voci.length) throw new Error("Nessuna voce da salvare.");
-  const impronta = improntaVoci(voci);
+  const impronta = fonteVariante ? `${fonteVariante.bozzaId}:${improntaVoci(voci,true)}` : improntaVoci(voci);
   const { data: gia, error: errGia } = await supabase.from("computo_uploads").select("id")
     .eq("order_id", orderId).eq("company_id", companyId).neq("stato", "archiviato")
     .eq("raw_extracted_json->>impronta", impronta).limit(1);
@@ -252,7 +256,7 @@ export async function salvaComputoImportato(orderId: string, companyId: string, 
     storage_path: percorsi.find(Boolean) ?? "", extraction_status: "completed", extraction_method: primo ? metodoLettura(primo) : "xlsx_parse",
     extraction_completed_at: new Date().toISOString(), stato: "bozza",
     totale_calcolato: Math.round(totale * 100) / 100, totale_dichiarato: totaleDocumento,
-    raw_extracted_json: { impronta, origine: origine ?? "genera-materiali", file: origini.map((o, i) => ({ ...o, percorso: percorsi[i] })) },
+    raw_extracted_json: { impronta, origine: origine ?? "genera-materiali", file: origini.map((o, i) => ({ ...o, percorso: percorsi[i] })), ...(fonteVariante ? { variante: fonteVariante } : {}) },
   }).select("id").single();
   if (error || !riga) throw new Error(`Computo non salvato: ${error?.message ?? "riprova"}`);
 

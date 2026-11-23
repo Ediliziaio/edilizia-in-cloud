@@ -19,6 +19,7 @@ function materialeThree(m: Materiale3D | undefined, tessiture: ReturnType<typeof
     color: new THREE.Color(m.colore),
     roughness: m.ruvidita,
     metalness: m.metallico ?? 0,
+    ...(m.emissione ? { emissive: new THREE.Color(m.emissione.colore), emissiveIntensity: m.emissione.intensita } : {}),
     transparent: trasparente,
     opacity: m.opacita,
     side: trasparente || m.doppioLato ? THREE.DoubleSide : THREE.FrontSide,
@@ -33,6 +34,10 @@ function materialeThree(m: Materiale3D | undefined, tessiture: ReturnType<typeof
       mat.normalScale.setScalar(campione.rilievo);
       mat.roughnessMap = tessiture.carica(m.tessitura.trama, "rugosita");
       if (mat.roughnessMap) mat.roughness = 1;
+      if (m.tessitura.occlusioneMetallo) {
+        mat.metalnessMap = mat.roughnessMap;
+        mat.aoMap = mat.roughnessMap;
+      }
     } else if (!m.tessitura.trama.startsWith("highland-")) {
       mat.bumpMap = mat.map;
       mat.bumpScale = m.tessitura.trama === "tessuto" ? .001
@@ -158,20 +163,23 @@ export function liberaGruppo(gruppo: THREE.Group): void {
 
 /**
  * Luci gradevoli e leggere: ambiente diffuso (RoomEnvironment), cielo/terra, un sole
- * con ombre morbide. Il soffitto non fa ombra, così la stanza resta chiara anche
- * vista da dentro.
+ * con ombre morbide. La mappa delle ombre si aggiorna quando cambia la scena.
  */
 export function preparaAmbiente(renderer: THREE.WebGLRenderer, scene: THREE.Scene): { sole: THREE.DirectionalLight; terreno: THREE.Mesh; hemi: THREE.HemisphereLight; libera: () => void } {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const ambiente = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const provaLuce = new RoomEnvironment();
+  const ambiente = pmrem.fromScene(provaLuce, 0.04);
+  provaLuce.dispose();
   pmrem.dispose();
-  scene.environment = ambiente;
+  scene.environment = ambiente.texture;
   scene.environmentIntensity = 0.55;
   scene.background = new THREE.Color("#eef1f4");
 
@@ -184,6 +192,8 @@ export function preparaAmbiente(renderer: THREE.WebGLRenderer, scene: THREE.Scen
   sole.shadow.bias = -0.0004;
   sole.shadow.normalBias = 0.02;
   sole.shadow.radius = 4;
+  sole.shadow.autoUpdate = false;
+  sole.shadow.needsUpdate = true;
   scene.add(sole, sole.target);
 
   const terreno = new THREE.Mesh(new THREE.CircleGeometry(1, 64), new THREE.MeshStandardMaterial({ color: "#dfe3e6", roughness: 1 }));
@@ -212,6 +222,7 @@ export function adattaAmbiente(ambiente: { sole: THREE.DirectionalLight; terreno
   const cz = (min[2] + max[2]) / 2;
   const r = Math.max(2, Math.hypot(max[0] - min[0], max[2] - min[2]) / 2);
   const { sole, terreno } = ambiente;
+  sole.shadow.needsUpdate = true;
   sole.position.set(cx - r * 0.8, r * 2.2, cz + r * 1.1);
   sole.target.position.set(cx, 0, cz);
   const cam = sole.shadow.camera;
@@ -223,7 +234,7 @@ export function adattaAmbiente(ambiente: { sole: THREE.DirectionalLight; terreno
   sole.shadow.bias = -0.0004 * Math.max(1, r / 12);
   cam.updateProjectionMatrix();
   // con un interrato il terreno scende sotto il piano più basso, altrimenti lo coprirebbe
-  terreno.position.set(cx, min[1] < -0.1 ? min[1] - 0.005 : -0.005, cz);
+  terreno.position.set(cx, Math.min(0, min[1]) - 0.005, cz);
   terreno.scale.setScalar(r * 4);
   // con il prato della pianta (viste da fuori) il disco grigio non serve: lo coprirebbe
   terreno.visible = !scena.mesh.some((m) => m.id === "terreno");

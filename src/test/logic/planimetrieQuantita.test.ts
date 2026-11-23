@@ -41,6 +41,18 @@ const v = (q: MappaQuantita, chiave: string) => {
   return q[chiave].valore;
 };
 
+it("misura il pavimento di una zona aperta senza contare pareti e battiscopa sul confine di misura", () => {
+  const c = locale("c", "Cucina / pranzo", rett(0, 0, 400, 300), {
+    aperto: true, origine: "stimata", superficieDichiarataMq: 13, finiture: { rivestimento: { altezza: 150 } },
+  });
+  const q = calcolaQuantita(pianta({ locali: [c] }));
+  expect(q["fatto:locale:c.pavimento_mq"]).toMatchObject({ valore: 12, origine: "stimata" });
+  expect(q["fatto:locale:c.pareti_lorde_mq"]).toBeUndefined();
+  expect(q["fatto:locale:c.pareti_nette_mq"]).toBeUndefined();
+  expect(q["fatto:locale:c.battiscopa_ml"]).toBeUndefined();
+  expect(q["fatto:locale:c.rivestimento_mq"]).toBeUndefined();
+});
+
 /**
  * Stanza rettangolare: filo interno 400×300, altezza 270.
  * - porta 80×210 su m1 (1,68 mq: sotto la soglia, non si detrae)

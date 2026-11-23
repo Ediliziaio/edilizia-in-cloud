@@ -26,7 +26,7 @@ import { calcolaQuantita } from "../../../../../shared/planimetrie/quantita.ts";
 const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
 const selezione = "h-9 w-full rounded-md border bg-background px-2 text-sm";
 
-interface DaCreare { p: ProposteVoce; prezzo: number }
+interface DaCreare { p: ProposteVoce; prezzo: number | null }
 
 function useCreaVoci(uploadId: string, companyId: string) {
   const qc = useQueryClient();
@@ -40,7 +40,7 @@ function useCreaVoci(uploadId: string, companyId: string) {
           const { data, error } = await supabase.from("computo_voci_estratte").insert({
             computo_upload_id: uploadId, company_id: companyId, numero_ordine: numero, codice_tariffa: numero,
             descrizione_breve: p.voce.descrizione.slice(0, 200), descrizione_estesa: p.voce.descrizione, unita_misura: p.voce.unita === "ml" ? "m" : p.voce.unita === "mq" ? "mq" : "n",
-            quantita: p.quantita, prezzo_unitario_computo: prezzo, importo_computo: Math.round(p.quantita * prezzo * 100) / 100,
+            quantita: p.quantita, prezzo_unitario_computo: prezzo, importo_computo: prezzo === null ? null : Math.round(p.quantita * prezzo * 100) / 100,
             is_sicurezza: false, nuovo_prezzo: true, quadro_voce: "lavori", ordine: ordineDa + i, super_categoria: p.voce.capitolo,
             confidence: 1, is_included: true,
           }).select("id").single();
@@ -86,11 +86,14 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
   const [esclusi, setEsclusi] = useState<Set<string>>(new Set());
   const prezzoDi = (p: ProposteVoce) => {
     const t = prezzi[p.voce.id];
-    const n = t == null ? p.voce.prezzo : Number(t.replace(",", "."));
+    if (t == null) return p.voce.prezzo;
+    if (p.voce.prezzo === null && !t.trim()) return null;
+    const n = Number(t.replace(",", "."));
     return Number.isFinite(n) && n >= 0 ? n : p.voce.prezzo;
   };
   const scelte = proposte.filter((p) => !esclusi.has(p.voce.id));
-  const totale = scelte.reduce((t, p) => t + p.quantita * prezzoDi(p), 0);
+  const totale = scelte.reduce((t, p) => t + p.quantita * (prezzoDi(p) ?? 0), 0);
+  const daQuotare = scelte.filter(p => prezzoDi(p) === null).length;
   const crea = useCreaVoci(uploadId, companyId);
 
   const conferma = () => {
@@ -107,7 +110,7 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Zap className="h-5 w-5 text-amber-600" />Voci impianti dalla pianta</DialogTitle>
           <DialogDescription>
-            Prese, punti luce, metri di cavo e tubi, split e linee del clima contati nella pianta. I prezzi sono di partenza (fornitura e posa): cambiali con i tuoi. Le metrature di cavi e tubi sono stimate lungo le pareti.
+            Aggiungi al computo le voci misurate nella pianta. Puoi modificare i prezzi proposti o lasciarli da quotare dove manca un prezzo di partenza.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -139,13 +142,16 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
                 <tbody>
                   {proposte.map((p) => {
                     const on = !esclusi.has(p.voce.id);
+                    const prezzo = prezzoDi(p);
                     return (
                       <tr key={p.voce.id} className="border-t align-top">
                         <td className="p-2"><Checkbox checked={on} onCheckedChange={(v) => setEsclusi((x) => { const n = new Set(x); if (v) n.delete(p.voce.id); else n.add(p.voce.id); return n; })} aria-label={p.voce.descrizione} /></td>
                         <td className="p-2"><p className="text-xs text-slate-500">{p.voce.capitolo}</p><p>{p.voce.descrizione}</p></td>
                         <td className="whitespace-nowrap p-2 text-right tabular-nums">{p.quantita.toLocaleString("it-IT")} {p.voce.unita === "ml" ? "m" : p.voce.unita === "mq" ? "m²" : "n."}{p.stimata && <Badge variant="outline" className="ml-1 border-amber-300 text-amber-800">stima</Badge>}</td>
-                        <td className="p-2 text-right"><Input className="h-8 w-24 text-right" inputMode="decimal" value={prezzi[p.voce.id] ?? String(p.voce.prezzo).replace(".", ",")} onChange={(e) => setPrezzi((x) => ({ ...x, [p.voce.id]: e.target.value }))} aria-label={`Prezzo di ${p.voce.descrizione}`} /></td>
-                        <td className="whitespace-nowrap p-2 text-right tabular-nums">{on ? euro(p.quantita * prezzoDi(p)) : "—"}</td>
+                        <td className="p-2 text-right"><Input className="h-8 w-24 text-right" inputMode="decimal" placeholder={p.voce.prezzo === null ? "Da quotare" : undefined}
+                          value={prezzi[p.voce.id] ?? (p.voce.prezzo === null ? "" : String(p.voce.prezzo).replace(".", ","))}
+                          onChange={(e) => setPrezzi((x) => ({ ...x, [p.voce.id]: e.target.value }))} aria-label={`Prezzo di ${p.voce.descrizione}`} /></td>
+                        <td className="whitespace-nowrap p-2 text-right tabular-nums">{on && prezzo !== null ? euro(p.quantita * prezzo) : "—"}</td>
                       </tr>
                     );
                   })}
@@ -155,7 +161,7 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
           )}
         {documento && <ControlloUsoBloccato documento={documento} uso="computo" modifica={piantaId ? percorsiPlanimetrie.modifica(piantaId) : undefined} />}
         <DialogFooter className="items-center gap-3">
-          {scelte.length > 0 && <span className="text-sm">Totale <strong>{euro(totale)}</strong></span>}
+          {scelte.length > 0 && <span className="text-sm">Totale <strong>{euro(totale)}</strong>{daQuotare > 0 && ` · ${daQuotare} da quotare`}</span>}
           <Button disabled={!scelte.length || crea.isPending || !verificata} onClick={conferma}>
             {crea.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Aggiungi {scelte.length} voci
           </Button>

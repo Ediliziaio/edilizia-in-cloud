@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { testoPianoPagamenti } from '@/lib/computo/pianoPagamentiPdf';
+import { generaComputoPdf } from '@/lib/computo/esportaComputo';
 
 const rate = [{ descrizione: 'Acconto', quando: 'Alla firma', percentuale: 30, importo: 237.17, imponibile: 194.4, termine: '' }];
 
@@ -9,6 +10,15 @@ it('BUG-35: non espone rate economiche quando gli importi sono nascosti', () => 
 it('mantiene netto e lordo nelle stampe con importi', () => {
   expect(testoPianoPagamenti(rate, true)).toContain('194,40');
   expect(testoPianoPagamenti(rate, true)).toContain('237,17');
+});
+
+it.each(['editoriale', 'primus'] as const)('il PDF %s senza prezzi omette gli importi delle rate', async impaginazione => {
+  const intestazione = { titolo: 'Computo', ivaModalita: 'applicata' as const, ratePagamento: rate, impaginazione };
+  const conPrezzi = await generaComputoPdf([], intestazione);
+  expect(conPrezzi.output()).toContain('237,17');
+  const senzaPrezzi = await generaComputoPdf([], { ...intestazione, senzaPrezzi: true });
+  expect(senzaPrezzi.output()).not.toContain('237,17');
+  expect(senzaPrezzi.output()).not.toContain('194,40');
 });
 it('una rata a misura non promette un importo, e la ritenuta si legge per esteso', () => {
   const testo = testoPianoPagamenti(

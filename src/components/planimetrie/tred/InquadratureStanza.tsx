@@ -26,7 +26,9 @@ export function InquadratureStanza({ stanza, nomeStanza, onLeggiCamera, onRipren
     if (!aperte) return;
     let chiuso = false;
     void leggiInquadrature({ planimetriaId, livelloId, localeId }).then(v => {
-      if (!chiuso) { setViste(v); setErrore(""); }
+      if (chiuso) return;
+      setErrore("");
+      setViste(v);
     }).catch(() => { if (!chiuso) setErrore("Archivio del browser da riprovare."); });
     return () => { chiuso = true; };
   }, [aperte, planimetriaId, livelloId, localeId]);
@@ -45,7 +47,10 @@ export function InquadratureStanza({ stanza, nomeStanza, onLeggiCamera, onRipren
     }
   };
 
-  return <Popover open={aperte} onOpenChange={aperto => { setErrore(""); setAperte(aperto); }}>
+  return <Popover open={aperte} onOpenChange={apri => {
+    if (apri) setErrore("");
+    setAperte(apri);
+  }}>
     <PopoverTrigger asChild><Button type="button" size="sm" variant="outline"><Bookmark aria-hidden="true" />Inquadrature</Button></PopoverTrigger>
     <PopoverContent className="w-80 space-y-3">
       <h3 className="text-sm font-semibold">{nomeStanza}</h3>

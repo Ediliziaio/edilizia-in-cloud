@@ -1,9 +1,10 @@
-import { caricaPdfJsBrowser } from "@/lib/pdfjsBrowser";
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 type DisegnaPagina = (pagina: number) => Promise<{ canvas: HTMLCanvasElement; pagine: number }>;
 
 export async function conPaginePdf<T>(file: Blob, latoMassimo: number, usaPagine: (disegna: DisegnaPagina) => Promise<T>): Promise<T> {
-  const { getDocument } = await caricaPdfJsBrowser();
+  GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
   const caricamento = getDocument({
     data: new Uint8Array(await file.arrayBuffer()),
     wasmUrl: `${import.meta.env.BASE_URL}pdfjs-wasm/`,

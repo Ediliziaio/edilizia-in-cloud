@@ -21,6 +21,7 @@ import {
   statoVuoto,
   type AlzataCad,
   type Apertura as AperturaModello,
+  type CollettoreRadiante,
   type AreaEsterna as AreaModello,
   type Destinazione,
   type TipoArea,
@@ -46,6 +47,7 @@ import {
   type StatoPianta,
   type TipoMuro,
   type TracciatoImpianto,
+  type ZonaRadiante,
 } from "../../../../shared/planimetrie/modello.ts";
 import { areaPoligono, contornoIncrociato, distanzaDalContorno, interniSovrapposti, puntoInterno, puntoNelPoligono, ricostruisciLocali } from "../../../../shared/planimetrie/geometria.ts";
 import { calcolaQuantita, type MappaQuantita } from "../../../../shared/planimetrie/quantita.ts";
@@ -146,6 +148,7 @@ export interface ElementoLavoro {
   profondita: number;
   altezza?: number;
   alzateCad?: AlzataCad[];
+  modello?: string;
   stato: StatoElemento;
   origine: Origine;
 }
@@ -180,6 +183,9 @@ export interface Pianta {
   aree?: AreaLavoro[];
   /** Tratti disegnati nella variante attiva, in coordinate dell’editor. */
   tracciatiImpianti?: TracciatoImpianto[];
+  pavimentoRadiante?: Partial<Record<"fatto" | "progetto", ZonaRadiante[] | null>>;
+  /** Coordinate del documento, con y verso l’alto. */
+  collettoriRadianti?: Partial<Record<"fatto" | "progetto", CollettoreRadiante | null>>;
   /** Nome e destinazione dei locali del progetto, quando sono diversi da quelli di oggi. */
   nomiProgetto?: Record<string, { nome: string; destinazione: Destinazione; finiture?: Finiture; unita?: string | null }>;
   /** Accessorio della proposta su un serramento che rimane in opera. */
@@ -220,6 +226,7 @@ export function piantaVuota(): Pianta {
   return {
     versione: 1, unita: "cm", muri: [], aperture: [], locali: [], elementi: [], quote: [], testi: [], aree: [],
     tracciatiImpianti: [], letturaDocumento: undefined,
+    pavimentoRadiante: { fatto: null, progetto: null }, collettoriRadianti: { fatto: null, progetto: null },
   };
 }
 
@@ -517,6 +524,8 @@ export function daPlanimetria(doc: Planimetria, livelloId?: string, propostaId: 
     ...(aree.length ? { aree } : {}), ...(Object.keys(nomiProgetto).length ? { nomiProgetto } : {}),
     ...(proposta?.prezziLavorazioni ? { prezziProgetto: proposta.prezziLavorazioni } : {}),
     ...(proposta?.tracciatiImpianti ? { tracciatiImpianti: proposta.tracciatiImpianti.map(t => ({ ...t, vertici: t.vertici.map(capovolgi) })) } : {}),
+    pavimentoRadiante: { fatto: fatto.pavimentoRadiante ?? null, progetto: proposta?.pavimentoRadiante ?? null },
+    collettoriRadianti: { fatto: fatto.collettoreRadiante ?? null, progetto: proposta?.collettoreRadiante ?? null },
     ...(Object.keys(zanzariereProgetto).length ? { zanzariereProgetto } : {}) };
 }
 
@@ -561,16 +570,18 @@ function elementoDaModello(e: ElementoModello, stato: StatoLavori): ElementoLavo
     profondita: e.profondita,
     ...(e.altezza != null ? { altezza: e.altezza } : {}),
     ...(e.alzateCad ? { alzateCad: e.alzateCad.map(capovolgiAlzata) } : {}),
+    ...(e.modello ? { modello: e.modello } : {}),
     stato,
     origine: origineDi(e),
   };
 }
 
 export function elementoAModello(e: ElementoLavoro, stato: StatoLavori, prima?: ElementoModello): ElementoModello {
+  const modello = prima?.tipo === e.tipo ? prima.modello : e.modello;
   return {
     ...(prima?.localeId !== undefined ? { localeId: prima.localeId } : {}),
     ...(prima?.colore ? { colore: prima.colore } : {}),
-    ...(prima?.modello && prima.tipo === e.tipo ? { modello: prima.modello } : {}),
+    ...(modello ? { modello } : {}),
     id: e.id,
     tipo: e.tipo,
     ...(e.etichetta ? { etichetta: e.etichetta } : {}),
@@ -679,7 +690,14 @@ const trova = <T extends { id: string }>(lista: T[] | undefined, id: string) => 
  * prodotto): da lì si tengono titolo, scala, gli altri livelli e le altre proposte,
  * arredi, quote e testi, le origini campo per campo e gli id dei locali del progetto.
  */
-export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetria(), livelloId?: string, propostaId: string = ID_PROPOSTA): Planimetria {
+function riportaZoneRadianti(stato: StatoPianta, zone: ZonaRadiante[] | null | undefined) {
+  if (zone === null) delete stato.pavimentoRadiante;
+  if (!zone) return;
+  const interni = new Set(stato.locali.filter(eAmbienteInterno).map(l => l.id));
+  stato.pavimentoRadiante = zone.filter(z => interni.has(z.localeId));
+}
+
+export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetria(), livelloId?: string, propostaId: string = ID_PROPOSTA, precedente?: Pianta): Planimetria {
   const indice = Math.max(0, base.livelli.findIndex((l) => l.id === livelloId));
   const livelloBase: Livello = base.livelli[indice] ?? { id: "pt", nome: "Piano terra", quota: 0, fatto: statoVuoto(), proposte: [] };
   const fattoBase = livelloBase.fatto;
@@ -688,7 +706,9 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
   const muriCadPrecedenti = daCad ? fattoBase.muri.map(muroDaModello) : null;
 
   const muriOggi = pianta.muri.filter((m) => m.stato !== "nuovo");
-  const localiOggi = pianta.locali.filter(l => l.stato !== "nuovo").map(l => {
+  // Un intervento su impianti, arredi o quote non deve richiudere i contorni della versione corrente.
+  const stessiLocali = precedente && precedente.muri === pianta.muri && precedente.locali === pianta.locali;
+  const localiOggi = stessiLocali ? fattoBase.locali : pianta.locali.filter(l => l.stato !== "nuovo").map(l => {
     const prima = trova(fattoBase.locali, l.id);
     const locale = localeAModello(daCad ? { muri: muriOggi } : pianta, l, prima);
     if (!prima || !muriCadPrecedenti) return locale;
@@ -716,6 +736,9 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
     const ids = new Set(fatto.elementi.map(e => e.id));
     fatto.tracciatiImpianti = fatto.tracciatiImpianti.filter(t => ids.has(t.daId) && ids.has(t.aId));
   }
+  riportaZoneRadianti(fatto, pianta.pavimentoRadiante?.fatto);
+  if (pianta.collettoriRadianti?.fatto === null) delete fatto.collettoreRadiante;
+  else if (pianta.collettoriRadianti?.fatto) fatto.collettoreRadiante = pianta.collettoriRadianti.fatto;
 
   const serveProposta =
     !!propostaBase ||
@@ -727,7 +750,9 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
     (pianta.quote ?? []).some(q => q.soloProgetto) ||
     (pianta.elementi ?? []).some((e) => e.stato !== "esistente") ||
     (pianta.aree ?? []).some((a) => a.stato !== "esistente") ||
-    !!pianta.tracciatiImpianti?.length;
+    !!pianta.tracciatiImpianti?.length ||
+    !!pianta.pavimentoRadiante?.progetto?.length ||
+    !!pianta.collettoriRadianti?.progetto;
   let proposte = livelloBase.proposte;
   if (serveProposta) {
     const muri = pianta.muri.map((m) => muroAModello(m, m.stato, trova(propostaBase?.muri, m.id) ?? trova(fattoBase.muri, m.id)));
@@ -740,7 +765,8 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
       aperture: pianta.aperture
         .filter((a) => pianta.muri.some((m) => m.id === a.muroId))
         .map((a) => aperturaAModello(aperturaNellaVista(pianta, a, "progetto"), a.stato, trova(propostaBase?.aperture, a.id) ?? trova(fattoBase.aperture, a.id))),
-      locali: localiDelProgetto(pianta, muri, propostaBase, daCad ? localiOggi : null),
+      locali: stessiLocali && precedente.nomiProgetto === pianta.nomiProgetto
+        ? propostaBase?.locali ?? localiOggi : localiDelProgetto(pianta, muri, propostaBase, daCad ? localiOggi : null),
       ...(pianta.elementi
         ? {
             elementi: pianta.elementi
@@ -757,6 +783,11 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
       const ids = new Set(proposta.elementi.map(e => e.id));
       proposta.tracciatiImpianti = tracciati.filter(t => ids.has(t.daId) && ids.has(t.aId));
     }
+    riportaZoneRadianti(proposta, pianta.pavimentoRadiante?.progetto);
+    const collettore = pianta.collettoriRadianti?.progetto;
+    if (collettore === null) delete proposta.collettoreRadiante;
+    else if (collettore) proposta.collettoreRadiante = collettore;
+    else if (!propostaBase && fatto.collettoreRadiante) proposta.collettoreRadiante = fatto.collettoreRadiante;
     proposte = propostaBase ? proposte.map((p) => (p.id === propostaId ? proposta : p)) : [proposta, ...proposte];
   }
   const altezzeCorrette = new Map(muriOggi.flatMap(m => {
@@ -1027,6 +1058,10 @@ export function aggiungiLivello(
       if (origine.fatto.tracciatiImpianti?.length) fatto.tracciatiImpianti = origine.fatto.tracciatiImpianti.map(t => ({
         ...t, daId: `${t.daId}_${id}`, aId: `${t.aId}_${id}`, vertici: t.vertici.map(p => ({ ...p })),
       }));
+      if (origine.fatto.pavimentoRadiante) fatto.pavimentoRadiante = origine.fatto.pavimentoRadiante.map(z => ({
+        ...z, localeId: loc.get(z.localeId)!,
+      }));
+      if (origine.fatto.collettoreRadiante) fatto.collettoreRadiante = structuredClone(origine.fatto.collettoreRadiante);
       fatto.quote = origine.fatto.quote.map((q) => ({ ...q, id: `${q.id}_${id}`, riferimenti: rinominaRiferimentiQuota(q, ids) }));
       fatto.testi = origine.fatto.testi.map((t) => ({ ...t, id: `${t.id}_${id}` }));
     }

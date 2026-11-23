@@ -295,6 +295,7 @@ export async function listMySurveys(opts?: { status?: string; limit?: number; co
   let q = (supabase as any)
     .from("surveys")
     .select("id, code, status, scheduled_at, address, city, client_id, contact_id, opportunity_id, order_id, technician_id, template_id, created_at, updated_at")
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
   // Solo QUESTA azienda: il super admin (e chi ha più aziende) le vedeva tutte.
   if (opts?.companyId) q = q.eq("company_id", opts.companyId);

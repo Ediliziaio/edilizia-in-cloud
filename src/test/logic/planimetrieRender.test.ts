@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
+import type { Elemento, Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { riepilogoStanza, statoPerAmbito, vincoliDellaStanza } from "../../../shared/render-planimetria/vincoli.ts";
-import { bloccoPartenza3D, bloccoPianta, inquadrateValide, righeQaPianta } from "../../../shared/render-planimetria/prompt.ts";
+import { bloccoPartenza3D, bloccoPianta, inquadrateValide, modelliInquadratiPerRender, righeQaPianta } from "../../../shared/render-planimetria/prompt.ts";
 import { svgPiantaStanza } from "../../../shared/render-planimetria/piantaStanza.ts";
 
 // Render AI dalla pianta (fase 5b): i vincoli che il render deve rispettare escono
@@ -128,7 +128,7 @@ describe("prompt della pianta", () => {
   it("dalla vista 3D dice dove stanno nell'immagine le aperture inquadrate", () => {
     const a = v.aperture[0];
     const inquadrate = inquadrateValide(v, [
-      { id: a.id, posizione: "sinistra", riquadro: { x0: 0.05, y0: 0.2, x1: 0.25, y1: 0.8 } },
+      { id: a.id, posizione: "sinistra", ritagliata: true, riquadro: { x0: 0.05, y0: 0.2, x1: 0.25, y1: 0.8 } },
       { id: "estranea", posizione: "centro", riquadro: { x0: 0.4, y0: 0.2, x1: 0.6, y1: 0.8 } },
       { id: a.id, posizione: "destra", riquadro: { x0: 0.7, y0: 0.2, x1: 0.9, y1: 0.8 } },
       { id: v.aperture[1]?.id, posizione: "centro", riquadro: { x0: 0.5, y0: 0.2, x1: 0.4, y1: 0.8 } },
@@ -136,10 +136,12 @@ describe("prompt della pianta", () => {
     expect(inquadrate).toHaveLength(1);
     const testo = bloccoPianta(v, { partenza: "vista_3d", inquadrate });
     expect(testo).toContain(`${a.label}, left: from 5% to 25% across`);
+    expect(testo).toContain("keep the same partial crop");
     expect(bloccoPartenza3D()).toContain("NOT a photograph");
     const qa = righeQaPianta(v, { partenza: "vista_3d", inquadrate }).join("\n");
     expect(qa).toContain("plan_openings_mismatch");
     expect(qa).toContain(a.label);
+    expect(qa).toContain("20%–80% down, partially cropped");
   });
 
   it("vista 3D senza aperture inquadrate: pareti piene", () => {
@@ -151,6 +153,28 @@ describe("prompt della pianta", () => {
     expect(inquadrateValide(v, null)).toEqual([]);
     expect(inquadrateValide(v, "x")).toEqual([]);
   });
+});
+
+it("il render usa modello e posizione degli arredi visibili con coordinate valide", () => {
+  const tipi: ReadonlyArray<readonly [Elemento["tipo"], Elemento["modello"]]> = [
+    ["wc", "sospeso"], ["lavabo", "incasso"], ["doccia", undefined], ["lavatrice", undefined],
+  ];
+  const arredi = tipi.map(([tipo, modello]): Elemento => ({
+    id: tipo, tipo, modello, posizione: { x: 50, y: 50 }, larghezza: 45, profondita: 60, rotazione: 0, origine: "rilevata",
+  }));
+  const modelli = modelliInquadratiPerRender(arredi, ["wc", "lavabo", "doccia"], [
+    { id: "wc", x: .22, y: .91, ritagliato: true }, { id: "wc", x: .56, y: .3 },
+    { id: "lavabo", x: .72, y: .54 }, { id: "doccia", x: NaN, y: .42 }, { id: "lavatrice", x: .6, y: .5 },
+  ]);
+  expect(modelli).toEqual([
+    expect.stringContaining("wall-hung ceramic WC"),
+    expect.stringContaining("washbasin recessed into the vanity"),
+    expect.stringContaining("continuous rigid connection"),
+  ]);
+  expect(modelli[0]).toContain("22% across and 91% down");
+  expect(modelli[0]).toContain("cropped at the image boundary");
+  expect(modelli[1]).toContain("72% across and 54% down");
+  expect(modelli[2]).not.toContain("visible centre");
 });
 
 describe("svgPiantaStanza", () => {

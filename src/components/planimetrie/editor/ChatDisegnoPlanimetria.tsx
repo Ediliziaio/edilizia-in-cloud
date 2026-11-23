@@ -1,4 +1,4 @@
-import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AppWindow, Armchair, ArrowUpRight, Box, Check, ClipboardList, DoorOpen, Droplet, Eraser, FileText, Focus, ImageIcon, MessageSquare, Mic, MicOff, Paperclip, Rows3, Ruler, ScanLine, ScanSearch, SquareDashed, TriangleAlert, Undo2, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -196,7 +196,7 @@ export function ChatDisegnoPlanimetria({
   const fileInput = useRef<HTMLInputElement>(null);
   const textarea = useRef<HTMLTextAreaElement | null>(null);
   const testoCorrente = useRef(testo);
-  useEffect(() => { testoCorrente.current = testo; }, [testo]);
+  useLayoutEffect(() => { testoCorrente.current = testo; }, [testo]);
   const fondo = useRef<HTMLDivElement>(null);
   const titoloEsito = useRef<HTMLHeadingElement>(null);
   const spostaFocusEsito = useRef(false);

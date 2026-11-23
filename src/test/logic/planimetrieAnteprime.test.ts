@@ -5,7 +5,7 @@ import { ambitoGeometriaDelPiano, pavimentoDaCampione } from "../../../shared/pl
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 const db = vi.hoisted(() => ({ select: vi.fn(), eq: vi.fn(), or: vi.fn(), limit: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => db } }));
-import { caricaAnteprimePlanimetrie, creaAnteprimaPianta, filtroVersioniAnteprime, PIANTE_PER_PAGINA } from "@/lib/planimetrie/anteprime";
+import { caricaAnteprimePlanimetrie, creaAnteprimaPianta, filtroVersioniAnteprime, percorsoTavolaOriginale, PIANTE_PER_PAGINA } from "@/lib/planimetrie/anteprime";
 
 const id = "11111111-1111-4111-8111-111111111111";
 beforeEach(() => { vi.clearAllMocks(); db.select.mockReturnValue(db); db.eq.mockReturnValue(db); db.or.mockReturnValue(db); });
@@ -35,6 +35,16 @@ describe("anteprime delle versioni salvate", () => {
     const cambiata = structuredClone(bilocale) as unknown as Planimetria;
     cambiata.livelli[0].fatto.aperture = [];
     expect(creaAnteprimaPianta(cambiata).src).not.toBe(a.src);
+  });
+  it("mostra la tavola letta da PDF o foto e preferisce il ricalco del piano",()=>{
+    const doc=structuredClone(bilocale) as unknown as Planimetria;
+    const livello=doc.livelli[0];
+    doc.letturaDocumento={avvisiIniziali:[],superficiScritteMq:{},sorgente:{percorso:"azienda/ricalco/lettura.png",nome:"ingresso.pdf"}};
+    expect(percorsoTavolaOriginale("azienda",livello,doc)).toBe("azienda/ricalco/lettura.png");
+    expect(percorsoTavolaOriginale("altra-azienda",livello,doc)).toBeUndefined();
+    livello.ricalco={percorso:"azienda/ricalco/piano.jpg",x:0,y:0,larghezzaCm:1000,proporzione:1,opacita:.6};
+    expect(percorsoTavolaOriginale("azienda",livello,doc)).toBe("azienda/ricalco/piano.jpg");
+    expect(percorsoTavolaOriginale("azienda",undefined,doc)).toBeUndefined();
   });
   it("legge in un solo lotto, per azienda e versione esatta, senza mostrare uno storico vecchio", async () => {
     db.limit.mockResolvedValue({ data: [{ planimetria_id: id, numero: 7, documento: bilocale }, { planimetria_id: "altro", numero: 1, documento: bilocale }], error: null as Error | null });

@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useRiepilogoGenerale } from "@/hooks/useCommesseGenerali";
+import { fonteStudioDaArea } from "@/lib/planimetrie/studioImmobiliare";
 import { useElencoPlanimetrie } from "@/lib/planimetrie/archivio";
-import { percorsiPlanimetrie, type ModoNuovaPianta } from "@/lib/planimetrie/render/percorsi";
+import { percorsoVariantePlanimetria, percorsiPlanimetrie, type ModoNuovaPianta } from "@/lib/planimetrie/render/percorsi";
 
 export function PiantaUnita({ orderId, sigla, generaleId, puoCreare }: { orderId: string; sigla: string; generaleId: string; puoCreare: boolean }) {
   const { effectiveCompany } = useAuth();
@@ -17,10 +19,13 @@ export function PiantaUnita({ orderId, sigla, generaleId, puoCreare }: { orderId
   const { isEnabled } = useFeatureAccess("render_ai");
   const attiva = isEnabled && !!permessi.canViewRenderAi;
   const { data: piante = [], isError } = useElencoPlanimetrie(attiva ? effectiveCompany?.id : null, { orderId });
+  const { data: generale } = useRiepilogoGenerale(attiva && permessi.canViewOrders ? generaleId : undefined);
+  const fonte = fonteStudioDaArea(generale?.generale.dati?.area);
   if (!attiva || isError) return null;
 
+  const torna = `/azienda/ordini/${generaleId}?scheda=unita`;
   const nuova = (modo: ModoNuovaPianta) => percorsiPlanimetrie.nuova(modo, {
-    commessa: orderId, titolo: `Pianta ${sigla}`, torna: `/azienda/ordini/${generaleId}?scheda=unita`,
+    commessa: orderId, titolo: `Pianta ${sigla}`, torna,
   });
   return (
     <section aria-label="Pianta disegnata" className="rounded-md border px-3 py-2">
@@ -34,6 +39,10 @@ export function PiantaUnita({ orderId, sigla, generaleId, puoCreare }: { orderId
           </div>
         )}
       </div>
+      {fonte && <div className="mt-2 flex flex-wrap gap-2">
+        <Button asChild size="sm" variant="outline" className="h-7 text-xs"><Link to={percorsoVariantePlanimetria(fonte,{torna})}>Variante dell’operazione</Link></Button>
+        <Button asChild size="sm" variant="outline" className="h-7 text-xs"><Link to={percorsoVariantePlanimetria(fonte,{torna,fascicolo:"pratiche",unita:sigla})}>Pratiche dell’unità</Link></Button>
+      </div>}
       {piante.length > 0 ? (
         <ul className="mt-1 space-y-0.5">
           {piante.map((p) => (

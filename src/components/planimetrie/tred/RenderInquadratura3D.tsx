@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Check, FileText, LoaderCircle, Paintbrush, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,15 +9,17 @@ import { campioneDaTela } from "@/lib/planimetrie/esportaGlbConFiniture";
 import { FOTO_FINITURE } from "@/lib/planimetrie/fotoFiniture";
 import { renderFotorealisticoLocale } from "@/lib/planimetrie/renderFotorealisticoLocale";
 import { salvaRenderVisita, type VersioneRenderVisita } from "@/lib/planimetrie/renderVisitaArchivio";
+import { preparaFotogrammaDaCycles } from "@/lib/planimetrie/render/fotogrammaDaCycles";
+import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import type { PiantaPer3D, Scena3D, Telecamera3D, Vista3D } from "@/lib/planimetrie/tred";
 import { haPianoCucina, PIANI_CUCINA_RENDER, scenaConVarianti, type VarianteArredoRender, type VariantiRender } from "@/lib/planimetrie/tred/variantiRender";
 import { modelloElemento } from "@/lib/planimetrie/tred/elementi";
 import type { CampioneGlb } from "@/lib/planimetrie/tred/esporta";
 import { ammetteAlberiDiContesto, FACCIATE, INFISSI, type OpzioniAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
 import { telaTrama } from "./aspetto";
-import { catturaVistaProgetto } from "./fotogramma";
+import { catturaVistaProgetto, descriviFotogramma } from "./fotogramma";
 import { ConfrontoRender3D } from "./ConfrontoRender3D";
-import { dimensioniRenderLocale, type LuceRenderLocale, type QualitaRenderLocale } from "../../../../shared/planimetrie/renderLocale";
+import { dimensioniRenderLocale, NOMI_LUCE_RENDER_LOCALE as LUCI, type LuceRenderLocale, type QualitaRenderLocale } from "../../../../shared/planimetrie/renderLocale";
 import { CAMPIONI_FINITURE, campioneFinitura } from "../../../../shared/planimetrie/finiture";
 import { CREDITO_MODEL_3_HIGHLAND, modelloArredo, modelliArredo, quotePiscina } from "../../../../shared/planimetrie/modelliArredo";
 import { nomeDelTipo } from "../editor/catalogo";
@@ -25,24 +28,25 @@ export type InquadraturaRender3D = {
   scena: Scena3D; pianta: PiantaPer3D; vista: Vista3D; telecamera: Telecamera3D; proporzioni: number; aspetto: OpzioniAspetto;
   ambiente: "sport" | "facciata" | "tecnico" | "interni";
   esterno: boolean; localeId?: string; nome: string; piano: string; pianoId: string; versione?: number; archivio?: VersioneRenderVisita;
+  quotaPiano?: number;
 };
 
-const LUCI = { giorno: "Luce diurna", diffusa: "Luce diffusa", sera: "Sera" } satisfies Record<LuceRenderLocale, string>;
 const QUALITA = { rapida: "Rapida · 1200 px", alta: "Alta · 2048 px" } satisfies Record<QualitaRenderLocale, string>;
 const INIZIALI: VariantiRender = {};
 const misuraMetri = (cm: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(cm / 100);
 
 export default function RenderInquadratura3D({ data, onChiudi }: { data: InquadraturaRender3D; onChiudi: () => void }) {
+  const navigate = useNavigate();
   const [rif, setRif] = useState<Blob>();
   const [png, setPng] = useState<Blob>();
   const [errore, setErrore] = useState("");
-  const [luce, setLuce] = useState<LuceRenderLocale>("giorno");
+  const [luce, setLuce] = useState<LuceRenderLocale>(data.aspetto.luce ?? "giorno");
   const [ora, setOra] = useState(data.aspetto.ora);
   const [qualita, setQualita] = useState<QualitaRenderLocale>("rapida");
   const [varianti, setVarianti] = useState<VariantiRender>(INIZIALI);
   const [elementoId, scegliElemento] = useState("");
   const [calcolo, setCalcolo] = useState<{ luce: LuceRenderLocale; ora: number; qualita: QualitaRenderLocale; varianti: VariantiRender }>(
-    { luce: "giorno", ora: data.aspetto.ora, qualita: "rapida", varianti: INIZIALI },
+    { luce: data.aspetto.luce ?? "giorno", ora: data.aspetto.ora, qualita: "rapida", varianti: INIZIALI },
   );
   const orientata = data.scena.nord !== undefined;
   const [salvataggio, setSalvataggio] = useState<"in_corso" | "salvato" | "errore">();
@@ -59,7 +63,7 @@ export default function RenderInquadratura3D({ data, onChiudi }: { data: Inquadr
         const { vista, telecamera, aspetto, esterno } = data;
         const { scena, pianta } = scenaConVarianti(data.pianta, data.scena, vista, data.localeId, calcolo.varianti);
         const anteprima = await catturaVistaProgetto({ scena, pianta, vista, localeId: data.localeId, telecamera,
-          aspetto: { ...aspetto, ora: calcolo.ora }, larghezza, altezza });
+          aspetto: { ...aspetto, ora: calcolo.ora, luce: calcolo.luce }, quotaPiano: data.quotaPiano, larghezza, altezza });
         if (controller.signal.aborted) return;
         setRif(anteprima);
         const materiali = { ...scena.materiali };
@@ -141,6 +145,30 @@ export default function RenderInquadratura3D({ data, onChiudi }: { data: Inquadr
   };
   const nomeFile = [data.nome, data.piano, data.versione ? `v${data.versione}` : "", calcolo.luce, calcolo.qualita, varianteSalvata ? "variante" : ""]
     .filter(Boolean).join("-").replace(/[^\p{L}\d]+/gu, "-").toLowerCase() + "-cycles.png";
+  const apriRenderAI = () => {
+    if (!png || !data.archivio || !locale || data.vista === "confronto" || modifiche) return;
+    const { planimetriaId, versione, ambito } = data.archivio;
+    const percorso = percorsiPlanimetrie.renderStanza(planimetriaId, locale.id, {
+      versione, livelloId: data.pianoId, ambito: data.vista === "fatto" ? "fatto" : ambito, materialiAmbito: ambito,
+    });
+    const { pianta, scena } = scenaConVarianti(data.pianta, data.scena, data.vista, locale.id, calcolo.varianti);
+    const quota = data.quotaPiano ?? 0;
+    const { posizione, guarda } = data.telecamera;
+    const telecamera: Telecamera3D = { ...data.telecamera,
+      posizione: [posizione[0], posizione[1] - quota, posizione[2]], guarda: [guarda[0], guarda[1] - quota, guarda[2]],
+    };
+    const arredi = new Set(scena.mesh.filter(m => m.genere === "elemento"
+      && (data.quotaPiano === undefined || m.id.startsWith(`${data.pianoId}/`))).map(m => m.riferimento));
+    const metadati = descriviFotogramma({
+      pianta: { ...pianta, elementi: pianta.elementi.filter(e => arredi.has(e.id)) },
+      localeId: locale.id, telecamera, larghezza, altezza, vista: data.vista, elementi: arredi.size > 0,
+    });
+    const cycles = preparaFotogrammaDaCycles(percorso, {
+      fotogramma: { png, metadati }, pavimento: calcolo.varianti.pavimento,
+    });
+    onChiudi();
+    navigate(percorso, { state: { cycles, inquadratura3D: { localeId: locale.id, telecamera, aspetto: data.aspetto, proporzioni: larghezza / altezza } } });
+  };
   return <Dialog open onOpenChange={apri => { if (!apri) onChiudi(); }}>
     <DialogContent className="flex max-h-[94dvh] max-w-6xl flex-col gap-3 overflow-hidden p-4 sm:p-6">
       <DialogHeader className="shrink-0 pr-6 text-left">
@@ -179,6 +207,9 @@ export default function RenderInquadratura3D({ data, onChiudi }: { data: Inquadr
             {salvataggio === "salvato" ? <Check className="size-4"/> : <FileText className="size-4"/>}
             {salvataggio === "salvato" ? "Aggiunto al PDF" : salvataggio === "in_corso" ? "Salvataggio…" : "Includi nel PDF"}
           </Button>
+          {locale && data.ambiente === "interni" && data.vista !== "confronto" && <Button type="button" size="sm" disabled={modifiche} onClick={apriRenderAI}>
+            <Sparkles className="size-4" aria-hidden="true" />Configura Render AI da questa vista
+          </Button>}
         </div>}
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-1">

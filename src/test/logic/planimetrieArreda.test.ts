@@ -75,6 +75,35 @@ describe("arreda con un clic", () => {
     expect(due.giaPresenti.length).toBeGreaterThan(0);
   });
 
+  it("arreda un open space a L lasciando libero il collegamento tra le portefinestre", () => {
+    const contorno = [
+      { x: 0, y: 0 }, { x: 490, y: 0 }, { x: 490, y: 120 }, { x: 950, y: 120 },
+      { x: 950, y: 580 }, { x: 480, y: 580 }, { x: 480, y: 400 }, { x: 0, y: 400 },
+    ];
+    const p: Pianta = {
+      versione: 1,
+      unita: "cm",
+      muri: [
+        { id: "nord", p1: { x: 0, y: -15 }, p2: { x: 490, y: -15 }, spessore: 30, altezza: 270, tipo: "esterno", stato: "esistente", origine: "da_documento" },
+        { id: "sud", p1: { x: 0, y: 415 }, p2: { x: 480, y: 415 }, spessore: 30, altezza: 270, tipo: "esterno", stato: "esistente", origine: "da_documento" },
+      ],
+      aperture: [],
+      locali: [{ id: "giorno", nome: "Cucina e soggiorno", destinazione: "soggiorno", contorno, altezza: 270, alFiloInterno: true, stato: "esistente", origine: "da_documento" }],
+    };
+    const nord = C.aggiungiApertura(p, "nord", "portafinestra", 200).pianta;
+    const disegno = C.aggiungiApertura(nord, "sud", "portafinestra", 200).pianta;
+    const r = arredaStanza(disegno, "giorno", "progetto");
+    const arredi = r.pianta.elementi ?? [];
+    expect(arredi.map((e) => e.tipo)).toEqual(expect.arrayContaining(["cucina", "divano", "tavolo"]));
+    expect(arredi.filter((e) => e.tipo === "sedia")).toHaveLength(4);
+    const semiluce = Math.min(...disegno.aperture.map((a) => a.larghezza)) / 2;
+    const passaggio = { x0: 200 - semiluce, x1: 200 + semiluce, y0: 0, y1: 400 };
+    for (const arredo of arredi) {
+      expect(sopra(box(arredo), passaggio), arredo.tipo).toBe(false);
+      for (const altro of arredi) if (arredo !== altro) expect(sopra(box(arredo), box(altro)), `${arredo.tipo} su ${altro.tipo}`).toBe(false);
+    }
+  });
+
   it("sul trilocale d'esempio arreda le stanze che sa arredare senza rompere il documento", () => {
     const doc = carica("trilocale.json");
     let p = daPlanimetria(doc);

@@ -85,16 +85,34 @@ function prefissi(nomi: string[]): string[] {
 
 /** Le unità in serie dalle tipologie: A1…A6 per gli appartamenti, B1, B2 per i box. */
 export function unitaDaIpotesi(ip: Ipotesi): UnitaDaCreare[] {
+  return unitaConRicavi(ip, vociPiano(ip));
+}
+
+function unitaConRicavi(ip: Ipotesi, voci: ReturnType<typeof vociPiano>): UnitaDaCreare[] {
   const p = prefissi(ip.tipologie.map((t) => t.nome));
-  return ip.tipologie.flatMap((t, i) => Array.from({ length: Math.max(0, Math.round(t.quante)) }, (_, k): UnitaDaCreare => ({
-    sigla: `${p[i]}${k + 1}`,
-    edificio: null,
-    piano: null,
-    tipologia: t.nome.trim() || null,
-    mq_commerciali: t.mq > 0 ? arrotonda(t.mq) : null,
-    millesimi: null,
-    prezzo_listino: t.mq > 0 && t.prezzoMq > 0 ? arrotonda(t.mq * t.prezzoMq) : null,
-  })));
+  const ricavi = new Map(voci.filter(v=>v.tipo==="ricavo").map(v=>[v.id,Math.round(v.importo*100)]));
+  const occupate = new Set(ip.tipologie.flatMap(t => t.quante === 1 && t.sigla ? [t.sigla.toUpperCase()] : []));
+  const usate = new Set<string>();
+  return ip.tipologie.flatMap((t, i) => {
+    const quante = Math.round(t.quante);
+    if (quante<=0) return [];
+    const totale = ricavi.get(`vendite:${t.id}`) ?? 0;
+    const quota = Math.floor(totale/quante), resto = totale%quante;
+    return Array.from({ length: quante }, (_, k): UnitaDaCreare => {
+      const esplicita = t.quante === 1 && t.sigla && !usate.has(t.sigla.toUpperCase()) ? t.sigla : null;
+      let sigla = esplicita ?? `${p[i]}${k+1}`;
+      for (let successivo = k+2; !esplicita && (occupate.has(sigla.toUpperCase()) || usate.has(sigla.toUpperCase())); successivo++) sigla = `${p[i]}${successivo}`;
+      usate.add(sigla.toUpperCase());
+      return { sigla,
+        edificio: null,
+        piano: null,
+        tipologia: t.nome.trim() || null,
+        mq_commerciali: t.mq > 0 ? arrotonda(t.mq) : null,
+        millesimi: null,
+        prezzo_listino: totale>0 ? (quota + (k<resto ? 1 : 0))/100 : null,
+      };
+    });
+  });
 }
 
 /** Perché le unità non si possono creare insieme all'operazione; null = si può. */
@@ -122,7 +140,9 @@ export function operazioneDaIpotesi(ip: Ipotesi, opzioni: { nome: string; conUni
     ordine: i + 1,
   }));
   return {
-    dati: datiDaIpotesi(ip),
+    dati: { ...datiDaIpotesi(ip), ...(ip.planimetria ? { area: {
+      planimetria_id: ip.planimetria.planimetriaId, planimetria_versione: ip.planimetria.versione, variante: ip.planimetria.varianteId,
+    } } : {}) },
     modello: ip.modello,
     nome: opzioni.nome.trim(),
     valore: arrotonda(voci.filter((v) => v.tipo === "ricavo").reduce((t, v) => t + v.importo, 0)),
@@ -136,6 +156,6 @@ export function operazioneDaIpotesi(ip: Ipotesi, opzioni: { nome: string; conUni
       ordine: i + 1,
     })),
     fonti,
-    unita: opzioni.conUnita && motivoSenzaUnita(ip) === null ? unitaDaIpotesi(ip) : [],
+    unita: opzioni.conUnita && motivoSenzaUnita(ip) === null ? unitaConRicavi(ip,voci) : [],
   };
 }

@@ -307,6 +307,24 @@ export interface TracciatoImpianto {
   vertici: Punto[];
 }
 
+export const PASSO_RADIANTE_CM = { min: 5, max: 40, iniziale: 15 } as const;
+
+export interface ZonaRadiante {
+  localeId: string;
+  passoCm: number;
+  superficieEsclusaMq: number;
+}
+
+export const QUOTA_COLLETTORE_RADIANTE_CM = { min: 15, max: 250, iniziale: 55 } as const;
+export const LIMITE_CIRCUITO_RADIANTE_M = { min: 20, max: 250, iniziale: 90 } as const;
+
+/** Posizione sul piano e ipotesi usate per la stima del radiante. Quota della mandata in cm. */
+export interface CollettoreRadiante {
+  posizione: Punto;
+  quotaCm: number;
+  limiteCircuitoM: number;
+}
+
 /** Il contenuto di uno stato (fatto o una proposta) su un livello. */
 export interface StatoPianta {
   muri: Muro[];
@@ -318,6 +336,8 @@ export interface StatoPianta {
   /** Lotto e aree esterne (assenti nelle piante fatte prima). */
   aree?: AreaEsterna[];
   tracciatiImpianti?: TracciatoImpianto[];
+  pavimentoRadiante?: ZonaRadiante[];
+  collettoreRadiante?: CollettoreRadiante;
 }
 
 export const SANITARI_BAGNO = ["wc", "lavabo", "doccia", "bidet", "vasca"] as const;
@@ -905,6 +925,46 @@ function validaStato(
         if (!Array.isArray(t.vertici)) errori.push(`${e}: manca l’elenco dei vertici.`);
         else t.vertici.forEach((p: unknown, k: number) => punto(p, e, `il vertice ${k + 1}`));
       });
+    }
+  }
+
+  if (stato.pavimentoRadiante !== undefined) {
+    const zone = stato.pavimentoRadiante;
+    if (!Array.isArray(zone)) errori.push(`${dove}: l’elenco delle zone radianti non è valido.`);
+    else {
+      const locali = new Set<string>();
+      if (Array.isArray(stato.locali)) for (const l of stato.locali) {
+        if (eOggetto(l) && typeof l.id === "string" && typeof l.destinazione === "string" &&
+          eAmbienteInterno({ destinazione: l.destinazione, aperto: l.aperto === true })) locali.add(l.id);
+      }
+      const usati = new Set<string>();
+      zone.forEach((z: unknown, i: number) => {
+        const e = `${dove}, zona radiante ${i + 1}`;
+        if (!eOggetto(z) || typeof z.localeId !== "string" || !locali.has(z.localeId)) {
+          errori.push(`${e}: seleziona un locale interno di questo disegno.`);
+          return;
+        }
+        if (usati.has(z.localeId)) errori.push(`${e}: il locale ha già una zona radiante.`);
+        usati.add(z.localeId);
+        if (!eNumero(z.passoCm) || z.passoCm < PASSO_RADIANTE_CM.min || z.passoCm > PASSO_RADIANTE_CM.max) {
+          errori.push(`${e}: il passo deve essere tra ${PASSO_RADIANTE_CM.min} e ${PASSO_RADIANTE_CM.max} cm.`);
+        }
+        if (!eNumero(z.superficieEsclusaMq) || z.superficieEsclusaMq < 0) errori.push(`${e}: la superficie esclusa non è valida.`);
+      });
+    }
+  }
+
+  if (stato.collettoreRadiante !== undefined) {
+    const c = stato.collettoreRadiante;
+    if (!eOggetto(c)) errori.push(`${dove}: il collettore radiante non è valido.`);
+    else {
+      punto(c.posizione, dove, "la posizione del collettore radiante");
+      if (!eNumero(c.quotaCm) || c.quotaCm < QUOTA_COLLETTORE_RADIANTE_CM.min || c.quotaCm > QUOTA_COLLETTORE_RADIANTE_CM.max) {
+        errori.push(`${dove}: la quota del collettore radiante non è valida.`);
+      }
+      if (!eNumero(c.limiteCircuitoM) || c.limiteCircuitoM < LIMITE_CIRCUITO_RADIANTE_M.min || c.limiteCircuitoM > LIMITE_CIRCUITO_RADIANTE_M.max) {
+        errori.push(`${dove}: la lunghezza obiettivo del circuito radiante non è valida.`);
+      }
     }
   }
 

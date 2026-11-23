@@ -1,4 +1,5 @@
 import { materialiDelProgetto, statoConMateriali } from "../../../../shared/planimetrie/materialiProgetto.ts";
+import { circuitiRadianti } from "../../../../shared/planimetrie/circuitiRadianti.ts";
 /**
  * Dal modello della planimetria (fase 1, `shared/planimetrie/modello.ts`, spiegato in
  * docs/planimetrie/modello.md) a ciò che il 3D legge (`PiantaPer3D`).
@@ -38,6 +39,7 @@ export function daStatoPianta(s: StatoPianta): PiantaPer3D {
       altezza: a.altezza,
       davanzale: a.davanzale,
       stato: stato(a.stato),
+      ...(a.verso ? { cardineP2: a.verso.cardine === "p2" } : {}),
       ...(a.sistema === "fisso" ? { fisso: true } : {}),
       ...(a.tipo === "finestra" || a.tipo === "portafinestra" || a.ante !== undefined || a.sistema !== undefined
         ? { ante: anteDi(a), scorrevole: eScorrevole(sistemaDi(a)) }
@@ -49,6 +51,11 @@ export function daStatoPianta(s: StatoPianta): PiantaPer3D {
       ...(l.finiture ? { finiture: l.finiture } : {}), ...(l.aperto ? { aperto: true } : {}) })),
     elementi: s.elementi.map(daElemento),
     ...(s.tracciatiImpianti?.length ? { tracciatiImpianti: s.tracciatiImpianti.map(t => ({ ...t, vertici: t.vertici.map(giu) })) } : {}),
+    ...(s.pavimentoRadiante?.length ? { pavimentoRadiante: s.pavimentoRadiante } : {}),
+    ...(s.collettoreRadiante ? { reteRadiante: {
+      collettore: { ...s.collettoreRadiante, posizione: giu(s.collettoreRadiante.posizione) },
+      circuiti: circuitiRadianti(s).map(c => ({ ...c, mandata: c.mandata.map(giu), ritorno: c.ritorno.map(giu), serpentina: c.serpentina.map(giu) })),
+    } } : {}),
     ...(s.aree?.length ? { aree: s.aree.filter((a) => a.stato !== "da_demolire").map((a) => ({ id: a.id, tipo: a.tipo, contorno: a.contorno.map(giu), recinzione: a.recinzione, quota: a.quota })) } : {}),
   };
 }

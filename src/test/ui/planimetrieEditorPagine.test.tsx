@@ -1,19 +1,37 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import bilocale from "../../../shared/planimetrie/esempi/bilocale.json";
 import { pavimentoDaCampione } from "../../../shared/planimetrie/materialiProgetto";
+import { nuovaPlanimetria, type Planimetria } from "../../../shared/planimetrie/modello";
+import * as dwgLocale from "@/lib/planimetrie/dwgLocale";
+import type { Vista3DProps } from "@/components/planimetrie/Vista3DPigra";
 
 const archivio = vi.hoisted(() => ({
   creaPlanimetria: vi.fn(),
   salvaNuovaVersione: vi.fn(),
   invoke: vi.fn(),
+  upload: vi.fn(),
 }));
 
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke: archivio.invoke } } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: {
+  functions: { invoke: archivio.invoke },
+  storage: { from: () => ({ upload: archivio.upload, createSignedUrl: async () => ({ data: { signedUrl: "/tavola.png" } }) }) },
+} }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda-1" } }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/components/planimetrie/Vista3DPigra", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/components/planimetrie/Vista3DPigra")>(),
+  Vista3DPigra: ({ piante, anteprimaEditor }: Vista3DProps) => {
+    const pianta = piante[anteprimaEditor?.vista === "fatto" ? "fatto" : "progetto"];
+    return <>
+      <output aria-label="Locali visibili nel 3D">{pianta.locali.map(l => l.nome).join(" · ")}</output>
+      <output aria-label="Arredi visibili nel 3D">{pianta.elementi.length}</output>
+      {anteprimaEditor?.confronto}
+    </>;
+  },
+}));
 vi.mock("@/lib/planimetrie/archivio", async (importOriginal) => {
   const vero = await importOriginal<typeof import("@/lib/planimetrie/archivio")>();
   return {
@@ -34,6 +52,7 @@ vi.mock("@/lib/planimetrie/archivio", async (importOriginal) => {
 import RenderPlanimetriaModifica from "@/pages/azienda/RenderPlanimetriaModifica";
 import RenderPlanimetriaNuova from "@/pages/azienda/RenderPlanimetriaNuova";
 import { EditorConSalvataggio } from "@/components/planimetrie/editor/EditorConSalvataggio";
+import type { Riconoscitore } from "@/lib/planimetrie/dettatura";
 
 class ResizeObserverFinto {
   observe() {}
@@ -65,6 +84,187 @@ beforeEach(() => {
 });
 
 describe("Modifica la pianta", () => {
+  it("annulla i primi arredi nel disegno nuovo, nel 3D e nel documento salvato", async () => {
+    archivio.creaPlanimetria.mockResolvedValue("nuova-1");
+    const { container } = monta(<EditorConSalvataggio companyId="azienda-1" titoloPagina="Disegna una pianta" indietro="/x" />, "/n", "/n");
+    fireEvent.change(screen.getByLabelText("Nome della pianta"), { target: { value: "Prova soggiorno" } });
+    fireEvent.click(screen.getByRole("button", { name: "Scrivi le misure" }));
+    fireEvent.change(screen.getByLabelText("Nome (facoltativo)"), { target: { value: "Soggiorno" } });
+    fireEvent.change(screen.getByLabelText("Larghezza (m)"), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("Lunghezza (m)"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi la stanza" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Anteprima 3D$/ }));
+    const arredi = screen.getByLabelText("Arredi visibili nel 3D");
+    expect(arredi).toHaveTextContent("0");
+    fireEvent.click(screen.getByRole("button", { name: "Chat del disegno" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Scrivi alla chat del disegno" }), { target: { value: "Arreda il soggiorno" } });
+    fireEvent.click(screen.getByRole("button", { name: "Invia messaggio" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Applica alla pianta" }));
+    expect(arredi).not.toHaveTextContent("0");
+    fireEvent.click(await screen.findByRole("button", { name: "Annulla applicazione" }));
+    expect(arredi).toHaveTextContent("0");
+    expect(container.querySelectorAll('g[data-tipo="elemento"]')).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(archivio.creaPlanimetria).toHaveBeenCalledOnce());
+    expect(archivio.creaPlanimetria.mock.calls[0][0].documento.livelli[0].fatto.elementi).toEqual([]);
+  });
+
+  it("confronta la proposta in 3D prima di applicarla e ripristina la pianta scartandola", async () => {
+    monta(<RenderPlanimetriaModifica />, "/azienda/planimetrie/p1/modifica", "/azienda/planimetrie/:id/modifica");
+    const apri3D = screen.getByRole("button", { name: /^Anteprima 3D$/ });
+    fireEvent.click(apri3D);
+    const pannello = within(screen.getByRole("region", { name: "Anteprima 3D affiancata" }));
+    const locali = pannello.getByLabelText("Locali visibili nel 3D");
+    expect(locali).toHaveTextContent("Soggiorno");
+    expect(locali).not.toHaveTextContent("Lavanderia");
+    fireEvent.click(screen.getByRole("button", { name: "Chat del disegno" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Scrivi alla chat del disegno" }), { target: { value: "Lavanderia 2,4 × 2,5 m" } });
+    fireEvent.click(screen.getByRole("button", { name: "Invia messaggio" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Applica alla pianta" })).toBeEnabled());
+    expect(locali).toHaveTextContent("Lavanderia");
+    expect(pannello.getByText(/Proposta di Silvio/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Salva" })).toBeDisabled();
+    const confronto = within(screen.getByRole("group", { name: "Confronta sulla pianta" }));
+    fireEvent.click(confronto.getByRole("button", { name: "Prima" }));
+    expect(locali).not.toHaveTextContent("Lavanderia");
+    expect(pannello.getByText(/Prima della proposta/)).toBeInTheDocument();
+    fireEvent.click(confronto.getByRole("button", { name: "Dopo" }));
+    expect(locali).toHaveTextContent("Lavanderia");
+    const divisore = screen.getByRole("separator", { name: "Ridimensiona la pianta 2D" });
+    fireEvent.keyDown(divisore, { key: "ArrowLeft" });
+    expect(divisore).toHaveAttribute("aria-valuenow", "50");
+    fireEvent.keyDown(divisore, { key: "Enter" });
+    const mostraPianta = pannello.getByRole("button", { name: "Mostra pianta 2D" });
+    expect(mostraPianta).toHaveFocus();
+    expect(document.getElementById(mostraPianta.getAttribute("aria-controls")!)).toBeEmptyDOMElement();
+    expect(screen.queryByRole("group", { name: "Confronta sulla pianta" })).toBeNull();
+    const confronto3D = within(pannello.getByRole("group", { name: "Confronta la proposta in 3D" }));
+    fireEvent.click(confronto3D.getByRole("button", { name: "Prima" }));
+    expect(locali).not.toHaveTextContent("Lavanderia");
+    fireEvent.click(confronto3D.getByRole("button", { name: "Dopo" }));
+    expect(locali).toHaveTextContent("Lavanderia");
+    fireEvent.click(mostraPianta);
+    expect(screen.getByRole("separator", { name: "Ridimensiona la pianta 2D" })).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByRole("group", { name: "Confronta sulla pianta" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Scarta" }));
+    expect(locali).not.toHaveTextContent("Lavanderia");
+    expect(archivio.salvaNuovaVersione).not.toHaveBeenCalled();
+    fireEvent.click(pannello.getByRole("button", { name: "Nascondi pianta 2D" }));
+    fireEvent.click(pannello.getByRole("button", { name: "Chiudi anteprima 3D" }));
+    expect(apri3D).toHaveFocus();
+    expect(screen.queryByRole("region", { name: "Anteprima 3D affiancata" })).toBeNull();
+    expect(document.getElementById(mostraPianta.getAttribute("aria-controls")!)?.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("salva il riferimento DWG bloccato quando la ricostruzione parte dalla chat", async () => {
+    const dwg = structuredClone(bilocale) as Planimetria;
+    dwg.livelli[0].tavolaDwg = { riquadro: { x: 0, y: 0, larghezza: 800, altezza: 600 },
+      layer: [{ nome: "MURI", linee: "M0 0l800 0", campiture: "" }] };
+    const anteprima = new File(["demo"], "pianta.png", { type: "image/png" });
+    const leggi = vi.spyOn(dwgLocale, "leggiTavolaDwg").mockResolvedValue({ file: anteprima,
+      riferimento: { unita: 6, rettangolo: [0, 0, 8, 6], quote: [] } });
+    const ricostruisci = vi.spyOn(dwgLocale, "ricostruisciModelloDwg").mockResolvedValue({ documento: dwg,
+      piani: [{ origine: [0, 600], larghezza: 800, altezza: 600, allineamento: "primo" }] });
+    vi.stubGlobal("URL", class extends URL {
+      static createObjectURL() { return "blob:tavola-dwg"; }
+      static revokeObjectURL() {}
+    });
+    try {
+      archivio.upload.mockResolvedValue({ error: null });
+      archivio.salvaNuovaVersione.mockResolvedValue(4);
+      monta(<EditorConSalvataggio companyId="azienda-1" titoloPagina="Piano vuoto" indietro="/azienda/planimetrie/p1"
+        iniziale={nuovaPlanimetria()} planimetriaId="p1" versioneAttesa={3} />, "/azienda/planimetrie/p1/modifica", "/azienda/planimetrie/:id/modifica");
+      fireEvent.click(screen.getByRole("button", { name: "Chat del disegno" }));
+      fireEvent.change(screen.getByLabelText("File per la planimetria"), { target: { files: [new File(["DWG"], "base.dwg")] } });
+      fireEvent.click(await screen.findByRole("button", { name: "Ricostruisci il piano" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Applica alla pianta" })).toBeEnabled());
+      expect(archivio.upload).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Applica alla pianta" }));
+      await screen.findByTitle("Originale DWG bloccato");
+      fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+      await waitFor(() => expect(archivio.salvaNuovaVersione).toHaveBeenCalledOnce());
+      const salvato = archivio.salvaNuovaVersione.mock.calls[0][0].documento as Planimetria;
+      expect(salvato.livelli[0].tavolaDwg).toEqual(dwg.livelli[0].tavolaDwg);
+      expect(salvato.livelli[0].ricalco).toMatchObject({ bloccata: true, calibrata: true, x: 0, y: 600 });
+      expect(salvato.livelli[0].riscontroScala).toEqual({ stato: "da_verificare" });
+    } finally {
+      leggi.mockRestore();
+      ricostruisci.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("salva un riscontro documentale conservando i locali importati", async () => {
+    const originale = structuredClone(bilocale) as Planimetria;
+    originale.livelli[0].fatto.locali[0].nome = "Contorno da conservare";
+    originale.letturaDocumento = {
+      protocolloVerifica: 1, avvisiIniziali: [], superficiScritteMq: {},
+      verifiche: [{ id: "riscontro", tipo: "nota", descrizione: "Confronto la quota stampata" }],
+    };
+    archivio.salvaNuovaVersione.mockResolvedValue(4);
+    monta(<EditorConSalvataggio companyId="azienda-1" titoloPagina="Bilocale" indietro="/azienda/planimetrie/p1"
+      iniziale={originale} planimetriaId="p1" versioneAttesa={3} />, "/azienda/planimetrie/p1/modifica", "/azienda/planimetrie/:id/modifica");
+    const controllo = within(screen.getByRole("region", { name: "Confronto la quota stampata" }));
+    fireEvent.change(controllo.getByRole("textbox"), { target: { value: "Confrontata con il foglio originale." } });
+    fireEvent.click(controllo.getByRole("button", { name: "Confermo il controllo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(archivio.salvaNuovaVersione).toHaveBeenCalledOnce());
+    const salvato = archivio.salvaNuovaVersione.mock.calls[0][0].documento as Planimetria;
+    expect(salvato.livelli[0].fatto).toEqual(originale.livelli[0].fatto);
+    expect(salvato.livelli[0].proposte).toEqual(originale.livelli[0].proposte);
+    expect(salvato.letturaDocumento?.verifiche?.[0].conferma?.nota).toBe("Confrontata con il foglio originale.");
+  });
+
+  it("rivede una modifica dettata, scarta la prova e salva solo quella applicata", async () => {
+    let riconoscitore: Riconoscitore | undefined;
+    const registraRiconoscitore = (istanza: Riconoscitore) => { riconoscitore = istanza; };
+    vi.stubGlobal("SpeechRecognition", class implements Riconoscitore {
+      lang = "";
+      continuous = false;
+      interimResults = false;
+      onresult: Riconoscitore["onresult"] = null;
+      onend: Riconoscitore["onend"] = null;
+      onerror: Riconoscitore["onerror"] = null;
+      start() { registraRiconoscitore(this); }
+      stop() { this.onend?.(); }
+    });
+    try {
+      archivio.salvaNuovaVersione.mockResolvedValue(4);
+      monta(<RenderPlanimetriaModifica />, "/azienda/planimetrie/p1/modifica", "/azienda/planimetrie/:id/modifica");
+      fireEvent.click(screen.getByRole("button", { name: "Chat del disegno" }));
+      const testo = screen.getByRole("textbox", { name: "Scrivi alla chat del disegno" });
+      const salva = screen.getByRole("button", { name: "Salva" });
+      fireEvent.click(screen.getByRole("button", { name: "Detta un comando" }));
+      const frase = "Lavanderia prova due virgola quaranta per due virgola cinquanta";
+      expect(riconoscitore?.lang).toBe("it-IT");
+      act(() => {
+        const risultato = Object.assign([{ transcript: frase }], { isFinal: true });
+        riconoscitore?.onresult?.({ resultIndex: 0, results: [risultato] });
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Termina dettatura" }));
+      expect(testo).toHaveValue(frase);
+      fireEvent.click(screen.getByRole("button", { name: "Invia messaggio" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Scarta" })).toBeEnabled());
+      expect(salva).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: "Scarta" }));
+      expect(salva).toBeDisabled();
+      expect(archivio.salvaNuovaVersione).not.toHaveBeenCalled();
+
+      fireEvent.change(testo, { target: { value: "Lavanderia 2,4 × 2,5 m" } });
+      fireEvent.click(screen.getByRole("button", { name: "Invia messaggio" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Applica alla pianta" })).toBeEnabled());
+      fireEvent.click(screen.getByRole("button", { name: "Applica alla pianta" }));
+      fireEvent.click(salva);
+      await waitFor(() => expect(archivio.salvaNuovaVersione).toHaveBeenCalledOnce());
+      expect(archivio.salvaNuovaVersione.mock.calls[0][0].documento.livelli[0].fatto.locali.map((l: { nome: string }) => l.nome))
+        .toContain("Lavanderia");
+      expect(archivio.salvaNuovaVersione.mock.calls[0][0].documento.livelli[0].fatto.locali.map((l: { nome: string }) => l.nome))
+        .not.toContain("Lavanderia prova");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("apre la versione corrente e, dopo una modifica, salva una versione nuova con la versione attesa", async () => {
     archivio.salvaNuovaVersione.mockResolvedValue(4);
     monta(<RenderPlanimetriaModifica />, "/azienda/planimetrie/p1/modifica", "/azienda/planimetrie/:id/modifica");
@@ -105,6 +305,87 @@ describe("Modifica la pianta", () => {
 });
 
 describe("Nuova pianta", () => {
+  it("mostra la sequenza di disegno e permette di arrivare subito al risultato o di interromperla", () => {
+    vi.useFakeTimers();
+    try {
+      monta(<EditorConSalvataggio companyId="azienda-1" titoloPagina="Disegna una pianta" indietro="/x" />, "/n", "/n");
+      fireEvent.click(screen.getByRole("button", { name: "Chat del disegno" }));
+      const testo = screen.getByRole("textbox", { name: "Scrivi alla chat del disegno" });
+      fireEvent.click(screen.getByRole("button", { name: "Prova cucina e ingresso" }));
+      fireEvent.keyDown(testo, { key: "Enter" });
+      expect(screen.getByRole("progressbar", { name: "Passaggi del disegno" })).toHaveAttribute("aria-valuenow", "1");
+      act(() => vi.advanceTimersByTime(170));
+      expect(screen.getByRole("progressbar", { name: "Passaggi del disegno" })).toHaveAttribute("aria-valuenow", "2");
+      fireEvent.click(screen.getByRole("button", { name: "Interrompi risposta" }));
+      act(() => vi.advanceTimersByTime(800));
+      expect(screen.queryByRole("button", { name: "Applica alla pianta" })).toBeNull();
+      fireEvent.change(testo, { target: { value: "Cucina 3,20 × 4,10 m\nIngresso 2 × 2,50 m a destra della cucina" } });
+      fireEvent.keyDown(testo, { key: "Enter" });
+      fireEvent.click(screen.getByRole("button", { name: "Vai al risultato" }));
+      expect(screen.queryByRole("progressbar")).toBeNull();
+      expect(screen.getByRole("button", { name: "Applica alla pianta" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Evidenzia Ingresso sulla tavola" })).toBeEnabled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("con movimento ridotto propone il risultato completo e localizza le misure con la tastiera", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    try {
+      monta(<EditorConSalvataggio companyId="azienda-1" titoloPagina="Disegna una pianta" indietro="/x" />, "/n", "/n");
+      const toggle = screen.getByRole("button", { name: "Chat del disegno" });
+      fireEvent.click(toggle);
+      fireEvent.click(screen.getByRole("button", { name: "Prova cucina e ingresso" }));
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "Scrivi alla chat del disegno" }), { key: "Enter" });
+      expect(screen.queryByRole("progressbar")).toBeNull();
+      expect(screen.getByRole("button", { name: "Applica alla pianta" })).toBeEnabled();
+      const cucina = screen.getByRole("button", { name: "Evidenzia Cucina sulla tavola" });
+      fireEvent.click(cucina);
+      expect(cucina).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(screen.getByRole("button", { name: "Chiudi chat del disegno" }));
+      expect(toggle).toHaveFocus();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("confronta la proposta sulla stessa tavola e può annullarla dopo averla applicata", () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = monta(<EditorConSalvataggio companyId="azienda-1" titoloPagina="Disegna una pianta" indietro="/x" />, "/n", "/n");
+      fireEvent.click(screen.getByRole("button", { name: "Chat del disegno" }));
+      const chat = screen.getByRole("textbox", { name: "Scrivi alla chat del disegno" });
+      fireEvent.change(chat, { target: { value: "Cucina 3,20 × 4,10 m" } });
+      fireEvent.keyDown(chat, { key: "Enter" });
+      act(() => vi.advanceTimersByTime(600));
+      const confronto = within(screen.getByRole("group", { name: "Confronta sulla pianta" }));
+      const contaLocali = () => container.querySelectorAll('svg[data-tipo="sfondo"] polygon[data-tipo="locale"]').length;
+      expect(confronto.getByRole("button", { name: "Differenze" })).toHaveAttribute("aria-pressed", "true");
+      expect(container.querySelector("[data-chat-differenze]")).toBeTruthy();
+      expect(contaLocali()).toBe(1);
+      fireEvent.click(confronto.getByRole("button", { name: "Prima" }));
+      expect(contaLocali()).toBe(0);
+      fireEvent.click(confronto.getByRole("button", { name: "Dopo" }));
+      expect(contaLocali()).toBe(1);
+      expect(container.querySelector("[data-chat-differenze]")).toBeNull();
+      fireEvent.click(confronto.getByRole("button", { name: "Riproduci le modifiche" }));
+      expect(container.querySelector("[data-chat-traccia]")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Applica alla pianta" }));
+      expect(screen.getByRole("heading", { name: "Modifiche applicate · da salvare" })).toHaveFocus();
+      expect(archivio.creaPlanimetria).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Annulla applicazione" }));
+      expect(contaLocali()).toBe(0);
+      expect(chat).toHaveFocus();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("distingue il pavimento comune dalle finiture proprie della stanza", async () => {
     const doc = { ...structuredClone(bilocale), materialiProgetto: { fatto: { pavimento: pavimentoDaCampione("rovere") } } };
     monta(<EditorConSalvataggio companyId="azienda-1" titoloPagina="Disegna una pianta" indietro="/x" iniziale={doc as never} />, "/n", "/n");
@@ -168,7 +449,8 @@ describe("Nuova pianta", () => {
     monta(<RenderPlanimetriaNuova />, "/azienda/planimetrie/nuova?da=testo", "/azienda/planimetrie/nuova");
     fireEvent.change(screen.getByLabelText("Com'è la casa?"), { target: { value: "Bilocale di 50 mq con bagno e camera" } });
     fireEvent.click(screen.getByRole("button", { name: /Ricava la pianta/ }));
-    expect(await screen.findByText(/^Editor · Da una descrizione/)).toBeTruthy();
+    expect(await screen.findByText(/Editor · Da una descrizione/)).toBeTruthy();
+    expect(screen.getByRole("heading", {name:"Nuova planimetria"})).toBeTruthy();
     expect(archivio.invoke).toHaveBeenCalledWith("planimetria-genera", { body: expect.objectContaining({ company_id: "azienda-1", ingresso: "descrizione" }) });
     expect(screen.getByText("Controlla le misure del bagno.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Salva/ }));
@@ -187,10 +469,10 @@ describe("Nuova pianta", () => {
       error: null,
     });
     monta(<RenderPlanimetriaNuova />, "/azienda/planimetrie/nuova?da=sopralluogo", "/azienda/planimetrie/nuova");
-    expect(screen.getByRole("button", { name: "Nuovo rilievo" })).toBeTruthy();
+    expect(screen.getByRole("link",{name:/Dal sopralluogo/})).toHaveAttribute("aria-current","page");
     fireEvent.change(screen.getByLabelText("Le misure, stanza per stanza"), { target: { value: "Cucina 3,20 per 4,10\nBagno 2,10 x 2,40" } });
     fireEvent.click(screen.getByRole("button", { name: /Ricava la pianta/ }));
-    expect(await screen.findByText(/^Editor · Dal sopralluogo/)).toBeTruthy();
+    expect(await screen.findByText(/Editor · Dal sopralluogo/)).toBeTruthy();
     expect(archivio.invoke).toHaveBeenCalledWith("planimetria-genera", { body: expect.objectContaining({ ingresso: "rilievo", testo: "Cucina 3,20 per 4,10\nBagno 2,10 x 2,40" }) });
   });
 

@@ -11,8 +11,8 @@ export function textureFiniture(ridisegna: () => void) {
     const gia = cache.get(chiave);
     if (gia) return gia.texture;
     let texture: THREE.Texture;
-    const urlDati = canale === "colore" ? undefined : urlMappaPbr(trama, canale);
-    const foto = canale === "colore" ? FOTO_FINITURE[trama] : urlDati && import.meta.env.BASE_URL + urlDati;
+    const urlDati = urlMappaPbr(trama, canale);
+    const foto = urlDati ? import.meta.env.BASE_URL + urlDati : canale === "colore" ? FOTO_FINITURE[trama] : undefined;
     if (foto) {
       let completa!: () => void;
       inAttesa.set(chiave, new Promise<void>((resolve) => { completa = resolve; }));

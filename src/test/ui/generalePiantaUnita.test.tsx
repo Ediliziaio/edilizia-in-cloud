@@ -7,6 +7,7 @@ const m = vi.hoisted(() => ({ attiva: true, permesso: true, piante: [] as { id: 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda" } }) }));
 vi.mock("@/hooks/useFeatureAccess", () => ({ useFeatureAccess: () => ({ isEnabled: m.attiva }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewRenderAi: m.permesso }) }));
+vi.mock("@/hooks/useCommesseGenerali", () => ({ useRiepilogoGenerale: (): { data: undefined } => ({ data: undefined }) }));
 vi.mock("@/lib/planimetrie/archivio", () => ({ useElencoPlanimetrie: () => ({ data: m.piante, isError: false }) }));
 import { PiantaUnita } from "@/components/orders/generali/vendita/PiantaUnita";
 

@@ -28,6 +28,9 @@ export function FormIpotesi({ ipotesi: ip, onCambia, prefisso = "sim" }: Props) 
   const investitore = (id: string, p: Partial<InvestitoreIpotesi>) => metti("investitori", ip.investitori.map((i) => (i.id === id ? { ...i, ...p } : i)));
   const t = tempi(ip);
   const sviluppo = ip.modello === "sviluppo";
+  const nomeLavori = sviluppo ? "Costruzione" : "Ristrutturazione";
+  const importoLavori = ip.planimetria?.computoImportato ? ip.ritocchi.costruzione?.importo : undefined;
+  const aImporto = importoLavori !== undefined;
   const id = (s: string) => `${prefisso}-${s}`;
 
   return (
@@ -62,7 +65,9 @@ export function FormIpotesi({ ipotesi: ip, onCambia, prefisso = "sim" }: Props) 
         {ip.tipologie.length === 0 && <p className="text-sm text-muted-foreground">Aggiungi almeno un tipo di unità per vedere ricavi e indicatori.</p>}
         <div className="space-y-3">
           {ip.tipologie.map((tp, i) => (
-            <div key={tp.id} className="grid items-end gap-2 sm:grid-cols-[minmax(8rem,1.4fr)_repeat(4,minmax(5.5rem,1fr))_auto]">
+            <div key={tp.id} className={aImporto
+              ? "grid items-end gap-2 sm:grid-cols-[minmax(8rem,1.4fr)_repeat(3,minmax(5.5rem,1fr))_auto]"
+              : "grid items-end gap-2 sm:grid-cols-[minmax(8rem,1.4fr)_repeat(4,minmax(5.5rem,1fr))_auto]"}>
               <div className="space-y-1">
                 <Label htmlFor={id(`tp-nome-${i}`)} className="text-sm font-normal text-muted-foreground">Tipo</Label>
                 <Input id={id(`tp-nome-${i}`)} value={tp.nome} maxLength={60} className="h-9 text-sm" onChange={(e) => tipologia(tp.id, { nome: e.target.value })} />
@@ -70,8 +75,8 @@ export function FormIpotesi({ ipotesi: ip, onCambia, prefisso = "sim" }: Props) 
               <CampoNumero id={id(`tp-quante-${i}`)} etichetta="Quante" intero valore={tp.quante} onCambia={(v) => tipologia(tp.id, { quante: v ?? 0 })} />
               <CampoNumero id={id(`tp-mq-${i}`)} etichetta="m² l'una" unita="m²" valore={tp.mq} onCambia={(v) => tipologia(tp.id, { mq: v ?? 0 })} />
               <CampoNumero id={id(`tp-prezzo-${i}`)} etichetta="Vendo a" unita="€/m²" valore={tp.prezzoMq} onCambia={(v) => tipologia(tp.id, { prezzoMq: v ?? 0 })} />
-              <CampoNumero id={id(`tp-costo-${i}`)} etichetta="Costo" unita="€/m²" vuotoPermesso valore={tp.costoMq} onCambia={(v) => tipologia(tp.id, { costoMq: v })}
-                aiuto={tp.costoMq === null ? "come sotto" : undefined} />
+              {!aImporto && <CampoNumero id={id(`tp-costo-${i}`)} etichetta="Costo" unita="€/m²" vuotoPermesso valore={tp.costoMq} onCambia={(v) => tipologia(tp.id, { costoMq: v })}
+                aiuto={tp.costoMq === null ? "come sotto" : undefined} />}
               <Button type="button" variant="ghost" size="icon" aria-label={`Togli ${tp.nome || "questo tipo"}`} className="mb-0.5"
                 onClick={() => metti("tipologie", ip.tipologie.filter((x) => x.id !== tp.id))}>
                 <Trash2 className="h-4 w-4" />
@@ -81,9 +86,12 @@ export function FormIpotesi({ ipotesi: ip, onCambia, prefisso = "sim" }: Props) 
         </div>
       </Gruppo>
 
-      <Gruppo titolo="Costi" testo={sviluppo ? "Costruzione al m² e le spese che ne dipendono." : "Ristrutturazione al m² e le spese che ne dipendono."}>
+      <Gruppo titolo="Costi" testo={aImporto ? "Importo complessivo dei lavori e spese dell’operazione." : `${nomeLavori} al m² e le spese che ne dipendono.`}>
         <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <CampoNumero id={id("costo")} etichetta={sviluppo ? "Costruzione" : "Ristrutturazione"} unita="€/m²" valore={ip.costoMq} onCambia={(v) => metti("costoMq", v ?? 0)} />
+          {aImporto
+            ? <CampoNumero key="importo" id={id("costo")} etichetta={nomeLavori} unita="€" valore={importoLavori}
+                onCambia={v => metti("ritocchi", { ...ip.ritocchi, costruzione: { ...ip.ritocchi.costruzione, importo:v ?? 0 } })} />
+            : <CampoNumero key="al-metro" id={id("costo")} etichetta={nomeLavori} unita="€/m²" valore={ip.costoMq} onCambia={(v) => metti("costoMq", v ?? 0)} />}
           <CampoNumero id={id("oneri")} etichetta={sviluppo ? "Oneri e permessi" : "Pratiche e permessi"} unita="€" valore={ip.oneri} onCambia={(v) => metti("oneri", v ?? 0)} />
           <CampoNumero id={id("tecnici")} etichetta="Tecnici" unita="%" valore={ip.tecniciPct} onCambia={(v) => metti("tecniciPct", v ?? 0)} aiuto="della costruzione" />
           <CampoNumero id={id("comm")} etichetta="Agenzia e pubblicità" unita="%" valore={ip.commercializzazionePct} onCambia={(v) => metti("commercializzazionePct", v ?? 0)} aiuto="dei ricavi" />

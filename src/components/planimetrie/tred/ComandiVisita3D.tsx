@@ -1,25 +1,36 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { ArrowDown, ArrowDownLeft, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUp, Building2, ChevronUp, DoorOpen, Footprints, Map as MapIcon, RotateCcw, RotateCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { UniformSelect } from "@/components/ui/uniform-select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { PassaggioVisita, TappaVisita, luogoVisita } from "@/lib/planimetrie/tred/visita";
 
-export function PartenzaVisita({ tappe, partenza, occupato, onParti }: {
-  tappe: TappaVisita[]; partenza: string; occupato: boolean; onParti: (id: string) => void;
+export function PartenzaVisita({ tappe, partenza, occupato, onParti, onArrivo }: {
+  tappe: TappaVisita[]; partenza: string; occupato: boolean; onParti: (id: string) => void; onArrivo: () => void;
 }) {
+  const scelta = useRef(false);
   if (!tappe.length) return <p className="text-xs text-muted-foreground">Disegna un pavimento o un ambiente per iniziare la visita.</p>;
-  return <label className="flex min-w-0 items-center gap-2 text-xs font-medium">
-    <span className="shrink-0">Parti da</span>
-    <UniformSelect aria-label="Punto di partenza della visita" value={partenza} onChange={e => onParti(e.target.value)}
-      title={tappe.find(t => t.id === partenza)?.nome} disabled={occupato} className="h-9 min-w-0 max-w-64 text-sm sm:max-w-[20rem]">
-      {tappe.some(t => t.transito) && <optgroup label="Scale e uscite">
-        {tappe.filter(t => t.transito).map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
-      </optgroup>}
-      {tappe.some(t => !t.transito) && <optgroup label="Ambienti">
-        {tappe.filter(t => !t.transito).map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
-      </optgroup>}
-    </UniformSelect>
-  </label>;
+  const gruppi = [
+    { nome: "Ambienti", tappe: tappe.filter(t => !t.transito) },
+    { nome: "Scale e uscite", tappe: tappe.filter(t => t.transito) },
+  ];
+  return <div className="flex min-w-0 items-center gap-2 text-xs font-medium">
+    <span className="shrink-0">Vai a</span>
+    <Select value={partenza} disabled={occupato} onValueChange={id => { scelta.current = true; onParti(id); }}>
+      <SelectTrigger aria-label="Vai a un ambiente della visita" title={tappe.find(t => t.id === partenza)?.nome}
+        className="h-9 w-auto min-w-0 max-w-64 text-sm sm:max-w-[20rem]"><SelectValue /></SelectTrigger>
+      <SelectContent onCloseAutoFocus={e => {
+        if (!scelta.current) return;
+        e.preventDefault();
+        scelta.current = false;
+        onArrivo();
+      }}>
+        {gruppi.filter(g => g.tappe.length > 0).map(g => <SelectGroup key={g.nome}>
+          <SelectLabel>{g.nome}</SelectLabel>
+          {g.tappe.map(t => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
+        </SelectGroup>)}
+      </SelectContent>
+    </Select>
+  </div>;
 }
 
 const MOSSE = [
@@ -29,34 +40,24 @@ const MOSSE = [
   { nome: "Spostati a destra", icona: ArrowRight, davanti: 0, lato: 1 },
 ] as const;
 
-export function MovimentoVisita({ disabilitato, onCammina, onGira }: {
-  disabilitato: boolean; onCammina: (avanti: number, lato: number) => void; onGira: (lato: number) => void;
+export function MovimentoVisita({ disabilitato, onCammina, onPremi, onRilascia, onGira }: {
+  disabilitato: boolean;
+  onCammina: (avanti: number, lato: number) => void;
+  onPremi: (avanti: number, lato: number) => void;
+  onRilascia: () => void;
+  onGira: (lato: number) => void;
 }) {
-  const pressione = useRef<{ attesa?: number; ciclo?: number; ripetuto: boolean }>({ ripetuto: false });
-  const rilascia = () => {
-    clearTimeout(pressione.current.attesa);
-    clearInterval(pressione.current.ciclo);
-  };
-  useEffect(() => {
-    window.addEventListener("blur", rilascia);
-    return () => { rilascia(); window.removeEventListener("blur", rilascia); };
-  }, []);
-  useEffect(() => { if (disabilitato) rilascia(); }, [disabilitato]);
   const direzione = ({ nome, icona: Icona, davanti, lato }: typeof MOSSE[number]) => <Button key={nome} type="button" variant="outline" size="icon"
     className="size-9 touch-none" disabled={disabilitato} aria-label={nome} title={nome}
     onPointerDown={e => {
       if (!e.isPrimary || e.button !== 0) return;
-      rilascia();
-      pressione.current.ripetuto = false;
       e.currentTarget.setPointerCapture?.(e.pointerId);
-      pressione.current.attesa = window.setTimeout(() => {
-        pressione.current.ripetuto = true;
-        onCammina(davanti, lato);
-        pressione.current.ciclo = window.setInterval(() => onCammina(davanti * .65, lato * .65), 90);
-      }, 240);
+      // Il clic resta sul visore mentre i comandi si usano con mouse o dito.
+      e.preventDefault();
+      onPremi(davanti, lato);
     }}
-    onPointerUp={rilascia} onPointerCancel={rilascia} onLostPointerCapture={rilascia}
-    onClick={e => { if (!e.detail || !pressione.current.ripetuto) onCammina(davanti, lato); pressione.current.ripetuto = false; }}>
+    onPointerUp={onRilascia} onPointerCancel={onRilascia} onLostPointerCapture={onRilascia}
+    onClick={e => { if (!e.detail) onCammina(davanti, lato); }}>
     <Icona className="size-4"/>
   </Button>;
   return <div role="group" aria-label="Comandi della visita" className="pointer-events-auto grid grid-cols-3 gap-1 rounded-xl bg-card/95 p-1.5 shadow-md ring-1 ring-black/10 supports-[backdrop-filter]:backdrop-blur-sm">
@@ -71,8 +72,8 @@ export function MovimentoVisita({ disabilitato, onCammina, onGira }: {
   </div>;
 }
 
-export function IndicazioniVisita({ luogo, vicino, passaggioInCorso, invito, onPassaggio, onRender, onGuardaEdificio, mostraMappa, onMappa }: {
-  luogo: ReturnType<typeof luogoVisita>; vicino?: PassaggioVisita; passaggioInCorso: string; invito?: string;
+export function IndicazioniVisita({ luogo, vicino, passaggioInCorso, avviso, invito, onPassaggio, onRender, onGuardaEdificio, mostraMappa, onMappa }: {
+  luogo: ReturnType<typeof luogoVisita>; vicino?: PassaggioVisita; passaggioInCorso: string; avviso?: string; invito?: string;
   onPassaggio: (p: PassaggioVisita) => void; onRender?: () => void; onGuardaEdificio?: () => void;
   mostraMappa?: boolean; onMappa?: () => void;
 }) {
@@ -100,6 +101,7 @@ export function IndicazioniVisita({ luogo, vicino, passaggioInCorso, invito, onP
     </div>
     <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex flex-wrap items-end gap-1.5 pr-32">
       {passaggioInCorso ? <p role="status" className="rounded-lg bg-card/95 px-3 py-2 text-xs font-medium shadow-md motion-safe:animate-in motion-safe:fade-in">{passaggioInCorso}</p>
+        : avviso ? <p role="status" className="rounded-lg bg-card/95 px-3 py-2 text-xs font-medium shadow-md">{avviso}</p>
         : vicino ? <Button type="button" size="sm" className="pointer-events-auto h-auto min-h-9 whitespace-normal text-left shadow-md motion-safe:animate-in motion-safe:fade-in"
           onClick={() => onPassaggio(vicino)}><Icona className="size-4 shrink-0"/>{vicino.nome}<kbd aria-hidden className="ml-1 hidden rounded border border-white/35 px-1 text-[10px] sm:inline">E</kbd></Button>
         : invito && <p className="hidden rounded-lg bg-card/95 px-2.5 py-1.5 text-xs text-muted-foreground shadow-sm sm:block">{invito}</p>}

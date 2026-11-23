@@ -1,5 +1,6 @@
 import type { TettoGeom } from "../../../../shared/planimetrie/tetto.ts";
-import type { TracciatoImpianto } from "../../../../shared/planimetrie/modello.ts";
+import type { CollettoreRadiante, TracciatoImpianto, ZonaRadiante } from "../../../../shared/planimetrie/modello.ts";
+import type { CircuitoRadiante } from "../../../../shared/planimetrie/circuitiRadianti.ts";
 /**
  * Tipi del 3D delle planimetrie.
  *
@@ -54,6 +55,8 @@ export interface AperturaPer3D {
   scorrevole?: boolean;
   /** Una vetrata fissa resta chiusa durante la visita. */
   fisso?: boolean;
+  /** Lato delle cerniere per la posizione della maniglia. */
+  cardineP2?: boolean;
   /** Oscurante e cassonetto scelti da chi ha fatto la pianta (tapparella, veneziana, persiana, scuri). */
   oscurante?: { tipo: "tapparella" | "veneziana" | "persiana" | "scuro"; ante: number; cassonetto?: { tipo: "monoblocco" | "a_filo" | "esterno"; altezza: number; profondita: number } };
   /** Zanzariera (sul filo interno del vano); `altezzaPersa` = cm presi in testa da un cassonetto monoblocco. */
@@ -118,6 +121,8 @@ export interface PiantaPer3D {
   locali: LocalePer3D[];
   elementi: ElementoPer3D[];
   tracciatiImpianti?: TracciatoImpianto[];
+  pavimentoRadiante?: ZonaRadiante[];
+  reteRadiante?: { collettore: CollettoreRadiante; circuiti: CircuitoRadiante[] };
   /** Reti aerauliche visualizzate nello studio della tavola, in cm. */
   canaliAria?: { id: string; rete: "mandata" | "ripresa"; da: Punto2; a: Punto2; larghezza?: number; altezza?: number; quota: number }[];
   raccordiAria?: RaccordoAria3D[];
@@ -156,8 +161,8 @@ export type StratoEsploso3D = "fondazioni" | "pavimenti" | "impianti" | "pareti"
 
 export type ModelloAuto3D = "compatta" | "berlina" | "suv" | "highland";
 
-export interface PosizioneAuto3D {
-  modello: ModelloAuto3D;
+export interface PosizioneModello3D<Modello extends string> {
+  modello: Modello;
   centro: V3;
   misure: V3;
   rotazione: number;
@@ -176,7 +181,9 @@ export interface Mesh3D {
   /** Strato esplicito per gli elementi che condividono lo stesso genere di mesh. */
   stratoEsploso?: StratoEsploso3D | null;
   /** La carrozzeria individua la posa dell'auto. Il visore e i render caricano il modello di dettaglio. */
-  auto?: PosizioneAuto3D;
+  auto?: PosizioneModello3D<ModelloAuto3D>;
+  /** Una parte del modello leggero conserva la posa del corrispondente asset di catalogo. */
+  arredoCatalogo?: PosizioneModello3D<import("../../../../shared/planimetrie/modelliArredo").ModelloCatalogo3D>;
   posizioni: number[];
   normali: number[];
   /** UV originali del modello importato, nel verso glTF (V = 0 in alto). */
@@ -194,10 +201,11 @@ export interface Materiale3D {
   opacita: number;
   ruvidita: number;
   metallico?: number;
+  emissione?: { colore: string; intensita: number };
   doppioLato?: boolean;
   /** Campione reale, ripetuto in metri (non dipende dalle dimensioni della stanza). */
   finituraProgetto?: boolean;
-  tessitura?: { trama: string; metri: [number, number]; tinta?: string };
+  tessitura?: { trama: string; metri: [number, number]; tinta?: string; occlusioneMetallo?: boolean };
 }
 
 export interface Limiti3D {
@@ -214,7 +222,7 @@ export interface Scena3D {
   /** Cose della pianta che il 3D ha dovuto correggere o saltare, in parole semplici. */
   avvisi: string[];
   /** Linee degli impianti disegnate, con i metri stimati (sfrido compreso). Solo con `impianti`. */
-  impianti?: Array<{ linea: string; nome: string; colore: string; metri: number }>;
+  impianti?: Array<{ linea: string; nome: string; colore: string; metri: number; superficieMq?: number; circuiti?: CircuitoRadiante[] }>;
 }
 
 export interface OpzioniScena {

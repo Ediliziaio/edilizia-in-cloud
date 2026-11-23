@@ -19,13 +19,16 @@ import {
   MapPin,
   Pencil,
   RefreshCw,
+  Ruler,
   Search,
   ShieldCheck,
   Copy,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useSurveyDetail, useSurveyReferences } from "@/hooks/useSurveyDetail";
+import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -150,6 +153,15 @@ type Props = {
   embedded?: boolean;
   onEdit?: () => void;
 };
+
+function PreparaPlanimetria({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  const { accessLevel } = useFeatureAccess("render_ai");
+  if (accessLevel !== "enabled") return null;
+  return <Button type="button" variant="outline" className="min-h-10 rounded-xl gap-2" disabled={disabled} onClick={onClick}>
+    <Ruler className="h-4 w-4" /> Prepara planimetria
+  </Button>;
+}
+
 export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
   function SurveyWorkspace(
     { surveyId, expectedOrderId, embedded = false, onEdit },
@@ -445,6 +457,9 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                   references.isPending || editState.dirty || editState.saving
                 }
               />
+              {!access.field && !solaLettura && permissions.canViewRenderAi && survey.status !== "cancelled" && !survey.deleted_at &&
+                <PreparaPlanimetria disabled={editState.dirty || editState.saving}
+                  onClick={() => navigate(() => routeTo(percorsiPlanimetrie.dalSopralluogo(survey.id, survey.order_id)))} />}
               {access.field && access.canEdit && <SurveyFieldHandoff compact={small} detail={detail} disabled={editState.dirty || editState.saving}/>}
               {!access.field && !solaLettura && ["fotovoltaico", "climatizzazione"].includes(detail.template.category) && <Button variant="outline" className="min-h-11 rounded-xl" disabled={editState.dirty || editState.saving} onClick={()=>navigate(()=>routeTo(energyQuoteHref(detail)))}>Prepara preventivo dal rilievo</Button>}
               {!access.field && !solaLettura && onEdit && (

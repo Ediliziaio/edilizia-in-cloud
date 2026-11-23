@@ -1,5 +1,6 @@
-import { pedateCad } from "../../../../shared/planimetrie/geometria.ts";
+import { pedateCad, puntoNelPoligono } from "../../../../shared/planimetrie/geometria.ts";
 import { eAmbienteInterno } from "../../../../shared/planimetrie/modello.ts";
+import { rettangoliIngombroArredo } from "../../../../shared/planimetrie/modelliArredo.ts";
 import type { PianoPer3D } from "./edificio";
 import { modelloElemento } from "./elementi";
 import { aperturaPercorribile, muroPresente } from "./scena";
@@ -7,7 +8,8 @@ import { localeAllaPosizione, passoLibero, vistaDentroLocale } from "./telecamer
 import type { ElementoPer3D, Mesh3D, PiantaPer3D, Scena3D, Telecamera3D, V3, Vista3D } from "./tipi";
 
 type Appoggio = { a: V3; b: V3; c: V3; sx: number; dx: number; dietro: number; avanti: number; det: number };
-type PianoVisita = { id: string; nome: string; quota: number; pianta: PiantaPer3D; appoggi: Appoggio[] };
+type IngombroVisita = { x: number; z: number; cos: number; sin: number; l: number; p: number };
+type PianoVisita = { id: string; nome: string; quota: number; pianta: PiantaPer3D; appoggi: Appoggio[]; ingombri: IngombroVisita[] };
 export type PosizioneVisita = { pianoId: string; piedi: V3 };
 export type TappaVisita = { id: string; nome: string; posizione: PosizioneVisita; vista: Telecamera3D; transito?: true; localeId?: string };
 export type PassaggioVisita = {
@@ -17,8 +19,14 @@ export type PassaggioVisita = {
 export type MappaVisita = { piani: PianoVisita[]; partenza: TappaVisita[]; passaggi: PassaggioVisita[]; vista: Vista3D };
 
 const SCALE = new Set(["scala", "scala_u", "scala_chiocciola"]);
+const INGOMBRI_SOLIDI = new Set([
+  "divano", "divano_angolare", "poltrona", "letto", "letto_singolo", "letto_matrimoniale",
+  "cucina", "cucina_angolare", "isola_cucina", "frigorifero", "armadio", "libreria", "mobile_tv",
+  "tavolo", "tavolo_rotondo", "tavolino", "scrivania", "vetrinetta", "barbecue", "pianta_vaso",
+]);
 export const OCCHI_VISITA = 1.6;
 const GRADINO_MASSIMO = .28;
+const RAGGIO_VISITA = .12;
 const ESTERNO = "Esterno";
 const distanza = (a: V3, b: V3) => Math.hypot(a[0] - b[0], a[2] - b[2]);
 const nomeTappa = (nome: string, piano: PianoVisita) => piano.nome ? `${piano.nome} · ${nome}` : nome;
@@ -55,9 +63,34 @@ function appoggio(piano: PianoVisita, x: number, z: number, altezza: number, tol
   return migliore;
 }
 
+function ingombriDiVisita(pianta: PiantaPer3D): IngombroVisita[] {
+  return pianta.elementi.filter(e => INGOMBRI_SOLIDI.has(e.tipo)).flatMap(e => {
+    const misure = modelloElemento(e.tipo).misure;
+    const a = e.rotazione * Math.PI / 180, cos = Math.cos(a), sin = Math.sin(a);
+    return rettangoliIngombroArredo(e.tipo, e.larghezza ?? misure.l * 100, e.profondita ?? misure.p * 100)
+      .map(r => ({
+        x: (e.centro.x + r.x * cos - r.y * sin) / 100,
+        z: (e.centro.y + r.x * sin + r.y * cos) / 100,
+        l: r.larghezza / 200, p: r.profondita / 200, cos, sin,
+      }));
+  });
+}
+
+function distanzaIngombro(o: IngombroVisita, x: number, z: number) {
+  const dx = x - o.x, dz = z - o.z;
+  const lato = Math.abs(dx * o.cos + dz * o.sin) - o.l;
+  const fronte = Math.abs(dz * o.cos - dx * o.sin) - o.p;
+  return Math.max(lato, fronte) <= 0 ? Math.max(lato, fronte) : Math.hypot(Math.max(0, lato), Math.max(0, fronte));
+}
+
 function passo(piano: PianoVisita, vista: Vista3D, da: V3, x: number, z: number): V3 | null {
   const y = appoggio(piano, x, z, da[1]);
   if (y === null) return null;
+  // La posizione si può sempre allontanare da un arredo con cui già si sovrappone.
+  if (piano.ingombri.some(o => {
+    const d = distanzaIngombro(o, x, z);
+    return d < RAGGIO_VISITA && d < distanzaIngombro(o, da[0], da[2]) - .0001;
+  })) return null;
   const a: V3 = [x, y, z];
   return passoLibero(piano.pianta, vista, da, a, true) ? a : null;
 }
@@ -108,7 +141,7 @@ function pianerottolo(piano: PianoVisita, vista: Vista3D, estremo: V3, seguente:
     for (const d of [.30, .45, .60, .78, 1, 1.24]) {
       const x = estremo[0] + d * Math.cos(direzione), z = estremo[2] + d * Math.sin(direzione);
       const y = appoggio(piano, x, z, piano.quota, .19);
-      if (y === null) continue;
+      if (y === null || piano.ingombri.some(o => distanzaIngombro(o, x, z) < RAGGIO_VISITA)) continue;
       const arrivo: V3 = [x, y, z];
       if (passoLibero(piano.pianta, vista, estremo, arrivo, true)) return arrivo;
     }
@@ -145,6 +178,26 @@ function collegaScale(piano: PianoVisita, sopra: PianoVisita, vista: Vista3D): P
 function localeIn(piano: PianoVisita, piedi: V3) {
   const id = localeAllaPosizione(piano.pianta, piedi);
   return piano.pianta.locali.find(l => l.id === id);
+}
+
+function partenzaNelLocale(piano: PianoVisita, locale: PiantaPer3D["locali"][number], posizione: V3): V3 | null {
+  const [x, , z] = posizione;
+  const prova = (a: number, b: number): V3 | null => {
+    if (!puntoNelPoligono({ x: a * 100, y: b * 100 }, locale.contorno) ||
+      piano.ingombri.some(o => distanzaIngombro(o, a, b) < RAGGIO_VISITA)) return null;
+    const y = appoggio(piano, a, b, piano.quota);
+    return y === null ? null : [a, y, b];
+  };
+  const esatta = prova(x, z);
+  if (esatta) return esatta;
+  for (const raggio of [.25, .50, .75, 1, 1.5, 2]) {
+    for (let i = 0; i < 8; i++) {
+      const angolo = i * Math.PI / 4;
+      const alternativa = prova(x + raggio * Math.cos(angolo), z + raggio * Math.sin(angolo));
+      if (alternativa) return alternativa;
+    }
+  }
+  return null;
 }
 
 function collegaEsterni(piano: PianoVisita, vista: Vista3D): PassaggioVisita[] {
@@ -192,8 +245,11 @@ export function mappaVisita(piani: PianoPer3D[], vista: Vista3D, scena: Scena3D)
     for (const f of facceCalpestabili(mesh)) appoggi.push(f);
     appoggiPerPiano.set(id, appoggi);
   }
-  const descritti = visibili.map((p): PianoVisita => ({ id: p.id, nome: p.nome, quota: p.quota / 100,
-    pianta: vista === "fatto" ? p.piante.fatto : p.piante.progetto, appoggi: appoggiPerPiano.get(p.id) ?? [] }));
+  const descritti = visibili.map((p): PianoVisita => {
+    const pianta = vista === "fatto" ? p.piante.fatto : p.piante.progetto;
+    return { id: p.id, nome: p.nome, quota: p.quota / 100,
+      pianta, appoggi: appoggiPerPiano.get(p.id) ?? [], ingombri: ingombriDiVisita(pianta) };
+  });
   const passaggi = descritti.flatMap((piano, i) => [
     ...(descritti[i + 1] ? collegaScale(piano, descritti[i + 1], vista) : []), ...collegaEsterni(piano, vista),
   ]);
@@ -201,13 +257,15 @@ export function mappaVisita(piani: PianoPer3D[], vista: Vista3D, scena: Scena3D)
     const locali = [...piano.pianta.locali].sort((a, b) => Number(b.destinazione === "ingresso") - Number(a.destinazione === "ingresso"));
     const ambienti = locali.flatMap(l => {
       const camera = vistaDentroLocale(l, 66);
-      const [x,, z] = camera.posizione;
-      const y = appoggio(piano, x, z, piano.quota);
-      if (y === null) return [];
+      const piedi = partenzaNelLocale(piano, l, camera.posizione);
+      if (!piedi) return [];
+      const [x, y, z] = piedi;
       const dy = y + OCCHI_VISITA - camera.posizione[1];
       const occhi: V3 = [x, y + OCCHI_VISITA, z];
-      return [{ id: `${piano.id}/stanza/${l.id}`, nome: nomeTappa(l.nome, piano), localeId: l.id, posizione: { pianoId: piano.id, piedi: [x, y, z] as V3 },
-        vista: { ...camera, posizione: occhi, guarda: [camera.guarda[0], camera.guarda[1] + dy, camera.guarda[2]] as V3 } }];
+      return [{ id: `${piano.id}/stanza/${l.id}`, nome: nomeTappa(l.nome, piano), localeId: l.id, posizione: { pianoId: piano.id, piedi },
+        vista: { ...camera, posizione: occhi, guarda: [
+          camera.guarda[0] + x - camera.posizione[0], camera.guarda[1] + dy, camera.guarda[2] + z - camera.posizione[2],
+        ] as V3 } }];
     });
     const transiti = passaggi.filter(p => p.da.pianoId === piano.id).map(p => {
       const [x, y, z] = p.da.piedi, verso = p.punti[1] ?? p.a.piedi;
@@ -252,6 +310,16 @@ export function percorsoVisita(mappa: MappaVisita, posizione: PosizioneVisita, p
   if (!piano) return null;
   const prima = avvicinamento(piano, mappa.vista, posizione.piedi, passaggio.da.piedi);
   return prima ? [posizione.piedi, ...prima, ...passaggio.punti.slice(1)] : null;
+}
+
+/** Spostamento diretto solo lungo un tratto percorribile sul piano attuale. */
+export function percorsoSulPavimentoVisita(mappa: MappaVisita, da: PosizioneVisita, arrivo: V3): V3[] | null {
+  const piano = mappa.piani.find(p => p.id === da.pianoId);
+  if (!piano || distanza(da.piedi, arrivo) < .08) return null;
+  const passi = avvicinamento(piano, mappa.vista, da.piedi, arrivo);
+  const ultimo = passi?.at(-1);
+  if (!ultimo || !passi || Math.abs(ultimo[1] - arrivo[1]) > .10) return null;
+  return [da.piedi, ...passi];
 }
 
 export function interpolaPercorso(punti: V3[]) {

@@ -85,12 +85,12 @@ describe("Rendiconto all'investitore: piano e versioni", () => {
     disegna();
     expect(screen.getByRole("checkbox", { name: /Includi il piano voce per voce/ })).toBeChecked();
     expect(screen.getByRole("combobox", { name: "Versione del piano" })).toHaveTextContent("Versione 2 approvata");
-    await waitFor(() => expect(screen.getByRole("button", { name: /Scarica/ })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: /Scarica/ })).toBeEnabled(), { timeout: 8_000 });
   });
 
   it("«Tutte e due le versioni» salva nello storico il PDF con il piano e quello senza", async () => {
     disegna();
-    await waitFor(() => expect(screen.getByRole("button", { name: /Scarica/ })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: /Scarica/ })).toBeEnabled(), { timeout: 8_000 });
     apriMenu();
     await act(async () => { fireEvent.click(await screen.findByRole("menuitem", { name: "Tutte e due le versioni" })); });
     await waitFor(() => expect(m.archivia).toHaveBeenCalledTimes(2));

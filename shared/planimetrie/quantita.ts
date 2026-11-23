@@ -45,6 +45,8 @@ import {
 import { misureOscurante, misureSerramento, misureZanzariera, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_ZANZARIERA } from "./serramenti.ts";
 import { TOLLERANZA_LOCALE_CM, apertureDelLocale, areaPoligono, lunghezzaMuro, perimetroPoligono } from "./geometria.ts";
 import { metriConSfrido, percorsiImpianti, type LineaImpianto } from "./impianti.ts";
+import { zoneRadianti } from "./pavimentoRadiante.ts";
+import { circuitiRadianti, metriPosaZonaRadiante, nomeCircuito } from "./circuitiRadianti.ts";
 import { facceTetto, finituraDi, fotovoltaicoSulTetto, rettangoloTetto, SUBSTRATO_VERDE_CM, superficieFalde } from "./tetto.ts";
 import { puntiTerreno, scaviERiporti } from "./terreno.ts";
 
@@ -153,6 +155,7 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   const ascensori: Array<{ st: string; x: number; y: number; fermate: number }> = [];
   // Linee stimate degli impianti (shared/planimetrie/impianti.ts), in cm senza sfrido.
   const linee = new Map<LineaImpianto, number>();
+  let radianteMq = 0, radianteTuboM = 0, collettoriRadianti = 0;
   // Lotto e aree esterne: «esterni:<tipo>.superficie_mq», recinzione del lotto in metri.
   const esterni = new Map<string, Accumulo>();
   let recinzioneCm = 0;
@@ -295,6 +298,24 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
 
     // ─── Linee degli impianti (stimate) ───
     for (const p of percorsiImpianti(stato).percorsi) linee.set(p.linea, (linee.get(p.linea) ?? 0) + p.lunghezzaCm);
+    const circuiti = circuitiRadianti(stato);
+    if (stato.collettoreRadiante) collettoriRadianti++;
+    for (const z of zoneRadianti(stato)) {
+      const delLocale = circuiti.filter(c => c.localeId === z.locale.id);
+      const tuboM = metriPosaZonaRadiante(z.tuboM, delLocale);
+      radianteMq += z.superficieMq;
+      radianteTuboM += tuboM;
+      const soggetto = `locale:${z.locale.id}`;
+      const riferimenti = { livelloId: livello.id, oggettoId: z.locale.id };
+      metti(soggetto, "radiante_mq", { valore: z.superficieMq, origini: ["stimata"] },
+        `Area riscaldata a pavimento — ${z.locale.nome}`, riferimenti);
+      metti(soggetto, "radiante_tubo_ml", { valore: tuboM, origini: ["stimata"] },
+        `Tubo radiante — ${z.locale.nome}`, riferimenti);
+      for (const c of delLocale) {
+        metti(soggetto, `radiante_circuito_${c.numero}_ml`, { valore: c.totaleM, origini: ["stimata"] },
+          `Tubo radiante — ${nomeCircuito(c)}`, riferimenti);
+      }
+    }
 
     // ─── Arredi, sanitari, punti impianto ───
     for (const e of stato.elementi) {
@@ -344,6 +365,11 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   if (lin("frigorifera")) metti("impianti:clima", "rame_ml", stimata(lin("frigorifera"), 2), "Linea frigorifera in rame, due tubi (stima)");
   if (lin("riscaldamento")) metti("impianti:riscaldamento", "tubo_ml", stimata(lin("riscaldamento"), 2), "Tubo riscaldamento, mandata e ritorno (stima dal generatore ai termosifoni)");
   if (lin("condensa")) metti("impianti:clima", "condensa_ml", stimata(lin("condensa")), "Scarico condensa split (stima)");
+  if (radianteMq > 0) {
+    metti("impianti:radiante", "superficie_mq", { valore: radianteMq, origini: ["stimata"] }, "Superficie riscaldata a pavimento");
+    metti("impianti:radiante", "tubo_ml", { valore: radianteTuboM, origini: ["stimata"] }, "Tubo radiante con i collegamenti al collettore disegnato (stima)");
+  }
+  if (collettoriRadianti) metti("impianti:radiante", "collettori", { valore: collettoriRadianti, origini: ["rilevata"] }, "Collettori del pavimento radiante");
 
   // Fondazioni stimate: cordolo (spessore + 40 cm, alto 50 cm) sotto le pareti nuove portanti ed esterne del piano più basso,
   // scavo largo 20 cm in più per lato e profondo 80 cm. Le pareti esistenti hanno già le loro; i tramezzi non ne hanno.

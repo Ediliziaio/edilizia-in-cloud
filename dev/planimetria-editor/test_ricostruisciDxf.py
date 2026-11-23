@@ -1,0 +1,253 @@
+import unittest
+from math import hypot
+
+import ezdxf
+from shapely import LineString, Point, box
+
+from anteprimaDxf import quote_di_controllo
+from ricostruisciDxf import (
+    Asse, LocaleLetto, abbina_aperture, accorpa_assi_sovrapposti, allinea_pareti, candidato_finestra,
+    combina_vani_comunicanti, completa_ingressi_aperti, contorni_facce, contorni_senza_etichette, finestre_tra_stipiti, includi_battuta_portone,
+    layer_del_piano, leggi_piano, leggi_quote, portoni_garage, raccordi_muratura, registra_tavola, riconosci_locali, riscontri_chiusure, riscontri_sovrapposizioni,
+    scale_da_riscontrare, varchi_tra_stipiti,
+)
+
+
+class RiconoscimentoTavolaTest(unittest.TestCase):
+    def test_doppia_anta_speculare_fra_due_stipiti(self):
+        doc = ezdxf.new()
+        doc.blocks.new("door-leaf").add_arc((0, 0), 81, -90, 0)
+        spazio = doc.modelspace()
+        spazio.add_blockref("door-leaf", (105, 10))
+        spazio.add_blockref("door-leaf", (267, 10), dxfattribs={"xscale": -1})
+        muri = [Asse(0, 20, 0, 100, 40), Asse(0, 20, 272, 420, 40)]
+        (_, a, b, tipo, ponte), = abbina_aperture(spazio, muri, box(-10, -150, 430, 130), 1)
+        self.assertEqual((a, b, tipo, ponte), (100, 272, "porta_doppia", True))
+
+    def test_recupera_il_rientro_documentato_senza_chiudere_un_passaggio(self):
+        muri = [Asse(90, -10, -120, 0, 20), Asse(90, -10, 120, 220, 20)]
+        esterna = [(20, -120), (20, 40), (34, 40), (34, 80), (20, 80), (20, 220)]
+        tratti = [((0, -120), (0, 220)), *zip(esterna, esterna[1:])]
+        fasce = sorted(raccordi_muratura(muri, tratti), key=lambda m: m.inizio)
+        self.assertEqual([(f.inizio, f.fine, f.spessore) for f in fasce], [(0, 40, 20), (40, 80, 34), (80, 120, 20)])
+        self.assertEqual(raccordi_muratura(muri, [t for t in tratti if t != ((34, 40), (34, 80))]), [])
+
+    def test_riconosce_l_ingresso_aperto_sul_soggiorno_solo_con_il_perimetro_disegnato(self):
+        sagoma = [(0, 0), (600, 0), (600, 400), (0, 400), (0, 0)]
+        tratti = list(zip(sagoma, sagoma[1:]))
+        ingresso = (Point(450, 190), "FOYER", "ingresso")
+        soggiorno = LocaleLetto(box(0, 0, 300, 400), [(Point(150, 190), "Living", "soggiorno")], 12)
+        (locale,) = completa_ingressi_aperti([soggiorno], [], tratti, [], [ingresso], [], [])
+        self.assertTrue(locale.contorno.covers(ingresso[0]))
+        self.assertAlmostEqual(locale.contorno.area / 10000, 12, delta=0.01)
+        self.assertEqual(completa_ingressi_aperti([soggiorno], [], tratti[:3], [], [ingresso], [], []), [])
+
+    def test_layer_vettoriali_nel_sistema_del_ritaglio(self):
+        doc = ezdxf.new()
+        for nome in ("Muri", "Archi", "Spento"):
+            doc.layers.new(nome)
+        doc.layers.get("Spento").off()
+        disegno = doc.modelspace()
+        disegno.add_line((100, 200), (200, 200), dxfattribs={"layer": "Muri"})
+        disegno.add_line((100, 220), (200, 220), dxfattribs={"layer": "Spento"})
+        disegno.add_circle((150, 230), 10, dxfattribs={"layer": "Archi"})
+        disegno.add_line((900, 900), (910, 900), dxfattribs={"layer": "0"})
+        tavola = registra_tavola(doc)
+        uguale = layer_del_piano(tavola, (100, 190, 250, 260), .1, (10, 19), 10_000)
+        self.assertEqual(uguale["riquadro"], {"x": 0, "y": 0, "larghezza": 15, "altezza": 7})
+        self.assertEqual([l["nome"] for l in uguale["layer"]], ["Archi", "Muri"])
+        self.assertEqual(uguale["layer"][1]["linee"], "M0 1l10 0")
+        self.assertIn("c", uguale["layer"][0]["linee"])
+        self.assertIsNone(layer_del_piano(tavola, (100, 190, 250, 260), .1, (10, 19), 2))
+
+    def test_propone_una_chiusura_una_sola_volta_anche_con_i_due_versi(self):
+        dopo = LocaleLetto(box(0, 0, 400, 400), [], 16)
+        prima = LocaleLetto(dopo.contorno.union(box(400, 80, 420, 160)), [], 16)
+        a, b = (400, 108), (400, 109)
+        (corretto, riscontro), = riscontri_chiusure([prima], [dopo], [LineString((a, b)), LineString((b, a))])
+        self.assertIs(corretto, dopo)
+        self.assertIs(riscontro.locale, prima)
+        self.assertEqual(len(riscontro.tratti), 1)
+        self.assertEqual(riscontro.dopo.area, 160000)
+
+    def test_un_incrocio_puntuale_e_due_fili_distinti_non_sono_sovrapposizioni(self):
+        tratti = [((0, 0), (200, 0)), ((40, 0), (150, 0)), ((70, -50), (70, 60)), ((0, 1), (200, 1))]
+        (riscontro,) = riscontri_sovrapposizioni(tratti)
+        self.assertEqual(riscontro.tipo, "sovrapposizione")
+        self.assertEqual(riscontro.tratti[0].length, 110)
+        self.assertIsNone(riscontro.locale)
+
+    def test_chiude_un_piccolo_disallineamento_sul_filo_interno_del_muro(self):
+        tratti = [
+            ((0.16, 0.37), (210.16, 0.37)), ((211.16, 0.37), (211.16, 60.37)),
+            ((211.16, 60.37), (400.16, 60.37)), ((400.16, 60.37), (400.16, 360.37)),
+            ((400.16, 360.37), (0.16, 360.37)), ((0.16, 360.37), (0.16, 0.37)),
+        ]
+        (interno,) = contorni_facce(tratti, [])
+        self.assertAlmostEqual(interno.area, 400 * 300 + 211 * 60, places=2)
+
+    def test_il_garage_arriva_alla_battuta_dei_portoni_ma_non_al_telaio_della_finestra(self):
+        garage = LocaleLetto(box(0, 0, 640, 950), [(Point(320, 450), "GARAGE", "garage")], 72.4)
+        varchi = [
+            (Asse(90, -668.6, 25, 305), [-677.5, -640]),
+            (Asse(90, -668.6, 370, 880), [-677.5, -640]),
+            (Asse(0, -9, 100, 400), [-37.5, 0]),
+            (Asse(0, -13, 100, 400), [-37.5, 0]),
+        ]
+        candidati = list(portoni_garage(varchi, [garage]))
+        self.assertEqual(len(candidati), 2)
+        for locale, asse, stipiti, fronte in candidati:
+            includi_battuta_portone(locale, asse, stipiti, fronte, [garage])
+        self.assertAlmostEqual(garage.contorno.area / 10000, 60.8 + (280 + 510) * 28.6 / 10000)
+        self.assertFalse(garage.contorno.covers(Point(660, 330)))
+        self.assertFalse(garage.contorno.covers(Point(200, -5)))
+
+    def test_rispetta_due_superfici_distinte_sulle_due_facce_della_soglia(self):
+        tratti = []
+        for interno in (box(0, 0, 300, 200), box(0, 212.5, 140, 292.5)):
+            vertici = list(interno.exterior.coords)
+            tratti.extend(zip(vertici, vertici[1:]))
+        aree = [(Point(80, 80), 6), (Point(70, 250), 1.12)]
+        letti = riconosci_locali([], tratti, [], [], aree, [])
+        self.assertEqual(len(letti), 2)
+        self.assertEqual({(l.superficie, l.contorno.area / 10000) for l in letti}, {(6, 6), (1.12, 1.12)})
+
+    def test_la_doccia_chiusa_fa_parte_del_bagno_quando_ha_un_solo_accesso_e_una_sola_quota(self):
+        poligoni = [box(0, 0, 141, 212.19), box(15, -112.5, 135, -12.5), box(50, -12.5, 121, 0)]
+        porta = (Asse(0, -6.25, 45, 125, 12.5), 55, 116, "porta")
+        aree = [(Point(60, 30), 4.28)]
+        (bagno,) = combina_vani_comunicanti(poligoni, [porta], [], aree)
+        self.assertAlmostEqual(bagno.contorno.area / 10000, (141 * 212.19 + 120 * 100 + 71 * 12.5) / 10000)
+        self.assertEqual(list(combina_vani_comunicanti(poligoni, [porta], [], aree + [(Point(55, -40), 1.2)])), [])
+        self.assertEqual(list(combina_vani_comunicanti(poligoni, [], [], aree)), [])
+
+    def test_quote_di_controllo_distinguono_misura_geometrica_e_testo_della_tavola(self):
+        documento = ezdxf.new()
+        md = documento.modelspace()
+        md.add_linear_dim(base=(0, -1), p1=(0, 0), p2=(18.18, 0.2), angle=0, text="18.18").render()
+        md.add_linear_dim(base=(-1, 0), p1=(0, 0), p2=(0, 14.09), angle=90, text="14090 mm").render()
+        md.add_linear_dim(base=(0, -2), p1=(0, 0), p2=(21, 0), angle=0, text=" ").render()
+        a, b = quote_di_controllo(documento)
+        self.assertEqual([(q["testo"], q["angolo"]) for q in (a, b)], [("18.18", 0), ("14090 mm", 90)])
+        self.assertAlmostEqual(a["lunghezza"], 18.18)
+        self.assertAlmostEqual(b["lunghezza"], 14.09)
+
+    def test_sovrapposizione_del_ponte_conserva_posizione_e_misura_delle_aperture(self):
+        muro = Asse(0, 0, 100, 415, 20)
+        finestra = Asse(0, 0, 300, 470, 20)
+        porta = Asse(0, 0, 150, 255, 20)
+        muro_piu_spesso = Asse(0, 0, 460, 725, 25)
+        muro_parallelo = Asse(0, 1, 100, 470, 20)
+        muri = [muro, finestra, porta, muro_piu_spesso, muro_parallelo]
+        aperture = [(finestra, 310, 445, "finestra"), (porta, 155, 245, "porta")]
+        accorpa_assi_sovrapposti(muri, aperture)
+        self.assertEqual(muri, [Asse(0, 0, 100, 470, 20), muro_piu_spesso, muro_parallelo])
+        self.assertEqual(aperture, [(muro, 310, 445, "finestra"), (muro, 155, 245, "porta")])
+
+    def test_allineamento_con_pareti_coincidenti_e_ritagli_diversi(self):
+        def muri(dx, dy):
+            return [Asse(0, y + dy, dx, 820 + dx, 20) for y in (-120, 227, 540)] + [
+                Asse(90, -x - dx, -120 + dy, 540 + dy, 20) for x in (0, 318, 820)
+            ]
+        prima = muri(0, 0)
+        self.assertEqual(allinea_pareti(prima, muri(1175, -443)), (1175, -443))
+        self.assertIsNone(allinea_pareti(prima, muri(1175, -443) + muri(2910, -443)))
+
+    def test_contorno_senza_etichetta_richiede_muratura_chiusa_e_porta(self):
+        basso = Asse(0, 0, 0, 400, 20)
+        muri = [basso, Asse(0, 340, 0, 400, 20), Asse(90, 0, 0, 340, 20), Asse(90, -400, 0, 340, 20)]
+        leggi = lambda tipo: contorni_senza_etichette(muri, [(basso, 100, 190, tipo)])
+        self.assertEqual(leggi("finestra"), [])
+        (locale,) = leggi("porta")
+        self.assertEqual(locale.contorno.area, 380 * 320)
+        self.assertEqual(contorni_senza_etichette(muri[:-1], [(basso, 100, 190, "porta")]), [])
+
+    def test_riunisce_le_rampe_affiancate_senza_indovinare_il_verso(self):
+        alzate = [((0, y), (115, y)) for y in range(0, 208, 26)]
+        seconda = [((128, y), (243, y)) for y in range(0, 208, 26)]
+        linee = [(a, b, "Stair") for a, b in alzate + seconda]
+        self.assertEqual(len(scale_da_riscontrare(linee, [])), 1)
+        self.assertEqual(scale_da_riscontrare(linee, [alzate, seconda]), [])
+        self.assertEqual(scale_da_riscontrare([(a, b, "Balcony") for a, b in alzate], []), [])
+
+    def test_layer_muro_numerato_e_assi_non_strutturali(self):
+        md = ezdxf.new().modelspace()
+        for y in (0, 240, 480):
+            for f in (y, y + 20):
+                md.add_line((0, f), (360, f), dxfattribs={"layer": "Muro1"})
+        for y in (630, 650):
+            md.add_line((0, y), (360, y), dxfattribs={"layer": "Eje Muro"})
+        modello = leggi_piano(md, {"rettangolo": [-30, -20, 390, 700]}, 1, "")
+        self.assertEqual(len(modello.muri), 3)
+
+    def test_quota_ruotata_usa_la_proiezione_e_conserva_il_testo(self):
+        md = ezdxf.new().modelspace()
+        md.add_linear_dim(
+            base=(0, -35), p1=(0, 10), p2=(180, 15), angle=0, text="1,80",
+        ).render()
+        quote = leggi_quote(md, box(-50, -80, 240, 100), 1)
+        self.assertEqual(len(quote), 1)
+        a, b, scostamento, testo = quote[0]
+        self.assertEqual((a, b), ((0, 10), (180, 10)))
+        self.assertAlmostEqual(scostamento, -45)
+        self.assertEqual(testo, "1,80")
+
+    def test_porta_esplosa_con_anta_e_arco(self):
+        md = ezdxf.new().modelspace()
+        md.add_arc((120, 0), 90, 0, 90, dxfattribs={"layer": "Porte"})
+        muro = Asse(0, 0, 0, 340, 16)
+        zona = box(-100, -100, 500, 300)
+        self.assertEqual(abbina_aperture(md, [muro], zona, 1), [])
+        md.add_line((120, 0), (120, 90), dxfattribs={"layer": "Porte"})
+        risultati = abbina_aperture(md, [muro], zona, 1)
+        self.assertEqual(len(risultati), 1)
+        self.assertEqual(risultati[0][1:4], (120, 210, "porta"))
+
+    def test_blocco_finestra_ruotato(self):
+        doc = ezdxf.new()
+        blocco = doc.blocks.new("FINESTRA")
+        blocco.add_lwpolyline([(0, 0), (120, 0), (120, 12), (0, 12)], close=True)
+        inserto = doc.modelspace().add_blockref(blocco.name, (10, 30), dxfattribs={"rotation": 30})
+        (a, b), = candidato_finestra(inserto, 1)
+        self.assertAlmostEqual(hypot(b[0] - a[0], b[1] - a[1]), 120)
+
+    def test_porta_esplosa_tra_due_stipiti_corti_disallineati_dal_cardine(self):
+        md = ezdxf.new().modelspace()
+        md.add_arc((115.5, 0), 85.5, 0, 90, dxfattribs={"layer": "Porte"})
+        md.add_line((115.5, 0), (115.5, 85.5), dxfattribs={"layer": "Porte"})
+        zona = box(-20, -20, 340, 140)
+        muri = [Asse(90, -109, -140, -6, 12)]
+        primo = ((111, -6), (111, 6))
+        secondo = ((201, -6), (201, 6))
+        self.assertEqual(abbina_aperture(md, [], zona, 1, [primo]), [])
+        (muro, da, a, tipo, ponte), = abbina_aperture(md, muri, zona, 1, [primo, secondo, primo])
+        self.assertEqual((da, a, tipo, ponte), (111, 201, "porta", True))
+        self.assertEqual(muro.angolo, 0)
+        self.assertEqual((muro.spessore, muro.centro), (12, 0))
+        alternativa = [((109.5, 0), (121.5, 0)), ((109.5, 85.5), (121.5, 85.5))]
+        self.assertEqual(abbina_aperture(md, [], zona, 1, [primo, secondo, *alternativa]), [])
+
+    def test_finestra_tra_stipiti_richiede_due_tracce(self):
+        stipiti = [((0, 0), (0, 24)), ((120, 0), (120, 24))]
+        telaio = [((0, 6), (120, 6), "Vetri"), ((0, 18), (120, 18), "Vetri")]
+        singola = list(varchi_tra_stipiti(telaio[:1], stipiti, minimo=45))
+        self.assertEqual(list(finestre_tra_stipiti(singola)), [])
+        doppia = list(varchi_tra_stipiti(telaio, stipiti, minimo=45))
+        finestre = list(finestre_tra_stipiti(doppia))
+        self.assertEqual(len(finestre), 1)
+        self.assertAlmostEqual(finestre[0][0].fine - finestre[0][0].inizio, 120)
+
+    def test_finestra_esplosa_su_layer_esplicito_e_su_muro_interrotto(self):
+        md = ezdxf.new().modelspace()
+        zona = box(-50, -35, 480, 100)
+        muri = [Asse(0, 0, 0, 120, 20), Asse(0, 0, 240, 440, 20)]
+        md.add_line((120, -1), (240, -1), dxfattribs={"layer": "VENTANAS"})
+        self.assertEqual(abbina_aperture(md, muri, zona, 1), [])
+        md.add_line((120, 1), (240, 1), dxfattribs={"layer": "VENTANAS"})
+        risultati = abbina_aperture(md, muri, zona, 1)
+        self.assertEqual(len(risultati), 1)
+        self.assertEqual(risultati[0][1:], (120, 240, "finestra", True))
+
+
+if __name__ == "__main__":
+    unittest.main()

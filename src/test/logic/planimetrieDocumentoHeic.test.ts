@@ -23,6 +23,12 @@ describe("Foto Apple per la lettura delle planimetrie", () => {
     decoder.mockRejectedValue(new Error("decoder"));
     await expect(normalizzaDocumento(new File(["errore"], "foto.heic", { type: "image/heic" }))).rejects.toThrow(/Non riesco a leggere questa foto HEIC/);
   });
+  it("accetta un WebP con suffisso di download privo di MIME", async () => {
+    const dati = new Uint8Array([82, 73, 70, 70, 0, 0, 0, 0, 87, 69, 66, 80]);
+    const file = new File([dati], "pianta.jpg!w700wp");
+    vi.spyOn(file, "slice").mockReturnValue({ arrayBuffer: async () => dati.buffer } as Blob);
+    expect(await normalizzaDocumento(file)).toMatchObject({ name: "pianta.webp", type: "image/webp" });
+  });
   it("rifiuta file vuoti e troppo grandi prima della conversione", async () => {
     expect(erroreDocumento({ type: "image/heic", size: 11 * 1024 * 1024 })).toMatch(/troppo grande/);
     await expect(normalizzaDocumento(new File([], "vuoto.heic", { type: "image/heic" }))).rejects.toThrow(/vuoto/);
