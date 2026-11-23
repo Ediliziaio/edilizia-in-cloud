@@ -302,7 +302,7 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
               {studio.righe.map(r=>{
                 const percorso = percorsoMisuraSullaPianta(fonte,r);
                 return <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-2 text-sm">
-                <div><p className="font-medium">{r.descrizione}</p><p className="text-xs text-muted-foreground">{r.gruppo} · {r.fase} · {r.criterio}</p>
+                <div><p className="font-medium">{r.descrizione}</p><p className="text-xs text-muted-foreground">{/* senza unità assegnate (un appartamento solo) «Parti comuni» confonde: si omette */}{studio.unita.length ? `${r.gruppo} · ` : ""}{r.fase} · {r.criterio}</p>
                   {r.prezzo && <p className="text-xs text-muted-foreground">{euro.format(r.prezzo.importo)}/{r.unita} · {r.prezzo.fonte}{r.prezzo.tariffa && ` · ${r.prezzo.tariffa}`}</p>}
                   {percorso && <Link to={percorso} className="text-xs font-medium text-primary underline-offset-2 hover:underline">Vedi sulla pianta</Link>}</div>
                 <p className="whitespace-nowrap text-right text-xs tabular-nums">

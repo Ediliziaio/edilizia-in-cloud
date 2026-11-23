@@ -92,3 +92,23 @@ describe("fabbisogno del pavimento radiante", () => {
     expect(riga(fabbisognoMateriali(base(), "fatto"), "radiante_tubo")).toBeUndefined();
   });
 });
+
+describe("frazionare una stanza con il pavimento radiante", () => {
+  it("la zona passa a tutte le parti, la variante resta valida e i materiali seguono", async () => {
+    const { inserisciFrazionamento } = await import("@/lib/planimetrie/frazionamento");
+    const { validaPlanimetria } = await import("../../../shared/planimetrie/modello");
+    const p = base();
+    const fatto = p.livelli[0].fatto;
+    const soggiorno = fatto.locali.find((l) => l.nome === "Soggiorno")!;
+    fatto.pavimentoRadiante = [{ localeId: soggiorno.id, passoCm: 15, superficieEsclusaMq: 2 }];
+    const taglio = frazionaContorno(fatto, soggiorno, "y", [50]);
+    if (!taglio.ok) throw new Error("motivo" in taglio ? taglio.motivo : "taglio non valido");
+    const proposta = inserisciFrazionamento({ ...structuredClone(fatto), id: "fraz", nome: "Fraz" } as never, soggiorno, taglio, ["A", "B"]);
+    expect(proposta.pavimentoRadiante!.map((z) => z.localeId)).toEqual(proposta.frazionamenti!.at(-1)!.parti);
+    expect(proposta.pavimentoRadiante!.reduce((t, z) => t + z.superficieEsclusaMq, 0)).toBeCloseTo(2, 1);
+    p.livelli[0].proposte = [proposta as never];
+    const v = validaPlanimetria(JSON.parse(JSON.stringify(p)));
+    expect("errori" in v ? v.errori : []).toEqual([]);
+    expect(riga(fabbisognoMateriali(p, "progetto:fraz"), "radiante_pannelli")!.stanze).toHaveLength(2);
+  });
+});

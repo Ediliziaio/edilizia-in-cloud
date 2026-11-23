@@ -157,6 +157,15 @@ export function inserisciFrazionamento(proposta: Proposta, locale: Locale, esito
   return { ...proposta, locali: [...proposta.locali.filter(l => l.id !== locale.id), ...parti],
     muri: [...proposta.muri, ...muri],
     elementi:proposta.elementi.map(e=>e.localeId===locale.id ? {...e,localeId:parti.find(p=>puntoNelPoligono(e.posizione,p.contorno))?.id ?? null} : e),
+    // Il radiante della stanza divisa passa a ogni parte (stesso passo, area esclusa in
+    // proporzione): prima la zona restava sul locale sparito e la variante non si salvava
+    // («zona radiante: seleziona un locale interno», 23/11/2026).
+    ...(proposta.pavimentoRadiante ? { pavimentoRadiante: proposta.pavimentoRadiante.flatMap(z => {
+      if (z.localeId !== locale.id) return [z];
+      const aree = parti.map(p => areaPoligono(p.contorno));
+      const totale = aree.reduce((t, a) => t + a, 0) || 1;
+      return parti.map((p, i) => ({ ...z, localeId: p.id, superficieEsclusaMq: Math.round(z.superficieEsclusaMq * aree[i] / totale * 100) / 100 }));
+    }) } : {}),
     frazionamenti: [...(proposta.frazionamenti ?? []), {
       localeId: locale.id, parti: parti.map(p => p.id), pareti: muri.map(m => m.id),
       ...(assistenza ? { richiesta:assistenza.richiesta.slice(0,1000), motivazione:assistenza.motivazione.slice(0,500) } : {}),
