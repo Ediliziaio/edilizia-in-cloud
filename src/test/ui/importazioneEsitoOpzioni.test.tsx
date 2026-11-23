@@ -33,7 +33,7 @@ describe("passo 4: etichette e automazioni", () => {
   it("si scelgono etichette e automazioni per i contatti importati", async () => {
     const onEtichette = vi.fn();
     const onAutomazioni = vi.fn();
-    avvolgi(<StepReview {...base} result={null} opzioni={{ etichette: [], onEtichetteChange: onEtichette, automazioni: [], onAutomazioniChange: onAutomazioni }} />);
+    avvolgi(<StepReview {...base} result={null} opzioni={{ etichette: [], onEtichetteChange: onEtichette, automazioni: [], onAutomazioniChange: onAutomazioni, programmazione: null, onProgrammazioneChange: vi.fn() }} />);
     const campo = screen.getByLabelText("Nuova etichetta");
     fireEvent.change(campo, { target: { value: "Fiera 2026" } });
     fireEvent.keyDown(campo, { key: "Enter" });
