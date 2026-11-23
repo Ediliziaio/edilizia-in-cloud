@@ -71,3 +71,16 @@ Instabili sotto carico (da soli passano): `hrDocumentiStorage`, `faseCampiProtet
 - ~~Nome vero del founder nei ticket della vetrina~~: fatto il 23/11 (4 come cliente, 23 come assegnatario; vedi pulizia-vetrina).
 - Il portale del cliente e le pagine admin: per provarli servono accessi dedicati, e gli
   account non vanno creati senza ok.
+
+## Secondo giro (23/11/2026, sera) — in locale, da pubblicare
+
+Righe 87–105 della matrice. Tutto in locale, niente pubblicato:
+- Attività (home): agenda, priorità del team, popup «Approva», schede attività.
+- Tablet: minimo 11px fino a 1024px e su ogni schermo touch; Assistenza e Manutenzioni senza tabelle laterali.
+- Una forma sola da telefono: schede a pillole tonde (componente `Tabs`, `SelettoreSezione`), «+» tondo al posto di «Nuovo», numeri in pillole (`KpiMobili`), bottone filtri a icona.
+- Commesse: riepilogo sempre aperto, pillole di stato «Attive · Tutte · …», righe con nome, stato e cliente; sezioni Rapportini, Sopralluoghi (ora con righe da telefono), Acquisti, DDT con lo stesso schema.
+- Pagine da scrivania che dal telefono non compaiono (`SoloDaTabletOComputer` + menu App), solo le 5 scelte dal founder: Fabbisogno materiali, Registro incassi, Contabilità generale, Planimetrie (anche dettaglio e stanza), Fiscalità.
+- Elenchi lunghi da telefono a blocchi con «Mostra altri»: Fabbisogno, Registro incassi, Fatture ricevute; Firma elettronica a righe.
+
+Decisione del founder (24/11): il nome vero nella vetrina su Manutenzioni e Attività NON si tocca. Restano da guardare: nome vero ancora nella vetrina su 2 impianti delle Manutenzioni, alcune attività del team,
+alcune richieste di firma e l'operaio collegato all'account amministratore; «Computo» crea da sé una bozza all'apertura.
