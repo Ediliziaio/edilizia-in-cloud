@@ -16,7 +16,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); window.location.has
 
 const risposta = (corpo: unknown) => Promise.resolve(new Response(JSON.stringify(corpo), { status: 200 }));
 const base = {
-  nome: "Marco", cognome: "Verdi", foto: null, azienda: "Edil Rossi Srl", partita_iva: "01234567890", mansione: "Muratore",
+  nome: "Marco", cognome: "Verdi", foto: null as string | null, azienda: "Edil Rossi Srl", partita_iva: "01234567890", mansione: "Muratore",
   assunto_il: "2024-03-01", verificato_il: "2026-11-23T10:00:00Z",
 };
 

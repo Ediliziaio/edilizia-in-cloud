@@ -14,7 +14,7 @@ const stato = vi.hoisted(() => ({
 }));
 
 function catena(tabella: string) {
-  const risposta = () => {
+  const risposta = (): { data: unknown; error: null } => {
     if (tabella === "order_campo_assignments") return { data: [{ order_id: "o1", order: { id: "o1", order_code: "RIS01", description: "Bagno" } }], error: null };
     if (tabella === "sicurezza_eventi") return { data: stato.eventi, error: null };
     if (tabella === "profiles") return { data: [{ id: "u1", first_name: "Marco", last_name: "Operaio" }], error: null };

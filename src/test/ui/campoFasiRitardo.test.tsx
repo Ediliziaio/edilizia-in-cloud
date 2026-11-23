@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/hooks/campo/useCampoWorkDay", () => ({ useCampoWorkDay: () => "2026-11-23" }));
 vi.mock("@/hooks/useCalendarioCantiere", () => ({ useCalendarioCantiere: () => ({ lavorativo: () => true }) }));
 // Gli aggiornamenti della fase (foto e note dal campo) leggono il database: qui non servono.
-vi.mock("@/components/campo/AggiornamentiFaseCampo", () => ({ AggiornamentiFaseCampo: () => null }));
+vi.mock("@/components/campo/AggiornamentiFaseCampo", () => ({ AggiornamentiFaseCampo: (): null => null }));
 import { FasiSchedaCantiere, conArticolo, faseInRitardo } from "@/components/campo/PianoSchedaCantiere";
 import type { FaseSchedaCantiere } from "@/lib/campo/schedaCantiere";
 

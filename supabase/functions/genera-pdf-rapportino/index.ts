@@ -33,6 +33,7 @@ Deno.serve(async (req: Request) => {
       global: { headers: { Authorization: req.headers.get("Authorization")! } },
       auth: { persistSession: false, autoRefreshToken: false },
     });
+    // 23/11/2026: lettura dalle viste *_visibili per gli operai (ripubblicata dopo il giro CI saltato).
     const { data: allowed, error: accessError } = await caller.from("campo_rapportini_visibili").select("id").eq("id", id).maybeSingle();
     if (accessError || !allowed) return errorResponse("Rapportino non disponibile o non autorizzato", 403, cors);
     const { data: rap, error: reportError } = await admin.from("campo_rapportini")

@@ -45,6 +45,7 @@ Deno.serve(async (req) => {
     // Real order visibility and scoped permission are BOTH required; never trust a company supplied by the client.
     // 23/11/2026: dalla VISTA, non dalla tabella. Le regole restrittive di protezione (20290314000002) nascondono
     // `orders` a chi non ha i diritti d'ufficio: il capocantiere riceveva 403 sul collaudo della propria commessa
+    // 23/11/2026: lettura dalle viste *_visibili per gli operai (ripubblicata dopo il giro CI saltato).
     // (verificato: tabella 0 righe, orders_visibili 1). La vista applica le stesse regole sulle righe.
     const { data: order, error: orderError } = await caller
       .from("orders_visibili")
