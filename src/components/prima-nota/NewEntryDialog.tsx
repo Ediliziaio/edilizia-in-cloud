@@ -72,9 +72,23 @@ interface Props {
   /** La registrazione da modificare: il modulo si apre già compilato. Assente = nuova registrazione. */
   mostraAllegato?: boolean;
   entry?: PrimaNotaEntry | null;
+  /**
+   * Un movimento di banca da dividere (Tesoreria, 23/11/2026): verso, importo e data sono quelli
+   * della banca e non si cambiano; le quote si salvano già collegate al movimento.
+   */
+  movimentoBanca?: MovimentoBancaDaDividere | null;
 }
 
-export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPending, mostraAllegato = false, entry = null }: Props) {
+export interface MovimentoBancaDaDividere {
+  id: string;
+  direction: "entrata" | "uscita";
+  /** Quanto resta da abbinare del movimento. */
+  importo: number;
+  data: string;
+  descrizione: string;
+}
+
+export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPending, mostraAllegato = false, entry = null, movimentoBanca = null }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const rataCollegata = !!entry?.installment_id && !entry.invoice_id && !entry.bank_transaction_id;
@@ -215,6 +229,13 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     // Il modulo si reinizializza quando viene aperta una registrazione diversa.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     reset();
+    if (movimentoBanca) {
+      setDiviso(true);
+      setDirection(movimentoBanca.direction);
+      setAmount(String(movimentoBanca.importo));
+      setEntryDate(movimentoBanca.data);
+      setDescription(movimentoBanca.descrizione);
+    }
     if (entry) {
       setDirection(entry.direction);
       setCategory(entry.category || "altro");
@@ -234,7 +255,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
       setDettagliAperti(Boolean(mostraAllegato || entry.notes || entry.reference_number || entry.attachment_url));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, entry?.id, mostraAllegato]);
+  }, [open, entry?.id, mostraAllegato, movimentoBanca?.id]);
 
   const showSupplier = category === "fornitore" && !diviso;
   const showOrder = category === "incasso" && !diviso;
@@ -254,6 +275,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     : !(Number(amount) > 0) ? { testo: "Manca l’importo.", errore: false }
     : !entryDate ? { testo: "Manca la data.", errore: false }
     : metodoPersonalizzato && !method.trim() ? { testo: "Indica il nome della modalità di pagamento.", errore: false }
+    : movimentoBanca ? (problemaDiviso ? { testo: problemaDiviso, errore: false } : null)
     : accountLabel === "banca" && conti.isPending ? { testo: "Caricamento dei conti bancari…", errore: false }
     : accountLabel === "banca" && conti.isError ? { testo: "Ricarica i conti bancari prima di registrare.", errore: true }
     : !entry && accountLabel === "banca" && !!conti.data?.length ? { testo: "Scegli il conto bancario effettivo.", errore: false }
@@ -306,6 +328,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           note: notes || undefined, attachment_url: attachmentUrl, attachment_name: attachmentName,
         },
         quote,
+        transazione: movimentoBanca?.id,
       }, { onSuccess: () => onOpenChange(false) });
       return;
     }
@@ -335,13 +358,15 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
       {/* Un filo più largo di prima (lg): la descrizione e le voci delle tendine si leggono intere. */}
       <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{entry ? "Modifica registrazione" : "Nuova Registrazione"}</DialogTitle>
+          <DialogTitle>{entry ? "Modifica registrazione" : movimentoBanca ? "Dividi il movimento di banca" : "Nuova Registrazione"}</DialogTitle>
           <DialogDescription>
             {entry
               ? rataCollegata
                 ? "Incasso collegato a una rata. La data si aggiorna anche nella commessa. L’importo deve corrispondere all’intera rata."
                 : `Registrata il ${dataIt(entry.entry_date)}${entry.is_auto ? " dal programma" : " a mano"}. Le modifiche valgono subito in Prima nota.`
-              : "Un movimento di cassa o banca scritto a mano."}
+              : movimentoBanca
+                ? `${movimentoBanca.direction === "entrata" ? "Accredito" : "Addebito"} del ${dataIt(movimentoBanca.data)}: le quote si collegano a questo movimento.`
+                : "Un movimento di cassa o banca scritto a mano."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 max-sm:space-y-3">
@@ -366,7 +391,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
                     key={v}
                     type="button"
                     aria-pressed={direction === v}
-                    disabled={rataCollegata}
+                    disabled={rataCollegata || !!movimentoBanca}
                     onClick={() => cambiaVerso(v)}
                     className={cn(
                       "h-8 rounded text-sm font-medium transition-colors",
@@ -380,7 +405,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             </div>
           </div>
 
-          {!entry && (
+          {!entry && !movimentoBanca && (
             <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
               <Checkbox checked={diviso} onCheckedChange={v => { setDiviso(v === true); setQuote([]); }} className="mt-0.5" />
               <span>
@@ -492,6 +517,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
                 <span aria-hidden className={cn("text-xl font-semibold tabular-nums", verso.testo)}>{verso.segno}</span>
                 <Input
                   id="pn-importo"
+                  readOnly={!!movimentoBanca}
                   type="number"
                   inputMode="decimal"
                   step="0.01"
@@ -507,12 +533,14 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             </div>
             <div className="space-y-2">
               <Label htmlFor="pn-data">Data</Label>
-              <Input id="pn-data" type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className="h-12" />
+              <Input id="pn-data" type="date" value={entryDate} readOnly={!!movimentoBanca} onChange={(e) => setEntryDate(e.target.value)} className="h-12" />
             </div>
           </div>
 
           {diviso && <QuoteMovimento companyId={companyId} direction={direction} importo={amount} quote={quote} onQuote={setQuote} />}
 
+          {/* Dal movimento di banca metodo e conto sono quelli della banca. */}
+          {!movimentoBanca && <>
           <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
             <div className="space-y-2">
               <Label htmlFor="pn-metodo">Metodo</Label>
@@ -555,6 +583,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             <p>Per un pagamento con commissioni, arrotondamenti o sconti usa una scrittura con più righe Dare/Avere.</p>
             <a className="mt-1 inline-block text-primary underline" href="/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture&nuova=scrittura">Apri scrittura con più conti</a>
           </div>
+          </>}
 
           {/* Riferimento, allegato e note: ci sono anche sul telefono, ma piegati. */}
           <details

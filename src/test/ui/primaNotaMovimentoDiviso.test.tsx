@@ -15,6 +15,7 @@ const rpc = vi.fn(async (fn: string, _args?: unknown): Promise<{ data: unknown; 
     { id: "e2", nome: "Verdi Luca", netto_proposto: 1320.5, origine: "scheda", cedolino_id: null, pagato_il: null },
     { id: "e3", nome: "Neri Anna", netto_proposto: 1400, origine: "scheda", cedolino_id: null, pagato_il: "2026-11-10" },
   ], error: null };
+  if (fn === "banca_registra_divisa") return { data: { gruppo_id: "g2", righe: [] as unknown[] }, error: null };
   if (fn === "prima_nota_registra_divisa") return { data: { gruppo_id: "g1", righe: [] }, error: null };
   return { data: [], error: null };
 });
@@ -81,4 +82,29 @@ it("gli stipendi del mese: si spuntano quelli da pagare, il netto si propone e s
       expect.objectContaining({ tipo: "dipendente", id: "e2", importo: 1320.5 }),
     ],
   })));
+});
+
+it("dal movimento di banca: verso, importo e data sono della banca e le quote si collegano al movimento", async () => {
+  const onOpenChange = vi.fn();
+  render(<QueryClientProvider client={new QueryClient()}>
+    <NewEntryDialog open onOpenChange={onOpenChange} onConfirm={vi.fn()} isPending={false}
+      movimentoBanca={{ id: "tx1", direction: "entrata", importo: 1700, data: "2026-11-20", descrizione: "Bonifico Bianchi" }} />
+  </QueryClientProvider>);
+  expect(screen.getByText("Dividi il movimento di banca")).toBeTruthy();
+  expect(screen.queryByRole("checkbox", { name: /Divido/ })).toBeNull();
+  expect((screen.getByLabelText("Importo") as HTMLInputElement).readOnly).toBe(true);
+  expect(screen.getByRole("button", { name: "↑ Uscita" })).toBeDisabled();
+  expect(screen.queryByLabelText("Conto", { exact: true })).toBeNull();
+  fireEvent.change(screen.getByLabelText("Cerca cliente o fattura"), { target: { value: "bianchi" } });
+  fireEvent.click(await screen.findByRole("option", { name: /Bianchi/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Voce senza fattura/ }));
+  fireEvent.keyDown(screen.getByLabelText("Categoria della voce"), { key: "ArrowDown" });
+  fireEvent.click(await screen.findByRole("option", { name: "Altro" }));
+  fireEvent.click(screen.getByRole("button", { name: "Registra 2 quote" }));
+  await waitFor(() => expect(rpc).toHaveBeenCalledWith("banca_registra_divisa", expect.objectContaining({
+    p_tx: "tx1",
+    p_testata: expect.objectContaining({ importo: 1700, descrizione: "Bonifico Bianchi" }),
+    p_quote: [expect.objectContaining({ tipo: "documento", id: "d2", importo: 700 }), expect.objectContaining({ tipo: "libera", categoria: "altro", importo: 1000 })],
+  })));
+  await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
 });

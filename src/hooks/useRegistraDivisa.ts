@@ -28,10 +28,15 @@ export interface TestataDivisa {
 export function useRegistraDivisa(companyId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ testata, quote }: { testata: TestataDivisa; quote: Quota[] }) => {
-      const { data, error } = await supabase.rpc("prima_nota_registra_divisa" as never, {
-        p_company: companyId, p_testata: testata, p_quote: quotePerServer(quote),
-      } as never);
+    mutationFn: async ({ testata, quote, transazione }: { testata: TestataDivisa; quote: Quota[]; transazione?: string }) => {
+      // Dal movimento di banca le quote nascono già collegate al movimento (banca_registra_divisa).
+      const { data, error } = transazione
+        ? await supabase.rpc("banca_registra_divisa" as never, {
+          p_company: companyId, p_tx: transazione, p_testata: testata, p_quote: quotePerServer(quote),
+        } as never)
+        : await supabase.rpc("prima_nota_registra_divisa" as never, {
+          p_company: companyId, p_testata: testata, p_quote: quotePerServer(quote),
+        } as never);
       if (error) throw error;
       const daAllineare = quote.flatMap(q => (q.tipo === "invoice" ? [q] : []));
       const esiti = await Promise.all(daAllineare.map(q => allineaFattureInCloud(
@@ -47,6 +52,8 @@ export function useRegistraDivisa(companyId: string | undefined) {
       }
       void queryClient.invalidateQueries({ queryKey: ["prima-nota-documenti-aperti", companyId] });
       void queryClient.invalidateQueries({ queryKey: ["prima-nota-dipendenti", companyId] });
+      void queryClient.invalidateQueries({ queryKey: ["bank-candidati"] });
+      void queryClient.invalidateQueries({ queryKey: ["bank-workspace"] });
       void queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
       void queryClient.invalidateQueries({ queryKey: ["fatture-ricevute-pagamento"] });
     },

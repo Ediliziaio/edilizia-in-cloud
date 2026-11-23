@@ -58,6 +58,8 @@ import {
   type RigaRipartizione,
 } from "./RipartizioneMovimento";
 import { MovimentoSenzaFattura } from "./MovimentoSenzaFattura";
+import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
+import { prettyTxDesc } from "./txLabel";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { CategoriaMovimento } from "./CategoriaMovimento";
 import { useVociMovimenti } from "@/lib/finance/cassaVoci";
@@ -233,6 +235,8 @@ function Detail({
     m.reconciliation_status !== "ignored";
   const monetary = (n: number) => money(n, "—", m.currency);
   const s = useSuggerimentiMovimento(company, m, validMatch, refresh);
+  // Dividi in quote (23/11/2026): lo stesso popup della Prima Nota, col movimento già dentro.
+  const [dividi, setDividi] = useState(false);
   const commesse = new Map<string, BankTarget & { amount?: number }>();
   for (const f of m.links.financial) for (const j of f.jobs ?? []) commesse.set(j.id, j);
   for (const c of m.links.contexts) if (c.kind === "commessa") commesse.set(c.id, c);
@@ -256,6 +260,15 @@ function Detail({
   );
   return (
     <div className="space-y-4">
+      {dividi && (
+        <NewEntryDialog open onOpenChange={(v) => { if (!v) { setDividi(false); setMode(null); refresh(); } }}
+          onConfirm={() => {}} isPending={false}
+          movimentoBanca={{
+            id: m.id, direction: m.transaction_type === "credit" ? "entrata" : "uscita",
+            importo: m.links.remaining, data: m.booking_date ?? new Date().toLocaleDateString("en-CA"),
+            descrizione: prettyTxDesc(m),
+          }} />
+      )}
       <section className="rounded-xl border bg-muted/30 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -431,6 +444,11 @@ function Detail({
                     {perms.canViewPrimaNota && (
                       <Button size="sm" variant={mode === "existing" ? "default" : "outline"} aria-label="Collega pagamenti già registrati" onClick={() => setMode("existing")}>
                         <Link2 className="mr-1 h-3.5 w-3.5" />Pagamenti già registrati
+                      </Button>
+                    )}
+                    {perms.canViewPrimaNota && (
+                      <Button size="sm" variant="outline" aria-label="Dividi in quote" onClick={() => setDividi(true)}>
+                        Dividi in quote
                       </Button>
                     )}
                     {m.links.matched === 0 && (
@@ -781,6 +799,35 @@ function ExistingPicker({
       [...Object.values(selected), ...(query.data ?? [])].map((c) => [c.id, c]),
     ).values(),
   ];
+  // Movimenti divisi in Prima Nota (23/11/2026): le quote dello stesso bonifico si collegano insieme.
+  const idsRighe = rows.map((r) => r.id).sort().join(",");
+  const gruppi = useQuery({
+    queryKey: ["bank-candidati-gruppi", company, idsRighe],
+    enabled: rows.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("prima_nota_entries")
+        .select("id, gruppo_id, prima_nota_gruppi(descrizione, importo)")
+        .in("id", idsRighe.split(","));
+      if (error) throw error;
+      return new Map(((data ?? []) as unknown as { id: string; gruppo_id: string | null; prima_nota_gruppi: { descrizione: string; importo: number } | null }[])
+        .filter((r) => r.gruppo_id).map((r) => [r.id, { gruppo: r.gruppo_id!, ...r.prima_nota_gruppi! }]));
+    },
+  });
+  const gruppoDi = (id: string) => gruppi.data?.get(id);
+  const quoteDelGruppo = (g: string) => rows.filter((r) => gruppoDi(r.id)?.gruppo === g);
+  // Se un movimento diviso fa esattamente quanto resta del bonifico, si propone.
+  const proposti = [...new Set([...(gruppi.data?.values() ?? [])].map((g) => g.gruppo))]
+    .map((g) => ({ gruppo: g, quote: quoteDelGruppo(g), info: [...gruppi.data!.values()].find((x) => x.gruppo === g)! }))
+    .filter((p) => p.quote.every((r) => !selected[r.id])
+      && Math.abs(p.quote.reduce((s, r) => s + Number(r.residuo), 0) - m.links.remaining) < 0.005
+      && Math.abs(Number(p.info.importo) - m.links.remaining) < 0.005);
+  const seleziona = (rs: CandidatoRipartizione[], v: boolean) =>
+    setSelected((old) => {
+      const next = { ...old };
+      for (const r of rs) { if (v) next[r.id] = r; else delete next[r.id]; }
+      return next;
+    });
   async function confirm() {
     if (busy) return;
     setBusy(true);
@@ -821,6 +868,13 @@ function ExistingPicker({
           Ricerca in corso…
         </p>
       )}
+      {proposti.map((p) => (
+        <button key={p.gruppo} type="button" disabled={busy} onClick={() => seleziona(p.quote, true)}
+          className="w-full rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3 text-left text-sm hover:bg-primary/10">
+          <span className="font-medium">«{p.info.descrizione}» fa esattamente {money(m.links.remaining)}</span>
+          <span className="block text-xs text-muted-foreground">{p.quote.length} quote registrate in Prima Nota: toccalo per selezionarle tutte.</span>
+        </button>
+      ))}
       <div className="max-h-72 space-y-2 overflow-auto">
         {rows.map((r) => (
           <label
@@ -830,14 +884,10 @@ function ExistingPicker({
             <Checkbox
               checked={!!selected[r.id]}
               disabled={busy}
-              onCheckedChange={(v) =>
-                setSelected((old) => {
-                  const next = { ...old };
-                  if (v) next[r.id] = r;
-                  else delete next[r.id];
-                  return next;
-                })
-              }
+              onCheckedChange={(v) => {
+                const g = gruppoDi(r.id);
+                seleziona(g ? quoteDelGruppo(g.gruppo) : [r], v === true);
+              }}
               aria-label={`Collega ${r.titolo}`}
             />
             <span className="min-w-0 flex-1 text-sm">
@@ -845,6 +895,11 @@ function ExistingPicker({
               <span className="text-xs text-muted-foreground">
                 {r.sottotitolo}
               </span>
+              {gruppoDi(r.id) && (
+                <span className="block text-xs text-primary">
+                  Quota di «{gruppoDi(r.id)!.descrizione}»: si collega insieme alle altre
+                </span>
+              )}
             </span>
             <span className="shrink-0 text-sm font-semibold">
               {money(r.residuo)}
