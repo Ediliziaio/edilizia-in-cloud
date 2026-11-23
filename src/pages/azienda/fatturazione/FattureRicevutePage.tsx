@@ -1803,8 +1803,21 @@ export default function FattureRicevutePage() {
                 </dl>
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">{testoSaldo(saldi?.get(dettaglioMobile.id))}</span>
-                  {(pagataIl(dettaglioMobile.id) || daPagare(dettaglioMobile)) && !stornataDelTutto(dettaglioMobile) && <PagamentoRicevutaCella id={dettaglioMobile.id} numero={dettaglioMobile.numero_fattura} tipo={dettaglioMobile.tipo_documento} pagataIl={pagataIl(dettaglioMobile.id)} />}
+                  {/* Da telefono lo stesso pannello del computer (23/11/2026): prima qui c'era il vecchio
+                      «Segna pagata», senza residuo né banca. */}
+                  {!stornataDelTutto(dettaglioMobile) && !permessiCosti.canViewCosts && (pagataIl(dettaglioMobile.id) || daPagare(dettaglioMobile)) &&
+                    <PagamentoRicevutaCella id={dettaglioMobile.id} numero={dettaglioMobile.numero_fattura} tipo={dettaglioMobile.tipo_documento} pagataIl={pagataIl(dettaglioMobile.id)} />}
                 </div>
+                {!stornataDelTutto(dettaglioMobile) && permessiCosti.canViewCosts && (dettaglioMobile.company_cost_id || (!permessiCosti.solaLettura && daPagare(dettaglioMobile))) && (
+                  <Button
+                    className="mt-3 h-10 w-full"
+                    variant={daPagare(dettaglioMobile) && !permessiCosti.solaLettura ? "default" : "outline"}
+                    disabled={perPagare.isPending}
+                    onClick={() => { const f = dettaglioMobile; setDettaglioMobile(null); pagaRiga(f, Number(saldi?.get(f.id)?.residuo ?? 0)); }}
+                  >
+                    {perPagare.isPending ? "Preparo il pagamento…" : daPagare(dettaglioMobile) && !permessiCosti.solaLettura ? "Paga" : "Pagamenti e residuo"}
+                  </Button>
+                )}
               </>}
               <Button
                 variant="outline"
