@@ -42,6 +42,8 @@ export type Quota =
   /** Una nota di credito del fornitore che riduce una fattura pagata con lo stesso movimento: non è denaro. */
   | { chiave: string; tipo: "nota_credito"; documento: DocumentoAperto; fatturaChiave: string | null; importo: string }
   | { chiave: string; tipo: "dipendente"; dipendente: Pick<DipendenteDaPagare, "id" | "nome" | "origine">; anno: number; mese: number; importo: string }
+  /** Una riga dell'F24 del mese (il versamento con la quietanza si registra nel modulo F24). */
+  | { chiave: string; tipo: "f24"; f24: { id: string; descrizione: string }; importo: string }
   | { chiave: string; tipo: "libera"; categoria: string; orderId: string | null; descrizione: string; importo: string };
 
 export const MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
@@ -86,6 +88,7 @@ export function problemaQuote(totale: string | number, quote: Quota[]): string |
     const c = centesimi(q.importo);
     const nome = q.tipo === "libera" ? (q.descrizione.trim() || "una voce senza fattura")
       : q.tipo === "dipendente" ? `lo stipendio di ${q.dipendente.nome}`
+      : q.tipo === "f24" ? `l'F24 ${q.f24.descrizione}`
       : q.tipo === "nota_credito" ? `la nota di credito ${q.documento.numero ?? ""}`.trim()
       : `la fattura ${q.documento.numero ?? ""}`.trim();
     if (c <= 0) return `Manca l'importo per ${nome}.`;
@@ -99,6 +102,7 @@ export function problemaQuote(totale: string | number, quote: Quota[]): string |
       if (centesimi(q.lordo) > centesimi(q.documento.residuo)) return `Per ${nome} il lordo supera il residuo.`;
       continue;
     }
+    if (q.tipo === "f24") continue;
     if (q.tipo !== "libera" && q.tipo !== "dipendente" && c > centesimi(q.documento.residuo)) return `Per ${nome} l'importo supera il residuo.`;
     if (q.tipo === "libera" && !q.categoria) return `Scegli la categoria per ${nome}.`;
   }
@@ -166,6 +170,7 @@ export function quotePerServer(quote: Quota[]) {
     const importo = Number(daCentesimi(centesimi(q.importo)));
     if (q.tipo === "libera") return { tipo: "libera", importo, categoria: q.categoria, order_id: q.orderId, descrizione: q.descrizione.trim() || null };
     if (q.tipo === "dipendente") return { tipo: "dipendente", id: q.dipendente.id, anno: q.anno, mese: q.mese, importo };
+    if (q.tipo === "f24") return { tipo: "f24", id: q.f24.id, importo };
     if (q.tipo === "nota_credito") {
       const fattura = quote.find(x => x.chiave === q.fatturaChiave);
       return { tipo: "nota_credito", id: q.documento.id, fattura_id: fattura && "documento" in fattura ? fattura.documento.id : null, importo };

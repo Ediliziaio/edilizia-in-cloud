@@ -74,4 +74,10 @@ describe("movimento diviso in quote", () => {
     expect(problemaQuote("10008.20", [{ ...q, lordo: "12000" }])).toBe("Per la fattura 7 il lordo supera il residuo.");
     expect(quotePerServer([q])).toEqual([{ tipo: "documento", id: "d1", importo: 10008.2, ritenuta: true, lordo: 11000 }]);
   });
+
+  it("l'F24 è una quota con la sua riga: al server vanno riga e importo", () => {
+    const q: Quota = { chiave: "f", tipo: "f24", f24: { id: "x1", descrizione: "F24 1001 · 10/2026" }, importo: "2280" };
+    expect(problemaQuote("2280", [q])).toBeNull();
+    expect(quotePerServer([q])).toEqual([{ tipo: "f24", id: "x1", importo: 2280 }]);
+  });
 });

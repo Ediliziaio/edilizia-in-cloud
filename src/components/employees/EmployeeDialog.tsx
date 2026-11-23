@@ -28,6 +28,7 @@ import { useParametriCostoPersonale } from "@/hooks/useParametriCostoPersonale";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
+import { StipendiPagatiDipendente } from "./StipendiPagatiDipendente";
 import {
   Select,
   SelectContent,
@@ -412,6 +413,8 @@ export function EmployeeDialog({
                 </FormItem>
               )}
             />
+
+            {employee?.id && <StipendiPagatiDipendente employeeId={employee.id} />}
 
             {/* v8.6.113 — Campi personalizzati dipendenti (object_type='employee'). */}
             {employee?.id && (

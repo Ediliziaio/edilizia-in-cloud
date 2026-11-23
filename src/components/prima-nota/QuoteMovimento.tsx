@@ -47,7 +47,9 @@ export function useDocumentiAperti(companyId: string | undefined, direction: "en
   return useQuery({
     queryKey: ["prima-nota-documenti-aperti", companyId, direction],
     enabled: attivo && !!companyId,
-    staleTime: 60_000,
+    // Le fatture aperte cambiano poco e il calcolo dei residui costa: si tengono 5 minuti
+    // (dopo una registrazione la lista si ricarica comunque).
+    staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("prima_nota_documenti_aperti" as never, { p_company: companyId, p_direction: direction } as never);
       if (error) throw error;
@@ -67,8 +69,9 @@ interface Props {
 export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }: Props) {
   const documenti = useDocumentiAperti(companyId, direction, true);
   const [cerca, setCerca] = useState("");
-  const usati = useMemo(() => new Set(quote.flatMap(q => (q.tipo === "libera" || q.tipo === "dipendente" ? [] : [chiaveDocumento(q.documento)]))), [quote]);
+  const usati = useMemo(() => new Set(quote.flatMap(q => (q.tipo === "libera" || q.tipo === "dipendente" || q.tipo === "f24" ? [] : [chiaveDocumento(q.documento)]))), [quote]);
   const [stipendiAperti, setStipendiAperti] = useState(false);
+  const [f24Aperto, setF24Aperto] = useState(false);
   const conti = bilancio(importo, quote);
   const risultati = useMemo(() => (cerca.trim() ? filtraDocumenti(documenti.data ?? [], cerca, usati, 12) : []), [documenti.data, cerca, usati]);
   // La proposta serve quando non si è ancora scelto niente e l'importo c'è.
@@ -155,7 +158,12 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
         <ul className="divide-y rounded-md border">
           {quote.map(q => (
             <li key={q.chiave} className="space-y-2 px-3 py-2">
-              {q.tipo === "dipendente" ? (
+              {q.tipo === "f24" ? (
+                <div className="min-w-0 text-sm">
+                  <span className="font-medium">{q.f24.descrizione}</span>
+                  <span className="block text-xs text-muted-foreground">La quietanza del versamento si registra nel modulo F24.</span>
+                </div>
+              ) : q.tipo === "dipendente" ? (
                 <div className="min-w-0 text-sm">
                   <span className="font-medium">{q.dipendente.nome}</span>
                   <span className="text-muted-foreground"> · stipendio di {MESI[q.mese - 1]} {q.anno}</span>
@@ -224,7 +232,7 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
                   )}
                   <span className="text-sm text-muted-foreground">€</span>
                 </div>
-                {q.tipo !== "libera" && q.tipo !== "dipendente" && q.tipo !== "nota_credito" && !q.ritenuta && Math.round(Number(q.importo) * 100) < Math.round(q.documento.residuo * 100) && Number(q.importo) > 0 && (
+                {q.tipo !== "libera" && q.tipo !== "dipendente" && q.tipo !== "nota_credito" && q.tipo !== "f24" && !q.ritenuta && Math.round(Number(q.importo) * 100) < Math.round(q.documento.residuo * 100) && Number(q.importo) > 0 && (
                   <span className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">acconto</span>
                 )}
                 <Button type="button" variant="ghost" size="sm" className="h-9 w-9 p-0" aria-label="Togli la quota" onClick={() => togli(q.chiave)}><X className="h-4 w-4" /></Button>
@@ -243,10 +251,17 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
             <Users className="mr-1 h-3.5 w-3.5" />Stipendi
           </Button>
         )}
+        {direction === "uscita" && (
+          <Button type="button" variant="outline" size="sm" aria-expanded={f24Aperto} onClick={() => setF24Aperto(v => !v)}>F24</Button>
+        )}
         {conti.mancano > 0 && quote.length > 0 && (
           <span className="text-xs text-muted-foreground">es. commissioni, arrotondamento, una commessa</span>
         )}
       </div>
+
+      {f24Aperto && direction === "uscita" && (
+        <PannelloF24 companyId={companyId} quote={quote} onAggiungi={nuove => { onQuote([...quote, ...nuove]); setF24Aperto(false); }} />
+      )}
 
       {stipendiAperti && direction === "uscita" && (
         <PannelloStipendi companyId={companyId} quote={quote}
@@ -264,7 +279,7 @@ export function QuoteMovimento({ companyId, direction, importo, quote, onQuote }
  * superano l'accredito, la differenza resta da incassare sull'ultima fattura (acconto).
  */
 function AggiustaResto({ quote, mancano, direction, onQuote }: { quote: Quota[]; mancano: number; direction: "entrata" | "uscita"; onQuote: (q: Quota[]) => void }) {
-  const documenti = quote.filter(q => q.tipo !== "libera" && q.tipo !== "dipendente" && q.tipo !== "nota_credito");
+  const documenti = quote.filter(q => q.tipo !== "libera" && q.tipo !== "dipendente" && q.tipo !== "nota_credito" && q.tipo !== "f24");
   if (!documenti.length || mancano === 0) return null;
   if (mancano > 0 && mancano <= 1000) {
     return (
@@ -373,6 +388,60 @@ function PannelloStipendi({ companyId, quote, onAggiungi }: {
             <Button type="button" size="sm" disabled={!scelti.size} onClick={aggiungi}>Aggiungi {scelti.size || ""} stipendi</Button>
           </div>
           <p className="text-xs text-muted-foreground">Gli stipendi non vanno sulle commesse: la manodopera ci arriva già dai rapportini.</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+interface RigaF24 { id: string; tributo_code: string | null; tributo_descrizione: string | null; anno: number; mese: number; importo: number }
+
+/** Le righe dell'F24 ancora da versare: spuntate, diventano quote del movimento. */
+function PannelloF24({ companyId, quote, onAggiungi }: { companyId: string | undefined; quote: Quota[]; onAggiungi: (q: Quota[]) => void }) {
+  const [scelti, setScelti] = useState<Set<string>>(new Set());
+  const righe = useQuery({
+    queryKey: ["prima-nota-f24", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("f24_entries" as never)
+        .select("id, tributo_code, tributo_descrizione, anno, mese, importo")
+        .eq("company_id" as never, companyId as never).neq("stato" as never, "pagato" as never)
+        .order("anno" as never).order("mese" as never);
+      if (error) throw error;
+      return ((data ?? []) as unknown as RigaF24[]).map(r => ({ ...r, importo: Number(r.importo) }));
+    },
+  });
+  const gia = new Set(quote.flatMap(q => (q.tipo === "f24" ? [q.f24.id] : [])));
+  const elenco = (righe.data ?? []).filter(r => !gia.has(r.id));
+  const nome = (r: RigaF24) => `F24 ${r.tributo_code ?? ""} ${r.tributo_descrizione ?? ""} · ${String(r.mese).padStart(2, "0")}/${r.anno}`.replace(/\s+/g, " ").trim();
+  return (
+    <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+      <p className="text-sm font-medium">F24 da versare</p>
+      {righe.isPending && <p className="text-xs text-muted-foreground">Carico l'F24…</p>}
+      {righe.isError && <p className="text-xs text-destructive">F24 non caricato.</p>}
+      {righe.isSuccess && elenco.length === 0 && (
+        <p className="text-xs text-muted-foreground">Nessuna riga F24 da versare nell'app: usa «Voce senza fattura» con la categoria «Tasse / F24».</p>
+      )}
+      {elenco.length > 0 && (
+        <>
+          <ul className="max-h-48 divide-y overflow-y-auto rounded-md border bg-background">
+            {elenco.map(r => (
+              <li key={r.id}>
+                <label className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm">
+                  <Checkbox checked={scelti.has(r.id)} aria-label={`Versa ${nome(r)}`}
+                    onCheckedChange={() => setScelti(v => { const n = new Set(v); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; })} />
+                  <span className="min-w-0 flex-1 truncate">{nome(r)}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">{euro(r.importo)}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <Button type="button" size="sm" disabled={!scelti.size}
+            onClick={() => onAggiungi(elenco.filter(r => scelti.has(r.id)).map(r => ({
+              chiave: `f${r.id}`, tipo: "f24" as const, f24: { id: r.id, descrizione: nome(r) }, importo: daCentesimi(centesimi(r.importo)),
+            })))}>
+            Aggiungi {scelti.size || ""} F24
+          </Button>
         </>
       )}
     </div>

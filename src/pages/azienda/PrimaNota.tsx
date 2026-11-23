@@ -176,6 +176,25 @@ function PrimaNotaInner() {
   if (!isLoading && !erroreElenco && page > totalPages) setPage(totalPages);
   const dettaglio = entriesWithBalance.find(e => e.id === dettaglioId);
 
+  // Movimenti divisi (23/11/2026): le quote dello stesso movimento sono una riga sola col totale,
+  // che si apre. Si raggruppano solo le quote presenti nella pagina; una quota sola resta riga.
+  const [gruppiAperti, setGruppiAperti] = useState<Set<string>>(new Set());
+  const righeElenco = useMemo(() => {
+    const perGruppo = new Map<string, typeof entriesWithBalance>();
+    for (const e of entriesWithBalance) if (e.gruppo_id) perGruppo.set(e.gruppo_id, [...(perGruppo.get(e.gruppo_id) ?? []), e]);
+    const out: Array<{ k: "riga"; e: (typeof entriesWithBalance)[number]; quota: boolean } | { k: "gruppo"; g: string; righe: typeof entriesWithBalance }> = [];
+    const visti = new Set<string>();
+    for (const e of entriesWithBalance) {
+      const righe = e.gruppo_id ? perGruppo.get(e.gruppo_id)! : null;
+      if (!e.gruppo_id || !righe || righe.length < 2) { out.push({ k: "riga", e, quota: false }); continue; }
+      if (!visti.has(e.gruppo_id)) { visti.add(e.gruppo_id); out.push({ k: "gruppo", g: e.gruppo_id, righe }); }
+      if (gruppiAperti.has(e.gruppo_id)) out.push({ k: "riga", e, quota: true });
+    }
+    return out;
+  }, [entriesWithBalance, gruppiAperti]);
+  const alternaGruppo = (g: string) => setGruppiAperti(v => { const n = new Set(v); if (n.has(g)) n.delete(g); else n.add(g); return n; });
+  const totaleGruppo = (righe: typeof entriesWithBalance) => righe.reduce((t, e) => t + (e.direction === "entrata" ? e.amount : -e.amount), 0);
+
   // Grafico ultimi 6 mesi: alimentato dalla query dedicata `monthlyChart` (tutte
   // le registrazioni degli ultimi 6 mesi), NON dalla lista paginata/filtrata —
   // prima mostrava solo il mese corrente perché leggeva `entries`.
@@ -544,7 +563,22 @@ function PrimaNotaInner() {
         </div>
       ) : vistaCompatta && !tabella ? (
         <ul aria-label="Movimenti di prima nota" className="divide-y overflow-hidden rounded-lg border bg-card">
-          {entriesWithBalance.map(e => (
+          {righeElenco.map(r => r.k === "gruppo" ? (
+            <li key={`g${r.g}`} className="bg-muted/30">
+              <button type="button" aria-expanded={gruppiAperti.has(r.g)} onClick={() => alternaGruppo(r.g)}
+                className="flex min-h-14 w-full items-center gap-2 px-3 py-2 text-left">
+                <span className="min-w-0 flex-1">
+                  <span className="block break-words text-sm font-semibold leading-tight">{r.righe[0].prima_nota_gruppi?.descrizione ?? "Movimento diviso"}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {format(new Date(r.righe[0].entry_date), "dd/MM/yyyy")} · diviso in {r.righe.length} quote {gruppiAperti.has(r.g) ? "▾" : "▸"}
+                  </span>
+                </span>
+                <span className={`shrink-0 text-right text-sm font-semibold tabular-nums ${totaleGruppo(r.righe) >= 0 ? "text-green-700" : "text-destructive"}`}>
+                  {totaleGruppo(r.righe) >= 0 ? "+" : "−"}{formatCurrency(Math.abs(totaleGruppo(r.righe)))}
+                </span>
+              </button>
+            </li>
+          ) : [r.e].map(e => (
             <li key={e.id} className="flex items-center data-[selected=true]:bg-primary/5" data-selected={selezione.ids.has(e.id)}>
               {permessi.isAdmin && (
                 <label className="grid size-11 shrink-0 place-items-center max-sm:hidden">
@@ -566,7 +600,7 @@ function PrimaNotaInner() {
                 </span>
               </button>
             </li>
-          ))}
+          ))[0])}
         </ul>
       ) : (
         <div className="rounded-lg border overflow-hidden">
@@ -586,7 +620,23 @@ function PrimaNotaInner() {
               </tr>
             </thead>
             <tbody>
-              {entriesWithBalance.map((e) => (
+              {righeElenco.map((r) => r.k === "gruppo" ? (
+                <tr key={`g${r.g}`} className="cursor-pointer border-b bg-muted/30 hover:bg-muted/50" onClick={() => alternaGruppo(r.g)}>
+                  <td className="p-3" />
+                  <td className="p-3">{format(new Date(r.righe[0].entry_date), "dd/MM/yyyy", { locale: it })}</td>
+                  <td className="p-3"><Badge variant="secondary" className="text-xs">Diviso</Badge></td>
+                  <td className="p-3">
+                    <button type="button" aria-expanded={gruppiAperti.has(r.g)} className="block max-w-[24rem] truncate text-left font-medium hover:underline"
+                      onClick={(ev) => { ev.stopPropagation(); alternaGruppo(r.g); }}>
+                      {gruppiAperti.has(r.g) ? "▾" : "▸"} {r.righe[0].prima_nota_gruppi?.descrizione ?? "Movimento diviso"} · {r.righe.length} quote
+                    </button>
+                  </td>
+                  <td className={`p-3 text-right font-mono ${totaleGruppo(r.righe) >= 0 ? "text-green-700" : "text-destructive"}`}>
+                    {totaleGruppo(r.righe) >= 0 ? "+" : "−"}{formatCurrency(Math.abs(totaleGruppo(r.righe)))}
+                  </td>
+                  <td className="p-3" colSpan={100} />
+                </tr>
+              ) : [r.e].map((e) => (
                 <tr key={e.id} className="cursor-pointer border-b hover:bg-muted/40 data-[selected=true]:bg-primary/5" data-selected={selezione.ids.has(e.id)}
                   onClick={event => {
                     const target = event.target;
@@ -680,7 +730,7 @@ function PrimaNotaInner() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              ))[0])}
             </tbody>
           </table>
           </div>
