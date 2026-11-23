@@ -128,7 +128,7 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
   const costiParziali = [importoVariante, importoConfronto].some(i => i.daQuotare || i.daMisurare);
   if (studio?.righe.length || altro?.righe.length) {
     colonne.push({etichetta:"Importo delle voci valorizzate",formatta:euro.format,
-      valori:[studio?.righe.length ? importoVariante.importo : 0,altro?.righe.length ? importoConfronto.importo : 0],parziale:costiParziali});
+      valori:[studio?.righe.length ? importoVariante.importo : null,altro?.righe.length ? importoConfronto.importo : null],parziale:costiParziali});
     colonne.push({etichetta:"Voci da quotare",valori:[importoVariante.daQuotare,importoConfronto.daQuotare]});
     colonne.push({etichetta:"Quantità da completare",valori:[importoVariante.daMisurare,importoConfronto.daMisurare]});
     const indicative = (s: typeof studio) => s?.righe.filter(r => r.quantita !== null && r.stimata).length ?? 0;

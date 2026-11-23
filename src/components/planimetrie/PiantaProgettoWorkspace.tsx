@@ -11,7 +11,7 @@ import { areaPoligono, lunghezzaMuro } from "../../../shared/planimetrie/geometr
 import { eAmbienteInterno, origineMisura, scalaModelloDaVerificare, type Livello, type Locale, type Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { ambitoGeometriaDelPiano } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { statoPerAmbito } from "../../../shared/render-planimetria/vincoli.ts";
-import type { AnteprimaChatProgetto } from "@/lib/planimetrie/chatProgetto";
+import type { AnteprimaChatProgetto, RiferimentoAmbienteChat } from "@/lib/planimetrie/chatProgetto";
 import type { SegnalazioneProgetto } from "@/lib/planimetrie/analisiProgetto";
 import { SilvioPlanimetria } from "./SilvioPlanimetria";
 import { TavolaInterattiva } from "./TavolaInterattiva";
@@ -49,6 +49,9 @@ export function PiantaProgettoWorkspace({ documento, titolo, livello, ambito, no
   const muro = stato.muri.find(m=>m.id===muroSelezionato);
   const [pannello3D, setPannello3D] = useState<PannelloInterni3D>("superfici");
   const [inVisita, setInVisita] = useState(false);
+  // Gli ambienti aggiunti alla chat di Silvio: il pannello si ricrea a ogni cambio di
+  // stanza (key), quindi «Tutto il piano» li deve lasciare qui per ritrovarli.
+  const [gruppoChat, setGruppoChat] = useState<RiferimentoAmbienteChat[]>([]);
   const [confronta,setConfronta]=useState(false);
   const [bozza,setBozza]=useState<AnteprimaChatProgetto|null>(null);
   const [pianoBozza,setPianoBozza]=useState<string>();
@@ -109,6 +112,7 @@ export function PiantaProgettoWorkspace({ documento, titolo, livello, ambito, no
   const seleziona=(id:string)=>{
     if (salvataggio.isPending || id===(locale?.id ?? "")) return;
     anteprima(null);
+    setGruppoChat([]);
     onSeleziona(id);
   };
   const salva=async()=>{
@@ -197,6 +201,7 @@ export function PiantaProgettoWorkspace({ documento, titolo, livello, ambito, no
       locali={locali} companyId={companyId} puoScrivere={puoScrivere} bozza={bozza} salvataggio={salvataggio.isPending} erroreSalvataggio={errore}
       analisi={analisiAperta} onAnalisi={onAnalisi} mostraPrima={confronta} onEsodo={onEsodo} onRiscontro={onRiscontro}
       evidenziata={risalto} onMostraSegnalazione={mostraSegnalazione}
+      gruppoIniziale={gruppoChat} onGruppo={setGruppoChat}
       onSeleziona={seleziona} onAnteprima={anteprima} onSalva={()=>void salva()} onChiudi={chiudiChat} onVaiAllaCorrente={onApriCorrente}/></div> :
       !studioInterni && <aside aria-label="Ambienti del piano" className="min-w-0 overflow-hidden rounded-2xl border bg-card shadow-sm">
         <div className="flex items-center justify-between gap-2 border-b px-4 py-3.5">

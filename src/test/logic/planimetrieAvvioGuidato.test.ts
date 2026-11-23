@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ambientiDaAppunti, ambientiDaAreeSalvate, bozzaDaAmbienti } from "@/lib/planimetrie/avvioGuidato";
+import { ambientiDaAppunti, ambientiDaAreeSalvate, bozzaDaAmbienti, stanzeFuoriMisura } from "@/lib/planimetrie/avvioGuidato";
 import type { FieldDefinition, SurveyAreaRow } from "@/types/surveys";
 import { validaPlanimetria } from "../../../shared/planimetrie/modello";
 import { areaPoligono } from "../../../shared/planimetrie/geometria";
@@ -18,6 +18,18 @@ describe("Avvio guidato della planimetria", () => {
       { nome: "bagno", superficieMq: 5, altezzaM: 2.85 },
     ]);
     expect(ambienti[1].larghezzaM).toBeUndefined();
+  });
+
+  it("segnala le stanze che la pianta dell'AI ha disegnato fuori dalle misure scritte", () => {
+    const testo = "Soggiorno con cucina 5,00 x 4,20 m, disimpegno 3,00 x 1,20 m, bagno 2,40 x 2,10 m.";
+    const quadrato = (x: number, y: number, w: number, h: number) => [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }];
+    const pianta = { livelli: [{ nome: "Piano terra", fatto: { locali: [
+      { nome: "Soggiorno con cucina", contorno: quadrato(0, 0, 499, 420) }, // 20,96 m²: entro il 10%
+      { nome: "Disimpegno", contorno: quadrato(500, 0, 123, 420) },          // 5,17 m² invece di 3,6
+      { nome: "Bagno", contorno: quadrato(0, 430, 240, 210) },
+    ] } }] } as never;
+    expect(stanzeFuoriMisura(testo, pianta)).toEqual(["Disimpegno: scritti 3,6 m², disegnati 5,17 m²"]);
+    expect(stanzeFuoriMisura("nessuna misura qui", pianta)).toEqual([]);
   });
 
   it("l'altezza scritta in fondo, dopo un punto, vale per tutte le stanze e non solo per l'ultima", () => {

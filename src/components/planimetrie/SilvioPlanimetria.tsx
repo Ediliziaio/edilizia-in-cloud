@@ -28,7 +28,9 @@ const ESEMPI_GRUPPO = [
 ];
 const superficie = (l:Locale) => `${(areaPoligono(l.contorno)/10_000).toLocaleString("it-IT",{maximumFractionDigits:2})} m²`;
 
-export function SilvioPlanimetria({ documento, selezione, locali, companyId, puoScrivere, bozza, mostraPrima, salvataggio, erroreSalvataggio, analisi, onAnalisi, onEsodo, onRiscontro, evidenziata, onMostraSegnalazione, onSeleziona, onAnteprima, onSalva, onChiudi, onVaiAllaCorrente }: {
+const TUTTA_LA_CASA = "__tutto_il_piano";
+
+export function SilvioPlanimetria({ documento, selezione, locali, companyId, puoScrivere, bozza, mostraPrima, salvataggio, erroreSalvataggio, analisi, onAnalisi, onEsodo, onRiscontro, evidenziata, onMostraSegnalazione, onSeleziona, onAnteprima, onSalva, onChiudi, onVaiAllaCorrente, gruppoIniziale, onGruppo }: {
   documento: Planimetria; selezione: AmbitoChatProgetto; locali: Locale[]; companyId: string; puoScrivere: boolean;
   bozza: AnteprimaChatProgetto | null; salvataggio: boolean; erroreSalvataggio?: string;
   mostraPrima: boolean;
@@ -39,12 +41,14 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
   onMostraSegnalazione?: (esito: SegnalazioneProgetto | null) => void;
   onSeleziona: (id: string) => void; onAnteprima: (bozza: AnteprimaChatProgetto | null) => void;
   onSalva: () => void; onChiudi: () => void; onVaiAllaCorrente?: () => void;
+  /** Ambienti già nel gruppo quando il pannello si ricrea su un'altra stanza («Tutto il piano»). */
+  gruppoIniziale?: RiferimentoAmbienteChat[]; onGruppo?: (gruppo: RiferimentoAmbienteChat[]) => void;
 }) {
   const [messaggi,setMessaggi]=useState<MessaggioChatProgetto[]>([]);
   const [richiesta,setRichiesta]=useState("");
   const [invio,setInvio]=useState(false);
   const [errore,setErrore]=useState("");
-  const [altri,setAltri]=useState<RiferimentoAmbienteChat[]>([]);
+  const [altri,setAltri]=useState<RiferimentoAmbienteChat[]>(()=>gruppoIniziale ?? []);
   const attivo=useRef(true);
   const occupato=useRef(false);
   const fine=useRef<HTMLDivElement>(null);
@@ -61,6 +65,19 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
   const accessi=bozza?.piani.flatMap(p=>p.accessi.map(a=>({...a,piano:p.nome}))) ?? [];
   const correzioniInCorso = !!bozza?.piani.some(p => p.correzioni?.length);
   const propostaAnalizzata = mostraPrima ? null : bozza;
+  // «Tutto il piano»: il primo ambiente è quello principale, gli altri entrano nel
+  // gruppo (fino a MASSIMO_AMBIENTI_CHAT). Prima per una domanda sulla casa intera
+  // si dovevano spuntare le stanze una per una (23/11/2026).
+  const scegliAmbiente=(valore:string)=>{
+    if (valore!==TUTTA_LA_CASA) { onSeleziona(valore); return; }
+    if (!locali.length || invio || salvataggio) return;
+    if (bozza) onAnteprima(null);
+    const gruppo=locali.slice(1,MASSIMO_AMBIENTI_CHAT).map(l=>({livelloId:selezione.livelloId,localeId:l.id}));
+    onSeleziona(locali[0].id);
+    onGruppo?.(gruppo);
+    setAltri(gruppo);
+    setErrore("");
+  };
   const modificaSelezione=(riferimento:RiferimentoAmbienteChat, scelto:boolean)=>{
     if (invio || salvataggio) return;
     if (bozza) onAnteprima(null);
@@ -162,8 +179,9 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
     <div className="border-b px-4 py-3">
       <label className="block space-y-1.5 text-xs font-medium">
         <span>Ambiente della chat</span>
-        <UniformSelect value={selezione.localeId} onChange={e=>onSeleziona(e.target.value)} disabled={salvataggio || invio || correzioniInCorso} className="w-full">
+        <UniformSelect value={selezione.localeId} onChange={e=>scegliAmbiente(e.target.value)} disabled={salvataggio || invio || correzioniInCorso} className="w-full">
           <option value="">Scegli un ambiente</option>
+          {locali.length>1 && <option value={TUTTA_LA_CASA}>{locali.length>MASSIMO_AMBIENTI_CHAT ? `Tutto il piano · primi ${MASSIMO_AMBIENTI_CHAT} ambienti` : "Tutto il piano"}</option>}
           {locali.map(l=><option key={l.id} value={l.id}>{l.nome}{locali.some(a=>a.id!==l.id && a.nome===l.nome) ? ` · ${superficie(l)}` : ""}</option>)}
         </UniformSelect>
       </label>

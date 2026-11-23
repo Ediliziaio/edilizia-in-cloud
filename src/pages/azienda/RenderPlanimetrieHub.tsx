@@ -277,11 +277,7 @@ export default function RenderPlanimetrieHub() {
           </Card>
         ) : (
           <>
-            <p className="text-xs text-muted-foreground">
-              {filtrate.length}{" "}
-              {filtrate.length === 1 ? "progetto" : "progetti"} · anteprime
-              dell’ultima versione salvata
-            </p>
+            {/* Il conteggio sta già sopra, nei filtri («16 di 16 planimetrie»): qui ripeteva lo stesso numero. */}
             <div
               className={
                 vista === "griglia"
