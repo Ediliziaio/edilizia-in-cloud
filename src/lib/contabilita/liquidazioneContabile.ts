@@ -4,6 +4,9 @@
  * La vista IVA della Contabilità generale mostrava la tabella periodo per periodo ma non la
  * faceva uscire dalla pagina: «in contabilità generale non fa scaricare l'IVA». Qui il foglio
  * A4 (stessa testata degli altri documenti contabili) e il CSV all'italiana per lo studio.
+ *
+ * Un solo calcolo (migrazione 20290527100000): il giroconto si registra dalla LIPE confermata dello
+ * stesso periodo (VP4, VP5, VP12). Senza LIPE l'esito è un'anteprima dai saldi delle scritture.
  */
 import { htmlDocumentoContabile, type AziendaIntestazione } from "./documentoContabile";
 import { PIEDE_LIBRO } from "./libroGiornale";
@@ -15,6 +18,48 @@ export interface EsitoLiquidazione {
   da_versare: number; a_credito: number; gia_liquidato: boolean; sotto_minimo?: boolean;
   /** Trimestrale: l'1% di interessi che si aggiunge al versamento. */
   interessi?: number;
+  /** Da dove vengono gli importi: la LIPE confermata (si registra) o i saldi delle scritture (solo anteprima). */
+  fonte?: "lipe" | "scritture";
+  /** Soglia di versamento dell'anno: 100 € dal 2024, 25,82 € prima. */
+  soglia?: number;
+  lipe_da_versare?: number | null;
+  lipe_a_credito?: number | null;
+  /** L'IVA registrata nelle scritture e non ancora girata, a fine periodo. */
+  scritture_iva_vendite?: number;
+  scritture_iva_acquisti?: number;
+  /** Per un periodo già registrato: gli importi della sua scrittura. */
+  registrata_iva_vendite?: number | null;
+  registrata_iva_acquisti?: number | null;
+}
+
+const diversi = (a: number | null | undefined, b: number | null | undefined) => cent(a ?? 0) !== cent(b ?? 0);
+
+/**
+ * Gli importi da mostrare: per un periodo registrato quelli della sua scrittura (i saldi, dopo il
+ * giroconto, sono a zero e non dicono niente), altrimenti quelli dell'esito.
+ */
+export function importiPeriodo(e: EsitoLiquidazione): EsitoLiquidazione {
+  if (!e.gia_liquidato || e.registrata_iva_vendite == null || e.registrata_iva_acquisti == null) return e;
+  return { ...e, iva_vendite: e.registrata_iva_vendite, iva_acquisti: e.registrata_iva_acquisti };
+}
+
+/**
+ * Che cosa non torna fra LIPE e contabilità nel periodo, in una riga; vuoto se torna.
+ * - Registrato: la scrittura ha importi diversi dalla LIPE confermata → va stornata e rifatta.
+ * - Da registrare: le scritture hanno più (o meno) IVA della LIPE → la differenza resta sui conti IVA
+ *   (fatture registrate in un periodo e liquidate in un altro).
+ */
+export function differenzaLipe(e: EsitoLiquidazione): string {
+  if (e.fonte !== "lipe") return "";
+  if (e.gia_liquidato) {
+    if (e.registrata_iva_vendite == null) return "";
+    return diversi(e.registrata_iva_vendite, e.iva_vendite) || diversi(e.registrata_iva_acquisti, e.iva_acquisti)
+      ? `Registrata con importi diversi dalla LIPE (vendite ${euro(e.registrata_iva_vendite ?? 0)}, acquisti ${euro(e.registrata_iva_acquisti ?? 0)}): storna la scrittura e registrala di nuovo`
+      : "";
+  }
+  return diversi(e.scritture_iva_vendite, e.iva_vendite) || diversi(e.scritture_iva_acquisti, e.iva_acquisti)
+    ? `Nelle scritture: vendite ${euro(e.scritture_iva_vendite ?? 0)}, acquisti ${euro(e.scritture_iva_acquisti ?? 0)}. La differenza resta sui conti IVA e va nel periodo in cui la LIPE la liquida`
+    : "";
 }
 
 export interface PeriodoLiquidazione { dal: string; al: string; nome: string }
@@ -29,12 +74,14 @@ const euro = (n: number): string =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
 const cent = (n: number) => Math.round((Number(n) || 0) * 100);
 
-/** Lo stato del periodo in parole: registrata, sotto il minimo, da registrare, senza movimenti. */
+/** Lo stato del periodo in parole: registrata, senza movimenti, da confermare nella LIPE, da registrare. */
 export function statoLiquidazione(r: EsitoLiquidazione): string {
+  const soglia = euro(r.soglia ?? 100);
   if (r.gia_liquidato) return "Registrata";
-  if (r.iva_vendite === 0 && r.iva_acquisti === 0) return "Senza movimenti";
-  if (r.sotto_minimo) return "Sotto 25,82 €: passa al periodo dopo";
-  return "Da registrare";
+  if (r.iva_vendite === 0 && r.iva_acquisti === 0 && !r.interessi) return "Senza movimenti";
+  if (r.fonte === "scritture") return "Anteprima dalle scritture: conferma la LIPE";
+  if (r.sotto_minimo) return `Da registrare · sotto ${soglia}: si versa col periodo dopo`;
+  return "Da registrare dalla LIPE";
 }
 
 /** Le righe da stampare: i periodi con l'esito accanto, senza quelli che non hanno esito. */
@@ -43,7 +90,7 @@ export function righeLiquidazione(
   esiti: readonly (EsitoLiquidazione | undefined)[],
   incompleti: readonly (IncompletiPeriodo | undefined)[] = [],
 ): RigaLiquidazione[] {
-  return periodi.flatMap((p, i) => (esiti[i] ? [{ ...esiti[i]!, periodo: p.nome, avviso: avvisoPeriodo(incompleti[i]) || undefined }] : []));
+  return periodi.flatMap((p, i) => (esiti[i] ? [{ ...importiPeriodo(esiti[i]!), periodo: p.nome, avviso: avvisoPeriodo(incompleti[i]) || undefined }] : []));
 }
 
 /** Lo stato più l'avviso dei documenti incompleti: sul foglio e nel file va detto, non solo a video. */

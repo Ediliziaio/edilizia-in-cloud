@@ -10,6 +10,9 @@ import { MemoryRouter } from "react-router-dom";
 const state = vi.hoisted(() => ({
   rpc: [] as Array<{ fn: string; args: Record<string, unknown> }>,
   liquidati: new Set<string>(),
+  // Da dove vengono gli importi di ciascun periodo (per data d'inizio): LIPE confermata se non indicato.
+  fonte: {} as Record<string, "lipe" | "scritture">,
+  registrata: {} as Record<string, { vendite: number; acquisti: number }>,
 }));
 
 const conti = [
@@ -52,6 +55,9 @@ vi.mock("@/integrations/supabase/client", () => ({
           iva_vendite: gennaio ? 22 : febbraio ? 11 : 0, iva_acquisti: 0, saldo: gennaio ? 22 : febbraio ? 11 : 0,
           credito_precedente: 0, compensato: 0, da_versare: gennaio ? 22 : febbraio ? 11 : 0, a_credito: 0,
           gia_liquidato: state.liquidati.has(String(args.p_dal)),
+          fonte: state.fonte[String(args.p_dal)] ?? "lipe",
+          registrata_iva_vendite: state.registrata[String(args.p_dal)]?.vendite ?? null,
+          registrata_iva_acquisti: state.registrata[String(args.p_dal)]?.acquisti ?? null,
         },
         error: null as { message: string } | null,
       };
@@ -69,7 +75,7 @@ vi.mock("@/pages/azienda/fatturazione/RegistroIVA", () => ({
 vi.mock("@/pages/azienda/ContabilitaFiscale", () => ({
   LiquidazioneIvaEF24: (p: { chiaveVista?: string }) => <div>LIQUIDAZIONE E F24 DI FISCALITÀ ({p.chiaveVista})</div>,
 }));
-const controllo = vi.hoisted(() => ({ stato: undefined as undefined | { impostazioniCompilate: boolean; acquistiSenzaRicezione: number; senzaImporti: Array<{ data: string; lato: "emesse" | "ricevute" }> } }));
+const controllo = vi.hoisted(() => ({ stato: undefined as undefined | { impostazioniCompilate: boolean; periodicita?: "mensile" | "trimestrale" | null; acquistiSenzaRicezione: number; senzaImporti: Array<{ data: string; lato: "emesse" | "ricevute" }> } }));
 vi.mock("@/hooks/useControlloIva", () => ({ useControlloIva: () => ({ data: controllo.stato }) }));
 const csv = vi.hoisted(() => ({ file: [] as Array<{ nome: string; contenuto: string }> }));
 vi.mock("@/lib/csv", () => ({ scaricaCsv: (nome: string, contenuto: string) => { csv.file.push({ nome, contenuto }); } }));
@@ -88,6 +94,8 @@ function apri(vista: string) {
 }
 
 beforeEach(() => {
+  state.fonte = {};
+  state.registrata = {};
   controllo.stato = undefined;
   accesso.fatturazione = true;
   state.rpc = [];
@@ -170,13 +178,24 @@ it("vista IVA: dice cosa blocca la LIPE e porta dove si sistema (23/11/2026)", a
   expect(await screen.findByText("LIQUIDAZIONE E F24 DI FISCALITÀ (iva_vista)")).toBeTruthy();
 });
 
-it("liquidazione in contabilità: un mese con documenti senza importi chiede conferma prima di registrare", async () => {
-  controllo.stato = { impostazioniCompilate: true, acquistiSenzaRicezione: 0, senzaImporti: [{ data: "2026-01-10", lato: "ricevute" }] };
+it("un solo calcolo: senza LIPE confermata il periodo è un'anteprima e porta a confermarla", async () => {
+  state.fonte["2026-01-01"] = "scritture";
+  controllo.stato = { impostazioniCompilate: true, periodicita: "mensile", acquistiSenzaRicezione: 0, senzaImporti: [{ data: "2026-01-10", lato: "ricevute" }] };
   apri("iva&iva=contabile");
-  expect(await screen.findByText("1 ricevuta senza importi: importi parziali")).toBeTruthy();
-  fireEvent.click(screen.getAllByRole("button", { name: "Registra" })[0]);
-  expect(await screen.findByText(/non è completo/)).toBeTruthy();
-  expect(state.rpc.some((c) => c.fn === "contabilita_liquida_iva" && c.args.p_anteprima === false)).toBe(false);
-  fireEvent.click(screen.getByRole("button", { name: "Registra lo stesso" }));
-  await waitFor(() => expect(state.rpc.some((c) => c.fn === "contabilita_liquida_iva" && c.args.p_anteprima === false)).toBe(true));
+  expect(await screen.findByText("anteprima dalle scritture")).toBeTruthy();
+  expect(screen.getByText("1 ricevuta senza importi: importi parziali nelle scritture")).toBeTruthy();
+  expect(screen.getByText(/Periodicità/).textContent).toContain("mensile");
+  // Gennaio non si registra: c'è «Conferma la LIPE», e febbraio (dalla LIPE) aspetta gennaio.
+  expect(screen.getAllByRole("button", { name: "Registra" })).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: "Conferma la LIPE" }));
+  expect(await screen.findByText("LIQUIDAZIONE E F24 DI FISCALITÀ (iva_vista)")).toBeTruthy();
+});
+
+it("un solo calcolo: un periodo registrato con importi diversi dalla LIPE lo dice", async () => {
+  state.liquidati.add("2026-01-01");
+  state.registrata["2026-01-01"] = { vendite: 30, acquisti: 0 };
+  apri("iva&iva=contabile");
+  expect(await screen.findByText(/Registrata con importi diversi dalla LIPE/)).toBeTruthy();
+  // A video gli importi della scrittura registrata, non i saldi a zero.
+  expect(screen.getAllByText("30,00 €").length).toBeGreaterThan(0);
 });

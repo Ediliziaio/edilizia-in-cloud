@@ -12,6 +12,8 @@ const db = supabase as any;
 
 export interface StatoControlloIva {
   impostazioniCompilate: boolean;
+  /** La periodicità delle Impostazioni IVA dell'anno: quella della LIPE e dei giroconti. */
+  periodicita: "mensile" | "trimestrale" | null;
   /** Acquisti dell'anno senza data di ricezione SDI né data dichiarata: la LIPE si ferma. */
   acquistiSenzaRicezione: number;
   /** Documenti dell'anno col solo totale: né la contabilità né la LIPE ne conoscono l'IVA. */
@@ -36,7 +38,7 @@ export function useControlloIva(companyId: string, anno: number) {
     queryFn: async (): Promise<StatoControlloIva> => {
       const dal = `${anno}-01-01`, al = `${anno}-12-31`;
       const [impostazioni, ricezione, emesse, ricevute] = await Promise.all([
-        db.from("fiscalita_impostazioni_iva").select("anno").eq("company_id", companyId).eq("anno", anno).maybeSingle(),
+        db.from("fiscalita_impostazioni_iva").select("anno, periodicita").eq("company_id", companyId).eq("anno", anno).maybeSingle(),
         db.from("fatture_ricevute").select("id", { count: "exact", head: true }).eq("company_id", companyId)
           .gte("data_fattura", dal).lte("data_fattura", al).neq("stato", "rifiutata")
           .is("data_ricezione_sdi", null).is("ricezione_dichiarata_il", null),
@@ -51,6 +53,8 @@ export function useControlloIva(companyId: string, anno: number) {
       if (ricezione.error) throw ricezione.error;
       return {
         impostazioniCompilate: !!impostazioni.data,
+        // Come la LIPE: «mensile» è mensile, ogni altra periodicità (anche la trimestrale speciale) è a trimestri.
+        periodicita: !impostazioni.data?.periodicita ? null : impostazioni.data.periodicita === "mensile" ? "mensile" : "trimestrale",
         acquistiSenzaRicezione: ricezione.count ?? 0,
         senzaImporti: [
           ...(emesse as Array<{ data_emissione: string }>).map((r) => ({ data: r.data_emissione, lato: "emesse" as const })),

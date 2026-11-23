@@ -9,6 +9,8 @@ import { describe, expect, it } from "vitest";
 import { numeriGiornale, riferimentoDocumento, type Scrittura } from "@/lib/contabilita/libroGiornale";
 import {
   csvLiquidazioneContabile,
+  differenzaLipe,
+  importiPeriodo,
   htmlLiquidazioneContabile,
   righeLiquidazione,
   statoLiquidazione,
@@ -78,8 +80,9 @@ describe("liquidazioni IVA della contabilità: stampa ed esportazione", () => {
   });
 
   it("dice lo stato di ogni periodo", () => {
-    expect(esiti.map(statoLiquidazione)).toEqual(["Registrata", "Da registrare", "Senza movimenti"]);
-    expect(statoLiquidazione(esito({ iva_vendite: 10, sotto_minimo: true }))).toMatch(/passa al periodo dopo/);
+    expect(esiti.map(statoLiquidazione)).toEqual(["Registrata", "Da registrare dalla LIPE", "Senza movimenti"]);
+    expect(statoLiquidazione(esito({ iva_vendite: 10, sotto_minimo: true, fonte: "lipe", soglia: 100 }))).toMatch(/sotto 100,00\s€: si versa col periodo dopo/);
+    expect(statoLiquidazione(esito({ iva_vendite: 10, fonte: "scritture" }))).toBe("Anteprima dalle scritture: conferma la LIPE");
   });
 
   it("il CSV è all'italiana: punto e virgola e decimali con la virgola", () => {
@@ -139,6 +142,42 @@ describe("liquidazione su un periodo coi documenti col solo totale", () => {
     expect(righe[0].avviso).toBe("6 emesse e 94 ricevute senza importi");
     expect(csvLiquidazioneContabile(righe).split("\r\n")[1]).toMatch(/Registrata · 6 emesse e 94 ricevute senza importi: importi parziali$/);
     expect(htmlLiquidazioneContabile({ azienda: {}, anno: 2026, trimestrale: false, righe })).toContain("importi parziali");
+  });
+});
+
+describe("un solo calcolo IVA: la contabilità registra la LIPE confermata", () => {
+  it("un periodo registrato mostra gli importi della sua scrittura", () => {
+    const e = esito({ gia_liquidato: true, registrata_iva_vendite: 500, registrata_iva_acquisti: 200 });
+    expect(importiPeriodo(e)).toMatchObject({ iva_vendite: 500, iva_acquisti: 200 });
+    expect(importiPeriodo(esito({ iva_vendite: 7 }))).toMatchObject({ iva_vendite: 7 });
+  });
+
+  it("dice quando la scrittura registrata non è la LIPE", () => {
+    expect(differenzaLipe(esito({ fonte: "lipe", gia_liquidato: true, iva_vendite: 500, iva_acquisti: 200, registrata_iva_vendite: 500, registrata_iva_acquisti: 200 }))).toBe("");
+    expect(differenzaLipe(esito({ fonte: "lipe", gia_liquidato: true, iva_vendite: 500, iva_acquisti: 200, registrata_iva_vendite: 480, registrata_iva_acquisti: 200 })))
+      .toMatch(/^Registrata con importi diversi dalla LIPE.*storna/);
+  });
+
+  it("da registrare: la differenza con le scritture resta sui conti IVA, e lo dice", () => {
+    expect(differenzaLipe(esito({ fonte: "lipe", iva_vendite: 100, iva_acquisti: 50, scritture_iva_vendite: 100, scritture_iva_acquisti: 80 })))
+      .toMatch(/^Nelle scritture: vendite 100,00\s€, acquisti 80,00\s€/);
+    expect(differenzaLipe(esito({ fonte: "lipe", iva_vendite: 100, iva_acquisti: 50, scritture_iva_vendite: 100, scritture_iva_acquisti: 50 }))).toBe("");
+    expect(differenzaLipe(esito({ fonte: "scritture", iva_vendite: 1, scritture_iva_vendite: 2 }))).toBe("");
+  });
+});
+
+describe("la migrazione del calcolo unico", () => {
+  const sql = readFileSync("supabase/migrations/20290527100000_contabilita_liquida_iva_dalla_lipe.sql", "utf8");
+  it("registra solo dalla LIPE confermata dello stesso periodo", () => {
+    expect(sql).toMatch(/f\.period_start = p_dal AND f\.period_end = p_al/);
+    expect(sql).toMatch(/IF v_lipe IS NULL THEN\s+RAISE EXCEPTION 'Conferma prima la liquidazione periodica \(LIPE\)/);
+    expect(sql).toContain("{righi,vp4}");
+    expect(sql).toContain("{righi,vp5}");
+    expect(sql).toContain("{righi,vp12}");
+  });
+  it("soglia di 100 € dal 2024, chiusa ad anon", () => {
+    expect(sql).toMatch(/< 2024 THEN 25\.82 ELSE 100/);
+    expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.contabilita_liquida_iva\(uuid, date, date, boolean\) FROM PUBLIC, anon/);
   });
 });
 

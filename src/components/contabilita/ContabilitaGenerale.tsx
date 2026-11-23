@@ -52,7 +52,7 @@ import { RimanenzeFineAnno } from "@/components/contabilita/RimanenzeFineAnno";
 import { FiscalPeriodFilters } from "@/components/fatturazione/FiscalPeriodFilters";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { csvLiquidazioneContabile, htmlLiquidazioneContabile, righeLiquidazione, type EsitoLiquidazione } from "@/lib/contabilita/liquidazioneContabile";
+import { csvLiquidazioneContabile, differenzaLipe, htmlLiquidazioneContabile, importiPeriodo, righeLiquidazione, type EsitoLiquidazione } from "@/lib/contabilita/liquidazioneContabile";
 import { avvisoPeriodo, incompletiPerPeriodo, type DocumentoSenzaImporti } from "@/lib/contabilita/controlloIva";
 import { useControlloIva } from "@/hooks/useControlloIva";
 import { CosaMancaIva } from "@/components/contabilita/ControlloIva";
@@ -1500,7 +1500,8 @@ function IvaContabilita({ companyId, anno }: { companyId: string; anno: number }
         ) : sotto === "liquidazione" ? (
           <LiquidazioneIvaEF24 chiaveVista="iva_vista" onApriRegistro={() => p.set({ iva: "registri" })} />
         ) : (
-          <LiquidazioneIva companyId={companyId} anno={anno} senzaImporti={controllo.data?.senzaImporti ?? []} />
+          <LiquidazioneIva companyId={companyId} anno={anno} senzaImporti={controllo.data?.senzaImporti ?? []}
+            periodicita={controllo.data?.periodicita} onApriLipe={() => p.set({ iva: "liquidazione", iva_vista: "iva" })} />
         )}
       </Suspense>
     </div>
@@ -1508,18 +1509,22 @@ function IvaContabilita({ companyId, anno }: { companyId: string; anno: number }
 }
 
 /**
- * Liquidazione IVA in contabilità: l'IVA su vendite e su acquisti del periodo si gira su
- * Erario c/IVA (contabilita_liquida_iva). L'importo si legge dalle scritture: un documento
- * non ancora registrato non c'è, quindi prima si genera dai documenti.
+ * Liquidazione IVA in contabilità: l'IVA del periodo si gira su Erario c/IVA (contabilita_liquida_iva).
+ * Un solo calcolo (23/11/2026): si registra la LIPE confermata dello stesso periodo (VP4, VP5, VP12);
+ * senza LIPE la riga è un'anteprima dai saldi delle scritture e il pulsante porta a confermarla.
  */
-function LiquidazioneIva({ companyId, anno, senzaImporti = [] }: { companyId: string; anno: number; senzaImporti?: readonly DocumentoSenzaImporti[] }) {
+function LiquidazioneIva({ companyId, anno, senzaImporti = [], periodicita, onApriLipe }: {
+  companyId: string; anno: number; senzaImporti?: readonly DocumentoSenzaImporti[];
+  /** Dalle Impostazioni IVA dell'anno: è quella della LIPE, quindi anche quella dei giroconti. */
+  periodicita?: "mensile" | "trimestrale" | null;
+  onApriLipe?: () => void;
+}) {
   const qc = useQueryClient();
-  // Un periodo con documenti col solo totale: la liquidazione non ne vede l'IVA, e va detto prima di registrarla.
-  const [daConfermare, setDaConfermare] = useState<{ dal: string; al: string; nome: string; avviso: string } | null>(null);
   const isMobile = useIsMobile();
   const anagrafica = useAnagraficaAzienda();
   const [stampa, setStampa] = useState<string | null>(null);
-  const [trimestrale, setTrimestrale] = useState(false);
+  const [sceltaTrimestrale, setTrimestrale] = useState(false);
+  const trimestrale = periodicita ? periodicita === "trimestrale" : sceltaTrimestrale;
   const periodi = periodiIva(anno, trimestrale);
   const incompleti = incompletiPerPeriodo(senzaImporti, periodi);
   const esiti = useQuery({
@@ -1534,6 +1539,8 @@ function LiquidazioneIva({ companyId, anno, senzaImporti = [] }: { companyId: st
       return risultati;
     },
   });
+  // Un periodo registrato mostra gli importi della sua scrittura: i saldi, dopo il giroconto, sono a zero.
+  const mostrati = useMemo(() => esiti.data?.map(importiPeriodo), [esiti.data]);
   const registra = useMutation({
     mutationFn: async (per: { dal: string; al: string }) => {
       const { data, error } = await db.rpc("contabilita_liquida_iva", { p_company: companyId, p_dal: per.dal, p_al: per.al, p_anteprima: false });
@@ -1541,7 +1548,7 @@ function LiquidazioneIva({ companyId, anno, senzaImporti = [] }: { companyId: st
       return data as EsitoLiquidazione;
     },
     onSuccess: (r) => {
-      toast.success("Liquidazione registrata", {
+      toast.success("Liquidazione registrata dalla LIPE", {
         description: r.da_versare > 0 ? `IVA da versare ${euro(r.da_versare)}: il pagamento dell'F24 la chiude.` : `IVA a credito ${euro(r.a_credito)}.`,
       });
       void qc.invalidateQueries({ queryKey: chiave(companyId) });
@@ -1551,17 +1558,24 @@ function LiquidazioneIva({ companyId, anno, senzaImporti = [] }: { companyId: st
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <Select value={trimestrale ? "t" : "m"} onValueChange={(v) => setTrimestrale(v === "t")}>
-          <SelectTrigger className="h-8 w-40" aria-label="Periodicità"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="m">Mensile</SelectItem>
-            <SelectItem value="t">Trimestrale</SelectItem>
-          </SelectContent>
-        </Select>
+        {periodicita ? (
+          <span className="text-muted-foreground">Periodicità <span className="font-medium text-foreground">{periodicita}</span>, dalle Impostazioni IVA</span>
+        ) : (
+          <Select value={trimestrale ? "t" : "m"} onValueChange={(v) => setTrimestrale(v === "t")}>
+            <SelectTrigger className="h-8 w-40" aria-label="Periodicità"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="m">Mensile</SelectItem>
+              <SelectItem value="t">Trimestrale</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <details className="text-xs text-muted-foreground"><summary className="cursor-pointer font-medium">Come si calcola la liquidazione</summary><p className="mt-2 max-w-prose">
-          Gli importi sono l'IVA non ancora liquidata a fine periodo: genera prima dai documenti. Il credito di un periodo abbatte il debito dei successivi; sotto 25,82 € il debito passa al periodo dopo.
+          L'IVA si calcola una volta sola, nella liquidazione periodica (LIPE): quando la confermi, qui la registri e la contabilità gira su Erario c/IVA
+          l'IVA esigibile (VP4), quella detratta (VP5) e gli interessi (VP12). Finché non è confermata vedi un'anteprima dai saldi delle scritture.
+          Se le scritture hanno più IVA della LIPE (fatture registrate in un mese e ricevute nel successivo), la differenza resta sui conti IVA per il periodo giusto.
+          Sotto la soglia (100 € dal 2024) il debito si registra lo stesso e si versa col periodo dopo.
         </p></details>
-        {esiti.data && (
+        {mostrati && (
           <div className="ml-auto flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={() => setStampa(htmlLiquidazioneContabile({ azienda: intestazioneDa(anagrafica.data), anno, trimestrale, righe: righeLiquidazione(periodi, esiti.data!, incompleti) }))}>
               <Printer className="mr-1 h-4 w-4" />Stampa liquidazioni
@@ -1576,22 +1590,7 @@ function LiquidazioneIva({ companyId, anno, senzaImporti = [] }: { companyId: st
         <PrintPreviewModal open onOpenChange={(v) => { if (!v) setStampa(null); }} htmlContent={stampa}
           title="Liquidazioni IVA — anteprima di stampa" fileName={`liquidazioni-iva-${anno}`} soloPdf />
       )}
-      <Dialog open={!!daConfermare} onOpenChange={(v) => { if (!v) setDaConfermare(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Il periodo {daConfermare?.nome} non è completo</DialogTitle>
-            <DialogDescription>
-              Ci sono {daConfermare?.avviso}: hanno solo il totale, quindi la loro IVA non è nelle scritture e questa liquidazione non la conta.
-              Completa le fatture con l'XML prima di registrare, oppure registra lo stesso se l'IVA di quel periodo l'ha liquidata un altro programma e la riporti a mano.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDaConfermare(null)}>Annulla</Button>
-            <Button variant="destructive" disabled={registra.isPending} onClick={() => { if (daConfermare) registra.mutate(daConfermare); setDaConfermare(null); }}>Registra lo stesso</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      {!isMobile && esiti.data && <GraficoIva periodi={periodi} esiti={esiti.data} />}
+      {!isMobile && mostrati && <GraficoIva periodi={periodi} esiti={mostrati} />}
       {esiti.isLoading || esiti.isError ? (
         <FiscalQueryState loading={esiti.isLoading} error={esiti.isError} onRetry={() => void esiti.refetch()} />
       ) : (
@@ -1602,45 +1601,50 @@ function LiquidazioneIva({ companyId, anno, senzaImporti = [] }: { companyId: st
             </thead>
             <tbody>
               {periodi.map((per, i) => {
-                const r = esiti.data?.[i];
+                const r = mostrati?.[i];
                 if (!r) return null;
-                const vuoto = r.iva_vendite === 0 && r.iva_acquisti === 0;
+                const vuoto = r.iva_vendite === 0 && r.iva_acquisti === 0 && !r.interessi;
+                const dallaLipe = r.fonte !== "scritture";
+                // Sull'esito originale: in `r` gli importi del registrato sono già quelli della scrittura.
+                const differenza = esiti.data?.[i] ? differenzaLipe(esiti.data[i]) : "";
                 // In ordine: il credito di un periodo entra nel successivo solo se è registrato.
                 const primaInSospeso = periodi.slice(0, i).some((_, j) => {
-                  const q = esiti.data?.[j];
-                  return q && !q.gia_liquidato && !q.sotto_minimo && (q.iva_vendite !== 0 || q.iva_acquisti !== 0);
+                  const q = mostrati?.[j];
+                  return q && !q.gia_liquidato && (q.fonte === "lipe" || !q.sotto_minimo) && (q.iva_vendite !== 0 || q.iva_acquisti !== 0 || !!q.interessi);
                 });
                 return (
-                  <tr key={per.dal} className="border-t">
+                  <tr key={per.dal} className="border-t align-top">
                     <td className="p-2">
                       <span className="capitalize">{per.nome}</span>
+                      {!vuoto && !r.gia_liquidato ? (
+                        <span className="block text-[11px] text-muted-foreground">{dallaLipe ? "dalla LIPE confermata" : "anteprima dalle scritture"}</span>
+                      ) : null}
                       {avvisoPeriodo(incompleti[i]) ? (
-                        <span className="block text-[11px] text-amber-700 dark:text-amber-300" title="Documenti col solo totale: la loro IVA non è in questa liquidazione">
-                          {avvisoPeriodo(incompleti[i])}: importi parziali
+                        <span className="block text-[11px] text-amber-700 dark:text-amber-300" title="Documenti col solo totale: la loro IVA non è nelle scritture">
+                          {avvisoPeriodo(incompleti[i])}: importi parziali nelle scritture
                         </span>
                       ) : null}
+                      {differenza ? <span className="block max-w-md text-[11px] text-amber-700 dark:text-amber-300">{differenza}</span> : null}
                     </td>
                     <td className="p-2 text-right tabular-nums">{euro(r.iva_vendite)}</td>
                     <td className="p-2 text-right tabular-nums">{euro(r.iva_acquisti)}</td>
-                    <td className="p-2 text-right tabular-nums text-muted-foreground">{r.compensato ? euro(r.compensato) : ""}</td>
+                    <td className="p-2 text-right tabular-nums text-muted-foreground">{!r.gia_liquidato && r.compensato ? euro(r.compensato) : ""}</td>
                     <td className="p-2 text-right font-medium tabular-nums">
-                      {r.da_versare ? euro(r.da_versare + (r.interessi ?? 0)) : ""}
-                      {r.interessi ? <span className="block text-[11px] font-normal text-muted-foreground">di cui interessi 1%: {euro(r.interessi)}</span> : null}
+                      {!r.gia_liquidato && r.da_versare ? euro(r.da_versare + (r.interessi ?? 0)) : ""}
+                      {!r.gia_liquidato && r.interessi ? <span className="block text-[11px] font-normal text-muted-foreground">di cui interessi 1%: {euro(r.interessi)}</span> : null}
+                      {!r.gia_liquidato && dallaLipe && r.sotto_minimo ? <span className="block text-[11px] font-normal text-muted-foreground">sotto la soglia: si versa col periodo dopo</span> : null}
                     </td>
-                    <td className="p-2 text-right tabular-nums">{r.a_credito ? euro(r.a_credito) : ""}</td>
+                    <td className="p-2 text-right tabular-nums">{!r.gia_liquidato && r.a_credito ? euro(r.a_credito) : ""}</td>
                     <td className="p-2 text-right">
                       {r.gia_liquidato ? (
                         <span className="rounded bg-emerald-50 px-1.5 text-xs text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">registrata</span>
-                      ) : vuoto ? null : r.sotto_minimo ? (
-                        <span className="text-xs text-muted-foreground" title="Sotto 25,82 € non si versa">passa al periodo dopo</span>
+                      ) : vuoto ? null : !dallaLipe ? (
+                        onApriLipe ? <Button size="sm" variant="outline" onClick={onApriLipe} title="La contabilità registra la liquidazione periodica confermata">Conferma la LIPE</Button>
+                          : <span className="text-xs text-muted-foreground">da confermare nella LIPE</span>
                       ) : (
                         <Button size="sm" variant="outline" disabled={registra.isPending || primaInSospeso}
                           title={primaInSospeso ? "Prima registra i periodi precedenti" : undefined}
-                          onClick={() => {
-                            const avviso = avvisoPeriodo(incompleti[i]);
-                            if (avviso) setDaConfermare({ ...per, avviso });
-                            else registra.mutate(per);
-                          }}>Registra</Button>
+                          onClick={() => registra.mutate(per)}>Registra</Button>
                       )}
                     </td>
                   </tr>
