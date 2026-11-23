@@ -43,7 +43,7 @@ describe("importazione contatti", () => {
   it("crea e aggiorna dallo stesso file", async () => {
     const { handleImport, righe, inserisci, aggiorna } = gestore();
     expect(await handleImport(righe, { mode: "upsert" })).toEqual({
-      success: 2, errors: [], creati: 1, aggiornati: 1, saltati: 0, avvisi: [], fatto: [],
+      success: 2, errors: [], creati: 1, aggiornati: 1, saltati: 0, avvisi: [], fatto: [], nonRiuscito: [],
     });
     expect(inserisci).toHaveBeenCalledWith([expect.objectContaining({ email: "nuovo@example.test" })]);
     expect(aggiorna).toHaveBeenCalledWith(expect.objectContaining({ email: "gia@example.test" }));

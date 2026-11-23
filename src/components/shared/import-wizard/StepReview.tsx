@@ -103,7 +103,16 @@ export function StepReview({
         ) : (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5 text-destructive">
             <p className="flex items-center gap-2 text-base font-semibold"><AlertCircle className="h-5 w-5" /> Nessuna riga importata</p>
+            {(result.saltati ?? 0) > 0 && (
+              <p className="mt-2 pl-7 text-sm">
+                {result.saltati} {result.saltati === 1 ? "riga saltata" : "righe saltate"}: nessun contatto esistente con la stessa email o
+                lo stesso telefono. Per aggiungerli come nuovi scegli «Crea e aggiorna» al passo 2.
+              </p>
+            )}
           </div>
+        )}
+        {(result.nonRiuscito ?? []).length > 0 && (
+          <Elenco tono="amber" titolo="Da completare a mano" righe={result.nonRiuscito!} />
         )}
         {avvisi.length > 0 && (
           <Elenco tono="amber" titolo={`${avvisi.length} ${avvisi.length === 1 ? "riga non importata perché doppia" : "righe non importate perché doppie"}`} righe={avvisi} />

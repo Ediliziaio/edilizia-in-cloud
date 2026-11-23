@@ -47,8 +47,11 @@ export function telefonoInternazionale(phone: string): string {
   const pulito = cleanPhone(phone).replace(/[()]/g, "");
   const cifre = pulito.replace(/\D/g, "");
   if (!cifre) return pulito;
-  if (pulito.startsWith("+")) return `+${cifre}`;
-  if (cifre.startsWith("00")) return `+${cifre.slice(2)}`;
+  // Solo un numero fatto di cifre: «int. 2» o due numeri nello stesso campo restano come
+  // sono, invece di diventare un numero inventato.
+  if (!/^\+?\d+$/.test(pulito)) return pulito;
+  if (pulito.startsWith("+")) return /^\d{8,15}$/.test(cifre) ? `+${cifre}` : pulito;
+  if (cifre.startsWith("00")) return /^\d{8,15}$/.test(cifre.slice(2)) ? `+${cifre.slice(2)}` : pulito;
   if (/^(3\d{8,9}|0\d{5,10})$/.test(cifre)) return `+39${cifre}`;
   if (/^39(3\d{8,9}|0\d{5,10})$/.test(cifre)) return `+${cifre}`;
   return pulito;

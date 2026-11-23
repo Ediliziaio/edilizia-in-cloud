@@ -20,6 +20,11 @@ describe("telefono importato con il prefisso internazionale", () => {
     expect(telefonoInternazionale("int. 21")).toBe("int21");
   });
 
+  it("con il + o lo 00 un numero con l'interno o due numeri non diventa un numero inventato", () => {
+    expect(telefonoInternazionale("+39 333 1234567 int. 2")).toBe("+393331234567int2");
+    expect(telefonoInternazionale("+39 333 1234567 / 347 7654321")).toBe("+393331234567/3477654321");
+  });
+
   it("ritrova lo stesso numero salvato con o senza prefisso", () => {
     expect(formeTelefono("333 123 4567")).toEqual(expect.arrayContaining(["+393331234567", "393331234567", "3331234567", "00393331234567"]));
   });

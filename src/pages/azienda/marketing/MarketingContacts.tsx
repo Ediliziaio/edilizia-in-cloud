@@ -1413,6 +1413,7 @@ export default function MarketingContacts() {
     const errors: string[] = [];
     const avvisi: string[] = [];
     const fatto: string[] = [];
+    const nonRiuscito: string[] = [];
     const etichetteExtra = normalizeTagList(options?.etichette ?? []);
     const idsImportati: string[] = [];
     let created = 0;
@@ -1568,8 +1569,11 @@ export default function MarketingContacts() {
           const updateData = { ...p.data };
           delete updateData.company_id;
           // Le etichette si aggiungono a quelle che il contatto ha già, non le sostituiscono.
-          if (updateData.tags.length) updateData.tags = normalizeTagList([...(etichetteEsistenti.get(existingId) ?? []), ...updateData.tags]);
-          else delete updateData.tags;
+          if (updateData.tags.length) {
+            updateData.tags = normalizeTagList([...(etichetteEsistenti.get(existingId) ?? []), ...updateData.tags]);
+            // Due righe sullo stesso contatto (una per email, una per telefono): la seconda parte dalle etichette della prima.
+            etichetteEsistenti.set(existingId, updateData.tags);
+          } else delete updateData.tags;
           updateData.updated_at = new Date().toISOString();
           const { error: updateError } = await supabase
             .from("marketing_contacts")
@@ -1629,15 +1633,16 @@ export default function MarketingContacts() {
       }
     }
 
-    if (etichetteExtra.length && idsImportati.length) {
-      fatto.push(`${etichetteExtra.length === 1 ? "Etichetta" : "Etichette"} ${etichetteExtra.map((e) => `«${e}»`).join(", ")} su ${idsImportati.length} contatti`);
+    const idsUnici = [...new Set(idsImportati)];
+    if (etichetteExtra.length && idsUnici.length) {
+      fatto.push(`${etichetteExtra.length === 1 ? "Etichetta" : "Etichette"} ${etichetteExtra.map((e) => `«${e}»`).join(", ")} su ${idsUnici.length} contatti`);
     }
     // Le automazioni scelte: i contatti importati partono dal primo passaggio.
     for (const flusso of options?.automazioni ?? []) {
-      if (!idsImportati.length) break;
+      if (!idsUnici.length) break;
       let iscritti = 0;
       try {
-        await perOgniLotto(idsImportati, async (lotto) => {
+        await perOgniLotto(idsUnici, async (lotto) => {
           const { data, error } = await supabase.rpc("enroll_entities_in_flow", {
             p_flow_id: flusso.id, p_entity_ids: lotto, p_entity_type: "contact",
           });
@@ -1646,12 +1651,12 @@ export default function MarketingContacts() {
         });
         fatto.push(`${iscritti} contatti entrati nell'automazione «${flusso.nome}»`);
       } catch {
-        errors.push(`Automazione «${flusso.nome}»: ${iscritti ? `entrati ${iscritti} contatti, poi si è fermata` : "i contatti non sono entrati"}. Riprova dalla lista contatti con «Aggiungi ad automazione».`);
+        nonRiuscito.push(`Automazione «${flusso.nome}»: ${iscritti ? `entrati ${iscritti} contatti, poi si è fermata` : "i contatti non sono entrati"}. Riprova dalla lista contatti con «Aggiungi ad automazione».`);
       }
     }
 
     invalidate();
-    return { success: created + updated, errors, creati: created, aggiornati: updated, saltati: skipped, avvisi, fatto };
+    return { success: created + updated, errors, creati: created, aggiornati: updated, saltati: skipped, avvisi, fatto, nonRiuscito };
   };
 
   if (importOpen) {

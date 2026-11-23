@@ -44,6 +44,8 @@ export interface EsitoImportazione {
   avvisi?: string[];
   /** Cosa è stato fatto dopo l'importazione: etichette, automazioni. */
   fatto?: string[];
+  /** Cosa non è riuscito dopo l'importazione (le righe sono entrate lo stesso). */
+  nonRiuscito?: string[];
 }
 
 function autoMatch(fileHeaders: string[], fields: ImportField[]): Record<string, string> {
