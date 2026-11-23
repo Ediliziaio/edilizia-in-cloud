@@ -1,6 +1,6 @@
 # Piano — Lingua della piattaforma (prima l'area operai)
 
-Data: 23/11/2026 · Stato: **DA APPROVARE** · Ramo: `claude/lingua-piattaforma`
+Data: 23/11/2026 · Stato: **APPROVATO 23/11 — fase 1 e fase 2 (parte operai) fatte in locale, vedi «Stato dei lavori» in fondo** · Ramo: `claude/lingua-piattaforma`
 
 ## In breve (per Florin)
 
@@ -285,3 +285,53 @@ computer, verificata nel browser, test verdi, tutto in locale, niente pubblicato
    queste lingue? Basta una persona per lingua, mezz'ora–un'ora a testa per il glossario.
 4. **L'ufficio deve poter impostare la lingua di un operaio** dalla sua scheda (utile per chi
    non sa trovare l'impostazione)? Il mio consiglio: sì, ma nella fase 2.
+
+---
+
+## Stato dei lavori (23/11/2026 notte, tutto in locale, niente pubblicato)
+
+**Differenze rispetto al piano iniziale**
+- **Niente i18next.** La sessione di collaudo aveva già costruito un sistema leggero e funzionante
+  (`src/lib/campo/lingua`, la chiave è la frase italiana): è stato riusato, non duplicato.
+- **Dove sta il lavoro.** Le traduzioni sono sul ramo `campo-lingua-23nov` (worktree `~/edilizia-campo-lingua`) e sul ramo
+  `claude/lingua-rifiniture`. Il ramo `claude/lingua-piattaforma` contiene solo il piano e i primi pezzi.
+
+**Fatto**
+- **Lingua sul profilo:** colonna `profiles.lingua` già nel database (migrazione `20290523090000_profiles_lingua`,
+  riallineata). Ordine: profilo → dispositivo → italiano; la lingua del telefono non conta. Senza rete la scelta resta
+  sul dispositivo e si salva al ritorno della rete.
+- **Formati:** date, ore, numeri ed euro nella lingua scelta (`formati.ts`, `dateFnsCampo()`, `intlCampo()`). In inglese
+  il giorno viene prima del mese (en-GB); in arabo le cifre restano 0-9; l'ora è sempre quella italiana.
+- **Arabo da destra a sinistra:** `dir="rtl"` solo nell'area operai; `rtlCampo.css` è generato dalle classi delle
+  schermate; frecce specchiate; valori isolati dentro le frasi; `dir="auto"` sui testi scritti dagli utenti.
+- **Area operai tradotta per intero** in 10 lingue: circa 2.500 frasi in 127 file, più le etichette dei modelli dei
+  sopralluoghi (circa 3.680 voci per dizionario).
+  - Tradotto anche l'editor del sopralluogo (fase 2).
+  - Tradotti gli avvisi composti nelle funzioni di supporto (scadenza rapportino, ore, foto, «Compilato da»).
+- **Controlli:**
+  - `campoLingua.test`: ogni frase presente in tutte le lingue.
+  - `campoLinguaProfiloEFormati.test` e `campoLinguaSulProfilo.test`.
+  - Registro solo-sviluppo delle frasi senza traduzione (chiave localStorage `sviluppo-frasi-senza-traduzione`).
+- **Verifica a schermo**, nell'app vera con l'operaio Demo 2, a 390 px e su desktop: italiano invariato, arabo, rumeno,
+  spagnolo argentino. Con il registro ho aperto 32 pagine del campo in arabo: zero frasi mancanti.
+- **Per i revisori:** `docs/lingua/revisione/*.csv` (10 lingue più il glossario) e `docs/lingua/scelte-da-confermare.md`.
+  La checklist di sicurezza va rivista per prima.
+
+**Resta in italiano, di proposito**
+- PDF, verbali, tesserino, POS.
+- WhatsApp, email, notifiche (fase 3).
+- Dati scritti dall'azienda, compresi i modelli di sopralluogo personalizzati.
+- Parti solo-ufficio del sopralluogo.
+- «Chiudi» del lettore di schermo nei componenti `ui`.
+- Paragrafo privacy del profilo (contiene un link).
+
+**Da fare (decisioni del founder)**
+1. Revisione dei madrelingua (fase 1c), con i fogli pronti.
+2. Pubblicazione: il ramo `campo-lingua-23nov` più le rifiniture, con l'ok esplicito del founder. Dopo il push va
+   controllata l'area operai sul sito vero.
+3. Fase 2 bis, app dell'ufficio: scelta della lingua anche fuori da `/campo`, contenitore per tutta l'app, traduzione
+   a blocchi.
+4. Fase 3: notifiche, WhatsApp ed email nella lingua della persona (testi del server).
+5. Domande ancora aperte:
+   - darija in lettere latine;
+   - lingua impostata dall'ufficio nella scheda dell'operaio.
