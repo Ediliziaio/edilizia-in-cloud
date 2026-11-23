@@ -3673,5 +3673,17 @@ const dizionario: Dizionario = {
   "Vie di fuga libere e segnalate": "Căi de evacuare libere și semnalizate",
   "Impalcature controllate (se presenti)": "Schele verificate (dacă există)",
   "Condizioni meteo verificate": "Condiții meteo verificate",
+  // Avvisi composti nelle funzioni di supporto (scadenza, ore, compilato da), 23/11/2026.
+  "Il rapportino si manda nel giorno del lavoro (ora italiana). Per le giornate passate chiedi all’ufficio.": "Raportul se trimite în ziua lucrului (ora Italiei). Pentru zilele trecute întreabă biroul.",
+  "Il rapportino va inviato entro il giorno successivo al lavoro (ore 23:59, ora italiana). Per giornate precedenti contatta l’ufficio.": "Raportul se trimite până a doua zi după lucru (ora 23:59, ora Italiei). Pentru zile mai vechi contactează biroul.",
+  "Il rapportino si manda entro {n} giorni dal lavoro (ora italiana). Per giornate più vecchie chiedi all’ufficio.": "Raportul se trimite în cel mult {n} zile de la lucru (ora Italiei). Pentru zile mai vechi întreabă biroul.",
+  "Indica le ore lavorate su questo cantiere. Per sole foto o note, indica 0.": "Scrie orele lucrate pe acest șantier. Doar pentru poze sau note, scrie 0.",
+  "Controlla le ore: ordinarie e straordinario insieme devono essere tra 0 e 24.": "Verifică orele: normale și suplimentare împreună trebuie să fie între 0 și 24.",
+  "Indica anche le ore ordinarie prima dello straordinario.": "Scrie și orele normale înainte de cele suplimentare.",
+  "Indica le ore effettive di ogni persona selezionata, oppure rimuovila dalle presenze.": "Scrie orele reale ale fiecărei persoane alese sau scoate-o din prezențe.",
+  "persona non indicata": "persoană neindicată",
+  "Compilato da {nome} il {data} alle {ora}": "Completat de {nome} pe {data} la {ora}",
+  "Inserito da {inserito} (ufficio) per {nome} il {data} alle {ora}": "Introdus de {inserito} (birou) pentru {nome} pe {data} la {ora}",
+  "Inserito dall'ufficio per {nome} il {data} alle {ora}": "Introdus de birou pentru {nome} pe {data} la {ora}",
 };
 export default dizionario;

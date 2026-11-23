@@ -3673,5 +3673,17 @@ const dizionario: Dizionario = {
   "Vie di fuga libere e segnalate": "Escape routes clear and signposted",
   "Impalcature controllate (se presenti)": "Scaffolding checked (if present)",
   "Condizioni meteo verificate": "Weather conditions checked",
+  // Avvisi composti nelle funzioni di supporto (scadenza, ore, compilato da), 23/11/2026.
+  "Il rapportino si manda nel giorno del lavoro (ora italiana). Per le giornate passate chiedi all’ufficio.": "The daily report is sent on the day of the work (Italian time). For past days ask the office.",
+  "Il rapportino va inviato entro il giorno successivo al lavoro (ore 23:59, ora italiana). Per giornate precedenti contatta l’ufficio.": "The daily report must be sent by the day after the work (23:59, Italian time). For earlier days contact the office.",
+  "Il rapportino si manda entro {n} giorni dal lavoro (ora italiana). Per giornate più vecchie chiedi all’ufficio.": "The daily report is sent within {n} days of the work (Italian time). For older days ask the office.",
+  "Indica le ore lavorate su questo cantiere. Per sole foto o note, indica 0.": "Enter the hours worked on this site. For photos or notes only, enter 0.",
+  "Controlla le ore: ordinarie e straordinario insieme devono essere tra 0 e 24.": "Check the hours: normal hours and overtime together must be between 0 and 24.",
+  "Indica anche le ore ordinarie prima dello straordinario.": "Enter the normal hours too, before the overtime.",
+  "Indica le ore effettive di ogni persona selezionata, oppure rimuovila dalle presenze.": "Enter the actual hours for each selected person, or remove them from attendance.",
+  "persona non indicata": "person not given",
+  "Compilato da {nome} il {data} alle {ora}": "Filled in by {nome} on {data} at {ora}",
+  "Inserito da {inserito} (ufficio) per {nome} il {data} alle {ora}": "Entered by {inserito} (office) for {nome} on {data} at {ora}",
+  "Inserito dall'ufficio per {nome} il {data} alle {ora}": "Entered by the office for {nome} on {data} at {ora}",
 };
 export default dizionario;

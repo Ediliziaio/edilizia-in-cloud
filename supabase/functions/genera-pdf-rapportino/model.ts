@@ -80,17 +80,26 @@ export function reportSummary(report: RecordData) {
  * Chi ha fatto il rapportino e a che ora: è la firma del giornaliero, la registra l'app all'invio.
  * La firma del cliente sta solo nel rapporto di fine lavori (il collaudo).
  */
-export function compilatoDa(report: RecordData): string {
+type Traduttore = (testo: string, valori?: Readonly<Record<string, string | number>>) => string;
+const italiano: Traduttore = (testo, valori) =>
+  valori ? testo.replace(/\{(\w+)\}/g, (tutto, nome: string) => (nome in valori ? String(valori[nome]) : tutto)) : testo;
+
+/**
+ * «Compilato da Mario Rossi il 21/11/26 alle 17:00». Il PDF la usa così com'è (italiano). L'area operai passa la
+ * traduzione della lingua dell'operaio (`t`) e il suo formato di data (`locale`): le frasi restano le stesse chiavi.
+ */
+export function compilatoDa(report: RecordData, t: Traduttore = italiano, locale = "it-IT"): string {
   const quando = new Date(text(report.created_at));
   if (!text(report.created_at) || Number.isNaN(quando.getTime())) return "";
-  const data = quando.toLocaleDateString("it-IT", { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit", year: "2-digit" });
-  const ora = quando.toLocaleTimeString("it-IT", { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" });
+  const data = quando.toLocaleDateString(locale, { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit", year: "2-digit" });
+  const ora = quando.toLocaleTimeString(locale, { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" });
   const autore = record(report.autore);
-  const nome = [text(autore.first_name), text(autore.last_name)].filter(Boolean).join(" ") || "persona non indicata";
+  const nome = [text(autore.first_name), text(autore.last_name)].filter(Boolean).join(" ") || t("persona non indicata");
   const inserito = text(report.inserito_da);
-  const chi = !text(report.ufficio_created_by) ? `Compilato da ${nome}`
-    : inserito ? `Inserito da ${inserito} (ufficio) per ${nome}` : `Inserito dall'ufficio per ${nome}`;
-  return `${chi} il ${data} alle ${ora}`;
+  const valori = { nome, inserito, data, ora };
+  return !text(report.ufficio_created_by) ? t("Compilato da {nome} il {data} alle {ora}", valori)
+    : inserito ? t("Inserito da {inserito} (ufficio) per {nome} il {data} alle {ora}", valori)
+    : t("Inserito dall'ufficio per {nome} il {data} alle {ora}", valori);
 }
 
 /** Recognize only this tenant's storage assets, not arbitrary network URLs. */

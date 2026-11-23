@@ -12,6 +12,7 @@
  *  - mai scarti in silenzio: l'esito conta cosa è rimasto fuori e perché.
  */
 import { compressImage } from "@/lib/campo/compressImage";
+import { italiano, type Traduttore } from "./lingua/traduttore";
 
 export const MAX_FOTO_PER_RAPPORTINO = 15;
 export const MAX_ORIGINALE_BYTES = 40 * 1024 * 1024;
@@ -76,16 +77,17 @@ export async function preparaFoto(files: File[], opzioni: OpzioniPreparazione = 
 }
 
 /** Gli avvisi da mostrare dopo la preparazione: una riga per motivo, niente se è andato tutto bene. */
-export function avvisiPreparazione(esito: Omit<EsitoPreparazione, "pronte">, massimo = MAX_FOTO_PER_RAPPORTINO): string[] {
+/** `t`: nelle schermate del campo la traduzione della lingua dell'operaio; senza, l'italiano di sempre. */
+export function avvisiPreparazione(esito: Omit<EsitoPreparazione, "pronte">, massimo = MAX_FOTO_PER_RAPPORTINO, t: Traduttore = italiano): string[] {
   const avvisi: string[] = [];
   if (esito.oltreLimite > 0) {
-    avvisi.push(`Massimo ${massimo} foto: ${esito.oltreLimite} ${esito.oltreLimite === 1 ? "foto non è stata aggiunta" : "foto non sono state aggiunte"}.`);
+    avvisi.push(t(esito.oltreLimite === 1 ? "Massimo {max} foto: {n} foto non è stata aggiunta." : "Massimo {max} foto: {n} foto non sono state aggiunte.", { max: massimo, n: esito.oltreLimite }));
   }
   if (esito.troppoPesanti > 0) {
-    avvisi.push(`${esito.troppoPesanti} ${esito.troppoPesanti === 1 ? "foto è troppo pesante" : "foto sono troppo pesanti"} anche dopo la compressione: ${esito.troppoPesanti === 1 ? "scattala" : "scattale"} di nuovo dall'app.`);
+    avvisi.push(t(esito.troppoPesanti === 1 ? "{n} foto è troppo pesante anche dopo la compressione: scattala di nuovo dall'app." : "{n} foto sono troppo pesanti anche dopo la compressione: scattale di nuovo dall'app.", { n: esito.troppoPesanti }));
   }
   if (esito.nonImmagini > 0) {
-    avvisi.push(`${esito.nonImmagini} ${esito.nonImmagini === 1 ? "file non è una foto" : "file non sono foto"}.`);
+    avvisi.push(t(esito.nonImmagini === 1 ? "{n} file non è una foto." : "{n} file non sono foto.", { n: esito.nonImmagini }));
   }
   return avvisi;
 }

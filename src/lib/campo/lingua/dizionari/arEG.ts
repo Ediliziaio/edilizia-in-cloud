@@ -3673,5 +3673,17 @@ const dizionario: Dizionario = {
   "Vie di fuga libere e segnalate": "مخارج الطوارئ فاضية وعليها علامات",
   "Impalcature controllate (se presenti)": "السقالات اتراجعت (لو موجودة)",
   "Condizioni meteo verificate": "الجو اتراجع",
+  // Avvisi composti nelle funzioni di supporto (scadenza, ore, compilato da), 23/11/2026.
+  "Il rapportino si manda nel giorno del lavoro (ora italiana). Per le giornate passate chiedi all’ufficio.": "التقرير بيتبعت يوم الشغل (بتوقيت إيطاليا). للأيام اللي فاتت اسأل المكتب.",
+  "Il rapportino va inviato entro il giorno successivo al lavoro (ore 23:59, ora italiana). Per giornate precedenti contatta l’ufficio.": "التقرير لازم يتبعت لحد اليوم اللي بعد الشغل (الساعة 23:59 بتوقيت إيطاليا). للأيام اللي قبل كده كلّم المكتب.",
+  "Il rapportino si manda entro {n} giorni dal lavoro (ora italiana). Per giornate più vecchie chiedi all’ufficio.": "التقرير بيتبعت خلال {n} أيام من الشغل (بتوقيت إيطاليا). للأيام الأقدم اسأل المكتب.",
+  "Indica le ore lavorate su questo cantiere. Per sole foto o note, indica 0.": "اكتب الساعات اللي اشتغلتها في الموقع ده. لو صور أو ملاحظات بس، اكتب 0.",
+  "Controlla le ore: ordinarie e straordinario insieme devono essere tra 0 e 24.": "راجع الساعات: العادية والأوفرتايم مع بعض لازم يكونوا بين 0 و24.",
+  "Indica anche le ore ordinarie prima dello straordinario.": "اكتب الساعات العادية الأول قبل الأوفرتايم.",
+  "Indica le ore effettive di ogni persona selezionata, oppure rimuovila dalle presenze.": "اكتب الساعات الحقيقية لكل واحد اخترته، أو شيله من الحضور.",
+  "persona non indicata": "شخص مش محدد",
+  "Compilato da {nome} il {data} alle {ora}": "ملاه {nome} يوم {data} الساعة {ora}",
+  "Inserito da {inserito} (ufficio) per {nome} il {data} alle {ora}": "دخّله {inserito} (المكتب) لـ {nome} يوم {data} الساعة {ora}",
+  "Inserito dall'ufficio per {nome} il {data} alle {ora}": "دخّله المكتب لـ {nome} يوم {data} الساعة {ora}",
 };
 export default dizionario;

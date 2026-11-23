@@ -981,5 +981,14 @@ const dizionario: Dizionario = {
   "Scarpe antinfortunistiche indossate": "Botines de seguridad puestos",
   "Imbracatura di sicurezza (se lavori in quota)": "Arnés de seguridad (si trabajás en altura)",
   "Estintori presenti e accessibili": "Matafuegos presentes y accesibles",
+  // Avvisi composti nelle funzioni di supporto (scadenza, ore, compilato da), 23/11/2026.
+  "Il rapportino si manda nel giorno del lavoro (ora italiana). Per le giornate passate chiedi all’ufficio.": "El parte se manda el día del trabajo (hora de Italia). Para días pasados preguntale a la oficina.",
+  "Il rapportino va inviato entro il giorno successivo al lavoro (ore 23:59, ora italiana). Per giornate precedenti contatta l’ufficio.": "El parte tiene que mandarse como tarde el día siguiente al trabajo (23:59, hora de Italia). Para días anteriores comunicate con la oficina.",
+  "Il rapportino si manda entro {n} giorni dal lavoro (ora italiana). Per giornate più vecchie chiedi all’ufficio.": "El parte se manda dentro de {n} días del trabajo (hora de Italia). Para días más viejos preguntale a la oficina.",
+  "Indica le ore lavorate su questo cantiere. Per sole foto o note, indica 0.": "Indicá las horas trabajadas en esta obra. Si son solo fotos o notas, indicá 0.",
+  "Controlla le ore: ordinarie e straordinario insieme devono essere tra 0 e 24.": "Revisá las horas: normales y extra juntas tienen que estar entre 0 y 24.",
+  "Indica anche le ore ordinarie prima dello straordinario.": "Indicá también las horas normales antes de las extra.",
+  "Indica le ore effettive di ogni persona selezionata, oppure rimuovila dalle presenze.": "Indicá las horas reales de cada persona elegida, o sacala de las asistencias.",
+  "Compilato da {nome} il {data} alle {ora}": "Completado por {nome} el {data} a las {ora}",
 };
 export default dizionario;

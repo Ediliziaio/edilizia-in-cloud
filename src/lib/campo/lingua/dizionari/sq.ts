@@ -3673,5 +3673,17 @@ const dizionario: Dizionario = {
   "Vie di fuga libere e segnalate": "Rrugët e daljes emergjente të lira dhe të sinjalizuara",
   "Impalcature controllate (se presenti)": "Skelat të kontrolluara (nëse ka)",
   "Condizioni meteo verificate": "Kushtet e motit të kontrolluara",
+  // Avvisi composti nelle funzioni di supporto (scadenza, ore, compilato da), 23/11/2026.
+  "Il rapportino si manda nel giorno del lavoro (ora italiana). Per le giornate passate chiedi all’ufficio.": "Raporti dërgohet në ditën e punës (ora e Italisë). Për ditët e kaluara pyet zyrën.",
+  "Il rapportino va inviato entro il giorno successivo al lavoro (ore 23:59, ora italiana). Per giornate precedenti contatta l’ufficio.": "Raporti dërgohet deri ditën pas punës (ora 23:59, ora e Italisë). Për ditë më të vjetra kontakto zyrën.",
+  "Il rapportino si manda entro {n} giorni dal lavoro (ora italiana). Per giornate più vecchie chiedi all’ufficio.": "Raporti dërgohet brenda {n} ditëve nga puna (ora e Italisë). Për ditë më të vjetra pyet zyrën.",
+  "Indica le ore lavorate su questo cantiere. Per sole foto o note, indica 0.": "Shkruaj orët e punuara në këtë kantier. Vetëm për foto ose shënime, shkruaj 0.",
+  "Controlla le ore: ordinarie e straordinario insieme devono essere tra 0 e 24.": "Kontrollo orët: të rregullta dhe shtesë bashkë duhet të jenë midis 0 dhe 24.",
+  "Indica anche le ore ordinarie prima dello straordinario.": "Shkruaj edhe orët e rregullta para orëve shtesë.",
+  "Indica le ore effettive di ogni persona selezionata, oppure rimuovila dalle presenze.": "Shkruaj orët reale të çdo personi të zgjedhur, ose hiqe nga prezencat.",
+  "persona non indicata": "person i papërcaktuar",
+  "Compilato da {nome} il {data} alle {ora}": "Plotësuar nga {nome} më {data} në {ora}",
+  "Inserito da {inserito} (ufficio) per {nome} il {data} alle {ora}": "Futur nga {inserito} (zyra) për {nome} më {data} në {ora}",
+  "Inserito dall'ufficio per {nome} il {data} alle {ora}": "Futur nga zyra për {nome} më {data} në {ora}",
 };
 export default dizionario;

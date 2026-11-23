@@ -132,7 +132,7 @@ export default function CampoSegnalaSicurezza() {
           if (error && !/exists|duplicate/i.test(error.message)) throw new Error(t("Una foto non è partita. Riprova."));
           percorsi.push(percorso);
         }
-        for (const avviso of avvisiPreparazione(esito, MASSIMO_FOTO_SICUREZZA)) toast.warning(avviso);
+        for (const avviso of avvisiPreparazione(esito, MASSIMO_FOTO_SICUREZZA, t)) toast.warning(avviso);
       }
 
       const { error } = await supabase.from("sicurezza_eventi").insert({

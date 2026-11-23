@@ -437,7 +437,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   // Il respinto si rimanda anche oltre la scadenza: è l'ufficio che lo ha chiesto.
   // Quanti giorni indietro lo decide l'azienda (Impostazioni → Rapportini e presenze); lo controlla anche il database.
   const giorniIndietro = giorniIndietroValidi(regole.giorniIndietro);
-  const msgScadenza = messaggioScadenzaRapportino(giorniIndietro);
+  const msgScadenza = messaggioScadenzaRapportino(giorniIndietro, t);
   const giorniSelezionabili = giorniSceglibili(undefined, giorniIndietro);
   const dayAllowedBase = validWorkDay(workDay) && reportDayAllowed(workDay, undefined, giorniIndietro);
   const ultimoGiornoInvio = validWorkDay(workDay) ? shiftWorkDay(workDay, giorniIndietro) : today;
@@ -448,7 +448,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     && (ripresaDecisa || daRifare);
   const vocaleVisibile = voceAperta && puoCompilareAVoce && step === 1;
   const giornoOk = () => daRifare || reportDayAllowed(workDay, undefined, giorniIndietro);
-  const controllaGiorno = () => { if (!daRifare) assertReportDay(workDay, undefined, giorniIndietro); };
+  const controllaGiorno = () => { if (!daRifare) assertReportDay(workDay, undefined, giorniIndietro, t); };
 
   const dayTime = useCampoDayTime(confermaCliente ? undefined : user?.id, companyId, workDay);
   const siteTime = dayTime.summary.byOrder.get(orderId ?? "");
@@ -756,7 +756,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
         giaPresenti: fotoUrls.length,
         onProgresso: (i, n) => setFotoProgresso(t("Preparo le foto {i} di {n}…", { i, n })),
       });
-      avvisiPreparazione(esito).forEach(avviso => toast.error(avviso));
+      avvisiPreparazione(esito, undefined, t).forEach(avviso => toast.error(avviso));
       if (esito.pronte.length === 0) return;
       const nuove: FotoLocali = {};
       let illeggibili = 0;
@@ -853,7 +853,8 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     try {
       oreDaInviare();
     } catch (err) {
-      erroreOre = err instanceof Error ? err.message : t("Verifica le ore lavorate.");
+      // I messaggi di validateRapportinoHours sono frasi fisse: si traducono qui.
+      erroreOre = err instanceof Error ? t(err.message) : t("Verifica le ore lavorate.");
     }
   }
 

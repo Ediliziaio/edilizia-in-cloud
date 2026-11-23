@@ -255,5 +255,7 @@ const dizionario: Dizionario = {
   "Compila misure, foto e posizionamenti, poi consegna all’ufficio.": "Llena medidas, fotos y posiciones y luego entrégalo a la oficina.",
   // Checklist di sicurezza e frasi trovate a schermo (23/11/2026). SICUREZZA: revisione madrelingua prioritaria.
   "Scarpe antinfortunistiche indossate": "Zapatos de seguridad puestos",
+  // Avvisi composti nelle funzioni di supporto (scadenza, ore, compilato da), 23/11/2026.
+  "Compilato da {nome} il {data} alle {ora}": "Llenado por {nome} el {data} a las {ora}",
 };
 export default dizionario;

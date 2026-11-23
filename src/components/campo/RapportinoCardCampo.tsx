@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { ETICHETTA_STATO_OPERAIO, rapportinoDaRifare, statoRapportino, type StatoRapportino } from "@/lib/campo/rapportinoStato";
 import { isClientReport } from "@/lib/campo/reportKind";
 import { oreInTesto } from "@/lib/campo/regoleCampo";
-import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface RapportinoCardRiga {
   id: string;
@@ -70,7 +70,7 @@ export function RapportinoCardCampo({ r, autore, pdfOccupato, onPdf, onFirma, on
   const giorno = parseISO(r.data_lavoro);
   const foto = Array.isArray(r.foto_urls) ? r.foto_urls : [];
   const valoriPropri = leggiValori(r.campi_extra);
-  const chiEQuando = compilatoDa(r as unknown as Record<string, unknown>);
+  const chiEQuando = compilatoDa(r as unknown as Record<string, unknown>, t, intlCampo());
   const cliente = isClientReport(r);
   return (
     <div className={cn("rounded-2xl border bg-muted p-4", stato === "rifiutato" ? "border-red-300" : "border-border")}>

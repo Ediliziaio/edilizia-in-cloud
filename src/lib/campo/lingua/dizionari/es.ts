@@ -3673,5 +3673,17 @@ const dizionario: Dizionario = {
   "Vie di fuga libere e segnalate": "Vías de evacuación libres y señalizadas",
   "Impalcature controllate (se presenti)": "Andamios revisados (si los hay)",
   "Condizioni meteo verificate": "Condiciones meteorológicas revisadas",
+  // Avvisi composti nelle funzioni di supporto (scadenza, ore, compilato da), 23/11/2026.
+  "Il rapportino si manda nel giorno del lavoro (ora italiana). Per le giornate passate chiedi all’ufficio.": "El parte se envía el día del trabajo (hora italiana). Para días pasados pregunta a la oficina.",
+  "Il rapportino va inviato entro il giorno successivo al lavoro (ore 23:59, ora italiana). Per giornate precedenti contatta l’ufficio.": "El parte debe enviarse como tarde el día siguiente al trabajo (23:59, hora italiana). Para días anteriores contacta con la oficina.",
+  "Il rapportino si manda entro {n} giorni dal lavoro (ora italiana). Per giornate più vecchie chiedi all’ufficio.": "El parte se envía en un plazo de {n} días desde el trabajo (hora italiana). Para días más antiguos pregunta a la oficina.",
+  "Indica le ore lavorate su questo cantiere. Per sole foto o note, indica 0.": "Indica las horas trabajadas en esta obra. Si solo son fotos o notas, indica 0.",
+  "Controlla le ore: ordinarie e straordinario insieme devono essere tra 0 e 24.": "Revisa las horas: normales y extra juntas deben estar entre 0 y 24.",
+  "Indica anche le ore ordinarie prima dello straordinario.": "Indica también las horas normales antes de las extra.",
+  "Indica le ore effettive di ogni persona selezionata, oppure rimuovila dalle presenze.": "Indica las horas reales de cada persona elegida, o quítala de las asistencias.",
+  "persona non indicata": "persona no indicada",
+  "Compilato da {nome} il {data} alle {ora}": "Rellenado por {nome} el {data} a las {ora}",
+  "Inserito da {inserito} (ufficio) per {nome} il {data} alle {ora}": "Introducido por {inserito} (oficina) para {nome} el {data} a las {ora}",
+  "Inserito dall'ufficio per {nome} il {data} alle {ora}": "Introducido por la oficina para {nome} el {data} a las {ora}",
 };
 export default dizionario;

@@ -1,3 +1,4 @@
+import { italiano, type Traduttore } from "./lingua/traduttore";
 /** A field workday follows Italian civil time, independent of the phone zone. */
 const dayFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit",
@@ -40,17 +41,18 @@ export function giorniSceglibili(now = new Date(), giorniIndietro = 1): string[]
   const n = giorniIndietroValidi(giorniIndietro);
   return Array.from({ length: n + 1 }, (_, i) => shiftWorkDay(today, -i));
 }
-export function messaggioScadenzaRapportino(giorniIndietro = 1): string {
+/** `t`: nelle schermate del campo la traduzione della lingua dell'operaio; senza, l'italiano di sempre. */
+export function messaggioScadenzaRapportino(giorniIndietro = 1, t: Traduttore = italiano): string {
   const n = giorniIndietroValidi(giorniIndietro);
   return n === 0
-    ? "Il rapportino si manda nel giorno del lavoro (ora italiana). Per le giornate passate chiedi all’ufficio."
+    ? t("Il rapportino si manda nel giorno del lavoro (ora italiana). Per le giornate passate chiedi all’ufficio.")
     : n === 1
-      ? "Il rapportino va inviato entro il giorno successivo al lavoro (ore 23:59, ora italiana). Per giornate precedenti contatta l’ufficio."
-      : `Il rapportino si manda entro ${n} giorni dal lavoro (ora italiana). Per giornate più vecchie chiedi all’ufficio.`;
+      ? t("Il rapportino va inviato entro il giorno successivo al lavoro (ore 23:59, ora italiana). Per giornate precedenti contatta l’ufficio.")
+      : t("Il rapportino si manda entro {n} giorni dal lavoro (ora italiana). Per giornate più vecchie chiedi all’ufficio.", { n });
 }
 export const REPORT_DEADLINE_MESSAGE = messaggioScadenzaRapportino(1);
-export function assertReportDay(day: string, now = new Date(), giorniIndietro = 1): void {
-  if (!reportDayAllowed(day, now, giorniIndietro)) throw new Error(messaggioScadenzaRapportino(giorniIndietro));
+export function assertReportDay(day: string, now = new Date(), giorniIndietro = 1, t: Traduttore = italiano): void {
+  if (!reportDayAllowed(day, now, giorniIndietro)) throw new Error(messaggioScadenzaRapportino(giorniIndietro, t));
 }
 
 /** Midnight in Rome; recompute the offset at the boundary for DST days. */

@@ -3673,5 +3673,17 @@ const dizionario: Dizionario = {
   "Vie di fuga libere e segnalate": "Issues de secours dégagées et signalées",
   "Impalcature controllate (se presenti)": "Échafaudages contrôlés (s’il y en a)",
   "Condizioni meteo verificate": "Conditions météo vérifiées",
+  // Avvisi composti nelle funzioni di supporto (scadenza, ore, compilato da), 23/11/2026.
+  "Il rapportino si manda nel giorno del lavoro (ora italiana). Per le giornate passate chiedi all’ufficio.": "Le rapport s’envoie le jour du travail (heure italienne). Pour les jours passés, demande au bureau.",
+  "Il rapportino va inviato entro il giorno successivo al lavoro (ore 23:59, ora italiana). Per giornate precedenti contatta l’ufficio.": "Le rapport doit être envoyé au plus tard le lendemain du travail (23h59, heure italienne). Pour les jours précédents, contacte le bureau.",
+  "Il rapportino si manda entro {n} giorni dal lavoro (ora italiana). Per giornate più vecchie chiedi all’ufficio.": "Le rapport s’envoie dans les {n} jours après le travail (heure italienne). Pour les jours plus anciens, demande au bureau.",
+  "Indica le ore lavorate su questo cantiere. Per sole foto o note, indica 0.": "Indique les heures travaillées sur ce chantier. Pour seulement des photos ou des notes, indique 0.",
+  "Controlla le ore: ordinarie e straordinario insieme devono essere tra 0 e 24.": "Vérifie les heures : normales et supplémentaires ensemble doivent être entre 0 et 24.",
+  "Indica anche le ore ordinarie prima dello straordinario.": "Indique aussi les heures normales avant les heures supplémentaires.",
+  "Indica le ore effettive di ogni persona selezionata, oppure rimuovila dalle presenze.": "Indique les heures réelles de chaque personne choisie, ou retire-la des présences.",
+  "persona non indicata": "personne non indiquée",
+  "Compilato da {nome} il {data} alle {ora}": "Rempli par {nome} le {data} à {ora}",
+  "Inserito da {inserito} (ufficio) per {nome} il {data} alle {ora}": "Saisi par {inserito} (bureau) pour {nome} le {data} à {ora}",
+  "Inserito dall'ufficio per {nome} il {data} alle {ora}": "Saisi par le bureau pour {nome} le {data} à {ora}",
 };
 export default dizionario;

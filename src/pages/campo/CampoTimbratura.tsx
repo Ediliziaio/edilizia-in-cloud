@@ -121,7 +121,7 @@ function CampoTimbraturaEditor() {
         <CampoTimbroCard preferOrderId={linkedOrderId} onPunched={dopoTimbro} />
         {lastExit && reportDayAllowed(lastExit.day, dayTime.now, giorniIndietro) && <div role="status" className="space-y-2 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-900">
           <p className="font-semibold">{t("Giornata finita. Il rapportino è separato.")}</p>
-          <p>{t("Puoi compilarlo ora.")} {messaggioScadenzaRapportino(giorniIndietro)}</p>
+          <p>{t("Puoi compilarlo ora.")} {messaggioScadenzaRapportino(giorniIndietro, t)}</p>
           <button type="button" className="min-h-12 w-full rounded-lg border border-green-300 bg-background px-3 font-semibold"
             onClick={() => navigate(`/campo/lavoro/${lastExit.orderId}/rapportino?data=${lastExit.day}`)}>{t("Compila il rapportino")}</button>
         </div>}
