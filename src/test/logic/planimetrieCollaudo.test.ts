@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita";
-import { importiLavorazioni, studioVariante } from "@/lib/planimetrie/studioImmobiliare";
+import { importiLavorazioni, studioVariante, type RigaStudio } from "@/lib/planimetrie/studioImmobiliare";
 import { attinenza, conPrezziProposti, FONTE_INDICATIVA, proponiPrezzo, tipiDaCercare, tipoLavorazione, type FontiPrezzi } from "@/lib/planimetrie/prezziProposti";
 import { extraPredefiniti, previsioneLavori } from "@/lib/planimetrie/previsioneLavori";
 import { costoDellaProposta } from "@/lib/planimetrie/costoProposta";
@@ -164,7 +164,7 @@ describe("costo di una proposta prima di salvarla", () => {
 });
 
 describe("pavimento radiante: prezzi e tempi", () => {
-  const riga = (id: string, descrizione: string, unita: "m²" | "m" | "cad", quantita: number) =>
+  const riga = (id: string, descrizione: string, unita: "m²" | "m" | "cad", quantita: number): RigaStudio =>
     ({ id, descrizione, unita, quantita, livelloId: "pt", piano: "Piano terra", fase: "Impianti di riscaldamento", gruppo: "Soggiorno", criterio: "", stimata: true });
   const righe = conPrezziProposti([
     riga("l1-radiante-pannelli", "Pannelli per pavimento radiante · Soggiorno", "m²", 20),
