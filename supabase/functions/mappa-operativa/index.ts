@@ -3,6 +3,7 @@ import { requireAuth } from "../_shared/auth.ts";
 import { getCorsHeaders, jsonResponse } from "../_shared/headers.ts";
 import { cercaVicini, coordinate, minuti, normalizzaIndirizzo, type Candidato, type ValutazioneVicino, type Coordinate, type Tratta } from "../../../shared/mappa-operativa/calcoli.ts";
 import { cercaIndirizzo, matriceOsrm, percorsoOsrm } from "./provider.ts";
+import { geocodeAddress } from "../_shared/forwardGeocode.ts";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const giornoIso = /^\d{4}-\d{2}-\d{2}$/;
@@ -101,10 +102,14 @@ Deno.serve(async req => {
     if (body.azione === "indirizzo") {
       const indirizzo = typeof body.indirizzo === "string" && body.indirizzo.length <= 280 ? normalizzaIndirizzo(body.indirizzo) : "";
       if (body.ambito === "campo" || indirizzo.length < 7) return rispondi({ error: "Inserisci via, civico e comune" }, 400);
-      if (!geocoding) throw new Servizio("non_configurato");
-      const risultati = await unica(["indirizzo", geocoding, indirizzo], 86400, async () => {
-        await conta("nominatim_privato", "geocodifiche", 1, 10, 2000);
-        return cercaIndirizzo(geocoding, indirizzo, tokenIndirizzi);
+      const risultati = await unica(["indirizzo", geocoding ?? "here", indirizzo], 86400, async () => {
+        await conta(geocoding ? "nominatim_privato" : "here", "geocodifiche", 1, 10, 2000);
+        if (geocoding) return cercaIndirizzo(geocoding, indirizzo, tokenIndirizzi);
+        // Nessun server di geocodifica dedicato (MAPPA_OPERATIVA_GEOCODING_URL): ripiego sul
+        // geocoder condiviso dell'app (HERE → Google → Nominatim), la stessa catena usata da
+        // geocodifica-cantieri. Così la ricerca indirizzo manuale funziona senza server dedicato.
+        const g = await geocodeAddress(indirizzo);
+        return g ? [{ lat: g.lat, lng: g.lng, etichetta: g.formatted ?? indirizzo, civico: null, cap: g.cap }] : [];
       });
       return rispondi({ risultati });
     }
