@@ -72,6 +72,9 @@ export interface PrimaNotaEntry {
   orders?: { order_code: string } | null;
   /** Fattura/NC nativa che ha generato la registrazione (incasso fattura) */
   documenti_fiscali?: { id: string; numero: string | null; tipo: string } | null;
+  /** Movimento diviso in quote (23/11/2026): questa riga è una delle quote. */
+  gruppo_id?: string | null;
+  prima_nota_gruppi?: { id: string; descrizione: string; importo: number } | null;
 }
 
 /**
@@ -188,7 +191,7 @@ export function usePrimaNota(
       let query = applyFilters(
         supabase
           .from("prima_nota_entries")
-          .select(`*, suppliers(name), invoices(invoice_number), orders(order_code), documenti_fiscali(id, numero, tipo)`, { count: "exact" })
+          .select(`*, suppliers(name), invoices(invoice_number), orders(order_code), documenti_fiscali(id, numero, tipo), prima_nota_gruppi(id, descrizione, importo)`, { count: "exact" })
           .eq("company_id", companyId!)
       );
 
@@ -268,7 +271,7 @@ export function usePrimaNota(
     const { data, error } = await applyFilters(
       supabase
         .from("prima_nota_entries")
-        .select(`*, suppliers(name), invoices(invoice_number), orders(order_code), documenti_fiscali(id, numero, tipo)`)
+        .select(`*, suppliers(name), invoices(invoice_number), orders(order_code), documenti_fiscali(id, numero, tipo), prima_nota_gruppi(id, descrizione, importo)`)
         .eq("company_id", companyId)
     ).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(50000);
     if (error) throw error;

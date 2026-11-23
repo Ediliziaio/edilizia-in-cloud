@@ -42,6 +42,7 @@ import { linkFattura, linkTesoreriaMovimento } from "@/lib/finance/collegamentiF
 import { AllineamentoPrimaNota } from "@/components/prima-nota/AllineamentoPrimaNota";
 import { useContiPrimaNota } from "@/hooks/useContiPrimaNota";
 import { StornaPagamentiCosto } from "@/components/prima-nota/StornaPagamentiCosto";
+import { QuoteDelMovimento, etichettaQuota } from "@/components/prima-nota/QuoteDelMovimento";
 
 const GraficoEntrateUscite = lazyWithRetry(() => import("@/components/charts/grafici/GraficoEntrateUscite"));
 
@@ -548,6 +549,7 @@ function PrimaNotaInner() {
                   <span className="mt-1 block truncate text-xs text-muted-foreground">
                     {format(new Date(e.entry_date), "dd/MM/yyyy")} · {e.account_label || CATEGORY_LABELS[e.category] || e.category}
                   </span>
+                  {e.prima_nota_gruppi && <span className="mt-0.5 block truncate text-xs text-primary">{etichettaQuota(e.prima_nota_gruppi)}</span>}
                 </span>
                 <span className={`max-w-[42%] shrink-0 break-words text-right text-sm font-semibold tabular-nums ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
                   {e.direction === "entrata" ? "+" : "−"}{formatCurrency(e.amount)}
@@ -596,6 +598,7 @@ function PrimaNotaInner() {
                   <td className="p-3">
                     <button type="button" aria-haspopup="dialog" className="block max-w-[24rem] truncate text-left font-medium hover:underline"
                       title={e.description} onClick={() => setDettaglioId(e.id)}>{e.description}</button>
+                    {e.prima_nota_gruppi && <span className="block max-w-[24rem] truncate text-xs text-primary">{etichettaQuota(e.prima_nota_gruppi)}</span>}
                   </td>
                   <td className="p-3 text-right font-mono">
                     <span className={`flex items-center justify-end gap-1 ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
@@ -770,6 +773,8 @@ function PrimaNotaInner() {
             ].filter(([, valore]) => valore).map(([nome, valore]) =>
               <div key={nome}><dt className="text-xs text-muted-foreground">{nome}</dt><dd className="break-words">{valore}</dd></div>)}
           </dl>
+          {dettaglio.prima_nota_gruppi && <QuoteDelMovimento gruppo={dettaglio.prima_nota_gruppi} correnteId={dettaglio.id} onApri={setDettaglioId}
+            apribile={id => entriesWithBalance.some(e => e.id === id)} />}
           {dettaglio.notes && <div><p className="text-xs text-muted-foreground">Note</p><p className="whitespace-pre-wrap break-words text-sm">{dettaglio.notes}</p></div>}
           <div className="space-y-3 border-y py-3 text-sm">
             <div>
