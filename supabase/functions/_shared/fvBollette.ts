@@ -319,7 +319,12 @@ export function letturaNativaCompletaFv(d: DatiBollettaFv) {
     d.consumo_annuo_kwh != null && d.consumo_periodo_kwh != null &&
     Math.abs(d.consumo_annuo_kwh - d.consumo_periodo_kwh) < .01 &&
     d.spesa_annua != null && d.quote_fisse != null && d.quote_consumi != null &&
-    Math.abs(d.spesa_annua - d.quote_fisse - d.quote_consumi) < .01 &&
+    // La spesa si ricompone con tutte e tre le quote: fissa, potenza (€/kW) ed
+    // energia. Senza la quota potenza una bolletta che ce l'ha non quadrava mai.
+    Math.abs(
+        d.spesa_annua - d.quote_fisse - (d.quote_potenza ?? 0) -
+          d.quote_consumi,
+      ) < .01 &&
     d.avvisi.length === 0;
 }
 export function leggiAnalisiConsumi(raw: unknown): AnalisiConsumiFv | null {
