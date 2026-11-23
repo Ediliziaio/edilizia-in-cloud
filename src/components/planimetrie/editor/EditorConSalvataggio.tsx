@@ -23,6 +23,7 @@ import type { Planimetria } from "./adattatore";
 import { salvaPianta } from "./salvataggio";
 import { usePermissions } from "@/hooks/usePermissions";
 import { EffettoPrezzo } from "../EffettoPrezzo";
+import { CostoProposta } from "../CostoProposta";
 import { effettoSulPrezzo, useRigheCollegate } from "@/lib/planimetrie/effettoPrezzo";
 import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
 import type { SorgenteDocumentoPianta } from "../ConfrontoDocumentoPianta";
@@ -131,7 +132,9 @@ export function EditorConSalvataggio({
   const [conflitto, setConflitto] = useState<string | null>(null);
   const documento = useRef<Planimetria | null>(null);
   const contesto = useRef({ livelloId: livelloIniziale, ambito: propostaIniziale ? `progetto:${propostaIniziale}` : "fatto" });
-  const cambiaContesto = useCallback((livelloId: string | undefined, ambito: string) => { contesto.current = { livelloId, ambito }; }, []);
+  // L'ambito serve anche a schermo, per il costo della variante: oltre al riferimento, uno stato.
+  const [ambitoPrezzo, setAmbitoPrezzo] = useState(propostaIniziale ? `progetto:${propostaIniziale}` : "fatto");
+  const cambiaContesto = useCallback((livelloId: string | undefined, ambito: string) => { contesto.current = { livelloId, ambito }; setAmbitoPrezzo(ambito); }, []);
   const cambi = useRef(0);
   const sorgenteCaricata = useRef<Promise<string> | null>(null);
   const tavoleCaricate = useRef(new Map<string, Promise<string>>());
@@ -147,6 +150,8 @@ export function EditorConSalvataggio({
   // Effetto sul prezzo: le quantità si ricalcolano poco dopo l'ultima modifica, non a ogni tratto.
   const collegate = useRigheCollegate(nelComputo ? undefined : planimetriaId);
   const [perPrezzo, setPerPrezzo] = useState<Planimetria | null>(null);
+  // Com'era la pianta all'apertura: il costo della variante si confronta con quello.
+  const [allApertura, setAllApertura] = useState<Planimetria | null>(null);
   const attesa = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (attesa.current) clearTimeout(attesa.current); }, []);
   const effetti = useMemo(
@@ -158,6 +163,7 @@ export function EditorConSalvataggio({
     documento.current = p;
     if (attesa.current) clearTimeout(attesa.current);
     attesa.current = setTimeout(() => setPerPrezzo(p), 400);
+    setAllApertura((prima) => prima ?? p);
     // il primo arriva all'apertura: non è una modifica
     cambi.current += 1;
     if (cambi.current > 1) {
@@ -282,6 +288,7 @@ export function EditorConSalvataggio({
         {intero ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
       </Button>}
       {!nelComputo && <EffettoPrezzo effetti={effetti} collegati={collegate.data?.length ?? 0} />}
+      {!nelComputo && companyId && perPrezzo && allApertura && <span className="rounded-md border border-teal-200 bg-teal-50 px-2 py-1 empty:hidden dark:border-teal-900 dark:bg-teal-950/25 max-md:hidden" title="Costo dei lavori della variante, ricalcolato dopo ogni modifica"><CostoProposta documento={allApertura} proposta={perPrezzo} ambito={ambitoPrezzo} companyId={companyId} /></span>}
       <Button ref={bottoneAnteprima3D} size="sm" variant={affiancata3D ? "secondary" : "outline"} aria-pressed={affiancata3D}
         onClick={() => setAffiancata3D(aperta => !aperta)} disabled={salvando} className="gap-2" title="Mostra la pianta e il 3D insieme">
         <Box className="h-4 w-4" aria-hidden="true" /> Anteprima 3D
