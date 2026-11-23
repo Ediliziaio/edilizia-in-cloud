@@ -189,11 +189,9 @@ describe("Revisione bollette nelle schermate dell'operatore", () => {
     );
     expect(summary).toHaveTextContent(/1\.?800/);
     expect(summary).toHaveTextContent("0,24");
-    expect(
-      screen.getByLabelText("Consumo annuo confermato (kWh)").closest(
-        "details",
-      ),
-    ).not.toHaveAttribute("open");
+    // L'inserimento manuale resta chiuso: la lettura automatica basta da sola.
+    expect(screen.getByLabelText("Consumo annuo confermato (kWh)"))
+      .not.toBeVisible();
     fireEvent.click(
       screen.getByRole("button", { name: "Conferma e usa questi dati" }),
     );
@@ -336,7 +334,7 @@ describe("Tetto manuale e mappa indisponibile", () => {
     await waitFor(() =>
       expect(screen.getByText(/Collegamento alla mappa non disponibile/)).toBeTruthy()
     );
-    fireEvent.click(screen.getByText("Rettangolo rapido e misure precise"));
+    fireEvent.click(screen.getByText("Misure precise e rotazione della falda"));
     changeFormControl(screen.getByLabelText("Rotazione rettangolo falda"), {
       target: { value: "35" },
     });
@@ -473,7 +471,7 @@ describe("Disegno diretto sulla mappa", () => {
     pointer(el, "pointerdown", 280, 180);
     pointer(el, "pointerdown", 360, 180);
     fireEvent.keyDown(el, { key: "Backspace" });
-    expect(screen.getByText(/1 vertice/)).toBeTruthy();
+    expect(screen.getByText(/1 punto/)).toBeTruthy();
     fireEvent.keyDown(el, { key: "Escape" });
     expect(screen.getByRole("button", { name: "Seleziona e sposta" })).toHaveAttribute(
       "aria-pressed",

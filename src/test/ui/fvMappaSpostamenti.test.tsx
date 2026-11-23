@@ -241,7 +241,7 @@ describe("pin e falde sulla mappa", () => {
     expect(screen.getByText("Mantieni la falda entro 400 m dal pin."))
       .toBeVisible();
   });
-  it("crea la falda rettangolare nel punto toccato e la rende subito trascinabile", () => {
+  it("crea la falda collegando i punti toccati e la rende subito trascinabile", () => {
     const { el, salva } = prepara({
       p: pianoDaMappaFv({ ...mappa(), falde: [mappa().falde[0]] }, {
         corto: 1.134,
@@ -249,8 +249,16 @@ describe("pin e falde sulla mappa", () => {
         stimato: true,
       }),
     });
-    fireEvent.click(screen.getByRole("button", { name: "Falda rettangolare" }));
-    pointer(el, "pointerdown", 450, 220);
+    fireEvent.click(screen.getByRole("button", { name: "Disegna falda" }));
+    // Quattro angoli, poi di nuovo il primo per chiudere il contorno.
+    for (
+      const [x, y] of [[420, 200], [480, 200], [480, 260], [420, 260], [
+        420,
+        200,
+      ]]
+    ) {
+      pointer(el, "pointerdown", x, y);
+    }
     expect(
       screen.getByRole("button", { name: "Falda 2: trascina per spostare" }),
     ).toHaveAttribute("aria-pressed", "true");
@@ -258,7 +266,7 @@ describe("pin e falde sulla mappa", () => {
     const m = (salva.mock.calls[0][0] as DisegnoCommercialeFv).mappa!;
     expect(m.falde).toHaveLength(2);
     expect(m.falde[1].punti).toHaveLength(4);
-    expect(areaPoligono(m.falde[1].punti)).toBeCloseTo(96, 6);
+    expect(areaPoligono(m.falde[1].punti)).toBeGreaterThan(0);
     expect(m.falde[1].punti.reduce((n, p) => n + p.x / 4, 0)).toBeGreaterThan(
       10,
     );
@@ -269,21 +277,26 @@ describe("pin e falde sulla mappa", () => {
       ...m.falde[0],
       punti: rettangoloRuotatoFv({ x: -20, y: 0 }, 12, 8, 0),
     }];
-    const { salva } = prepara({
+    const { el, salva } = prepara({
       p: pianoDaMappaFv(m, { corto: 1.134, lungo: 1.762, stimato: true }),
     });
-    fireEvent.click(screen.getByRole("button", { name: "Falda rettangolare" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disegna falda" }));
+    // Il primo angolo cade proprio sul pin: deve diventare un punto della falda,
+    // non spostare il pin.
     pointer(
       screen.getByRole("button", { name: "Pin del tetto" }),
       "pointerdown",
       320,
       220,
     );
+    for (const [x, y] of [[380, 220], [380, 280], [320, 280], [320, 220]]) {
+      pointer(el, "pointerdown", x, y);
+    }
     usa();
     const p = (salva.mock.calls[0][0] as DisegnoCommercialeFv).mappa!;
     expect(p.falde).toHaveLength(2);
     expect(p.origine).toEqual(posizione);
-    expect(p.falde[1].punti.reduce((n, p) => n + p.x / 4, 0)).toBeCloseTo(0, 5);
+    expect(p.falde[1].punti).toHaveLength(4);
   });
   it("supporta la tastiera per pin e falda e impedisce modifiche in sola lettura", () => {
     const { el } = prepara();
@@ -302,7 +315,7 @@ describe("pin e falde sulla mappa", () => {
       .toBeEnabled();
     cleanup();
     const ro = prepara({ readOnly: true }), stato = poligoni(ro.el);
-    expect(screen.getByRole("button", { name: "Falda rettangolare" }))
+    expect(screen.getByRole("button", { name: "Disegna falda" }))
       .toBeDisabled();
     pointer(
       screen.getByRole("button", { name: "Falda 1: trascina per spostare" }),

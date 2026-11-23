@@ -973,6 +973,26 @@ export function FvMappaTetto(
                       onChange={(e) => setRotazione(Number(e.target.value))}
                     />
                   </label>
+                  {/* Ripiego quando la mappa satellitare non si carica: la falda
+                      si crea digitando le misure, senza disegnare sulla mappa. */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!modificabile ||
+                      !(larghezza >= 1 && larghezza <= 100 && altezza >= 1 &&
+                        altezza <= 100 && Math.abs(rotazione) <= 180)}
+                    onClick={() =>
+                      aggiungi(
+                        rettangoloRuotatoFv(
+                          metriDaCoordinate(centro, origine),
+                          larghezza,
+                          altezza,
+                          rotazione,
+                        ),
+                      )}
+                  >
+                    Aggiungi rettangolo ruotato
+                  </Button>
                 </div>
               </details>
               {falde.length > 0 && (

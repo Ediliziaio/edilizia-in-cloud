@@ -811,8 +811,9 @@ function FvBolletteConsumiDettaglio(
           Puoi correggerla qui sotto.
         </p>
       )}
-      {manuale && (
-      <div className="mt-4">
+      {/* Un solo interruttore: il link «Non ho la bolletta / Correggi…» qui sopra.
+          I campi restano nel documento e si nascondono, come faceva il details. */}
+      <div className="mt-4" hidden={!manuale}>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {([[
             "consumoAnnuo",
@@ -878,7 +879,6 @@ function FvBolletteConsumiDettaglio(
           correzioni restano quando aggiungi nuove bollette.
         </p>
       </div>
-      )}
       {a.documenti.filter((d) =>
         (d.dati.pod ?? "") === a.podSelezionato &&
         (d.dati.avvisi.length > 0 || d.pagine_non_lette.length > 0)
