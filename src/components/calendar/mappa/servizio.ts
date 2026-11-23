@@ -2,7 +2,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { segmentiPercorso, type Coordinate, type PercorsoStradale, type ProblemaPercorso, type Tappa, type Tratta } from "../../../../shared/mappa-operativa/calcoli";
 
 export const tilesMappa = import.meta.env.VITE_MAPPA_OPERATIVA_TILE_URL?.trim() as string | undefined;
-export const stileMappa = import.meta.env.VITE_MAPPA_OPERATIVA_STYLE_URL?.trim() as string | undefined;
+// Sfondo predefinito: OpenFreeMap (vettoriale, senza chiave, uso commerciale consentito).
+// Se non è configurata né una STYLE_URL né una TILE_URL raster, la mappa ha comunque uno
+// sfondo per tutte le aziende, senza bisogno di variabili d'ambiente. Una STYLE_URL o una
+// TILE_URL esplicite continuano a prevalere.
+const STILE_PREDEFINITO = "https://tiles.openfreemap.org/styles/liberty";
+export const stileMappa = (import.meta.env.VITE_MAPPA_OPERATIVA_STYLE_URL?.trim() as string | undefined)
+  || (tilesMappa ? undefined : STILE_PREDEFINITO);
 export const fonteCartografica = stileMappa
   ? /^https:\/\/tiles\.openfreemap\.org\//.test(stileMappa) ? "openfreemap" : "tile_configurati"
   : tilesMappa

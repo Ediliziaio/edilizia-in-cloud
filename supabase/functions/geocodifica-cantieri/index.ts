@@ -1,25 +1,23 @@
 /**
  * geocodifica-cantieri — riempie orders.work_lat/work_lng dall'indirizzo dei lavori.
- * Cron ogni 20 minuti (x-cron-secret), 40 cantieri per giro, Nominatim (OSM) a
- * una richiesta al secondo con User-Agent dichiarato, come da policy del servizio.
- * Serve al geofence delle timbrature e al meteo del rapportino.
+ * Cron ogni 20 minuti (x-cron-secret), 40 cantieri per giro.
+ *
+ * Usa il geocoder condiviso dell'app `geocodeAddress` (HERE → Google → Nominatim):
+ * Nominatim pubblico DA SOLO viene bloccato sugli IP datacenter delle edge function
+ * (policy anti-bulk), quindi dall'edge falliva ogni indirizzo anche quando era valido.
+ * HERE/Google hanno chiave e rispondono. Legge `indirizzo_lavori`, con fallback su
+ * `work_address`. Serve al geofence delle timbrature e al meteo del rapportino.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-
+import { geocodeAddress } from "../_shared/forwardGeocode.ts";
 import { serveConMetriche } from "../_shared/withMetrics.ts";
-const UA = "EdiliziaInCloud/1.0 (info@ediliziaincloud.it)";
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function nominatim(q: string): Promise<{ lat: number; lng: number } | null> {
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=it&q=${encodeURIComponent(q)}`;
-  const res = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "it" }, signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) return null;
-  const arr = await res.json();
-  const hit = Array.isArray(arr) ? arr[0] : null;
-  if (!hit) return null;
-  const lat = Number(hit.lat), lng = Number(hit.lon);
-  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+/** Toglie il civico e le note tra parentesi per un secondo tentativo più largo. */
+function semplifica(indirizzo: string): string {
+  return indirizzo.replace(/\([^)]*\)/g, "").replace(/\b\d+[a-zA-Z]?\b(?=\s*,)/g, "").replace(/\s+/g, " ").trim();
 }
 
 serveConMetriche("geocodifica-cantieri", async (req: Request) => {
@@ -35,8 +33,9 @@ serveConMetriche("geocodifica-cantieri", async (req: Request) => {
   try { const b = await req.json(); if (b?.limit) limite = Math.min(80, Number(b.limit)); if (b?.company_id) soloCompany = String(b.company_id); } catch { /* body vuoto */ }
 
   let q = admin.from("orders")
-    .select("id, indirizzo_lavori, order_code")
-    .is("deleted_at", null).is("work_lat", null).not("indirizzo_lavori", "is", null)
+    .select("id, indirizzo_lavori, work_address, order_code")
+    .is("deleted_at", null).is("work_lat", null)
+    .or("indirizzo_lavori.not.is.null,work_address.not.is.null")
     .or("work_geocoded_at.is.null,work_geocoded_at.lt." + new Date(Date.now() - 30 * 86400_000).toISOString())
     .order("updated_at", { ascending: false }).limit(limite);
   if (soloCompany) q = q.eq("company_id", soloCompany);
@@ -45,14 +44,14 @@ serveConMetriche("geocodifica-cantieri", async (req: Request) => {
 
   let trovati = 0, mancati = 0;
   for (const o of ordini ?? []) {
-    const indirizzo = String(o.indirizzo_lavori ?? "").trim();
+    const indirizzo = String(o.indirizzo_lavori ?? o.work_address ?? "").trim();
     let hit: { lat: number; lng: number } | null = null;
     if (indirizzo.length >= 6) {
-      try { hit = await nominatim(indirizzo); } catch (e) { console.warn("[geocodifica]", o.order_code, e instanceof Error ? e.message : e); }
+      try { hit = await geocodeAddress(indirizzo); } catch (e) { console.warn("[geocodifica]", o.order_code, e instanceof Error ? e.message : e); }
       // Secondo tentativo senza il numero civico e le note tra parentesi
       if (!hit) {
-        const semplice = indirizzo.replace(/\([^)]*\)/g, "").replace(/\b\d+[a-zA-Z]?\b(?=\s*,)/g, "").replace(/\s+/g, " ").trim();
-        if (semplice && semplice !== indirizzo) { await sleep(1100); try { hit = await nominatim(semplice); } catch { /* niente */ } }
+        const semplice = semplifica(indirizzo);
+        if (semplice && semplice !== indirizzo) { await sleep(1100); try { hit = await geocodeAddress(semplice); } catch { /* niente */ } }
       }
     }
     await admin.from("orders").update({
