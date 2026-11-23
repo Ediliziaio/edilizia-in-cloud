@@ -51,7 +51,7 @@ import { RapportinoCardCampo } from "@/components/campo/RapportinoCardCampo";
 import { RapportiniInCoda } from "@/components/campo/RapportiniInCoda";
 import { linkChiediCorrezione } from "@/lib/campo/chiediCorrezione";
 import { chiaveFasiCommessa, leggiFasiCommessa } from "@/lib/campo/fasiCommessa";
-import { giorniRitardoCantiere, testoRitardoCantiere } from "@/lib/campo/ritardoCantiere";
+import { giorniRitardoCantiere } from "@/lib/campo/ritardoCantiere";
 import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { faseInRitardo, testoRitardo } from "@/components/campo/PianoSchedaCantiere";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
@@ -912,7 +912,7 @@ export default function CampoLavoroDetail() {
                 style={{ width: `${order?.percentuale_avanzamento ?? 0}%` }}
               />
             </div>
-            <span className="shrink-0 text-xs font-semibold">{(order?.status ?? "").trim() ? statoLeggibile(order?.status) : t("In lavorazione")}</span>
+            <span className="shrink-0 text-xs font-semibold">{(order?.status ?? "").trim() ? t(statoLeggibile(order?.status)) : t("In lavorazione")}</span>
           </div>
         </div>
 
@@ -984,7 +984,7 @@ export default function CampoLavoroDetail() {
                   {/* Ritardo del cantiere sempre visibile (collaudo 23/11): RIS01 doveva finire il 16 ago, al 45%. */}
                   {(() => {
                     const giorni = giorniRitardoCantiere(order?.work_end_date, today, order?.status);
-                    return giorni != null && <span className="font-semibold text-red-700 dark:text-red-400"> · {testoRitardoCantiere(giorni)}</span>;
+                    return giorni != null && <span className="font-semibold text-red-700 dark:text-red-400"> · {t(giorni === 1 ? "in ritardo di {n} giorno" : "in ritardo di {n} giorni", { n: giorni })}</span>;
                   })()}
                 </span>
               </p>
@@ -1027,7 +1027,7 @@ export default function CampoLavoroDetail() {
                     {(() => {
                       const fine = faseInRitardo(faseAttuale, today);
                       return fine && <p className="mt-1.5 text-xs font-semibold text-red-700 dark:text-red-400">
-                        {testoRitardo(fine)}
+                        {testoRitardo(fine, t)}
                       </p>;
                     })()}
                   </div>
@@ -1354,6 +1354,12 @@ export default function CampoLavoroDetail() {
 function statoLeggibile(stato: string | null | undefined): string {
   const s = (stato ?? "").trim();
   if (!s) return "In lavorazione";
+  // Gli stati che ci sono davvero (anche quelli rimasti in inglese): parole fisse, così si traducono.
+  const noti: Record<string, string> = {
+    confermato: "Confermato", in_corso: "In corso", in_progress: "In corso", active: "In corso",
+    completato: "Completato", completed: "Completato", bozza: "Bozza",
+  };
+  if (noti[s.toLowerCase()]) return noti[s.toLowerCase()];
   const t = s.replace(/_/g, " ");
   return t.charAt(0).toUpperCase() + t.slice(1);
 }

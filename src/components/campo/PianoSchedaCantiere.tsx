@@ -27,7 +27,9 @@ const data = (giorno: string) => dataBreve.format(new Date(`${giorno}T12:00:00`)
 export const conArticolo = (giorno: string) => (/^(8|11)\b/.test(giorno) ? `l’${giorno}` : `il ${giorno}`);
 
 /** «In ritardo · doveva finire l’8 giu 2026»: la stessa frase in scheda cantiere, avanzamento e pagina del lavoro. */
-export const testoRitardo = (fine: string, t: T = sostituisci) => t("In ritardo · doveva finire {quando}", { quando: conArticolo(data(fine)) });
+export const testoRitardo = (fine: string, t: T = sostituisci) =>
+  // L'articolo («il», «l’») solo in italiano: nelle altre lingue la data va da sola dentro la frase tradotta.
+  t("In ritardo · doveva finire {quando}", { quando: intlCampo().startsWith("it") ? conArticolo(data(fine)) : data(fine) });
 
 function periodo(t: T, inizio?: string | null, fine?: string | null) {
   const da = planningDay(inizio);
