@@ -13,6 +13,7 @@ import { COLORE_STATO } from "@/components/orders/generali/unita/aspetto";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { format } from "date-fns";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -98,9 +99,10 @@ const inVendita = (o: OrderWithDetails, mappa: MappaGenerali) => unitaInVendita(
  * Lo stato da mostrare. Per un'unità è quello di vendita: la sua commessa nasce con lo stato
  * predefinito dell'azienda («Contratto Firmato») anche se nessuno l'ha comprata.
  */
-function statoMostrato(o: OrderWithDetails, mappa: MappaGenerali): { name: string; color: string } | null {
+function statoMostrato(o: OrderWithDetails, mappa: MappaGenerali): { name: string; color: string; fisso?: boolean } | null {
   const v = mappa.statoVenditaUnita?.get(o.id);
-  if (v) return { name: NOMI_STATO[v].una, color: COLORE_STATO[v] };
+  // fisso: nome dello stato di vendita (costante, si traduce); gli altri vengono dal database.
+  if (v) return { name: NOMI_STATO[v].una, color: COLORE_STATO[v], fisso: true };
   return o.status ? { name: o.status.name, color: o.status.color } : null;
 }
 /** Il lordo che è un contratto: il listino di un'unità ancora in vendita non lo è. */
@@ -135,6 +137,7 @@ export const OrdersTable = React.memo(function OrdersTable({
   figlieFuoriPagina = NESSUNA_FIGLIA,
   onRaggruppa,
 }: OrdersTableProps) {
+  const t = useT();
   const sortAccessors = useMemo(() => ({
     order_code: (o: OrderWithDetails) => o.order_code || "",
     created_at: (o: OrderWithDetails) => o.created_at,
@@ -297,7 +300,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                   type="button"
                   className="ml-1 flex size-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted"
                   aria-expanded={aperta}
-                  aria-label={aperta ? "Chiudi le commesse dentro" : `Apri le ${riga.figlie.length} commesse dentro`}
+                  aria-label={aperta ? t("Chiudi le commesse dentro") : t("Apri le {n} commesse dentro", { n: riga.figlie.length })}
                   onClick={() => apriChiudi(order.id)}
                 >
                   {aperta ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -316,7 +319,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                     <span className="inline-flex max-w-[55%] shrink-0 items-center gap-1 rounded-full px-2 py-px text-[11px] font-medium"
                       style={{ color: stato.color, backgroundColor: `${stato.color}1a` }}>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: stato.color }} />
-                      <span className="truncate">{stato.name}</span>
+                      <span className="truncate">{stato.fisso ? t(stato.name) : stato.name}</span>
                     </span>
                   )}
                   <span className="min-w-0 truncate text-xs text-muted-foreground">
@@ -325,9 +328,9 @@ export const OrdersTable = React.memo(function OrdersTable({
                 </div>
                 <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11px] text-muted-foreground">
                   <span className="shrink-0 font-mono">{order.order_code || "—"}</span>
-                  {previousReasons[order.id]?.length > 0 && <span className="text-amber-800">Anno {new Date(order.created_at).getFullYear()} · {previousReasons[order.id].join(" · ")}</span>}
+                  {previousReasons[order.id]?.length > 0 && <span className="text-amber-800">{t("Anno {anno} · {motivi}", { anno: String(new Date(order.created_at).getFullYear() ?? ""), motivi: previousReasons[order.id].join(" · ") })}</span>}
                   {order.order_type === "appaltatore_lavoro" && (
-                    <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label="Lavoro per appaltatore" />
+                    <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label={t("Lavoro per appaltatore")} />
                   )}
                   {riga.livello === 0 && <SegnoGenerale order={order} mappa={mappaGenerali} compatto />}
                   {visibleColumns.has("pipeline") && (riferimentiPipeline?.get(order.id) ?? pipelineFallback) !== pipelineFallback && <span className="max-w-full truncate">{riferimentiPipeline?.get(order.id)}</span>}
@@ -335,15 +338,15 @@ export const OrdersTable = React.memo(function OrdersTable({
               </div>
               {mostraImporti && <div className="max-w-[45%] shrink-0 break-words text-right tabular-nums">
                 {libera ? (
-                  <p className="text-sm leading-tight text-muted-foreground">{formatCurrency(totalIvato)} <span className="text-[11px]">listino</span></p>
+                  <p className="text-sm leading-tight text-muted-foreground">{formatCurrency(totalIvato)} <span className="text-[11px]">{t("listino")}</span></p>
                 ) : (
                   <p className="text-sm font-bold leading-tight">{(generale && riga.figlie.length === 0) || (generale && totalIvato === 0 && listinoInVendita > 0) ? "—" : formatCurrency(totalIvato)}</p>
                 )}
-                {generale && listinoInVendita > 0 && <p className="text-[11px] text-muted-foreground">in vendita {formatCurrencyCompact(listinoInVendita)}</p>}
+                {generale && listinoInVendita > 0 && <p className="text-[11px] text-muted-foreground">{t("in vendita {importo}", { importo: formatCurrencyCompact(listinoInVendita) })}</p>}
                 {libera ? null : due > 0 ? (
-                  <p className="text-[11px] font-medium text-orange-600 dark:text-orange-400">da ricevere {formatCurrencyCompact(due)}</p>
+                  <p className="text-[11px] font-medium text-orange-600 dark:text-orange-400">{t("da ricevere {importo}", { importo: formatCurrencyCompact(due) })}</p>
                 ) : collected > 0 ? (
-                  <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">✓ Saldato</p>
+                  <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">✓ {t("Saldato")}</p>
                 ) : null}
               </div>}
               </Link>
@@ -357,14 +360,14 @@ export const OrdersTable = React.memo(function OrdersTable({
       {selectedIds.size > 0 && (
         <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3 bg-primary/10 border-b rounded-t-lg flex-wrap">
           <Badge variant="secondary" className="text-sm font-medium">
-            {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
+            {t(selectedIds.size === 1 ? "{n} selezionato" : "{n} selezionati", { n: selectedIds.size })}
           </Badge>
 
           {statuses.length > 0 && onBulkStatusChange && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" disabled={isBulkUpdating}>
-                  Cambia stato
+                  {t("Cambia stato")}
                   <ChevronDown className="ml-1 h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
@@ -387,25 +390,25 @@ export const OrdersTable = React.memo(function OrdersTable({
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm" disabled={isBulkUpdating}>
                   <Trash2 className="h-4 w-4 mr-1" />
-                  Elimina
+                  {t("Elimina")}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Eliminazione sicura di {selectedIds.size} ordin{selectedIds.size === 1 ? "e" : "i"}</AlertDialogTitle>
+                  <AlertDialogTitle>{t(selectedIds.size === 1 ? "Eliminazione sicura di {n} ordine" : "Eliminazione sicura di {n} ordini", { n: selectedIds.size })}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Sei sicuro di voler eliminare <strong>{selectedIds.size}</strong> ordin{selectedIds.size === 1 ? "e" : "i"}?
+                    {t(selectedIds.size === 1 ? "Sei sicuro di voler eliminare {n} ordine?" : "Sei sicuro di voler eliminare {n} ordini?", { n: selectedIds.size })}
                     <br />
-                    Le commesse verranno spostate nel cestino e potranno essere ripristinate. Fatture e movimenti effettivi restano protetti; le sole rate previste non impediscono il cestinamento.
+                    {t("Le commesse verranno spostate nel cestino e potranno essere ripristinate. Fatture e movimenti effettivi restano protetti; le sole rate previste non impediscono il cestinamento.")}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                   <AlertDialogAction
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     onClick={handleBulkDelete}
                   >
-                    Elimina {selectedIds.size} ordin{selectedIds.size === 1 ? "e" : "i"}
+                    {t(selectedIds.size === 1 ? "Elimina {n} ordine" : "Elimina {n} ordini", { n: selectedIds.size })}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -415,13 +418,13 @@ export const OrdersTable = React.memo(function OrdersTable({
           {onRaggruppa && (
             <Button variant="outline" size="sm" onClick={() => onRaggruppa(Array.from(selectedIds))}>
               <Layers className="h-4 w-4 mr-1" />
-              Raggruppa in una generale
+              {t("Raggruppa in una generale")}
             </Button>
           )}
 
           <Button variant="ghost" size="sm" onClick={clearSelection} className="ml-auto">
             <X className="h-4 w-4 mr-1" />
-            Deseleziona
+            {t("Deseleziona")}
           </Button>
         </div>
       )}
@@ -439,33 +442,33 @@ export const OrdersTable = React.memo(function OrdersTable({
                 <Checkbox
                   checked={allSelected ? true : someSelected ? "indeterminate" : false}
                   onCheckedChange={toggleAll}
-                  aria-label="Seleziona tutti"
+                  aria-label={t("Seleziona tutti")}
                 />
               </TableHead>
-              <SortableTableHead column="order_code" label="Codice" sortConfig={sortConfig} onSort={toggleSort} />
-              {visibleColumns.has("date") && <SortableTableHead column="created_at" label="Data" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell" />}
-              <SortableTableHead column="description" label="Descrizione" sortConfig={sortConfig} onSort={toggleSort} />
-              {visibleColumns.has("customer") && <SortableTableHead column="customer" label="Nome Cliente" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
-              {visibleColumns.has("totalIvato") && <SortableTableHead column="totalIvato" label="Tot. Ivato" sortConfig={sortConfig} onSort={toggleSort} className="hidden sm:table-cell text-right" />}
-              {visibleColumns.has("imponibile") && <SortableTableHead column="total_amount" label="Imponibile con varianti" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
-              {visibleColumns.has("collected") && <SortableTableHead column="collected" label="Incassato" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
-              {visibleColumns.has("due") && <SortableTableHead column="due" label="Da incassare" sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell text-right" />}
-              {visibleColumns.has("variableCosts") && <SortableTableHead column="variableCosts" label="Costi Var." sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
-              {visibleColumns.has("margin") && <SortableTableHead column="grossMargin" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />}
-              {visibleColumns.has("deposit") && <SortableTableHead column="deposit" label="Acconti" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />}
-              {visibleColumns.has("balance") && <SortableTableHead column="balance" label="Saldo" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />}
-              {visibleColumns.has("salesperson") && <SortableTableHead column="salesperson" label="Venditore" sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
-              {visibleColumns.has("labor") && <SortableTableHead column="labor" label="Manodopera" sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
-              {visibleColumns.has("supplier") && <SortableTableHead column="supplier" label="Fornitore" sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
-              {visibleColumns.has("expected_date") && <SortableTableHead column="expected_date" label="Data Posa" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
-              {visibleColumns.has("warehouse_date") && <SortableTableHead column="warehouse_arrival_date" label="Arrivo Merce" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
-              {visibleColumns.has("work_start") && <SortableTableHead column="work_start_date" label="Inizio Lavori" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
-              {visibleColumns.has("work_end") && <SortableTableHead column="work_end_date" label="Fine Lavori" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
-              {visibleColumns.has("payment_type") && <SortableTableHead column="payment_type" label="Tipo Pagamento" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
-              {visibleColumns.has("payments") && <SortableTableHead column="payments" label="Pagamenti" sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
-              {visibleColumns.has("pipeline") && <TableHead>Pipeline</TableHead>}
-              <SortableTableHead column="status" label="Stato" sortConfig={sortConfig} onSort={toggleSort} />
-              <TableHead className="text-right">Azioni</TableHead>
+              <SortableTableHead column="order_code" label={t("Codice")} sortConfig={sortConfig} onSort={toggleSort} />
+              {visibleColumns.has("date") && <SortableTableHead column="created_at" label={t("Data")} sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell" />}
+              <SortableTableHead column="description" label={t("Descrizione")} sortConfig={sortConfig} onSort={toggleSort} />
+              {visibleColumns.has("customer") && <SortableTableHead column="customer" label={t("Nome Cliente")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
+              {visibleColumns.has("totalIvato") && <SortableTableHead column="totalIvato" label={t("Tot. Ivato")} sortConfig={sortConfig} onSort={toggleSort} className="hidden sm:table-cell text-right" />}
+              {visibleColumns.has("imponibile") && <SortableTableHead column="total_amount" label={t("Imponibile con varianti")} sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
+              {visibleColumns.has("collected") && <SortableTableHead column="collected" label={t("Incassato")} sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
+              {visibleColumns.has("due") && <SortableTableHead column="due" label={t("Da incassare")} sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell text-right" />}
+              {visibleColumns.has("variableCosts") && <SortableTableHead column="variableCosts" label={t("Costi Var.")} sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
+              {visibleColumns.has("margin") && <SortableTableHead column="grossMargin" label={t("Margine")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />}
+              {visibleColumns.has("deposit") && <SortableTableHead column="deposit" label={t("Acconti")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />}
+              {visibleColumns.has("balance") && <SortableTableHead column="balance" label={t("Saldo")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />}
+              {visibleColumns.has("salesperson") && <SortableTableHead column="salesperson" label={t("Venditore")} sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
+              {visibleColumns.has("labor") && <SortableTableHead column="labor" label={t("Manodopera")} sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
+              {visibleColumns.has("supplier") && <SortableTableHead column="supplier" label={t("Fornitore")} sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
+              {visibleColumns.has("expected_date") && <SortableTableHead column="expected_date" label={t("Data Posa")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
+              {visibleColumns.has("warehouse_date") && <SortableTableHead column="warehouse_arrival_date" label={t("Arrivo Merce")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
+              {visibleColumns.has("work_start") && <SortableTableHead column="work_start_date" label={t("Inizio Lavori")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
+              {visibleColumns.has("work_end") && <SortableTableHead column="work_end_date" label={t("Fine Lavori")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
+              {visibleColumns.has("payment_type") && <SortableTableHead column="payment_type" label={t("Tipo Pagamento")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
+              {visibleColumns.has("payments") && <SortableTableHead column="payments" label={t("Pagamenti")} sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
+              {visibleColumns.has("pipeline") && <TableHead>{t("Pipeline")}</TableHead>}
+              <SortableTableHead column="status" label={t("Stato")} sortConfig={sortConfig} onSort={toggleSort} />
+              <TableHead className="text-right">{t("Azioni")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody
@@ -505,7 +508,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={() => toggleOne(order.id)}
-                      aria-label={`Seleziona commessa ${order.order_code || order.description}`}
+                      aria-label={t("Seleziona commessa {codice}", { codice: order.order_code || order.description || "" })}
                     />
                   </TableCell>
                   <TableCell className="font-medium">
@@ -515,7 +518,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                           type="button"
                           className="-ml-1 flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted"
                           aria-expanded={aperta}
-                          aria-label={aperta ? "Chiudi le commesse dentro" : `Apri le ${riga.figlie.length} commesse dentro`}
+                          aria-label={aperta ? t("Chiudi le commesse dentro") : t("Apri le {n} commesse dentro", { n: riga.figlie.length })}
                           onClick={(e) => { e.stopPropagation(); apriChiudi(order.id); }}
                         >
                           {aperta ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -525,12 +528,12 @@ export const OrdersTable = React.memo(function OrdersTable({
                       <Link to={`/azienda/ordini/${order.id}`} className="text-primary hover:underline cursor-pointer">
                         {order.order_code || "—"}
                       </Link>
-                      {previousReasons[order.id]?.length > 0 && <span className="text-[10px] text-amber-800" title={previousReasons[order.id].join(" · ")}>Anno {new Date(order.created_at).getFullYear()} · {previousReasons[order.id].join(" · ")}</span>}
+                      {previousReasons[order.id]?.length > 0 && <span className="text-[10px] text-amber-800" title={previousReasons[order.id].map((m) => t(m)).join(" · ")}>{t("Anno {anno} · {motivi}", { anno: new Date(order.created_at).getFullYear(), motivi: previousReasons[order.id].map((m) => t(m)).join(" · ") })}</span>}
                       {order.order_type === "appaltatore_lavoro" && (
                         <Badge
                           variant="outline"
                           className="text-[10px] px-1 py-0 shrink-0 border-amber-500 text-amber-700 bg-amber-50 dark:bg-amber-950/40"
-                          title="Lavoro per appaltatore"
+                          title={t("Lavoro per appaltatore")}
                         >
                           <HardHat className="h-2.5 w-2.5" />
                         </Badge>
@@ -565,14 +568,14 @@ export const OrdersTable = React.memo(function OrdersTable({
                     </TableCell>
                   )}
                   {visibleColumns.has("totalIvato") && (
-                    <TableCell className="hidden sm:table-cell text-right" title={generale ? "Somma delle commesse dentro" : undefined}>
+                    <TableCell className="hidden sm:table-cell text-right" title={generale ? t("Somma delle commesse dentro") : undefined}>
                       {libera ? (
-                        <span className="text-muted-foreground" title="Prezzo di listino: l'unità non è ancora venduta">
-                          {formatCurrency(totalIvato)}<span className="block text-xs">listino</span>
+                        <span className="text-muted-foreground" title={t("Prezzo di listino: l'unità non è ancora venduta")}>
+                          {formatCurrency(totalIvato)}<span className="block text-xs">{t("listino")}</span>
                         </span>
                       ) : generale && (riga.figlie.length === 0 || nienteVenduto) ? "—" : <span className={generale ? "italic" : undefined}>{formatCurrency(totalIvato)}</span>}
                       {generale && listinoInVendita > 0 && (
-                        <span className="block text-xs text-muted-foreground">in vendita {formatCurrency(listinoInVendita)}</span>
+                        <span className="block text-xs text-muted-foreground">{t("in vendita {importo}", { importo: formatCurrency(listinoInVendita) })}</span>
                       )}
                     </TableCell>
                   )}
@@ -591,14 +594,14 @@ export const OrdersTable = React.memo(function OrdersTable({
                   {visibleColumns.has("due") && (
                     <TableCell className="hidden md:table-cell text-right">
                       {libera || nienteVenduto ? (
-                        <span className="text-muted-foreground">—<span className="block text-xs">{libera ? "Non venduta" : "Niente di venduto"}</span></span>
+                        <span className="text-muted-foreground">—<span className="block text-xs">{libera ? t("Non venduta") : t("Niente di venduto")}</span></span>
                       ) : (
                       <span className={due > 0 ? "text-orange-600 dark:text-orange-400 font-medium" : "text-emerald-600 dark:text-emerald-400"}>
                         {formatCurrency(due)}
                       </span>
                       )}
                       {due > 0.01 && <span className={`mt-0.5 block text-xs ${timing.overdueDays ? "font-medium text-red-700" : "text-muted-foreground"}`}>
-                        {timing.overdueDays ? `Scaduto da ${timing.overdueDays} gg` : timing.nextDate ? `Scadenza ${format(new Date(`${timing.nextDate}T00:00:00`), "dd/MM/yyyy")}` : "Scadenza non indicata"}
+                        {timing.overdueDays ? t("Scaduto da {n} gg", { n: timing.overdueDays }) : timing.nextDate ? t("Scadenza {data}", { data: format(new Date(`${timing.nextDate}T00:00:00`), "dd/MM/yyyy") }) : t("Scadenza non indicata")}
                       </span>}
                     </TableCell>
                   )}
@@ -611,7 +614,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                   )}
                   {visibleColumns.has("margin") && (
                     <TableCell className="hidden lg:table-cell text-right">
-                      {costsState !== "ready" ? <span className="text-xs text-muted-foreground">{costsState === "loading" ? "Verifica margine…" : "Margine non disponibile"}</span> : marginReliable ? (
+                      {costsState !== "ready" ? <span className="text-xs text-muted-foreground">{costsState === "loading" ? t("Verifica margine…") : t("Margine non disponibile")}</span> : marginReliable ? (
                         <span className={`font-medium ${
                           grossMargin < 0 ? "text-destructive" : marginPercent < 20 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
                         }`}>
@@ -619,7 +622,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                         </span>
                       ) : (
                         <span className="inline-flex rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                          Costi da completare
+                          {t("Costi da completare")}
                         </span>
                       )}
                     </TableCell>
@@ -683,7 +686,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                   {visibleColumns.has("payments") && (
                     <TableCell className="hidden xl:table-cell">
                       <Badge className={due <= 0.01 ? "bg-green-100 text-green-800 border-0" : timing.overdueDays ? "bg-red-100 text-red-800 border-0" : "bg-orange-100 text-orange-800 border-0"}>
-                        {order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura' && totalIvato<=0 ? 'Da rendicontare · stima nel piano' : totalIvato <= 0 ? "Importo da definire" : due <= 0.01 ? "Saldato" : timing.overdueDays ? "Rate scadute" : "Da incassare"}
+                        {order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura' && totalIvato<=0 ? t("Da rendicontare · stima nel piano") : totalIvato <= 0 ? t("Importo da definire") : due <= 0.01 ? t("Saldato") : timing.overdueDays ? t("Rate scadute") : t("Da incassare")}
                       </Badge>
                     </TableCell>
                   )}
@@ -697,7 +700,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                           color: stato.color,
                         }}
                       >
-                        {stato.name}
+                        {stato.fisso ? t(stato.name) : stato.name}
                       </Badge>
                     ) : generale && riga.figlie.length > 0 ? (
                       <StatiFiglie figlie={riga.figlie} mappa={mappaGenerali} />
@@ -708,16 +711,16 @@ export const OrdersTable = React.memo(function OrdersTable({
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni commessa ${order.order_code || order.description || ""}`}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("Azioni commessa {codice}", { codice: order.order_code || order.description || "" })}>
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => navigate(`/azienda/ordini/${order.id}`)}>
-                          <Eye className="h-4 w-4 mr-2" />Apri
+                          <Eye className="h-4 w-4 mr-2" />{t("Apri")}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => navigate(`/azienda/ordini/${order.id}/modifica`)}>
-                          <Pencil className="h-4 w-4 mr-2" />Modifica
+                          <Pencil className="h-4 w-4 mr-2" />{t("Modifica")}
                         </DropdownMenuItem>
                         {canDelete && <DropdownMenuSeparator />}
                         {canDelete &&
@@ -726,7 +729,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                           disabled={isDeleting}
                           onClick={() => setConfirmDelete(order)}
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />Elimina
+                          <Trash2 className="h-4 w-4 mr-2" />{t("Elimina")}
                         </DropdownMenuItem>}
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -747,30 +750,32 @@ export const OrdersTable = React.memo(function OrdersTable({
 
 /** Generale: «Generale · 5». Commessa dentro una generale: «in C-014». Niente per le commesse normali. */
 function SegnoGenerale({ order, mappa, compatto = false }: { order: OrderWithDetails; mappa: MappaGenerali; compatto?: boolean }) {
+  const t = useT();
   if (mappa.figliePerGenerale.has(order.id)) {
     const n = mappa.figliePerGenerale.get(order.id) ?? 0;
     return (
-      <Badge variant="secondary" className="shrink-0 gap-1 px-1.5 py-0 text-[10px] font-medium" title={`Commessa generale con ${n === 1 ? "1 commessa" : `${n} commesse`} dentro`}>
+      <Badge variant="secondary" className="shrink-0 gap-1 px-1.5 py-0 text-[10px] font-medium" title={n === 1 ? t("Commessa generale con 1 commessa dentro") : t("Commessa generale con {n} commesse dentro", { n })}>
         <Layers className="h-2.5 w-2.5" aria-hidden="true" />
-        {compatto ? n : `Generale · ${n}`}
+        {compatto ? n : t("Generale · {n}", { n })}
       </Badge>
     );
   }
   const g = mappa.generaleDellaFiglia.get(order.id);
   if (!g) return null;
   return (
-    <span className="min-w-0 truncate text-[10px] text-muted-foreground" title={`Fa parte di ${g.etichetta}`}>
-      in {g.etichetta}
+    <span className="min-w-0 truncate text-[10px] text-muted-foreground" title={t("Fa parte di {etichetta}", { etichetta: g.etichetta })}>
+      {t("in {etichetta}", { etichetta: g.etichetta })}
     </span>
   );
 }
 
 /** Generale senza stato suo: gli stati delle commesse dentro, il più frequente in vista e gli altri nel titolo. */
 function StatiFiglie({ figlie, mappa }: { figlie: OrderWithDetails[]; mappa: MappaGenerali }) {
+  const t = useT();
   const conti = new Map<string, { n: number; colore: string | undefined }>();
   for (const f of figlie) {
     const stato = statoMostrato(f, mappa);
-    const nome = stato?.name ?? "Senza stato";
+    const nome = stato ? (stato.fisso ? t(stato.name) : stato.name) : t("Senza stato");
     const prima = conti.get(nome);
     conti.set(nome, { n: (prima?.n ?? 0) + 1, colore: stato?.color ?? prima?.colore });
   }
@@ -780,7 +785,7 @@ function StatiFiglie({ figlie, mappa }: { figlie: OrderWithDetails[]; mappa: Map
   return (
     <span className="inline-flex items-center gap-1 text-xs" title={titolo}>
       <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colore ?? "hsl(var(--muted-foreground))" }} aria-hidden="true" />
-      <span className="truncate">{n === figlie.length ? `Tutte: ${nome}` : `${n} ${nome}`}</span>
+      <span className="truncate">{n === figlie.length ? t("Tutte: {nome}", { nome }) : `${n} ${nome}`}</span>
       {ordinati.length > 1 && <span className="text-muted-foreground">+{figlie.length - n}</span>}
     </span>
   );

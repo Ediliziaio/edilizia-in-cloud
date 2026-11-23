@@ -31,8 +31,9 @@ import {
 } from "@/hooks/useCantiereLogistica";
 import { AZIONE_TENUE } from "@/lib/manodopera/colori";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const kmIt = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 1 });
+const kmIt = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 1 });
 
 function MettiMezzoDialog({ orderId, aperto, onAperto, giaQui }: {
   orderId: string;
@@ -40,6 +41,7 @@ function MettiMezzoDialog({ orderId, aperto, onAperto, giaQui }: {
   onAperto: (v: boolean) => void;
   giaQui: Set<string>;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const { data: mezzi = [] } = useMezzi();
   const { data: disponibilita } = useMezziDisponibilita();
@@ -60,8 +62,8 @@ function MettiMezzoDialog({ orderId, aperto, onAperto, giaQui }: {
   const occupato = assegna.isPending || monta.isPending;
   const dove = (m: (typeof mezzi)[number]) =>
     m.gestione === "quantita"
-      ? `${formatQuantita(disponibilita?.get(m.id)?.disponibile ?? m.quantita_totale, m.unita_misura)} in magazzino`
-      : m.assegnato_commessa ? `ora su ${m.assegnato_commessa}` : m.assegnato_persona ? `con ${m.assegnato_persona}` : "in sede";
+      ? t("{quantita} in magazzino", { quantita: formatQuantita(disponibilita?.get(m.id)?.disponibile ?? m.quantita_totale, m.unita_misura) })
+      : m.assegnato_commessa ? t("ora su {commessa}", { commessa: m.assegnato_commessa }) : m.assegnato_persona ? t("con {persona}", { persona: m.assegnato_persona }) : t("in sede");
 
   const chiudi = () => {
     setScelto("");
@@ -87,11 +89,11 @@ function MettiMezzoDialog({ orderId, aperto, onAperto, giaQui }: {
     <Dialog open={aperto} onOpenChange={(o) => { if (!occupato) { onAperto(o); if (!o) { setScelto(""); setQuantita(""); } } }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Porta un mezzo o un attrezzo sul cantiere</DialogTitle>
-          <DialogDescription>Da oggi risulta qui: lo vedi nel mezzo e nel diario del giorno.</DialogDescription>
+          <DialogTitle>{t("Porta un mezzo o un attrezzo sul cantiere")}</DialogTitle>
+          <DialogDescription>{t("Da oggi risulta qui: lo vedi nel mezzo e nel diario del giorno.")}</DialogDescription>
         </DialogHeader>
         <Select value={scelto} onValueChange={(v) => { setScelto(v); setQuantita(""); }}>
-          <SelectTrigger aria-label="Mezzo o attrezzo"><SelectValue placeholder="Scegli…" /></SelectTrigger>
+          <SelectTrigger aria-label={t("Mezzo o attrezzo")}><SelectValue placeholder={t("Scegli…")} /></SelectTrigger>
           <SelectContent>
             {scegliibili.map((m) => (
               <SelectItem key={m.id} value={m.id}>
@@ -102,29 +104,29 @@ function MettiMezzoDialog({ orderId, aperto, onAperto, giaQui }: {
         </Select>
         {aQuantita && sceltoInfo && (
           <div className="space-y-1.5">
-            <Label htmlFor="logistica-quantita">Quanto ne monti qui ({unitaBreve(sceltoInfo.unita_misura)})</Label>
+            <Label htmlFor="logistica-quantita">{t("Quanto ne monti qui ({unita})", { unita: unitaBreve(sceltoInfo.unita_misura) })}</Label>
             <Input
               id="logistica-quantita"
               inputMode="decimal"
               value={quantita}
               onChange={(e) => setQuantita(e.target.value)}
-              placeholder={`al massimo ${formatQuantita(libero, sceltoInfo.unita_misura)}`}
+              placeholder={t("al massimo {quantita}", { quantita: formatQuantita(libero, sceltoInfo.unita_misura) })}
               aria-invalid={n != null && n > libero}
             />
             {n != null && n > libero && (
-              <p className="text-xs text-red-700">In magazzino ce ne sono {formatQuantita(libero, sceltoInfo.unita_misura)}.</p>
+              <p className="text-xs text-red-700">{t("In magazzino ce ne sono {quantita}.", { quantita: formatQuantita(libero, sceltoInfo.unita_misura) })}</p>
             )}
           </div>
         )}
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onAperto(false)} disabled={occupato}>Annulla</Button>
+          <Button variant="outline" onClick={() => onAperto(false)} disabled={occupato}>{t("Annulla")}</Button>
           <Button
             className={AZIONE_TENUE.mezzo}
             variant="outline"
             disabled={!scelto || !quantitaValida || (aQuantita && !quantita.trim()) || occupato}
             onClick={conferma}
           >
-            {aQuantita ? "Segna il montaggio" : "Porta sul cantiere"}
+            {aQuantita ? t("Segna il montaggio") : t("Porta sul cantiere")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -133,6 +135,7 @@ function MettiMezzoDialog({ orderId, aperto, onAperto, giaQui }: {
 }
 
 function ModificaIndirizzo({ orderId, indirizzo, onClose }: { orderId: string; indirizzo?: IndirizzoCantiere; onClose: () => void }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   const [testo, setTesto] = useState(indirizzo?.indirizzo ?? "");
@@ -152,7 +155,7 @@ function ModificaIndirizzo({ orderId, indirizzo, onClose }: { orderId: string; i
       if (indirizzo?.versione != null) query = query.eq("version", indirizzo.versione);
       const { data, error } = await query.select("id").maybeSingle();
       if (error) throw Error(error.message);
-      if (!data) throw Error("I dati della commessa sono aggiornati da un’altra sessione. Chiudi e riapri l’indirizzo.");
+      if (!data) throw Error(t("I dati della commessa sono aggiornati da un’altra sessione. Chiudi e riapri l’indirizzo."));
     },
     onError: () => { void qc.invalidateQueries({ queryKey: ["cantiere-indirizzo", orderId] }); },
     onSuccess: () => {
@@ -160,32 +163,33 @@ function ModificaIndirizzo({ orderId, indirizzo, onClose }: { orderId: string; i
       void qc.invalidateQueries({ queryKey: ["distanza-cantieri"], predicate: q => String(q.queryKey[1]).split(",").includes(orderId) });
       void qc.invalidateQueries({ queryKey: ["order", orderId] });
       void qc.invalidateQueries({ queryKey: ["orders"] });
-      toast.success("Indirizzo del cantiere salvato");
+      toast.success(t("Indirizzo del cantiere salvato"));
       onClose();
     },
   });
   return <Dialog open onOpenChange={open => { if (!open && !salva.isPending) onClose(); }}>
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>Indirizzo del cantiere</DialogTitle>
-        <DialogDescription>Scegli un risultato per impostare anche la posizione sulla mappa.</DialogDescription>
+        <DialogTitle>{t("Indirizzo del cantiere")}</DialogTitle>
+        <DialogDescription>{t("Scegli un risultato per impostare anche la posizione sulla mappa.")}</DialogDescription>
       </DialogHeader>
       <form className="space-y-4" onSubmit={e => { e.preventDefault(); if (companyId && testo.trim() && !salva.isPending) salva.mutate(); }}>
         <div className="space-y-1">
-          <Label htmlFor="logistica-indirizzo">Via, civico e comune</Label>
+          <Label htmlFor="logistica-indirizzo">{t("Via, civico e comune")}</Label>
           <CampoIndirizzo id="logistica-indirizzo" value={testo} onChange={setTesto}
             onScegli={a => { setTesto(a.testo); setPunto(a.lat != null && a.lng != null ? { testo: a.testo, lat: a.lat, lng: a.lng } : null); }}
             maxLength={250} />
         </div>
         {salva.isError && <p role="alert" className="text-sm text-destructive">{salva.error.message}</p>}
-        <DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={salva.isPending}>Annulla</Button>
-          <Button type="submit" disabled={!companyId || !testo.trim() || salva.isPending}>{salva.isPending ? "Salvataggio…" : "Salva indirizzo"}</Button></DialogFooter>
+        <DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={salva.isPending}>{t("Annulla")}</Button>
+          <Button type="submit" disabled={!companyId || !testo.trim() || salva.isPending}>{salva.isPending ? t("Salvataggio…") : t("Salva indirizzo")}</Button></DialogFooter>
       </form>
     </DialogContent>
   </Dialog>;
 }
 
 export function CantiereLogistica({ orderId, showSiteEquipment = true }: { orderId: string; showSiteEquipment?: boolean }) {
+  const t = useT();
   const qc = useQueryClient();
   const perms = usePermissions();
   const puoMezzi = (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
@@ -209,31 +213,31 @@ export function CantiereLogistica({ orderId, showSiteEquipment = true }: { order
   const conTutti = (mezzi?.con_le_persone ?? []).filter((m) => m.fasi === null);
 
   return (
-    <section aria-label="Indirizzo e indicazioni" className="space-y-2.5 rounded-xl border bg-background p-3 sm:p-4">
+    <section aria-label={t("Indirizzo e indicazioni")} className="space-y-2.5 rounded-xl border bg-background p-3 sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 grow basis-full items-start gap-2 sm:basis-56">
           <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-sky-700" aria-hidden="true" />
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold">Indirizzo del cantiere</h3>
-            {indirizzo.isError ? <p role="alert" className="text-sm text-muted-foreground">Indirizzo non disponibile. <button type="button" onClick={() => void indirizzo.refetch()} className="underline">Riprova</button></p>
-              : <p className="mt-0.5 break-words text-sm">{indirizzo.isPending ? "Carico l’indirizzo…" : cantiere?.indirizzo ?? "Da inserire"}</p>}
+            <h3 className="text-sm font-semibold">{t("Indirizzo del cantiere")}</h3>
+            {indirizzo.isError ? <p role="alert" className="text-sm text-muted-foreground">{t("Indirizzo non disponibile.")} <button type="button" onClick={() => void indirizzo.refetch()} className="underline">{t("Riprova")}</button></p>
+              : <p dir="auto" className="mt-0.5 break-words text-sm">{indirizzo.isPending ? t("Carico l’indirizzo…") : cantiere?.indirizzo ?? t("Da inserire")}</p>}
             {cantiere?.indirizzo && <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-              {strada ? <>Stima dalla sede · <b className="font-medium text-foreground">{kmIt(strada.km)} km{tempo && ` · ${tempo}`}</b> di sola andata</>
-                : !sede ? "Imposta la sede operativa per stimare la distanza."
-                  : cantiere.lat == null || cantiere.lng == null ? "Imposta la posizione sulla mappa per stimare la distanza."
-                    : distanze.isFetching ? "Calcolo il percorso dalla sede…" : "Stima del percorso non disponibile."}
+              {strada ? <>{t("Stima dalla sede")} · <b className="font-medium text-foreground">{kmIt(strada.km)} km{tempo && ` · ${tempo}`}</b> {t("di sola andata")}</>
+                : !sede ? t("Imposta la sede operativa per stimare la distanza.")
+                  : cantiere.lat == null || cantiere.lng == null ? t("Imposta la posizione sulla mappa per stimare la distanza.")
+                    : distanze.isFetching ? t("Calcolo il percorso dalla sede…") : t("Stima del percorso non disponibile.")}
             </p>}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {perms.canEditOrders && !perms.solaLettura && indirizzo.isSuccess && (
             <Button size="sm" variant={cantiere?.indirizzo ? "outline" : "default"} onClick={() => setModificaIndirizzo(true)}>
-              <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden />{cantiere?.indirizzo ? "Modifica indirizzo" : "Inserisci indirizzo"}
+              <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden />{cantiere?.indirizzo ? t("Modifica indirizzo") : t("Inserisci indirizzo")}
             </Button>
           )}
           {indicazioni && <Button asChild size="sm" variant="outline">
             <a href={indicazioni} target="_blank" rel="noopener noreferrer">
-              <Navigation className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />Indicazioni
+              <Navigation className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />{t("Indicazioni")}
             </a>
           </Button>}
         </div>
@@ -243,19 +247,19 @@ export function CantiereLogistica({ orderId, showSiteEquipment = true }: { order
       {((showSiteEquipment && (sulCantiere.length > 0 || montati.length > 0 || puoMezzi)) || conTutti.length > 0) && (
         <div className="flex flex-wrap items-center gap-1.5 border-t pt-2.5">
           <Truck className="mr-0.5 h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />
-          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{showSiteEquipment ? "Mezzi e attrezzi" : "Al seguito della squadra"}</span>
+          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{showSiteEquipment ? t("Mezzi e attrezzi") : t("Al seguito della squadra")}</span>
           {sulCantiere.length === 0 && montati.length === 0 && conTutti.length === 0 && (
-            <span className="text-xs text-muted-foreground">nessuno sul cantiere</span>
+            <span className="text-xs text-muted-foreground">{t("nessuno sul cantiere")}</span>
           )}
           {(showSiteEquipment ? sulCantiere : []).map((m) => (
             <span key={m.id} className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs", AZIONE_TENUE.mezzo)}>
               <b className="font-semibold">{m.nome}</b>{m.targa && <span className="opacity-80">{m.targa}</span>}
-              <span className="opacity-80">· sul cantiere</span>
+              <span className="opacity-80">· {t("sul cantiere")}</span>
               {puoMezzi && (
                 <button
                   type="button"
                   className="-mr-1 ml-0.5 rounded-full p-0.5 hover:bg-teal-200/60"
-                  aria-label={`Togli ${m.nome} dal cantiere`}
+                  aria-label={t("Togli {nome} dal cantiere", { nome: m.nome })}
                   disabled={togli.isPending}
                   onClick={() => togli.mutate({ mezzoId: m.id, orderId: null }, {
                     onSuccess: () => void qc.invalidateQueries({ queryKey: mezziLavoroKey(orderId) }),
@@ -267,13 +271,13 @@ export function CantiereLogistica({ orderId, showSiteEquipment = true }: { order
             </span>
           ))}
           {(showSiteEquipment ? montati : []).map((g) => {
-            const testo = <><b className="font-semibold">{g.nome}</b><span className="opacity-80">· {formatQuantita(g.quantita, g.unita)} montati</span></>;
+            const testo = <><b className="font-semibold">{g.nome}</b><span className="opacity-80">· {t("{quantita} montati", { quantita: formatQuantita(g.quantita, g.unita) })}</span></>;
             return vedeMezzi ? (
               <Link
                 key={g.id}
                 to={`/azienda/mezzi/${g.mezzo_id}`}
                 className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:underline", AZIONE_TENUE.mezzo)}
-                title="Montaggi e rientri dalla scheda dell'attrezzatura"
+                title={t("Montaggi e rientri dalla scheda dell'attrezzatura")}
               >
                 <Layers className="h-3 w-3" aria-hidden="true" />{testo}
               </Link>
@@ -286,12 +290,12 @@ export function CantiereLogistica({ orderId, showSiteEquipment = true }: { order
           {conTutti.map((m) => (
             <span key={m.id} className="inline-flex items-center gap-1 rounded-full border bg-background px-2.5 py-1 text-xs">
               <b className="font-semibold">{m.nome}</b>
-              <span className="text-muted-foreground">· {m.persona}{m.a_bordo.length > 0 ? `, con ${m.a_bordo.join(", ")}` : ""}</span>
+              <span className="text-muted-foreground">· {m.persona}{m.a_bordo.length > 0 ? `, ${t("con {persona}", { persona: m.a_bordo.join(", ") })}` : ""}</span>
             </span>
           ))}
           {puoMezzi && showSiteEquipment && (
             <Button size="sm" variant="outline" className={cn("h-7 rounded-full px-2.5 text-xs", AZIONE_TENUE.mezzo)} onClick={() => setAperto(true)}>
-              <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Mezzo o attrezzo
+              <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />{t("Mezzo o attrezzo")}
             </Button>
           )}
         </div>

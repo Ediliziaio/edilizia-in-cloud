@@ -17,6 +17,7 @@ import type { Installment } from "@/lib/orderUtils";
 import {
   puoCambiarePiano, quandoSiIncassa, rataPerServer, rateDaModello, riepilogoModello, saldoDaAllineare,
 } from "@/lib/orders/modelliPagamento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   orderId: string;
@@ -39,6 +40,7 @@ const arrotonda = (n: number): number => Math.round(n * 100) / 100;
  * (finché non ha incassi, fatture o SAL legati), e l'avviso del saldo salvato che non torna con il totale.
  */
 export function PianoPagamentiAzioni({ orderId, salPayment, totalAmount, vatRate, paymentType, financingCost = 0, financingCostMode, installments, puoModificare }: Props) {
+  const t = useT();
   const confirm = useConfirm();
   const { offerti } = useModelliPagamento();
   const { rateConSal } = useSalLegatiARate(orderId);
@@ -62,9 +64,9 @@ export function PianoPagamentiAzioni({ orderId, salPayment, totalAmount, vatRate
   const allinea = async () => {
     if (!saldo) return;
     const ok = await confirm({
-      title: `Portare il saldo a ${formatCurrency(saldo.calcolato)}?`,
-      description: `Adesso nel database vale ${formatCurrency(saldo.salvato)}, ma col totale con IVA risulta ${formatCurrency(saldo.calcolato)}: le previsioni di cassa e gli avvisi leggono quello salvato. Le rate già incassate non cambiano; le provvigioni sul saldo si ricalcolano sul nuovo importo.`,
-      confirmLabel: "Allinea il saldo",
+      title: t("Portare il saldo a {importo}?", { importo: formatCurrency(saldo.calcolato) }),
+      description: t("Adesso nel database vale {salvato}, ma col totale con IVA risulta {calcolato}: le previsioni di cassa e gli avvisi leggono quello salvato. Le rate già incassate non cambiano; le provvigioni sul saldo si ricalcolano sul nuovo importo.", { salvato: formatCurrency(saldo.salvato), calcolato: formatCurrency(saldo.calcolato) }),
+      confirmLabel: t("Allinea il saldo"),
     });
     if (!ok) return;
     sostituisci.mutate(installments.map((r) => rataPerServer(r.id === saldo.id ? { ...r, amount: saldo.calcolato } : r)));
@@ -75,16 +77,16 @@ export function PianoPagamentiAzioni({ orderId, salPayment, totalAmount, vatRate
 
   return (
     <div className="space-y-2">
-      {salPayment && <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3 text-sm"><span>{salPayment.mode==="advance_sal"?"Acconto + SAL effettivi":"Solo SAL effettivi"} · nessuna rata futura predefinita</span>{cambio.ok && <Button asChild variant="outline" size="sm"><Link to={`/azienda/ordini/${orderId}/modifica`}>Modifica modalità</Link></Button>}</div>}
+      {salPayment && <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3 text-sm"><span>{salPayment.mode==="advance_sal"?t("Acconto + SAL effettivi"):t("Solo SAL effettivi")} · {t("nessuna rata futura predefinita")}</span>{cambio.ok && <Button asChild variant="outline" size="sm"><Link to={`/azienda/ordini/${orderId}/modifica`}>{t("Modifica modalità")}</Link></Button>}</div>}
       {senzaRate && puoScegliere && (
         <Card className="border-dashed">
           <CardContent className="flex flex-wrap items-center gap-3 p-3">
             <Banknote aria-hidden="true" className="h-4 w-4 shrink-0 text-emerald-700" />
             <p className="min-w-0 flex-1 text-sm">
-              <span className="font-semibold">Come si paga questa commessa?</span>
-              <span className="text-muted-foreground max-sm:hidden"> Scegli un piano: le rate nascono già con il loro momento d'incasso.</span>
+              <span className="font-semibold">{t("Come si paga questa commessa?")}</span>
+              <span className="text-muted-foreground max-sm:hidden"> {t("Scegli un piano: le rate nascono già con il loro momento d'incasso.")}</span>
             </p>
-            <Button size="sm" onClick={() => setAperto(true)}>Scegli il piano</Button>
+            <Button size="sm" onClick={() => setAperto(true)}>{t("Scegli il piano")}</Button>
           </CardContent>
         </Card>
       )}
@@ -92,19 +94,19 @@ export function PianoPagamentiAzioni({ orderId, salPayment, totalAmount, vatRate
       {!senzaRate && puoScegliere && (
         <div className="flex justify-end">
           <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setAperto(true)}>
-            <Banknote className="mr-1 h-3.5 w-3.5" />Cambia il piano
+            <Banknote className="mr-1 h-3.5 w-3.5" />{t("Cambia il piano")}
           </Button>
         </div>
       )}
 
       {!salPayment && saldo && (
         <div role="status" className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
-          <p className="font-medium text-amber-900">Il saldo salvato non torna con il totale</p>
+          <p className="font-medium text-amber-900">{t("Il saldo salvato non torna con il totale")}</p>
           <p className="text-xs text-amber-800">
-            Salvato {formatCurrency(saldo.salvato)}; col totale con IVA risulta {formatCurrency(saldo.calcolato)}. Le previsioni di cassa e gli avvisi leggono quello salvato.
+            {t("Salvato {salvato}; col totale con IVA risulta {calcolato}. Le previsioni di cassa e gli avvisi leggono quello salvato.", { salvato: formatCurrency(saldo.salvato), calcolato: formatCurrency(saldo.calcolato) })}
           </p>
           <Button size="sm" variant="outline" className="border-amber-400 bg-white text-amber-900" disabled={sostituisci.isPending} onClick={() => { void allinea(); }}>
-            Allinea il saldo a {formatCurrency(saldo.calcolato)}
+            {t("Allinea il saldo a {importo}", { importo: formatCurrency(saldo.calcolato) })}
           </Button>
         </div>
       )}
@@ -112,15 +114,15 @@ export function PianoPagamentiAzioni({ orderId, salPayment, totalAmount, vatRate
       <Dialog open={aperto} onOpenChange={(o) => { if (!o) setAperto(false); }}>
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Come si paga</DialogTitle>
+            <DialogTitle>{t("Come si paga")}</DialogTitle>
             <DialogDescription>
-              Scegli il piano: le rate sono una parte del totale con IVA ({formatCurrency(totaleLordo)}) e hanno ognuna il suo momento d'incasso.
-              {installments.length > 0 ? " Le rate di adesso vengono sostituite." : ""}
+              {t("Scegli il piano: le rate sono una parte del totale con IVA ({importo}) e hanno ognuna il suo momento d'incasso.", { importo: formatCurrency(totaleLordo) })}
+              {installments.length > 0 ? ` ${t("Le rate di adesso vengono sostituite.")}` : ""}
             </DialogDescription>
           </DialogHeader>
 
           {totaleLordo <= 0 ? (
-            <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">La commessa non ha ancora un importo: scrivilo (Modifica) e poi scegli il piano.</p>
+            <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">{t("La commessa non ha ancora un importo: scrivilo (Modifica) e poi scegli il piano.")}</p>
           ) : (
             <RadioGroup value={scelto} onValueChange={setScelto} className="gap-2">
               {offerti.map((m) => (
@@ -136,7 +138,7 @@ export function PianoPagamentiAzioni({ orderId, salPayment, totalAmount, vatRate
           )}
 
           {anteprima.length > 0 && (
-            <ul aria-label="Anteprima delle rate" className="space-y-1 rounded-lg bg-muted/40 p-3 text-sm">
+            <ul aria-label={t("Anteprima delle rate")} className="space-y-1 rounded-lg bg-muted/40 p-3 text-sm">
               {anteprima.map((r) => (
                 <li key={r.position} className="flex items-baseline justify-between gap-2">
                   <span className="min-w-0 truncate">{r.label} <span className="text-xs text-muted-foreground">{quandoSiIncassa(r.trigger_evento, r.trigger_numero)}</span></span>
@@ -147,8 +149,8 @@ export function PianoPagamentiAzioni({ orderId, salPayment, totalAmount, vatRate
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAperto(false)}>Annulla</Button>
-            <Button onClick={applica} disabled={!modello || sostituisci.isPending}>Applica questo piano</Button>
+            <Button variant="outline" onClick={() => setAperto(false)}>{t("Annulla")}</Button>
+            <Button onClick={applica} disabled={!modello || sostituisci.isPending}>{t("Applica questo piano")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

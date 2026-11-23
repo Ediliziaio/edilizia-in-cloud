@@ -18,6 +18,7 @@ import { formattaEuro, type RiepilogoGenerale } from "@/lib/orders/commesseGener
 import { serieConfronto, sopraEBene, type Misura, type PuntoConfronto, type TotaliMisura } from "@/lib/orders/generali/serieSpesa";
 import { nomeMese } from "../piano/formato";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const MISURE: Record<Misura, { nome: string; colore: string; reale: string; piano: string; verbo: string }> = {
   costi: { nome: "Costi", colore: "#ea580c", reale: "Speso", piano: "Budget del piano", verbo: "spesi" },
@@ -33,9 +34,9 @@ const meseBreve = (m: string) => {
 /** «1,4 mln €», «350k €», «800 €»: sull'asse c'è poco spazio. */
 const asseBreve = (v: number) =>
   Math.abs(v) >= 1_000_000
-    ? `${(v / 1_000_000).toLocaleString("it-IT", { maximumFractionDigits: 1 })} mln €`
+    ? `${(v / 1_000_000).toLocaleString(intlCampo(), { maximumFractionDigits: 1 })} mln €`
     : Math.abs(v) >= 1000
-      ? `${Math.round(v / 1000).toLocaleString("it-IT")}k €`
+      ? `${Math.round(v / 1000).toLocaleString(intlCampo())}k €`
       : `${Math.round(v)} €`;
 
 const menoMovimento = () =>
@@ -49,6 +50,7 @@ const tono = (m: Misura, diff: number) => (Math.abs(diff) < 1 ? "text-muted-fore
 type Riga = { mese: string; piano: number; reale: number | null; acceso: number | null };
 
 function Suggerimento({ active, payload, misura }: { active?: boolean; payload?: Array<{ payload: Riga }>; misura: Misura }) {
+  const t = useT();
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   const diff = p.reale == null ? null : p.reale - p.piano;
@@ -58,22 +60,23 @@ function Suggerimento({ active, payload, misura }: { active?: boolean; payload?:
       <div className="mb-1.5 text-muted-foreground">{nomeMese(p.mese)}</div>
       {p.reale != null && (
         <div className="flex items-baseline justify-between gap-4">
-          <span className="text-muted-foreground">{d.reale}</span>
+          <span className="text-muted-foreground">{t(d.reale)}</span>
           <span className="text-sm font-semibold tabular-nums">{formattaEuro(p.reale)}</span>
         </div>
       )}
       <div className="flex items-baseline justify-between gap-4">
-        <span className="text-muted-foreground">{d.piano}</span>
+        <span className="text-muted-foreground">{t(d.piano)}</span>
         <span className="tabular-nums">{formattaEuro(p.piano)}</span>
       </div>
       {diff != null && Math.abs(diff) >= 1 && (
-        <div className={cn("mt-1 text-right font-medium tabular-nums", tono(misura, diff))}>{euroConSegno(diff)} rispetto al piano</div>
+        <div className={cn("mt-1 text-right font-medium tabular-nums", tono(misura, diff))}>{t("{importo} rispetto al piano", { importo: euroConSegno(diff) })}</div>
       )}
     </div>
   );
 }
 
 export function GraficoSpesa({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
+  const tr = useT();
   const n = useGeneralePianoNumeri(riepilogo);
   const [parametri, setParametri] = useSearchParams();
   const [sotto, setSotto] = useState<number | null>(null);
@@ -112,7 +115,7 @@ export function GraficoSpesa({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
     p.set("vista-piano", "cassa");
     setParametri(p);
   };
-  const pct = (x: number) => `${x.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`;
+  const pct = (x: number) => `${x.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`;
   const importo = (m: Misura, x: number) => (m === "margine" ? euroConSegno(x) : formattaEuro(x));
 
   return (
@@ -123,22 +126,22 @@ export function GraficoSpesa({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
             <IconaLinea aria-hidden="true" />
           </span>
           <div>
-            <h2 id="grafico-spesa-titolo">Previsto contro reale</h2>
-            <p>Cumulati mese per mese · importi netti</p>
+            <h2 id="grafico-spesa-titolo">{tr("Previsto contro reale")}</h2>
+            <p>{tr("Cumulati mese per mese · importi netti")}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           {permesse.length > 1 && (
-            <div className="generale-segmented" role="group" aria-label="Misura del grafico">
+            <div className="generale-segmented" role="group" aria-label={tr("Misura del grafico")}>
               {permesse.map((m) => (
                 <button key={m} type="button" aria-pressed={misura === m} onClick={() => setScelta(m)}>
-                  {MISURE[m].nome}
+                  {tr(MISURE[m].nome)}
                 </button>
               ))}
             </div>
           )}
           <button type="button" onClick={apriPiano} className="hidden items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground sm:inline-flex">
-            Cassa del piano <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+            {tr("Cassa del piano")} <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
       </header>
@@ -148,18 +151,18 @@ export function GraficoSpesa({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <span className="text-3xl font-bold tabular-nums">{importo(misura, t.realeOggi)}</span>
             <span className="text-sm text-muted-foreground">
-              {d.verbo} a {nomeMese(serie.oggi).toLowerCase()}
+              {tr("{verbo} a {mese}", { verbo: tr(d.verbo), mese: nomeMese(serie.oggi).toLowerCase() })}
             </span>
             {Math.abs(t.differenza) >= 1 && (
               <span className={cn("inline-flex items-center gap-1 text-sm font-medium", tono(misura, t.differenza))}>
                 {t.differenza > 0 ? <TrendingUp className="h-4 w-4" aria-hidden="true" /> : <TrendingDown className="h-4 w-4" aria-hidden="true" />}
-                {euroConSegno(t.differenza)} rispetto al piano a oggi
+                {tr("{importo} rispetto al piano a oggi", { importo: euroConSegno(t.differenza) })}
               </span>
             )}
           </div>
 
           <ChartContainer
-            config={{ reale: { label: d.reale, color: d.colore }, piano: { label: d.piano, color: "#94a3b8" } } satisfies ChartConfig}
+            config={{ reale: { label: tr(d.reale), color: d.colore }, piano: { label: tr(d.piano), color: "#94a3b8" } } satisfies ChartConfig}
             className="aspect-auto h-72 w-full [&_.recharts-curve.recharts-tooltip-cursor]:stroke-[initial]"
           >
             <ComposedChart
@@ -202,7 +205,7 @@ export function GraficoSpesa({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
                 x={serie.oggi}
                 stroke="var(--color-reale)"
                 strokeDasharray="4 4"
-                label={{ value: "oggi", position: "insideTopRight", fill: "var(--color-reale)", fontSize: 11 }}
+                label={{ value: tr("oggi"), position: "insideTopRight", fill: "var(--color-reale)", fontSize: 11 }}
               />
               <Line
                 type="monotone"
@@ -240,20 +243,20 @@ export function GraficoSpesa({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
 
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-0.5 w-5 rounded" style={{ backgroundColor: d.colore }} aria-hidden="true" /> {d.reale}, fino a oggi
+              <span className="h-0.5 w-5 rounded" style={{ backgroundColor: d.colore }} aria-hidden="true" /> {tr("{misura}, fino a oggi", { misura: tr(d.reale) })}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-0 w-5 border-t-2 border-dashed border-slate-400" aria-hidden="true" /> {d.piano}
+              <span className="h-0 w-5 border-t-2 border-dashed border-slate-400" aria-hidden="true" /> {tr(d.piano)}
             </span>
             {stimeMancanti && (
               <span className="text-amber-700">
-                Il piano non conta ancora {serie.vociSenzaImporto} {serie.vociSenzaImporto === 1 ? "voce" : "voci"} senza stima
-                {misura === "margine" ? ": il margine previsto è più alto del vero." : "."}
+                {tr(serie.vociSenzaImporto === 1 ? "Il piano non conta ancora 1 voce senza stima" : "Il piano non conta ancora {n} voci senza stima", { n: serie.vociSenzaImporto })}
+                {misura === "margine" ? tr(": il margine previsto è più alto del vero.") : "."}
               </span>
             )}
             {misura !== "costi" && serie.ricaviSenzaMese > 0 && (
               <span className="text-amber-700">
-                {serie.ricaviSenzaMese} {serie.ricaviSenzaMese === 1 ? "ricavo del piano senza mese: non entra" : "ricavi del piano senza mese: non entrano"} nella linea.
+                {tr(serie.ricaviSenzaMese === 1 ? "1 ricavo del piano senza mese: non entra nella linea." : "{n} ricavi del piano senza mese: non entrano nella linea.", { n: serie.ricaviSenzaMese })}
               </span>
             )}
           </div>
@@ -263,31 +266,31 @@ export function GraficoSpesa({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
           <div className="generale-appare flex flex-1 flex-col justify-between rounded-2xl bg-slate-900 p-5 text-white shadow-lg" style={{ "--i": 1 } as React.CSSProperties}>
             <div>
               <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                <Target className="h-3 w-3" aria-hidden="true" /> {misura === "costi" ? "Budget speso" : misura === "ricavi" ? "Ricavi ottenuti" : "Margine a fine lavori"}
+                <Target className="h-3 w-3" aria-hidden="true" /> {misura === "costi" ? tr("Budget speso") : misura === "ricavi" ? tr("Ricavi ottenuti") : tr("Margine a fine lavori")}
               </p>
-              <h3 className="text-lg font-semibold tracking-tight">Dove siamo sul piano</h3>
+              <h3 className="text-lg font-semibold tracking-tight">{tr("Dove siamo sul piano")}</h3>
             </div>
             {misura === "margine" ? (
               <div className="mt-6 space-y-1">
                 <div className="text-3xl font-semibold tabular-nums tracking-tight">{euroConSegno(t.pianoTotale)}</div>
                 <p className="text-xs text-slate-400">
-                  previsto a fine lavori · oggi il reale è {euroConSegno(t.realeOggi)}
-                  {stimeMancanti && " · mancano stime di costo"}
+                  {tr("previsto a fine lavori · oggi il reale è {importo}", { importo: euroConSegno(t.realeOggi) })}
+                  {stimeMancanti && tr(" · mancano stime di costo")}
                 </p>
               </div>
             ) : quota != null ? (
               <div className="mt-6">
                 <div className="mb-2 flex items-end justify-between">
                   <span className="text-3xl font-semibold tabular-nums tracking-tight">{pct(quota)}</span>
-                  {dovrei != null && <span className="mb-1 text-xs text-slate-400">a oggi il piano dice {pct(dovrei)}</span>}
+                  {dovrei != null && <span className="mb-1 text-xs text-slate-400">{tr("a oggi il piano dice {perc}", { perc: pct(dovrei) })}</span>}
                 </div>
                 <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-slate-700">
                   <div className="generale-barra-crescita h-full rounded-full bg-white" style={{ width: `${quota}%` }} />
-                  {dovrei != null && <div className="absolute inset-y-[-2px] w-0.5 bg-orange-400" style={{ left: `${dovrei}%` }} title="Dove dice il piano a oggi" />}
+                  {dovrei != null && <div className="absolute inset-y-[-2px] w-0.5 bg-orange-400" style={{ left: `${dovrei}%` }} title={tr("Dove dice il piano a oggi")} />}
                 </div>
               </div>
             ) : (
-              <p className="mt-6 text-sm text-slate-300">Il piano non ha ancora importi qui: completa le stime per vedere a che punto sei.</p>
+              <p className="mt-6 text-sm text-slate-300">{tr("Il piano non ha ancora importi qui: completa le stime per vedere a che punto sei.")}</p>
             )}
           </div>
           <div className="generale-appare flex-1 rounded-2xl border border-border bg-muted/40 p-5" style={{ "--i": 2 } as React.CSSProperties}>
@@ -295,22 +298,21 @@ export function GraficoSpesa({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
               <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
                 <CalendarClock className="h-4 w-4" aria-hidden="true" />
               </span>
-              <h3 className="font-semibold">Prossimi tre mesi</h3>
+              <h3 className="font-semibold">{tr("Prossimi tre mesi")}</h3>
             </div>
             {prossimi.length ? (
               <p className="text-sm text-muted-foreground">
-                {misura === "costi" ? "Il piano prevede di spendere " : misura === "ricavi" ? "Il piano prevede ricavi per " : "Il piano prevede un margine di "}
-                <span className="font-semibold text-foreground">{importo(misura, prossimoValore)}</span> fino a {nomeMese(prossimi[prossimi.length - 1].mese).toLowerCase()}.
+                {misura === "costi" ? tr("Il piano prevede di spendere {importo} fino a {mese}.", { importo: importo(misura, prossimoValore), mese: nomeMese(prossimi[prossimi.length - 1].mese).toLowerCase() }) : misura === "ricavi" ? tr("Il piano prevede ricavi per {importo} fino a {mese}.", { importo: importo(misura, prossimoValore), mese: nomeMese(prossimi[prossimi.length - 1].mese).toLowerCase() }) : tr("Il piano prevede un margine di {importo} fino a {mese}.", { importo: importo(misura, prossimoValore), mese: nomeMese(prossimi[prossimi.length - 1].mese).toLowerCase() })}
               </p>
             ) : (
-              <p className="text-sm text-muted-foreground">Il piano finisce qui: niente di previsto dopo oggi.</p>
+              <p className="text-sm text-muted-foreground">{tr("Il piano finisce qui: niente di previsto dopo oggi.")}</p>
             )}
           </div>
         </div>
       </div>
 
       {permesse.length > 1 && (
-        <ul className="grid grid-cols-1 gap-3 border-t px-5 py-4 sm:grid-cols-3" aria-label="Previsto e reale per misura">
+        <ul className="grid grid-cols-1 gap-3 border-t px-5 py-4 sm:grid-cols-3" aria-label={tr("Previsto e reale per misura")}>
           {permesse.map((m, i) => {
             const x: TotaliMisura = serie.totali[m];
             const dx = MISURE[m];
@@ -321,7 +323,7 @@ export function GraficoSpesa({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
                   type="button"
                   onClick={() => setScelta(m)}
                   aria-pressed={misura === m}
-                  aria-label={`Mostra ${dx.nome.toLowerCase()} nel grafico`}
+                  aria-label={tr("Mostra {misura} nel grafico", { misura: tr(dx.nome).toLowerCase() })}
                   className={cn(
                     "w-full rounded-xl border p-4 text-left transition-colors",
                     misura === m ? "border-foreground/30 bg-background shadow-sm" : "bg-muted/30 hover:bg-muted/60",
@@ -329,7 +331,7 @@ export function GraficoSpesa({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
                 >
                   <span className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: dx.colore }} aria-hidden="true" />
-                    {dx.nome}
+                    {tr(dx.nome)}
                   </span>
                   <span className="flex items-baseline justify-between gap-2">
                     <span className="text-xl font-bold tabular-nums tracking-tight">{importo(m, x.realeOggi)}</span>
@@ -340,7 +342,7 @@ export function GraficoSpesa({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
                     )}
                   </span>
                   <span className="mt-1 block text-xs text-muted-foreground">
-                    reale a oggi · previsto a oggi {importo(m, x.pianoOggi)} · a fine lavori{" "}
+                    {tr("reale a oggi · previsto a oggi {importo} · a fine lavori", { importo: importo(m, x.pianoOggi) })}{" "}
                     <span className="font-medium text-foreground">{importo(m, x.pianoTotale)}</span>
                   </span>
                 </button>

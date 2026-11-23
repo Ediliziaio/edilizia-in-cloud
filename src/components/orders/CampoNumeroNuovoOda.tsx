@@ -4,6 +4,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAnteprimaNumeroOda } from "@/hooks/useNumerazioneOda";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CampoNumeroNuovoOda({ supplierId, value, onChange }: {
   supplierId: string | null;
@@ -11,21 +12,22 @@ export function CampoNumeroNuovoOda({ supplierId, value, onChange }: {
   value: string | null;
   onChange: (numero: string | null, anteprima: string | null) => void;
 }) {
+  const t = useT();
   const anteprima = useAnteprimaNumeroOda(supplierId);
   const suggerito = anteprima.data ?? null;
   return (
     <div className="space-y-2">
-      <Label htmlFor="nuovo-oda-numero">Numero</Label>
+      <Label htmlFor="nuovo-oda-numero">{t("Numero")}</Label>
       <Input
         id="nuovo-oda-numero"
         value={value ?? suggerito ?? ""}
         maxLength={60}
-        placeholder={anteprima.isLoading ? "Calcolo del prossimo numero…" : "Lo assegna il sistema"}
+        placeholder={anteprima.isLoading ? t("Calcolo del prossimo numero…") : t("Lo assegna il sistema")}
         onChange={(e) => onChange(e.target.value, suggerito)}
         aria-describedby="nuovo-oda-numero-aiuto"
       />
       <p id="nuovo-oda-numero-aiuto" className="text-[11px] text-slate-500">
-        È il prossimo della numerazione. Puoi cambiarlo; se lo svuoti lo assegna il sistema.
+        {t("È il prossimo della numerazione. Puoi cambiarlo; se lo svuoti lo assegna il sistema.")}
       </p>
     </div>
   );

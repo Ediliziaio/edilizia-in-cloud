@@ -14,6 +14,7 @@ import { conAliquota } from "@/lib/orders/ivaCommessa";
 import type { DatiVoce } from "@/hooks/useSottofasi";
 import { percentualeDaQuantita, quantitaEseguita } from "@/lib/orders/sottofasi";
 import { OfficeSelect } from "./OfficeSelect";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // La tabella non è nei tipi generati con le colonne usate qui.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,6 +47,7 @@ interface RapportinoVoce { id: string; data: string; stato: string; chi: string;
  * sottofase. Il nome è di chi ha scritto il rapportino; la squadra si legge dalle sue presenze.
  */
 function RapportiniVoce({ orderId, sottofaseId, unita }: { orderId: string; sottofaseId: string; unita?: string | null }) {
+  const t = useT();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["rapportini-sottofase", orderId, sottofaseId],
     staleTime: 60_000,
@@ -67,30 +69,30 @@ function RapportiniVoce({ orderId, sottofaseId, unita }: { orderId: string; sott
       const nomi = new Map<string, string>();
       if (ids.length) {
         const { data: profili } = await db.from("profiles").select("id, first_name, last_name").in("id", ids);
-        for (const p of (profili ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>) nomi.set(p.id, [p.first_name, p.last_name].filter(Boolean).join(" ") || "Senza nome");
+        for (const p of (profili ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>) nomi.set(p.id, [p.first_name, p.last_name].filter(Boolean).join(" ") || t("Senza nome"));
       }
       return scelte.map((r) => {
         const v = della(r)!;
         const avanzata = v.sottofasi_avanzate?.find((a) => a.id === sottofaseId);
         const presenze = Array.isArray(r.presenze) ? (r.presenze as Array<{ nome?: string }>).map((x) => x?.nome).filter(Boolean) : [];
-        const cosa = v.sottofasi_fatte?.includes(sottofaseId) ? "finita" : avanzata?.quantita ? `+${avanzata.quantita.toLocaleString("it-IT")}${unita ? ` ${unita}` : ""}` : avanzata?.percentuale ? `fino al ${avanzata.percentuale}%` : "ci ha lavorato";
-        return { id: r.id, data: r.data_lavoro, stato: r.stato, chi: presenze.length > 1 ? `${nomi.get(r.user_id ?? "") ?? "—"} e squadra (${presenze.length})` : nomi.get(r.user_id ?? "") ?? "—", ore: r.ore_lavorate, cosa };
+        const cosa = v.sottofasi_fatte?.includes(sottofaseId) ? t("finita") : avanzata?.quantita ? `+${avanzata.quantita.toLocaleString(intlCampo())}${unita ? ` ${unita}` : ""}` : avanzata?.percentuale ? t("fino al {pct}%", { pct: avanzata.percentuale }) : t("ci ha lavorato");
+        return { id: r.id, data: r.data_lavoro, stato: r.stato, chi: presenze.length > 1 ? t("{nome} e squadra ({n})", { nome: nomi.get(r.user_id ?? "") ?? "—", n: presenze.length }) : nomi.get(r.user_id ?? "") ?? "—", ore: r.ore_lavorate, cosa };
       });
     },
   });
-  if (isLoading) return <p className="text-xs text-muted-foreground">Carico i rapportini…</p>;
-  if (isError) return <p role="alert" className="text-xs text-muted-foreground">Rapportini non disponibili.</p>;
-  if (!data?.length) return <p className="text-xs text-muted-foreground">Nessun rapportino dichiara questa voce.</p>;
+  if (isLoading) return <p className="text-xs text-muted-foreground">{t("Carico i rapportini…")}</p>;
+  if (isError) return <p role="alert" className="text-xs text-muted-foreground">{t("Rapportini non disponibili.")}</p>;
+  if (!data?.length) return <p className="text-xs text-muted-foreground">{t("Nessun rapportino dichiara questa voce.")}</p>;
   const persone = [...new Set(data.map((r) => r.chi))];
   return (
     <div className="space-y-1">
-      <p className="text-xs">Ci hanno lavorato: <span className="font-medium">{persone.join(", ")}</span></p>
+      <p className="text-xs">{t("Ci hanno lavorato:")} <span className="font-medium">{persone.join(", ")}</span></p>
       <ul className="divide-y">
         {data.map((r) => (
           <li key={r.id} className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] gap-2 py-0.5 text-xs">
             <span className="tabular-nums">{giorno(r.data)}</span>
             <span className="min-w-0 truncate" title={r.chi}>{r.chi}{r.ore ? ` · ${r.ore} h` : ""}</span>
-            <span className={r.stato === "approvato" ? "text-muted-foreground" : "text-amber-700"}>{r.cosa}{r.stato === "approvato" ? "" : " · da approvare"}</span>
+            <span className={r.stato === "approvato" ? "text-muted-foreground" : "text-amber-700"}>{r.cosa}{r.stato === "approvato" ? "" : ` · ${t("da approvare")}`}</span>
           </li>
         ))}
       </ul>
@@ -100,6 +102,7 @@ function RapportiniVoce({ orderId, sottofaseId, unita }: { orderId: string; sott
 
 /** A che punto è la voce: i pulsanti salvano subito, il campo col «Salva» che compare solo se si cambia. */
 function Avanzamento({ riga: r, puoModificare, onAvanza, onSegna }: { riga: RigaDistinta; puoModificare: boolean; onAvanza: Props["onAvanza"]; onSegna: Props["onSegna"] }) {
+  const t = useT();
   const eseguita = quantitaEseguita(r);
   const [quantita, setQuantita] = useState(eseguita === null ? "" : String(eseguita));
   const [pct, setPct] = useState(String(r.percentuale));
@@ -119,15 +122,15 @@ function Avanzamento({ riga: r, puoModificare, onAvanza, onSegna }: { riga: Riga
   if (r.fatta) {
     return (
       <div className="flex items-center justify-between gap-2">
-        <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-700"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Fatta</p>
-        {puoModificare && <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => onSegna(r.sottofaseId!, false)}>Riapri</Button>}
+        <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-700"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{t("Fatta")}</p>
+        {puoModificare && <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => onSegna(r.sottofaseId!, false)}>{t("Riapri")}</Button>}
       </div>
     );
   }
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <div role="progressbar" aria-label="Avanzamento della voce" aria-valuenow={r.percentuale} aria-valuemin={0} aria-valuemax={100} className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+        <div role="progressbar" aria-label={t("Avanzamento della voce")} aria-valuenow={r.percentuale} aria-valuemin={0} aria-valuemax={100} className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
           <div className="h-full bg-primary" style={{ width: `${r.percentuale}%` }} />
         </div>
         <span className="w-10 text-right text-sm font-semibold tabular-nums">{r.percentuale}%</span>
@@ -138,22 +141,22 @@ function Avanzamento({ riga: r, puoModificare, onAvanza, onSegna }: { riga: Riga
             {[0, 25, 50, 75].map((p) => (
               <Button key={p} type="button" size="sm" variant={r.percentuale === p ? "secondary" : "outline"} aria-pressed={r.percentuale === p} className="h-7 flex-1 px-0 text-xs tabular-nums" onClick={() => scegli(p)}>{p}%</Button>
             ))}
-            <Button type="button" size="sm" variant="outline" className="h-7 flex-1 gap-1 px-0 text-xs text-emerald-700" onClick={() => onSegna(r.sottofaseId!, true)}><Check className="h-3.5 w-3.5" aria-hidden="true" />Fatta</Button>
+            <Button type="button" size="sm" variant="outline" className="h-7 flex-1 gap-1 px-0 text-xs text-emerald-700" onClick={() => onSegna(r.sottofaseId!, true)}><Check className="h-3.5 w-3.5" aria-hidden="true" />{t("Fatta")}</Button>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {misurabile ? (
-              <label className="flex min-w-0 flex-1 items-center gap-1.5">Fatti
-                <Input type="number" min={0} step="any" value={quantita} onChange={(e) => setQuantita(e.target.value)} aria-label={`Fatti, su ${r.quantita}`} className="h-7 w-24 px-1.5 text-xs" />
-                <span className="truncate">su {r.quantita!.toLocaleString("it-IT", { maximumFractionDigits: 2 })}{r.unita ? ` ${r.unita}` : ""}</span>
+              <label className="flex min-w-0 flex-1 items-center gap-1.5">{t("Fatti")}
+                <Input type="number" min={0} step="any" value={quantita} onChange={(e) => setQuantita(e.target.value)} aria-label={t("Fatti, su {n}", { n: r.quantita! })} className="h-7 w-24 px-1.5 text-xs" />
+                <span className="truncate">{t("su {n}", { n: r.quantita!.toLocaleString(intlCampo(), { maximumFractionDigits: 2 }) })}{r.unita ? ` ${r.unita}` : ""}</span>
               </label>
             ) : (
-              <label className="flex min-w-0 flex-1 items-center gap-1.5">Percentuale
+              <label className="flex min-w-0 flex-1 items-center gap-1.5">{t("Percentuale")}
                 <Input type="number" min={0} max={100} value={pct} onChange={(e) => setPct(e.target.value)} className="h-7 w-20 px-1.5 text-xs" />%
               </label>
             )}
-            {valido && <Button type="button" size="sm" className="h-7 text-xs" onClick={salva}>Salva</Button>}
+            {valido && <Button type="button" size="sm" className="h-7 text-xs" onClick={salva}>{t("Salva")}</Button>}
           </div>
-          {cambiata && quantitaValida && nQuantita! > r.quantita! && <p className="text-xs text-amber-700">Più del previsto: la voce risulterà finita.</p>}
+          {cambiata && quantitaValida && nQuantita! > r.quantita! && <p className="text-xs text-amber-700">{t("Più del previsto: la voce risulterà finita.")}</p>}
         </>
       )}
     </div>
@@ -168,6 +171,7 @@ const testoDi = (n: number | null | undefined) => (n ? String(n) : "");
 
 /** Quantità e prezzi: una sottofase scritta a mano parte vuota, e con questi campi nasce la sua voce. */
 function DatiLavorazione({ riga: r, vedeVenduto, puoModificare, onSalva }: { riga: RigaDistinta; vedeVenduto: boolean; puoModificare: boolean; onSalva?: Props["onSalvaVoce"] }) {
+  const tr = useT();
   const inizio = { q: testoDi(r.quantita), u: r.unita ?? "", i: testoDi(r.venduto), l: testoDi(r.costoManodopera), m: testoDi(r.costoMateriali) };
   const [c, setC] = useState(inizio);
   // Su una commessa grande il dato torna dopo qualche secondo: il secondo clic creerebbe una voce doppia.
@@ -187,18 +191,18 @@ function DatiLavorazione({ riga: r, vedeVenduto, puoModificare, onSalva }: { rig
   return (
     <div className="space-y-1.5">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {campo("q", "Quantità")}
-        {campo("u", "Unità", "text")}
-        {vedeVenduto && campo("i", "Imponibile totale €")}
-        {campo("l", "Lavoro €/unità")}
-        {campo("m", "Materiali €/unità")}
+        {campo("q", tr("Quantità"))}
+        {campo("u", tr("Unità"), "text")}
+        {vedeVenduto && campo("i", tr("Imponibile totale €"))}
+        {campo("l", tr("Lavoro €/unità"))}
+        {campo("m", tr("Materiali €/unità"))}
       </div>
-      {previsto > 0 && <p className="text-xs text-muted-foreground">Costo previsto: {formatCurrency(previsto)}</p>}
-      {!valido && <p role="alert" className="text-xs text-rose-700">Scrivi numeri non negativi.</p>}
+      {previsto > 0 && <p className="text-xs text-muted-foreground">{tr("Costo previsto: {importo}", { importo: formatCurrency(previsto) })}</p>}
+      {!valido && <p role="alert" className="text-xs text-rose-700">{tr("Scrivi numeri non negativi.")}</p>}
       {puoModificare && cambiato && onSalva && (
         <Button type="button" size="sm" className="h-7 text-xs" disabled={!valido || inviato}
           onClick={() => { setInviato(true); onSalva(r, { quantita: q ?? 0, unita: c.u.trim() || null, costoManodopera: l ?? 0, costoMateriali: m ?? 0, ...(vedeVenduto ? { importo: i || null } : {}) }); }}>
-          {inviato ? "Salvataggio…" : "Salva quantità e prezzi"}
+          {inviato ? tr("Salvataggio…") : tr("Salva quantità e prezzi")}
         </Button>
       )}
     </div>
@@ -243,6 +247,7 @@ interface Props {
 
 /** I campi ripartono dai valori salvati con la `key`: cambiando voce, o quando il database completa le date. */
 function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi, onSalvaVoce, chiSottofase = [], chiDisponibile, opzioniChi, onAggiungiChi, onTogliChi, onRisorse, onParallelo, onSegna, onAvanza, onPianifica, onAssegna, onCreaSottofasi }: Omit<Props, "riga" | "posizione" | "onChiudi" | "onVicina"> & { riga: RigaDistinta }) {
+  const t = useT();
   const [inizio, setInizio] = useState(r.inizio ?? "");
   const [fine, setFine] = useState(r.fine ?? "");
   const [giorni, setGiorni] = useState(r.giorni ? String(r.giorni) : "");
@@ -263,14 +268,14 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
     });
   };
   const margine = r.venduto && r.previsto !== null ? r.venduto - r.previsto : null;
-  const quantita = r.quantita !== null ? `${r.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${r.unita ? ` ${r.unita}` : ""}` : null;
+  const quantita = r.quantita !== null ? `${r.quantita.toLocaleString(intlCampo(), { maximumFractionDigits: 2 })}${r.unita ? ` ${r.unita}` : ""}` : null;
   const ritardo = !r.fatta && !!r.fine && !!oggi && r.fine < oggi;
-  const lavoro = [r.iniziataIl ? `iniziata il ${giorno(r.iniziataIl)}` : null, r.giorniLavorati > 0 ? `${r.giorniLavorati} ${r.giorniLavorati === 1 ? "giorno" : "giorni"} dai rapportini` : null].filter(Boolean).join(" · ");
+  const lavoro = [r.iniziataIl ? t("iniziata il {data}", { data: giorno(r.iniziataIl) }) : null, r.giorniLavorati > 0 ? t(r.giorniLavorati === 1 ? "{n} giorno dai rapportini" : "{n} giorni dai rapportini", { n: r.giorniLavorati }) : null].filter(Boolean).join(" · ");
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
       <div className="space-y-3">
-        <Riquadro titolo="Stato dei lavori">
+        <Riquadro titolo={t("Stato dei lavori")}>
           {r.sottofaseId ? (
             <>
               <Avanzamento key={`${r.percentuale}|${r.quantitaFatta}|${r.fatta}`} riga={r} puoModificare={puoModificare} onAvanza={onAvanza} onSegna={onSegna} />
@@ -278,26 +283,26 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
             </>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Questa voce non ha ancora una sottofase: senza, non ha date né stato.</p>
-              {puoModificare && <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => onCreaSottofasi(r.faseId)}><ListChecks className="h-3.5 w-3.5" aria-hidden="true" />Crea le sottofasi della fase</Button>}
+              <p className="text-xs text-muted-foreground">{t("Questa voce non ha ancora una sottofase: senza, non ha date né stato.")}</p>
+              {puoModificare && <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => onCreaSottofasi(r.faseId)}><ListChecks className="h-3.5 w-3.5" aria-hidden="true" />{t("Crea le sottofasi della fase")}</Button>}
             </div>
           )}
         </Riquadro>
 
         {r.sottofaseId && (
-          <Riquadro titolo="Quando">
+          <Riquadro titolo={t("Quando")}>
             <div className="grid grid-cols-[1fr_1fr_4.5rem] gap-2">
-              <label className="space-y-0.5 text-xs text-muted-foreground">Dal<Input type="date" value={inizio} disabled={!puoModificare} onChange={(e) => setInizio(e.target.value)} className="h-8 px-1 text-xs" /></label>
-              <label className="space-y-0.5 text-xs text-muted-foreground">Al<Input type="date" value={fine} disabled={!puoModificare} onChange={(e) => setFine(e.target.value)} className="h-8 px-1 text-xs" /></label>
-              <label className="space-y-0.5 text-xs text-muted-foreground">Giorni<Input type="number" min={1} max={3650} value={giorni} disabled={!puoModificare} onChange={(e) => setGiorni(e.target.value)} className="h-8 px-1 text-xs" /></label>
+              <label className="space-y-0.5 text-xs text-muted-foreground">{t("Dal")}<Input type="date" value={inizio} disabled={!puoModificare} onChange={(e) => setInizio(e.target.value)} className="h-8 px-1 text-xs" /></label>
+              <label className="space-y-0.5 text-xs text-muted-foreground">{t("Al")}<Input type="date" value={fine} disabled={!puoModificare} onChange={(e) => setFine(e.target.value)} className="h-8 px-1 text-xs" /></label>
+              <label className="space-y-0.5 text-xs text-muted-foreground">{t("Giorni")}<Input type="number" min={1} max={3650} value={giorni} disabled={!puoModificare} onChange={(e) => setGiorni(e.target.value)} className="h-8 px-1 text-xs" /></label>
             </div>
-            {!dateOk && <p role="alert" className="text-xs text-rose-700">La fine viene prima dell'inizio.</p>}
-            {ritardo && <p className="text-xs font-medium text-rose-700">In ritardo: doveva finire il {giorno(r.fine!)}</p>}
+            {!dateOk && <p role="alert" className="text-xs text-rose-700">{t("La fine viene prima dell'inizio.")}</p>}
+            {ritardo && <p className="text-xs font-medium text-rose-700">{t("In ritardo: doveva finire il {data}", { data: giorno(r.fine!) })}</p>}
             {(onRisorse || onParallelo) && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                 {onRisorse && (
-                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">Persone
-                    <Input key={String(r.risorse)} type="number" min={1} max={999} defaultValue={r.risorse ?? ""} disabled={!puoModificare} aria-label="Persone che ci lavorano"
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">{t("Persone")}
+                    <Input key={String(r.risorse)} type="number" min={1} max={999} defaultValue={r.risorse ?? ""} disabled={!puoModificare} aria-label={t("Persone che ci lavorano")}
                       onBlur={(e) => {
                         const n = e.target.value === "" ? null : Number(e.target.value);
                         if (n === (r.risorse ?? null) || (n !== null && (!Number.isInteger(n) || n < 1))) return;
@@ -309,13 +314,13 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
                 {onParallelo && (
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <input type="checkbox" checked={r.inParallelo} disabled={!puoModificare} onChange={(e) => onParallelo(r.sottofaseId!, e.target.checked)} />
-                    Insieme alla precedente
+                    {t("Insieme alla precedente")}
                   </label>
                 )}
               </div>
             )}
             {puoModificare && cambiato && (
-              <Button type="button" size="sm" className="h-7 text-xs" disabled={!dateOk || !giorniValidi} onClick={salvaDate}>Salva le date</Button>
+              <Button type="button" size="sm" className="h-7 text-xs" disabled={!dateOk || !giorniValidi} onClick={salvaDate}>{t("Salva le date")}</Button>
             )}
           </Riquadro>
         )}
@@ -323,52 +328,52 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
 
       <div className="space-y-3">
         {(vedeVenduto || vedeCosti) && (
-          <Riquadro titolo="Economia">
+          <Riquadro titolo={t("Economia")}>
             <dl className="space-y-0.5">
-              <Dato etichetta="Quantità" valore={quantita ?? "—"} />
-              {vedeVenduto && <Dato etichetta="Imponibile" valore={r.venduto ? formatCurrency(r.venduto) : "—"} forte />}
-              {vedeVenduto && r.venduto ? <Dato etichetta={`Con IVA ${aliquota.toLocaleString("it-IT")}%`} valore={formatCurrency(conAliquota(r.venduto, aliquota).totale)} /> : null}
-              {vedeCosti && <Dato etichetta="Costo previsto" valore={r.previsto !== null ? formatCurrency(r.previsto) : "Da definire"} />}
-              {vedeMargini && vedeVenduto && vedeCosti && margine !== null && <Dato etichetta="Margine previsto" valore={`${formatCurrency(margine)} · ${Math.round((margine / r.venduto!) * 100)}%`} />}
-              {vedeCosti && !!consuntivoFase && <Dato etichetta="Speso sulla fase" valore={formatCurrency(consuntivoFase)} />}
+              <Dato etichetta={t("Quantità")} valore={quantita ?? "—"} />
+              {vedeVenduto && <Dato etichetta={t("Imponibile")} valore={r.venduto ? formatCurrency(r.venduto) : "—"} forte />}
+              {vedeVenduto && r.venduto ? <Dato etichetta={t("Con IVA {aliquota}%", { aliquota: aliquota.toLocaleString(intlCampo()) })} valore={formatCurrency(conAliquota(r.venduto, aliquota).totale)} /> : null}
+              {vedeCosti && <Dato etichetta={t("Costo previsto")} valore={r.previsto !== null ? formatCurrency(r.previsto) : t("Da definire")} />}
+              {vedeMargini && vedeVenduto && vedeCosti && margine !== null && <Dato etichetta={t("Margine previsto")} valore={`${formatCurrency(margine)} · ${Math.round((margine / r.venduto!) * 100)}%`} />}
+              {vedeCosti && !!consuntivoFase && <Dato etichetta={t("Speso sulla fase")} valore={formatCurrency(consuntivoFase)} />}
             </dl>
             {vedeCosti && (r.sottofaseId || r.voceId) && puoModificare && (
               prezzi
                 ? <DatiLavorazione key={`${r.voceId}|${r.quantita}|${r.unita}|${r.venduto}|${r.costoManodopera}|${r.costoMateriali}`} riga={r} vedeVenduto={vedeVenduto} puoModificare={puoModificare} onSalva={onSalvaVoce} />
-                : <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setPrezzi(true)}><Pencil className="h-3 w-3" aria-hidden="true" />{r.voceId ? "Modifica quantità e prezzi" : "Aggiungi quantità e prezzi"}</Button>
+                : <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setPrezzi(true)}><Pencil className="h-3 w-3" aria-hidden="true" />{r.voceId ? t("Modifica quantità e prezzi") : t("Aggiungi quantità e prezzi")}</Button>
             )}
           </Riquadro>
         )}
-        <Riquadro titolo="Chi la fa">
+        <Riquadro titolo={t("Chi la fa")}>
           {chiDisponibile && r.sottofaseId && (
             <div className="space-y-1.5">
               <div className="flex flex-wrap gap-1">
-                {chiSottofase.length === 0 && <span className="text-xs text-muted-foreground">Nessuno su questa sottofase: vale chi è sulla fase.</span>}
+                {chiSottofase.length === 0 && <span className="text-xs text-muted-foreground">{t("Nessuno su questa sottofase: vale chi è sulla fase.")}</span>}
                 {chiSottofase.map((c) => (
                   <span key={c.id} className="flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-900">
                     {c.nome}
-                    {puoModificare && onTogliChi && <button type="button" aria-label={`Togli ${c.nome}`} onClick={() => onTogliChi(c.id)} className="rounded-full hover:text-rose-700">×</button>}
+                    {puoModificare && onTogliChi && <button type="button" aria-label={t("Togli {nome}", { nome: c.nome })} onClick={() => onTogliChi(c.id)} className="rounded-full hover:text-rose-700">×</button>}
                   </span>
                 ))}
               </div>
               {puoModificare && onAggiungiChi && opzioniChi && (
-                <OfficeSelect label="Aggiungi chi fa questa sottofase" value="" onValueChange={(v) => v && onAggiungiChi(v)}
-                  className="h-7 w-full rounded-lg px-1 text-xs" placeholder="+ Aggiungi persona, squadra o ditta…"
+                <OfficeSelect label={t("Aggiungi chi fa questa sottofase")} value="" onValueChange={(v) => v && onAggiungiChi(v)}
+                  className="h-7 w-full rounded-lg px-1 text-xs" placeholder={t("+ Aggiungi persona, squadra o ditta…")}
                   options={[
-                    ...opzioniChi.squadre.map((o) => ({ value: `d:${o.id}`, label: o.nome, group: "Squadre" })),
-                    ...opzioniChi.persone.map((o) => ({ value: `p:${o.id}`, label: o.nome, group: "Persone" })),
-                    ...opzioniChi.ditte.map((o) => ({ value: `d:${o.id}`, label: o.nome, group: "Ditte" })),
+                    ...opzioniChi.squadre.map((o) => ({ value: `d:${o.id}`, label: o.nome, group: t("Squadre") })),
+                    ...opzioniChi.persone.map((o) => ({ value: `p:${o.id}`, label: o.nome, group: t("Persone") })),
+                    ...opzioniChi.ditte.map((o) => ({ value: `d:${o.id}`, label: o.nome, group: t("Ditte") })),
                   ]} />
               )}
             </div>
           )}
           <div className="flex items-center justify-between gap-2">
-            <p className="min-w-0 text-xs text-muted-foreground">{chiDisponibile ? "Sulla fase: " : ""}<span className="text-sm text-foreground">{chiLaFa.join(", ") || <span className="text-amber-700">nessuno</span>}</span></p>
-            {puoModificare && <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 text-xs" onClick={() => onAssegna(r.faseId)}><Users className="h-3.5 w-3.5" aria-hidden="true" />Assegna alla fase</Button>}
+            <p className="min-w-0 text-xs text-muted-foreground">{chiDisponibile ? `${t("Sulla fase:")} ` : ""}<span className="text-sm text-foreground">{chiLaFa.join(", ") || <span className="text-amber-700">{t("nessuno")}</span>}</span></p>
+            {puoModificare && <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 text-xs" onClick={() => onAssegna(r.faseId)}><Users className="h-3.5 w-3.5" aria-hidden="true" />{t("Assegna alla fase")}</Button>}
           </div>
         </Riquadro>
         {r.sottofaseId && orderId && (
-          <Riquadro titolo="Chi ci ha lavorato"><RapportiniVoce orderId={orderId} sottofaseId={r.sottofaseId} unita={r.unita} /></Riquadro>
+          <Riquadro titolo={t("Chi ci ha lavorato")}><RapportiniVoce orderId={orderId} sottofaseId={r.sottofaseId} unita={r.unita} /></Riquadro>
         )}
       </div>
     </div>
@@ -376,6 +381,7 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
 }
 
 export function SchedaVoce({ riga, posizione, onChiudi, onVicina, incorporata, ...resto }: Props) {
+  const t = useT();
   const [nome, setNome] = useState<string | null>(null);
   // Le frecce passano alla voce vicina, se non si sta scrivendo in un campo.
   const frecce = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -391,36 +397,36 @@ export function SchedaVoce({ riga, posizione, onChiudi, onVicina, incorporata, .
               <div className="flex items-center justify-between gap-2 pr-6 text-xs text-muted-foreground">
                 <span className="min-w-0 truncate uppercase tracking-wide">{riga.faseNome}{riga.codice ? ` · ${riga.codice}` : ""}</span>
                 <span className="flex shrink-0 items-center gap-1 tabular-nums">
-                  <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => resto.onApriScheda(riga.faseId)}>Apri la fase</Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => resto.onApriScheda(riga.faseId)}>{t("Apri la fase")}</Button>
                   {resto.puoModificare && riga.sottofaseId && (
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" className="h-6 w-6" aria-label="Altro per questa voce"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                      <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" className="h-6 w-6" aria-label={t("Altro per questa voce")}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setNome(riga.descrizione.slice(0, 160))}><Pencil className="mr-2 h-3.5 w-3.5" />Rinomina</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => resto.onSposta(riga, -1)}><ArrowUp className="mr-2 h-3.5 w-3.5" />Sposta su</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => resto.onSposta(riga, 1)}><ArrowDown className="mr-2 h-3.5 w-3.5" />Sposta giù</DropdownMenuItem>
-                        <DropdownMenuItem className="text-rose-700" onClick={() => resto.onElimina(riga)}><Trash2 className="mr-2 h-3.5 w-3.5" />Elimina</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setNome(riga.descrizione.slice(0, 160))}><Pencil className="mr-2 h-3.5 w-3.5" />{t("Rinomina")}</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => resto.onSposta(riga, -1)}><ArrowUp className="mr-2 h-3.5 w-3.5" />{t("Sposta su")}</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => resto.onSposta(riga, 1)}><ArrowDown className="mr-2 h-3.5 w-3.5" />{t("Sposta giù")}</DropdownMenuItem>
+                        <DropdownMenuItem className="text-rose-700" onClick={() => resto.onElimina(riga)}><Trash2 className="mr-2 h-3.5 w-3.5" />{t("Elimina")}</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
                   {!incorporata && <>
-                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero <= 1} aria-label="Voce prima" onClick={() => onVicina(-1)}><ChevronLeft className="h-4 w-4" /></Button>
-                  {posizione.numero} di {posizione.totale}
-                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero >= posizione.totale} aria-label="Voce dopo" onClick={() => onVicina(1)}><ChevronRight className="h-4 w-4" /></Button>
+                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero <= 1} aria-label={t("Voce prima")} onClick={() => onVicina(-1)}><ChevronLeft className="h-4 w-4" /></Button>
+                  {t("{n} di {totale}", { n: posizione.numero, totale: posizione.totale })}
+                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero >= posizione.totale} aria-label={t("Voce dopo")} onClick={() => onVicina(1)}><ChevronRight className="h-4 w-4" /></Button>
                   </>}
                 </span>
               </div>
               {nome !== null ? (
                 <div className="flex items-center gap-1.5">
-                  <Input autoFocus value={nome} maxLength={160} aria-label="Nuovo nome" onChange={(e) => setNome(e.target.value)}
+                  <Input autoFocus value={nome} maxLength={160} aria-label={t("Nuovo nome")} onChange={(e) => setNome(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && nome.trim()) { resto.onRinomina(riga.sottofaseId!, nome.trim()); setNome(null); } else if (e.key === "Escape") setNome(null); }}
                     className="h-8 text-sm" />
-                  <Button type="button" size="sm" className="h-8 text-xs" disabled={!nome.trim()} onClick={() => { resto.onRinomina(riga.sottofaseId!, nome.trim()); setNome(null); }}>Salva</Button>
+                  <Button type="button" size="sm" className="h-8 text-xs" disabled={!nome.trim()} onClick={() => { resto.onRinomina(riga.sottofaseId!, nome.trim()); setNome(null); }}>{t("Salva")}</Button>
                 </div>
               ) : (
                 incorporata ? null : <DialogTitle className="line-clamp-3 text-base font-semibold leading-snug" title={riga.descrizione}>{riga.descrizione}</DialogTitle>
               )}
-              {!incorporata && <DialogDescription className="sr-only">Stato, date, importi e rapportini di questa voce.</DialogDescription>}
+              {!incorporata && <DialogDescription className="sr-only">{t("Stato, date, importi e rapportini di questa voce.")}</DialogDescription>}
             </DialogHeader>
             <Contenuto key={`${riga.key}|${riga.inizio}|${riga.fine}|${riga.giorni}`} riga={riga} {...resto} />
           </>

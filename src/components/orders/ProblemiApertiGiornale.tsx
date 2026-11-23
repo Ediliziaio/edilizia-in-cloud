@@ -4,7 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Link } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { giorniAperto, testoGiorniAperto } from "../../../supabase/functions/_shared/eventiGiornale";
+import { giorniAperto } from "../../../supabase/functions/_shared/eventiGiornale";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Tabella nuova, non ancora nei tipi generati. */
 const dbSenzaTipi = supabase as unknown as SupabaseClient;
@@ -18,6 +19,7 @@ interface RigaProblema {
 const oggiRoma = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
 
 export function ProblemiApertiGiornale({ orderId, companyId }: { orderId: string; companyId: string }) {
+  const t = useT();
   const { data: problemi = [] } = useQuery({
     queryKey: ["giornale-problemi-aperti", companyId, orderId],
     queryFn: async () => {
@@ -39,18 +41,22 @@ export function ProblemiApertiGiornale({ orderId, companyId }: { orderId: string
     <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
       <p className="mb-2 flex items-center gap-1.5 text-sm font-medium">
         <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
-        Problemi aperti dal giornale
+        {t("Problemi aperti dal giornale")}
       </p>
       <ul className="space-y-1.5">
-        {problemi.map((p) => (
+        {problemi.map((p) => {
+          // Stesso testo di testoGiorniAperto (che resta in italiano per i messaggi del server).
+          const giorni = giorniAperto(p.giornale?.data_lavori ?? oggi, oggi);
+          return (
           <li key={p.id} className="flex items-start justify-between gap-3 text-sm">
             <span className="min-w-0 break-words">{p.testo}</span>
             <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-              {testoGiorniAperto(giorniAperto(p.giornale?.data_lavori ?? oggi, oggi))}
-              <Link to={`/azienda/ordini/${orderId}?tab=cantiere&vista_cantiere=giornale&pagina=${p.giornale?.id}`} className="text-primary underline-offset-2 hover:underline">Apri la pagina</Link>
+              {giorni <= 0 ? t("da oggi") : t(giorni === 1 ? "da 1 giorno" : "da {n} giorni", { n: giorni })}
+              <Link to={`/azienda/ordini/${orderId}?tab=cantiere&vista_cantiere=giornale&pagina=${p.giornale?.id}`} className="text-primary underline-offset-2 hover:underline">{t("Apri la pagina")}</Link>
             </span>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </div>
   );

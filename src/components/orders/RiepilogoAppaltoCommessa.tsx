@@ -17,6 +17,7 @@ import { Banknote, FileText, LayoutDashboard, Percent, TrendingUp, ArrowUpRight 
 import { Link } from "react-router-dom";
 import { euro } from "@/lib/clienti/schedaCliente";
 import { accordoCommessa, margineCommessa, type TotaliCommessaAppalto } from "@/lib/appalto/rendiconto";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   totali: TotaliCommessaAppalto;
@@ -55,6 +56,7 @@ export function RiepilogoAppaltoCommessa({
   totali, valorizzazione, totalAmount, tettoImporto, committenteId,
   canViewAmounts, canViewMargins, caricamento, onApriRendiconto,
 }: Props) {
+  const t = useT();
   if (!canViewAmounts && !canViewMargins) return null;
 
   /* La cifra di riferimento e cosa dire quando la si supera: a corpo e a
@@ -82,11 +84,11 @@ export function RiepilogoAppaltoCommessa({
       : totali.righeSenzaCosto > 0 ? "text-amber-200" : "text-emerald-200";
 
   return (
-    <section aria-label="Riepilogo economico della commessa in appalto" className="commessa-appalto-overview overflow-hidden rounded-2xl border border-eic-navy-deep bg-eic-navy-deep p-3 text-white shadow-sm max-sm:p-2 sm:p-4">
+    <section aria-label={t("Riepilogo economico della commessa in appalto")} className="commessa-appalto-overview overflow-hidden rounded-2xl border border-eic-navy-deep bg-eic-navy-deep p-3 text-white shadow-sm max-sm:p-2 sm:p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
         <div className="flex items-center gap-3">
           <span aria-hidden="true" className="commessa-summary-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"><LayoutDashboard className="h-4 w-4" /></span>
-          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-100">Il cantiere in appalto, in numeri</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-100">{t("Il cantiere in appalto, in numeri")}</h2>
         </div>
         <span className="hidden text-xs text-blue-100 sm:block">{accordo.etichetta}</span>
       </div>
@@ -94,7 +96,7 @@ export function RiepilogoAppaltoCommessa({
       <div className={`grid grid-cols-2 gap-2 sm:gap-3 ${canViewAmounts && canViewMargins ? "md:grid-cols-4" : "sm:grid-cols-2"}`}>
         {canViewAmounts && <>
           <Riquadro
-            label="Rendicontato"
+            label={t("Rendicontato")}
             value={caricamento ? "…" : euro(totali.rendicontato, true)}
             hint={accordo.nota}
             icon={<FileText className="h-3.5 w-3.5" />}
@@ -102,9 +104,9 @@ export function RiepilogoAppaltoCommessa({
             onClick={onApriRendiconto}
           />
           <Riquadro
-            label="Da rendicontare"
+            label={t("Da rendicontare")}
             value={caricamento ? "…" : euro(totali.daRendicontare, true)}
-            hint={totali.inBozza > 0 ? `${euro(totali.inBozza, true)} ancora in bozza` : "Lavoro fatto che il committente non ha visto"}
+            hint={totali.inBozza > 0 ? t("{importo} ancora in bozza", { importo: euro(totali.inBozza, true) }) : t("Lavoro fatto che il committente non ha visto")}
             icon={<Banknote className="h-3.5 w-3.5" />}
             tone={totali.daRendicontare > 0 ? "text-amber-200" : undefined}
             onClick={onApriRendiconto}
@@ -112,7 +114,7 @@ export function RiepilogoAppaltoCommessa({
         </>}
         {canViewMargins && <>
           <Riquadro
-            label="Margine €"
+            label={t("Margine €")}
             value={caricamento ? "…" : marg.margine === null ? "—" : euro(marg.margine, true)}
             hint={marg.nota}
             icon={<TrendingUp className="h-3.5 w-3.5" />}
@@ -120,8 +122,8 @@ export function RiepilogoAppaltoCommessa({
             onClick={onApriRendiconto}
           />
           <Riquadro
-            label="Margine %"
-            value={caricamento ? "…" : marg.marginePct === null ? "—" : `${marg.marginePct.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`}
+            label={t("Margine %")}
+            value={caricamento ? "…" : marg.marginePct === null ? "—" : `${marg.marginePct.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`}
             hint={marg.notaPct}
             icon={<Percent className="h-3.5 w-3.5" />}
             tone={tonoMargine}
@@ -132,23 +134,23 @@ export function RiepilogoAppaltoCommessa({
           <div className={`col-span-2 min-w-0 ${canViewMargins ? "md:col-span-4" : ""} commessa-counterparty-summary rounded-xl border border-white/20 bg-white/[0.08] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] max-sm:px-2.5 max-sm:py-2 sm:p-4`}>
             <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-blue-100">
               <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-orange-200/25 bg-orange-400/15 text-orange-100 max-sm:hidden"><Banknote className="h-3.5 w-3.5" /></span>
-              Verso il committente
+              {t("Verso il committente")}
             </span>
             <span className="mt-2 flex flex-wrap justify-between gap-x-3 gap-y-1 text-xs text-blue-100">
-              <span>Chiuso nei rendiconti <strong className="text-white tabular-nums">{euro(totali.chiuso, true)}</strong></span>
-              <span>Già fatturato <strong className="text-white tabular-nums">{euro(totali.fatturato, true)}</strong></span>
+              <span>{t("Chiuso nei rendiconti")} <strong className="text-white tabular-nums">{euro(totali.chiuso, true)}</strong></span>
+              <span>{t("Già fatturato")} <strong className="text-white tabular-nums">{euro(totali.fatturato, true)}</strong></span>
             </span>
             <span className="mt-1.5 block text-xs text-blue-100">
               {/* Gli incassi non si spezzano per cantiere: con la fatturazione
                   cumulativa una fattura ne copre piu' d'uno. */}
-              Incassi e ritenute si leggono sul committente.
+              {t("Incassi e ritenute si leggono sul committente.")}
             </span>
             {committenteId && (
               <Link
                 to={`/azienda/committenti/${committenteId}`}
                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-orange-100 underline-offset-2 hover:underline"
               >
-                I conti del committente <ArrowUpRight className="h-3 w-3" />
+                {t("I conti del committente")} <ArrowUpRight className="h-3 w-3" />
               </Link>
             )}
           </div>

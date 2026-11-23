@@ -21,6 +21,7 @@ import {
   type OrderChartMonth,
 } from "@/lib/orders/monthlyChart";
 import { CATALOGO_SERIE, type SerieGrafico } from "@/lib/orders/riepilogoCommesse";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Chiave della serie nei dati del grafico e nel confronto con l'anno prima. */
 const CHIAVE_SERIE: Record<SerieGrafico, { dato: "sold" | "collected" | "due"; confronto: string }> = {
@@ -29,7 +30,7 @@ const CHIAVE_SERIE: Record<SerieGrafico, { dato: "sold" | "collected" | "due"; c
   da_incassare: { dato: "due", confronto: "comparison.daIncassare" },
 };
 const monthName = (month: OrderChartMonth) =>
-  new Date(`${month.key}-01T12:00:00`).toLocaleDateString("it-IT", {
+  new Date(`${month.key}-01T12:00:00`).toLocaleDateString(intlCampo(), {
     month: "long",
     year: "numeric",
   });
@@ -41,61 +42,62 @@ export function OrderMonthDetails({
   active?: boolean;
   payload?: readonly { payload?: DisplayChartMonth }[];
 }) {
+  const t = useT();
   const month = payload?.[0]?.payload;
   if (!active || !month || month.count === null) return null;
   return (
     <div className="min-w-56 rounded-xl border border-slate-200 bg-white/95 p-3 text-xs shadow-xl backdrop-blur-sm">
       <p className="mb-2 font-semibold capitalize text-slate-950">
         {monthName(month)}
-        {month.current && " · in corso"}
+        {month.current && ` · ${t("in corso")}`}
       </p>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-2 tabular-nums">
-        <dt className="text-blue-700">Venduto</dt>
+        <dt className="text-blue-700">{t("Venduto")}</dt>
         <dd className="text-right font-semibold">
           {chartMoney(month.venduto)}
         </dd>
-        <dt className="text-orange-700">Incassato</dt>
+        <dt className="text-orange-700">{t("Incassato")}</dt>
         <dd className="text-right font-semibold">
           {chartMoney(month.incassato)}
         </dd>
-        <dt className="text-slate-600">Da incassare</dt>
+        <dt className="text-slate-600">{t("Da incassare")}</dt>
         <dd className="text-right font-semibold">
           {chartMoney(month.daIncassare)}
         </dd>
-        <dt className="text-slate-600">Commesse</dt>
+        <dt className="text-slate-600">{t("Commesse")}</dt>
         <dd className="text-right font-semibold">{month.commesse}</dd>
       </dl>
       {month.comparison && (
         <div className="mt-3 border-t border-slate-200 pt-2">
           <p className="mb-2 font-semibold">
-            Confronto {month.comparison.year} · stesso periodo
+            {t("Confronto {anno} · stesso periodo", { anno: month.comparison.year })}
           </p>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-1 tabular-nums">
-            <dt>Venduto</dt>
+            <dt>{t("Venduto")}</dt>
             <dd className="text-right">
               {chartMoney(month.comparison.venduto)}
             </dd>
-            <dt>Incassato</dt>
+            <dt>{t("Incassato")}</dt>
             <dd className="text-right">
               {chartMoney(month.comparison.incassato)}
             </dd>
-            <dt>Da incassare</dt>
+            <dt>{t("Da incassare")}</dt>
             <dd className="text-right">
               {chartMoney(month.comparison.daIncassare)}
             </dd>
-            <dt>Commesse</dt>
+            <dt>{t("Commesse")}</dt>
             <dd className="text-right">{month.comparison.commesse}</dd>
-            <dt>Variazione venduto</dt>
+            <dt>{t("Variazione venduto")}</dt>
             <dd className="text-right font-semibold">
               {month.comparison.venduto > 0
-                ? `${new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 1, signDisplay: "always" }).format((month.venduto - month.comparison.venduto) / month.comparison.venduto)}`
-                : "Base precedente assente"}
+                ? `${new Intl.NumberFormat(intlCampo(), { style: "percent", maximumFractionDigits: 1, signDisplay: "always" }).format((month.venduto - month.comparison.venduto) / month.comparison.venduto)}`
+                : t("Base precedente assente")}
             </dd>
           </dl>
         </div>
       )}
       <p className="mt-2 max-w-60 text-[11px] leading-relaxed text-slate-500">
-        Commesse create nel mese · IVA inclusa
+        {t("Commesse create nel mese · IVA inclusa")}
       </p>
     </div>
   );
@@ -136,7 +138,8 @@ export function OrdersMonthlyChart({
   useEffect(() => setView(vistaIniziale), [vistaIniziale]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setShape(formaIniziale), [formaIniziale]);
-  const linee = CATALOGO_SERIE.filter((s) => serie.includes(s.id));
+  const t = useT();
+  const linee = CATALOGO_SERIE.filter((s) => serie.includes(s.id)).map((s) => ({ ...s, nome: t(s.nome) }));
   const reducedMotion = useReducedMotion();
   const [animateInteraction, setAnimateInteraction] = useState(true);
   const gradient = useId().replace(/:/g, "");
@@ -157,24 +160,24 @@ export function OrdersMonthlyChart({
     animationEasing: "ease-out" as const,
   };
   return (
-    <section aria-label="Andamento commesse" className="flex min-w-0 flex-1 flex-col">
+    <section aria-label={t("Andamento commesse")} className="flex min-w-0 flex-1 flex-col">
       <h3 className="text-base font-semibold tracking-tight text-slate-950">
-        Andamento commesse{" "}
+        {t("Andamento commesse")}{" "}
         <span className="font-normal text-slate-500">· {period}</span>
       </h3>
       <p className="mt-1 text-xs leading-relaxed text-slate-500">
-        {view === "count" ? "Commesse create per mese." : "Per mese di creazione. Incassato su quelle commesse, indipendentemente dalla data dell’incasso."}
+        {view === "count" ? t("Commesse create per mese.") : t("Per mese di creazione. Incassato su quelle commesse, indipendentemente dalla data dell’incasso.")}
       </p>
       <div className="mt-1 flex flex-wrap items-center gap-1.5">
         <div
           role="group"
-          aria-label="Visualizzazione andamento"
+          aria-label={t("Visualizzazione andamento")}
           className="inline-flex gap-1 rounded-lg bg-slate-100 p-1"
         >
           {(
             [
-              { value: "money", label: "Importi" },
-              { value: "count", label: "Numero commesse" },
+              { value: "money", label: t("Importi") },
+              { value: "count", label: t("Numero commesse") },
             ] as const
           ).map((item) => (
             <button
@@ -194,13 +197,13 @@ export function OrdersMonthlyChart({
         {view === "money" && (
           <div
             role="group"
-            aria-label="Stile grafico"
+            aria-label={t("Stile grafico")}
             className="inline-flex gap-1 rounded-lg border border-slate-200 p-0.5"
           >
             {(
               [
-                { value: "lines", label: "Linee" },
-                { value: "bars", label: "Barre" },
+                { value: "lines", label: t("Linee") },
+                { value: "bars", label: t("Barre") },
               ] as const
             ).map((item) => (
               <button
@@ -228,7 +231,7 @@ export function OrdersMonthlyChart({
             }}
             className={`orders-chart-control rounded-lg border px-2 py-1 text-xs font-medium ${comparison.enabled ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-600"}`}
           >
-            Confronta {comparison.year}
+            {t("Confronta {anno}", { anno: comparison.year })}
           </button>
         )}
       </div>
@@ -236,27 +239,25 @@ export function OrdersMonthlyChart({
         <div className="text-[11px] text-slate-500">
           <details className="mt-1 text-[11px] leading-relaxed text-slate-500">
             <summary className="cursor-pointer">
-              Confronto a parità di periodo · dettagli
+              {t("Confronto a parità di periodo · dettagli")}
             </summary>
             <p>
-              Stesso periodo: {comparison.label}, nei due anni. Linee
-              tratteggiate: {comparison.year}.
+              {t("Stesso periodo: {periodo}, nei due anni. Linee tratteggiate: {anno}.", { periodo: comparison.label, anno: comparison.year })}
             </p>
             <p>
-              Incassi e residui aggiornati a oggi, non saldi storici. I filtri
-              dell’elenco non cambiano.
+              {t("Incassi e residui aggiornati a oggi, non saldi storici. I filtri dell’elenco non cambiano.")}
             </p>
           </details>
-          {comparison.loading && <p role="status">Caricamento confronto…</p>}
+          {comparison.loading && <p role="status">{t("Caricamento confronto…")}</p>}
           {comparison.error && (
             <p role="alert">
-              Confronto non disponibile.{" "}
+              {t("Confronto non disponibile.")}{" "}
               <button
                 type="button"
                 className="underline"
                 onClick={comparison.onRetry}
               >
-                Riprova confronto
+                {t("Riprova confronto")}
               </button>
             </p>
           )}
@@ -264,7 +265,7 @@ export function OrdersMonthlyChart({
       )}
       <div
         className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600"
-        aria-label="Legenda grafico"
+        aria-label={t("Legenda grafico")}
       >
         {view === "money" ? (
           <>
@@ -274,12 +275,12 @@ export function OrdersMonthlyChart({
                 {linea.nome}
               </span>
             ))}
-            <span className="text-slate-500">IVA inclusa</span>
+            <span className="text-slate-500">{t("IVA inclusa")}</span>
           </>
         ) : (
           <span className="inline-flex items-center gap-1.5">
             <i className="h-2 w-2 rounded-full bg-slate-800" />
-            Numero commesse
+            {t("Numero commesse")}
           </span>
         )}
       </div>
@@ -288,8 +289,8 @@ export function OrdersMonthlyChart({
         role="img"
         aria-label={
           view === "money"
-            ? `${linee.map((l) => l.nome).join(", ")} per mese di creazione, in euro`
-            : "Numero di commesse create per mese"
+            ? t("{serie} per mese di creazione, in euro", { serie: linee.map((l) => l.nome).join(", ") })
+            : t("Numero di commesse create per mese")
         }
       >
         <ResponsiveContainer width="100%" height={140}>
@@ -344,14 +345,14 @@ export function OrdersMonthlyChart({
               allowDecimals={view === "money"}
               tickFormatter={(value) =>
                 view === "money"
-                  ? `${new Intl.NumberFormat("it-IT", { notation: "compact", maximumFractionDigits: 1 }).format(Number(value))} €`
+                  ? `${new Intl.NumberFormat(intlCampo(), { notation: "compact", maximumFractionDigits: 1 }).format(Number(value))} €`
                   : String(value)
               }
             />
             {current && current.key !== selected?.key && (
               <ReferenceLine
                 x={current.mese}
-                label={{ value: "In corso", position: "insideTop", fontSize: 10, fill: "#475569" }}
+                label={{ value: t("In corso"), position: "insideTop", fontSize: 10, fill: "#475569" }}
                 stroke="#94a3b8"
                 strokeDasharray="4 4"
               />
@@ -359,7 +360,7 @@ export function OrdersMonthlyChart({
             {selected && (
               <ReferenceLine
                 x={selected.mese}
-                label={selected.current ? { value: "In corso", position: "insideTop", fontSize: 10 } : undefined}
+                label={selected.current ? { value: t("In corso"), position: "insideTop", fontSize: 10 } : undefined}
                 stroke="#f97316"
                 strokeWidth={2}
                 strokeDasharray="3 3"
@@ -396,7 +397,7 @@ export function OrdersMonthlyChart({
               ) : (
                 <Line
                   dataKey="comparison.commesse"
-                  name={`Commesse ${comparison!.year}`}
+                  name={t("Commesse {anno}", { anno: comparison!.year })}
                   type="monotone"
                   stroke="#1e293b"
                   strokeWidth={2}
@@ -443,7 +444,7 @@ export function OrdersMonthlyChart({
             ) : (
               <Line
                 dataKey="count"
-                name="Numero commesse"
+                name={t("Numero commesse")}
                 type="monotone"
                 stroke="#1e293b"
                 strokeWidth={2.5}
@@ -464,21 +465,21 @@ export function OrdersMonthlyChart({
           {selected ? (
             <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               <strong className="capitalize">{monthName(selected)}</strong>
-              <button type="button" aria-label="Rimuovi filtro mese" title="Rimuovi filtro mese"
+              <button type="button" aria-label={t("Rimuovi filtro mese")} title={t("Rimuovi filtro mese")}
                 onClick={() => onSelectMonth(null)} className="orders-chart-control rounded px-1.5">×</button>
               <span role="status" className="flex flex-wrap gap-x-3 tabular-nums">
-                {view === "count" ? `${selected.commesse} ${selected.commesse === 1 ? "commessa" : "commesse"}` :
+                {view === "count" ? t(selected.commesse === 1 ? "{n} commessa" : "{n} commesse", { n: selected.commesse }) :
                   linee.map((serie) => (
                     <span key={serie.id}>{serie.nome} <strong>{chartMoney(selected[CHIAVE_SERIE[serie.id].dato] ?? 0)}</strong></span>
                   ))}
               </span>
             </div>
           ) : (
-            <p className="mb-1 text-[11px] text-slate-500">Seleziona un mese per aggiornare l’elenco e il riepilogo.</p>
+            <p className="mb-1 text-[11px] text-slate-500">{t("Seleziona un mese per aggiornare l’elenco e il riepilogo.")}</p>
           )}
           <div
             role="group"
-            aria-label="Filtra commesse per mese"
+            aria-label={t("Filtra commesse per mese")}
             className="grid grid-cols-6 gap-1 lg:grid-cols-12"
           >
             {data.map((month) => (
@@ -487,10 +488,10 @@ export function OrdersMonthlyChart({
                 type="button"
                 disabled={month.count === null}
                 aria-pressed={selectedMonth === month.key}
-                aria-label={`Filtra commesse di ${monthName(month)}`}
+                aria-label={t("Filtra commesse di {mese}", { mese: monthName(month) })}
                 title={
                   month.count === null
-                    ? "Mese futuro senza dati"
+                    ? t("Mese futuro senza dati")
                     : monthName(month)
                 }
                 onClick={() => select(month.key)}
@@ -506,17 +507,17 @@ export function OrdersMonthlyChart({
       <div className="mt-1 flex flex-wrap items-start justify-between gap-2 text-[11px] text-slate-500">
         <p>
           {hasFuture
-            ? "I mesi futuri senza dati restano vuoti; il mese in corso è parziale."
-            : "Gli importi si riferiscono alle commesse create in ciascun mese."}
+            ? t("I mesi futuri senza dati restano vuoti; il mese in corso è parziale.")
+            : t("Gli importi si riferiscono alle commesse create in ciascun mese.")}
         </p>
         <details className="min-w-0 max-w-full">
           <summary className="orders-chart-control cursor-pointer rounded text-slate-600 underline underline-offset-2">
-            Dati mese per mese
+            {t("Dati mese per mese")}
           </summary>
           <div className="mt-3 max-w-full overflow-x-auto rounded-lg border border-slate-200">
             <table className="w-full text-left text-xs tabular-nums">
               <caption className="sr-only">
-                Andamento commesse · {period} · IVA inclusa
+                {t("Andamento commesse · {periodo} · IVA inclusa", { periodo: period })}
               </caption>
               <thead className="bg-slate-50">
                 <tr>
@@ -532,7 +533,7 @@ export function OrdersMonthlyChart({
                       scope="col"
                       className="px-3 py-2 font-medium"
                     >
-                      {label}
+                      {t(label)}
                     </th>
                   ))}
                 </tr>
@@ -546,11 +547,11 @@ export function OrdersMonthlyChart({
                     >
                       {month.mese}
                       {comparing ? ` · ${period}` : ""}
-                      {month.current ? " · in corso" : ""}
+                      {month.current ? ` · ${t("in corso")}` : ""}
                     </th>
                     <td className="whitespace-nowrap px-3 py-2">
                       {month.sold === null
-                        ? "Non ancora disponibile"
+                        ? t("Non ancora disponibile")
                         : chartMoney(month.venduto)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2">

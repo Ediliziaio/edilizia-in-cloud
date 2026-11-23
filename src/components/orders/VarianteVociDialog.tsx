@@ -20,6 +20,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { parseAssignmentAmount } from "@/lib/orders/assignmentAmounts";
 import type { AffidamentoChiFaCosa } from "@/lib/subappaltatori/affidamentiCommessa";
 import { vociDaAllegato } from "@/lib/subappaltatori/lavoriMisure";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -27,7 +28,7 @@ const db = supabase as any;
 export interface VoceVariante { id: string; descrizione: string; unita: string | null; quantita: number; fase?: string; sottofase?: string }
 
 const cent = (n: number) => Math.round(n * 100) / 100;
-const qt = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 3 });
+const qt = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 3 });
 const inCasella = (n: number | null, dec: number) => (n == null ? "" : n.toLocaleString("it-IT", { maximumFractionDigits: dec, useGrouping: false }));
 
 /** Le righe cambiate da mandare al database, e la differenza d'importo (al centesimo, riga per riga). */
@@ -65,6 +66,7 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
   voci: VoceVariante[];
   onChiudi: () => void; onFatto: () => void;
 }) {
+  const t = useT();
   const voce = useMemo(() => new Map(voci.map((v) => [v.id, v])), [voci]);
   const [scritte, setScritte] = useState<Record<string, { quantita: string; prezzo: string }>>({});
   const [motivo, setMotivo] = useState("");
@@ -88,10 +90,10 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
 
   const salva = useMutation({
     mutationFn: async () => {
-      if (quadro.isError || quadro.data === undefined) throw new Error("Verifica il quadro lavori prima di registrare la variante.");
+      if (quadro.isError || quadro.data === undefined) throw new Error(t("Verifica il quadro lavori prima di registrare la variante."));
       if (senzaQuadro) {
         const base = vociDaAllegato(elencoContratto, importo);
-        if (!base) throw new Error("L'elenco lavori del contratto non si legge: imposta misure e SAL da «Condizioni e firma», poi la variante.");
+        if (!base) throw new Error(t("L'elenco lavori del contratto non si legge: imposta misure e SAL da «Condizioni e firma», poi la variante."));
         const { error: e1 } = await db.rpc("subappalto_quadro_registra", {
           p_company: companyId, p_contratto: contrattoId, p_id: crypto.randomUUID(), p_voci: base, p_maturazione: maturazione,
           p_giorni: null, p_motivo: "Elenco lavori dal contratto firmato", p_importo_atteso: importo,
@@ -103,8 +105,8 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
       if (error) throw new Error(error.message);
       return data as { importo: number; differenza: number; revisione: number };
     },
-    onSuccess: (r) => { toast.success(`Variante registrata: lavori aggiornati a ${formatCurrency(Number(r.importo))} (revisione ${r.revisione} delle voci).`); onFatto(); },
-    onError: (e: Error) => toast.error(e.message || "Variante non registrata."),
+    onSuccess: (r) => { toast.success(t("Variante registrata: lavori aggiornati a {importo} (revisione {n} delle voci).", { importo: formatCurrency(Number(r.importo)), n: r.revisione })); onFatto(); },
+    onError: (e: Error) => toast.error(e.message || t("Variante non registrata.")),
   });
 
   const pronta = righe.length > 0 && !errori.length && motivo.trim().length >= 5 && !quadro.isFetching && !quadro.isError && quadro.data !== undefined && (!senzaQuadro || !!maturazione);
@@ -112,29 +114,28 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
     <Dialog open onOpenChange={(o) => !o && !salva.isPending && onChiudi()}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl max-sm:[&_button]:min-h-11 max-sm:[&_input]:min-h-11">
         <DialogHeader>
-          <DialogTitle>Variante sulle voci · {nomeDitta}</DialogTitle>
+          <DialogTitle>{t("Variante sulle voci · {ditta}", { ditta: nomeDitta })}</DialogTitle>
           <DialogDescription>
-            Cambia le quantità (e i prezzi delle voci non ancora misurate) o aggiungi voci già affidate alla ditta. Le misure fatte restano valide;
-            una voce non scende sotto quanto già misurato. Il contratto firmato resta com'è: la variante si aggiunge.
+            {t("Cambia le quantità (e i prezzi delle voci non ancora misurate) o aggiungi voci già affidate alla ditta. Le misure fatte restano valide; una voce non scende sotto quanto già misurato. Il contratto firmato resta com'è: la variante si aggiunge.")}
           </DialogDescription>
         </DialogHeader>
         {quadro.isError && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
-          Non riesco a verificare il quadro lavori. <Button size="sm" variant="outline" onClick={() => void quadro.refetch()}>Riprova</Button>
+          {t("Non riesco a verificare il quadro lavori.")} <Button size="sm" variant="outline" onClick={() => void quadro.refetch()}>{t("Riprova")}</Button>
         </div>}
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full min-w-[600px] text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr>
-                <th className="px-2 py-1.5 text-left font-medium">Voce</th>
-                <th className="w-28 px-1 py-1.5 text-right font-medium">Quantità</th>
-                <th className="w-24 px-1 py-1.5 text-right font-medium">Prezzo €</th>
-                <th className="w-24 px-2 py-1.5 text-right font-medium">Importo</th>
+                <th className="px-2 py-1.5 text-left font-medium">{t("Voce")}</th>
+                <th className="w-28 px-1 py-1.5 text-right font-medium">{t("Quantità")}</th>
+                <th className="w-24 px-1 py-1.5 text-right font-medium">{t("Prezzo €")}</th>
+                <th className="w-24 px-2 py-1.5 text-right font-medium">{t("Importo")}</th>
               </tr>
             </thead>
             <tbody>
               {ordinate.map((a) => {
                 const v = voce.get(a.voce_id);
-                const nomeVoce = [v?.descrizione ?? "voce", v?.fase, v?.sottofase].filter(Boolean).join(" · ");
+                const nomeVoce = [v?.descrizione ?? t("voce"), v?.fase, v?.sottofase].filter(Boolean).join(" · ");
                 const s = valore(a);
                 const q = parseAssignmentAmount(s.quantita, 3) ?? 0;
                 const p = parseAssignmentAmount(s.prezzo, 2) ?? 0;
@@ -143,46 +144,46 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
                   <tr key={a.id} className={`border-t align-top ${errori.includes(a.id) ? "bg-red-50" : ""}`}>
                     <td className="px-2 py-1.5">
                       {(v?.fase || v?.sottofase) && <p className="text-xs text-muted-foreground">{[v.fase, v.sottofase].filter(Boolean).join(" · ")}</p>}
-                      <p>{v?.descrizione ?? "Voce"}</p>
+                      <p>{v?.descrizione ?? t("Voce")}</p>
                       <p className="text-[11px] text-muted-foreground">
-                        {nel ? `nel contratto: ${qt(a.quantita)} ${v?.unita ?? ""} × ${formatCurrency(a.prezzo_unitario ?? 0)}` : "affidata, non ancora nel contratto"}
-                        {v ? ` · voce della commessa ${qt(v.quantita)} ${v.unita ?? ""}` : ""}
+                        {nel ? t("nel contratto: {quantita} {unita} × {prezzo}", { quantita: qt(a.quantita), unita: v?.unita ?? "", prezzo: formatCurrency(a.prezzo_unitario ?? 0) }) : t("affidata, non ancora nel contratto")}
+                        {v ? ` · ${t("voce della commessa {quantita} {unita}", { quantita: qt(v.quantita), unita: v.unita ?? "" })}` : ""}
                       </p>
                     </td>
-                    <td className="px-1 py-1.5"><Input aria-label={`Quantità di ${nomeVoce}`} inputMode="decimal" value={s.quantita} placeholder={nel ? "" : "0"}
+                    <td className="px-1 py-1.5"><Input aria-label={t("Quantità di {voce}", { voce: nomeVoce })} inputMode="decimal" value={s.quantita} placeholder={nel ? "" : "0"}
                       onChange={(e) => scrivi(a, "quantita", e.target.value)} className="h-8 text-right tabular-nums" /></td>
-                    <td className="px-1 py-1.5"><Input aria-label={`Prezzo di ${nomeVoce}`} inputMode="decimal" value={s.prezzo}
+                    <td className="px-1 py-1.5"><Input aria-label={t("Prezzo di {voce}", { voce: nomeVoce })} inputMode="decimal" value={s.prezzo}
                       onChange={(e) => scrivi(a, "prezzo", e.target.value)} className="h-8 text-right tabular-nums" /></td>
                     <td className="whitespace-nowrap px-2 pt-3 text-right tabular-nums">{formatCurrency(cent(q * p))}</td>
                   </tr>
                 );
               })}
-              {!ordinate.length && <tr><td colSpan={4} className="px-2 py-4 text-center text-sm text-muted-foreground">Nessuna voce affidata a questa ditta.</td></tr>}
+              {!ordinate.length && <tr><td colSpan={4} className="px-2 py-4 text-center text-sm text-muted-foreground">{t("Nessuna voce affidata a questa ditta.")}</td></tr>}
             </tbody>
           </table>
         </div>
         {senzaQuadro && (
           <label className="flex flex-wrap items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-950">
-            <span className="min-w-0 flex-1">Prima variante: l'elenco per misure e SAL si crea adesso dal contratto. Quando matura il compenso?</span>
-            <UniformSelect aria-label="Quando matura il compenso" className="h-8 rounded-md border bg-background px-2 text-sm" value={maturazione} onChange={(e) => setMaturazione(e.target.value)}>
-              <option value="">Scegli…</option>
-              <option value="saldo">Saldo a fine lavoro</option>
-              <option value="sal_periodici">SAL periodici</option>
-              <option value="traguardi">Traguardi concordati</option>
+            <span className="min-w-0 flex-1">{t("Prima variante: l'elenco per misure e SAL si crea adesso dal contratto. Quando matura il compenso?")}</span>
+            <UniformSelect aria-label={t("Quando matura il compenso")} className="h-8 rounded-md border bg-background px-2 text-sm" value={maturazione} onChange={(e) => setMaturazione(e.target.value)}>
+              <option value="">{t("Scegli…")}</option>
+              <option value="saldo">{t("Saldo a fine lavoro")}</option>
+              <option value="sal_periodici">{t("SAL periodici")}</option>
+              <option value="traguardi">{t("Traguardi concordati")}</option>
             </UniformSelect>
           </label>
         )}
-        <Textarea aria-label="Motivo della variante" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo della variante (es. muri in più al piano terra)" rows={2} />
+        <Textarea aria-label={t("Motivo della variante")} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder={t("Motivo della variante (es. muri in più al piano terra)")} rows={2} />
         <p className="text-sm" role="status">
-          Lavori {formatCurrency(importo)} → <strong>{formatCurrency(cent(importo + differenza))}</strong>
-          {righe.length > 0 && <span className={differenza >= 0 ? "text-emerald-700" : "text-amber-800"}> ({differenza >= 0 ? "+" : ""}{formatCurrency(differenza)}, {righe.length} {righe.length === 1 ? "voce" : "voci"})</span>}
-          {errori.length > 0 && <span className="text-red-800"> · {errori.length === 1 ? "una riga ha" : `${errori.length} righe hanno`} un numero che non si legge</span>}
+          {t("Lavori {importo}", { importo: formatCurrency(importo) })} → <strong>{formatCurrency(cent(importo + differenza))}</strong>
+          {righe.length > 0 && <span className={differenza >= 0 ? "text-emerald-700" : "text-amber-800"}> ({differenza >= 0 ? "+" : ""}{formatCurrency(differenza)}, {t(righe.length === 1 ? "{n} voce" : "{n} voci", { n: righe.length })})</span>}
+          {errori.length > 0 && <span className="text-red-800"> · {t(errori.length === 1 ? "una riga ha un numero che non si legge" : "{n} righe hanno un numero che non si legge", { n: errori.length })}</span>}
         </p>
-        {oneri > 0 && <p className="text-sm">Oneri sicurezza invariati {formatCurrency(oneri)} · <strong>Totale IVA esclusa {formatCurrency(cent(importo + differenza + oneri))}</strong></p>}
+        {oneri > 0 && <p className="text-sm">{t("Oneri sicurezza invariati {importo}", { importo: formatCurrency(oneri) })} · <strong>{t("Totale IVA esclusa {importo}", { importo: formatCurrency(cent(importo + differenza + oneri)) })}</strong></p>}
         <DialogFooter>
-          <Button variant="ghost" disabled={salva.isPending} onClick={onChiudi}>Annulla</Button>
+          <Button variant="ghost" disabled={salva.isPending} onClick={onChiudi}>{t("Annulla")}</Button>
           <Button disabled={!pronta || salva.isPending} onClick={() => salva.mutate()}>
-            {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Registra la variante
+            {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{t("Registra la variante")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { OfficeSelect } from "./OfficeSelect";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Passo = "cosa" | "rivedi" | "manda";
 const PASSI: { id: Passo; titolo: string }[] = [
@@ -43,6 +44,7 @@ const PASSI: { id: Passo; titolo: string }[] = [
 /** `bozzaIniziale`: un lavoro extra nuovo già scritto (dal preventivo accettato): nasce da salvare, chiudere lo salva. */
 interface Props { id: string; existing: boolean; order: string; company: string; context: VariationContext; canEdit: boolean; onClose: () => void; bozzaIniziale?: VariationDraft; inline?: boolean }
 export function VariationLifecycleDialog({ id, existing, order, company, context, canEdit, onClose, bozzaIniziale, inline = false }: Props) {
+  const tr = useT();
   const workflow = useVariationWorkflow(order, company);
   const { refresh } = workflow;
   const [form, setForm] = useState<VariationDraft>(() => (!existing && bozzaIniziale) ? bozzaIniziale : ({ ...emptyVariationDraft(), documentCompanyName: context.companyName, documentCompanyDetails: context.companyDetails, documentCustomerName: context.customerName, documentCustomerDetails: context.customerAddress }));
@@ -168,7 +170,7 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   };
   /** La frase da mostrare: quella scritta dalla funzione, mai «Edge Function returned a non-2xx status code». */
   const frase = async (e: unknown): Promise<string> => {
-    const ripiego = "Non è andata: riprova. Se succede ancora, scrivi all'assistenza.";
+    const ripiego = tr("Non è andata: riprova. Se succede ancora, scrivi all'assistenza.");
     const ctx = (e as { context?: Response } | null)?.context;
     if (ctx && typeof ctx.clone === "function") {
       try {
@@ -200,7 +202,7 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
     void run("Salvo…", async () => {
       await save();
       if (alive.current) {
-        if (inline) toast.success("Bozza salvata");
+        if (inline) toast.success(tr("Bozza salvata"));
         onClose();
       }
     });
@@ -223,7 +225,7 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
     prepareVariation(form); // fermo qui se manca qualcosa: il messaggio è già in italiano
     const data = dirty || !receipt ? await save() : receipt;
     const revisione = data.workspace?.revision;
-    if (revisione === undefined) throw new Error("Questo lavoro extra è stato scritto prima e non si può rifare da qui: aprilo da Economia → Documenti.");
+    if (revisione === undefined) throw new Error(tr("Questo lavoro extra è stato scritto prima e non si può rifare da qui: aprilo da Economia → Documenti."));
     if (!fresh || dirty) {
       const next = await workflow.request(id,"document",{revision:revisione});
       absorb(next);
@@ -239,11 +241,11 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
    */
   const mandaAlCliente = (): void => void run("Mando al cliente…", async () => {
     const email = emailCliente.trim();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Scrivi l'email del cliente: è lì che arriva il link per firmare.");
-    if (nomeCliente.trim().length < 2) throw new Error("Scrivi il nome di chi firma.");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error(tr("Scrivi l'email del cliente: è lì che arriva il link per firmare."));
+    if (nomeCliente.trim().length < 2) throw new Error(tr("Scrivi il nome di chi firma."));
     let dati = receipt!;
     const revisione = dati.workspace?.revision;
-    if (revisione === undefined || !dati.document) throw new Error("Prepara prima il PDF: torna a «Rivedi».");
+    if (revisione === undefined || !dati.document) throw new Error(tr("Prepara prima il PDF: torna a «Rivedi»."));
     if (!pending) {
       dati = await workflow.request(id,"publish",{revision:revisione,document_hash:dati.document.document_hash,reviewed:true});
       absorb(dati);
@@ -253,7 +255,7 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
     const giaMandato = await firmaEsistente.refetch();
     if (giaMandato.data?.link) {
       if (alive.current) setPasso("manda");
-      toast.success("Era già stato mandato: il link è qui sotto.");
+      toast.success(tr("Era già stato mandato: il link è qui sotto."));
       return;
     }
     // Da qui il lavoro extra è «in attesa» e non si modifica più: se la firma non parte lo si dice,
@@ -262,26 +264,26 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
       tipo_documento: "odv", documento_id: id, tipo_firmatario: "b2c",
       signer_email: email, signer_name: nomeCliente.trim(), scadenza_giorni: 30,
     }).catch((e: unknown) => {
-      throw new Error(`Il lavoro extra è pronto e in attesa, ma la richiesta di firma non è partita. Riprova da qui. (${e instanceof Error && e.message && !/non-2xx/i.test(e.message) ? e.message : "controlla l'email del cliente e la connessione"})`);
+      throw new Error(tr("Il lavoro extra è pronto e in attesa, ma la richiesta di firma non è partita. Riprova da qui. ({motivo})", { motivo: e instanceof Error && e.message && !/non-2xx/i.test(e.message) ? e.message : tr("controlla l'email del cliente e la connessione") }));
     });
     if (alive.current) {
       await firmaEsistente.refetch();
       setPasso("manda");
     }
-    toast.success(esito.otp_inviato ? "Mandato al cliente da firmare" : "Richiesta pronta: copia il link e mandalo tu.");
+    toast.success(esito.otp_inviato ? tr("Mandato al cliente da firmare") : tr("Richiesta pronta: copia il link e mandalo tu."));
   });
 
-  const copiaLink = () => { if (!link) return; void navigator.clipboard.writeText(link).then(() => toast.success("Link copiato")).catch(() => setError("Copia non riuscita: seleziona il link e copialo a mano.")); };
+  const copiaLink = () => { if (!link) return; void navigator.clipboard.writeText(link).then(() => toast.success(tr("Link copiato"))).catch(() => setError(tr("Copia non riuscita: seleziona il link e copialo a mano."))); };
 
   const caricaFirmata = (file: File) => {
     const evidenceId = crypto.randomUUID();
     void run("Carico la copia…", async () => {
-      if (file.size > 10*1024*1024) throw new Error("File troppo grande: massimo 10 MB.");
+      if (file.size > 10*1024*1024) throw new Error(tr("File troppo grande: massimo 10 MB."));
       // La foto del foglio firmato diventa un PDF di una pagina: il server accetta solo PDF veri.
       const foto = eUnaFoto(file);
       const base64 = foto
         ? await fotoInPdfBase64(file)
-        : await new Promise<string>((resolve,reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = () => reject(new Error("File non leggibile")); reader.readAsDataURL(file); });
+        : await new Promise<string>((resolve,reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = () => reject(new Error(tr("File non leggibile"))); reader.readAsDataURL(file); });
       const data = await workflow.request(id,"upload_evidence",{evidence_id:evidenceId,file_name:foto ? nomePdfDellaFoto(file.name) : file.name,file_base64:base64,proposal_hash:receipt!.document!.document_hash});
       absorb(data);
       setSelectedEvidence(evidenceId);
@@ -289,18 +291,18 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
     });
   };
   const registraFirmata = (): void => void run("Registro la firma…", async () => {
-    if (!window.confirm("Il cliente ha accettato? L'importo entra nel contratto e il lavoro extra diventa una fase delle Lavorazioni.")) return;
+    if (!window.confirm(tr("Il cliente ha accettato? L'importo entra nel contratto e il lavoro extra diventa una fase delle Lavorazioni."))) return;
     absorb(await workflow.request(id,"approve_offline",{evidence_id:selectedEvidence,signer_name:signer,signed_on:signedOn,confirmed:true}));
-    toast.success("Lavoro extra accettato: lo trovi nelle Lavorazioni");
+    toast.success(tr("Lavoro extra accettato: lo trovi nelle Lavorazioni"));
   });
 
   const passoCorrente = PASSI.findIndex(p => p.id === passo);
-  const titolo = receipt ? `Lavoro extra #${receipt.variation.numero_odv}` : "Nuovo lavoro extra";
-  const sottotitolo = approvata ? "Accettato dal cliente: è una fase delle Lavorazioni."
-    : pending ? "Mandato al cliente: aspetta la firma."
-    : "Scrivi cosa fai, guardi il PDF, lo mandi. Niente parte senza il tuo clic.";
+  const titolo = receipt ? tr("Lavoro extra #{n}", { n: receipt.variation.numero_odv }) : tr("Nuovo lavoro extra");
+  const sottotitolo = approvata ? tr("Accettato dal cliente: è una fase delle Lavorazioni.")
+    : pending ? tr("Mandato al cliente: aspetta la firma.")
+    : tr("Scrivi cosa fai, guardi il PDF, lo mandi. Niente parte senza il tuo clic.");
 
-  const indicatore = !approvata && <ol className="mt-2 flex flex-wrap items-center gap-1.5 text-xs" aria-label="A che punto sei">
+  const indicatore = !approvata && <ol className="mt-2 flex flex-wrap items-center gap-1.5 text-xs" aria-label={tr("A che punto sei")}>
         {PASSI.map((p, i) => {
           const fatto = i < passoCorrente;
           const ora = i === passoCorrente;
@@ -313,7 +315,7 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
               className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium",
                 ora ? "border-primary bg-primary text-primary-foreground" : fatto ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "text-muted-foreground",
                 puoAndare && !ora && "hover:bg-muted")}>
-              {fatto ? <Check className="h-3.5 w-3.5" aria-hidden /> : <span className="tabular-nums">{i + 1}</span>}{inline && p.id === "manda" ? "Firma" : p.titolo}
+              {fatto ? <Check className="h-3.5 w-3.5" aria-hidden /> : <span className="tabular-nums">{i + 1}</span>}{inline && p.id === "manda" ? tr("Firma") : tr(p.titolo)}
             </button>
           </li>;
         })}
@@ -322,97 +324,97 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   const anteprima = pdf && (
     <div ref={pdfRef} className={inline ? "h-[clamp(290px,41dvh,410px)]" : "h-[58dvh] min-h-[340px]"}>
       <PdfBlobLivePreviewPanel key={pdf.key} renderBlobUrl={render} depsKey={pdf.key} debounceMs={0}
-        downloadFileName={pdf.name} downloadButtonLabel={inline ? "Scarica PDF" : undefined}
+        downloadFileName={pdf.name} downloadButtonLabel={inline ? tr("Scarica PDF") : undefined}
         requireRenderedDownload={inline} fitWholePage={inline} showDownloadOnMobile allowOpenInNewTab={!inline}
-        headerLabel="Anteprima del documento" accentClass={inline ? "text-blue-700 dark:text-blue-300" : undefined} />
+        headerLabel={tr("Anteprima del documento")} accentClass={inline ? "text-blue-700 dark:text-blue-300" : undefined} />
     </div>
   );
 
   const corpo = (
     <div className="min-h-0 overflow-y-auto p-4 space-y-4">
-      {error && <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error} {existing && !receipt && <Button variant="outline" size="sm" onClick={() => void run("Riprovo…", async () => absorb(await workflow.request(id,"load")))}>Riprova</Button>}</div>}
+      {error && <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error} {existing && !receipt && <Button variant="outline" size="sm" onClick={() => void run("Riprovo…", async () => absorb(await workflow.request(id,"load")))}>{tr("Riprova")}</Button>}</div>}
 
       {passo === "cosa" && <>
         {editable && <VariationTemplatePicker companyId={company} draft={form} context={variationDocumentContext(form,context)} disabled={busy} onApply={draft => {setForm(draft);setPdf(null);}} />}
-        {phases.isError && <p role="alert" className="text-sm text-destructive">Lavorazioni non disponibili. <Button variant="outline" size="sm" onClick={() => void phases.refetch()}>Riprova</Button></p>}
+        {phases.isError && <p role="alert" className="text-sm text-destructive">{tr("Lavorazioni non disponibili.")} <Button variant="outline" size="sm" onClick={() => void phases.refetch()}>{tr("Riprova")}</Button></p>}
         <VariationEditor draft={form} setDraft={draft => {setForm(draft);setPdf(null);}} phases={phases.data ?? []} chiPuo={chiPuo.data} context={variationDocumentContext(form,context)} busy={busy || !editable} review={false} onBack={()=>setPasso("cosa")} persistentDraft showPdfPreview={false} error="" />
       </>}
 
       {passo === "rivedi" && <>
-        {impatto && <div className="grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-3" aria-label="Quanto cambia">
-          <div><p className="text-[11px] text-muted-foreground">Questo lavoro extra</p><p className="text-base font-semibold tabular-nums">{formatCurrency(impatto.delta)}</p><p className="text-[11px] text-muted-foreground">IVA esclusa</p></div>
-          {impatto.vat !== null && <div><p className="text-[11px] text-muted-foreground">Con IVA {impatto.rate}%</p><p className="text-base font-semibold tabular-nums">{formatCurrency(impatto.grossDelta)}</p></div>}
-          {impatto.revisedNet !== null && <div><p className="text-[11px] text-muted-foreground">Contratto se accetta</p><p className="text-base font-semibold tabular-nums">{formatCurrency(impatto.revisedNet)}</p></div>}
+        {impatto && <div className="grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-3" aria-label={tr("Quanto cambia")}>
+          <div><p className="text-[11px] text-muted-foreground">{tr("Questo lavoro extra")}</p><p className="text-base font-semibold tabular-nums">{formatCurrency(impatto.delta)}</p><p className="text-[11px] text-muted-foreground">{tr("IVA esclusa")}</p></div>
+          {impatto.vat !== null && <div><p className="text-[11px] text-muted-foreground">{tr("Con IVA {aliquota}%", { aliquota: impatto.rate })}</p><p className="text-base font-semibold tabular-nums">{formatCurrency(impatto.grossDelta)}</p></div>}
+          {impatto.revisedNet !== null && <div><p className="text-[11px] text-muted-foreground">{tr("Contratto se accetta")}</p><p className="text-base font-semibold tabular-nums">{formatCurrency(impatto.revisedNet)}</p></div>}
         </div>}
-        {anteprima ?? <p role="status" className="rounded-lg border p-6 text-center text-sm text-muted-foreground">{busy ? "Preparo il PDF…" : "Il PDF si prepara quando arrivi qui."}</p>}
-        {!inline && pdf && <a href={pdf.downloadUrl} download={pdf.name} target="_blank" rel="noopener" className="inline-flex min-h-10 items-center rounded-md border px-4 text-sm font-medium">Scarica il PDF</a>}
-        {receipt?.document?.attachments.map(file => <div key={file.id} className="flex items-center justify-between gap-2 rounded-md border p-3"><span className="text-sm break-all">{file.name}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument(file.id))}>Apri</Button></div>)}
-        <p className="text-xs text-muted-foreground">Se cambi qualcosa, il PDF si rifà: quelli vecchi restano nei Documenti della commessa.</p>
+        {anteprima ?? <p role="status" className="rounded-lg border p-6 text-center text-sm text-muted-foreground">{busy ? tr("Preparo il PDF…") : tr("Il PDF si prepara quando arrivi qui.")}</p>}
+        {!inline && pdf && <a href={pdf.downloadUrl} download={pdf.name} target="_blank" rel="noopener" className="inline-flex min-h-10 items-center rounded-md border px-4 text-sm font-medium">{tr("Scarica il PDF")}</a>}
+        {receipt?.document?.attachments.map(file => <div key={file.id} className="flex items-center justify-between gap-2 rounded-md border p-3"><span className="text-sm break-all">{file.name}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument(file.id))}>{tr("Apri")}</Button></div>)}
+        <p className="text-xs text-muted-foreground">{tr("Se cambi qualcosa, il PDF si rifà: quelli vecchi restano nei Documenti della commessa.")}</p>
       </>}
 
       {passo === "manda" && <>
         {approvata ? (
           <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
-            <p className="flex items-center gap-2 text-sm font-medium text-emerald-900"><Check className="h-4 w-4" />Accettato dal cliente {receipt?.variation.approval_channel === "offline" ? "con firma su carta" : "online, dal link"}{receipt?.variation.firmato_da ? ` · ${receipt.variation.firmato_da}` : ""}.</p>
-            <p className="text-sm text-emerald-900">L'importo è nel contratto della commessa e il lavoro è una fase delle Lavorazioni, con le sue sottofasi.</p>
+            <p className="flex items-center gap-2 text-sm font-medium text-emerald-900"><Check className="h-4 w-4" />{receipt?.variation.approval_channel === "offline" ? tr("Accettato dal cliente con firma su carta") : tr("Accettato dal cliente online, dal link")}{receipt?.variation.firmato_da ? ` · ${receipt.variation.firmato_da}` : ""}.</p>
+            <p className="text-sm text-emerald-900">{tr("L'importo è nel contratto della commessa e il lavoro è una fase delle Lavorazioni, con le sue sottofasi.")}</p>
             <div className="flex flex-wrap gap-2">
               {copiaFirmata && <Button variant="outline" size="sm" disabled={busy}
-                onClick={() => void run("Apro…", () => showDocument(copiaFirmata))}>Apri la copia firmata</Button>}
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument())}>Apri la proposta PDF</Button>
-              {evidence.filter(item => item.id !== copiaFirmata).map(item => <Button key={item.id} variant="outline" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument(item.id))}>Copia caricata: {item.file_name}</Button>)}
+                onClick={() => void run("Apro…", () => showDocument(copiaFirmata))}>{tr("Apri la copia firmata")}</Button>}
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument())}>{tr("Apri la proposta PDF")}</Button>
+              {evidence.filter(item => item.id !== copiaFirmata).map(item => <Button key={item.id} variant="outline" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument(item.id))}>{tr("Copia caricata: {nome}", { nome: String(item.file_name ?? "") })}</Button>)}
             </div>
           </div>
         ) : <>
           <div className="space-y-3 rounded-lg border p-4">
-            <p className="text-sm font-medium">Mandalo al cliente da firmare</p>
+            <p className="text-sm font-medium">{tr("Mandalo al cliente da firmare")}</p>
             {link ? <>
               <p className="text-xs text-muted-foreground">
-                Già mandato a {firmaEsistente.data?.email ?? "il cliente"}. Firma elettronica col codice: il cliente apre il link, riceve un codice di sei cifre per email e firma.
+                {tr("Già mandato a {chi}. Firma elettronica col codice: il cliente apre il link, riceve un codice di sei cifre per email e firma.", { chi: firmaEsistente.data?.email ?? tr("il cliente") })}
               </p>
-              <Input aria-label="Link di firma" readOnly value={link} className="text-xs" />
+              <Input aria-label={tr("Link di firma")} readOnly value={link} className="text-xs" />
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={copiaLink}><Copy className="mr-1.5 h-3.5 w-3.5" />Copia link</Button>
-                <Button variant="ghost" size="sm" onClick={() => window.open(link, "_blank", "noopener")}>Apri come il cliente</Button>
+                <Button variant="outline" size="sm" onClick={copiaLink}><Copy className="mr-1.5 h-3.5 w-3.5" />{tr("Copia link")}</Button>
+                <Button variant="ghost" size="sm" onClick={() => window.open(link, "_blank", "noopener")}>{tr("Apri come il cliente")}</Button>
               </div>
             </> : <>
               <p className="text-xs text-muted-foreground">
-                Firma elettronica col codice, come per i preventivi: il cliente si identifica, riceve un codice di sei cifre e firma. Alla firma il lavoro entra nel contratto e nelle Lavorazioni.
+                {tr("Firma elettronica col codice, come per i preventivi: il cliente si identifica, riceve un codice di sei cifre e firma. Alla firma il lavoro entra nel contratto e nelle Lavorazioni.")}
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1"><Label htmlFor="odv-email">Email del cliente</Label>
+                <div className="space-y-1"><Label htmlFor="odv-email">{tr("Email del cliente")}</Label>
                   <Input id="odv-email" type="email" inputMode="email" autoComplete="email" value={emailCliente} onChange={e => setEmailCliente(e.target.value)} disabled={busy} placeholder="cliente@esempio.it" /></div>
-                <div className="space-y-1"><Label htmlFor="odv-nome">Chi firma</Label>
+                <div className="space-y-1"><Label htmlFor="odv-nome">{tr("Chi firma")}</Label>
                   <Input id="odv-nome" value={nomeCliente} onChange={e => setNomeCliente(e.target.value)} disabled={busy} /></div>
               </div>
               <Button disabled={busy || !fresh} onClick={mandaAlCliente}>
-                {busy && azione.startsWith("Mando") ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Mail className="mr-1.5 h-4 w-4" />}Mandalo al cliente da firmare
+                {busy && azione.startsWith("Mando") ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Mail className="mr-1.5 h-4 w-4" />}{tr("Mandalo al cliente da firmare")}
               </Button>
             </>}
           </div>
 
           {receipt?.document && canEdit && <div className="space-y-3 rounded-lg border p-4">
-            <p className="text-sm font-medium">Oppure: l'ha già firmato su carta</p>
-            {approval.data === false ? <p className="text-xs text-muted-foreground">Puoi conservare la copia firmata, ma l'accettazione la registra chi ha il permesso sulle varianti.</p>
-              : <p className="text-xs text-muted-foreground">Carica la copia firmata: il PDF, o la foto del foglio fatta col telefono (diventa un PDF da sé). Fino a 10 MB. Con nome e data è accettato.</p>}
+            <p className="text-sm font-medium">{tr("Oppure: l'ha già firmato su carta")}</p>
+            {approval.data === false ? <p className="text-xs text-muted-foreground">{tr("Puoi conservare la copia firmata, ma l'accettazione la registra chi ha il permesso sulle varianti.")}</p>
+              : <p className="text-xs text-muted-foreground">{tr("Carica la copia firmata: il PDF, o la foto del foglio fatta col telefono (diventa un PDF da sé). Fino a 10 MB. Con nome e data è accettato.")}</p>}
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" disabled={busy || dirty} onClick={() => document.getElementById("variation-evidence")?.click()}><Upload className="mr-1.5 h-3.5 w-3.5" />Carica la copia firmata o la foto</Button>
-              <Input id="variation-evidence" type="file" accept="application/pdf,.pdf,image/*" capture="environment" className="sr-only" aria-label="Copia firmata: PDF o foto, fino a 10 MB" disabled={busy || dirty}
+              <Button variant="outline" size="sm" disabled={busy || dirty} onClick={() => document.getElementById("variation-evidence")?.click()}><Upload className="mr-1.5 h-3.5 w-3.5" />{tr("Carica la copia firmata o la foto")}</Button>
+              <Input id="variation-evidence" type="file" accept="application/pdf,.pdf,image/*" capture="environment" className="sr-only" aria-label={tr("Copia firmata: PDF o foto, fino a 10 MB")} disabled={busy || dirty}
                 onChange={event => { const file = event.target.files?.[0]; event.target.value=""; if (file) caricaFirmata(file); }} />
               {evidenceForDocument.map(item => <Button key={item.id} variant="ghost" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument(item.id))}>{item.file_name}</Button>)}
             </div>
             {approval.data === true && evidenceForDocument.length > 0 && <div className="grid gap-3 border-t pt-3 sm:grid-cols-2">
               {evidenceForDocument.length > 1 && <div className="space-y-1 sm:col-span-2">
-                <Label htmlFor="variation-copy">Quale copia</Label>
-                <OfficeSelect id="variation-copy" label="Copia firmata" value={selectedEvidence} onValueChange={setSelectedEvidence}
-                  options={[{value:"",label:"Scegli la copia"},...evidenceForDocument.map(item=>({value:item.id,label:item.file_name}))]} />
+                <Label htmlFor="variation-copy">{tr("Quale copia")}</Label>
+                <OfficeSelect id="variation-copy" label={tr("Copia firmata")} value={selectedEvidence} onValueChange={setSelectedEvidence}
+                  options={[{value:"",label:tr("Scegli la copia")},...evidenceForDocument.map(item=>({value:item.id,label:item.file_name}))]} />
               </div>}
-              <div className="space-y-1"><Label htmlFor="variation-signer">Chi ha firmato</Label><Input id="variation-signer" value={signer} maxLength={200} onChange={e=>setSigner(e.target.value)} /></div>
-              <div className="space-y-1"><Label htmlFor="variation-signed-date">Quando</Label><Input id="variation-signed-date" type="date" value={signedOn} onChange={e=>setSignedOn(e.target.value)} /></div>
+              <div className="space-y-1"><Label htmlFor="variation-signer">{tr("Chi ha firmato")}</Label><Input id="variation-signer" value={signer} maxLength={200} onChange={e=>setSigner(e.target.value)} /></div>
+              <div className="space-y-1"><Label htmlFor="variation-signed-date">{tr("Quando")}</Label><Input id="variation-signed-date" type="date" value={signedOn} onChange={e=>setSignedOn(e.target.value)} /></div>
               <div className="sm:col-span-2">
-                <Button disabled={busy || dirty || !selectedEvidence || signer.trim().length<2 || !signedOn} onClick={registraFirmata}><PenLine className="mr-1.5 h-4 w-4" />È accettato: mettilo nel contratto</Button>
+                <Button disabled={busy || dirty || !selectedEvidence || signer.trim().length<2 || !signedOn} onClick={registraFirmata}><PenLine className="mr-1.5 h-4 w-4" />{tr("È accettato: mettilo nel contratto")}</Button>
               </div>
             </div>}
-            {approval.isError && <p role="alert" className="text-sm text-destructive">Permesso non verificabile: puoi conservare la copia, non registrarla.</p>}
+            {approval.isError && <p role="alert" className="text-sm text-destructive">{tr("Permesso non verificabile: puoi conservare la copia, non registrarla.")}</p>}
           </div>}
         </>}
         {anteprima}
@@ -421,18 +423,18 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   );
   const azioni = <>
       <Button variant="outline" disabled={busy} onClick={close}>
-        {dirty && editable ? (inline ? "Salva bozza" : "Salva bozza e chiudi") : (inline ? "Torna alle varianti" : "Chiudi")}
+        {dirty && editable ? (inline ? tr("Salva bozza") : tr("Salva bozza e chiudi")) : (inline ? tr("Torna alle varianti") : tr("Chiudi"))}
       </Button>
-      {passo === "cosa" && editable && <Button disabled={busy} onClick={vaiARivedi}>{busy ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />{azione}</> : "Avanti: guarda il PDF"}</Button>}
+      {passo === "cosa" && editable && <Button disabled={busy} onClick={vaiARivedi}>{busy ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />{tr(azione)}</> : tr("Avanti: guarda il PDF")}</Button>}
       {passo === "rivedi" && <>
-        {editable && <Button variant="outline" disabled={busy} onClick={() => setPasso("cosa")}>Correggi</Button>}
-        <Button disabled={busy || !receipt?.document} onClick={() => { setPdf(null); setPasso("manda"); }}>{inline ? "Vai alla firma" : "Avanti: mandalo"}</Button>
+        {editable && <Button variant="outline" disabled={busy} onClick={() => setPasso("cosa")}>{tr("Correggi")}</Button>}
+        <Button disabled={busy || !receipt?.document} onClick={() => { setPdf(null); setPasso("manda"); }}>{inline ? tr("Vai alla firma") : tr("Avanti: mandalo")}</Button>
       </>}
       {passo === "manda" && !approvata && <Button variant="outline" disabled={busy} onClick={() => {
         if (editable) setPasso("cosa");
         else tornaAlPdf();
-      }}>{editable ? "Correggi" : "Rivedi il PDF"}</Button>}
-      {canEdit && receipt && ["bozza","in_attesa"].includes(receipt.variation.status) && <Button variant="ghost" className="text-muted-foreground" disabled={busy} onClick={()=>void run("Annullo…", async()=>{if(window.confirm("Annullare questo lavoro extra e togliere il link? I documenti restano."))absorb(await workflow.request(id,"cancel"));})}>Annulla</Button>}
+      }}>{editable ? tr("Correggi") : tr("Rivedi il PDF")}</Button>}
+      {canEdit && receipt && ["bozza","in_attesa"].includes(receipt.variation.status) && <Button variant="ghost" className="text-muted-foreground" disabled={busy} onClick={()=>void run("Annullo…", async()=>{if(window.confirm(tr("Annullare questo lavoro extra e togliere il link? I documenti restano.")))absorb(await workflow.request(id,"cancel"));})}>{tr("Annulla")}</Button>}
   </>;
 
   if (inline) return (

@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { formatCurrency } from "@/lib/formatters";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { DETRAZIONI_EDILIZIE } from "@/lib/fatturazione/detrazioniEdilizie";
@@ -63,6 +64,7 @@ export function BonusLinesCard({
   readOnly = false,
   datiCausale,
 }: Props) {
+  const t = useT();
   const { toast } = useToast();
   // `raw` tiene SOLO le righe in corso di digitazione: l'utente scrive "10.000"
   // e lo rileggiamo al blur (stessa regola degli altri campi importo). Fuori da
@@ -125,9 +127,9 @@ export function BonusLinesCard({
     const testo = line.causale?.trim() || causaleBonificoParlante(line, datiCausale);
     try {
       await navigator.clipboard.writeText(testo);
-      toast({ title: "Causale copiata", description: "Incollala nel bonifico del cliente." });
+      toast({ title: t("Causale copiata"), description: t("Incollala nel bonifico del cliente.") });
     } catch {
-      toast({ title: "Copia non riuscita", description: "Seleziona il testo e copialo a mano.", variant: "destructive" });
+      toast({ title: t("Copia non riuscita"), description: t("Seleziona il testo e copialo a mano."), variant: "destructive" });
     }
   };
 
@@ -142,25 +144,24 @@ export function BonusLinesCard({
         <div className="min-w-0">
           <p className="text-sm font-semibold flex items-center gap-2">
             <Percent className="h-4 w-4 text-amber-600" />
-            Ripartizione tra agevolazioni
+            {t("Ripartizione tra agevolazioni")}
           </p>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Ogni agevolazione è una pratica a sé: il cliente deve fare un bonifico parlante distinto
-            per ciascuna, con la sua causale.
+            {t("Ogni agevolazione è una pratica a sé: il cliente deve fare un bonifico parlante distinto per ciascuna, con la sua causale.")}
           </p>
         </div>
         <Badge variant={quadrato ? "secondary" : "destructive"} className="shrink-0 tabular-nums">
           {quadrato
-            ? "Ripartizione completa"
+            ? t("Ripartizione completa")
             : residuo > 0
-              ? `Da assegnare ${formatCurrency(residuo)}`
-              : `Eccedenza ${formatCurrency(Math.abs(residuo))}`}
+              ? t("Da assegnare {importo}", { importo: formatCurrency(residuo) })
+              : t("Eccedenza {importo}", { importo: formatCurrency(Math.abs(residuo)) })}
         </Badge>
       </div>
 
       {lines.length === 0 && (
         <p className="text-xs text-muted-foreground">
-          Nessuna agevolazione: aggiungine una per dividere il contratto.
+          {t("Nessuna agevolazione: aggiungine una per dividere il contratto.")}
         </p>
       )}
 
@@ -175,14 +176,14 @@ export function BonusLinesCard({
             <div key={line.position} className="rounded-md border bg-background p-2.5 space-y-2">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                 <div className="flex-1 min-w-0 space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">Agevolazione</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t("Agevolazione")}</Label>
                   <Select
                     value={line.presetId ?? undefined}
                     onValueChange={(v) => scegliPreset(line.position, v)}
                     disabled={readOnly}
                   >
                     <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Scegli l'agevolazione…" />
+                      <SelectValue placeholder={t("Scegli l'agevolazione…")} />
                     </SelectTrigger>
                     <SelectContent>
                       {DETRAZIONI_EDILIZIE.map((p) => (
@@ -200,7 +201,7 @@ export function BonusLinesCard({
                 </div>
 
                 <div className="w-full sm:w-44 space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">Imponibile</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t("Imponibile")}</Label>
                   <div className="relative">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
                     <Input
@@ -222,7 +223,7 @@ export function BonusLinesCard({
                     size="icon"
                     className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
                     onClick={() => rimuovi(line.position)}
-                    aria-label="Rimuovi agevolazione"
+                    aria-label={t("Rimuovi agevolazione")}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -231,16 +232,16 @@ export function BonusLinesCard({
 
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] sm:grid-cols-4">
                 <span className="text-muted-foreground">
-                  Bonifico lordo <span className="font-medium text-foreground tabular-nums">{formatCurrency(lordo)}</span>
+                  {t("Bonifico lordo")} <span className="font-medium text-foreground tabular-nums">{formatCurrency(lordo)}</span>
                 </span>
                 <span className="text-muted-foreground">
-                  Ritenuta 11% <span className="font-medium text-amber-700 tabular-nums">−{formatCurrency(ritenuta)}</span>
+                  {t("Ritenuta 11%")} <span className="font-medium text-amber-700 tabular-nums">−{formatCurrency(ritenuta)}</span>
                 </span>
                 <span className="text-muted-foreground">
-                  Ti arriva <span className="font-medium text-foreground tabular-nums">{formatCurrency(lordo - ritenuta)}</span>
+                  {t("Ti arriva")} <span className="font-medium text-foreground tabular-nums">{formatCurrency(lordo - ritenuta)}</span>
                 </span>
                 <span className="text-muted-foreground">
-                  Detrazione cliente{" "}
+                  {t("Detrazione cliente")}{" "}
                   <span className="font-medium text-emerald-700 tabular-nums">{formatCurrency(detrazione)}</span>
                 </span>
               </div>
@@ -248,8 +249,7 @@ export function BonusLinesCard({
               {sfora && preset?.tettoSpesa != null && (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700">
                   <TriangleAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                  La spesa supera il tetto indicativo di {formatCurrency(preset.tettoSpesa)}: la detrazione si
-                  ferma lì.
+                  {t("La spesa supera il tetto indicativo di {importo}: la detrazione si ferma lì.", { importo: formatCurrency(preset.tettoSpesa) })}
                 </p>
               )}
 
@@ -263,7 +263,7 @@ export function BonusLinesCard({
                     setCausaleAperta((p) => ({ ...p, [line.position]: !p[line.position] }))
                   }
                 >
-                  {causaleAperta[line.position] ? "Nascondi causale" : "Causale bonifico parlante"}
+                  {causaleAperta[line.position] ? t("Nascondi causale") : t("Causale bonifico parlante")}
                 </Button>
                 <Button
                   type="button"
@@ -273,7 +273,7 @@ export function BonusLinesCard({
                   onClick={() => copiaCausale(line)}
                 >
                   <Copy className="h-3 w-3 mr-1" />
-                  Copia
+                  {t("Copia")}
                 </Button>
               </div>
 
@@ -299,7 +299,7 @@ export function BonusLinesCard({
                       }
                     >
                       <Wand2 className="h-3 w-3 mr-1" />
-                      Rigenera con CF e P.IVA
+                      {t("Rigenera con CF e P.IVA")}
                     </Button>
                   )}
                 </div>
@@ -313,11 +313,11 @@ export function BonusLinesCard({
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" size="sm" className="h-8" onClick={aggiungi}>
             <Plus className="h-3.5 w-3.5 mr-1" />
-            Aggiungi agevolazione
+            {t("Aggiungi agevolazione")}
           </Button>
           {lines.length > 0 && !quadrato && (
             <Button type="button" variant="secondary" size="sm" className="h-8" onClick={quadra}>
-              Assegna il resto all'ultima riga
+              {t("Assegna il resto all'ultima riga")}
             </Button>
           )}
         </div>
@@ -326,19 +326,19 @@ export function BonusLinesCard({
       {lines.length > 0 && (
         <div className="rounded-md bg-background/70 border p-2.5 space-y-1 text-xs">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Totale bonifici (IVA inclusa)</span>
+            <span className="text-muted-foreground">{t("Totale bonifici (IVA inclusa)")}</span>
             <span className="tabular-nums">{formatCurrency(totali.lordo)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Ritenuta 11% trattenuta dalla banca</span>
+            <span className="text-muted-foreground">{t("Ritenuta 11% trattenuta dalla banca")}</span>
             <span className="tabular-nums text-amber-700">−{formatCurrency(totali.ritenuta)}</span>
           </div>
           <div className="flex justify-between font-semibold border-t pt-1">
-            <span>Incasso netto</span>
+            <span>{t("Incasso netto")}</span>
             <span className="tabular-nums">{formatCurrency(totali.netto)}</span>
           </div>
           <div className="flex justify-between text-[11px] text-muted-foreground">
-            <span>Detrazione stimata per il cliente</span>
+            <span>{t("Detrazione stimata per il cliente")}</span>
             <span className="tabular-nums text-emerald-700">{formatCurrency(totali.detrazione)}</span>
           </div>
         </div>
@@ -362,7 +362,7 @@ export function BonusLinesCard({
       )}
 
       <p className="text-[10px] text-muted-foreground">
-        Aliquote e tetti sono indicativi: verificali col commercialista prima di inviare le pratiche.
+        {t("Aliquote e tetti sono indicativi: verificali col commercialista prima di inviare le pratiche.")}
       </p>
     </div>
   );

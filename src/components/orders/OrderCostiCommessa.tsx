@@ -40,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { OfficeSelect } from "./OfficeSelect";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Colonne nuove (allegato, fase, senza_fattura) non ancora nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -142,9 +143,9 @@ const DOCUMENTO: Record<DocumentoCosto, { testo: (c: CostoCommessa) => string; c
   in_attesa: { testo: () => "Fattura da arrivare", classe: "bg-amber-100 text-amber-800" },
 };
 
-async function apriRicevuta(path: string) {
+async function apriRicevuta(path: string, messaggioErrore = "Non riesco ad aprire la ricevuta.") {
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 600);
-  if (error || !data?.signedUrl) { toast.error("Non riesco ad aprire la ricevuta."); return; }
+  if (error || !data?.signedUrl) { toast.error(messaggioErrore); return; }
   window.open(data.signedUrl, "_blank", "noopener,noreferrer");
 }
 
@@ -156,6 +157,7 @@ async function caricaRicevuta(orderId: string, file: File): Promise<string> {
 }
 
 export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: string; puoModificare: boolean }) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -192,18 +194,18 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
       const { error } = await db.from("company_costs").update({ allegato_path: path, allegato_nome: file.name }).eq("id", costId);
       if (error) { await supabase.storage.from(BUCKET).remove([path]); throw error; }
     },
-    onSuccess: () => { toast.success("Ricevuta allegata"); aggiorna(); },
-    onError: (e) => toast.error(userErrorMessage(e, "Ricevuta non allegata.")),
+    onSuccess: () => { toast.success(tr("Ricevuta allegata")); aggiorna(); },
+    onError: (e) => toast.error(userErrorMessage(e, tr("Ricevuta non allegata."))),
   });
 
   const scegliFase = useMutation({
     mutationFn: async ({ id, faseId }: { id: string; faseId: string | null }) => {
       const { error, data: righe } = await db.from("company_costs").update({ order_work_phase_id: faseId }).eq("id", id).select("id");
       if (error) throw error;
-      if (!righe?.length) throw new Error("Non puoi modificare questo costo.");
+      if (!righe?.length) throw new Error(tr("Non puoi modificare questo costo."));
     },
     onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["company-costs"] }); },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Fase non salvata"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : tr("Fase non salvata")),
   });
   const elimina = useMutation({
     mutationFn: async (c: CostoCommessa) => {
@@ -211,8 +213,8 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
       if (error) throw error;
       if (c.allegato_path) await supabase.storage.from(BUCKET).remove([c.allegato_path]);
     },
-    onSuccess: () => { toast.success("Costo eliminato"); aggiorna(); },
-    onError: (e) => toast.error(userErrorMessage(e, "Costo non eliminato.")),
+    onSuccess: () => { toast.success(tr("Costo eliminato")); aggiorna(); },
+    onError: (e) => toast.error(userErrorMessage(e, tr("Costo non eliminato."))),
   });
 
   return (
@@ -220,33 +222,33 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
     {pagamentiDi && <ExpensePaymentDialog key={pagamentiDi} costId={pagamentiDi} onClose={() => { setPagamentiDi(null); aggiorna(); }} />}
     <RiquadroCommessa id="costi-commessa"
       icona={<Wallet className="h-5 w-5 text-primary" aria-hidden="true" />}
-      descrizione="Spese dirette, ricevute e costi in attesa di fattura della commessa."
-      titolo="Altri costi" conteggio={costi.length}
-      riassunto={costi.length > 0 ? `${formatCurrency(totale)} nel margine` : undefined}
+      descrizione={tr("Spese dirette, ricevute e costi in attesa di fattura della commessa.")}
+      titolo={tr("Altri costi")} conteggio={costi.length}
+      riassunto={costi.length > 0 ? tr("{importo} nel margine", { importo: formatCurrency(totale) }) : undefined}
       numeri={!isLoading && !isError ? <>
-        <dl className="commessa-totali grid grid-cols-3 gap-3 rounded-md border bg-muted/20 p-3 sm:max-w-xl" aria-label="Totali degli altri costi, IVA compresa">
-          {([["Totale", totali.totale, false], ["Saldati", totali.saldati, false], ["Da saldare", totali.daSaldare, totali.daSaldare > 0]] as const).map(([titolo, valore, evidenza]) => (
+        <dl className="commessa-totali grid grid-cols-3 gap-3 rounded-md border bg-muted/20 p-3 sm:max-w-xl" aria-label={tr("Totali degli altri costi, IVA compresa")}>
+          {([[tr("Totale"), totali.totale, false], [tr("Saldati"), totali.saldati, false], [tr("Da saldare"), totali.daSaldare, totali.daSaldare > 0]] as const).map(([titolo, valore, evidenza]) => (
             <div key={titolo}>
               <dt className="text-xs text-muted-foreground">{titolo}</dt>
               <dd className={`mt-1 text-sm font-semibold tabular-nums ${evidenza ? "text-amber-700" : ""}`}>{formatCurrency(valore)}</dd>
             </div>
           ))}
         </dl>
-        <ContatoriFiltro etichetta="Altri costi per stato" attivo={filtro} onScegli={setFiltro} voci={[
-          { chiave: "pagare", etichetta: "Da pagare", valore: conta("pagare"), avviso: true },
-          { chiave: "pagati", etichetta: "Pagati", valore: conta("pagati") },
-          { chiave: "ricevuta", etichetta: "Senza ricevuta", valore: conta("ricevuta"), avviso: true },
-          { chiave: "attesa", etichetta: "Fattura da arrivare", valore: conta("attesa") },
+        <ContatoriFiltro etichetta={tr("Altri costi per stato")} attivo={filtro} onScegli={setFiltro} voci={[
+          { chiave: "pagare", etichetta: tr("Da pagare"), valore: conta("pagare"), avviso: true },
+          { chiave: "pagati", etichetta: tr("Pagati"), valore: conta("pagati") },
+          { chiave: "ricevuta", etichetta: tr("Senza ricevuta"), valore: conta("ricevuta"), avviso: true },
+          { chiave: "attesa", etichetta: tr("Fattura da arrivare"), valore: conta("attesa") },
         ]} />
       </> : undefined}
-      azioni={puoModificare ? <Button size="sm" onClick={() => setModulo({})}><Plus className="mr-1.5 h-4 w-4" />Aggiungi costo</Button> : undefined}
+      azioni={puoModificare ? <Button size="sm" onClick={() => setModulo({})}><Plus className="mr-1.5 h-4 w-4" />{tr("Aggiungi costo")}</Button> : undefined}
     >
         <input
           ref={inputAllega}
           type="file"
           accept="application/pdf,image/*"
           className="hidden"
-          aria-label="Ricevuta da allegare"
+          aria-label={tr("Ricevuta da allegare")}
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file && allegaA) allega.mutate({ costId: allegaA, file });
@@ -255,72 +257,72 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
           }}
         />
         {isError ? (
-          <p role="alert" className="text-sm text-destructive">Non riesco a leggere i costi. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></p>
+          <p role="alert" className="text-sm text-destructive">{tr("Non riesco a leggere i costi.")} <button type="button" className="underline" onClick={() => void refetch()}>{tr("Riprova")}</button></p>
         ) : isLoading ? (
           <Skeleton className="h-20 w-full" />
         ) : costi.length === 0 ? (
           <div className="space-y-3">
-            <p className="commessa-empty text-sm text-muted-foreground">Nessun costo senza fattura su questa commessa.</p>
+            <p className="commessa-empty text-sm text-muted-foreground">{tr("Nessun costo senza fattura su questa commessa.")}</p>
             {puoModificare && (
               <div>
-                <p className="mb-1.5 text-xs font-medium text-muted-foreground">Aggiungine uno con un clic</p>
-                <div className="flex flex-wrap gap-1.5" aria-label="Costi pronti">
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">{tr("Aggiungine uno con un clic")}</p>
+                <div className="flex flex-wrap gap-1.5" aria-label={tr("Costi pronti")}>
                   {COSTI_PRONTI.map((c) => (
-                    <Button key={c.descrizione} size="sm" variant="outline" onClick={() => setModulo({ iniziale: dalPronto(c) })}><Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />{c.breve}</Button>
+                    <Button key={c.descrizione} size="sm" variant="outline" onClick={() => setModulo({ iniziale: dalPronto(c) })}><Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />{tr(c.breve)}</Button>
                   ))}
                 </div>
               </div>
             )}
           </div>
         ) : (
-          <TabellaCommessa etichetta="Altri costi" righe={visibili} chiave={(c) => c.id} colonne={[
-            { titolo: "Costo", principale: true, cella: (c) => <>
+          <TabellaCommessa etichetta={tr("Altri costi")} righe={visibili} chiave={(c) => c.id} colonne={[
+            { titolo: tr("Costo"), principale: true, cella: (c) => <>
               <span className="font-medium">{c.name}</span>
               {c.notes && <span className="block text-xs text-muted-foreground">{c.notes}</span>}
             </> },
-            { titolo: "Tipo", cella: (c) => TIPI_COSTO.find((t) => t.value === c.tipo)?.label },
-            { titolo: "Data", cella: (c) => <span className="whitespace-nowrap">{dataIt(c.due_date)}</span> },
-            { titolo: "Fase", cella: (c) => puoModificare && (data?.fasi.length ?? 0) > 0 ? (
-              <OfficeSelect label={`Fase di ${c.name}`} value={c.order_work_phase_id ?? ""} disabled={scegliFase.isPending}
+            { titolo: tr("Tipo"), cella: (c) => { const l = TIPI_COSTO.find((t) => t.value === c.tipo)?.label; return l ? tr(l) : l; } },
+            { titolo: tr("Data"), cella: (c) => <span className="whitespace-nowrap">{dataIt(c.due_date)}</span> },
+            { titolo: tr("Fase"), cella: (c) => puoModificare && (data?.fasi.length ?? 0) > 0 ? (
+              <OfficeSelect label={tr("Fase di {costo}", { costo: c.name })} value={c.order_work_phase_id ?? ""} disabled={scegliFase.isPending}
                 onValueChange={(v) => scegliFase.mutate({ id: c.id, faseId: v || null })}
                 className="h-7 max-w-44 rounded-lg px-1 text-xs"
-                options={[{ value: "", label: "Senza fase" }, ...data!.fasi.map((f) => ({ value: f.id, label: f.name }))]} />
+                options={[{ value: "", label: tr("Senza fase") }, ...data!.fasi.map((f) => ({ value: f.id, label: f.name }))]} />
             ) : c.fase ?? "—" },
-            { titolo: "Documento", cella: (c) => (
+            { titolo: tr("Documento"), cella: (c) => (
               <div className="space-y-0.5">
-                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${DOCUMENTO[c.documento].classe}`}>{DOCUMENTO[c.documento].testo(c)}</span>
+                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${DOCUMENTO[c.documento].classe}`}>{c.documento === "fattura" ? tr("Fattura n. {numero}", { numero: c.fattura }) : tr(DOCUMENTO[c.documento].testo(c))}</span>
                 {c.allegato_path ? (
-                  <button type="button" className="flex items-center gap-1 text-xs font-medium text-primary underline underline-offset-2" onClick={() => void apriRicevuta(c.allegato_path!)}>
-                    <Paperclip className="h-3 w-3" aria-hidden="true" />{c.allegato_nome ?? "Ricevuta"}
+                  <button type="button" className="flex items-center gap-1 text-xs font-medium text-primary underline underline-offset-2" onClick={() => void apriRicevuta(c.allegato_path!, tr("Non riesco ad aprire la ricevuta."))}>
+                    <Paperclip className="h-3 w-3" aria-hidden="true" />{c.allegato_nome ?? tr("Ricevuta")}
                   </button>
                 ) : puoModificare && c.documento !== "fattura" ? (
                   <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2" disabled={allega.isPending}
                     onClick={() => { setAllegaA(c.id); inputAllega.current?.click(); }}>
-                    <Paperclip className="h-3 w-3" aria-hidden="true" />Allega ricevuta
+                    <Paperclip className="h-3 w-3" aria-hidden="true" />{tr("Allega ricevuta")}
                   </button>
                 ) : null}
               </div>
             ) },
-            { titolo: "Pagamento", cella: (c) => (
+            { titolo: tr("Pagamento"), cella: (c) => (
               <div className="space-y-0.5">
-                <button type="button" title="Pagamenti e residuo" aria-label={`Pagamenti di ${c.name}`} onClick={() => setPagamentiDi(c.id)}>
-                  <StatoPill tono={c.is_paid ? "verde" : "ambra"}>{c.is_paid ? "Pagato" : "Da pagare"}<ChevronDown className="ml-1 inline h-3 w-3" aria-hidden="true" /></StatoPill>
+                <button type="button" title={tr("Pagamenti e residuo")} aria-label={tr("Pagamenti di {costo}", { costo: c.name })} onClick={() => setPagamentiDi(c.id)}>
+                  <StatoPill tono={c.is_paid ? "verde" : "ambra"}>{c.is_paid ? tr("Pagato") : tr("Da pagare")}<ChevronDown className="ml-1 inline h-3 w-3" aria-hidden="true" /></StatoPill>
                 </button>
-                {c.is_paid && c.paid_date && <p className="whitespace-nowrap text-xs text-muted-foreground">il {dataIt(c.paid_date)}</p>}
+                {c.is_paid && c.paid_date && <p className="whitespace-nowrap text-xs text-muted-foreground">{tr("il {data}", { data: dataIt(c.paid_date) })}</p>}
               </div>
             ) },
-            { titolo: "Importo", destra: true, cella: (c) => <>
+            { titolo: tr("Importo"), destra: true, cella: (c) => <>
               <span className="font-medium">{formatCurrency(lordoCosto(c))}</span>
               {!!c.vat_rate && <span className="block whitespace-nowrap text-xs text-muted-foreground">{formatCurrency(c.amount)} + IVA {c.vat_rate}%</span>}
             </> },
-            { titolo: "Azioni", destra: true, senzaEtichetta: true, cella: (c) => puoModificare && !c.is_paid && c.documento !== "fattura" ? (
+            { titolo: tr("Azioni"), destra: true, senzaEtichetta: true, cella: (c) => puoModificare && !c.is_paid && c.documento !== "fattura" ? (
               /* Un costo pagato ha già scritto in cassa: si toglie da Economia → Costi, che storna il pagamento. */
               <div className="flex justify-end gap-0.5">
-                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Modifica ${c.name}`} onClick={() => setModulo({ costo: c })}>
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={tr("Modifica {costo}", { costo: c.name })} onClick={() => setModulo({ costo: c })}>
                   <Pencil className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Elimina ${c.name}`} disabled={elimina.isPending}
-                  onClick={() => { if (window.confirm(`Eliminare «${c.name}»?`)) elimina.mutate(c); }}>
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={tr("Elimina {costo}", { costo: c.name })} disabled={elimina.isPending}
+                  onClick={() => { if (window.confirm(tr("Eliminare «{costo}»?", { costo: c.name }))) elimina.mutate(c); }}>
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </div>
@@ -352,6 +354,7 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
   onClose: () => void; onSalvato: () => void;
   onCreato?: (costo: { id: string; imponibile: number }) => void;
 }) {
+  const tr = useT();
   const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
   const [form, setForm] = useState<FormCostoCommessa>(() => (costo ? formDaCosto(costo) : { ...formCostoVuoto(oggi), ...iniziale }));
   const [file, setFile] = useState<File | null>(null);
@@ -384,7 +387,7 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
         .select("id").single();
       if (error || !creato) {
         if (path) await supabase.storage.from(BUCKET).remove([path]);
-        throw error ?? new Error("Costo non salvato.");
+        throw error ?? new Error(tr("Costo non salvato."));
       }
       onCreato?.({ id: creato.id, imponibile: riga.amount });
       if (!form.pagato) return { pagamento: null as string | null };
@@ -393,20 +396,20 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
       return { pagamento: payErr ? payErr.message : null };
     },
     onSuccess: ({ pagamento }) => {
-      if (pagamento) toast.warning("Costo salvato, ma il pagamento non è registrato", { description: pagamento });
-      else toast.success(costo ? "Costo aggiornato" : "Costo aggiunto alla commessa");
+      if (pagamento) toast.warning(tr("Costo salvato, ma il pagamento non è registrato"), { description: pagamento });
+      else toast.success(costo ? tr("Costo aggiornato") : tr("Costo aggiunto alla commessa"));
       onSalvato();
       onClose();
     },
-    onError: (e) => toast.error(e instanceof Error && e.message ? e.message : userErrorMessage(e, "Costo non salvato.")),
+    onError: (e) => toast.error(e instanceof Error && e.message ? e.message : userErrorMessage(e, tr("Costo non salvato."))),
   });
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o && !salva.isPending) onClose(); }}>
       <DialogContent struttura="contenuta" ampiezza="modulo" className="max-h-[85vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{costo ? "Modifica costo" : "Aggiungi costo alla commessa"}</DialogTitle>
-          <DialogDescription>Per le spese senza fattura (tassa comunale, bolli, F24) o quelle che aspettano ancora la fattura.</DialogDescription>
+          <DialogTitle>{costo ? tr("Modifica costo") : tr("Aggiungi costo alla commessa")}</DialogTitle>
+          <DialogDescription>{tr("Per le spese senza fattura (tassa comunale, bolli, F24) o quelle che aspettano ancora la fattura.")}</DialogDescription>
         </DialogHeader>
         <form
           className="commessa-modal-form"
@@ -414,10 +417,10 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
         >
           <CorpoDialogOperativo>
           <div>
-            <Label htmlFor="costo-descrizione">Che costo è *</Label>
-            <Textarea id="costo-descrizione" rows={2} value={form.descrizione} onChange={(e) => set("descrizione", e.target.value)} placeholder="es. Tassa comunale occupazione suolo" maxLength={200} autoFocus />
+            <Label htmlFor="costo-descrizione">{tr("Che costo è *")}</Label>
+            <Textarea id="costo-descrizione" rows={2} value={form.descrizione} onChange={(e) => set("descrizione", e.target.value)} placeholder={tr("es. Tassa comunale occupazione suolo")} maxLength={200} autoFocus />
             {!costo && !form.descrizione && (
-              <div className="mt-1.5 flex flex-wrap gap-1" aria-label="Costi pronti">
+              <div className="mt-1.5 flex flex-wrap gap-1" aria-label={tr("Costi pronti")}>
                 {COSTI_PRONTI.map((c) => (
                   <button
                     key={c.descrizione}
@@ -425,7 +428,7 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
                     className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-primary"
                     onClick={() => setForm((f) => ({ ...f, ...dalPronto(c) }))}
                   >
-                    {c.breve}
+                    {tr(c.breve)}
                   </button>
                 ))}
               </div>
@@ -433,7 +436,7 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="costo-importo">Importo (€) *</Label>
+              <Label htmlFor="costo-importo">{tr("Importo (€) *")}</Label>
               <Input id="costo-importo" inputMode="decimal" value={form.importo} onChange={(e) => set("importo", e.target.value)} placeholder="350,00" />
             </div>
             <div>
@@ -441,26 +444,26 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
               <Select value={form.aliquotaIva} onValueChange={(v) => set("aliquotaIva", v)}>
                 <SelectTrigger id="costo-iva"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0">Nessuna (0%)</SelectItem>
+                  <SelectItem value="0">{tr("Nessuna (0%)")}</SelectItem>
                   {VAT_RATES.filter((r) => r.value !== 0).map((r) => <SelectItem key={r.value} value={String(r.value)}>{r.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </div>
           {imponibile != null && iva > 0 && (
-            <p className="text-xs text-muted-foreground">Nel margine entra l’imponibile: {formatCurrency(imponibile)}.</p>
+            <p className="text-xs text-muted-foreground">{tr("Nel margine entra l’imponibile: {importo}.", { importo: formatCurrency(imponibile) })}</p>
           )}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="costo-data">Data *</Label>
+              <Label htmlFor="costo-data">{tr("Data *")}</Label>
               <Input id="costo-data" type="date" value={form.data} onChange={(e) => set("data", e.target.value)} />
             </div>
             <div>
-              <Label htmlFor="costo-fase">Fase</Label>
+              <Label htmlFor="costo-fase">{tr("Fase")}</Label>
               <Select value={form.faseId || "nessuna"} onValueChange={(v) => set("faseId", v === "nessuna" ? "" : v)} disabled={fasi.length === 0}>
-                <SelectTrigger id="costo-fase"><SelectValue placeholder="Nessuna" /></SelectTrigger>
+                <SelectTrigger id="costo-fase"><SelectValue placeholder={tr("Nessuna")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="nessuna">Tutta la commessa</SelectItem>
+                  <SelectItem value="nessuna">{tr("Tutta la commessa")}</SelectItem>
                   {fasi.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -468,44 +471,44 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="costo-tipo">Di che tipo è</Label>
+              <Label htmlFor="costo-tipo">{tr("Di che tipo è")}</Label>
               <Select value={form.tipo} onValueChange={(v) => set("tipo", v as TipoCosto)}>
                 <SelectTrigger id="costo-tipo"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {TIPI_COSTO.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  {TIPI_COSTO.map((t) => <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Fornitore</Label>
-              <SupplierSelect value={form.fornitoreId ?? ""} onValueChange={(v) => set("fornitoreId", v || null)} placeholder="Nessuno" searchable allowCreate />
+              <Label>{tr("Fornitore")}</Label>
+              <SupplierSelect value={form.fornitoreId ?? ""} onValueChange={(v) => set("fornitoreId", v || null)} placeholder={tr("Nessuno")} searchable allowCreate />
             </div>
           </div>
           <div>
-            <Label htmlFor="costo-ricevuta">{costo?.allegato_path ? "Sostituisci la ricevuta" : "Ricevuta o F24"}</Label>
+            <Label htmlFor="costo-ricevuta">{costo?.allegato_path ? tr("Sostituisci la ricevuta") : tr("Ricevuta o F24")}</Label>
             <Input id="costo-ricevuta" type="file" accept="application/pdf,image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </div>
           <div className={`grid gap-3 ${costo ? "" : "sm:grid-cols-2"}`}>
             <div className="flex items-center justify-between gap-3 rounded-md border p-2.5">
-              <Label htmlFor="costo-senza-fattura" className="text-sm font-normal">Senza fattura<span className="block text-xs text-muted-foreground">Nessuno la manderà.</span></Label>
+              <Label htmlFor="costo-senza-fattura" className="text-sm font-normal">{tr("Senza fattura")}<span className="block text-xs text-muted-foreground">{tr("Nessuno la manderà.")}</span></Label>
               <Switch id="costo-senza-fattura" checked={form.senzaFattura} onCheckedChange={(v) => set("senzaFattura", v)} />
             </div>
             {!costo && (
               <div className="flex items-center justify-between gap-3 rounded-md border p-2.5">
-                <Label htmlFor="costo-pagato" className="text-sm font-normal">Già pagato<span className="block text-xs text-muted-foreground">Uscita alla data del costo.</span></Label>
+                <Label htmlFor="costo-pagato" className="text-sm font-normal">{tr("Già pagato")}<span className="block text-xs text-muted-foreground">{tr("Uscita alla data del costo.")}</span></Label>
                 <Switch id="costo-pagato" checked={form.pagato} onCheckedChange={(v) => set("pagato", v)} />
               </div>
             )}
           </div>
           <div>
-            <Label htmlFor="costo-note">Note</Label>
+            <Label htmlFor="costo-note">{tr("Note")}</Label>
             <Textarea id="costo-note" value={form.note} onChange={(e) => set("note", e.target.value)} rows={2} maxLength={200} />
           </div>
           </CorpoDialogOperativo>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={salva.isPending}>Annulla</Button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={salva.isPending}>{tr("Annulla")}</Button>
             <Button type="submit" disabled={salva.isPending || !form.descrizione.trim() || !form.importo}>
-              {salva.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}{costo ? "Salva" : "Aggiungi"}
+              {salva.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}{costo ? tr("Salva") : tr("Aggiungi")}
             </Button>
           </DialogFooter>
         </form>

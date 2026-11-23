@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Package } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 /** Un solo contenitore per ricerca, preparazione e modifica degli articoli. */
@@ -12,6 +13,7 @@ export function SpazioArticoliDialog({ open, onOpenChange, titolo, descrizione, 
   children: ReactNode;
   avviso?: ReactNode;
 }) {
+  const t = useT();
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="flex h-[min(880px,92dvh)] max-h-[92dvh] w-[96vw] max-w-[1380px] flex-col gap-0 overflow-hidden p-0 max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:w-full max-sm:rounded-none">
       <DialogHeader className="shrink-0 border-b px-4 py-4 pr-12 sm:px-6">
@@ -20,7 +22,7 @@ export function SpazioArticoliDialog({ open, onOpenChange, titolo, descrizione, 
       </DialogHeader>
       {avviso}
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] lg:overflow-hidden">
-        <aside className="min-w-0 border-b bg-muted/20 p-3 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r sm:p-4" aria-label="Ricerca articoli">{ricerca}</aside>
+        <aside className="min-w-0 border-b bg-muted/20 p-3 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r sm:p-4" aria-label={t("Ricerca articoli")}>{ricerca}</aside>
         <div className="min-w-0 p-4 lg:min-h-0 lg:overflow-y-auto sm:p-6" data-testid="editor-articoli">{children}</div>
       </div>
     </DialogContent>

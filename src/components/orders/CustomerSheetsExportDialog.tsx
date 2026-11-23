@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Dialog per export PDF schede clienti con selezione quantità + progress bar.
@@ -84,6 +85,7 @@ const yieldToBrowser = () => new Promise<void>((r) => setTimeout(r, 0));
 export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheetsExportDialogProps) {
   const { effectiveCompany } = useAuth();
   const { toast } = useToast();
+  const t = useT();
 
   const [mode, setMode] = useState<RangeMode>("first_n");
   const [firstN, setFirstN] = useState<number>(100);
@@ -158,12 +160,12 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
   const handleExport = async () => {
     if (!effectiveCompany?.id) return;
     if (selectedCount === 0) {
-      toast({ title: "Nessuna scheda da esportare", variant: "destructive" });
+      toast({ title: t("Nessuna scheda da esportare"), variant: "destructive" });
       return;
     }
 
     setIsExporting(true);
-    setProgress({ done: 0, total: selectedCount, phase: "Caricamento clienti…" });
+    setProgress({ done: 0, total: selectedCount, phase: t("Caricamento clienti…") });
 
     try {
       // 1. Fetch customers in batch
@@ -172,17 +174,17 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
 
       await fetchCustomersBatched(effectiveCompany.id, offset, selectedCount, (batch) => {
         customers.push(...batch);
-        setProgress({ done: customers.length, total: selectedCount, phase: "Caricamento clienti…" });
+        setProgress({ done: customers.length, total: selectedCount, phase: t("Caricamento clienti…") });
       });
 
       if (customers.length === 0) {
-        toast({ title: "Nessun cliente trovato", variant: "destructive" });
+        toast({ title: t("Nessun cliente trovato"), variant: "destructive" });
         setIsExporting(false);
         return;
       }
 
       // 2. Legge tutte le pagine di commesse per i clienti selezionati.
-      setProgress({ done: 0, total: customers.length, phase: "Caricamento commesse…" });
+      setProgress({ done: 0, total: customers.length, phase: t("Caricamento commesse…") });
       const customerIds = customers.map((c) => c.id);
       const ordersByCustomer = new Map<string, OrderRow[]>();
 
@@ -199,7 +201,7 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
             .order("id")
             .range(da, da + BATCH_SIZE - 1);
           if (error || !data) {
-            throw new Error("Impossibile caricare tutte le commesse. Riprova a esportare le schede.");
+            throw new Error(t("Impossibile caricare tutte le commesse. Riprova a esportare le schede."));
           }
           for (const { order_statuses, ...ordine } of data) {
             if (!ordine.customer_id) continue;
@@ -214,7 +216,7 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
       }
 
       // 3. Generate PDF a chunk con yield per non freezare UI
-      setProgress({ done: 0, total: customers.length, phase: "Generazione PDF…" });
+      setProgress({ done: 0, total: customers.length, phase: t("Generazione PDF…") });
 
       const jsPDFModule = await import("jspdf");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -353,25 +355,25 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
 
         // Progress + yield ogni 10 pagine per non freezare UI
         if ((i + 1) % 10 === 0 || i === customers.length - 1) {
-          setProgress({ done: i + 1, total: customers.length, phase: "Generazione PDF…" });
+          setProgress({ done: i + 1, total: customers.length, phase: t("Generazione PDF…") });
           await yieldToBrowser();
         }
       }
 
-      setProgress({ done: customers.length, total: customers.length, phase: "Salvataggio file…" });
+      setProgress({ done: customers.length, total: customers.length, phase: t("Salvataggio file…") });
       await yieldToBrowser();
 
       doc.save(`schede-clienti-${format(new Date(), "yyyy-MM-dd")}-${customers.length}.pdf`);
 
       toast({
-        title: "PDF pronto",
-        description: `${customers.length} schede clienti esportate in un unico PDF.`,
+        title: t("PDF pronto"),
+        description: t("{n} schede clienti esportate in un unico PDF.", { n: customers.length }),
       });
       onOpenChange(false);
     } catch (e) {
       toast({
-        title: "Errore export",
-        description: e instanceof Error ? e.message : "Generazione PDF fallita",
+        title: t("Errore export"),
+        description: e instanceof Error ? e.message : t("Generazione PDF fallita"),
         variant: "destructive",
       });
     } finally {
@@ -391,9 +393,9 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
               <Users className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <DialogTitle>Esporta schede clienti in PDF</DialogTitle>
+              <DialogTitle>{t("Esporta schede clienti in PDF")}</DialogTitle>
               <DialogDescription>
-                Un unico PDF con una pagina dedicata per ogni cliente (anagrafica + commesse).
+                {t("Un unico PDF con una pagina dedicata per ogni cliente (anagrafica + commesse).")}
               </DialogDescription>
             </div>
           </div>
@@ -405,31 +407,30 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
               <Users className="h-5 w-5 text-muted-foreground" />
               <div>
                 <p className="text-sm">
-                  <span className="font-semibold">{countLoading ? "…" : (totalCount ?? 0)}</span>{" "}
-                  clienti in anagrafica
+                  {t("{n} clienti in anagrafica", { n: countLoading ? "…" : (totalCount ?? 0) })}
                 </p>
-                <p className="text-xs text-muted-foreground">Ordinati per cognome / ragione sociale</p>
+                <p className="text-xs text-muted-foreground">{t("Ordinati per cognome / ragione sociale")}</p>
               </div>
             </div>
 
             <div className="space-y-3">
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                Cosa esportare?
+                {t("Cosa esportare?")}
               </Label>
               <RadioGroup value={mode} onValueChange={(v) => setMode(v as RangeMode)}>
                 <div className="flex items-start gap-2 p-2 rounded border hover:bg-muted/30">
                   <RadioGroupItem value="all" id="mode-all" className="mt-0.5" />
                   <Label htmlFor="mode-all" className="cursor-pointer flex-1 text-sm">
-                    <span className="font-medium">Tutti i clienti</span>
+                    <span className="font-medium">{t("Tutti i clienti")}</span>
                     <p className="text-xs text-muted-foreground font-normal">
-                      Esporta tutte le {totalCount ?? 0} schede (max {HARD_CAP}).
+                      {t("Esporta tutte le {n} schede (max {max}).", { n: totalCount ?? 0, max: HARD_CAP })}
                     </p>
                   </Label>
                 </div>
                 <div className="flex items-start gap-2 p-2 rounded border hover:bg-muted/30">
                   <RadioGroupItem value="first_n" id="mode-n" className="mt-0.5" />
                   <Label htmlFor="mode-n" className="cursor-pointer flex-1 text-sm">
-                    <span className="font-medium">Primi N clienti</span>
+                    <span className="font-medium">{t("Primi N clienti")}</span>
                     <div className="flex items-center gap-2 mt-1">
                       <Input
                         type="number"
@@ -441,14 +442,14 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
                         className="h-7 w-24 text-xs"
                         disabled={mode !== "first_n"}
                       />
-                      <span className="text-xs text-muted-foreground">schede (ordinate per cognome)</span>
+                      <span className="text-xs text-muted-foreground">{t("schede (ordinate per cognome)")}</span>
                     </div>
                   </Label>
                 </div>
                 <div className="flex items-start gap-2 p-2 rounded border hover:bg-muted/30">
                   <RadioGroupItem value="custom" id="mode-custom" className="mt-0.5" />
                   <Label htmlFor="mode-custom" className="cursor-pointer flex-1 text-sm">
-                    <span className="font-medium">Intervallo personalizzato</span>
+                    <span className="font-medium">{t("Intervallo personalizzato")}</span>
                     <div className="flex items-center gap-2 mt-1">
                       <Input
                         type="number"
@@ -469,7 +470,7 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
                         className="h-7 w-20 text-xs"
                         disabled={mode !== "custom"}
                       />
-                      <span className="text-xs text-muted-foreground">es. dal 1° al 100°</span>
+                      <span className="text-xs text-muted-foreground">{t("es. dal 1° al 100°")}</span>
                     </div>
                   </Label>
                 </div>
@@ -488,20 +489,19 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
                 {warningLevel === "ok" ? <Info className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
                 <AlertDescription className="text-xs space-y-1">
                   <p>
-                    Verranno esportate <strong>{selectedCount} schede</strong> in un unico PDF.
+                    {t("Verranno esportate {n} schede in un unico PDF.", { n: selectedCount })}
                   </p>
                   <p className="text-[11px] opacity-80">
-                    Tempo stimato: ~{estimatedSeconds}s · Dimensione stimata: ~{estimatedMB} MB
+                    {t("Tempo stimato: ~{secondi}s · Dimensione stimata: ~{mb} MB", { secondi: estimatedSeconds, mb: estimatedMB })}
                   </p>
                   {warningLevel === "warn" && (
                     <p className="text-[11px]">
-                      Con molte schede la generazione può richiedere tempo. Non chiudere questa finestra.
+                      {t("Con molte schede la generazione può richiedere tempo. Non chiudere questa finestra.")}
                     </p>
                   )}
                   {warningLevel === "danger" && (
                     <p className="text-[11px]">
-                      <strong>Attenzione:</strong> con più di 500 schede il browser potrebbe rallentare.
-                      Considera di esportare in più blocchi (es. 1–500, poi 501–1000).
+                      <strong>{t("Attenzione:")}</strong>{" "}{t("con più di 500 schede il browser potrebbe rallentare. Considera di esportare in più blocchi (es. 1–500, poi 501–1000).")}
                     </p>
                   )}
                 </AlertDescription>
@@ -509,13 +509,13 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
             )}
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
               <Button
                 onClick={handleExport}
                 disabled={selectedCount === 0 || !totalCount}
               >
                 <Download className="h-4 w-4 mr-1.5" />
-                Genera PDF ({selectedCount})
+                {t("Genera PDF ({n})", { n: selectedCount })}
               </Button>
             </DialogFooter>
           </div>
@@ -532,7 +532,7 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
             </div>
             <Progress value={progressPct} />
             <p className="text-[11px] text-muted-foreground text-center">
-              Non chiudere questa finestra. Il PDF verrà scaricato automaticamente al termine.
+              {t("Non chiudere questa finestra. Il PDF verrà scaricato automaticamente al termine.")}
             </p>
           </div>
         )}

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { usePrerequisitiGenerale } from "@/hooks/useCommesseGenerali";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { mancanzeOperazione } from "@/lib/orders/generali/prerequisiti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const chiave = (id: string, cosa: string) => `generale-per-lavorare-nascosta:${id}:${cosa}`;
 const leggiNascosta = (k: string) => {
@@ -16,6 +17,7 @@ const leggiNascosta = (k: string) => {
 };
 
 export function PerLavorare({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
+  const t = useT();
   const g = riepilogo.generale;
   const { data } = usePrerequisitiGenerale(g.id);
   const mancanze = mancanzeOperazione(data ?? null, g.modello);
@@ -33,7 +35,7 @@ export function PerLavorare({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
       className="relative flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-amber-200 bg-amber-50/60 py-2 pl-3 pr-10 dark:border-amber-500/30 dark:bg-amber-500/5"
     >
       <h2 id="per-lavorare-titolo" className="w-full text-sm font-semibold sm:w-auto">
-        Per lavorare ti mancano
+        {t("Per lavorare ti mancano")}
       </h2>
       <ul className="flex flex-wrap items-center gap-1.5">
         {mancanze.map((m) => (
@@ -48,7 +50,7 @@ export function PerLavorare({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
         ))}
       </ul>
       <p className="w-full text-xs text-muted-foreground lg:w-auto lg:flex-1">{mancanze.map((m) => m.perche).join(" ")}</p>
-      <Button variant="ghost" size="icon" className="absolute right-1.5 top-1.5 h-7 w-7" onClick={nascondi} aria-label="Nascondi «Per lavorare»">
+      <Button variant="ghost" size="icon" className="absolute right-1.5 top-1.5 h-7 w-7" onClick={nascondi} aria-label={t("Nascondi «Per lavorare»")}>
         <X className="h-3.5 w-3.5" />
       </Button>
     </section>

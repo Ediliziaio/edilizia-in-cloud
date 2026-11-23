@@ -1,7 +1,7 @@
 import { type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { ArrowUpRight, LayoutDashboard } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
+import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { formatCurrency } from "@/lib/formatters";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { useOrderEconomicsBase } from "@/hooks/useOrderEconomicsBase";
@@ -38,7 +38,7 @@ interface Props {
   onOpenPayments: () => void;
 }
 
-const pctTesto = (n: number | null) => (n == null ? "" : `${n.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`);
+const pctTesto = (n: number | null) => (n == null ? "" : `${n.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`);
 
 /**
  * La commessa in numeri, in due righe allineate per colonna (31/10/2026):
@@ -50,6 +50,7 @@ const pctTesto = (n: number | null) => (n == null ? "" : `${n.toLocaleString("it
  * qui non si calcola niente di nuovo, si mette uno accanto all'altro.
  */
 export function OrderFinancialOverview(props: Props) {
+  const t = useT();
   const { totalAmount, vatRate, items, canViewAmounts, canViewMargins } = props;
   const canViewCosts = props.canViewCosts ?? canViewMargins;
   const { actual, quality, isPending, isError } = useOrderEconomicsBase(props.orderId, totalAmount, items, canViewMargins);
@@ -88,33 +89,33 @@ export function OrderFinancialOverview(props: Props) {
   });
   const grossAmount = props.totalePattuitoConIvaMista ?? calculateGrossFromNet(totalAmount, vatRate).grossAmount;
   const etichettaIva = props.totalePattuitoConIvaMista == null
-    ? `IVA ${vatRate.toLocaleString("it-IT", { maximumFractionDigits: 2 })}%`
-    : "IVA mista 10% e 22%";
+    ? t("IVA {aliquota}%", { aliquota: vatRate.toLocaleString(intlCampo(), { maximumFractionDigits: 2 }) })
+    : t("IVA mista 10% e 22%");
   const payments = paymentOverview(props.cashTotalGross, props.collectedGross, props.installments);
   const paymentReady = !props.installmentsLoading && !props.installmentsError;
 
   const realeHint = error
-    ? "Costi non disponibili"
+    ? t("Costi non disponibili")
     : loading
-      ? "Caricamento costi…"
-      : quality.status === "ready" ? "Sui costi registrati" : quality.issues[0]?.label ?? quality.label;
+      ? t("Caricamento costi…")
+      : quality.status === "ready" ? t("Sui costi registrati") : quality.issues[0]?.label ?? quality.label;
   const scarto = numeri.scostamento;
   const fine = realeReady && previstoReady ? numeri.aFinire : null;
   const costiHint = !costiReady
     ? realeHint
-    : numeri.reale.costi === 0 ? "Nessun costo registrato"
+    : numeri.reale.costi === 0 ? t("Nessun costo registrato")
     : !fine || scarto == null
-      ? "Sui costi registrati"
+      ? t("Sui costi registrati")
     : scarto > 0.5
-      ? `Oltre il previsto di ${formatCurrency(scarto)}`
-      : `${conImpegni ? 'Coperto da costi e impegni' : 'Speso'} il ${fine.spesoPct}% del previsto · restano ${formatCurrency(fine.residuo)}`;
+      ? t("Oltre il previsto di {importo}", { importo: formatCurrency(scarto) })
+      : t(conImpegni ? "Coperto da costi e impegni il {percentuale}% del previsto · restano {importo}" : "Speso il {percentuale}% del previsto · restano {importo}", { percentuale: fine.spesoPct, importo: formatCurrency(fine.residuo) });
   const previstoHint = !previstoReady
-    ? previsto.isError ? "Lavorazioni non disponibili" : "Caricamento lavorazioni…"
+    ? previsto.isError ? t("Lavorazioni non disponibili") : t("Caricamento lavorazioni…")
     : !numeri.previsto
-      ? "Nessuna lavorazione ha un costo previsto"
+      ? t("Nessuna lavorazione ha un costo previsto")
       : numeri.previsto.lavorazioniSenzaPrevisto > 0
-        ? `Parziale: ${numeri.previsto.lavorazioniSenzaPrevisto} di ${previsto.lavorazioni} lavorazioni senza costo previsto`
-        : "Dalle lavorazioni e dalle provvigioni";
+        ? t("Parziale: {n} di {totale} lavorazioni senza costo previsto", { n: numeri.previsto.lavorazioniSenzaPrevisto, totale: previsto.lavorazioni })
+        : t("Dalle lavorazioni e dalle provvigioni");
   // Tutte le lavorazioni senza un costo completo: il margine sarebbe il contratto meno quasi niente
   // (99,7% su una commessa dal computo senza listino, 17/11/2026). Si mostra il costo, non il margine.
   const margineIgnoto = !!numeri.previsto && previsto.lavorazioni > 0 && numeri.previsto.lavorazioniSenzaPrevisto >= previsto.lavorazioni;
@@ -127,39 +128,39 @@ export function OrderFinancialOverview(props: Props) {
     : perRiga === 2 ? "grid-cols-2 sm:grid-cols-[6.5rem_repeat(2,minmax(0,1fr))]" : "grid-cols-1 sm:grid-cols-[6.5rem_minmax(0,1fr)]";
 
   return (
-    <section aria-label="Riepilogo economico commessa" className="commessa-financial-overview overflow-hidden rounded-2xl border border-eic-navy-deep bg-eic-navy-deep p-3 text-white shadow-sm sm:p-4 max-sm:p-2">
+    <section aria-label={t("Riepilogo economico commessa")} className="commessa-financial-overview overflow-hidden rounded-2xl border border-eic-navy-deep bg-eic-navy-deep p-3 text-white shadow-sm sm:p-4 max-sm:p-2">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
         <div className="flex items-center gap-3">
           <span aria-hidden="true" className="commessa-summary-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"><LayoutDashboard className="h-4 w-4" /></span>
-          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-100">La commessa in numeri</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-100">{t("La commessa in numeri")}</h2>
         </div>
-        <span className="hidden text-xs text-blue-100 sm:block">Importi senza IVA, tranne contratto, incassi e da pagare</span>
+        <span className="hidden text-xs text-blue-100 sm:block">{t("Importi senza IVA, tranne contratto, incassi e da pagare")}</span>
       </div>
 
-      <div role="table" aria-label="Previsto e reale" className={`grid gap-1.5 sm:gap-2 ${colonne}`}>
+      <div role="table" aria-label={t("Previsto e reale")} className={`grid gap-1.5 sm:gap-2 ${colonne}`}>
         {/* Intestazione delle colonne, solo da tablet in su */}
         <div role="row" className="contents max-sm:hidden">
           <span role="columnheader" />
-          {canViewAmounts && <span role="columnheader" className="px-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">Ricavi</span>}
+          {canViewAmounts && <span role="columnheader" className="px-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">{t("Ricavi")}</span>}
           {canViewMargins && <>
-            <span role="columnheader" className="px-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">Costi</span>
-            <span role="columnheader" className="px-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">Margine</span>
+            <span role="columnheader" className="px-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">{t("Costi")}</span>
+            <span role="columnheader" className="px-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">{t("Margine")}</span>
           </>}
         </div>
 
         {/* PREVISTO */}
         <div role="row" className="contents">
-          <Etichetta titolo="Previsto" sotto="dal contratto" />
+          <Etichetta titolo={t("Previsto")} sotto={t("dal contratto")} />
           {canViewAmounts && (
-            <Cella label="Contratto" value={formatCurrency(grossAmount)} hint={`Imponibile ${formatCurrency(totalAmount)} · ${etichettaIva}${Math.abs(actual.approvedVariations) > 0.005 ? ` · varianti ${actual.approvedVariations > 0 ? "+" : "−"}${formatCurrency(Math.abs(actual.approvedVariations))}` : ""}`} onClick={props.onOpenPayments} />
+            <Cella label={t("Contratto")} value={formatCurrency(grossAmount)} hint={`${t("Imponibile {importo}", { importo: formatCurrency(totalAmount) })} · ${etichettaIva}${Math.abs(actual.approvedVariations) > 0.005 ? ` · ${t("varianti {segno}{importo}", { segno: actual.approvedVariations > 0 ? "+" : "−", importo: formatCurrency(Math.abs(actual.approvedVariations)) })}` : ""}`} onClick={props.onOpenPayments} />
           )}
           {canViewMargins && <>
-            <Cella label="Costo previsto" value={previstoReady && numeri.previsto ? formatCurrency(numeri.previsto.costo) : "—"} hint={previstoHint} onClick={props.onOpenEconomics} />
+            <Cella label={t("Costo previsto")} value={previstoReady && numeri.previsto ? formatCurrency(numeri.previsto.costo) : "—"} hint={previstoHint} onClick={props.onOpenEconomics} />
             <Cella
-              label="Margine previsto"
+              label={t("Margine previsto")}
               value={previstoReady && numeri.previsto && !margineIgnoto ? formatCurrency(numeri.previsto.margine) : "—"}
               aside={previstoReady && numeri.previsto && !margineIgnoto ? pctTesto(numeri.previsto.marginePct) : undefined}
-              hint={previstoReady && numeri.previsto && !margineIgnoto ? "Se i costi restano quelli previsti" : margineIgnoto ? "Nessuna lavorazione ha il costo completo" : previstoHint}
+              hint={previstoReady && numeri.previsto && !margineIgnoto ? t("Se i costi restano quelli previsti") : margineIgnoto ? t("Nessuna lavorazione ha il costo completo") : previstoHint}
               tone={previstoReady && numeri.previsto && !margineIgnoto ? toneMargine(numeri.previsto.margine, numeri.previsto.lavorazioniSenzaPrevisto > 0) : "text-white"}
               onClick={props.onOpenEconomics}
             />
@@ -168,20 +169,20 @@ export function OrderFinancialOverview(props: Props) {
 
         {/* REALE */}
         <div role="row" className="contents">
-          <Etichetta titolo="Reale" sotto="ad oggi" />
+          <Etichetta titolo={t("Reale")} sotto={t("ad oggi")} />
           {canViewAmounts && (
             <Cella
-              label="Incassato"
-              value={paymentReady ? formatCurrency(props.collectedGross) : props.installmentsError ? "Non disponibile" : "…"}
-              aside={paymentReady ? payments.status : undefined}
+              label={t("Incassato")}
+              value={paymentReady ? formatCurrency(props.collectedGross) : props.installmentsError ? t("Non disponibile") : "…"}
+              aside={paymentReady ? t(payments.status) : undefined}
               hint={!paymentReady ? "" : payments.excess > 0.01
-                ? `Eccedenza ${formatCurrency(payments.excess)}`
+                ? t("Eccedenza {importo}", { importo: formatCurrency(payments.excess) })
                 : payments.remaining <= 0.01 && props.cashTotalGross > 0
-                  ? "Tutto incassato"
-                  : `Da incassare ${formatCurrency(payments.remaining)}${payments.nextDate ? ` · ${payments.overdue ? "scaduta il" : "prossima"} ${format(parseISO(payments.nextDate), "d MMM", { locale: it })}` : ""}`}
+                  ? t("Tutto incassato")
+                  : `${t("Da incassare {importo}", { importo: formatCurrency(payments.remaining) })}${payments.nextDate ? ` · ${t(payments.overdue ? "scaduta il {data}" : "prossima {data}", { data: format(parseISO(payments.nextDate), "d MMM", { locale: dateFnsCampo() }) })}` : ""}`}
               tone={payments.overdue || payments.excess > 0.01 ? "text-red-200" : payments.status === "Saldato" ? "text-emerald-200" : "text-white"}
               progresso={paymentReady ? payments.percent : undefined}
-              progressoNome="Percentuale incassata"
+              progressoNome={t("Percentuale incassata")}
               progressoColore={payments.overdue ? "bg-amber-400" : "bg-emerald-400"}
               onClick={props.onOpenPayments}
               apri
@@ -189,29 +190,29 @@ export function OrderFinancialOverview(props: Props) {
           )}
           {canViewMargins && <>
             <Cella
-              label={conImpegni || !distinzioneDisponibile ? "Costi e impegni" : "Costi registrati"}
+              label={conImpegni || !distinzioneDisponibile ? t("Costi e impegni") : t("Costi registrati")}
               value={costiReady ? formatCurrency(numeri.reale.costi) : "—"}
               hint={costiHint}
-              dettaglio={costiReady ? [dettaglioCosti(actual), distinzioneDisponibile
-                ? `${formatCurrency(Math.max(0, actual.costs - impegno))} costi registrati · ${formatCurrency(impegno)} impegni ODA oltre i costi registrati`
-                : impegni.isError ? 'Distinzione tra costi e impegni non disponibile' : 'Verifico gli impegni degli ordini…'].filter(Boolean).join(' · ') : undefined}
+              dettaglio={costiReady ? [dettaglioCosti(actual, t), distinzioneDisponibile
+                ? t("{costi} costi registrati · {impegni} impegni ODA oltre i costi registrati", { costi: formatCurrency(Math.max(0, actual.costs - impegno)), impegni: formatCurrency(impegno) })
+                : impegni.isError ? t("Distinzione tra costi e impegni non disponibile") : t("Verifico gli impegni degli ordini…")].filter(Boolean).join(' · ') : undefined}
               progresso={fine ? Math.min(100, fine.spesoPct) : undefined}
-              progressoNome={conImpegni ? "Previsto coperto da costi e impegni" : "Previsto già speso"}
+              progressoNome={conImpegni ? t("Previsto coperto da costi e impegni") : t("Previsto già speso")}
               progressoColore={fine ? (fine.spesoPct > 100 ? "bg-red-400" : fine.spesoPct > 90 ? "bg-amber-400" : "bg-sky-400") : undefined}
               evidenza={canViewCosts && !cassaLoading && !cassaError && esposizione.daPagare > 0.005
-                ? `Da pagare ${formatCurrency(esposizione.daPagare)}`
-                : canViewCosts && !cassaLoading && !cassaError && costiReady && numeri.reale.costi > 0 ? "Nessun costo registrato da pagare" : undefined}
-              evidenzaTitolo="Costi registrati non ancora pagati (fatture, costi della commessa, provvigioni), IVA compresa. Gli ordini ai fornitori non ancora fatturati non ci sono."
+                ? t("Da pagare {importo}", { importo: formatCurrency(esposizione.daPagare) })
+                : canViewCosts && !cassaLoading && !cassaError && costiReady && numeri.reale.costi > 0 ? t("Nessun costo registrato da pagare") : undefined}
+              evidenzaTitolo={t("Costi registrati non ancora pagati (fatture, costi della commessa, provvigioni), IVA compresa. Gli ordini ai fornitori non ancora fatturati non ci sono.")}
               onClick={props.onOpenEconomics}
             />
             <Cella
-              label={conImpegni || !distinzioneDisponibile ? "Margine con impegni" : "Margine su costi registrati"}
+              label={conImpegni || !distinzioneDisponibile ? t("Margine con impegni") : t("Margine su costi registrati")}
               value={realeReady ? formatCurrency(numeri.reale.margine) : "—"}
               aside={realeReady ? pctTesto(numeri.reale.marginePct) : undefined}
-              evidenza={fine ? `A fine lavori ≈ ${formatCurrency(fine.margine)} · ${pctTesto(fine.marginePct)}` : undefined}
-              evidenzaTitolo="Stima: ai costi sostenuti si aggiunge il previsto che resta da spendere. Se si è già oltre il previsto, contano i costi veri."
+              evidenza={fine ? t("A fine lavori ≈ {importo} · {percentuale}", { importo: formatCurrency(fine.margine), percentuale: pctTesto(fine.marginePct) }) : undefined}
+              evidenzaTitolo={t("Stima: ai costi sostenuti si aggiunge il previsto che resta da spendere. Se si è già oltre il previsto, contano i costi veri.")}
               evidenzaTono={fine && fine.margine < 0 ? "text-red-200" : "text-emerald-200"}
-              hint={!realeReady ? realeHint : conImpegni ? 'Include gli impegni degli ODA, anche se non ancora fatturati' : fine && fine.residuo > 0.5 ? "Ad oggi: ricavo intero meno i costi registrati" : quality.label}
+              hint={!realeReady ? realeHint : conImpegni ? t("Include gli impegni degli ODA, anche se non ancora fatturati") : fine && fine.residuo > 0.5 ? t("Ad oggi: ricavo intero meno i costi registrati") : quality.label}
               tone={realeReady ? toneMargine(numeri.reale.margine, quality.status === "partial") : "text-white"}
               onClick={props.onOpenEconomics}
             />
@@ -223,13 +224,13 @@ export function OrderFinancialOverview(props: Props) {
 }
 
 /** Di cosa sono fatti i costi sostenuti: gli stessi addendi della vista, senza IVA. */
-function dettaglioCosti(a: { purchases: number; warehouseMaterials: number; labor: number; commissions: number; directCosts: number; errors: number; mileageReimbursements: number }) {
+function dettaglioCosti(a: { purchases: number; warehouseMaterials: number; labor: number; commissions: number; directCosts: number; errors: number; mileageReimbursements: number }, t: ReturnType<typeof useT>) {
   const merce = a.purchases + a.warehouseMaterials;
   const altro = a.commissions + a.directCosts + a.errors + a.mileageReimbursements;
   return [
-    merce > 0.005 && `Merce ${formatCurrency(merce)}`,
-    a.labor > 0.005 && `Manodopera e ditte ${formatCurrency(a.labor)}`,
-    altro > 0.005 && `Altro ${formatCurrency(altro)}`,
+    merce > 0.005 && t("Merce {importo}", { importo: formatCurrency(merce) }),
+    a.labor > 0.005 && t("Manodopera e ditte {importo}", { importo: formatCurrency(a.labor) }),
+    altro > 0.005 && t("Altro {importo}", { importo: formatCurrency(altro) }),
   ].filter(Boolean).join(" · ");
 }
 
@@ -248,8 +249,9 @@ function Cella({ label, value, aside, hint, dettaglio, tone = "text-white", evid
   progresso?: number; progressoNome?: string; progressoColore?: string;
   onClick: () => void; apri?: boolean;
 }) {
+  const t = useT();
   return (
-    <button type="button" role="cell" onClick={onClick} aria-label={`Apri dettagli: ${label}`}
+    <button type="button" role="cell" onClick={onClick} aria-label={t("Apri dettagli: {voce}", { voce: label })}
       className="commessa-summary-card min-w-0 rounded-xl border border-white/20 bg-white/[0.08] px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-eic-navy-deep max-sm:rounded-lg max-sm:px-2 max-sm:py-1.5">
       <span className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-blue-100 max-sm:text-[11px] max-sm:normal-case max-sm:tracking-normal max-sm:leading-tight">
         {label}{apri && <ArrowUpRight className="ml-auto h-3.5 w-3.5 max-sm:hidden" aria-hidden />}

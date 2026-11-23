@@ -24,10 +24,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-const ore = (n: number | null | undefined) => (n == null ? "—" : `${n.toLocaleString("it-IT", { maximumFractionDigits: 2 })} h`);
+const ore = (n: number | null | undefined) => (n == null ? "—" : `${n.toLocaleString(intlCampo(), { maximumFractionDigits: 2 })} h`);
 const dataIt = (d: string | null) => (d ? d.split("-").reverse().join("/") : "—");
 
 /** Ore timbrate sulla commessa per persona (employee_id), nel periodo. */
@@ -72,6 +73,7 @@ function useOreTimbrate(orderId: string, da: string, a: string, utenteAPersona: 
 type Periodo = "commessa" | "mese";
 
 export function OreEPersone({ orderId, inizioLavori }: { orderId: string; inizioLavori?: string | null }) {
+  const tr = useT();
   const oggi = campoWorkDay();
   const [periodo, setPeriodo] = useState<Periodo>("commessa");
   const [mese, setMese] = useState(oggi.slice(0, 7));
@@ -114,7 +116,7 @@ export function OreEPersone({ orderId, inizioLavori }: { orderId: string; inizio
     if (!riga) return;
     setOccupato(true); setErrore("");
     try { await c.cancel(riga.reportId, riga.updatedAt, riga.orderId); setAnnulla(null); }
-    catch (e) { setErrore(e instanceof Error ? e.message : "Annullamento non riuscito."); }
+    catch (e) { setErrore(e instanceof Error ? e.message : tr("Annullamento non riuscito.")); }
     finally { setOccupato(false); }
   };
 
@@ -122,35 +124,35 @@ export function OreEPersone({ orderId, inizioLavori }: { orderId: string; inizio
     <section className="space-y-4 rounded-xl border bg-white p-4" aria-labelledby="ore-persone-titolo">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 id="ore-persone-titolo" className="font-semibold">Ore e persone</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Chi ha lavorato su questa commessa, quanto, e se torna con le timbrature.</p>
+          <h3 id="ore-persone-titolo" className="font-semibold">{tr("Ore e persone")}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{tr("Chi ha lavorato su questa commessa, quanto, e se torna con le timbrature.")}</p>
         </div>
-        {c.canEdit && <Button onClick={() => setInserisci({ persone: [] })} disabled={c.loading || !!c.error} className="gap-1.5"><Plus className="h-4 w-4" />Inserisci ore</Button>}
+        {c.canEdit && <Button onClick={() => setInserisci({ persone: [] })} disabled={c.loading || !!c.error} className="gap-1.5"><Plus className="h-4 w-4" />{tr("Inserisci ore")}</Button>}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <div role="radiogroup" aria-label="Periodo" className="inline-flex rounded-lg border p-0.5">
-          {([["commessa", "Tutta la commessa"], ["mese", "Un mese"]] as const).map(([v, t]) => (
+        <div role="radiogroup" aria-label={tr("Periodo")} className="inline-flex rounded-lg border p-0.5">
+          {([["commessa", tr("Tutta la commessa")], ["mese", tr("Un mese")]] as const).map(([v, t]) => (
             <button key={v} type="button" role="radio" aria-checked={periodo === v} onClick={() => setPeriodo(v)}
               className={`min-h-9 rounded-md px-3 ${periodo === v ? "bg-primary text-primary-foreground" : ""}`}>{t}</button>
           ))}
         </div>
-        {periodo === "mese" && <Input aria-label="Mese" type="month" className="h-9 w-40" value={mese} max={oggi.slice(0, 7)} onChange={(e) => /^\d{4}-\d{2}$/.test(e.target.value) && setMese(e.target.value)} />}
-        <span className="text-muted-foreground">{dataIt(intervallo.da)} – {dataIt(intervallo.a)}{intervallo.tagliato ? " · ultimi 12 mesi" : ""}</span>
+        {periodo === "mese" && <Input aria-label={tr("Mese")} type="month" className="h-9 w-40" value={mese} max={oggi.slice(0, 7)} onChange={(e) => /^\d{4}-\d{2}$/.test(e.target.value) && setMese(e.target.value)} />}
+        <span className="text-muted-foreground">{dataIt(intervallo.da)} – {dataIt(intervallo.a)}{intervallo.tagliato ? ` · ${tr("ultimi 12 mesi")}` : ""}</span>
       </div>
 
       {c.error ? (
-        <p role="alert" className="text-sm text-destructive">{c.error} <Button variant="outline" size="sm" onClick={c.retry}>Riprova</Button></p>
+        <p role="alert" className="text-sm text-destructive">{c.error} <Button variant="outline" size="sm" onClick={c.retry}>{tr("Riprova")}</Button></p>
       ) : c.loading ? (
-        <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carico le ore…</p>
+        <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{tr("Carico le ore…")}</p>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
-              ["Ore confermate", ore(totConfermate)],
-              ["In attesa di approvazione", ore(totAttesa)],
-              ["Persone", String(righe.length)],
-              ...(c.showCosts ? [["Costo confermato", totCosto == null ? "Da completare" : formatCurrency(totCosto)]] : []),
+              [tr("Ore confermate"), ore(totConfermate)],
+              [tr("In attesa di approvazione"), ore(totAttesa)],
+              [tr("Persone"), String(righe.length)],
+              ...(c.showCosts ? [[tr("Costo confermato"), totCosto == null ? tr("Da completare") : formatCurrency(totCosto)]] : []),
             ].map(([etichetta, valore]) => (
               <div key={etichetta} className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-muted-foreground">{etichetta}</p><p className="mt-1 font-semibold tabular-nums">{valore}</p></div>
             ))}
@@ -158,24 +160,24 @@ export function OreEPersone({ orderId, inizioLavori }: { orderId: string; inizio
           {daControllare > 0 && (
             <p className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-              {daControllare === 1 ? "Per 1 persona" : `Per ${daControllare} persone`} le ore registrate non tornano con quelle timbrate.
+              {tr(daControllare === 1 ? "Per 1 persona le ore registrate non tornano con quelle timbrate." : "Per {n} persone le ore registrate non tornano con quelle timbrate.", { n: daControllare })}
             </p>
           )}
 
           {righe.length === 0 ? (
-            <p className="py-4 text-sm text-muted-foreground">Nessuna ora in questo periodo. Arrivano dai rapportini approvati o le inserisci tu con «Inserisci ore».</p>
+            <p className="py-4 text-sm text-muted-foreground">{tr("Nessuna ora in questo periodo. Arrivano dai rapportini approvati o le inserisci tu con «Inserisci ore».")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
                 <thead className="text-left text-xs text-muted-foreground">
                   <tr className="border-b">
-                    <th className="py-2 pr-2 font-medium">Persona</th>
-                    <th className="py-2 pr-2 text-right font-medium">Giorni</th>
-                    <th className="py-2 pr-2 text-right font-medium">Ore</th>
-                    <th className="py-2 pr-2 font-medium">Da dove</th>
-                    <th className="py-2 pr-2 text-right font-medium">Timbrate</th>
-                    <th className="py-2 pr-2 font-medium">Ultimo giorno</th>
-                    <th className="py-2" aria-label="Azioni" />
+                    <th className="py-2 pr-2 font-medium">{tr("Persona")}</th>
+                    <th className="py-2 pr-2 text-right font-medium">{tr("Giorni")}</th>
+                    <th className="py-2 pr-2 text-right font-medium">{tr("Ore")}</th>
+                    <th className="py-2 pr-2 font-medium">{tr("Da dove")}</th>
+                    <th className="py-2 pr-2 text-right font-medium">{tr("Timbrate")}</th>
+                    <th className="py-2 pr-2 font-medium">{tr("Ultimo giorno")}</th>
+                    <th className="py-2" aria-label={tr("Azioni")} />
                   </tr>
                 </thead>
                 <tbody>
@@ -193,24 +195,24 @@ export function OreEPersone({ orderId, inizioLavori }: { orderId: string; inizio
                           <td className="py-2 pr-2 text-right tabular-nums">{r.giorni}</td>
                           <td className="py-2 pr-2 text-right font-semibold tabular-nums">{ore(r.ore)}</td>
                           <td className="py-2 pr-2 text-xs text-muted-foreground">
-                            {[r.oreRapportino > 0 && `rapportini ${ore(r.oreRapportino)}`, r.oreUfficio > 0 && `ufficio ${ore(r.oreUfficio)}`].filter(Boolean).join(" · ") || "—"}
-                            {r.oreInAttesa > 0 && <span className="ml-1 rounded bg-amber-100 px-1 text-amber-800">{ore(r.oreInAttesa)} in attesa</span>}
+                            {[r.oreRapportino > 0 && tr("rapportini {ore}", { ore: ore(r.oreRapportino) }), r.oreUfficio > 0 && tr("ufficio {ore}", { ore: ore(r.oreUfficio) })].filter(Boolean).join(" · ") || "—"}
+                            {r.oreInAttesa > 0 && <span className="ml-1 rounded bg-amber-100 px-1 text-amber-800">{tr("{ore} in attesa", { ore: ore(r.oreInAttesa) })}</span>}
                           </td>
                           <td className={`py-2 pr-2 text-right tabular-nums ${daGuardare(r) ? "font-semibold text-amber-700" : ""}`}>
                             {timbrate.isLoading ? "…" : ore(r.oreTimbrate)}
                           </td>
                           <td className="py-2 pr-2 tabular-nums">{dataIt(r.ultimoGiorno)}</td>
-                          <td className="py-2 text-right">{c.canEdit && <Button size="sm" variant="ghost" onClick={() => setInserisci({ persone: [r.employeeId] })}>+ ore</Button>}</td>
+                          <td className="py-2 text-right">{c.canEdit && <Button size="sm" variant="ghost" onClick={() => setInserisci({ persone: [r.employeeId] })}>{tr("+ ore")}</Button>}</td>
                         </tr>
                         {espansa && (
                           <tr className="border-b bg-slate-50/60">
                             <td colSpan={7} className="px-2 py-2">
-                              {giorni.length === 0 ? <p className="text-xs text-muted-foreground">Ha timbrato ma non ha ore registrate in questo periodo.</p> : (
+                              {giorni.length === 0 ? <p className="text-xs text-muted-foreground">{tr("Ha timbrato ma non ha ore registrate in questo periodo.")}</p> : (
                                 <ul className="space-y-1">
                                   {giorni.map((l) => (
                                     <li key={l.key} className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                                      <span>{dataIt(l.day)} · <strong>{ore(l.hours)}</strong> · {l.office ? "inserite dall’ufficio" : "da rapportino"} · {l.pending ? "in attesa" : "confermate"}{l.note ? ` · ${l.note}` : ""}</span>
-                                      {l.office && c.canEdit && <button type="button" className="text-destructive underline" onClick={() => { setErrore(""); setAnnulla(l.reportId); }}>Annulla</button>}
+                                      <span>{dataIt(l.day)} · <strong>{ore(l.hours)}</strong> · {l.office ? tr("inserite dall’ufficio") : tr("da rapportino")} · {l.pending ? tr("in attesa") : tr("confermate")}{l.note ? ` · ${l.note}` : ""}</span>
+                                      {l.office && c.canEdit && <button type="button" className="text-destructive underline" onClick={() => { setErrore(""); setAnnulla(l.reportId); }}>{tr("Annulla")}</button>}
                                     </li>
                                   ))}
                                 </ul>
@@ -225,7 +227,7 @@ export function OreEPersone({ orderId, inizioLavori }: { orderId: string; inizio
               </table>
             </div>
           )}
-          {timbrate.isError && <p className="text-xs text-muted-foreground">Le ore timbrate non sono disponibili ora: il resto è aggiornato.</p>}
+          {timbrate.isError && <p className="text-xs text-muted-foreground">{tr("Le ore timbrate non sono disponibili ora: il resto è aggiornato.")}</p>}
         </>
       )}
 
@@ -241,11 +243,11 @@ export function OreEPersone({ orderId, inizioLavori }: { orderId: string; inizio
 
       <Dialog open={!!annulla} onOpenChange={(v) => { if (!v && !occupato) setAnnulla(null); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Annullare queste ore?</DialogTitle><DialogDescription>Tolgo le ore e il loro costo. Poi puoi inserire la giornata corretta.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{tr("Annullare queste ore?")}</DialogTitle><DialogDescription>{tr("Tolgo le ore e il loro costo. Poi puoi inserire la giornata corretta.")}</DialogDescription></DialogHeader>
           {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
           <DialogFooter>
-            <Button variant="outline" disabled={occupato} onClick={() => setAnnulla(null)}>Mantieni</Button>
-            <Button variant="destructive" disabled={occupato} onClick={confermaAnnulla}>Annulla ore</Button>
+            <Button variant="outline" disabled={occupato} onClick={() => setAnnulla(null)}>{tr("Mantieni")}</Button>
+            <Button variant="destructive" disabled={occupato} onClick={confermaAnnulla}>{tr("Annulla ore")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -260,6 +262,7 @@ function InserisciOre({ orderId, persone, personeIniziali, onClose, salva }: {
   onClose: () => void;
   salva: ReturnType<typeof useDailyHours>["save"];
 }) {
+  const t = useT();
   const oggi = campoWorkDay();
   const [scelte, setScelte] = useState<string[]>(personeIniziali);
   const [dal, setDal] = useState(oggi);
@@ -287,7 +290,7 @@ function InserisciOre({ orderId, persone, personeIniziali, onClose, salva }: {
           await salva({ requestId: crypto.randomUUID(), orderId, employeeId: persona, day: giorno, hours: numero, note });
           ok += 1;
         } catch (e) {
-          errori.push(`${persone.find((p) => p.id === persona)?.name ?? "Persona"} ${dataIt(giorno)}: ${e instanceof Error ? e.message : "non salvata"}`);
+          errori.push(`${persone.find((p) => p.id === persona)?.name ?? t("Persona")} ${dataIt(giorno)}: ${e instanceof Error ? e.message : t("non salvata")}`);
         }
       }
     }
@@ -300,41 +303,46 @@ function InserisciOre({ orderId, persone, personeIniziali, onClose, salva }: {
     <Dialog open onOpenChange={(v) => { if (!v && !occupato) onClose(); }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Inserisci ore</DialogTitle>
-          <DialogDescription>Una o più persone, uno o più giorni. Le stesse ore per ogni giorno.</DialogDescription>
+          <DialogTitle>{t("Inserisci ore")}</DialogTitle>
+          <DialogDescription>{t("Una o più persone, uno o più giorni. Le stesse ore per ogni giorno.")}</DialogDescription>
         </DialogHeader>
         <fieldset disabled={occupato} className="space-y-4">
           <div>
-            <p className="mb-1 text-sm font-medium">Chi</p>
+            <p className="mb-1 text-sm font-medium">{t("Chi")}</p>
             <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-2">
               {ordinate.map((p) => (
                 <label key={p.id} className="flex min-h-9 items-center gap-2 text-sm">
                   <Checkbox checked={scelte.includes(p.id)} onCheckedChange={(v) => setScelte((s) => v === true ? [...s, p.id] : s.filter((x) => x !== p.id))} />
-                  <span>{p.name}</span>{p.assegnata && <span className="text-xs text-muted-foreground">· su questa commessa</span>}
+                  <span>{p.name}</span>{p.assegnata && <span className="text-xs text-muted-foreground">{t("· su questa commessa")}</span>}
                 </label>
               ))}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label htmlFor="ore-dal">Dal</Label><Input id="ore-dal" type="date" max={oggi} value={dal} onChange={(e) => { setDal(e.target.value); if (e.target.value > al) setAl(e.target.value); }} /></div>
-            <div><Label htmlFor="ore-al">Al</Label><Input id="ore-al" type="date" min={dal} max={oggi} value={al} onChange={(e) => setAl(e.target.value)} /></div>
+            <div><Label htmlFor="ore-dal">{t("Dal")}</Label><Input id="ore-dal" type="date" max={oggi} value={dal} onChange={(e) => { setDal(e.target.value); if (e.target.value > al) setAl(e.target.value); }} /></div>
+            <div><Label htmlFor="ore-al">{t("Al")}</Label><Input id="ore-al" type="date" min={dal} max={oggi} value={al} onChange={(e) => setAl(e.target.value)} /></div>
           </div>
-          <label className="flex items-center gap-2 text-sm"><Checkbox checked={soloFeriali} onCheckedChange={(v) => setSoloFeriali(v === true)} />Salta sabato e domenica</label>
-          <div><Label htmlFor="ore-giorno">Ore al giorno</Label><Input id="ore-giorno" inputMode="decimal" value={oreGiorno} onChange={(e) => setOreGiorno(e.target.value)} placeholder="Es. 8 o 7,5" /></div>
-          <div><Label htmlFor="ore-note">Note (facoltative)</Label><Textarea id="ore-note" value={note} maxLength={4000} onChange={(e) => setNote(e.target.value)} /></div>
+          <label className="flex items-center gap-2 text-sm"><Checkbox checked={soloFeriali} onCheckedChange={(v) => setSoloFeriali(v === true)} />{t("Salta sabato e domenica")}</label>
+          <div><Label htmlFor="ore-giorno">{t("Ore al giorno")}</Label><Input id="ore-giorno" inputMode="decimal" value={oreGiorno} onChange={(e) => setOreGiorno(e.target.value)} placeholder={t("Es. 8 o 7,5")} /></div>
+          <div><Label htmlFor="ore-note">{t("Note (facoltative)")}</Label><Textarea id="ore-note" value={note} maxLength={4000} onChange={(e) => setNote(e.target.value)} /></div>
           <p className="rounded-lg bg-slate-50 p-3 text-sm">
-            {troppiGiorni ? "Al massimo 62 giorni alla volta: dividi il periodo in due." : valido ? `Registro ${giorni.length * scelte.length} ${giorni.length * scelte.length === 1 ? "giornata" : "giornate"}: ${scelte.length} ${scelte.length === 1 ? "persona" : "persone"} × ${giorni.length} ${giorni.length === 1 ? "giorno" : "giorni"} · ${ore(numero)} ciascuna.` : "Scegli almeno una persona, i giorni e le ore (da 0,5 a 24)."}
+            {troppiGiorni ? t("Al massimo 62 giorni alla volta: dividi il periodo in due.") : valido ? t("Registro {giornate}: {persone} × {giorni} · {ore} ciascuna.", {
+              giornate: t(giorni.length * scelte.length === 1 ? "{n} giornata" : "{n} giornate", { n: giorni.length * scelte.length }),
+              persone: t(scelte.length === 1 ? "{n} persona" : "{n} persone", { n: scelte.length }),
+              giorni: t(giorni.length === 1 ? "{n} giorno" : "{n} giorni", { n: giorni.length }),
+              ore: ore(numero),
+            }) : t("Scegli almeno una persona, i giorni e le ore (da 0,5 a 24).")}
           </p>
           {esito && esito.errori.length > 0 && (
             <div role="alert" className="rounded-lg border border-destructive/40 p-3 text-sm">
-              <p className="font-medium">{esito.ok} salvate, {esito.errori.length} no:</p>
+              <p className="font-medium">{t("{ok} salvate, {ko} no:", { ok: esito.ok, ko: esito.errori.length })}</p>
               <ul className="mt-1 list-disc pl-5 text-xs">{esito.errori.slice(0, 8).map((e) => <li key={e}>{e}</li>)}</ul>
             </div>
           )}
         </fieldset>
         <DialogFooter>
-          <Button variant="outline" disabled={occupato} onClick={onClose}>Chiudi</Button>
-          <Button disabled={occupato || !valido} onClick={conferma}>{occupato ? "Salvo…" : "Conferma ore"}</Button>
+          <Button variant="outline" disabled={occupato} onClick={onClose}>{t("Chiudi")}</Button>
+          <Button disabled={occupato || !valido} onClick={conferma}>{occupato ? t("Salvo…") : t("Conferma ore")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

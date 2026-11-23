@@ -46,7 +46,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 import type { Installment } from "@/lib/orderUtils";
 import {
   GRUPPI_EVENTO, eventiDelGruppo, dataAttesaRata, giorniAllEvento, statoIncassoRata,
@@ -86,7 +86,7 @@ function DatePickerField({ label, date, onDateChange, disabled = false }: {
           disabled={disabled}
         >
           <CalendarIcon className="mr-1 h-3 w-3" />
-          {date ? format(date, "dd/MM/yyyy", { locale: it }) : label}
+          {date ? format(date, "dd/MM/yyyy", { locale: dateFnsCampo() }) : label}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -131,6 +131,7 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
   /** Commessa in creazione: una rata che cade oggi non è «scaduta» (la prima rata «alla firma» nasce con la data di oggi). */
   nuova?: boolean;
 }) {
+  const t = useT();
   if (amount <= 0) return null;
 
   const status: PaymentStatus = paid ? 'pagato' : 'non_pagato';
@@ -167,12 +168,12 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
           {inPreavviso && (
             <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
               <AlertTriangle className="h-3 w-3" />
-              {giorni !== null && giorni <= 1 ? 'Domani' : `Tra ${giorni} giorni`}
+              {giorni !== null && giorni <= 1 ? t("Domani") : t("Tra {n} giorni", { n: String(giorni) })}
             </span>
           )}
           {scaduta && (
             <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-900/50 dark:text-red-300">
-              Scaduta
+              {t("Scaduta")}
             </span>
           )}
         </span>
@@ -182,7 +183,7 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
         {/* Bottoni segmented al posto della select: 1 tap invece di 2 e lo
             stato si legge a colpo d'occhio (richiesta utente, mobile-friendly). */}
         <div className="flex items-center gap-2 flex-1 min-w-[180px]">
-          <div className="inline-flex rounded-lg border bg-background p-0.5" role="radiogroup" aria-label={`Stato pagamento ${label}`}>
+          <div className="inline-flex rounded-lg border bg-background p-0.5" role="radiogroup" aria-label={t("Stato pagamento {label}", { label })}>
             <button
               type="button"
               role="radio"
@@ -196,7 +197,7 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
               }`}
             >
               <Clock className="h-3 w-3" />
-              Non pagato
+              {t("Non pagato")}
             </button>
             <button
               type="button"
@@ -211,14 +212,14 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
               }`}
             >
               <Check className="h-3 w-3" />
-              Pagato
+              {t("Pagato")}
             </button>
           </div>
         </div>
         
         {paid ? (
           <DatePickerField
-            label="Data incasso"
+            label={t("Data incasso")}
             date={paidDate}
             onDateChange={onPaidDateChange || (() => {})}
             disabled={readOnly}
@@ -229,16 +230,16 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
           // quando cade davvero.
           <div className="flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1.5 text-xs">
             <Link2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <span className="text-muted-foreground">Scade il</span>
+            <span className="text-muted-foreground">{t("Scade il")}</span>
             <span className="font-medium">
               {dataDaEvento
-                ? format(new Date(`${dataDaEvento}T00:00:00`), "d MMM yyyy", { locale: it })
-                : "quando accadrà"}
+                ? format(new Date(`${dataDaEvento}T00:00:00`), "d MMM yyyy", { locale: dateFnsCampo() })
+                : t("quando accadrà")}
             </span>
           </div>
         ) : (
           <DatePickerField
-            label="Data prevista"
+            label={t("Data prevista")}
             date={expectedDate}
             onDateChange={onExpectedDateChange || (() => {})}
             disabled={readOnly}
@@ -251,9 +252,9 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
           ("acconto alla firma, saldo a fine lavori"). */}
       {!paid && onEventoChange && (
         <div className="flex flex-wrap items-center gap-2 border-t pt-2">
-          <span className="text-xs text-muted-foreground">Si incassa</span>
+          <span className="text-xs text-muted-foreground">{t("Si incassa")}</span>
           <Select value={eventoCorrente} onValueChange={onEventoChange} disabled={readOnly}>
-            <SelectTrigger className="h-7 w-auto min-w-[190px] text-xs" aria-label={`Quando si incassa ${label}`}>
+            <SelectTrigger className="h-7 w-auto min-w-[190px] text-xs" aria-label={t("Quando si incassa {label}", { label })}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -265,9 +266,9 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
                 if (voci.length === 0) return null;
                 return (
                   <SelectGroup key={g.value}>
-                    <SelectLabel>{g.label}</SelectLabel>
+                    <SelectLabel>{t(g.label)}</SelectLabel>
                     {voci.map((e) => (
-                      <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                      <SelectItem key={e.value} value={e.value}>{t(e.label)}</SelectItem>
                     ))}
                   </SelectGroup>
                 );
@@ -281,8 +282,8 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
               onValueChange={(v) => onTriggerStatusChange?.(v || null)}
               disabled={readOnly}
             >
-              <SelectTrigger className="h-7 w-auto min-w-[150px] text-xs" aria-label={`Stato che fa scadere ${label}`}>
-                <SelectValue placeholder="scegli lo stato" />
+              <SelectTrigger className="h-7 w-auto min-w-[150px] text-xs" aria-label={t("Stato che fa scadere {label}", { label })}>
+                <SelectValue placeholder={t("scegli lo stato")} />
               </SelectTrigger>
               <SelectContent>
                 {(statiCommessa ?? []).map((st) => (
@@ -294,7 +295,7 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
 
           {eventoCorrente === "sal_numero" && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              n.
+              {t("n.")}
               <Input
                 type="number"
                 min={1}
@@ -304,14 +305,14 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
                 onChange={(e) => onTriggerNumeroChange?.(e.target.value ? Math.max(1, Number(e.target.value)) : null)}
                 className="h-7 w-14 px-2 text-xs"
                 disabled={readOnly}
-                aria-label={`Numero del SAL per ${label}`}
+                aria-label={t("Numero del SAL per {label}", { label })}
               />
             </span>
           )}
 
           {aEvento && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              · avvisami
+              {t("· avvisami")}
               <Input
                 type="number"
                 min={0}
@@ -320,9 +321,9 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
                 onChange={(e) => onGiorniPreavvisoChange?.(Math.max(0, Math.min(90, Number(e.target.value) || 0)))}
                 className="h-7 w-14 px-2 text-xs"
                 disabled={readOnly}
-                aria-label={`Giorni di preavviso per ${label}`}
+                aria-label={t("Giorni di preavviso per {label}", { label })}
               />
-              giorni prima
+              {t("giorni prima")}
             </span>
           )}
         </div>
@@ -386,6 +387,7 @@ export function FinancialSummary({
   financingCost, onFinancingCostChange, financingCostMode, onFinancingCostModeChange,
   bonusMultipliEnabled = false, bonusLines = [], onBonusLinesChange,
   datiCausale, dateCommessa, statiCommessa, nuova, daContratto = false, notaIva, azioniTestata,}: FinancialSummaryProps) {
+  const t = useT();
   const mista = vatRate === IVA_MISTA;
   const [inputModeState, setInputMode] = useState<AmountInputMode>(vatSplit?.mode ?? 'net');
   const inputMode = mista ? vatSplit?.mode ?? inputModeState : inputModeState;
@@ -579,14 +581,14 @@ export function FinancialSummary({
           <Input
             value={inst.label}
             onChange={(e) => handleInstallmentLabelChange(inst.position, e.target.value)}
-            aria-label={`Nome della rata ${inst.position + 1}`}
+            aria-label={t("Nome della rata {n}", { n: inst.position + 1 })}
             maxLength={60}
-            placeholder="Nome della rata"
+            placeholder={t("Nome della rata")}
             className="h-8 border-transparent bg-transparent px-1 text-sm font-medium hover:border-input focus:border-input"
           />
           {inst.type !== 'balance' && (
             <Button type="button" variant="ghost" size="sm" className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-destructive"
-              aria-label={`Togli la rata ${inst.label}`} title="Togli questa rata" onClick={() => togliRata(inst.position)}>
+              aria-label={t("Togli la rata {nome}", { nome: inst.label })} title={t("Togli questa rata")} onClick={() => togliRata(inst.position)}>
               <X className="h-3.5 w-3.5" />
             </Button>
           )}
@@ -605,7 +607,7 @@ export function FinancialSummary({
       </div>
       {inst.amount > 0 && (
         <PaymentStatusRow
-          label={`Stato ${inst.label}`}
+          label={t("Stato {nome}", { nome: inst.label })}
           amount={inst.type === "financing" && financingCostMode === "trattenuto" ? Math.max(0, inst.amount - parseDecimalIT(financingCost || "")) : inst.amount}
           paid={inst.is_paid}
           paidDate={inst.paid_date ? new Date(inst.paid_date) : undefined}
@@ -643,7 +645,7 @@ export function FinancialSummary({
         </div>
         {balanceShown > 0 && balanceInst && (
           <PaymentStatusRow
-            label="Stato Saldo"
+            label={t("Stato Saldo")}
             amount={balanceShown}
             paid={balanceInst.is_paid}
             paidDate={balanceInst.paid_date ? new Date(balanceInst.paid_date) : undefined}
@@ -674,14 +676,14 @@ export function FinancialSummary({
       <CardHeader className={azioniTestata ? "flex flex-row flex-wrap items-center justify-between gap-2 space-y-0" : undefined}>
         <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
           <Euro className="h-5 w-5" />
-          Riepilogo Finanziario
+          {t("Riepilogo Finanziario")}
         </CardTitle>
         {azioniTestata}
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Payment Type */}
         <div className="space-y-2">
-          <Label>Tipo Pagamento</Label>
+          <Label>{t("Tipo Pagamento")}</Label>
           <Select
             value={daContratto && installments.length === 0 ? "" : paymentType}
             onValueChange={(value) => {
@@ -690,11 +692,11 @@ export function FinancialSummary({
             disabled={readOnly}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Condizioni da confermare" />
+              <SelectValue placeholder={t("Condizioni da confermare")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="standard">Standard (Acconti)</SelectItem>
-              <SelectItem value="financing">Finanziamento</SelectItem>
+              <SelectItem value="standard">{t("Standard (Acconti)")}</SelectItem>
+              <SelectItem value="financing">{t("Finanziamento")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -703,8 +705,8 @@ export function FinancialSummary({
         {!readOnly && (
           <Tabs value={inputMode} onValueChange={(v) => handleInputModeChange(v as AmountInputMode)}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="net">Imponibile</TabsTrigger>
-              <TabsTrigger value="gross" disabled={!ivaConfermata}>IVA Inclusa</TabsTrigger>
+              <TabsTrigger value="net">{t("Imponibile")}</TabsTrigger>
+              <TabsTrigger value="gross" disabled={!ivaConfermata}>{t("IVA Inclusa")}</TabsTrigger>
             </TabsList>
           </Tabs>
         )}
@@ -712,7 +714,7 @@ export function FinancialSummary({
         {/* Total Amount */}
         <div className="space-y-2">
           <Label htmlFor="total">
-            {inputMode === 'gross' ? 'Importo Totale (IVA Inclusa)' : 'Importo Totale (Imponibile)'} *
+            {inputMode === 'gross' ? t("Importo Totale (IVA Inclusa)") : t("Importo Totale (Imponibile)")} *
           </Label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
@@ -722,7 +724,7 @@ export function FinancialSummary({
               value={rawTotalInput}
               onChange={(e) => setRawTotalInput(e.target.value)}
               onBlur={handleTotalBlur}
-              className="pl-8" placeholder={daContratto ? "Importo di competenza da confermare" : "0.00"}
+              className="pl-8" placeholder={daContratto ? t("Importo di competenza da confermare") : "0.00"}
               disabled={readOnly}
             />
           </div>
@@ -730,16 +732,16 @@ export function FinancialSummary({
 
         {/* VAT Rate */}
         <div className="space-y-2">
-          <Label>Aliquota IVA</Label>
+          <Label>{t("Aliquota IVA")}</Label>
           <Select value={vatRate} onValueChange={handleVatRateChange} disabled={readOnly}>
-            <SelectTrigger aria-label="Aliquota IVA"><SelectValue placeholder="Da confermare dal contratto" /></SelectTrigger>
+            <SelectTrigger aria-label={t("Aliquota IVA")}><SelectValue placeholder={t("Da confermare dal contratto")} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="0">0% · da confermare il regime</SelectItem>
+              <SelectItem value="0">{t("0% · da confermare il regime")}</SelectItem>
               <SelectItem value="4">4%</SelectItem>
-              {vatRate === "5" && <SelectItem value="5" disabled>5% · aliquota già impostata</SelectItem>}
+              {vatRate === "5" && <SelectItem value="5" disabled>{t("5% · aliquota già impostata")}</SelectItem>}
               <SelectItem value="10">10%</SelectItem>
               <SelectItem value="22">22%</SelectItem>
-              {onVatSplitChange && <SelectItem value={IVA_MISTA}>IVA mista · 10% e 22%</SelectItem>}
+              {onVatSplitChange && <SelectItem value={IVA_MISTA}>{t("IVA mista · 10% e 22%")}</SelectItem>}
             </SelectContent>
           </Select>
           {notaIva && <p className="text-xs text-muted-foreground">{notaIva}</p>}
@@ -761,7 +763,7 @@ export function FinancialSummary({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4 text-muted-foreground" />
-            <Label htmlFor="building-bonus" className="cursor-pointer">Bonus Edilizio</Label>
+            <Label htmlFor="building-bonus" className="cursor-pointer">{t("Bonus Edilizio")}</Label>
           </div>
           <Switch
             id="building-bonus"
@@ -788,17 +790,17 @@ export function FinancialSummary({
         {/* VAT Summary */}
         <div className="p-3 rounded-lg bg-muted/50 space-y-2">
           <div className="flex justify-between text-sm">
-            <span>Imponibile</span>
-            <span>{daContratto && !totalAmount.trim() ? "Da confermare" : formatCurrency(total)}</span>
+            <span>{t("Imponibile")}</span>
+            <span>{daContratto && !totalAmount.trim() ? t("Da confermare") : formatCurrency(total)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span>{mista ? "IVA mista (10% e 22%)" : ivaConfermata ? `IVA (${vat}%)` : "IVA da confermare"}</span>
+            <span>{mista ? t("IVA mista (10% e 22%)") : ivaConfermata ? t("IVA ({aliquota}%)", { aliquota: vat }) : t("IVA da confermare")}</span>
             <span>{ivaConfermata ? formatCurrency(vatAmount) : "—"}</span>
           </div>
-          {mista && fiscal.rounding !== 0 && <div className="flex justify-between text-sm"><span>Arrotondamento</span><span>{formatCurrency(fiscal.rounding)}</span></div>}
+          {mista && fiscal.rounding !== 0 && <div className="flex justify-between text-sm"><span>{t("Arrotondamento")}</span><span>{formatCurrency(fiscal.rounding)}</span></div>}
           <div className="flex justify-between font-medium border-t pt-2">
-            <span>Totale con IVA</span>
-            <span>{ivaConfermata ? formatCurrency(totalWithVat) : "Da definire dopo conferma IVA"}</span>
+            <span>{t("Totale con IVA")}</span>
+            <span>{ivaConfermata ? formatCurrency(totalWithVat) : t("Da definire dopo conferma IVA")}</span>
           </div>
           {hasBuildingBonus && (() => {
             // Il /1.22 di prima era GIUSTO: la banca non conosce l'aliquota
@@ -811,23 +813,23 @@ export function FinancialSummary({
               <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-1">
                 <p className="text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-1">
                   <Building2 className="h-3 w-3" />
-                  Ritenuta Bonus Edilizio
+                  {t("Ritenuta Bonus Edilizio")}
                 </p>
                 <div className="flex justify-between text-xs">
-                  <span className="text-amber-700 dark:text-amber-300">Imponibile bancario (÷ {(1 + IVA_SCORPORO_BANCA).toFixed(2).replace(".", ",")})</span>
+                  <span className="text-amber-700 dark:text-amber-300">{t("Imponibile bancario (÷ {divisore})", { divisore: (1 + IVA_SCORPORO_BANCA).toFixed(2).replace(".", ",") })}</span>
                   <span className="text-amber-800 dark:text-amber-200">{formatCurrency(bankTaxableBase)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-amber-700 dark:text-amber-300">Ritenuta 11%</span>
+                  <span className="text-amber-700 dark:text-amber-300">{t("Ritenuta 11%")}</span>
                   <span className="text-amber-800 dark:text-amber-200">{formatCurrency(bankWithholding)}</span>
                 </div>
                 {/* Il numero che interessa davvero: quanto entra in cassa */}
                 <div className="flex justify-between text-sm font-bold border-t border-amber-200 dark:border-amber-800 pt-1 mt-1">
-                  <span className="text-amber-900 dark:text-amber-100">Incasso netto (dopo ritenuta)</span>
+                  <span className="text-amber-900 dark:text-amber-100">{t("Incasso netto (dopo ritenuta)")}</span>
                   <span className="text-amber-900 dark:text-amber-100">{formatCurrency(totalWithVat - bankWithholding)}</span>
                 </div>
                 <p className="text-[10px] text-amber-600 dark:text-amber-400">
-                  Ritenuta trattenuta dalla banca — recuperabile in dichiarazione
+                  {t("Ritenuta trattenuta dalla banca — recuperabile in dichiarazione")}
                 </p>
               </div>
             );
@@ -841,30 +843,27 @@ export function FinancialSummary({
             {!readOnly && !salPayment && (
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Label className="mr-auto">Rate · {installments.length}</Label>
+                  <Label className="mr-auto">{t("Rate · {n}", { n: installments.length })}</Label>
                   {/* Col contratto importato le rate possono non esserci ancora: si dice
                       com'è, e finché ce ne sono si può tornare a «nessuna». */}
                   {daContratto && (installments.length === 0 ? (
-                    <span className="text-sm text-muted-foreground">Nessuna rata: da confermare dal contratto</span>
+                    <span className="text-sm text-muted-foreground">{t("Nessuna rata: da confermare dal contratto")}</span>
                   ) : (
                     <Button type="button" variant="ghost" size="sm" onClick={() => onNumInstallmentsChange(0)}>
-                      Torna a nessuna rata
+                      {t("Torna a nessuna rata")}
                     </Button>
                   ))}
                   {/* Una rata alla volta: il menu «numero rate» rifaceva il piano da capo e
                       buttava via nomi, importi ed eventi scritti a mano. */}
                   <Button type="button" variant="outline" size="sm" onClick={aggiungiRata}>
-                    <Plus className="mr-1.5 h-3.5 w-3.5" />Aggiungi una rata
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />{t("Aggiungi una rata")}
                   </Button>
                 </div>
                 {invoiceLinksError && <p role="alert" className="text-xs text-destructive">
-                  Non riesco a verificare i documenti collegati. Prima di cambiare il piano,
-                  controlla le fatture e le bozze in «Fatture al cliente».
+                  {t("Non riesco a verificare i documenti collegati. Prima di cambiare il piano, controlla le fatture e le bozze in «Fatture al cliente».")}
                 </p>}
                 {hasLinkedInvoices && <p role="status" className="text-xs text-amber-700">
-                  La commessa ha documenti collegati. Cambiando numero o importi delle rate,
-                  verifica e riconcilia i collegamenti in «Fatture al cliente»: i documenti restano
-                  nell’elenco, ma non vengono ridimensionati automaticamente sul nuovo piano.
+                  {t("La commessa ha documenti collegati. Cambiando numero o importi delle rate, verifica e riconcilia i collegamenti in «Fatture al cliente»: i documenti restano nell’elenco, ma non vengono ridimensionati automaticamente sul nuovo piano.")}
                 </p>}
                 {(() => {
                   // Sintesi a colpo d'occhio: quanto è già allocato in acconti
@@ -874,7 +873,7 @@ export function FinancialSummary({
                   const depositsTotal = deposits.reduce((s, d) => s + (d.amount || 0), 0);
                   return (
                     <p className="text-xs text-muted-foreground">
-                      {deposits.length} {deposits.length === 1 ? 'acconto' : 'acconti'} per {formatCurrency(depositsTotal)} · Saldo {formatCurrency(saldoVisualizzato)}
+                      {t(deposits.length === 1 ? "{n} acconto per {importo} · Saldo {saldo}" : "{n} acconti per {importo} · Saldo {saldo}", { n: deposits.length, importo: formatCurrency(depositsTotal), saldo: formatCurrency(saldoVisualizzato) })}
                     </p>
                   );
                 })()}
@@ -888,14 +887,14 @@ export function FinancialSummary({
               .map(inst => renderInstallmentInput(inst))}
 
             {/* Balance */}
-            {salPayment ? <div role="status" className="space-y-2 rounded-xl border border-blue-200 bg-blue-50/40 p-3"><p className="text-sm font-semibold">{salPayment.mode==="advance_sal"?"Acconto + SAL effettivi":"Solo SAL effettivi"}</p><div className="flex justify-between gap-3 text-sm"><span>Da maturare con i lavori</span><strong className="tabular-nums">{formatCurrency(Math.max(0,totalWithVat-installments.reduce((sum,r)=>sum+r.amount,0)))}</strong></div><p className="text-xs text-muted-foreground">È il residuo del contratto, non una rata già esigibile. Numero, importi e date dei SAL si definiscono durante i lavori. Dalla quota certificata prepari la fattura e la scadenza.</p></div> : installments.length > 0 ? renderBalance("Saldo da Pagare") : <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Pagamenti da confermare. Nessuna rata o scadenza generata dal contratto.</p>}
+            {salPayment ? <div role="status" className="space-y-2 rounded-xl border border-blue-200 bg-blue-50/40 p-3"><p className="text-sm font-semibold">{salPayment.mode==="advance_sal"?t("Acconto + SAL effettivi"):t("Solo SAL effettivi")}</p><div className="flex justify-between gap-3 text-sm"><span>{t("Da maturare con i lavori")}</span><strong className="tabular-nums">{formatCurrency(Math.max(0,totalWithVat-installments.reduce((sum,r)=>sum+r.amount,0)))}</strong></div><p className="text-xs text-muted-foreground">{t("È il residuo del contratto, non una rata già esigibile. Numero, importi e date dei SAL si definiscono durante i lavori. Dalla quota certificata prepari la fattura e la scadenza.")}</p></div> : installments.length > 0 ? renderBalance(t("Saldo da Pagare")) : <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t("Pagamenti da confermare. Nessuna rata o scadenza generata dal contratto.")}</p>}
           </>
         ) : (
           <>
             {/* Number of deposits selector for financing */}
             {!readOnly && (
               <div className="space-y-2">
-                <Label>Numero Acconti</Label>
+                <Label>{t("Numero Acconti")}</Label>
                 <Select
                   value={(numInstallments - 2).toString()}
                   onValueChange={(v) => {
@@ -907,7 +906,7 @@ export function FinancialSummary({
                   <SelectContent>
                     {[0, 1, 2, 3, 4, 5].map(n => (
                       <SelectItem key={n} value={n.toString()}>
-                        {n === 0 ? 'Nessun acconto' : `${n} Accont${n === 1 ? 'o' : 'i'} bonifico`}
+                        {n === 0 ? t("Nessun acconto") : t(n === 1 ? "{n} Acconto bonifico" : "{n} Acconti bonifico", { n })}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -917,7 +916,7 @@ export function FinancialSummary({
 
             {/* Deposit installments (if any) */}
             {installments.filter(i => i.type === 'deposit').map(inst =>
-              renderInstallmentInput(inst, inst.label + ' (opzionale)')
+              renderInstallmentInput(inst, t("{nome} (opzionale)", { nome: inst.label }))
             )}
 
             {/* SAL intermedi, ognuno col suo importo */}
@@ -929,13 +928,13 @@ export function FinancialSummary({
             {/* Financing amount */}
             {(() => {
               const finInst = installments.find(i => i.type === 'financing');
-              return finInst ? renderInstallmentInput(finInst, 'Valore Finanziamento') : null;
+              return finInst ? renderInstallmentInput(finInst, t("Valore Finanziamento")) : null;
             })()}
 
             {/* Financing Cost */}
             <div className="space-y-2">
-              <Label htmlFor="financing-cost">Costo Finanziaria</Label>
-              <p className="text-xs text-muted-foreground">Costo a carico dell’azienda, trattenuto oppure pagato separatamente</p>
+              <Label htmlFor="financing-cost">{t("Costo Finanziaria")}</Label>
+              <p className="text-xs text-muted-foreground">{t("Costo a carico dell’azienda, trattenuto oppure pagato separatamente")}</p>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
                 <Input
@@ -957,13 +956,13 @@ export function FinancialSummary({
 
             {onFinancingCostModeChange && <FinancingCostModeField value={financingCostMode} onChange={onFinancingCostModeChange} disabled={readOnly} />}
             {financingCostMode && <p className="rounded-md bg-muted p-3 text-sm" aria-live="polite">
-              Incasso previsto dalla finanziaria: <strong>{formatCurrency(Math.max(0,
+              {t("Incasso previsto dalla finanziaria:")} <strong>{formatCurrency(Math.max(0,
                 installments.filter(i => i.type === "financing").reduce((sum, i) => sum + i.amount, 0)
                 - (financingCostMode === "trattenuto" ? parseDecimalIT(financingCost || "") : 0)))}</strong>.
-              {financingCostMode === "separato" && <> Costo da registrare come uscita separata: <strong>{formatCurrency(parseDecimalIT(financingCost || ""))}</strong>.</>}
+              {financingCostMode === "separato" && <> {t("Costo da registrare come uscita separata:")} <strong>{formatCurrency(parseDecimalIT(financingCost || ""))}</strong>.</>}
             </p>}
             {/* Balance */}
-            {renderBalance("Saldo Cliente")}
+            {renderBalance(t("Saldo Cliente"))}
           </>
         )}
       </CardContent>
@@ -1036,6 +1035,7 @@ export function FinancialSummaryReadOnly({
   totaliIncassi,
   invoiceUrl,
 }: FinancialSummaryReadOnlyProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   // Una query per tutta la card: quali rate hanno già la loro registrazione.
   const { data: incassiRegistrati = {} } = useIncassiRegistrati(orderId, !!conPrimaNota);
@@ -1070,7 +1070,7 @@ export function FinancialSummaryReadOnly({
 
   const formatPaymentDate = (dateStr?: string | null) => {
     if (!dateStr) return null;
-    return format(new Date(dateStr), "dd/MM/yyyy", { locale: it });
+    return format(new Date(dateStr), "dd/MM/yyyy", { locale: dateFnsCampo() });
   };
 
   // Ogni rata in una riga (01/11/2026, Dimora): prima lo STATO — incassata, da incassare, scaduta — poi
@@ -1094,23 +1094,29 @@ export function FinancialSummaryReadOnly({
     const canEditExpected = canEditDate && !aEvento;
     const stato = inst.is_paid ? "incassata" : isPartial ? "parziale" : scaduta ? "scaduta" : "da_incassare";
     const STILE = {
-      incassata: { punto: "bg-emerald-500", pill: "bg-emerald-50 text-emerald-800 ring-emerald-200", testo: "Incassata" },
-      da_incassare: { punto: "bg-amber-400", pill: "bg-amber-50 text-amber-800 ring-amber-200", testo: "Da incassare" },
-      parziale: { punto: "bg-sky-500", pill: "bg-sky-50 text-sky-800 ring-sky-200", testo: "Incassata in parte" },
-      scaduta: { punto: "bg-red-500", pill: "bg-red-50 text-red-800 ring-red-200", testo: "Scaduta" },
+      incassata: { punto: "bg-emerald-500", pill: "bg-emerald-50 text-emerald-800 ring-emerald-200", testo: t("Incassata") },
+      da_incassare: { punto: "bg-amber-400", pill: "bg-amber-50 text-amber-800 ring-amber-200", testo: t("Da incassare") },
+      parziale: { punto: "bg-sky-500", pill: "bg-sky-50 text-sky-800 ring-sky-200", testo: t("Incassata in parte") },
+      scaduta: { punto: "bg-red-500", pill: "bg-red-50 text-red-800 ring-red-200", testo: t("Scaduta") },
     }[stato];
     // La data si legge nel selettore accanto quando c'è: qui non si ripete. Resta per le scadute (con i giorni).
     const quando = inst.is_paid
-      ? (inst.paid_date && (!canEditDate || incassoRegistrato) ? `il ${formatPaymentDate(inst.paid_date)}` : null)
+      ? (inst.paid_date && (!canEditDate || incassoRegistrato) ? t("il {data}", { data: formatPaymentDate(inst.paid_date) ?? "" }) : null)
       : scaduta && inst.expected_date
-        ? `doveva entrare il ${formatPaymentDate(inst.expected_date)} · da ${giorniDa(inst.expected_date)} giorni`
+        ? t("doveva entrare il {data} · da {n} giorni", { data: formatPaymentDate(inst.expected_date) ?? "", n: giorniDa(inst.expected_date) })
         : aEvento
-          ? `Si incassa ${quandoSiIncassa(inst.trigger_evento, inst.trigger_numero)}${inst.importo_da_misurare ? ", a misura sull'avanzamento" : ""}${inst.expected_date ? ` · il ${formatPaymentDate(inst.expected_date)}` : " · data ancora da conoscere"}`
-          : canEditExpected ? null : inst.expected_date ? `prevista il ${formatPaymentDate(inst.expected_date)}` : "senza data prevista";
+          ? (() => {
+              const valori = { quando: quandoSiIncassa(inst.trigger_evento, inst.trigger_numero), data: formatPaymentDate(inst.expected_date) ?? "" };
+              if (inst.importo_da_misurare) return inst.expected_date
+                ? t("Si incassa {quando}, a misura sull'avanzamento · il {data}", valori)
+                : t("Si incassa {quando}, a misura sull'avanzamento · data ancora da conoscere", valori);
+              return inst.expected_date ? t("Si incassa {quando} · il {data}", valori) : t("Si incassa {quando} · data ancora da conoscere", valori);
+            })()
+          : canEditExpected ? null : inst.expected_date ? t("prevista il {data}", { data: formatPaymentDate(inst.expected_date) ?? "" }) : t("senza data prevista");
     // Al telefono il selettore della data non c'è (si corregge dal computer): la data si legge qui.
     const dataTelefono = inst.is_paid
-      ? (inst.paid_date ? `il ${formatPaymentDate(inst.paid_date)}` : null)
-      : inst.expected_date ? `prevista il ${formatPaymentDate(inst.expected_date)}` : null;
+      ? (inst.paid_date ? t("il {data}", { data: formatPaymentDate(inst.paid_date) ?? "" }) : null)
+      : inst.expected_date ? t("prevista il {data}", { data: formatPaymentDate(inst.expected_date) ?? "" }) : null;
 
     return (
       <li
@@ -1134,18 +1140,20 @@ export function FinancialSummaryReadOnly({
               <p className={cn("flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-snug", stato === "scaduta" ? "font-medium text-red-700" : "text-muted-foreground")}>
                 {quando && <span>{quando}</span>}
                 {!quando && dataTelefono && <span className="sm:hidden">{dataTelefono}</span>}
-                {isPartial && <span>entrati {formatCurrency(partialPaid)}, restano {formatCurrency(inst.quota_fattura_residua ?? Math.max(0, amount - partialPaid))}</span>}
+                {isPartial && <span>{t("entrati {entrati}, restano {restano}", { entrati: formatCurrency(partialPaid), restano: formatCurrency(inst.quota_fattura_residua ?? Math.max(0, amount - partialPaid)) })}</span>}
                 {/* La fattura interna che incassa la rata (25/09/2026): pagata l'una, pagata l'altra. */}
                 {inst.fattura && !dettaglioDocumento && (
                   <Link to={invoiceUrl?.(inst.fattura.id) ?? `/azienda/documenti/${inst.fattura.id}/dettaglio`} className="tap-compact inline-flex items-center gap-1 font-normal text-primary hover:underline">
                     <FileText className="h-3 w-3" />
-                    {inst.fattura.stato === "bozza" ? "Fattura in bozza" : `Fattura n. ${inst.fattura.numero ?? ""}`}
+                    {inst.fattura.stato === "bozza" ? t("Fattura in bozza") : t("Fattura n. {numero}", { numero: inst.fattura.numero ?? "" })}
                   </Link>
                 )}
               </p>
             )}
-            {quotaRipartita && <p className="mt-1 text-xs text-muted-foreground">Quota della fattura: {formatCurrency(inst.documento_quota_lorda!)} · incassato {formatCurrency(partialPaid)} · residuo {formatCurrency(inst.quota_fattura_residua ?? 0)}{Number(inst.quota_fattura_non_esigibile)>0 && ` · non da incassare ora ${formatCurrency(inst.quota_fattura_non_esigibile!)}`}. Gli incassi si registrano sulla fattura.</p>}
-            {inst.id && onManageInvoice && <button type="button" className={cn("mt-1 inline-flex min-h-8 items-center gap-1.5 rounded-md border bg-background px-2 text-xs font-medium text-primary hover:bg-muted", inst.documento_fiscale_id && dettaglioDocumento && "max-sm:hidden")} aria-label={`${inst.documento_fiscale_id ? 'Gestisci fattura' : 'Collega fattura'} · ${inst.label}`} onClick={() => onManageInvoice(inst, amount)}><FileText className="h-3.5 w-3.5" aria-hidden />{inst.documento_fiscale_id ? 'Gestisci fattura' : 'Collega fattura'}</button>}
+            {quotaRipartita && <p className="mt-1 text-xs text-muted-foreground">{Number(inst.quota_fattura_non_esigibile)>0
+              ? t("Quota della fattura: {quota} · incassato {incassato} · residuo {residuo} · non da incassare ora {importo}. Gli incassi si registrano sulla fattura.", { quota: formatCurrency(inst.documento_quota_lorda!), incassato: formatCurrency(partialPaid), residuo: formatCurrency(inst.quota_fattura_residua ?? 0), importo: formatCurrency(inst.quota_fattura_non_esigibile!) })
+              : t("Quota della fattura: {quota} · incassato {incassato} · residuo {residuo}. Gli incassi si registrano sulla fattura.", { quota: formatCurrency(inst.documento_quota_lorda!), incassato: formatCurrency(partialPaid), residuo: formatCurrency(inst.quota_fattura_residua ?? 0) })}</p>}
+            {inst.id && onManageInvoice && <button type="button" className={cn("mt-1 inline-flex min-h-8 items-center gap-1.5 rounded-md border bg-background px-2 text-xs font-medium text-primary hover:bg-muted", inst.documento_fiscale_id && dettaglioDocumento && "max-sm:hidden")} aria-label={t(inst.documento_fiscale_id ? "Gestisci fattura · {nome}" : "Collega fattura · {nome}", { nome: inst.label })} onClick={() => onManageInvoice(inst, amount)}><FileText className="h-3.5 w-3.5" aria-hidden />{inst.documento_fiscale_id ? t("Gestisci fattura") : t("Collega fattura")}</button>}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 pl-5 sm:justify-end sm:gap-2 sm:pl-0">
@@ -1155,20 +1163,20 @@ export function FinancialSummaryReadOnly({
           {amount > 0 && onInstallmentPaidToggle && !quotaRipartita && !inst.is_paid && (
             <button type="button" onClick={() => onInstallmentPaidToggle(inst, true)}
               className="inline-flex min-h-8 items-center gap-1 rounded-md border bg-background px-2.5 text-xs font-medium text-emerald-800 hover:bg-emerald-50 sm:hidden">
-              <Check className="h-3.5 w-3.5" aria-hidden />Segna incassata
+              <Check className="h-3.5 w-3.5" aria-hidden />{t("Segna incassata")}
             </button>
           )}
           {amount > 0 && onInstallmentPaidToggle && !quotaRipartita && (
-            <div className="inline-flex rounded-lg border bg-background p-0.5 max-sm:hidden" role="radiogroup" aria-label={`Stato incasso ${inst.label}`}>
+            <div className="inline-flex rounded-lg border bg-background p-0.5 max-sm:hidden" role="radiogroup" aria-label={t("Stato incasso {nome}", { nome: inst.label })}>
               <button
                 type="button" role="radio" aria-checked={!inst.is_paid}
                 disabled={!!incassoRegistrato}
-                title={incassoRegistrato ? "Per riaprire la rata, elimina l’incasso dalla Prima Nota." : undefined}
+                title={incassoRegistrato ? t("Per riaprire la rata, elimina l’incasso dalla Prima Nota.") : undefined}
                 onClick={() => inst.is_paid && onInstallmentPaidToggle(inst, false)}
                 className={cn("flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:opacity-60 sm:px-2.5",
                   !inst.is_paid ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" : "text-muted-foreground hover:bg-muted")}
               >
-                <Clock className="h-3 w-3 max-sm:hidden" />Da incassare
+                <Clock className="h-3 w-3 max-sm:hidden" />{t("Da incassare")}
               </button>
               <button
                 type="button" role="radio" aria-checked={!!inst.is_paid}
@@ -1176,14 +1184,14 @@ export function FinancialSummaryReadOnly({
                 className={cn("flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-2.5",
                   inst.is_paid ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" : "text-muted-foreground hover:bg-muted")}
               >
-                <Check className="h-3 w-3 max-sm:hidden" />Incassata
+                <Check className="h-3 w-3 max-sm:hidden" />{t("Incassata")}
               </button>
             </div>
           )}
           {/* Data: si corregge da qui. Incassata → data dell'incasso; da incassare → data prevista. */}
           {amount > 0 && (inst.is_paid ? canEditDate && !quotaRipartita && !incassoRegistrato : canEditExpected) && (
             <span className="max-sm:hidden"><DatePickerField
-              label={inst.is_paid ? "Data incasso" : "Data prevista"}
+              label={inst.is_paid ? t("Data incasso") : t("Data prevista")}
               date={inst.is_paid ? (inst.paid_date ? new Date(inst.paid_date) : undefined) : (inst.expected_date ? new Date(inst.expected_date) : undefined)}
               onDateChange={(d) => onInstallmentDateChange!(inst, inst.is_paid ? 'paid_date' : 'expected_date', d)}
             /></span>
@@ -1226,10 +1234,10 @@ export function FinancialSummaryReadOnly({
               type="button"
               onClick={() => setRiconciliaOpen(true)}
               className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-orange-50 hover:text-orange-700 max-sm:hidden"
-              title="Cerca fra gli accrediti bancari i bonifici che combaciano con le rate da incassare"
+              title={t("Cerca fra gli accrediti bancari i bonifici che combaciano con le rate da incassare")}
             >
               <Landmark className="h-3.5 w-3.5" />
-              Riconcilia con banca
+              {t("Riconcilia con banca")}
             </button>
           )}
           {conPrimaNota && orderId && (
@@ -1245,18 +1253,18 @@ export function FinancialSummaryReadOnly({
           )}
   </>;
   const notePiano = <div className="space-y-3">
-        {salPayment && <p role="status" className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 text-sm">{salPayment.mode==="advance_sal"?"Acconto + SAL":"Solo SAL"}: i pagamenti maturano dai lavori certificati. Il residuo del contratto non è una scadenza da incassare oggi.</p>}
+        {salPayment && <p role="status" className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 text-sm">{t("{piano}: i pagamenti maturano dai lavori certificati. Il residuo del contratto non è una scadenza da incassare oggi.", { piano: salPayment.mode==="advance_sal"?t("Acconto + SAL"):t("Solo SAL") })}</p>}
         {paymentType === 'financing' && financingCostValue > 0 && (
           <p className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Costo della finanziaria{financingCostMode === "trattenuto" ? " (trattenuto)" : financingCostMode === "separato" ? " (uscita separata)" : " (modalità da verificare)"}</span>
+            <span className="text-muted-foreground">{t(financingCostMode === "trattenuto" ? "Costo della finanziaria (trattenuto)" : financingCostMode === "separato" ? "Costo della finanziaria (uscita separata)" : "Costo della finanziaria (modalità da verificare)")}</span>
             <span className="font-medium text-destructive">- {formatCurrency(financingCostValue)}</span>
           </p>
         )}
 
         {/* Il contratto, in fondo e in piccolo: è il riferimento, non la prima cosa da leggere. */}
         <p className="flex flex-wrap justify-between gap-x-3 gap-y-1 border-t pt-3 text-xs text-muted-foreground">
-          <span>Contratto: imponibile <span className="tabular-nums text-foreground">{formatCurrency(totalAmount)}</span> + {vatSplit ? "IVA mista 10% e 22%" : `IVA ${vatRate}%`} <span className="tabular-nums">{formatCurrency(vatAmount)}</span></span>
-          <span>Totale <strong className="tabular-nums text-foreground">{formatCurrency(totalWithVat)}</strong> IVA inclusa</span>
+          <span>{t("Contratto: imponibile")} <span className="tabular-nums text-foreground">{formatCurrency(totalAmount)}</span> + {vatSplit ? t("IVA mista 10% e 22%") : t("IVA {aliquota}%", { aliquota: vatRate })} <span className="tabular-nums">{formatCurrency(vatAmount)}</span></span>
+          <span>{t("Totale")} <strong className="tabular-nums text-foreground">{formatCurrency(totalWithVat)}</strong> {t("IVA inclusa")}</span>
         </p>
 
         {vatSplit && <QuoteIvaMista value={vatSplit} readOnly onChange={() => {}} />}
@@ -1269,18 +1277,18 @@ export function FinancialSummaryReadOnly({
             <div className="space-y-1 rounded border border-amber-200 bg-amber-50 p-2 dark:border-amber-800 dark:bg-amber-950/30">
               <p className="flex items-center gap-1 text-xs font-medium text-amber-800 dark:text-amber-200">
                 <Building2 className="h-3 w-3" />
-                Ritenuta Bonus Edilizio
+                {t("Ritenuta Bonus Edilizio")}
               </p>
               <div className="flex justify-between text-xs">
-                <span className="text-amber-700 dark:text-amber-300">Imponibile bancario (÷ {(1 + vatRate / 100).toFixed(2)})</span>
+                <span className="text-amber-700 dark:text-amber-300">{t("Imponibile bancario (÷ {divisore})", { divisore: (1 + vatRate / 100).toFixed(2) })}</span>
                 <span className="text-amber-800 dark:text-amber-200">{formatCurrency(bankTaxableBase)}</span>
               </div>
               <div className="flex justify-between text-xs font-semibold">
-                <span className="text-amber-700 dark:text-amber-300">Ritenuta 11%</span>
+                <span className="text-amber-700 dark:text-amber-300">{t("Ritenuta 11%")}</span>
                 <span className="text-amber-800 dark:text-amber-200">{formatCurrency(bankWithholding)}</span>
               </div>
               <p className="text-[10px] text-amber-600 dark:text-amber-400">
-                Importo trattenuto dalla banca — recuperabile in dichiarazione
+                {t("Importo trattenuto dalla banca — recuperabile in dichiarazione")}
               </p>
             </div>
           );
@@ -1295,37 +1303,41 @@ export function FinancialSummaryReadOnly({
           <div>
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <Euro className="h-5 w-5 max-sm:h-4 max-sm:w-4" />
-              Incassi dal cliente
+              {t("Incassi dal cliente")}
             </CardTitle>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {visibili.length === 0
-                ? "Nessuna rata ancora."
+                ? t("Nessuna rata ancora.")
                 : incassate === visibili.length
-                  ? `Tutte le ${visibili.length} rate incassate.`
-                  : `${incassate} di ${visibili.length} rate incassate${prossima ? ` · prossima: ${prossima.label}${prossima.expected_date ? ` il ${formatPaymentDate(prossima.expected_date)}` : ""}` : ""}.`}
+                  ? t("Tutte le {n} rate incassate.", { n: visibili.length })
+                  : !prossima
+                    ? t("{incassate} di {totale} rate incassate.", { incassate, totale: visibili.length })
+                    : prossima.expected_date
+                      ? t("{incassate} di {totale} rate incassate · prossima: {nome} il {data}.", { incassate, totale: visibili.length, nome: prossima.label, data: formatPaymentDate(prossima.expected_date) ?? "" })
+                      : t("{incassate} di {totale} rate incassate · prossima: {nome}.", { incassate, totale: visibili.length, nome: prossima.label })}
             </p>
           </div>
           {comandiBanca}
         </div>
         {incassabile > 0 && (
           <div className="space-y-1">
-            <div className="h-2.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Quanto è incassato" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-2.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label={t("Quanto è incassato")} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
               <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
             </div>
             <p className="flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
-              <span><strong className="text-emerald-700">{formatCurrency(collectedAmount)}</strong> incassati · {pct}%</span>
-              <span>{dueAmount > 0 ? <>da incassare <strong className="text-amber-700">{formatCurrency(dueAmount)}</strong></> : "niente da incassare"}</span>
+              <span><strong className="text-emerald-700">{formatCurrency(collectedAmount)}</strong> {t("incassati · {pct}%", { pct })}</span>
+              <span>{dueAmount > 0 ? <>{t("da incassare")} <strong className="text-amber-700">{formatCurrency(dueAmount)}</strong></> : t("niente da incassare")}</span>
             </p>
           </div>
         )}
       </CardHeader>
       <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0 max-sm:text-sm">
         {ordinate.length > 0 ? (
-          <ul className="divide-y overflow-hidden rounded-lg border" aria-label="Rate del cliente">
+          <ul className="divide-y overflow-hidden rounded-lg border" aria-label={t("Rate del cliente")}>
             {ordinate.map(inst => renderPaymentRow(inst, importoRata(inst)))}
           </ul>
         ) : (
-          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Pagamenti da confermare: nessuna rata o scadenza generata dal contratto.</p>
+          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t("Pagamenti da confermare: nessuna rata o scadenza generata dal contratto.")}</p>
         )}
 
         {notePiano}

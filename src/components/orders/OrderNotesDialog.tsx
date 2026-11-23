@@ -32,7 +32,7 @@ import {
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { format, isToday, isYesterday } from "date-fns";
-import { it } from "date-fns/locale";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { useOrderNotesChannel } from "@/hooks/useOrderNotesChannel";
 
 interface OrderNotesDialogProps {
@@ -68,19 +68,19 @@ function initialsOf(first?: string | null, last?: string | null): string {
   return (a + b).toUpperCase() || "?";
 }
 
-function shortTime(dateStr: string): string {
+function shortTime(dateStr: string, t: ReturnType<typeof useT>): string {
   const d = new Date(dateStr);
   if (isToday(d)) return format(d, "HH:mm");
-  if (isYesterday(d)) return `Ieri ${format(d, "HH:mm")}`;
-  return format(d, "d MMM, HH:mm", { locale: it });
+  if (isYesterday(d)) return t("Ieri {ora}", { ora: format(d, "HH:mm") });
+  return format(d, "d MMM, HH:mm", { locale: dateFnsCampo() });
 }
 
 // Etichetta del separatore-giorno tra i gruppi di note.
-function dayLabel(dateStr: string): string {
+function dayLabel(dateStr: string, t: ReturnType<typeof useT>): string {
   const d = new Date(dateStr);
-  if (isToday(d)) return "Oggi";
-  if (isYesterday(d)) return "Ieri";
-  return format(d, "EEEE d MMMM yyyy", { locale: it });
+  if (isToday(d)) return t("Oggi");
+  if (isYesterday(d)) return t("Ieri");
+  return format(d, "EEEE d MMMM yyyy", { locale: dateFnsCampo() });
 }
 
 // Evidenzia gli @mention come pill accent
@@ -134,6 +134,7 @@ export function OrderNotesDialog({
   orderId,
   orderCode,
 }: OrderNotesDialogProps) {
+  const t = useT();
   const {
     messages,
     memberIds,
@@ -268,7 +269,7 @@ export function OrderNotesDialog({
   };
 
   const overlapAvatars = memberIds.slice(0, 4);
-  const memberLabel = isSoloMe ? "Solo tu" : `Gruppo · ${memberIds.length}`;
+  const memberLabel = isSoloMe ? t("Solo tu") : t("Gruppo · {n}", { n: memberIds.length });
 
   // Raggruppa le note per giorno (separatore + card, stile thread ordinato).
   const dayGroups = useMemo(() => {
@@ -277,10 +278,10 @@ export function OrderNotesDialog({
       const key = new Date(msg.created_at).toLocaleDateString("en-CA");
       const last = groups[groups.length - 1];
       if (last && last.key === key) last.items.push(msg);
-      else groups.push({ key, label: dayLabel(msg.created_at), items: [msg] });
+      else groups.push({ key, label: dayLabel(msg.created_at, t), items: [msg] });
     }
     return groups;
-  }, [messages]);
+  }, [messages, t]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -292,10 +293,10 @@ export function OrderNotesDialog({
             </div>
             <div className="min-w-0">
               <DialogTitle className="text-[15px] font-semibold leading-tight">
-                Note interne
+                {t("Note interne")}
               </DialogTitle>
               <p className="truncate text-xs text-muted-foreground">
-                {orderCode ? `Commessa ${orderCode} · ` : ""}visibili al team, non al cliente
+                {orderCode ? t("Commessa {codice} · visibili al team, non al cliente", { codice: orderCode }) : t("visibili al team, non al cliente")}
               </p>
             </div>
           </div>
@@ -324,15 +325,15 @@ export function OrderNotesDialog({
           {isLoading ? (
             <div className="flex h-full items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Caricamento…
+              {t("Caricamento…")}
             </div>
           ) : isError ? (
             <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
               <p className="text-sm text-muted-foreground">
-                Impossibile caricare. Riprova.
+                {t("Impossibile caricare. Riprova.")}
               </p>
               <Button variant="outline" size="sm" onClick={() => refetch()}>
-                Riprova
+                {t("Riprova")}
               </Button>
             </div>
           ) : messages.length === 0 ? (
@@ -341,9 +342,9 @@ export function OrderNotesDialog({
                 <NotebookPen className="h-6 w-6" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-semibold text-foreground">Nessuna nota ancora</p>
+                <p className="text-sm font-semibold text-foreground">{t("Nessuna nota ancora")}</p>
                 <p className="mx-auto max-w-[17rem] text-[13px] leading-relaxed text-muted-foreground">
-                  Scrivi un promemoria per il team o coinvolgi un collega con <span className="font-medium text-primary">@</span>. Le note restano interne, il cliente non le vede.
+                  {t("Scrivi un promemoria per il team o coinvolgi un collega con @. Le note restano interne, il cliente non le vede.")}
                 </p>
               </div>
             </div>
@@ -367,7 +368,7 @@ export function OrderNotesDialog({
                     const author = profilesById[msg.sender_id];
                     const authorName =
                       `${author?.first_name ?? ""} ${author?.last_name ?? ""}`.trim() ||
-                      (isMe ? "Tu" : "Utente");
+                      (isMe ? t("Tu") : t("Utente"));
                     return (
                       <motion.div
                         key={msg.id}
@@ -386,10 +387,10 @@ export function OrderNotesDialog({
                               {authorName}
                             </span>
                             {isMe && (
-                              <span className="rounded bg-primary/10 px-1 py-0.5 text-[10px] font-medium text-primary">tu</span>
+                              <span className="rounded bg-primary/10 px-1 py-0.5 text-[10px] font-medium text-primary">{t("tu")}</span>
                             )}
                             <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">
-                              {shortTime(msg.created_at)}
+                              {shortTime(msg.created_at, t)}
                             </span>
                           </div>
                           <div className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-foreground">
@@ -440,7 +441,7 @@ export function OrderNotesDialog({
                   void handleSend();
                 }
               }}
-              placeholder="Scrivi una nota o @menziona un collega…"
+              placeholder={t("Scrivi una nota o @menziona un collega…")}
               className="min-h-[64px] resize-none border-0 bg-transparent px-3 py-2 text-[13px] focus-visible:ring-0 focus-visible:ring-offset-0"
             />
 
@@ -459,7 +460,7 @@ export function OrderNotesDialog({
                   }}
                 >
                   <AtSign className="h-3.5 w-3.5" />
-                  Menziona
+                  {t("Menziona")}
                 </Button>
 
                 <Popover open={contactOpen} onOpenChange={setContactOpen}>
@@ -471,17 +472,17 @@ export function OrderNotesDialog({
                       className="h-7 gap-1 px-2 text-xs text-muted-foreground"
                     >
                       <UserPlus className="h-3.5 w-3.5" />
-                      Contatta il team
+                      {t("Contatta il team")}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align="start" className="w-64 p-0">
                     <div className="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
-                      Aggiungi al gruppo commessa
+                      {t("Aggiungi al gruppo commessa")}
                     </div>
                     <div className="max-h-56 overflow-y-auto py-1">
                       {team.filter((m) => m.id !== currentUserId).length === 0 ? (
                         <p className="px-3 py-2 text-xs text-muted-foreground">
-                          Nessun collega disponibile.
+                          {t("Nessun collega disponibile.")}
                         </p>
                       ) : (
                         team
@@ -510,7 +511,7 @@ export function OrderNotesDialog({
                                 <span className="truncate">{m.label}</span>
                                 {already && (
                                   <span className="ml-auto text-[10px] text-muted-foreground">
-                                    già nel gruppo
+                                    {t("già nel gruppo")}
                                   </span>
                                 )}
                               </label>
@@ -529,7 +530,7 @@ export function OrderNotesDialog({
                         {isContacting && (
                           <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                         )}
-                        Aggiungi
+                        {t("Aggiungi")}
                       </Button>
                     </div>
                   </PopoverContent>
@@ -548,7 +549,7 @@ export function OrderNotesDialog({
                 ) : (
                   <Send className="h-3.5 w-3.5" />
                 )}
-                Invia
+                {t("Invia")}
               </Button>
             </div>
           </div>

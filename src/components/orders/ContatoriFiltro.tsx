@@ -1,6 +1,7 @@
 import { useAspettoOperativo } from "./generali/design/ContestoOperativo";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface VoceContatore { chiave: string; etichetta: string; valore: number; avviso?: boolean }
 
@@ -8,6 +9,7 @@ export interface VoceContatore { chiave: string; etichetta: string; valore: numb
 export function ContatoriFiltro({ voci, attivo, onScegli, etichetta, className }: {
   voci: VoceContatore[]; attivo: string | null; onScegli: (chiave: string | null) => void; etichetta: string; className?: string;
 }) {
+  const t = useT();
   const aspetto = useAspettoOperativo();
   return (
     <div className={cn("commessa-filter-group", aspetto && "generale-operativo-filters")} data-has-counts={voci.some(v => v.valore > 0)}>
@@ -21,7 +23,7 @@ export function ContatoriFiltro({ voci, attivo, onScegli, etichetta, className }
         </button>
       ))}
     </div>
-    {aspetto && attivo && <button type="button" className="generale-operativo-reset" onClick={() => onScegli(null)}><X aria-hidden="true" /> Mostra tutti</button>}
+    {aspetto && attivo && <button type="button" className="generale-operativo-reset" onClick={() => onScegli(null)}><X aria-hidden="true" /> {t("Mostra tutti")}</button>}
     </div>
   );
 }

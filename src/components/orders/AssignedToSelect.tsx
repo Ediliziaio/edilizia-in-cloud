@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   Select,
   SelectContent,
@@ -17,6 +18,7 @@ interface AssignedToSelectProps {
 }
 
 export function AssignedToSelect({ value, onChange, disabled }: AssignedToSelectProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
 
   // FIX: usa useCompanyStaffUsers che esclude customer/referrer/platform_*
@@ -33,13 +35,13 @@ export function AssignedToSelect({ value, onChange, disabled }: AssignedToSelect
 
   return (
     <div className="space-y-2">
-      <Label>Assegnato a</Label>
+      <Label>{t("Assegnato a")}</Label>
       <Select value={value || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)} disabled={disabled}>
         <SelectTrigger>
-          <SelectValue placeholder="Nessuna assegnazione" />
+          <SelectValue placeholder={t("Nessuna assegnazione")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="none">Nessuna assegnazione</SelectItem>
+          <SelectItem value="none">{t("Nessuna assegnazione")}</SelectItem>
           {users.map((u) => (
             <SelectItem key={u.id} value={u.id}>
               {u.name}

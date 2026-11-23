@@ -22,6 +22,7 @@ import {
   chiaveDescrizione, proponiAbbinamenti, riepilogoProposte, unitaDelListino, unitaPerListino,
   type AbbinamentoRicordato, type MotivoProposta, type VoceDaAbbinare, type VoceListinoAbbinabile,
 } from "@/lib/subappaltatori/abbinamentoListino";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -35,6 +36,7 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
   voci: VoceCommessaDaAbbinare[]; fasi: Array<{ id: string; name: string }>;
   listino: VoceListinoAbbinabile[]; onChiudi: () => void; onFatto: () => void;
 }) {
+  const tr = useT();
   const { canEditSettingsPricing } = usePermissions();
   const qc = useQueryClient();
   const ricordati = useQuery({
@@ -72,7 +74,7 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
         const pezzo = da.slice(i, i + 40);
         const { data, error } = await supabase.functions.invoke("listino-abbina-ai", { body: { order_id: orderId, voce_ids: pezzo } });
         if (error) {
-          let msg = "La proposta con l'AI non è riuscita. Riprova tra poco.";
+          let msg = tr("La proposta con l'AI non è riuscita. Riprova tra poco.");
           try { const c = await (error as { context?: Response }).context?.json?.(); if (typeof c?.error === "string") msg = c.error; } catch { /* messaggio generico */ }
           throw new Error(msg);
         }
@@ -85,8 +87,8 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
       return { trovate, cercate: da.length };
     },
     onSuccess: ({ trovate, cercate }) => toast.success(trovate
-      ? `L'AI propone ${trovate} ${trovate === 1 ? "voce" : "voci"} su ${cercate}: controllale e spunta quelle giuste.`
-      : `L'AI non ha trovato voci del listino per queste ${cercate} voci: scegli a mano o aggiungile al listino.`),
+      ? tr(trovate === 1 ? "L'AI propone {n} voce su {totale}: controllale e spunta quelle giuste." : "L'AI propone {n} voci su {totale}: controllale e spunta quelle giuste.", { n: trovate, totale: cercate })
+      : tr("L'AI non ha trovato voci del listino per queste {n} voci: scegli a mano o aggiungile al listino.", { n: cercate })),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -105,18 +107,18 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
       return data as { collegate: number };
     },
     onSuccess: (esito) => {
-      toast.success(`${esito.collegate} ${esito.collegate === 1 ? "voce collegata" : "voci collegate"} al listino.`);
+      toast.success(tr(esito.collegate === 1 ? "{n} voce collegata al listino." : "{n} voci collegate al listino.", { n: esito.collegate }));
       void qc.invalidateQueries({ queryKey: ["abbinamenti-voce-computo", companyId] });
       onFatto();
     },
-    onError: (e: Error) => toast.error(e.message || "Abbinamento non riuscito."),
+    onError: (e: Error) => toast.error(e.message || tr("Abbinamento non riuscito.")),
   });
 
   /** Una voce che nel listino non c'è: diventa una voce del listino, col suo codice e il prezzo venduto. */
   const aggiungi = useMutation({
     mutationFn: async (v: VoceCommessaDaAbbinare) => {
       const u = unitaPerListino(v.unita);
-      if (!u) throw new Error(`Il listino non ha l'unità «${v.unita ?? ""}»: scegli una voce esistente.`);
+      if (!u) throw new Error(tr("Il listino non ha l'unità «{unita}»: scegli una voce esistente.", { unita: v.unita ?? "" }));
       const venduto = v.quantita > 0 && v.importo ? Math.round((v.importo / v.quantita) * 10000) / 10000 : null;
       const { data, error } = await db.from("tariffe_aziendali").insert({
         company_id: companyId, tipo: "altro", nome: v.descrizione.trim().slice(0, 500), ...u,
@@ -130,9 +132,9 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
       setNuove((n) => ({ ...n, [voceId]: tariffaId }));
       setSpunte((s) => ({ ...s, [voceId]: true }));
       void qc.invalidateQueries({ queryKey: ["listino-manodopera-voci", companyId] });
-      toast.success("Voce aggiunta al listino: ora si collega con «Collega».");
+      toast.success(tr("Voce aggiunta al listino: ora si collega con «Collega»."));
     },
-    onError: (e: Error) => toast.error(e.message || "Voce non aggiunta."),
+    onError: (e: Error) => toast.error(e.message || tr("Voce non aggiunta.")),
   });
 
   const nomeFase = (id: string) => fasi.find((f) => f.id === id)?.name ?? "";
@@ -142,18 +144,17 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
     <Dialog open onOpenChange={(o) => !o && !applica.isPending && onChiudi()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Collega le voci al listino</DialogTitle>
+          <DialogTitle>{tr("Collega le voci al listino")}</DialogTitle>
           <DialogDescription>
-            {daFare.length} voci della commessa non hanno la voce del listino: senza, il prezzo della ditta non le trova.
-            {" "}{riepilogo.sicure} si collegano da sole, {riepilogo.daGuardare} sono da guardare (unità diverse o nome simile), {riepilogo.daScegliere} da scegliere a mano.
-            L'abbinamento si ricorda: la prossima commessa con la stessa voce lo propone.
+            {tr("{n} voci della commessa non hanno la voce del listino: senza, il prezzo della ditta non le trova.", { n: daFare.length })}
+            {" "}{tr("{sicure} si collegano da sole, {daGuardare} sono da guardare (unità diverse o nome simile), {daScegliere} da scegliere a mano. L'abbinamento si ricorda: la prossima commessa con la stessa voce lo propone.", { sicure: riepilogo.sicure, daGuardare: riepilogo.daGuardare, daScegliere: riepilogo.daScegliere })}
           </DialogDescription>
         </DialogHeader>
 
-        {ricordati.isLoading ? <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" />Caricamento…</p> : ricordati.isError ? (
+        {ricordati.isLoading ? <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" />{tr("Caricamento…")}</p> : ricordati.isError ? (
           <p role="alert" className="text-sm text-destructive">
-            Non riesco a leggere gli abbinamenti già fatti.{" "}
-            <button type="button" className="underline" onClick={() => void ricordati.refetch()}>Riprova</button>
+            {tr("Non riesco a leggere gli abbinamenti già fatti.")}{" "}
+            <button type="button" className="underline" onClick={() => void ricordati.refetch()}>{tr("Riprova")}</button>
           </p>
         ) : (
           <ul className="divide-y rounded-md border">
@@ -164,27 +165,27 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
               const diverse = !!t && normalizzaUnita(unitaDelListino(t.unita)) !== normalizzaUnita(v.unita);
               return (
                 <li key={v.id} className="flex items-start gap-2 px-3 py-2">
-                  <Checkbox checked={spuntata(v.id) && !!scelta} disabled={!scelta} aria-label={`Collega ${v.descrizione}`}
+                  <Checkbox checked={spuntata(v.id) && !!scelta} disabled={!scelta} aria-label={tr("Collega {voce}", { voce: v.descrizione })}
                     onCheckedChange={(c) => setSpunte((s) => ({ ...s, [v.id]: c === true }))} className="mt-1" />
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="line-clamp-2 text-sm">{v.origine_codice && <span className="mr-1 text-xs text-muted-foreground">{v.origine_codice}</span>}{v.descrizione}</p>
-                    <p className="text-[11px] text-muted-foreground">{nomeFase(v.phase_id)} · {v.quantita.toLocaleString("it-IT")} {v.unita ?? ""}</p>
+                    <p className="text-[11px] text-muted-foreground">{nomeFase(v.phase_id)} · {v.quantita.toLocaleString(intlCampo())} {v.unita ?? ""}</p>
                     {scelta ? (
                       <p className="flex flex-wrap items-center gap-1 text-xs">
-                        <span>→ {t?.nome ?? nomeNuova(scelta) ?? "voce nuova del listino"}</span>
-                        {t && <span className="text-muted-foreground">({t.unita === "a_corpo" ? "a corpo" : t.unita})</span>}
-                        {p?.motivo && p.tariffaId === scelta && <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-normal">{MOTIVO[p.motivo]}</Badge>}
+                        <span>→ {t?.nome ?? nomeNuova(scelta) ?? tr("voce nuova del listino")}</span>
+                        {t && <span className="text-muted-foreground">({t.unita === "a_corpo" ? tr("a corpo") : t.unita})</span>}
+                        {p?.motivo && p.tariffaId === scelta && <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-normal">{tr(MOTIVO[p.motivo])}</Badge>}
                         {!p?.tariffaId && ai[v.id]?.tariffaId === scelta && (
                           <Badge variant="outline" className="h-4 border-violet-300 bg-violet-50 px-1.5 text-[10px] font-normal text-violet-900" title={ai[v.id].perche || undefined}>
-                            proposta AI{ai[v.id].certezza === "media" ? ", da verificare" : ""}: controlla
+                            {ai[v.id].certezza === "media" ? tr("proposta AI, da verificare: controlla") : tr("proposta AI: controlla")}
                           </Badge>
                         )}
-                        {diverse && <Badge variant="outline" className="h-4 border-amber-300 bg-amber-50 px-1.5 text-[10px] font-normal text-amber-900">unità diverse</Badge>}
+                        {diverse && <Badge variant="outline" className="h-4 border-amber-300 bg-amber-50 px-1.5 text-[10px] font-normal text-amber-900">{tr("unità diverse")}</Badge>}
                       </p>
-                    ) : <p className="text-xs text-amber-800">Da scegliere</p>}
+                    ) : <p className="text-xs text-amber-800">{tr("Da scegliere")}</p>}
                     {cercaVoce === v.id && (
                       <div className="space-y-1">
-                        <Input autoFocus value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca nel listino" className="h-8" aria-label={`Cerca nel listino per ${v.descrizione}`} />
+                        <Input autoFocus value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={tr("Cerca nel listino")} className="h-8" aria-label={tr("Cerca nel listino per {voce}", { voce: v.descrizione })} />
                         {trovate.map((x) => (
                           <button key={x.id} type="button" className="block w-full truncate rounded px-2 py-1 text-left text-xs hover:bg-muted"
                             onClick={() => { setScelte((s) => ({ ...s, [v.id]: x.id })); setSpunte((s) => ({ ...s, [v.id]: true })); setCercaVoce(null); setCerca(""); }}>
@@ -195,37 +196,37 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" aria-label={`${scelta ? "Cambia" : "Scegli"} la voce del listino per ${v.descrizione}`} onClick={() => { setCercaVoce(cercaVoce === v.id ? null : v.id); setCerca(""); }}>
-                      {scelta ? "Cambia" : "Scegli"}
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" aria-label={tr(scelta ? "Cambia la voce del listino per {voce}" : "Scegli la voce del listino per {voce}", { voce: v.descrizione })} onClick={() => { setCercaVoce(cercaVoce === v.id ? null : v.id); setCerca(""); }}>
+                      {scelta ? tr("Cambia") : tr("Scegli")}
                     </Button>
                     {!scelta && canEditSettingsPricing && (
                       <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={aggiungi.isPending || !unitaPerListino(v.unita)}
-                        title={unitaPerListino(v.unita) ? "La voce diventa una voce del listino" : `Il listino non ha l'unità «${v.unita ?? ""}»`}
-                        aria-label={`Aggiungi al listino ${v.descrizione}`}
+                        title={unitaPerListino(v.unita) ? tr("La voce diventa una voce del listino") : tr("Il listino non ha l'unità «{unita}»", { unita: v.unita ?? "" })}
+                        aria-label={tr("Aggiungi al listino {voce}", { voce: v.descrizione })}
                         onClick={() => aggiungi.mutate(v)}>
-                        <Plus className="mr-1 h-3 w-3" />Al listino
+                        <Plus className="mr-1 h-3 w-3" />{tr("Al listino")}
                       </Button>
                     )}
                   </div>
                 </li>
               );
             })}
-            {daFare.length === 0 && <li className="px-3 py-4 text-sm text-muted-foreground">Tutte le voci sono già collegate al listino.</li>}
+            {daFare.length === 0 && <li className="px-3 py-4 text-sm text-muted-foreground">{tr("Tutte le voci sono già collegate al listino.")}</li>}
           </ul>
         )}
 
         <DialogFooter className="items-center gap-2">
-          <span className="mr-auto text-sm text-muted-foreground">{daApplicare.length} da collegare</span>
+          <span className="mr-auto text-sm text-muted-foreground">{tr("{n} da collegare", { n: daApplicare.length })}</span>
           {senzaProposta.length > 0 && (
             <Button variant="outline" disabled={proponiAi.isPending || applica.isPending} onClick={() => proponiAi.mutate()}
-              title="Per le voci senza proposta, l'AI cerca nel listino la stessa lavorazione. Le proposte non si collegano da sole.">
+              title={tr("Per le voci senza proposta, l'AI cerca nel listino la stessa lavorazione. Le proposte non si collegano da sole.")}>
               {proponiAi.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
-              Proponi con l'AI ({senzaProposta.length})
+              {tr("Proponi con l'AI ({n})", { n: senzaProposta.length })}
             </Button>
           )}
-          <Button variant="ghost" disabled={applica.isPending} onClick={onChiudi}>Chiudi</Button>
+          <Button variant="ghost" disabled={applica.isPending} onClick={onChiudi}>{tr("Chiudi")}</Button>
           <Button disabled={applica.isPending || daApplicare.length === 0} onClick={() => applica.mutate()}>
-            {applica.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Collega {daApplicare.length || ""}
+            {applica.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{daApplicare.length ? tr("Collega {n}", { n: daApplicare.length }) : tr("Collega")}
           </Button>
         </DialogFooter>
       </DialogContent>

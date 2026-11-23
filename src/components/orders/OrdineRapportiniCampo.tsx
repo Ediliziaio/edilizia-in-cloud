@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
+import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   ClipboardList, Check, ChevronDown, Image as ImageIcon, PenLine,
   Loader2, X, Clock,
@@ -56,11 +56,12 @@ const fmtSafeDate = (value: string | null | undefined, pattern: string) => {
   if (!value) return "—";
   const parsed = parseISO(value);
   if (Number.isNaN(parsed.getTime())) return "—";
-  return format(parsed, pattern, { locale: it });
+  return format(parsed, pattern, { locale: dateFnsCampo() });
 };
 
 // ── Badge stato ────────────────────────────────────────────────────────────────
 function StatoBadge({ stato }: { stato: RapportinoStato }) {
+  const t = useT();
   const map: Record<RapportinoStato, { label: string; cls: string }> = {
     bozza:     { label: "Bozza",     cls: "bg-slate-100 text-slate-600 border-slate-300" },
     inviato:   { label: "Da approvare", cls: "border-amber-400 text-amber-600 bg-amber-50" },
@@ -70,12 +71,12 @@ function StatoBadge({ stato }: { stato: RapportinoStato }) {
   const s = map[stato] ?? map.bozza;
   return (
     <Badge variant="outline" className={`text-[10px] py-0 ${s.cls}`}>
-      {s.label}
+      {t(s.label)}
     </Badge>
   );
 }
 
-const BadgeAnnullato = () => <Badge variant="outline" className="text-[10px] py-0 border-slate-300 bg-slate-100 text-slate-600">Annullato</Badge>;
+const BadgeAnnullato = () => { const t = useT(); return <Badge variant="outline" className="text-[10px] py-0 border-slate-300 bg-slate-100 text-slate-600">{t("Annullato")}</Badge>; };
 
 const ETICHETTA_SEZIONE = "text-[11px] font-semibold uppercase tracking-wide text-slate-500";
 
@@ -86,7 +87,7 @@ function statoDi(r: { stato?: string | null; approvato?: boolean | null }): Rapp
 }
 
 const formatOre = (ore: number) =>
-  `${Number.isInteger(ore) ? ore : ore.toLocaleString("it-IT", { maximumFractionDigits: 1 })} h`;
+  `${Number.isInteger(ore) ? ore : ore.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })} h`;
 
 const TESSERA_STATO: Record<RapportinoStato, string> = {
   approvato: "bg-emerald-50 text-emerald-800 ring-emerald-200",
@@ -115,6 +116,7 @@ export { orePersoneRapportino };
 
 export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApprovare = false, rapportinoIniziale = null, onChiudiRapportinoIniziale }: Props) {
   const qc = useQueryClient();
+  const t = useT();
   const { schema: moduloCantiere } = useModuloRapportino(orderId);
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -232,36 +234,36 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
       <CardHeader className="gap-4 pb-3 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <ClipboardList className="h-4 w-4" />
-          {soloDaApprovare ? "Rapportini da approvare" : "Rapportini Campo"} ({isLoading ? "…" : isError ? "—" : rapportini.length})
+          {soloDaApprovare ? t("Rapportini da approvare") : t("Rapportini Campo")} ({isLoading ? "…" : isError ? "—" : rapportini.length})
         </CardTitle>
         {!azioniInRiga && !isLoading && !isError && <RapportiPeriodoDialog companyId={companyId} orderId={orderId} mese="Rapportini della commessa" righe={rapportini.filter((r) => !r.annullato_at)} conDatiEconomici={canViewCosts} />}
         {/* Colpo d'occhio: quante ore, cosa aspetta l'ufficio, a che punto sono i lavori.
             Nel popup di Attività (azioniInRiga) si nasconde: lì serve solo approvare. */}
         {!azioniInRiga && quantiAnnullati > 0 && (
           <Button variant="ghost" size="sm" className="w-fit px-0 text-xs" onClick={() => setMostraAnnullati((v) => !v)}>
-            {mostraAnnullati ? "Nascondi annullati" : `Mostra annullati (${quantiAnnullati})`}
+            {mostraAnnullati ? t("Nascondi annullati") : t("Mostra annullati ({n})", { n: quantiAnnullati })}
           </Button>
         )}
         {!azioniInRiga && !isLoading && !isError && rapportini.length > 0 && (
           <dl className="flex flex-wrap gap-x-8 gap-y-3">
             <div>
-              <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Ore registrate</dt>
+              <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{t("Ore registrate")}</dt>
               <dd className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">{formatOre(riepilogo.ore)}</dd>
             </div>
             <div>
-              <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Da approvare</dt>
+              <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{t("Da approvare")}</dt>
               <dd className={cn("mt-0.5 text-lg font-bold tabular-nums", riepilogo.daApprovare > 0 ? "text-amber-700" : "text-emerald-700")}>
-                {riepilogo.daApprovare > 0 ? riepilogo.daApprovare : "Nessuno"}
+                {riepilogo.daApprovare > 0 ? riepilogo.daApprovare : t("Nessuno")}
               </dd>
             </div>
             {riepilogo.avanzamento != null && (
               <div>
-                <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Ultimo avanzamento</dt>
+                <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{t("Ultimo avanzamento")}</dt>
                 <dd className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">{riepilogo.avanzamento}%</dd>
               </div>
             )}
             <div>
-              <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Ultimo rapportino</dt>
+              <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{t("Ultimo rapportino")}</dt>
               <dd className="mt-0.5 text-lg font-bold text-slate-900">{fmtSafeDate(rapportini[0]?.data_lavoro, "d MMM yyyy")}</dd>
             </div>
           </dl>
@@ -271,9 +273,9 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
         {isLoading ? (
           <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5" /></div>
         ) : isError ? (
-          <div role="alert" className="space-y-2 text-sm"><p>Rapportini non disponibili. Non è possibile verificare il consuntivo.</p><Button variant="outline" onClick={() => refetch()}>Riprova</Button></div>
+          <div role="alert" className="space-y-2 text-sm"><p>{t("Rapportini non disponibili. Non è possibile verificare il consuntivo.")}</p><Button variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button></div>
         ) : rapportini.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{soloDaApprovare ? "Nessun rapportino da approvare" : "Nessun rapportino caricato dagli operai"}</p>
+          <p className="text-sm text-muted-foreground">{soloDaApprovare ? t("Nessun rapportino da approvare") : t("Nessun rapportino caricato dagli operai")}</p>
         ) : (
           <div className="space-y-4">
             {!soloDaApprovare && canViewCosts && <CostiDaCompletareCommessa orderId={orderId} />}
@@ -284,7 +286,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-0.5">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">{gruppo.etichetta}</h3>
                   <span className="text-xs text-slate-500">
-                    {gruppo.totale} {gruppo.totale === 1 ? "rapportino" : "rapportini"} · {formatOre(gruppo.ore)}
+                    {t(gruppo.totale === 1 ? "{n} rapportino" : "{n} rapportini", { n: gruppo.totale })} · {formatOre(gruppo.ore)}
                   </span>
                 </div>
                 <div className="divide-y overflow-hidden rounded-lg border bg-card">
@@ -292,7 +294,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                     const stato = statoDi(r);
                     const aperto = expandedId === r.id;
                     const pct = r.percentuale_avanzamento == null ? null : Math.min(100, Math.max(0, Number(r.percentuale_avanzamento) || 0));
-                    const autore = [r.autore?.first_name, r.autore?.last_name].filter(Boolean).join(" ") || "Registrazione manuale";
+                    const autore = [r.autore?.first_name, r.autore?.last_name].filter(Boolean).join(" ") || t("Registrazione manuale");
                     const nFoto = Array.isArray(r.foto_urls) ? r.foto_urls.length : 0;
                     return (
                       <div key={r.id} className={cn(aperto && "bg-slate-50/60")}>
@@ -311,56 +313,56 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                           <TesseraGiorno data={r.data_lavoro} stato={stato} />
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                              <span className="text-sm font-semibold text-slate-900">{autore}</span>
+                              <span dir="auto" className="text-sm font-semibold text-slate-900">{autore}</span>
                               {/* sul telefono lo stato sta accanto al nome: la colonna di destra si libera */}
                               <span className="sm:hidden">{r.annullato_at ? <BadgeAnnullato /> : <StatoBadge stato={stato} />}</span>
                               {r.lavoro_completato && (
                                 <Badge variant="outline" className="border-emerald-600 bg-emerald-600 py-0 text-[10px] text-white">
-                                  Fine lavori
+                                  {t("Fine lavori")}
                                 </Badge>
                               )}
                               {r.lavoro_completato && r.firma_cliente_url && (
                                 <Badge variant="outline" className="border-emerald-300 bg-emerald-50 py-0 text-[10px] text-emerald-700">
                                   <PenLine className="mr-0.5 h-2.5 w-2.5" />
-                                  Firmato dal cliente
+                                  {t("Firmato dal cliente")}
                                 </Badge>
                               )}
                               <SourceBadge source={r.source} />
                             </div>
                             {/* Una riga di cosa si è fatto: con la sola data i rapportini sembrano tutti uguali. */}
                             {r.descrizione_lavori && !aperto && (
-                              <p className="mt-0.5 truncate text-xs text-slate-600">{r.descrizione_lavori}</p>
+                              <p dir="auto" className="mt-0.5 truncate text-xs text-slate-600">{r.descrizione_lavori}</p>
                             )}
                             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
                               {haPresenze(r) ? (
-                                <span className="inline-flex items-center gap-1 font-medium text-slate-800" title="Ore delle persone della squadra, senza le ditte">
+                                <span className="inline-flex items-center gap-1 font-medium text-slate-800" title={t("Ore delle persone della squadra, senza le ditte")}>
                                   <Clock className="h-3 w-3 text-slate-400" aria-hidden="true" />
-                                  {orePersoneRapportino(r).toLocaleString("it-IT")}h di squadra
+                                  {t("{ore}h di squadra", { ore: orePersoneRapportino(r).toLocaleString(intlCampo()) })}
                                 </span>
                               ) : r.ore_lavorate != null && (
-                                <span className="inline-flex items-center gap-1 font-medium text-slate-800" title="Ore lavorate">
+                                <span className="inline-flex items-center gap-1 font-medium text-slate-800" title={t("Ore lavorate")}>
                                   <Clock className="h-3 w-3 text-slate-400" aria-hidden="true" />
                                   {r.ore_lavorate}h
                                 </span>
                               )}
                               {!haPresenze(r) && r.ore_straordinario > 0 && (
-                                <span className="font-medium text-amber-700" title="Ore di straordinario">+{r.ore_straordinario}h str.</span>
+                                <span className="font-medium text-amber-700" title={t("Ore di straordinario")}>{t("+{ore}h str.", { ore: r.ore_straordinario })}</span>
                               )}
                               {pct != null && (
-                                <span className="inline-flex items-center gap-1.5" title="Avanzamento dichiarato nel rapportino">
+                                <span className="inline-flex items-center gap-1.5" title={t("Avanzamento dichiarato nel rapportino")}>
                                   <span className="h-1.5 w-14 overflow-hidden rounded-full bg-slate-200">
                                     <span className="block h-full rounded-full bg-orange-500" style={{ width: `${pct}%` }} />
                                   </span>
-                                  <span className="tabular-nums">{pct}% avanz.</span>
+                                  <span className="tabular-nums">{t("{pct}% avanz.", { pct })}</span>
                                 </span>
                               )}
                               {nFoto > 0 && (
-                                <span className="inline-flex items-center gap-1" title={`${nFoto} ${nFoto === 1 ? "foto" : "foto"} allegate`}>
+                                <span className="inline-flex items-center gap-1" title={t("{n} foto allegate", { n: nFoto })}>
                                   <ImageIcon className="h-3 w-3 text-slate-400" aria-hidden="true" />{nFoto}
                                 </span>
                               )}
-                              {r.firma_cliente_url && <span title="Firma del cliente"><PenLine className="h-3 w-3 text-blue-500" aria-label="Firma del cliente" /></span>}
-                              {r.firma_operaio_url && <span title="Firma dell'operaio"><PenLine className="h-3 w-3 text-amber-500" aria-label="Firma dell'operaio" /></span>}
+                              {r.firma_cliente_url && <span title={t("Firma del cliente")}><PenLine className="h-3 w-3 text-blue-500" aria-label={t("Firma del cliente")} /></span>}
+                              {r.firma_operaio_url && <span title={t("Firma dell'operaio")}><PenLine className="h-3 w-3 text-amber-500" aria-label={t("Firma dell'operaio")} /></span>}
                             </div>
                           </div>
                           <div className="flex shrink-0 flex-col items-end gap-2">
@@ -372,10 +374,10 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                         {azioniInRiga && puoDecidereSu(r.user_id) && stato === "inviato" && (
                           <div className="flex shrink-0 items-center gap-1.5 pl-1 pr-3 max-sm:pr-2.5">
                             <Button size="sm" onClick={() => setApprovalId(r.id)} disabled={approvaMutation.isPending}>
-                              <Check className="h-3.5 w-3.5 sm:mr-1" /><span className="max-sm:hidden">Approva</span>
+                              <Check className="h-3.5 w-3.5 sm:mr-1" /><span className="max-sm:hidden">{t("Approva")}</span>
                             </Button>
                             <Button size="sm" variant="destructive" onClick={() => { setRifiutaId(r.id); setMotivoRifiuto(""); }}>
-                              <X className="h-3.5 w-3.5 sm:mr-1" /><span className="max-sm:hidden">Rifiuta</span>
+                              <X className="h-3.5 w-3.5 sm:mr-1" /><span className="max-sm:hidden">{t("Rifiuta")}</span>
                             </Button>
                           </div>
                         )}
@@ -386,21 +388,21 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                           <Dialog open onOpenChange={(o) => { if (!o) setExpandedId(null); }}>
                           <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
                           <DialogHeader>
-                            <DialogTitle>Rapportino · {autore} · {fmtSafeDate(r.data_lavoro, "d MMMM yyyy")}</DialogTitle>
+                            <DialogTitle dir="auto">{t("Rapportino · {autore} · {data}", { autore, data: fmtSafeDate(r.data_lavoro, "d MMMM yyyy") })}</DialogTitle>
                           </DialogHeader>
                           <div className="space-y-4">
                             {r.descrizione_lavori && (
                               <div>
-                                <p className={ETICHETTA_SEZIONE}>Lavori svolti</p>
-                                <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-800">{r.descrizione_lavori}</p>
+                                <p className={ETICHETTA_SEZIONE}>{t("Lavori svolti")}</p>
+                                <p dir="auto" className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-800">{r.descrizione_lavori}</p>
                               </div>
                             )}
 
                             {/* Motivo rifiuto */}
                             {stato === "rifiutato" && r.motivo_rifiuto && (
                               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                                <p className="text-xs font-medium text-red-700">{r.annullato_at ? "Motivo annullamento" : "Motivo rifiuto"}</p>
-                                <p className="text-xs text-red-600 mt-0.5">{r.motivo_rifiuto}</p>
+                                <p className="text-xs font-medium text-red-700">{r.annullato_at ? t("Motivo annullamento") : t("Motivo rifiuto")}</p>
+                                <p dir="auto" className="text-xs text-red-600 mt-0.5">{r.motivo_rifiuto}</p>
                               </div>
                             )}
 
@@ -408,7 +410,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                                 un rapportino solo per tutto il cantiere. */}
                             {Array.isArray(r.presenze) && r.presenze.length > 0 && (
                               <div>
-                                <p className={ETICHETTA_SEZIONE}>Squadra del giorno</p>
+                                <p className={ETICHETTA_SEZIONE}>{t("Squadra del giorno")}</p>
                                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                                   {(r.presenze as Array<{ nome?: string; ore?: number; subappaltatore_id?: string }>).map((pz, i) => (
                                     <span
@@ -416,7 +418,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                                       className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700"
                                     >
                                       <span className="font-medium">{pz.nome ?? "—"}</span> · {Number(pz.ore) || 0}h
-                                      {pz.subappaltatore_id ? " · sub" : ""}
+                                      {pz.subappaltatore_id ? ` · ${t("sub")}` : ""}
                                     </span>
                                   ))}
                                 </div>
@@ -429,7 +431,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                               const mezziUsati = (r as { mezzi_usati?: unknown }).mezzi_usati;
                               return Array.isArray(mezziUsati) && mezziUsati.length > 0 && (
                               <div>
-                                <p className={ETICHETTA_SEZIONE}>Mezzi usati</p>
+                                <p className={ETICHETTA_SEZIONE}>{t("Mezzi usati")}</p>
                                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                                   {(mezziUsati as Array<{ nome?: string; ore?: number }>).map((m, i) => (
                                     <span key={i} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
@@ -450,27 +452,27 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                             {/* Firme */}
                             {(r.firma_cliente_url || r.firma_operaio_url) && (
                               <div>
-                                <p className={ETICHETTA_SEZIONE}>Firme</p>
+                                <p className={ETICHETTA_SEZIONE}>{t("Firme")}</p>
                                 <div className="mt-1.5 flex flex-wrap gap-4">
                                   {r.firma_cliente_url && (
                                     <div>
                                       <p className="mb-1 text-xs text-muted-foreground">
-                                        Cliente{r.firma_cliente_nome ? `: ${r.firma_cliente_nome}` : ""}
+                                        {t("Cliente")}{r.firma_cliente_nome ? `: ${r.firma_cliente_nome}` : ""}
                                       </p>
                                       <ImgRiservata loading="lazy"
-                                        src={r.firma_cliente_url} alt="Firma cliente"
+                                        src={r.firma_cliente_url} alt={t("Firma cliente")}
                                         className="h-16 cursor-pointer rounded-md border bg-white"
-                                        onClick={() => setFirmaModal({ url: r.firma_cliente_url, title: "Firma cliente" })}
+                                        onClick={() => setFirmaModal({ url: r.firma_cliente_url, title: t("Firma cliente") })}
                                       />
                                     </div>
                                   )}
                                   {r.firma_operaio_url && (
                                     <div>
-                                      <p className="mb-1 text-xs text-muted-foreground">Operaio</p>
+                                      <p className="mb-1 text-xs text-muted-foreground">{t("Operaio")}</p>
                                       <ImgRiservata loading="lazy"
-                                        src={r.firma_operaio_url} alt="Firma operaio"
+                                        src={r.firma_operaio_url} alt={t("Firma operaio")}
                                         className="h-16 cursor-pointer rounded-md border bg-white"
-                                        onClick={() => setFirmaModal({ url: r.firma_operaio_url, title: "Firma operaio" })}
+                                        onClick={() => setFirmaModal({ url: r.firma_operaio_url, title: t("Firma operaio") })}
                                       />
                                     </div>
                                   )}
@@ -490,14 +492,14 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                                   onClick={() => setApprovalId(r.id)}
                                   disabled={approvaMutation.isPending}
                                 >
-                                  <Check className="h-3 w-3 mr-1" /> Approva ora
+                                  <Check className="h-3 w-3 mr-1" /> {t("Approva ora")}
                                 </Button>
                               )}
 
                               {stato === "approvato" && r.approvato_at && (
                                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                   <Clock className="h-3 w-3" />
-                                  Approvato il {fmtSafeDate(r.approvato_at, "d MMM yyyy HH:mm")}
+                                  {t("Approvato il {data}", { data: fmtSafeDate(r.approvato_at, "d MMM yyyy HH:mm") })}
                                 </div>
                               )}
                             </div>
@@ -513,8 +515,8 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
             ))}
             {rapportini.length > 10 && (
               <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                <p className="text-xs text-muted-foreground" aria-live="polite">Mostrati {Math.min(visibleCount, rapportini.length)} di {rapportini.length} rapportini</p>
-                {visibleCount < rapportini.length && <Button variant="outline" size="sm" onClick={() => setVisibleCount(count => count + 10)}>Mostra altri 10</Button>}
+                <p className="text-xs text-muted-foreground" aria-live="polite">{t("Mostrati {visibili} di {totale} rapportini", { visibili: Math.min(visibleCount, rapportini.length), totale: rapportini.length })}</p>
+                {visibleCount < rapportini.length && <Button variant="outline" size="sm" onClick={() => setVisibleCount(count => count + 10)}>{t("Mostra altri 10")}</Button>}
               </div>
             )}
           </div>
@@ -536,7 +538,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
       {/* Modal foto fullscreen */}
       <Dialog open={!!fotoModal} onOpenChange={() => setFotoModal(null)}>
         <DialogContent className="max-w-2xl">
-          {fotoModal && <ImgRiservata loading="lazy" src={fotoModal} alt="Foto" className="w-full rounded-lg" />}
+          {fotoModal && <ImgRiservata loading="lazy" src={fotoModal} alt={t("Foto")} className="w-full rounded-lg" />}
         </DialogContent>
       </Dialog>
 
@@ -544,7 +546,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
       <Dialog open={!!firmaModal} onOpenChange={() => setFirmaModal(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{firmaModal?.title ?? "Firma"}</DialogTitle>
+            <DialogTitle>{firmaModal?.title ?? t("Firma")}</DialogTitle>
           </DialogHeader>
           {firmaModal && (
             <ImgRiservata loading="lazy" src={firmaModal.url} alt={firmaModal.title} className="w-full bg-white rounded-lg" />

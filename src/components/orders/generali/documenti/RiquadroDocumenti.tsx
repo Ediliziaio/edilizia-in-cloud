@@ -10,8 +10,10 @@ import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
 import { useChecklistGenerale } from "@/hooks/useGeneraleDocumenti";
 import { contaPerCartella } from "@/lib/commesse/documentiCommessa";
 import { testoConteggi } from "@/lib/orders/generali/documenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function RiquadroDocumenti({ riepilogo }: PropsScheda) {
+  const t = useT();
   const { checklist } = useChecklistGenerale(riepilogo);
   const [parametri, setParametri] = useSearchParams();
   if (!checklist) return null;
@@ -35,7 +37,7 @@ export function RiquadroDocumenti({ riepilogo }: PropsScheda) {
     >
       <AlertTriangle className="size-4 shrink-0 text-amber-600" aria-hidden="true" />
       <span className="min-w-0 flex-1">
-        <span className="font-medium">Documenti</span>
+        <span className="font-medium">{t("Documenti")}</span>
         {" · "}
         {testo}
       </span>
@@ -45,6 +47,7 @@ export function RiquadroDocumenti({ riepilogo }: PropsScheda) {
 }
 
 export function ArchivioDocumentiPanoramica({ riepilogo }: PropsScheda) {
+  const t = useT();
   const [parametri] = useSearchParams();
   const dati = useChecklistGenerale(riepilogo);
   const categorie = useCartelleDocumenti({ tutte: true });
@@ -52,13 +55,13 @@ export function ArchivioDocumentiPanoramica({ riepilogo }: PropsScheda) {
   const conteggi = contaPerCartella(file);
   const note = categorie.cartelle.map(c => ({
     id: c.id,
-    nome: c.archiviata_at ? `${c.nome} · archiviata` : c.nome,
+    nome: c.archiviata_at ? t("{nome} · archiviata", { nome: c.nome }) : c.nome,
     quanti: conteggi[c.id] ?? 0,
   }));
   const raggruppati = note.reduce((totale, c) => totale + c.quanti, 0);
   const cartelle = categorie.isLoading || categorie.isError ? [] : [
     ...note.filter(c => c.quanti > 0),
-    ...(file.length > raggruppati ? [{ id: SENZA_CARTELLA, nome: "Senza cartella", quanti: file.length - raggruppati }] : []),
+    ...(file.length > raggruppati ? [{ id: SENZA_CARTELLA, nome: t("Senza cartella"), quanti: file.length - raggruppati }] : []),
   ];
   const cercaArchivio = (id?: string) => {
     const p = new URLSearchParams(parametri);
@@ -74,16 +77,16 @@ export function ArchivioDocumentiPanoramica({ riepilogo }: PropsScheda) {
     <header className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-4">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <FolderOpen className="size-4 text-primary" aria-hidden="true" />
-        <h2 id="archivio-panoramica-titolo" className="text-sm font-semibold">Documenti dell’operazione</h2>
-        {!dati.isLoading && !dati.isError && <span className="text-xs tabular-nums text-muted-foreground">{file.length} file</span>}
+        <h2 id="archivio-panoramica-titolo" className="text-sm font-semibold">{t("Documenti dell’operazione")}</h2>
+        {!dati.isLoading && !dati.isError && <span className="text-xs tabular-nums text-muted-foreground">{t("{n} file", { n: file.length })}</span>}
       </div>
       <Button asChild variant="ghost" size="sm" className="h-8 gap-1.5">
-        <Link to={cercaArchivio()}>Apri archivio <ChevronRight className="size-3.5" aria-hidden="true" /></Link>
+        <Link to={cercaArchivio()}>{t("Apri archivio")} <ChevronRight className="size-3.5" aria-hidden="true" /></Link>
       </Button>
     </header>
     {cartelle.length > 0 && <div className="flex flex-wrap gap-1.5 border-t px-3 py-2 sm:px-4">
       {cartelle.slice(0, 4).map(c => <Button key={c.id} asChild variant="outline" size="sm" className="h-8 min-w-0 max-w-full gap-1.5 text-xs">
-        <Link to={cercaArchivio(c.id)} aria-label={`${c.nome} · ${c.quanti} file`}>
+        <Link to={cercaArchivio(c.id)} aria-label={t("{nome} · {quanti} file", { nome: String(c.nome ?? ""), quanti: String(c.quanti ?? "") })}>
           <Folder className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
           <span className="truncate">{c.nome}</span>
           <span className="tabular-nums text-muted-foreground">{c.quanti}</span>

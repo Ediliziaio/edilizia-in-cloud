@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface DateRange {
   from: Date | undefined;
@@ -24,6 +25,7 @@ interface DateRangeFilterProps {
 }
 
 export const DateRangeFilter = React.forwardRef<HTMLButtonElement, DateRangeFilterProps>(function DateRangeFilter({ label, range, onRangeChange }, ref) {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
 
   const hasValue = range.from || range.to;
@@ -31,8 +33,8 @@ export const DateRangeFilter = React.forwardRef<HTMLButtonElement, DateRangeFilt
   const formatRange = () => {
     if (!range.from && !range.to) return label;
     
-    const fromStr = range.from ? format(range.from, "dd/MM", { locale: it }) : "...";
-    const toStr = range.to ? format(range.to, "dd/MM", { locale: it }) : "...";
+    const fromStr = range.from ? format(range.from, "dd/MM", { locale: dateFnsCampo() }) : "...";
+    const toStr = range.to ? format(range.to, "dd/MM", { locale: dateFnsCampo() }) : "...";
     
     return `${fromStr} - ${toStr}`;
   };
@@ -94,19 +96,19 @@ export const DateRangeFilter = React.forwardRef<HTMLButtonElement, DateRangeFilt
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <div className="p-3 space-y-2">
-          <p className="text-sm font-medium text-muted-foreground mb-2">Filtri rapidi</p>
+          <p className="text-sm font-medium text-muted-foreground mb-2">{t("Filtri rapidi")}</p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="ghost" onClick={setToday}>
-              Oggi
+              {t("Oggi")}
             </Button>
             <Button size="sm" variant="ghost" onClick={setThisWeek}>
-              Questa settimana
+              {t("Questa settimana")}
             </Button>
             <Button size="sm" variant="ghost" onClick={setThisMonth}>
-              Questo mese
+              {t("Questo mese")}
             </Button>
             <Button size="sm" variant="ghost" onClick={setNext7Days}>
-              Prossimi 7 giorni
+              {t("Prossimi 7 giorni")}
             </Button>
           </div>
         </div>
@@ -114,29 +116,29 @@ export const DateRangeFilter = React.forwardRef<HTMLButtonElement, DateRangeFilt
         <div className="p-3 space-y-3">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Da</p>
+              <p className="text-xs font-medium text-muted-foreground mb-2">{t("Da")}</p>
               <Calendar
                 mode="single"
                 selected={range.from}
                 onSelect={(date) => onRangeChange({ ...range, from: date })}
                 className="p-0 pointer-events-auto"
-                locale={it}
+                locale={dateFnsCampo()}
               />
             </div>
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">A</p>
+              <p className="text-xs font-medium text-muted-foreground mb-2">{t("A")}</p>
               <Calendar
                 mode="single"
                 selected={range.to}
                 onSelect={(date) => onRangeChange({ ...range, to: date })}
                 className="p-0 pointer-events-auto"
-                locale={it}
+                locale={dateFnsCampo()}
               />
             </div>
           </div>
           {hasValue && (
             <Button variant="outline" size="sm" className="w-full" onClick={clearRange}>
-              Cancella filtro
+              {t("Cancella filtro")}
             </Button>
           )}
         </div>

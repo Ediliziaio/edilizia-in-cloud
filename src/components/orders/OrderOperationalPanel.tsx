@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { User, Loader2 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   orderId: string;
@@ -30,6 +31,7 @@ interface Props {
 export function OrderOperationalPanel({
   orderId, companyId, initialAssignedTo, canEdit = true, asCard = true,
 }: Props) {
+  const t = useT();
   const queryClient = useQueryClient();
   const { data: staff = [] } = useCompanyStaffUsers(companyId, "all");
 
@@ -43,30 +45,30 @@ export function OrderOperationalPanel({
     setAssignedTo(v);
     setSavingAssign(true);
     const { error } = await supabase.from("orders").update({ assigned_to: v || null } as never).eq("id", orderId);
-    if (error) toast.error("Salvataggio non riuscito", { description: error.message });
+    if (error) toast.error(t("Salvataggio non riuscito"), { description: error.message });
     else refresh();
     setSavingAssign(false);
   };
 
   const staffName = (id: string) => {
     const u = staff.find((s) => s.id === id);
-    return u ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || "Utente" : "";
+    return u ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || t("Utente") : "";
   };
 
   const body = (
     <div className="space-y-1.5">
       <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-        <User className="h-3.5 w-3.5" /> Responsabile commessa
+        <User className="h-3.5 w-3.5" /> {t("Responsabile commessa")}
         {savingAssign && <Loader2 className="h-3 w-3 animate-spin" />}
       </Label>
       <Select value={assignedTo || "none"} onValueChange={changeAssignee} disabled={!canEdit}>
         <SelectTrigger className="h-9 text-sm">
-          <SelectValue placeholder="Nessun responsabile">{assignedTo ? staffName(assignedTo) : "Nessun responsabile"}</SelectValue>
+          <SelectValue placeholder={t("Nessun responsabile")}>{assignedTo ? staffName(assignedTo) : t("Nessun responsabile")}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="none">Nessun responsabile</SelectItem>
+          <SelectItem value="none">{t("Nessun responsabile")}</SelectItem>
           {staff.map((u) => (
-            <SelectItem key={u.id} value={u.id}>{`${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || "Utente"}</SelectItem>
+            <SelectItem key={u.id} value={u.id}>{`${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || t("Utente")}</SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -79,7 +81,7 @@ export function OrderOperationalPanel({
     <Card className="border-primary/20 bg-primary/5">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <User className="h-4 w-4 text-primary" /> Responsabile commessa
+          <User className="h-4 w-4 text-primary" /> {t("Responsabile commessa")}
         </CardTitle>
       </CardHeader>
       <CardContent>{body}</CardContent>

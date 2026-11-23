@@ -2,6 +2,7 @@
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ModelloFasi } from "@/lib/orders/modelliFasi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const NESSUNA = "__nessuna__";
 const CONTRATTO = "__contratto__";
@@ -27,17 +28,18 @@ export function sceltaFasiDiPartenza(v: string): string | null {
 
 /** Nel modulo di nuova commessa: con quali fasi parte. Una riga, facoltativa. */
 export function FasiDiPartenzaSelect({ offerti, valore, onChange, dalContratto = false }: Props) {
+  const t = useT();
   if (offerti.length === 0) return null;
   return (
     <div className="space-y-2">
-      <Label htmlFor="fasi-di-partenza">Fasi di lavoro</Label>
+      <Label htmlFor="fasi-di-partenza">{t("Fasi di lavoro")}</Label>
       <Select value={dalContratto ? CONTRATTO : valore || NESSUNA} onValueChange={(v) => { const scelta = sceltaFasiDiPartenza(v); if (scelta !== null) onChange(scelta); }}>
-        <SelectTrigger id="fasi-di-partenza" aria-label="Fasi di lavoro">
+        <SelectTrigger id="fasi-di-partenza" aria-label={t("Fasi di lavoro")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {dalContratto && <SelectItem value={CONTRATTO}>Dal contratto letto</SelectItem>}
-          <SelectItem value={NESSUNA}>Nessuna: le scelgo dopo</SelectItem>
+          {dalContratto && <SelectItem value={CONTRATTO}>{t("Dal contratto letto")}</SelectItem>}
+          <SelectItem value={NESSUNA}>{t("Nessuna: le scelgo dopo")}</SelectItem>
           {offerti.map((m) => (
             <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
           ))}

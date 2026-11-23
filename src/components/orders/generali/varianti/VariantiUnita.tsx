@@ -19,6 +19,7 @@ import {
   NOMI_STATO_VARIANTE, scadenzaScelte, totaliVarianti, type StatoVariante, type VarianteAcquirente,
 } from "@/lib/orders/generali/varianti";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STILE: Record<StatoVariante, string> = {
   proposta: "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200",
@@ -36,12 +37,13 @@ interface Props {
 }
 
 export function VariantiUnita({ generaleId, unita: u, elenco, gestisci }: Props) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const [aperta, setAperta] = useState<{ id: string; esistente: boolean } | null>(null);
   const d = elenco.varianti;
   if (!d) {
-    return <p className="text-sm text-muted-foreground">Non riesco a leggere le varianti di questa unità. Riprova tra poco.</p>;
+    return <p className="text-sm text-muted-foreground">{tr("Non riesco a leggere le varianti di questa unità. Riprova tra poco.")}</p>;
   }
   const varianti = d.varianti.filter((v) => v.orderId === u.orderId).sort((a, b) => a.numero - b.numero);
   const t = totaliVarianti(varianti.filter((v) => !v.inBozza), d.permessi);
@@ -69,40 +71,40 @@ export function VariantiUnita({ generaleId, unita: u, elenco, gestisci }: Props)
       <header className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3">
         <div className="space-y-1">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <GitBranch className="size-4 text-blue-700 dark:text-blue-300" aria-hidden="true" /> Varianti di {u.sigla}
+            <GitBranch className="size-4 text-blue-700 dark:text-blue-300" aria-hidden="true" /> {tr("Varianti di")} {u.sigla}
           </h3>
           {varianti.length > 0 && <p className="text-xs text-muted-foreground">
-            {varianti.length === 1 ? "1 variante" : `${varianti.length} varianti`}
-            {bozze > 0 && (bozze === 1 ? " · 1 bozza" : ` · ${bozze} bozze`)}
+            {varianti.length === 1 ? tr("1 variante") : tr("{n} varianti", { n: varianti.length })}
+            {bozze > 0 && ` · ${bozze === 1 ? tr("1 bozza") : tr("{n} bozze", { n: bozze })}`}
           </p>}
         </div>
         {puoScrivere && <Button size="sm" className="gap-1.5" onClick={() => setAperta({ id: crypto.randomUUID(), esistente: false })}>
-          <Plus className="size-4" aria-hidden="true" /> Nuova variante
+          <Plus className="size-4" aria-hidden="true" /> {tr("Nuova variante")}
         </Button>}
       </header>
       {d.permessi.importi && (t.numeroAccettate > 0 || t.numeroProposte > 0) && (
         <dl className="grid grid-cols-3 gap-2 text-sm">
           <div className="rounded-md border px-2.5 py-1.5">
-            <dt className="text-xs text-muted-foreground">Accettate</dt>
+            <dt className="text-xs text-muted-foreground">{tr("Accettate")}</dt>
             <dd className="font-medium tabular-nums">{euro(t.accettate)}</dd>
-            <dd className="text-[11px] text-muted-foreground">entrano nel prezzo</dd>
+            <dd className="text-[11px] text-muted-foreground">{tr("entrano nel prezzo")}</dd>
           </div>
           <div className="rounded-md border px-2.5 py-1.5">
-            <dt className="text-xs text-muted-foreground">Prezzo con varianti</dt>
+            <dt className="text-xs text-muted-foreground">{tr("Prezzo con varianti")}</dt>
             <dd className="font-medium tabular-nums">{prezzo === null ? "—" : euro(prezzo + (t.accettate ?? 0))}</dd>
           </div>
           <div className="rounded-md border px-2.5 py-1.5">
-            <dt className="text-xs text-muted-foreground">Proposte aperte</dt>
+            <dt className="text-xs text-muted-foreground">{tr("Proposte aperte")}</dt>
             <dd className="font-medium tabular-nums">{t.numeroProposte ? euro(t.proposte) : "—"}</dd>
-            {t.numeroProposte > 0 && <dd className="text-[11px] text-muted-foreground">{t.numeroProposte === 1 ? "una da decidere" : `${t.numeroProposte} da decidere`}</dd>}
+            {t.numeroProposte > 0 && <dd className="text-[11px] text-muted-foreground">{t.numeroProposte === 1 ? tr("una da decidere") : tr("{n} da decidere", { n: t.numeroProposte })}</dd>}
           </div>
         </dl>
       )}
 
       {varianti.length === 0 ? (
         <div className="rounded-lg border border-dashed bg-muted/25 px-4 py-5 text-sm">
-          <p className="font-medium">Nessuna variante registrata</p>
-          {puoScrivere && <p className="mt-1 text-xs text-muted-foreground">Puoi preparare una proposta per finiture extra e modifiche richieste dall’acquirente.</p>}
+          <p className="font-medium">{tr("Nessuna variante registrata")}</p>
+          {puoScrivere && <p className="mt-1 text-xs text-muted-foreground">{tr("Puoi preparare una proposta per finiture extra e modifiche richieste dall’acquirente.")}</p>}
         </div>
       ) : (
         <ul className="divide-y rounded-md border">
@@ -115,8 +117,8 @@ export function VariantiUnita({ generaleId, unita: u, elenco, gestisci }: Props)
 
       {d.permessi.costi && t.numeroAccettate > 0 && t.costoAccettate !== null && t.accettate !== null && (
         <p className="text-xs text-muted-foreground">
-          Costo previsto delle accettate {euro(t.costoAccettate)}: margine delle varianti {euro(t.accettate - t.costoAccettate)}.
-          I costi veri arrivano sulla commessa dell'unità, come gli altri.
+          {tr("Costo previsto delle accettate {costo}: margine delle varianti {margine}.", { costo: euro(t.costoAccettate), margine: euro(t.accettate - t.costoAccettate) })}{" "}
+          {tr("I costi veri arrivano sulla commessa dell'unità, come gli altri.")}
         </p>
       )}
 
@@ -127,54 +129,57 @@ export function VariantiUnita({ generaleId, unita: u, elenco, gestisci }: Props)
 function RigaVariante({ generaleId, v, vedeImporti, vedeCosti, puoScrivere, onApri }: {
   generaleId: string; v: VarianteAcquirente; vedeImporti: boolean; vedeCosti: boolean; puoScrivere: boolean; onApri: () => void;
 }) {
+  const t = useT();
   const scadenza = useScadenzaVariante(generaleId);
   const avviso = scadenzaScelte(v, oggi());
   const salvaScadenza = (valore: string) => {
     const nuova = valore || null;
     if (nuova === v.scadenzaScelte) return;
     scadenza.mutate({ variazioneId: v.id, scadenza: nuova }, {
-      onSuccess: () => toast.success(nuova ? `Scelte entro il ${dataBreve(nuova)}` : "Scadenza tolta"),
+      onSuccess: () => toast.success(nuova ? t("Scelte entro il {data}", { data: dataBreve(nuova) }) : t("Scadenza tolta")),
       onError: (e) => toast.error(messaggioGenerale(e, "la scadenza")),
     });
   };
   const firma = v.firmataIl
-    ? `${v.stato === "rifiutata" ? "Rifiutata" : "Firmata"} il ${dataBreve(v.firmataIl)}${v.canale === "offline" ? " su carta" : v.canale === "online" ? " online" : ""}`
-    : v.stato === "proposta" && !v.inBozza ? (v.documento ? "Documento pronto, da firmare" : "Da preparare") : null;
+    ? t(v.stato === "rifiutata"
+      ? (v.canale === "offline" ? "Rifiutata il {data} su carta" : v.canale === "online" ? "Rifiutata il {data} online" : "Rifiutata il {data}")
+      : (v.canale === "offline" ? "Firmata il {data} su carta" : v.canale === "online" ? "Firmata il {data} online" : "Firmata il {data}"), { data: dataBreve(v.firmataIl) })
+    : v.stato === "proposta" && !v.inBozza ? (v.documento ? t("Documento pronto, da firmare") : t("Da preparare")) : null;
 
   return (
     <li className="space-y-1.5 px-3 py-2 text-sm">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span className="font-mono text-xs text-muted-foreground">OdV {v.numero}</span>
-        <span className="min-w-0 flex-1 truncate font-medium">{v.titolo}</span>
-        <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", v.inBozza ? STILE.annullata : STILE[v.stato])}>{v.inBozza ? "Bozza" : NOMI_STATO_VARIANTE[v.stato]}</span>
+        <span className="font-mono text-xs text-muted-foreground">{t("OdV {numero}", { numero: v.numero })}</span>
+        <span className="min-w-0 flex-1 truncate font-medium" dir="auto">{v.titolo}</span>
+        <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", v.inBozza ? STILE.annullata : STILE[v.stato])}>{v.inBozza ? t("Bozza") : t(NOMI_STATO_VARIANTE[v.stato])}</span>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        {vedeImporti && <span>Prezzo <span className="font-medium tabular-nums text-foreground">{euro(v.importo)}</span></span>}
-        {vedeCosti && <span>Costo previsto <span className="tabular-nums text-foreground">{v.costoPrevisto === null ? "non scritto" : euro(v.costoPrevisto)}</span></span>}
+        {vedeImporti && <span>{t("Prezzo")} <span className="font-medium tabular-nums text-foreground">{euro(v.importo)}</span></span>}
+        {vedeCosti && <span>{t("Costo previsto")} <span className="tabular-nums text-foreground">{v.costoPrevisto === null ? t("non scritto") : euro(v.costoPrevisto)}</span></span>}
         {firma && <span>{firma}</span>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {v.stato === "proposta" && (puoScrivere ? (
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Scelte entro
+            {t("Scelte entro")}
             <Input
               type="date"
               className="h-8 w-40"
               defaultValue={v.scadenzaScelte ?? ""}
               disabled={scadenza.isPending}
               onBlur={(e) => salvaScadenza(e.target.value)}
-              aria-label={`Scadenza delle scelte di ${v.titolo}`}
+              aria-label={t("Scadenza delle scelte di {titolo}", { titolo: v.titolo })}
             />
           </label>
-        ) : v.scadenzaScelte && <span className="text-xs text-muted-foreground">Scelte entro il {dataBreve(v.scadenzaScelte)}</span>)}
+        ) : v.scadenzaScelte && <span className="text-xs text-muted-foreground">{t("Scelte entro il {data}", { data: dataBreve(v.scadenzaScelte) })}</span>)}
         {avviso && (
           <span className={cn("inline-flex items-center gap-1 text-xs", avviso === "scaduta" ? "text-destructive" : "text-amber-700 dark:text-amber-300")}>
-            <AlertTriangle className="h-3.5 w-3.5" /> {avviso === "scaduta" ? "Scadenza passata: l'acquirente non ha ancora deciso" : "Scade a giorni"}
+            <AlertTriangle className="h-3.5 w-3.5" /> {avviso === "scaduta" ? t("Scadenza passata: l'acquirente non ha ancora deciso") : t("Scade a giorni")}
           </span>
         )}
         {puoScrivere && (
           <Button size="sm" variant="ghost" className="ml-auto h-8" onClick={onApri}>
-            <FileText className="mr-1.5 h-3.5 w-3.5" /> {v.inBozza ? "Riprendi la bozza" : "Documento e firma"}
+            <FileText className="mr-1.5 h-3.5 w-3.5" /> {v.inBozza ? t("Riprendi la bozza") : t("Documento e firma")}
           </Button>
         )}
       </div>

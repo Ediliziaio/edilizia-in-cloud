@@ -31,6 +31,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { nomeMese } from "./formato";
 import { dayKey } from "@/lib/finance/forecastLedger";
 import "./cassa-andamento.css";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CassaScadenze({
   riepilogo,
@@ -47,6 +48,7 @@ export function CassaScadenze({
   baseIniziale?: BaseCassa;
   periodoIniziale?: PeriodoCassa;
 }) {
+  const t = useT();
   const q = useCassaOperazione(riepilogo);
   const movimenti = useMovimentiFonti(
     riepilogo.generale.id,
@@ -58,7 +60,7 @@ export function CassaScadenze({
   if (q.isError || movimenti.isError)
     return (
       <div role="alert" className="generale-toolbar">
-        Scadenze effettive non disponibili.{" "}
+        {t("Scadenze effettive non disponibili.")}{" "}
         <Button
           variant="link"
           onClick={() => {
@@ -66,7 +68,7 @@ export function CassaScadenze({
             void movimenti.refetch();
           }}
         >
-          Riprova
+          {t("Riprova")}
         </Button>
       </div>
     );
@@ -97,10 +99,9 @@ export function CassaScadenze({
             <Wallet aria-hidden="true" />
           </span>
           <div>
-            <h2 id="cassa-scadenze">Incassi, pagamenti e scadenze effettive</h2>
+            <h2 id="cassa-scadenze">{t("Incassi, pagamenti e scadenze effettive")}</h2>
             <p>
-              Generale e commesse collegate · importi dei movimenti con IVA
-              inclusa
+              {t("Generale e commesse collegate · importi dei movimenti con IVA inclusa")}
             </p>
           </div>
         </div>
@@ -110,45 +111,45 @@ export function CassaScadenze({
         </Button>}
         {onPagamenti && (
           <Button variant="outline" size="sm" onClick={onPagamenti}>
-            Apri i pagamenti <ArrowUpRight className="ml-2 h-4 w-4" />
+            {t("Apri i pagamenti")} <ArrowUpRight className="ml-2 h-4 w-4" />
           </Button>
         )}
         </div>
       </header>
       <div
         className="generale-indicators"
-        aria-label="Cassa registrata dell’intera operazione"
+        aria-label={t("Cassa registrata dell’intera operazione")}
       >
         <IndicatoreScheda
-          titolo="Incassato in prima nota"
+          titolo={t("Incassato in prima nota")}
           valore={formatCurrency(somma("incassato"))}
           tono="verde"
-          nota="entrate registrate alla data del movimento"
+          nota={t("entrate registrate alla data del movimento")}
         />
         <IndicatoreScheda
-          titolo="Pagato in prima nota"
+          titolo={t("Pagato in prima nota")}
           valore={formatCurrency(somma("pagato"))}
           tono="ambra"
-          nota="uscite registrate, IVA già compresa"
+          nota={t("uscite registrate, IVA già compresa")}
         />
         <IndicatoreScheda
-          titolo="Flusso netto registrato"
+          titolo={t("Flusso netto registrato")}
           valore={formatCurrency(somma("incassato") - somma("pagato"))}
           tono={somma("incassato") < somma("pagato") ? "rosso" : "blu"}
-          nota="prima nota, con fonti nel prospetto dedicato; non è un saldo bancario"
+          nota={t("prima nota, con fonti nel prospetto dedicato; non è un saldo bancario")}
         />
         <IndicatoreScheda
-          titolo="Fabbisogno residuo da scadenze"
+          titolo={t("Fabbisogno residuo da scadenze")}
           valore={
-            incompleta ? "Da completare" : formatCurrency(c.fabbisogno / 100)
+            incompleta ? t("Da completare") : formatCurrency(c.fabbisogno / 100)
           }
-          nota="solo scadenze aperte, partendo da zero; i costi non ancora ordinati sono nel piano"
+          nota={t("solo scadenze aperte, partendo da zero; i costi non ancora ordinati sono nel piano")}
         />
       </div>
       {incompleta && (
         <p role="status" className="generale-cash-notice">
-          Lettura parziale: movimenti senza data {c.senzaData}, possibili
-          duplicati esclusi {c.daRiconciliare}. {q.avvisi.join("; ")}
+          {t("Lettura parziale: movimenti senza data {senzaData}, possibili duplicati esclusi {daRiconciliare}.", { senzaData: c.senzaData, daRiconciliare: c.daRiconciliare })}{" "}
+          {q.avvisi.join("; ")}
         </p>
       )}
       <div className="generale-panel">
@@ -158,51 +159,50 @@ export function CassaScadenze({
               <ArrowDownLeft aria-hidden="true" />
             </span>
             <div>
-              <h3>Movimenti nel tempo</h3>
+              <h3>{t("Movimenti nel tempo")}</h3>
               <p>
-                Il grafico e la tabella seguono il periodo; i quattro riepiloghi
-                sopra restano sull’intera operazione.
+                {t("Il grafico e la tabella seguono il periodo; i quattro riepiloghi sopra restano sull’intera operazione.")}
               </p>
             </div>
           </div>
           <div
             className="generale-segmented"
             role="group"
-            aria-label="Base dei movimenti di cassa"
+            aria-label={t("Base dei movimenti di cassa")}
           >
             <button
               type="button"
               aria-pressed={base === "registrati"}
               onClick={() => setBase("registrati")}
             >
-              Registrati
+              {t("Registrati")}
             </button>
             <button
               type="button"
               aria-pressed={base === "attesi"}
               onClick={() => setBase("attesi")}
             >
-              Ancora attesi
+              {t("Ancora attesi")}
             </button>
           </div>
         </header>
         <div className="generale-cash-toolbar">
           <label>
-            Periodo
+            {t("Periodo")}
             <UniformSelect
-              aria-label="Periodo cassa effettiva"
+              aria-label={t("Periodo cassa effettiva")}
               value={periodo}
               onChange={(e) => setPeriodo(e.target.value as PeriodoCassa)}
             >
-              <option value="tutto">Intera operazione</option>
-              <option value="passato">Mesi precedenti</option>
-              <option value="futuro">Da questo mese</option>
+              <option value="tutto">{t("Intera operazione")}</option>
+              <option value="passato">{t("Mesi precedenti")}</option>
+              <option value="futuro">{t("Da questo mese")}</option>
             </UniformSelect>
           </label>
           <label>
-            Simula ritardo degli incassi attesi
+            {t("Simula ritardo degli incassi attesi")}
             <UniformSelect
-              aria-label="Ritardo incassi effettivi"
+              aria-label={t("Ritardo incassi effettivi")}
               value={ritardo}
               onChange={(e) => {
                 setRitardo(Number(e.target.value));
@@ -211,7 +211,7 @@ export function CassaScadenze({
             >
               {[0, 1, 2, 3, 6, 12].map((m) => (
                 <option key={m} value={m}>
-                  {m} mesi
+                  {t("{n} mesi", { n: m })}
                 </option>
               ))}
             </UniformSelect>
@@ -222,18 +222,18 @@ export function CassaScadenze({
               className="generale-legend-link"
               onClick={() => setRitardo(0)}
             >
-              Azzera ritardo
+              {t("Azzera ritardo")}
             </button>
           )}
         </div>
         <div className="generale-cash-caption">
           <span className="generale-cash-in">
-            Entrate {formatCurrency(punti.reduce((s, p) => s + p.entrate, 0))}
+            {t("Entrate {importo}", { importo: formatCurrency(punti.reduce((s, p) => s + p.entrate, 0)) })}
           </span>
           <span className="generale-cash-out">
-            Uscite {formatCurrency(punti.reduce((s, p) => s + p.pagamenti, 0))}
+            {t("Uscite {importo}", { importo: formatCurrency(punti.reduce((s, p) => s + p.pagamenti, 0)) })}
           </span>
-          <span>Linea blu: flusso cumulato della base selezionata</span>
+          <span>{t("Linea blu: flusso cumulato della base selezionata")}</span>
         </div>
         {punti.length ? (
           <div className="generale-cash-chart">
@@ -266,9 +266,9 @@ export function CassaScadenze({
                   formatter={(v, n) => [
                     formatCurrency(Number(v)),
                     {
-                      entrate: "Entrate",
-                      uscite: "Uscite",
-                      cumulato: "Flusso cumulato",
+                      entrate: t("Entrate"),
+                      uscite: t("Uscite"),
+                      cumulato: t("Flusso cumulato"),
                     }[String(n)] ?? String(n),
                   ]}
                 />
@@ -298,19 +298,19 @@ export function CassaScadenze({
           </div>
         ) : (
           <p className="generale-chart-empty">
-            Nessun mese nel periodo selezionato.
+            {t("Nessun mese nel periodo selezionato.")}
           </p>
         )}
         <div className="generale-cash-table">
-          <table aria-label="Movimenti di cassa per mese">
+          <table aria-label={t("Movimenti di cassa per mese")}>
             <thead>
               <tr>
                 {[
-                  "Mese",
-                  base === "registrati" ? "Incassato" : "Incassi attesi",
-                  base === "registrati" ? "Pagato" : "Uscite attese",
-                  "Flusso del mese",
-                  "Flusso cumulato",
+                  t("Mese"),
+                  base === "registrati" ? t("Incassato") : t("Incassi attesi"),
+                  base === "registrati" ? t("Pagato") : t("Uscite attese"),
+                  t("Flusso del mese"),
+                  t("Flusso cumulato"),
                 ].map((x) => (
                   <th key={x}>{x}</th>
                 ))}
@@ -336,9 +336,9 @@ export function CassaScadenze({
         <footer className="generale-panel-footer">
           <span>
             {base === "registrati"
-              ? "Prima nota alla data del pagamento. Il cumulato conserva i mesi precedenti al filtro."
-              : "Solo incassi e uscite ancora attesi alle scadenze conosciute, distinti dal budget completo."}{" "}
-            Gli importi con IVA non si sommano ai costi netti del piano.
+              ? t("Prima nota alla data del pagamento. Il cumulato conserva i mesi precedenti al filtro.")
+              : t("Solo incassi e uscite ancora attesi alle scadenze conosciute, distinti dal budget completo.")}{" "}
+            {t("Gli importi con IVA non si sommano ai costi netti del piano.")}
           </span>
         </footer>
       </div>
@@ -349,51 +349,50 @@ export function CassaScadenze({
               <Landmark aria-hidden="true" />
             </span>
             <div>
-              <h3 id="cassa-fonti">Capitale e investitori</h3>
+              <h3 id="cassa-fonti">{t("Capitale e investitori")}</h3>
               <p>
-                Movimenti delle fonti, separati dai ricavi e dai costi
-                dell’operazione
+                {t("Movimenti delle fonti, separati dai ricavi e dai costi dell’operazione")}
               </p>
             </div>
           </div>
           {onInvestitori && (
             <Button variant="outline" size="sm" onClick={onInvestitori}>
-              Apri fonti e investitori <ArrowUpRight className="ml-2 h-4 w-4" />
+              {t("Apri fonti e investitori")} <ArrowUpRight className="ml-2 h-4 w-4" />
             </Button>
           )}
         </header>
         <div className="generale-cash-funding">
           <div>
-            <span>Capitale versato</span>
+            <span>{t("Capitale versato")}</span>
             <strong>{formatCurrency(somma("versato"))}</strong>
           </div>
           <div>
-            <span>Capitale rimborsato</span>
+            <span>{t("Capitale rimborsato")}</span>
             <strong>{formatCurrency(somma("rimborsato"))}</strong>
           </div>
           <div>
-            <span>Versamenti ancora attesi</span>
+            <span>{t("Versamenti ancora attesi")}</span>
             <strong>{formatCurrency(somma("capitaleAtteso"))}</strong>
           </div>
           <div>
-            <span>Interessi, spese e utili pagati</span>
+            <span>{t("Interessi, spese e utili pagati")}</span>
             <strong>{formatCurrency(somma("oneriFinanziari"))}</strong>
           </div>
         </div>
         <details className="generale-cash-funding-detail">
-          <summary>Calendario delle fonti</summary>
+          <summary>{t("Calendario delle fonti")}</summary>
           <div className="generale-cash-table">
-            <table aria-label="Movimenti delle fonti per mese">
+            <table aria-label={t("Movimenti delle fonti per mese")}>
               <thead>
                 <tr>
                   {[
-                    "Mese",
-                    "Versato",
-                    "Rimborsato",
-                    "Oneri e utili",
-                    "Capitale atteso",
-                    "Rimborsi attesi",
-                    "Oneri e utili attesi",
+                    t("Mese"),
+                    t("Versato"),
+                    t("Rimborsato"),
+                    t("Oneri e utili"),
+                    t("Capitale atteso"),
+                    t("Rimborsi attesi"),
+                    t("Oneri e utili attesi"),
                   ].map((x) => (
                     <th key={x}>{x}</th>
                   ))}
@@ -421,9 +420,7 @@ export function CassaScadenze({
         </details>
         <footer className="generale-panel-footer">
           <span>
-            I versamenti possono essere già presenti in prima nota: questo
-            prospetto li descrive senza aggiungerli di nuovo al flusso. Gli
-            accolli non generano cassa.
+            {t("I versamenti possono essere già presenti in prima nota: questo prospetto li descrive senza aggiungerli di nuovo al flusso. Gli accolli non generano cassa.")}
           </span>
         </footer>
       </section>

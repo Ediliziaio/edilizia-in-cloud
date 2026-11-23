@@ -16,6 +16,7 @@ import {
   type OpzioniCertificato,
   type SalCertificato,
 } from "@/lib/orders/salCertificato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CAMPI = [
   ["lavori_contrattuali", "Lavori contrattuali eseguiti"],
@@ -53,6 +54,7 @@ interface Props {
 }
 
 export function CertificatoSal({ salId, orderId, companyId, numero, cumulativo, certificato, precedente, giaMaturato, puoModificare, bloccato, opzioni }: Props) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [bozza, setBozza] = useState<Bozza | null>(null);
 
@@ -73,19 +75,19 @@ export function CertificatoSal({ salId, orderId, companyId, numero, cumulativo, 
 
   const salva = useMutation({
     mutationFn: async () => {
-      if (!numeri || netto === null) throw new Error("Controlla gli importi del certificato.");
+      if (!numeri || netto === null) throw new Error(t("Controlla gli importi del certificato."));
       const { error } = await supabase
         .from("sal_certificati")
         .upsert({ sal_id: salId, order_id: orderId, company_id: companyId, ...numeri, altre_detrazioni_nota: bozza?.nota.trim() || null, netto });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast.success("Certificato salvato");
+      toast.success(t("Certificato salvato"));
       setBozza(null);
       void queryClient.invalidateQueries({ queryKey: ["sal-records", orderId, companyId] });
       void queryClient.invalidateQueries({ queryKey: ["order-sal-for-invoice", orderId] });
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Certificato non salvato"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : t("Certificato non salvato")),
   });
 
   const apri = () => setBozza(inBozza(certificato ?? certificatoProposto(cumulativo, precedente, giaMaturato, opzioni)));
@@ -94,41 +96,41 @@ export function CertificatoSal({ salId, orderId, companyId, numero, cumulativo, 
     <div className="mt-2">
       {certificato ? (
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border bg-muted/30 p-2 text-xs sm:grid-cols-4">
-          <div><dt className="text-muted-foreground">Lavori + varianti</dt><dd className="font-medium tabular-nums">{formatCurrency(lordoCertificato(certificato))}</dd></div>
-          <div><dt className="text-muted-foreground">Ritenuta {Number(certificato.ritenuta_pct)}%</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.ritenuta)}</dd></div>
-          {Number(certificato.recupero_anticipazione) > 0 && <div><dt className="text-muted-foreground">Recupero anticipazione</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.recupero_anticipazione)}</dd></div>}
-          {Number(certificato.altre_detrazioni) > 0 && <div title={certificato.altre_detrazioni_nota ?? undefined}><dt className="text-muted-foreground">Altre detrazioni</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.altre_detrazioni)}</dd></div>}
-          {Number(certificato.rinviato) > 0 && <div title="Torna nel certificato dopo"><dt className="text-muted-foreground">Rinviato al prossimo</dt><dd className="font-medium tabular-nums">{formatCurrency(Number(certificato.rinviato))}</dd></div>}
-          <div><dt className="text-muted-foreground">Acconti precedenti</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.acconti_precedenti)}</dd></div>
-          <div><dt className="text-muted-foreground">Netto certificato</dt><dd className="font-semibold tabular-nums">{formatCurrency(certificato.netto)}</dd></div>
-          {puoModificare && !bloccato && <div className="col-span-full"><Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={apri}>Modifica certificato</Button></div>}
+          <div><dt className="text-muted-foreground">{t("Lavori + varianti")}</dt><dd className="font-medium tabular-nums">{formatCurrency(lordoCertificato(certificato))}</dd></div>
+          <div><dt className="text-muted-foreground">{t("Ritenuta {n}%", { n: Number(certificato.ritenuta_pct) })}</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.ritenuta)}</dd></div>
+          {Number(certificato.recupero_anticipazione) > 0 && <div><dt className="text-muted-foreground">{t("Recupero anticipazione")}</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.recupero_anticipazione)}</dd></div>}
+          {Number(certificato.altre_detrazioni) > 0 && <div title={certificato.altre_detrazioni_nota ?? undefined}><dt className="text-muted-foreground">{t("Altre detrazioni")}</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.altre_detrazioni)}</dd></div>}
+          {Number(certificato.rinviato) > 0 && <div title={t("Torna nel certificato dopo")}><dt className="text-muted-foreground">{t("Rinviato al prossimo")}</dt><dd className="font-medium tabular-nums">{formatCurrency(Number(certificato.rinviato))}</dd></div>}
+          <div><dt className="text-muted-foreground">{t("Acconti precedenti")}</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.acconti_precedenti)}</dd></div>
+          <div><dt className="text-muted-foreground">{t("Netto certificato")}</dt><dd className="font-semibold tabular-nums">{formatCurrency(certificato.netto)}</dd></div>
+          {puoModificare && !bloccato && <div className="col-span-full"><Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={apri}>{t("Modifica certificato")}</Button></div>}
           {puoModificare && bloccato && <p className="col-span-full text-[11px] text-muted-foreground">{bloccato}</p>}
         </dl>
       ) : puoModificare ? (
-        <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={apri}>Aggiungi certificato di pagamento</Button>
+        <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={apri}>{t("Aggiungi certificato di pagamento")}</Button>
       ) : null}
 
       <Dialog open={!!bozza} onOpenChange={(aperto) => { if (!aperto) setBozza(null); }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader><DialogTitle>Certificato di pagamento, SAL n. {numero}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("Certificato di pagamento, SAL n. {numero}", { numero })}</DialogTitle></DialogHeader>
           {bozza && (
             <div className="grid gap-3 sm:grid-cols-2">
               {CAMPI.map(([campo, etichetta]) => (
                 <div key={campo} className="space-y-1">
-                  <Label htmlFor={`cert-${campo}`}>{etichetta}</Label>
+                  <Label htmlFor={`cert-${campo}`}>{t(etichetta)}</Label>
                   <Input id={`cert-${campo}`} inputMode="decimal" value={bozza[campo]} onChange={(e) => setBozza({ ...bozza, [campo]: e.target.value })} />
                 </div>
               ))}
               <div className="space-y-1 sm:col-span-2">
-                <Label htmlFor="cert-nota">Motivo delle altre detrazioni</Label>
+                <Label htmlFor="cert-nota">{t("Motivo delle altre detrazioni")}</Label>
                 <Input id="cert-nota" value={bozza.nota} onChange={(e) => setBozza({ ...bozza, nota: e.target.value })} />
               </div>
-              <p className="text-sm font-medium sm:col-span-2">Netto del certificato: {netto === null ? "controlla gli importi" : formatCurrency(netto)}</p>
+              <p className="text-sm font-medium sm:col-span-2">{t("Netto del certificato: {importo}", { importo: netto === null ? t("controlla gli importi") : formatCurrency(netto) })}</p>
             </div>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setBozza(null)}>Annulla</Button>
-            <Button type="button" disabled={!validi || salva.isPending} onClick={() => salva.mutate()}>Salva</Button>
+            <Button type="button" variant="outline" onClick={() => setBozza(null)}>{t("Annulla")}</Button>
+            <Button type="button" disabled={!validi || salva.isPending} onClick={() => salva.mutate()}>{t("Salva")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

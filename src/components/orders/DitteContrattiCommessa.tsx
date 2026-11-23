@@ -50,6 +50,7 @@ import { LavoriMisureSubDialog } from "@/components/subappaltatori/LavoriMisureS
 import type { SALSubappaltatore } from "@/types/subappaltatori";
 import { VerbaleSalSubDialog } from "@/components/subappaltatori/VerbaleSalSubDialog";
 import { chiaveAffidamenti, type AffidamentoChiFaCosa } from "@/lib/subappaltatori/affidamentiCommessa";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Tabelle recenti, non ancora tutte nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,6 +73,7 @@ export function DitteContrattiCommessa({ orderId, aperto: apertoFuori, onAperto 
   /** Aperto da fuori: Silvio delle fasi porta qui per ditte, costi e voci dal listino. */
   aperto?: boolean; onAperto?: (v: boolean) => void;
 }) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { canEditOrders, canViewCosts } = usePermissions();
@@ -82,14 +84,14 @@ export function DitteContrattiCommessa({ orderId, aperto: apertoFuori, onAperto 
   return (
     <>
       <Button variant="ghost" size="sm" className="h-8" onClick={() => setAperto(true)}>
-        <Users className="mr-1.5 h-4 w-4" />Ditte e contratti
+        <Users className="mr-1.5 h-4 w-4" />{tr("Ditte e contratti")}
       </Button>
       <Dialog open={aperto} onOpenChange={setAperto}>
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Ditte, listino e contratti</DialogTitle>
+            <DialogTitle>{tr("Ditte, listino e contratti")}</DialogTitle>
             <DialogDescription>
-              Per ogni fase: i lavori dal listino, chi li fa e quanto costano. Poi, per ogni ditta, il contratto con l’elenco dei lavori.
+              {tr("Per ogni fase: i lavori dal listino, chi li fa e quanto costano. Poi, per ogni ditta, il contratto con l’elenco dei lavori.")}
             </DialogDescription>
           </DialogHeader>
           {aperto && companyId && <Contenuto orderId={orderId} companyId={companyId} />}
@@ -100,6 +102,7 @@ export function DitteContrattiCommessa({ orderId, aperto: apertoFuori, onAperto 
 }
 
 function Contenuto({ orderId, companyId }: { orderId: string; companyId: string }) {
+  const tr = useT();
   const qc = useQueryClient();
   const { canViewSubappaltatoriAmministrazione, solaLettura } = usePermissions();
   const voci = useVociPrevisteFasi(orderId, true);
@@ -169,7 +172,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
 
   const d = dati.data;
   const listaVoci = useMemo(() => voci.data ?? [], [voci.data]);
-  const nomeDitta = (id: string | null) => d?.ditte.find((x) => x.id === id)?.name ?? "Ditta";
+  const nomeDitta = (id: string | null) => d?.ditte.find((x) => x.id === id)?.name ?? tr("Ditta");
 
   // Fase per fase: ditte assegnate, ditta proposta e costo previsto dalle voci.
   const righe = useMemo(() => (d ? d.fasi.map((f) => {
@@ -199,28 +202,28 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
             order_id: orderId, external_team_id: r.dittaId, phase_id: r.f.id, total_cost: 0, cost_preventivo: previsto, is_paid: false,
             costo_origine: "preventivo",
           });
-          if (error) throw new Error(error.code === "42501" ? "non hai il permesso di assegnare le ditte alle fasi" : error.message);
+          if (error) throw new Error(error.code === "42501" ? tr("non hai il permesso di assegnare le ditte alle fasi") : error.message);
         } else {
           const { data: toccate, error } = await db.from("order_external_teams").update({ cost_preventivo: previsto, costo_origine: "preventivo" }).eq("id", r.senzaPrevisto[0].id).select("id");
           if (error) throw error;
           // Nessuna riga toccata = la regola di accesso l'ha esclusa: non è salvato, e lo si dice.
-          if (!toccate?.length) throw new Error("non hai il permesso di scrivere il costo previsto delle ditte");
+          if (!toccate?.length) throw new Error(tr("non hai il permesso di scrivere il costo previsto delle ditte"));
         }
         fatteApplica.n += 1;
       }
     },
-    onSuccess: () => { toast.success("Ditte e costi previsti assegnati"); setScelte({}); invalida(); },
+    onSuccess: () => { toast.success(tr("Ditte e costi previsti assegnati")); setScelte({}); invalida(); },
     onError: (e: Error) => {
       toast.error(fatteApplica.n
-        ? `Assegnate ${fatteApplica.n} fasi su ${daApplicare.length}, poi si è fermato: ${e.message}. Riprova per le altre.`
-        : `Non ho assegnato le ditte: ${e.message}`);
+        ? tr("Assegnate {n} fasi su {totale}, poi si è fermato: {errore}. Riprova per le altre.", { n: fatteApplica.n, totale: daApplicare.length, errore: e.message })
+        : tr("Non ho assegnato le ditte: {errore}", { errore: e.message }));
       invalida();
     },
   });
 
   if (dati.isLoading || voci.isLoading) return <Loader2 className="mx-auto my-8 h-6 w-6 animate-spin" />;
   if (dati.isError || voci.isError || !d)
-    return <p role="alert" className="text-sm text-destructive">Non riesco a caricare fasi e ditte. <button className="underline" onClick={() => { void dati.refetch(); void voci.refetch(); }}>Riprova</button></p>;
+    return <p role="alert" className="text-sm text-destructive">{tr("Non riesco a caricare fasi e ditte.")} <button className="underline" onClick={() => { void dati.refetch(); void voci.refetch(); }}>{tr("Riprova")}</button></p>;
 
 
   // Le ditte della commessa, per i contratti.
@@ -233,9 +236,9 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
     <div className="space-y-5">
       {(listaVoci.length > 0 || (canViewSubappaltatoriAmministrazione && !solaLettura)) && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm">
-          <span className="min-w-0 flex-1">Prepara una richiesta d’offerta oppure conferma i prezzi e crea il computo del contratto.</span>
-          {listaVoci.length > 0 && <Button size="sm" variant="outline" onClick={() => setAffidaAperto(true)} title="Quote divise fra più ditte, prezzi delle quote già affidate">Chi fa cosa</Button>}
-          {canViewSubappaltatoriAmministrazione && !solaLettura && <Button size="sm" onClick={() => setAffidaContratto(true)}>Prezzi e contratto</Button>}
+          <span className="min-w-0 flex-1">{tr("Prepara una richiesta d’offerta oppure conferma i prezzi e crea il computo del contratto.")}</span>
+          {listaVoci.length > 0 && <Button size="sm" variant="outline" onClick={() => setAffidaAperto(true)} title={tr("Quote divise fra più ditte, prezzi delle quote già affidate")}>{tr("Chi fa cosa")}</Button>}
+          {canViewSubappaltatoriAmministrazione && !solaLettura && <Button size="sm" onClick={() => setAffidaContratto(true)}>{tr("Prezzi e contratto")}</Button>}
         </div>
       )}
       {affidaContratto && (
@@ -249,17 +252,17 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
       )}
       {tariffe.isError && (
         <p role="alert" className="text-sm text-destructive">
-          Il listino manodopera non si è caricato: senza, non si aggiungono voci e non si collegano al listino.{" "}
-          <button type="button" className="underline" onClick={() => void tariffe.refetch()}>Riprova</button>
+          {tr("Il listino manodopera non si è caricato: senza, non si aggiungono voci e non si collegano al listino.")}{" "}
+          <button type="button" className="underline" onClick={() => void tariffe.refetch()}>{tr("Riprova")}</button>
         </p>
       )}
       {/* Lotto 3 (10/11/2026): senza la voce del listino il prezzo della ditta non arriva al contratto. */}
       {listaVoci.some((v) => !v.tariffa_id) && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <span className="min-w-0 flex-1">
-            {listaVoci.filter((v) => !v.tariffa_id).length} voci su {listaVoci.length} non sono collegate al listino: per quelle il contratto non trova il prezzo della ditta.
+            {tr("{n} voci su {totale} non sono collegate al listino: per quelle il contratto non trova il prezzo della ditta.", { n: listaVoci.filter((v) => !v.tariffa_id).length, totale: listaVoci.length })}
           </span>
-          <Button size="sm" variant="outline" className="bg-white" disabled={tariffe.isLoading || tariffe.isError} onClick={() => setAbbinaAperto(true)}>Collega al listino</Button>
+          <Button size="sm" variant="outline" className="bg-white" disabled={tariffe.isLoading || tariffe.isError} onClick={() => setAbbinaAperto(true)}>{tr("Collega al listino")}</Button>
         </div>
       )}
       {abbinaAperto && (
@@ -268,8 +271,8 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
           fasi={d.fasi} listino={tariffe.data ?? []}
           onChiudi={() => setAbbinaAperto(false)} onFatto={() => { setAbbinaAperto(false); invalida(); }} />
       )}
-      <section aria-label="Fasi, voci e ditte" className="space-y-2">
-        <p className="text-xs text-muted-foreground">Qui trovi le squadre esterne già collegate alle ditte. Se hai appena creato un subappaltatore e non compare, usa «Assegna» sulla fase e scegli «Ditta»: quel percorso crea anche il collegamento operativo. Poi riapri questo pannello.</p>
+      <section aria-label={tr("Fasi, voci e ditte")} className="space-y-2">
+        <p className="text-xs text-muted-foreground">{tr("Qui trovi le squadre esterne già collegate alle ditte. Se hai appena creato un subappaltatore e non compare, usa «Assegna» sulla fase e scegli «Ditta»: quel percorso crea anche il collegamento operativo. Poi riapri questo pannello.")}</p>
         <ul className="divide-y rounded-lg border">
           {righe.map((r) => (
             <li key={r.f.id} className="space-y-2 p-3">
@@ -277,7 +280,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{r.f.name}</p>
                   <button type="button" className="text-xs text-blue-700 hover:underline" onClick={() => setVociAperte(vociAperte === r.f.id ? null : r.f.id)}>
-                    {r.nVoci ? `${r.nVoci} ${r.nVoci === 1 ? "voce" : "voci"} · lavoro ${formatCurrency(r.costo)}` : "Nessuna voce: aggiungile dal listino"}
+                    {r.nVoci ? tr(r.nVoci === 1 ? "{n} voce · lavoro {importo}" : "{n} voci · lavoro {importo}", { n: r.nVoci, importo: formatCurrency(r.costo) }) : tr("Nessuna voce: aggiungile dal listino")}
                   </button>
                 </div>
                 <div className="flex min-w-[16rem] flex-wrap items-center justify-end gap-2">
@@ -294,11 +297,11 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                           <p key={a.id}>
                             <span className="font-medium">{nomeDitta(a.external_team_id)}</span>
                             {" · "}{previsto
-                              ? `${accordo ? "previsto da contratto" : "previsto"} ${formatCurrency(previsto)}`
-                              : <span className="text-amber-800">senza previsto{r.costo > 0 && r.assegnate.length === 1 ? ` → ${formatCurrency(r.costo)}` : ""}</span>}
+                              ? tr(accordo ? "previsto da contratto {importo}" : "previsto {importo}", { importo: formatCurrency(previsto) })
+                              : <span className="text-amber-800">{tr("senza previsto")}{r.costo > 0 && r.assegnate.length === 1 ? ` → ${formatCurrency(r.costo)}` : ""}</span>}
                             {r.assegnate.length === 1 && !dalContratto && previsto > 0 && r.costo > 0
                               && Math.abs(conIva(r.costo, a.vat_rate ?? 0) - previsto) > Math.max(1, r.costo * 0.01) && (
-                              <span role="img" aria-label={`Diverso dalle voci: a listino ${formatCurrency(r.costo)}`} title={`Le voci valgono ${formatCurrency(r.costo)} a listino: resta il previsto scritto`}
+                              <span role="img" aria-label={tr("Diverso dalle voci: a listino {importo}", { importo: formatCurrency(r.costo) })} title={tr("Le voci valgono {importo} a listino: resta il previsto scritto", { importo: formatCurrency(r.costo) })}
                                 className="ml-1 inline-block h-2 w-2 rounded-full bg-red-600 align-middle" />
                             )}
                           </p>
@@ -308,23 +311,23 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                   ) : (
                     <>
                       <OfficeSelect
-                        label={`Ditta per ${r.f.name}`}
+                        label={tr("Ditta per {fase}", { fase: r.f.name })}
                         className="h-9 max-w-[14rem]"
                         value={r.dittaId}
                         onValueChange={(v) => setScelte((s) => ({ ...s, [r.f.id]: v }))}
                         options={[
-                          { value: "", label: "Nessuna ditta" },
+                          { value: "", label: tr("Nessuna ditta") },
                           ...d.ditte
                             .filter((x) => x.is_active !== false || x.id === r.dittaId)
                             .map((x) => ({
                               value: x.id,
-                              label: `${x.name}${x.is_active === false ? " (disattivata)" : ""}`,
+                              label: `${x.name}${x.is_active === false ? ` ${tr("(disattivata)")}` : ""}`,
                             })),
                         ]}
                       />
                       {r.proposta && r.dittaId === r.proposta.external_team_id && (
-                        <Badge variant="outline" className="border-sky-200 bg-sky-50 text-[11px] text-sky-900" title={`Ha fatto «${r.proposta.come}» in altre commesse`}>
-                          <Wand2 className="mr-1 h-3 w-3" />come in «{r.proposta.come}»
+                        <Badge variant="outline" className="border-sky-200 bg-sky-50 text-[11px] text-sky-900" title={tr("Ha fatto «{fase}» in altre commesse", { fase: r.proposta.come })}>
+                          <Wand2 className="mr-1 h-3 w-3" />{tr("come in «{fase}»", { fase: r.proposta.come })}
                         </Badge>
                       )}
                     </>
@@ -340,23 +343,23 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         </ul>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground">
-            Il previsto parte dai prezzi di listino. Confermando il computo si aggiorna con i prezzi concordati per la ditta.
+            {tr("Il previsto parte dai prezzi di listino. Confermando il computo si aggiorna con i prezzi concordati per la ditta.")}
           </p>
           <Button size="sm" disabled={!daApplicare.length || applica.isPending} onClick={() => applica.mutate()}>
             {applica.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Wand2 className="mr-1.5 h-4 w-4" />}
-            {daApplicare.length ? `Assegna ditte e costi (${daApplicare.length})` : "Ditte e costi già a posto"}
+            {daApplicare.length ? tr("Assegna ditte e costi ({n})", { n: daApplicare.length }) : tr("Ditte e costi già a posto")}
           </Button>
         </div>
       </section>
 
-      <section aria-label="Contratti delle ditte" className="space-y-2">
-        <h3 className="text-sm font-semibold">Contratti di subappalto</h3>
+      <section aria-label={tr("Contratti delle ditte")} className="space-y-2">
+        <h3 className="text-sm font-semibold">{tr("Contratti di subappalto")}</h3>
         {!canViewSubappaltatoriAmministrazione || solaLettura ? (
           <p className="text-sm text-muted-foreground">
-            {solaLettura ? "Sei in sola lettura: i contratti si creano e modificano da chi ha i permessi." : "Per vedere e creare i contratti serve il permesso «Amministrazione subappaltatori»: chiedilo all'amministratore."}
+            {solaLettura ? tr("Sei in sola lettura: i contratti si creano e modificano da chi ha i permessi.") : tr("Per vedere e creare i contratti serve il permesso «Amministrazione subappaltatori»: chiedilo all'amministratore.")}
           </p>
         ) : !ditteCommessa.length ? (
-          <p className="text-sm text-muted-foreground">Assegna prima le ditte alle fasi.</p>
+          <p className="text-sm text-muted-foreground">{tr("Assegna prima le ditte alle fasi.")}</p>
         ) : (
           <ul className="divide-y rounded-lg border">
             {ditteCommessa.map((x) => {
@@ -408,6 +411,7 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
   voci: Array<{ id: string; descrizione: string; unita: string | null; quantita: number; costo_manodopera: number; origine: string; origine_codice: string | null }>;
   tariffe: Tariffa[]; caricoTariffe: boolean; onCambio: () => void;
 }) {
+  const tr = useT();
   const [cerca, setCerca] = useState("");
   const [scelta, setScelta] = useState<Tariffa | null>(null);
   const [quantita, setQuantita] = useState("1");
@@ -416,7 +420,7 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
   const q = Number(quantita.replace(",", "."));
   const aggiungi = useMutation({
     mutationFn: async () => {
-      if (!scelta || !(q > 0)) throw new Error("Scegli la voce e la quantità");
+      if (!scelta || !(q > 0)) throw new Error(tr("Scegli la voce e la quantità"));
       const { error } = await db.from("order_work_phase_voci").insert({
         company_id: companyId, order_id: orderId, phase_id: fase.id, position: voci.length + 1,
         descrizione: scelta.nome, unita: scelta.unita, quantita: q, costo_manodopera: scelta.costo, costo_materiali: 0,
@@ -424,7 +428,7 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Voce aggiunta dal listino"); setScelta(null); setCerca(""); setQuantita("1"); onCambio(); },
+    onSuccess: () => { toast.success(tr("Voce aggiunta dal listino")); setScelta(null); setCerca(""); setQuantita("1"); onCambio(); },
     onError: (e: Error) => toast.error(e.message),
   });
   const togli = useMutation({
@@ -433,7 +437,7 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
       if (error) throw error;
     },
     onSuccess: onCambio,
-    onError: (e: Error) => toast.error(`Voce non tolta: ${e.message}`),
+    onError: (e: Error) => toast.error(tr("Voce non tolta: {errore}", { errore: e.message })),
   });
   return (
     <div className="space-y-2 rounded-lg bg-muted/30 p-2.5">
@@ -443,12 +447,12 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
             {voci.map((v) => (
               <tr key={v.id} className="border-b last:border-0">
                 <td className="py-1 pr-2">{v.origine_codice ? <span className="text-muted-foreground">{v.origine_codice} · </span> : null}{v.descrizione}</td>
-                <td className="whitespace-nowrap py-1 pr-2 text-right tabular-nums">{v.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 })} {v.unita ?? ""}</td>
+                <td className="whitespace-nowrap py-1 pr-2 text-right tabular-nums">{v.quantita.toLocaleString(intlCampo(), { maximumFractionDigits: 3 })} {v.unita ?? ""}</td>
                 <td className="whitespace-nowrap py-1 pr-2 text-right tabular-nums">{formatCurrency(v.costo_manodopera)}</td>
                 <td className="whitespace-nowrap py-1 text-right tabular-nums">{formatCurrency(v.quantita * v.costo_manodopera)}</td>
                 <td className="w-7 py-1 text-right">
                   {v.origine === "listino" && (
-                    <button type="button" aria-label={`Togli ${v.descrizione}`} className="text-muted-foreground hover:text-destructive" disabled={togli.isPending} onClick={() => togli.mutate(v.id)}>
+                    <button type="button" aria-label={tr("Togli {nome}", { nome: v.descrizione })} className="text-muted-foreground hover:text-destructive" disabled={togli.isPending} onClick={() => togli.mutate(v.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   )}
@@ -460,7 +464,7 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
       )}
       <div className="flex flex-wrap items-end gap-2">
         <div className="relative min-w-[14rem] flex-1">
-          <Input aria-label={`Cerca nel listino per ${fase.name}`} placeholder={caricoTariffe ? "Carico il listino…" : "Cerca nel listino (nome o codice)"} value={scelta ? `${scelta.codice ? `${scelta.codice} · ` : ""}${scelta.nome}` : cerca}
+          <Input aria-label={tr("Cerca nel listino per {fase}", { fase: fase.name })} placeholder={caricoTariffe ? tr("Carico il listino…") : tr("Cerca nel listino (nome o codice)")} value={scelta ? `${scelta.codice ? `${scelta.codice} · ` : ""}${scelta.nome}` : cerca}
             onChange={(e) => { setScelta(null); setCerca(e.target.value); }} className="h-9" />
           {!scelta && trovate.length > 0 && (
             <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-sm shadow" aria-label="Voci trovate nel listino">
@@ -475,9 +479,9 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
             </ul>
           )}
         </div>
-        <Input aria-label="Quantità" className="h-9 w-24" inputMode="decimal" value={quantita} onChange={(e) => setQuantita(e.target.value)} />
+        <Input aria-label={tr("Quantità")} className="h-9 w-24" inputMode="decimal" value={quantita} onChange={(e) => setQuantita(e.target.value)} />
         <Button size="sm" variant="outline" className="h-9" disabled={!scelta || !(q > 0) || aggiungi.isPending} onClick={() => aggiungi.mutate()}>
-          <Plus className="mr-1 h-4 w-4" />Aggiungi{scelta && q > 0 ? ` · ${formatCurrency(scelta.costo * q)}` : ""}
+          <Plus className="mr-1 h-4 w-4" />{tr("Aggiungi")}{scelta && q > 0 ? ` · ${formatCurrency(scelta.costo * q)}` : ""}
         </Button>
       </div>
     </div>
@@ -496,6 +500,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
   periodo: { dal: string | null; al: string | null }; nomiFasi: string[]; contratto: Contratto | null; schede: SchedaSic[];
   tariffe: Tariffa[]; varianti: VarianteCostoDitta[]; onCambio: () => void;
 }) {
+  const tr = useT();
   const modificabile = !contratto || (contratto.stato === "bozza" && !contratto.firmato_il);
   // Dopo la firma conta il prezzo pattuito, non le voci: il previsto delle fasi si porta al contratto.
   const pattuito = contratto && !modificabile && Array.isArray(contratto.elenco_lavori) ? contrattoPerFase(contratto.elenco_lavori as RigaElencoLavori[], fasi) : null;
@@ -519,13 +524,13 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
           const { data, error } = await db.from("order_external_teams")
             .update({ cost_preventivo: k === 0 ? conIva(importo, Number(a.vat_rate) || 0) : 0, costo_origine: "manuale" }).eq("id", a.id).select("id");
           if (error) throw error;
-          if (!data?.length) throw new Error("Non puoi modificare il costo previsto delle ditte.");
+          if (!data?.length) throw new Error(tr("Non puoi modificare il costo previsto delle ditte."));
         }
         if (righe.length) n += 1;
       }
       return n;
     },
-    onSuccess: (n) => { toast.success(`Previsto portato al contratto su ${n} ${n === 1 ? "fase" : "fasi"}`); onCambio(); void qcRiga.invalidateQueries({ queryKey: ["order_work_phases"] }); },
+    onSuccess: (n) => { toast.success(tr(n === 1 ? "Previsto portato al contratto su {n} fase" : "Previsto portato al contratto su {n} fasi", { n })); onCambio(); void qcRiga.invalidateQueries({ queryKey: ["order_work_phases"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
   // Un contratto già attivo ma non firmato: l'elenco dei lavori si può ancora rivedere, l'importo pattuito no.
@@ -550,7 +555,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
       return { ...data, importo_contrattuale: Number(data.importo_contrattuale) || 0, oneri_sicurezza: Number(data.oneri_sicurezza) || 0, ritenuta_garanzia_pct: Number(data.ritenuta_garanzia_pct) || 0 };
     },
     onSuccess: (c) => setMisure(c),
-    onError: (e: Error) => toast.error(e.message || "Non riesco ad aprire misure e SAL."),
+    onError: (e: Error) => toast.error(e.message || tr("Non riesco ad aprire misure e SAL.")),
   });
   const conQuoteNelContratto = !!contratto?.firmato_il && quote.some((a) => a.contratto_id === contratto.id);
   const apriElenco = () => setBozzaElenco((elencoSalvato.length ? elencoSalvato : elenco).map(conChiave));
@@ -585,9 +590,9 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
   };
   const salva = useMutation({
     mutationFn: async (righeScelte: RigaElencoLavori[]) => {
-      if (!ditta.subappaltatore_id) throw new Error("La ditta non è collegata a un subappaltatore: collegala dalla sua scheda.");
+      if (!ditta.subappaltatore_id) throw new Error(tr("La ditta non è collegata a un subappaltatore: collegala dalla sua scheda."));
       const righe = elencoDaSalvare(righeScelte);
-      if (!righe.length) throw new Error("L'elenco è vuoto: aggiungi almeno un lavoro con quantità e descrizione.");
+      if (!righe.length) throw new Error(tr("L'elenco è vuoto: aggiungi almeno un lavoro con quantità e descrizione."));
       const campi = {
         descrizione_lavori: `Lavorazioni delle fasi: ${nomiFasi.join(", ")}.`,
         importo_contrattuale: totaleElencoLavori(righe), elenco_lavori: righe,
@@ -620,12 +625,12 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         schedaCreata.id = null;
       }
       // 23514 viene anche dal database che aggancia le voci affidate (quantità oltre la voce, ditta sbagliata): il suo messaggio dice già cosa non va.
-      if (error) throw new Error(error.code === "23514" && /misure o SAL/.test(error.message) ? "Il contratto ha una base lavori registrata: l'importo si cambia con «Variante», da «Condizioni e firma»." : error.message);
-      if (contratto && !(toccate as unknown[] | null)?.length) throw new Error("Il contratto è cambiato nel frattempo (firmato o non più in bozza): ricarica la pagina e riprova.");
+      if (error) throw new Error(error.code === "23514" && /misure o SAL/.test(error.message) ? tr("Il contratto ha una base lavori registrata: l'importo si cambia con «Variante», da «Condizioni e firma».") : error.message);
+      if (contratto && !(toccate as unknown[] | null)?.length) throw new Error(tr("Il contratto è cambiato nel frattempo (firmato o non più in bozza): ricarica la pagina e riprova."));
       return { baseRegistrata };
     },
     onSuccess: (esito) => {
-      toast.success(!contratto ? "Contratto creato in bozza" : senzaElenco || esito?.baseRegistrata ? "Elenco dei lavori aggiornato (l'importo pattuito non cambia)" : "Contratto aggiornato con l'elenco dei lavori");
+      toast.success(!contratto ? tr("Contratto creato in bozza") : senzaElenco || esito?.baseRegistrata ? tr("Elenco dei lavori aggiornato (l'importo pattuito non cambia)") : tr("Contratto aggiornato con l'elenco dei lavori"));
       setBozzaElenco(null);
       onCambio();
     },
@@ -673,13 +678,13 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     },
-    onError: (e: Error) => toast.error(`PDF non generato: ${e.message}`),
+    onError: (e: Error) => toast.error(tr("PDF non generato: {errore}", { errore: e.message })),
   });
   /** L'elenco dei lavori senza cifre, da lasciare in cantiere (Dimora Torino, 31/10/2026). */
   const scaricaCantiere = useMutation({
     mutationFn: async () => {
       const righe = (elencoSalvato.length ? elencoSalvato : elenco);
-      if (!righe.length) throw new Error("Non ci sono lavori da elencare.");
+      if (!righe.length) throw new Error(tr("Non ci sono lavori da elencare."));
       const { generaPdfElencoCantiere } = await import("@/components/subappaltatori/ContrattoSubappaltoPDF");
       const [{ data: ord }, { data: az }] = await Promise.all([
         db.from("orders").select("order_code, work_address").eq("id", orderId).maybeSingle(),
@@ -697,7 +702,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     },
-    onError: (e: Error) => toast.error(`PDF non generato: ${e.message}`),
+    onError: (e: Error) => toast.error(tr("PDF non generato: {errore}", { errore: e.message })),
   });
   const righeInVista = elencoSalvato.length ? elencoSalvato : elenco;
   const totaleInVista = totaleElencoLavori(righeInVista);
@@ -708,50 +713,50 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
       <div className="min-w-48 flex-1">
         <p className="text-sm font-medium">{ditta.name}</p>
         {(righeInVista.length > 0 || nomiFasi.length > 0) && <p className="text-xs text-muted-foreground">
-          {elencoSalvato.length ? "Lavori a contratto" : daAffidamenti ? "Voci affidate" : nomiFasi.join(", ")} · {righeInVista.length} {righeInVista.length === 1 ? "lavoro" : "lavori"} · {formatCurrency(totaleInVista)}
+          {elencoSalvato.length ? tr("Lavori a contratto") : daAffidamenti ? tr("Voci affidate") : nomiFasi.join(", ")} · {tr(righeInVista.length === 1 ? "{n} lavoro" : "{n} lavori", { n: righeInVista.length })} · {formatCurrency(totaleInVista)}
         </p>}
         {contratto && (
           <div className="mt-0.5 text-xs">
-            <Badge variant="outline" className="mr-1 text-[11px]">{contratto.firmato_il ? "Firmato" : contratto.stato === "bozza" ? "Bozza" : contratto.stato}</Badge>
+            <Badge variant="outline" className="mr-1 text-[11px]">{contratto.firmato_il ? tr("Firmato") : contratto.stato === "bozza" ? tr("Bozza") : contratto.stato}</Badge>
             {formatCurrency(Number(contratto.importo_contrattuale) || 0)}
-            {diverso && <span className="ml-1 text-amber-800">· valore dell’elenco {formatCurrency(totaleInVista)}</span>}
+            {diverso && <span className="ml-1 text-amber-800">· {tr("valore dell’elenco {importo}", { importo: formatCurrency(totaleInVista) })}</span>}
           </div>
         )}
-        {contratto?.firmato_il && <p className="mt-0.5 text-xs text-muted-foreground">Contratto firmato: lavori e prezzi non si modificano più. {conQuoteNelContratto ? "Per cambiare quantità o voci usa «Variante sulle voci»." : "Per cambiare l'importo usa «Variante» da «Condizioni e firma»."}</p>}
-        {!ditta.subappaltatore_id && <p className="mt-0.5 text-xs text-amber-800">Collega la ditta a un subappaltatore per fare il contratto.</p>}
+        {contratto?.firmato_il && <p className="mt-0.5 text-xs text-muted-foreground">{tr("Contratto firmato: lavori e prezzi non si modificano più.")} {conQuoteNelContratto ? tr("Per cambiare quantità o voci usa «Variante sulle voci».") : tr("Per cambiare l'importo usa «Variante» da «Condizioni e firma».")}</p>}
+        {!ditta.subappaltatore_id && <p className="mt-0.5 text-xs text-amber-800">{tr("Collega la ditta a un subappaltatore per fare il contratto.")}</p>}
         {daAllineare && (
           <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-amber-800">
-            Previsto sulle fasi {formatCurrency(previstoOra)}, contratto {formatCurrency(totalePattuito)}.
-            <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-xs" disabled={allinea.isPending} onClick={() => allinea.mutate()}>Porta il previsto al contratto</Button>
+            {tr("Previsto sulle fasi {previsto}, contratto {contratto}.", { previsto: formatCurrency(previstoOra), contratto: formatCurrency(totalePattuito) })}
+            <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-xs" disabled={allinea.isPending} onClick={() => allinea.mutate()}>{tr("Porta il previsto al contratto")}</Button>
           </p>
         )}
         {fasiSenzaDitta.length > 0 && (
           <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-amber-800">
-            {fasiSenzaDitta.length === 1 ? "Una fase del contratto non ha" : `${fasiSenzaDitta.length} fasi del contratto non hanno`} questa ditta assegnata.
+            {tr(fasiSenzaDitta.length === 1 ? "Una fase del contratto non ha questa ditta assegnata." : "{n} fasi del contratto non hanno questa ditta assegnata.", { n: fasiSenzaDitta.length })}
             <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-xs" disabled={assegnaFasi.isPending}
-              onClick={() => assegnaFasi.mutate({ fasi: fasiSenzaDitta, squadre: [], persone: [], ditte: [ditta.id] }, { onSuccess: onCambio })}>Assegna alle fasi del contratto</Button>
+              onClick={() => assegnaFasi.mutate({ fasi: fasiSenzaDitta, squadre: [], persone: [], ditte: [ditta.id] }, { onSuccess: onCambio })}>{tr("Assegna alle fasi del contratto")}</Button>
           </p>
         )}
-        {!!pattuito?.senzaFase && <p className="mt-0.5 text-xs text-muted-foreground">{formatCurrency(pattuito.senzaFase)} del contratto non stanno in nessuna fase della commessa.</p>}
+        {!!pattuito?.senzaFase && <p className="mt-0.5 text-xs text-muted-foreground">{tr("{importo} del contratto non stanno in nessuna fase della commessa.", { importo: formatCurrency(pattuito.senzaFase) })}</p>}
       </div>
       <div className="flex flex-wrap gap-2">
         {(elencoSalvato.length > 0 || elenco.length > 0) && (
-          <Button size="sm" variant="outline" onClick={() => setMostraLavorazioni(true)}>Lavorazioni affidate</Button>
+          <Button size="sm" variant="outline" onClick={() => setMostraLavorazioni(true)}>{tr("Lavorazioni affidate")}</Button>
         )}
         {(modificabile || senzaElenco) && (
           <Button size="sm" variant={contratto ? "outline" : "default"} disabled={!ditta.subappaltatore_id || salva.isPending} onClick={() => { if (!contratto && ditta.subappaltatore_id && (daAffidamenti || fasiIntere.length)) setNuovoDaVoci(true); else apriElenco(); }}
-            title={senzaElenco ? "Rivedi l'elenco dei lavori allegato. L'importo pattuito non cambia." : "Rivedi lavori, quantità e prezzi prima di salvare il contratto."}>
+            title={senzaElenco ? tr("Rivedi l'elenco dei lavori allegato. L'importo pattuito non cambia.") : tr("Rivedi lavori, quantità e prezzi prima di salvare il contratto.")}>
             {salva.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileSignature className="mr-1 h-4 w-4" />}
-            {!contratto ? "Offerta e contratto…" : "Lavori e prezzi…"}
+            {!contratto ? tr("Offerta e contratto…") : tr("Lavori e prezzi…")}
           </Button>
         )}
         {conQuoteNelContratto && (
-          <Button size="sm" variant="outline" onClick={() => setVarianteAperta(true)}>Variante sulle voci</Button>
+          <Button size="sm" variant="outline" onClick={() => setVarianteAperta(true)}>{tr("Variante sulle voci")}</Button>
         )}
         {contratto?.firmato_il && (
           <Button size="sm" variant="outline" disabled={apriMisure.isPending} onClick={() => apriMisure.mutate()}
-            title="Lavori eseguiti, misure e SAL della ditta su questo contratto">
-            {apriMisure.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Misure e SAL
+            title={tr("Lavori eseguiti, misure e SAL della ditta su questo contratto")}>
+            {apriMisure.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{tr("Misure e SAL")}
           </Button>
         )}
         {contratto && (
@@ -761,14 +766,14 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         )}
         {elenco.length > 0 && (
           <Button size="sm" variant="outline" disabled={scaricaCantiere.isPending} onClick={() => scaricaCantiere.mutate()}
-            title="Lavori e quantità, senza prezzi: da lasciare in cantiere">
-            {scaricaCantiere.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileText className="mr-1 h-4 w-4" />}Elenco cantiere
+            title={tr("Lavori e quantità, senza prezzi: da lasciare in cantiere")}>
+            {scaricaCantiere.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileText className="mr-1 h-4 w-4" />}{tr("Elenco cantiere")}
           </Button>
         )}
         {contratto && (
           <Button asChild size="sm" variant="ghost">
             {/* La scheda della sicurezza, quella del contratto: non la ditta del campo. */}
-            <Link to={`/azienda/subappaltatori/${contratto.subappaltatore_id}?tab=contratto&contratto=${contratto.id}`}>Condizioni e firma</Link>
+            <Link to={`/azienda/subappaltatori/${contratto.subappaltatore_id}?tab=contratto&contratto=${contratto.id}`}>{tr("Condizioni e firma")}</Link>
           </Button>
         )}
       </div>
@@ -777,7 +782,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
           onClose={() => { setMisure(null); onCambio(); }}
           onApriVerbale={async (id) => {
             const { data, error } = await db.from("sal_subappaltatori").select("*").eq("id", id).eq("company_id", companyId).eq("contratto_id", misure.id).single();
-            if (error || !data) throw Error("SAL registrato ma non ancora consultabile: riprova la lettura");
+            if (error || !data) throw Error(tr("SAL registrato ma non ancora consultabile: riprova la lettura"));
             setVerbale(data as SALSubappaltatore);
             setMisure(null);
           }} />
@@ -796,7 +801,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         onPdf={contratto ? () => scarica.mutate() : undefined} pdfInCorso={scarica.isPending} />}
       {bozzaElenco && (
         <ElencoLavoriDialog
-          titolo={`${contratto ? "Lavori e prezzi del contratto" : "Nuovo contratto"} · ${ditta.name}`}
+          titolo={`${contratto ? tr("Lavori e prezzi del contratto") : tr("Nuovo contratto")} · ${ditta.name}`}
           righe={bozzaElenco}
           onRighe={setBozzaElenco}
           dalleVoci={elenco}
@@ -808,7 +813,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
           varianti={varianti}
           importoPattuito={senzaElenco ? Number(contratto?.importo_contrattuale) || 0 : null}
           salvando={salva.isPending}
-          etichettaSalva={!contratto ? "Crea il contratto in bozza" : "Salva l'elenco"}
+          etichettaSalva={!contratto ? tr("Crea il contratto in bozza") : tr("Salva l'elenco")}
           onSalva={() => salva.mutate(bozzaElenco)}
           onChiudi={() => !salva.isPending && setBozzaElenco(null)}
         />
@@ -843,6 +848,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
   anagraficaId?: string | null;
   importoPattuito: number | null; salvando: boolean; etichettaSalva: string; onSalva: () => void; onChiudi: () => void;
 }) {
+  const tr = useT();
   const [cerca, setCerca] = useState("");
   const [faseNuova, setFaseNuova] = useState(fasi[0] ?? "Altri lavori");
   const [faseAttiva, setFaseAttiva] = useState("");
@@ -880,11 +886,11 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
         <DialogHeader>
           <DialogTitle>{titolo}</DialogTitle>
           <DialogDescription>
-            Lavori, quantità e prezzi che la ditta accetta: aprono il contratto, senza IVA. Le voci della commessa non cambiano.
+            {tr("Lavori, quantità e prezzi che la ditta accetta: aprono il contratto, senza IVA. Le voci della commessa non cambiano.")}
           </DialogDescription>
         </DialogHeader>
-        {affidateSenzaPrezzo > 0 && <p role="alert" className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-900">{affidateSenzaPrezzo === 1 ? "Una voce affidata è" : `${affidateSenzaPrezzo} voci affidate sono`} senza prezzo: la ditta non ce l'ha a listino. Scrivi il prezzo concordato, o togli la riga, per salvare il contratto.</p>}
-        {senzaPrezzo > 0 && <p role="status" className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">{senzaPrezzo === 1 ? "Una riga è" : `${senzaPrezzo} righe sono`} senza prezzo: nel contratto varrebbero 0 €. Scrivi il prezzo qui sotto.</p>}
+        {affidateSenzaPrezzo > 0 && <p role="alert" className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-900">{tr(affidateSenzaPrezzo === 1 ? "Una voce affidata è senza prezzo: la ditta non ce l'ha a listino. Scrivi il prezzo concordato, o togli la riga, per salvare il contratto." : "{n} voci affidate sono senza prezzo: la ditta non ce l'ha a listino. Scrivi il prezzo concordato, o togli la riga, per salvare il contratto.", { n: affidateSenzaPrezzo })}</p>}
+        {senzaPrezzo > 0 && <p role="status" className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">{tr(senzaPrezzo === 1 ? "Una riga è senza prezzo: nel contratto varrebbero 0 €. Scrivi il prezzo qui sotto." : "{n} righe sono senza prezzo: nel contratto varrebbero 0 €. Scrivi il prezzo qui sotto.", { n: senzaPrezzo })}</p>}
         <MacrofasiSubappalto attiva={faseAttiva}
           onSeleziona={fase => { setFaseAttiva(fase); if (fase) setFaseNuova(fase); }}
           fasi={fasiScelta.map(fase => ({ id: fase, nome: fase, voci: righe.filter(riga => riga.fase === fase).length }))}>
@@ -892,13 +898,13 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
           <table className="w-full min-w-[820px] text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr>
-                <th className="w-40 px-2 py-1.5 text-left font-medium">Lavorazione</th>
-                <th className="px-1 py-1.5 text-left font-medium">Descrizione</th>
-                <th className="w-14 px-1 py-1.5 text-left font-medium">U.M.</th>
-                <th className="w-24 px-1 py-1.5 text-right font-medium">Quantità</th>
-                <th className="w-28 px-1 py-1.5 text-right font-medium">Prezzo €</th>
-                <th className="w-28 px-2 py-1.5 text-right font-medium">Importo</th>
-                {daAffidamenti && <th className="w-36 px-1 py-1.5 text-left font-medium">Voce affidata</th>}
+                <th className="w-40 px-2 py-1.5 text-left font-medium">{tr("Lavorazione")}</th>
+                <th className="px-1 py-1.5 text-left font-medium">{tr("Descrizione")}</th>
+                <th className="w-14 px-1 py-1.5 text-left font-medium">{tr("U.M.")}</th>
+                <th className="w-24 px-1 py-1.5 text-right font-medium">{tr("Quantità")}</th>
+                <th className="w-28 px-1 py-1.5 text-right font-medium">{tr("Prezzo €")}</th>
+                <th className="w-28 px-2 py-1.5 text-right font-medium">{tr("Importo")}</th>
+                {daAffidamenti && <th className="w-36 px-1 py-1.5 text-left font-medium">{tr("Voce affidata")}</th>}
                 <th className="w-8" />
               </tr>
             </thead>
@@ -909,7 +915,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
                 <tr key={chiaveRiga(r)} className="border-t align-middle">
                   <td className="px-2 py-1">
                     <OfficeSelect
-                      label={`Lavorazione della riga ${i + 1}`}
+                      label={tr("Lavorazione della riga {n}", { n: i + 1 })}
                       value={r.fase}
                       onValueChange={(v) => cambia(i, { fase: v, fase_id: null, sottofase_id: null })}
                       className="h-8 w-40 rounded-lg px-2 text-xs text-muted-foreground"
@@ -917,19 +923,19 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
                     />
                   </td>
                   <td className="px-1 py-1">
-                    <Input aria-label={`Descrizione della riga ${i + 1}`} value={r.descrizione} onChange={(e) => cambia(i, { descrizione: e.target.value })} className="h-8"
-                      title={r.affidamento_id ? `Voce affidata${r.comprende ? ` · ${testoComprende(r.comprende)}` : ""}${r.origine ? ` · prezzo: ${ORIGINE_PREZZO[r.origine]}` : ""}` : undefined} />
+                    <Input aria-label={tr("Descrizione della riga {n}", { n: i + 1 })} value={r.descrizione} onChange={(e) => cambia(i, { descrizione: e.target.value })} className="h-8"
+                      title={r.affidamento_id ? `${tr("Voce affidata")}${r.comprende ? ` · ${testoComprende(r.comprende)}` : ""}${r.origine ? ` · ${tr("prezzo: {origine}", { origine: tr(ORIGINE_PREZZO[r.origine]) })}` : ""}` : undefined} />
                   </td>
                   <td className="px-1 py-1">
-                    <Input aria-label={`Unità della riga ${i + 1}`} value={r.unita ?? ""} onChange={(e) => cambia(i, { unita: e.target.value || null })} className="h-8" />
+                    <Input aria-label={tr("Unità della riga {n}", { n: i + 1 })} value={r.unita ?? ""} onChange={(e) => cambia(i, { unita: e.target.value || null })} className="h-8" />
                   </td>
                   <td className="px-1 py-1">
-                    <Input aria-label={`Quantità della riga ${i + 1}`} inputMode="decimal" defaultValue={String(r.quantita).replace(".", ",")}
+                    <Input aria-label={tr("Quantità della riga {n}", { n: i + 1 })} inputMode="decimal" defaultValue={String(r.quantita).replace(".", ",")}
                       onBlur={(e) => cambia(i, { quantita: numero(e.target.value) })} className="h-8 text-right tabular-nums" />
                   </td>
                   <td className="px-1 py-1">
-                    <Input aria-label={`Prezzo della riga ${i + 1}`}
-                      title={r.origine ? `Prezzo: ${ORIGINE_PREZZO[r.origine]}` : undefined} inputMode="decimal" defaultValue={String(r.prezzo).replace(".", ",")}
+                    <Input aria-label={tr("Prezzo della riga {n}", { n: i + 1 })}
+                      title={r.origine ? tr("Prezzo: {origine}", { origine: tr(ORIGINE_PREZZO[r.origine]) }) : undefined} inputMode="decimal" defaultValue={String(r.prezzo).replace(".", ",")}
                       onBlur={(e) => cambia(i, { prezzo: numero(e.target.value) })}
                       className={cn("h-8 text-right tabular-nums", r.origine === "costo_aziendale" && "border-amber-400 bg-amber-50")} />
                   </td>
@@ -937,13 +943,13 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
                   {daAffidamenti && (
                     <td className="px-1 text-[11px] leading-tight text-muted-foreground">
                       {r.affidamento_id ? <>
-                        {r.comprende ? testoComprende(r.comprende) : "affidata"}
-                        {r.origine && <> · prezzo: <span className={r.origine === "costo_aziendale" ? "text-amber-800" : undefined}>{ORIGINE_PREZZO[r.origine]}</span></>}
-                      </> : "a mano, fuori dalle voci"}
+                        {r.comprende ? testoComprende(r.comprende) : tr("affidata")}
+                        {r.origine && <> · {tr("prezzo:")} <span className={r.origine === "costo_aziendale" ? "text-amber-800" : undefined}>{tr(ORIGINE_PREZZO[r.origine])}</span></>}
+                      </> : tr("a mano, fuori dalle voci")}
                     </td>
                   )}
                   <td className="text-right">
-                    <button type="button" aria-label={`Togli ${r.descrizione || `la riga ${i + 1}`}`} className="p-1 text-muted-foreground hover:text-destructive"
+                    <button type="button" aria-label={tr("Togli {nome}", { nome: r.descrizione || tr("la riga {n}", { n: i + 1 }) })} className="p-1 text-muted-foreground hover:text-destructive"
                       onClick={() => onRighe(righe.filter((_, j) => j !== i))}>
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -951,15 +957,15 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
                 </tr>
               ))}
               {!righe.some(riga => !faseAttiva || riga.fase === faseAttiva) && (
-                <tr><td colSpan={daAffidamenti ? 8 : 7} className="px-2 py-4 text-center text-sm text-muted-foreground">Nessun lavoro: aggiungili dal listino o a mano.</td></tr>
+                <tr><td colSpan={daAffidamenti ? 8 : 7} className="px-2 py-4 text-center text-sm text-muted-foreground">{tr("Nessun lavoro: aggiungili dal listino o a mano.")}</td></tr>
               )}
             </tbody>
           </table>
         </div>
         <div className="mt-2 flex flex-wrap items-end gap-2">
-          <label className="text-xs text-muted-foreground">Aggiungi a
+          <label className="text-xs text-muted-foreground">{tr("Aggiungi a")}
             <OfficeSelect
-              label="Lavorazione delle righe nuove"
+              label={tr("Lavorazione delle righe nuove")}
               value={faseNuova}
               onValueChange={fase => { setFaseNuova(fase); if (faseAttiva) setFaseAttiva(fase); }}
               className="ml-1 inline-flex h-9 w-auto min-w-[10rem] text-foreground"
@@ -967,7 +973,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
             />
           </label>
           <div className="relative min-w-[16rem] flex-1">
-            <Input aria-label="Cerca nel listino per il contratto" placeholder="Cerca nel listino (nome o codice)" value={cerca} onChange={(e) => setCerca(e.target.value)} className="h-9" />
+            <Input aria-label={tr("Cerca nel listino per il contratto")} placeholder={tr("Cerca nel listino (nome o codice)")} value={cerca} onChange={(e) => setCerca(e.target.value)} className="h-9" />
             {trovate.length > 0 && (
               <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-sm shadow" aria-label="Voci trovate nel listino">
                 {trovate.map((t) => {
@@ -976,7 +982,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
                     <li key={t.id}>
                       <button type="button" className="flex w-full justify-between gap-2 px-2 py-1.5 text-left hover:bg-muted" onClick={() => aggiungiDalListino(t)}>
                         <span className="min-w-0 truncate">{t.codice ? `${t.codice} · ` : ""}{t.nome}</span>
-                        <span className="shrink-0 tabular-nums text-muted-foreground">{formatCurrency(p.prezzo)}/{t.unita}{p.concordato ? " · concordato" : ""}</span>
+                        <span className="shrink-0 tabular-nums text-muted-foreground">{formatCurrency(p.prezzo)}/{t.unita}{p.concordato ? ` · ${tr("concordato")}` : ""}</span>
                       </button>
                     </li>
                   );
@@ -985,29 +991,29 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
             )}
           </div>
           <Button type="button" size="sm" variant="outline" onClick={() => onRighe([...righe, conChiave({ fase: faseNuova, descrizione: "", unita: "a corpo", quantita: 1, prezzo: 0, importo: 0 })])}>
-            <Plus className="mr-1 h-4 w-4" />Riga a mano
+            <Plus className="mr-1 h-4 w-4" />{tr("Riga a mano")}
           </Button>
-          <Button type="button" size="sm" variant="outline" title="Una voce sola per tutta la fase scelta, a corpo: scrivi solo l'importo"
+          <Button type="button" size="sm" variant="outline" title={tr("Una voce sola per tutta la fase scelta, a corpo: scrivi solo l'importo")}
             onClick={() => onRighe([...righe, conChiave({ fase: faseNuova, descrizione: `${faseNuova}: lavori a corpo`, unita: "a corpo", quantita: 1, prezzo: 0, importo: 0 })])}>
-            <Plus className="mr-1 h-4 w-4" />Computo a corpo
+            <Plus className="mr-1 h-4 w-4" />{tr("Computo a corpo")}
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={() => onRighe(dalleVoci.map(conChiave))}
             title={daAffidamenti
-              ? "Rimette le voci affidate alla ditta in «Chi fa cosa», con le loro quantità e i loro prezzi. Le modifiche fatte qui si perdono."
-              : "Rimette le voci delle fasi affidate alla ditta, coi prezzi del listino. Le modifiche fatte qui si perdono."}>
-            {daAffidamenti ? "Riprendi le voci affidate" : "Riprendi le voci delle fasi"}
+              ? tr("Rimette le voci affidate alla ditta in «Chi fa cosa», con le loro quantità e i loro prezzi. Le modifiche fatte qui si perdono.")
+              : tr("Rimette le voci delle fasi affidate alla ditta, coi prezzi del listino. Le modifiche fatte qui si perdono.")}>
+            {daAffidamenti ? tr("Riprendi le voci affidate") : tr("Riprendi le voci delle fasi")}
           </Button>
         </div>
         </MacrofasiSubappalto>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
           <p className="text-sm">
-            Totale lavori <strong className="tabular-nums">{formatCurrency(totale)}</strong> senza IVA
+            {tr("Totale lavori")} <strong className="tabular-nums">{formatCurrency(totale)}</strong> {tr("senza IVA")}
             {importoPattuito != null && Math.abs(importoPattuito - totale) > 0.005 && (
-              <span className="ml-2 text-xs text-amber-800">· l'importo pattuito resta {formatCurrency(importoPattuito)} (contratto già attivo)</span>
+              <span className="ml-2 text-xs text-amber-800">· {tr("l'importo pattuito resta {importo} (contratto già attivo)", { importo: formatCurrency(importoPattuito) })}</span>
             )}
           </p>
           <div className="flex gap-2">
-            <Button variant="outline" disabled={salvando} onClick={onChiudi}>Annulla</Button>
+            <Button variant="outline" disabled={salvando} onClick={onChiudi}>{tr("Annulla")}</Button>
             <Button disabled={salvando || !elencoDaSalvare(righe).length || affidateSenzaPrezzo > 0} onClick={onSalva}>
               {salvando && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{etichettaSalva}
             </Button>

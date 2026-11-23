@@ -18,6 +18,7 @@ import { dayKey } from "@/lib/finance/forecastLedger";
 import { movimentoPrevisto } from "@/lib/orders/generali/movimentiFonti";
 import { dataFotografia } from "@/lib/orders/generali/reportMensilePeriodo";
 import { meseValido } from "@/lib/orders/rapportiniMese";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Closed periods use frozen monthly economic figures; live forecasts cannot be backdated. */
 export function ReportMensile({
@@ -27,6 +28,7 @@ export function ReportMensile({
   riepilogo: RiepilogoGenerale;
   meseIniziale?: string;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const foto = useFotografieGenerale(riepilogo.generale.id);
   const piano = useGeneralePianoNumeri(riepilogo, { preferenza: "approvata" });
@@ -178,12 +180,12 @@ export function ReportMensile({
     <section className="generale-panel min-w-0" aria-labelledby="investitori-rendiconto-mensile">
       <header className="flex flex-wrap items-center gap-2 px-3 py-2">
         <h3 id="investitori-rendiconto-mensile" className="mr-auto flex items-center gap-2 text-sm font-semibold">
-          <CalendarDays className="size-4 text-primary" aria-hidden="true" /> Rendiconto mensile dell’operazione
+          <CalendarDays className="size-4 text-primary" aria-hidden="true" /> {t("Rendiconto mensile dell’operazione")}
         </h3>
         <label className="flex items-center gap-2 text-xs">
-          Periodo
+          {t("Periodo")}
           <Input
-            aria-label="Periodo rendiconto investitori"
+            aria-label={t("Periodo rendiconto investitori")}
             lang="it"
             type="month"
             max={meseOggi}
@@ -196,44 +198,42 @@ export function ReportMensile({
           />
         </label>
         <Button type="button" size="sm" className="h-8 gap-1.5" disabled={!pronto} onClick={scarica}>
-          <Download className="size-4" aria-hidden="true" /> Scarica CSV
+          <Download className="size-4" aria-hidden="true" /> {t("Scarica CSV")}
         </Button>
       </header>
-      {errore ? <p role="alert" className="border-t p-3 text-sm">Dati del rendiconto non disponibili.</p>
-        : caricamento ? <p role="status" className="border-t p-3 text-sm text-muted-foreground">Caricamento del rendiconto…</p>
+      {errore ? <p role="alert" className="border-t p-3 text-sm">{t("Dati del rendiconto non disponibili.")}</p>
+        : caricamento ? <p role="status" className="border-t p-3 text-sm text-muted-foreground">{t("Caricamento del rendiconto…")}</p>
           : !pronto || !f ? <p role="status" className="border-t p-3 text-sm text-amber-800 dark:text-amber-300">
-            {corrente ? "Completa e approva il budget e il calendario per preparare il rendiconto corrente."
-              : "Per questo periodo serve una fotografia economica con budget approvato."}
+            {corrente ? t("Completa e approva il budget e il calendario per preparare il rendiconto corrente.")
+              : t("Per questo periodo serve una fotografia economica con budget approvato.")}
           </p> : <>
             <p className="border-t bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
-              {corrente ? "Piano approvato" : "Fotografia del periodo"} · Versione {f.versioneNumero} · Capitale riferito al {dataBreve(data)}
+              {t("{tipo} · Versione {versione} · Capitale riferito al {data}", { tipo: corrente ? t("Piano approvato") : t("Fotografia del periodo"), versione: f.versioneNumero, data: dataBreve(data) })}
             </p>
             <dl className="grid border-t sm:grid-cols-3 sm:divide-x">
               {[
-                { titolo: "Budget costi", valore: f.costiPrevisti },
-                { titolo: "Stima finale", valore: f.costiStima },
-                { titolo: "Scostamento costi", valore: f.costiStima - f.costiPrevisti },
+                { titolo: t("Budget costi"), valore: f.costiPrevisti },
+                { titolo: t("Stima finale"), valore: f.costiStima },
+                { titolo: t("Scostamento costi"), valore: f.costiStima - f.costiPrevisti },
               ].map(c => <div className="px-3 py-2" key={c.titolo}>
                 <dt className="text-xs text-muted-foreground">{c.titolo}</dt>
                 <dd className="text-sm font-semibold tabular-nums">{euro(c.valore)}</dd>
               </div>)}
             </dl>
             {righe.length ? <div className="overflow-x-auto border-t">
-              <table aria-label="Movimenti effettivi per fonte nel rendiconto mensile" className="generale-registro-tabella min-w-[41rem]">
+              <table aria-label={t("Movimenti effettivi per fonte nel rendiconto mensile")} className="generale-registro-tabella min-w-[41rem]">
                 <thead className="bg-muted/40"><tr>
-                  <th scope="col">Fonte</th>
+                  <th scope="col">{t("Fonte")}</th>
                   {["Versato", "Rimborsato", "Accollo", "Capitale in essere", "Interessi, spese e utile pagati"].map(c =>
-                    <th scope="col" key={c} className="text-right">{c}</th>)}
+                    <th scope="col" key={c} className="text-right">{t(c)}</th>)}
                 </tr></thead>
                 <tbody>{righe.map(r => <tr key={r.id}>
                   <th scope="row" className="text-left font-medium">{r.nome}</th>
                   {[r.versato, r.rimborsato, r.accollo, r.dentro, r.remunerato].map((v, i) => <td key={i} className="text-right tabular-nums">{euro(v)}</td>)}
                 </tr>)}</tbody>
               </table>
-            </div> : <p className="border-t px-3 py-2 text-sm text-muted-foreground">Nessuna fonte registrata.</p>}
-            {oneriPrevisti > 0 && <p className="border-t px-3 py-2 text-xs text-muted-foreground">
-              Oneri finanziari ancora previsti · {euro(oneriPrevisti)}
-            </p>}
+            </div> : <p className="border-t px-3 py-2 text-sm text-muted-foreground">{t("Nessuna fonte registrata.")}</p>}
+            {oneriPrevisti > 0 && <p className="border-t px-3 py-2 text-xs text-muted-foreground">{t("Oneri finanziari ancora previsti · {oneriPrevisti}", { oneriPrevisti: euro(oneriPrevisti) })}</p>}
           </>}
     </section>
   );

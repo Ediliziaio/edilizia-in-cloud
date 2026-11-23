@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { OrderItemsList, type OrderItem } from "./OrderItemsList";
 import { OrdinaPerFornitorePanel, PosaInLavorazioniBanner } from "./OrdinaPerFornitorePanel";
 import { OrderAttachments } from "./OrderAttachments";
@@ -85,10 +86,11 @@ export function OrdineArticoli({
  */
 export function useAggiungiPosaManodopera(orderId: string) {
   const queryClient = useQueryClient();
+  const t = useT();
   const { canEditOrders, canViewCosts } = usePermissions();
   return useMutation({
     mutationFn: async (labor: { external_team_id: string; total_cost: number; notes: string }) => {
-      if (!canEditOrders || !canViewCosts) throw new Error("La posa tra le ditte della commessa la aggiunge chi ha i permessi «Modifica commesse» e «Costi». Chiedi al titolare dell'azienda di darti l'accesso.");
+      if (!canEditOrders || !canViewCosts) throw new Error(t("La posa tra le ditte della commessa la aggiunge chi ha i permessi «Modifica commesse» e «Costi». Chiedi al titolare dell'azienda di darti l'accesso."));
       const { error } = await supabase.from("order_external_teams").insert({
         order_id: orderId,
         external_team_id: labor.external_team_id,
@@ -101,10 +103,10 @@ export function useAggiungiPosaManodopera(orderId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-external-teams", orderId] });
-      toast.success("Posa aggiunta alla Manodopera");
+      toast.success(t("Posa aggiunta alla Manodopera"));
     },
     onError: (e) => {
-      toast.error(e instanceof Error ? e.message : "Errore aggiunta posa alla Manodopera");
+      toast.error(e instanceof Error ? e.message : t("Errore aggiunta posa alla Manodopera"));
     },
   });
 }

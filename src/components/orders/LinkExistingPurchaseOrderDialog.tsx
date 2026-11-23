@@ -18,6 +18,7 @@ import {
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_COLORS as STATUS_COLORS,
 } from "@/lib/odaStatus";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface LinkExistingPurchaseOrderDialogProps {
   open: boolean;
@@ -38,6 +39,7 @@ interface UnlinkedPO {
 export function LinkExistingPurchaseOrderDialog({
   open, onOpenChange, orderId, orderCode,
 }: LinkExistingPurchaseOrderDialogProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
@@ -101,11 +103,11 @@ export function LinkExistingPurchaseOrderDialog({
       // Il Conto economico legge gli OdA con ["oes-oda"]: senza questa
       // invalidazione il margine restava quello vecchio per 2 minuti.
       queryClient.invalidateQueries({ queryKey: ["oes-oda", orderId] });
-      toast.success("OdA collegato alla commessa");
+      toast.success(t("OdA collegato alla commessa"));
       onOpenChange(false);
     },
     onError: (e: Error) => {
-      toast.error("Errore nel collegamento", { description: e.message });
+      toast.error(t("Errore nel collegamento"), { description: e.message });
     },
   });
 
@@ -115,11 +117,10 @@ export function LinkExistingPurchaseOrderDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="h-5 w-5" />
-            Collega OdA Esistente
+            {t("Collega OdA Esistente")}
           </DialogTitle>
           <DialogDescription>
-            Seleziona un ordine d'acquisto da collegare alla commessa {orderCode || ""}.
-            Sono mostrati solo gli OdA non ancora collegati ad altre commesse.
+            {t("Seleziona un ordine d'acquisto da collegare alla commessa {codice}. Sono mostrati solo gli OdA non ancora collegati ad altre commesse.", { codice: orderCode || "" })}
           </DialogDescription>
         </DialogHeader>
 
@@ -127,7 +128,7 @@ export function LinkExistingPurchaseOrderDialog({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cerca per numero OdA o fornitore..."
+            placeholder={t("Cerca per numero OdA o fornitore...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -139,13 +140,13 @@ export function LinkExistingPurchaseOrderDialog({
           {isLoading ? (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              Caricamento...
+              {t("Caricamento...")}
             </div>
           ) : filtered.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               {searchQuery
-                ? "Nessun OdA trovato con questo filtro."
-                : "Nessun OdA disponibile per il collegamento."}
+                ? t("Nessun OdA trovato con questo filtro.")
+                : t("Nessun OdA disponibile per il collegamento.")}
             </div>
           ) : (
             filtered.map((po) => (
@@ -160,7 +161,7 @@ export function LinkExistingPurchaseOrderDialog({
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm font-medium">{po.oda_number}</span>
                     <Badge className={`text-xs border-0 ${STATUS_COLORS[po.status] || "bg-muted text-muted-foreground"}`}>
-                      {STATUS_LABELS[po.status] || po.status}
+                      {STATUS_LABELS[po.status] ? t(STATUS_LABELS[po.status]) : po.status}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">

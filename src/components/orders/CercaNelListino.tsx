@@ -10,6 +10,7 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { etichettaPrezzo, type FontePrezzo, type VoceListino } from "@/lib/campo/prezzoVoceRapportino";
 
 export const COLORE_FONTE: Record<FontePrezzo, string> = {
@@ -25,6 +26,7 @@ type Dove = { rapportinoId: string } | { orderId: string; data: string | null };
 export function CercaNelListino({ dove, onScegli, segnaposto, className }: {
   dove: Dove; onScegli: (v: VoceListino) => void; segnaposto?: string; className?: string;
 }) {
+  const tr = useT();
   const [testo, setTesto] = useState("");
   const [cercato, setCercato] = useState("");
   useEffect(() => { const t = setTimeout(() => setCercato(testo.trim()), 250); return () => clearTimeout(t); }, [testo]);
@@ -46,13 +48,13 @@ export function CercaNelListino({ dove, onScegli, segnaposto, className }: {
     <div className={`space-y-1 ${className ?? ""}`}>
       <div className="relative">
         <Search className="pointer-events-none absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
-        <Input aria-label="Cerca nel listino" placeholder={segnaposto ?? "Cerca nel listino: codice, descrizione, categoria"} className="h-8 pl-7 text-[13px]"
+        <Input aria-label={tr("Cerca nel listino")} placeholder={segnaposto ?? tr("Cerca nel listino: codice, descrizione, categoria")} className="h-8 pl-7 text-[13px]"
           value={testo} onChange={(e) => setTesto(e.target.value)} />
       </div>
       {cercato.length >= 2 && (
-        <ul aria-label="Voci del listino" className="max-h-48 divide-y overflow-y-auto rounded-md border bg-background">
-          {error && <li className="px-2 py-1.5 text-xs text-destructive">{error instanceof Error ? error.message : "Ricerca non riuscita"}</li>}
-          {!error && !isFetching && (data ?? []).length === 0 && <li className="px-2 py-1.5 text-xs text-muted-foreground">Nessuna voce del listino con «{cercato}»</li>}
+        <ul aria-label={tr("Voci del listino")} className="max-h-48 divide-y overflow-y-auto rounded-md border bg-background">
+          {error && <li className="px-2 py-1.5 text-xs text-destructive">{error instanceof Error ? error.message : tr("Ricerca non riuscita")}</li>}
+          {!error && !isFetching && (data ?? []).length === 0 && <li className="px-2 py-1.5 text-xs text-muted-foreground">{tr("Nessuna voce del listino con «{testo}»", { testo: cercato })}</li>}
           {(data ?? []).map((v) => (
             <li key={v.tariffa_id}>
               <button type="button" onClick={() => { onScegli(v); setTesto(""); setCercato(""); }}

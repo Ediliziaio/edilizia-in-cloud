@@ -27,6 +27,7 @@ import {
 import { Plus, GitBranch, Loader2, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Variante {
   id: string;
@@ -68,6 +69,7 @@ const emptyForm = () => ({
 });
 
 export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiCardProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -93,8 +95,8 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!form.titolo.trim()) throw new Error("Titolo obbligatorio");
-      if (!(parseFloat(form.importo) > 0)) throw new Error("Inserisci un importo maggiore di zero");
+      if (!form.titolo.trim()) throw new Error(t("Titolo obbligatorio"));
+      if (!(parseFloat(form.importo) > 0)) throw new Error(t("Inserisci un importo maggiore di zero"));
       const { error } = await supabase.from("varianti_cliente").insert({
         company_id: companyId,
         order_id: orderId,
@@ -108,7 +110,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast.success("Variante aggiunta");
+      toast.success(t("Variante aggiunta"));
       queryClient.invalidateQueries({ queryKey: ["varianti-cliente", orderId] });
       setDialogOpen(false);
       setForm(emptyForm());
@@ -137,7 +139,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast.success("Variante eliminata");
+      toast.success(t("Variante eliminata"));
       queryClient.invalidateQueries({ queryKey: ["varianti-cliente", orderId] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -154,19 +156,19 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <CardTitle className="text-base flex items-center gap-2">
               <GitBranch className="h-4 w-4 text-primary" aria-hidden="true" />
-              Varianti di commessa
+              {t("Varianti di commessa")}
               <Badge variant="secondary">{varianti.length}</Badge>
             </CardTitle>
             <div className="flex items-center gap-2">
               {totaleApprovato > 0 && (
                 <span className="text-sm text-green-600 font-semibold">
-                  +{formatCurrency(totaleApprovato)} approvato
+                  {t("+{importo} approvato", { importo: formatCurrency(totaleApprovato) })}
                 </span>
               )}
               {!readOnly && (
                 <Button size="sm" onClick={() => setDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-                  Aggiungi variante
+                  {t("Aggiungi variante")}
                 </Button>
               )}
             </div>
@@ -181,11 +183,11 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
             <div className="text-center py-6 space-y-2">
               <GitBranch className="h-8 w-8 text-muted-foreground/30 mx-auto" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">
-                {readOnly ? "Nessuna variante comunicata." : "Nessuna variante aggiunta."}
+                {readOnly ? t("Nessuna variante comunicata.") : t("Nessuna variante aggiunta.")}
               </p>
               {!readOnly && (
                 <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1" /> Crea prima variante
+                  <Plus className="h-4 w-4 mr-1" /> {t("Crea prima variante")}
                 </Button>
               )}
             </div>
@@ -200,10 +202,10 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium">{v.titolo}</span>
                       <Badge className={cn("text-xs border-0", STATO_COLORS[v.stato])}>
-                        {STATO_LABELS[v.stato]}
+                        {t(STATO_LABELS[v.stato])}
                       </Badge>
                       {!readOnly && !v.visibile_cliente && (
-                        <Badge variant="outline" className="text-xs text-muted-foreground">Solo interno</Badge>
+                        <Badge variant="outline" className="text-xs text-muted-foreground">{t("Solo interno")}</Badge>
                       )}
                     </div>
                     {v.descrizione && (
@@ -225,7 +227,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
                           </SelectTrigger>
                           <SelectContent>
                             {(["proposta", "approvata", "rifiutata"] as const).map((s) => (
-                              <SelectItem key={s} value={s} className="text-xs">{STATO_LABELS[s]}</SelectItem>
+                              <SelectItem key={s} value={s} className="text-xs">{t(STATO_LABELS[s])}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -236,10 +238,10 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
                           onClick={async () => {
                             if (
                               await confirm({
-                                title: "Eliminare la variante?",
+                                title: t("Eliminare la variante?"),
                                 description:
-                                  "La variante verrà rimossa definitivamente dalla commessa. L'operazione non può essere annullata.",
-                                confirmLabel: "Elimina",
+                                  t("La variante verrà rimossa definitivamente dalla commessa. L'operazione non può essere annullata."),
+                                confirmLabel: t("Elimina"),
                                 variant: "destructive",
                               })
                             ) {
@@ -247,7 +249,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
                             }
                           }}
                           disabled={deleteMutation.isPending}
-                          aria-label="Elimina variante"
+                          aria-label={t("Elimina variante")}
                         >
                           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         </Button>
@@ -266,29 +268,29 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Nuova variante di commessa</DialogTitle>
+              <DialogTitle>{t("Nuova variante di commessa")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-3 py-2">
               <div className="space-y-1">
-                <Label>Titolo *</Label>
+                <Label>{t("Titolo *")}</Label>
                 <Input
                   value={form.titolo}
                   onChange={(e) => setForm((p) => ({ ...p, titolo: e.target.value }))}
-                  placeholder="Es. Aggiunta finestra extra"
+                  placeholder={t("Es. Aggiunta finestra extra")}
                 />
               </div>
               <div className="space-y-1">
-                <Label>Descrizione</Label>
+                <Label>{t("Descrizione")}</Label>
                 <Textarea
                   value={form.descrizione}
                   onChange={(e) => setForm((p) => ({ ...p, descrizione: e.target.value }))}
-                  placeholder="Dettagli della modifica richiesta..."
+                  placeholder={t("Dettagli della modifica richiesta...")}
                   rows={2}
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>Importo (€) *</Label>
+                  <Label>{t("Importo (€) *")}</Label>
                   <Input
                     type="number"
                     min="0"
@@ -299,7 +301,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Stato</Label>
+                  <Label>{t("Stato")}</Label>
                   <Select
                     value={form.stato}
                     onValueChange={(v) => setForm((p) => ({ ...p, stato: v as typeof form.stato }))}
@@ -307,7 +309,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {(["proposta", "approvata", "rifiutata"] as const).map((s) => (
-                        <SelectItem key={s} value={s}>{STATO_LABELS[s]}</SelectItem>
+                        <SelectItem key={s} value={s}>{t(STATO_LABELS[s])}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -322,14 +324,14 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
                   className="h-4 w-4 rounded border-border"
                 />
                 <Label htmlFor="visibile_cliente" className="cursor-pointer text-sm font-normal">
-                  Visibile al cliente
+                  {t("Visibile al cliente")}
                 </Label>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("Annulla")}</Button>
               <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aggiungi"}
+                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("Aggiungi")}
               </Button>
             </DialogFooter>
           </DialogContent>

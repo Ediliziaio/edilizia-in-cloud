@@ -81,6 +81,7 @@ import {
 } from "@/lib/fatturazione/clausoleFattura";
 import { useCondizioniDocumento } from "@/hooks/useCondizioniDocumento";
 import { testoPiano } from "@/lib/condizioni/archivio";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** I metodi che un'impresa edile usa davvero; gli altri restano nell'editor. */
 const METODI_PROPOSTI = ["MP05", "MP12", "MP08", "MP02", "MP19", "MP23", "MP01"] as const;
@@ -99,7 +100,7 @@ const piuGiorni = (giorni: number) => {
   d.setDate(d.getDate() + giorni);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
-const dataIt = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("it-IT");
+const dataIt = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString(intlCampo());
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -178,7 +179,7 @@ const LABEL_MAP: Record<string, string> = {
 };
 
 function fmt(value: number): string {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(value);
+  return new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(value);
 }
 
 function round2(n: number): number {
@@ -320,6 +321,7 @@ export function CreaFatturaDialog({
   installments,
   indirizzoLavori,
 }: CreaFatturaDialogProps) {
+  const tr = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const invioInCorso = useRef(false);
@@ -989,15 +991,15 @@ export function CreaFatturaDialog({
     pagato: false,
   }];
   const avvisiPagamento: string[] = [];
-  if (bonifico && !iban) avvisiPagamento.push("Manca l'IBAN dell'azienda: senza, il cliente non sa dove pagare.");
+  if (bonifico && !iban) avvisiPagamento.push(tr("Manca l'IBAN dell'azienda: senza, il cliente non sa dove pagare."));
   if (metodo === "MP01" && totali.totale_da_pagare >= LIMITE_CONTANTI) {
-    avvisiPagamento.push("In contanti si può pagare solo sotto i 5.000 € (art. 49 D.Lgs. 231/2007): scegli un altro metodo.");
+    avvisiPagamento.push(tr("In contanti si può pagare solo sotto i 5.000 € (art. 49 D.Lgs. 231/2007): scegli un altro metodo."));
   }
   if (detrazione.active && !bonifico) {
-    avvisiPagamento.push("Con la detrazione fiscale il cliente deve pagare con bonifico parlante, altrimenti perde il bonus.");
+    avvisiPagamento.push(tr("Con la detrazione fiscale il cliente deve pagare con bonifico parlante, altrimenti perde il bonus."));
   }
   if (profilo === "pa" && !bonifico && metodo !== "MP23") {
-    avvisiPagamento.push("Gli enti pubblici pagano con bonifico sul conto dedicato (o PagoPA).");
+    avvisiPagamento.push(tr("Gli enti pubblici pagano con bonifico sul conto dedicato (o PagoPA)."));
   }
 
   const datiDocumento = {
@@ -1051,30 +1053,30 @@ export function CreaFatturaDialog({
       return;
     }
     if (customerId && (anagraficaPending || anagraficaError)) {
-      toast.error("Attendi la verifica dell’anagrafica o riprova il caricamento.");
+      toast.error(tr("Attendi la verifica dell’anagrafica o riprova il caricamento."));
       return;
     }
     // Blocca la creazione di una fattura senza righe (non emettibile).
     if (previewRighe.length === 0) {
-      toast.error("Nessuna riga da fatturare", {
+      toast.error(tr("Nessuna riga da fatturare"), {
         description: mode === "importo"
-          ? "Scrivi l'importo da fatturare o aggiungi una riga."
+          ? tr("Scrivi l'importo da fatturare o aggiungi una riga.")
           : mode === "sal"
-            ? "Scegli un SAL con una quota da fatturare o aggiungi una riga."
+            ? tr("Scegli un SAL con una quota da fatturare o aggiungi una riga.")
             : mode === "fasi"
-              ? "Scrivi quanto fatturare di almeno una fase o aggiungi una riga."
-              : "Includi almeno un articolo o aggiungi una riga descrittiva.",
+              ? tr("Scrivi quanto fatturare di almeno una fase o aggiungi una riga.")
+              : tr("Includi almeno un articolo o aggiungi una riga descrittiva."),
       });
       return;
     }
 
     if (vatSplit && previewRighe.some(r => !r.natura_iva && ![10,22].includes(Number(r.aliquota_iva)))) {
-      toast.error("Verifica la ripartizione IVA", {description:"Questo contratto ha IVA mista: indica il 10% o il 22% su ciascuna riga, oppure scegli esplicitamente il regime fiscale applicabile."});
+      toast.error(tr("Verifica la ripartizione IVA"), {description:tr("Questo contratto ha IVA mista: indica il 10% o il 22% su ciascuna riga, oppure scegli esplicitamente il regime fiscale applicabile.")});
       return;
     }
 
     if (previewRighe.some((r) => !r.descrizione.trim())) {
-      toast.error("C'è una riga senza descrizione", { description: "Scrivila o togli la riga." });
+      toast.error(tr("C'è una riga senza descrizione"), { description: tr("Scrivila o togli la riga.") });
       return;
     }
 
@@ -1095,7 +1097,7 @@ export function CreaFatturaDialog({
           p_documento_id: doc.id,
         } as never);
         if (rataErr) {
-          toast.warning("Fattura creata, ma non collegata alla rata", { description: rataErr.message });
+          toast.warning(tr("Fattura creata, ma non collegata alla rata"), { description: rataErr.message });
         } else {
           await queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(orderId) });
         }
@@ -1112,9 +1114,9 @@ export function CreaFatturaDialog({
             companyId,
           });
         } catch (err) {
-          toast.error("Fattura creata ma collegamento commessa fallito", {
+          toast.error(tr("Fattura creata ma collegamento commessa fallito"), {
             description:
-              err instanceof Error ? err.message : "Apri il documento e riprova dal dettaglio.",
+              err instanceof Error ? err.message : tr("Apri il documento e riprova dal dettaglio."),
           });
           onOpenChange(false);
           navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);
@@ -1143,7 +1145,7 @@ export function CreaFatturaDialog({
     const testo = testoClausola(id);
     const c = clausola(id);
     const giaNelCertificato = ritenutaGiaTolta && c?.effetto === "trattenuta";
-    if (giaNelCertificato) aiuto = "Già tolta dal certificato di pagamento del SAL: qui non si toglie una seconda volta.";
+    if (giaNelCertificato) aiuto = tr("Già tolta dal certificato di pagamento del SAL: qui non si toglie una seconda volta.");
     return (
       <div key={id} className={`px-3 py-2 space-y-1.5 ${attiva ? "" : "opacity-70"}`}>
         <div className="flex items-start gap-2">
@@ -1156,7 +1158,7 @@ export function CreaFatturaDialog({
             <span className="text-xs font-medium">{titolo}</span>
             {c?.effetto && (
               <span className="ml-1.5 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                {c.effetto === "ritenuta_condominio" ? "cambia il netto da pagare" : c.effetto === "trattenuta" ? "cambia l'importo" : "cambia l'IVA"}
+                {c.effetto === "ritenuta_condominio" ? tr("cambia il netto da pagare") : c.effetto === "trattenuta" ? tr("cambia l'importo") : tr("cambia l'IVA")}
               </span>
             )}
             {aiuto && <span className="block text-[11px] text-muted-foreground leading-snug">{aiuto}</span>}
@@ -1166,8 +1168,8 @@ export function CreaFatturaDialog({
               type="button"
               onClick={() => setClausoleMie((prev) => prev.filter((x) => x.id !== id))}
               className="text-muted-foreground hover:text-red-600"
-              title="Togli la clausola"
-              aria-label={`Togli: ${titolo}`}
+              title={tr("Togli la clausola")}
+              aria-label={tr("Togli: {titolo}", { titolo })}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -1176,7 +1178,7 @@ export function CreaFatturaDialog({
         {attiva && c?.effetto === "trattenuta" && (
           <div className="ml-6 space-y-1">
             <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              Percentuale
+              {tr("Percentuale")}
               <Input
                 value={percentuali[id] ?? String(c.percentuale ?? "").replace(".", ",")}
                 onChange={(e) => setPercentuali((prev) => ({ ...prev, [id]: e.target.value }))}
@@ -1191,7 +1193,7 @@ export function CreaFatturaDialog({
         {attiva && id === "iva_10_recupero" && (
           <div className="ml-6 space-y-1">
             <label className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-              Valore dei beni significativi in questa fattura (infissi, sanitari, caldaie, climatizzatori…)
+              {tr("Valore dei beni significativi in questa fattura (infissi, sanitari, caldaie, climatizzatori…)")}
               <Input
                 value={valoreBeni}
                 onChange={(e) => setValoreBeni(e.target.value)}
@@ -1202,20 +1204,20 @@ export function CreaFatturaDialog({
               €
             </label>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Obbligatorio indicarlo se ce ne sono (art. 1, c. 19, L. 205/2017): la frase va in fattura da sola.
+              {tr("Obbligatorio indicarlo se ce ne sono (art. 1, c. 19, L. 205/2017): la frase va in fattura da sola.")}
             </p>
             {beniOltreLimite && (
               <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                 <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                I beni superano il resto della prestazione: la parte in più va al 22% (DM 29/12/1999).
-                Dividila nell'editor con «Beni significativi».
+                {tr("I beni superano il resto della prestazione: la parte in più va al 22% (DM 29/12/1999).")}{" "}
+                {tr("Dividila nell'editor con «Beni significativi».")}
               </p>
             )}
           </div>
         )}
         {attiva && (c ? c.testo !== "" && c.effetto !== "trattenuta" : true) && (
           <Textarea
-            aria-label={`Testo clausola: ${titolo}`}
+            aria-label={tr("Testo clausola: {titolo}", { titolo })}
             value={testo}
             onChange={(e) => setTestiClausole((prev) => ({ ...prev, [id]: e.target.value }))}
             rows={2}
@@ -1234,25 +1236,25 @@ export function CreaFatturaDialog({
         <DialogHeader className="border-b px-4 py-3 pr-12 sm:px-5 sm:pr-12">
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-primary" />
-            Crea fattura da commessa {orderCode}
+            {tr("Crea fattura da commessa {codice}", { codice: orderCode ?? "" })}
           </DialogTitle>
-          <DialogDescription>Bozza{customerName ? ` per ${customerName}` : ""}</DialogDescription>
+          <DialogDescription>{customerName ? tr("Bozza per {cliente}", { cliente: customerName }) : tr("Bozza")}</DialogDescription>
         </DialogHeader>
 
         <div className="fattura-commessa-workspace">
         <div className="fattura-commessa-modulo">
-        <dl className="fattura-commessa-riepilogo" aria-label="Riepilogo della bozza">
+        <dl className="fattura-commessa-riepilogo" aria-label={tr("Riepilogo della bozza")}>
           <div>
-            <dt>Origine</dt>
-            <dd>{mode === "sal" ? salAttivo ? `Verbale SAL n. ${salAttivo.numero_sal}` : "Scegli un verbale"
-              : mode === "fasi" ? "Fasi della commessa" : mode === "articoli" ? "Articoli" : "Importo libero"}</dd>
+            <dt>{tr("Origine")}</dt>
+            <dd>{mode === "sal" ? salAttivo ? tr("Verbale SAL n. {n}", { n: salAttivo.numero_sal }) : tr("Scegli un verbale")
+              : mode === "fasi" ? tr("Fasi della commessa") : mode === "articoli" ? tr("Articoli") : tr("Importo libero")}</dd>
           </div>
-          <div><dt>Rata collegata</dt><dd>{selectedInstallment ? selectedInstallment.label || LABEL_MAP[selectedInstallment.type] || "Pagamento" : "Nessuna"}</dd></div>
+          <div><dt>{tr("Rata collegata")}</dt><dd>{selectedInstallment ? selectedInstallment.label || tr(LABEL_MAP[selectedInstallment.type] || "Pagamento") : tr("Nessuna")}</dd></div>
           <div>
-            <dt>Totale fattura</dt>
+            <dt>{tr("Totale fattura")}</dt>
             <dd className="text-primary">{fmt(totali.totale_documento)}</dd>
-            <small>{fmt(totali.imponibile_totale)} imponibile · IVA {fmt(totali.iva_totale)}
-              {previewRighe.some((r) => r.natura_iva?.startsWith("N6")) && " (inversione contabile)"}</small>
+            <small>{tr("{imponibile} imponibile · IVA {iva}", { imponibile: fmt(totali.imponibile_totale), iva: fmt(totali.iva_totale) })}
+              {previewRighe.some((r) => r.natura_iva?.startsWith("N6")) && ` ${tr("(inversione contabile)")}`}</small>
           </div>
         </dl>
 
@@ -1261,25 +1263,25 @@ export function CreaFatturaDialog({
           <div className="flex items-center gap-3">
             <User className="h-4 w-4 text-muted-foreground shrink-0" />
             <div className="flex-1 min-w-0">
-              {customerId && anagraficaPending ? <span className="text-xs text-muted-foreground">Verifica dell’anagrafica…</span> : anagraficaError ? <div role="alert" className="text-xs text-destructive">Impossibile verificare l’anagrafica. <Button variant="link" size="sm" onClick={() => void ricaricaAnagrafica()}>Riprova</Button></div> : matchedAnagrafica ? (
+              {customerId && anagraficaPending ? <span className="text-xs text-muted-foreground">{tr("Verifica dell’anagrafica…")}</span> : anagraficaError ? <div role="alert" className="text-xs text-destructive">{tr("Impossibile verificare l’anagrafica.")} <Button variant="link" size="sm" onClick={() => void ricaricaAnagrafica()}>{tr("Riprova")}</Button></div> : matchedAnagrafica ? (
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <Check className="h-3 w-3 text-green-600" />
                   <span className="text-xs text-green-700 dark:text-green-400">
-                    Anagrafica trovata
+                    {tr("Anagrafica trovata")}
                     {matchedAnagrafica.partita_iva && ` · P.IVA ${matchedAnagrafica.partita_iva}`}
                   </span>
                 </div>
               ) : (
                 <span className="text-xs text-amber-600">
-                  Anagrafica fiscale non collegata: la bozza conserva il nome della commessa. Nell’editor seleziona il soggetto corretto o crea la sua anagrafica e completa i dati fiscali.
+                  {tr("Anagrafica fiscale non collegata: la bozza conserva il nome della commessa. Nell’editor seleziona il soggetto corretto o crea la sua anagrafica e completa i dati fiscali.")}
                 </span>
               )}
             </div>
           </div>
           <details className="fattura-commessa-opzione group space-y-2">
             <summary>
-              <span>Tipo cliente</span>
-              <span className="font-normal text-muted-foreground">{PROFILI_FATTURA.find((p) => p.id === profilo)?.label}</span>
+              <span>{tr("Tipo cliente")}</span>
+              <span className="font-normal text-muted-foreground">{(() => { const l = PROFILI_FATTURA.find((p) => p.id === profilo)?.label; return l ? tr(l) : l; })()}</span>
               <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" aria-hidden />
             </summary>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
@@ -1289,20 +1291,20 @@ export function CreaFatturaDialog({
                   type="button"
                   aria-pressed={profilo === p.id}
                   onClick={() => scegliProfilo(p.id)}
-                  title={p.aiuto}
+                  title={tr(p.aiuto)}
                   className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
                     profilo === p.id
                       ? "bg-primary text-primary-foreground border-primary"
                       : "bg-background hover:bg-muted/40 border-border text-foreground"
                   }`}
                 >
-                  {p.label}
+                  {tr(p.label)}
                 </button>
               ))}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              {PROFILI_FATTURA.find((p) => p.id === profilo)?.aiuto}
-              {profiloScelto === null && matchedAnagrafica && " Proposto dall'anagrafica."}
+              {(() => { const a = PROFILI_FATTURA.find((p) => p.id === profilo)?.aiuto; return a ? tr(a) : a; })()}
+              {profiloScelto === null && matchedAnagrafica && ` ${tr("Proposto dall'anagrafica.")}`}
             </p>
           </details>
         </div>
@@ -1312,7 +1314,7 @@ export function CreaFatturaDialog({
           <>
             <Separator />
             <div className="space-y-2">
-              <p className={sectionTitle}>Rata di riferimento</p>
+              <p className={sectionTitle}>{tr("Rata di riferimento")}</p>
               {/* A capo anche su telefono: in una fila che scorre, la rata scelta poteva restare fuori dallo schermo. */}
               <div className="flex flex-wrap gap-2">
                 <button
@@ -1321,7 +1323,7 @@ export function CreaFatturaDialog({
                   onClick={togliRata}
                   className="rounded-full border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted/30 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground"
                 >
-                  Nessuna rata
+                  {tr("Nessuna rata")}
                 </button>
                 {installments.map((inst) => {
                   const key = inst.id || `pos-${inst.position}`;
@@ -1333,7 +1335,7 @@ export function CreaFatturaDialog({
                       type="button"
                       aria-pressed={isSelected}
                       onClick={() => scegliRata(inst, key)}
-                      title={fatturata ? `Già fatturata${inst.fattura?.numero ? ` con ${inst.fattura.numero}` : ""}` : inst.is_paid ? "Pagata" : undefined}
+                      title={fatturata ? (inst.fattura?.numero ? tr("Già fatturata con {numero}", { numero: inst.fattura.numero }) : tr("Già fatturata")) : inst.is_paid ? tr("Pagata") : undefined}
                       className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                         isSelected
                           ? "bg-primary text-primary-foreground border-primary"
@@ -1342,15 +1344,15 @@ export function CreaFatturaDialog({
                           : "bg-background hover:bg-muted/30 border-border"
                       }`}
                     >
-                      <span>{inst.label || LABEL_MAP[inst.type] || "Pagamento"}</span>{" "}
+                      <span>{inst.label || tr(LABEL_MAP[inst.type] || "Pagamento")}</span>{" "}
                       <span className="tabular-nums">{fmt(inst.amount || 0)}</span>
                       {fatturata && (
                         <span className={`inline-flex items-center gap-0.5 rounded px-1 text-[10px] font-medium ${isSelected ? "bg-primary-foreground/20" : "bg-muted text-muted-foreground"}`}>
-                          <Receipt className="h-2.5 w-2.5" /> {inst.fattura?.numero ?? "Fatturata"}
+                          <Receipt className="h-2.5 w-2.5" /> {inst.fattura?.numero ?? tr("Fatturata")}
                         </span>
                       )}
                       {inst.is_paid && (
-                        <Check className={`h-3 w-3 ml-0.5 ${isSelected ? "" : "text-green-600"}`} aria-label="Pagata" />
+                        <Check className={`h-3 w-3 ml-0.5 ${isSelected ? "" : "text-green-600"}`} aria-label={tr("Pagata")} />
                       )}
                     </button>
                   );
@@ -1359,17 +1361,17 @@ export function CreaFatturaDialog({
               {rataGiaFatturata(selectedInstallment) ? (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  Questa rata è già fatturata{selectedInstallment?.fattura?.numero ? ` con ${selectedInstallment.fattura.numero}` : ""}.
+                  {selectedInstallment?.fattura?.numero ? tr("Questa rata è già fatturata con {numero}.", { numero: selectedInstallment.fattura.numero }) : tr("Questa rata è già fatturata.")}
                 </p>
               ) : selectedInstallment?.is_paid && (
                 <p className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400">
-                  <AlertTriangle className="h-3 w-3" /> Questa rata risulta già pagata.
+                  <AlertTriangle className="h-3 w-3" /> {tr("Questa rata risulta già pagata.")}
                 </p>
               )}
               {selectedInstallment && mode !== "importo" && totali.totale_documento > 0 && Math.abs(totali.totale_documento - (selectedInstallment.amount || 0)) > 1 && (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  La fattura vale {fmt(totali.totale_documento)}, la rata {fmt(selectedInstallment.amount || 0)}: pagata la fattura, la rata risulterà pagata per intero. Se non è così, togli la rata con un clic.
+                  {tr("La fattura vale {fattura}, la rata {rata}: pagata la fattura, la rata risulterà pagata per intero. Se non è così, togli la rata con un clic.", { fattura: fmt(totali.totale_documento), rata: fmt(selectedInstallment.amount || 0) })}
                 </p>
               )}
             </div>
@@ -1382,15 +1384,15 @@ export function CreaFatturaDialog({
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className={`${sectionTitle} flex items-center gap-1.5`}>
-              Righe della fattura ({righeFattura.length})
+              {tr("Righe della fattura ({n})", { n: righeFattura.length })}
             </p>
             {/* Solo ciò che su questa commessa esiste: il SAL, le fasi vendute, gli articoli. */}
-            <div className="inline-flex flex-wrap rounded-md border p-0.5 bg-muted/40" role="group" aria-label="Compila le righe da">
+            <div className="inline-flex flex-wrap rounded-md border p-0.5 bg-muted/40" role="group" aria-label={tr("Compila le righe da")}>
               {([
-                { id: "importo", etichetta: "Un importo", icona: Receipt },
+                { id: "importo", etichetta: tr("Un importo"), icona: Receipt },
                 ...(salDisponibili.length > 0 ? [{ id: "sal", etichetta: "SAL", icona: ClipboardCheck }] : []),
-                ...(fasiVendute.length > 0 ? [{ id: "fasi", etichetta: "Fasi", icona: Layers }] : []),
-                ...(orderItems.length > 0 ? [{ id: "articoli", etichetta: "Articoli", icona: Package }] : []),
+                ...(fasiVendute.length > 0 ? [{ id: "fasi", etichetta: tr("Fasi"), icona: Layers }] : []),
+                ...(orderItems.length > 0 ? [{ id: "articoli", etichetta: tr("Articoli"), icona: Package }] : []),
               ] as Array<{ id: ModoFattura; etichetta: string; icona: typeof Receipt }>).map((o) => (
                 <button
                   key={o.id}
@@ -1424,14 +1426,14 @@ export function CreaFatturaDialog({
               {documentiErrore && (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  Non riesco a leggere le fatture già fatte su questa commessa: controlla tu il già fatturato.
+                  {tr("Non riesco a leggere le fatture già fatte su questa commessa: controlla tu il già fatturato.")}
                 </p>
               )}
-              {riservatoInBozza > 0 && <p role="status" className="text-xs text-amber-700">{fmt(riservatoInBozza)} IVA esclusa sono in bozza e non sono fatturato emesso. Trovi le bozze in «Fatture e Incassi».</p>}
+              {riservatoInBozza > 0 && <p role="status" className="text-xs text-amber-700">{tr("{importo} IVA esclusa sono in bozza e non sono fatturato emesso. Trovi le bozze in «Fatture e Incassi».", { importo: fmt(riservatoInBozza) })}</p>}
               {(mode === "fasi" || (mode === "sal" && salAttivo && statoSal(salAttivo).stato === "da_fatturare")) && fatturato.senzaDettaglio > 0 && (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  Su questa commessa ci sono già {fmt(fatturato.senzaDettaglio)} senza IVA in fatture o bozze senza dettaglio per fase: {mode !== "fasi" ? (salAttivo && certificatoDelSal(salAttivo.sal_certificati) ? "controlla che non comprendano già questo SAL." : "se è un acconto, questo SAL senza certificato di pagamento non lo toglie e lo fatturi una seconda volta: aggiungi il certificato al SAL (recupero acconto) prima di fatturare.") : Number.isFinite(residuoContratto) ? `le quote proposte si fermano ai ${fmt(residuoContratto)} che restano del contratto.` : "controlla le quote prima di creare la fattura."}
+                  {tr("Su questa commessa ci sono già {importo} senza IVA in fatture o bozze senza dettaglio per fase:", { importo: fmt(fatturato.senzaDettaglio) })} {mode !== "fasi" ? (salAttivo && certificatoDelSal(salAttivo.sal_certificati) ? tr("controlla che non comprendano già questo SAL.") : tr("se è un acconto, questo SAL senza certificato di pagamento non lo toglie e lo fatturi una seconda volta: aggiungi il certificato al SAL (recupero acconto) prima di fatturare.")) : Number.isFinite(residuoContratto) ? tr("le quote proposte si fermano ai {importo} che restano del contratto.", { importo: fmt(residuoContratto) }) : tr("controlla le quote prima di creare la fattura.")}
                 </p>
               )}
               {/* Le righe di un SAL non dicono quali fasi contenevano: dopo averlo fatturato,
@@ -1439,36 +1441,35 @@ export function CreaFatturaDialog({
               {mode === "fasi" && fatturato.salFatturati.size > 0 && (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  {fatturato.salFatturati.size === 1 ? "Un SAL è già stato fatturato" : `${fatturato.salFatturati.size} SAL sono già stati fatturati`} su
-                  questa commessa: i lavori che c'erano dentro compaiono qui come ancora da fatturare. Controlla di non fatturarli due volte.
+                  {tr(fatturato.salFatturati.size === 1 ? "Un SAL è già stato fatturato su questa commessa: i lavori che c'erano dentro compaiono qui come ancora da fatturare. Controlla di non fatturarli due volte." : "{n} SAL sono già stati fatturati su questa commessa: i lavori che c'erano dentro compaiono qui come ancora da fatturare. Controlla di non fatturarli due volte.", { n: fatturato.salFatturati.size })}
                 </p>
               )}
               {mode !== "importo" && contrattoNetto > 0 && round2(fatturato.totale + totali.imponibile_totale) > contrattoNetto + 1 && (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  Con questa bozza il totale delle fatture e bozze arriva a {fmt(round2(fatturato.totale + totali.imponibile_totale))}, oltre il contratto di {fmt(contrattoNetto)} senza IVA.
+                  {tr("Con questa bozza il totale delle fatture e bozze arriva a {totale}, oltre il contratto di {contratto} senza IVA.", { totale: fmt(round2(fatturato.totale + totali.imponibile_totale)), contratto: fmt(contrattoNetto) })}
                 </p>
               )}
 
               {fonteMostrata && <>
-                  {vatSplit && <p role="status" className="rounded-md bg-blue-50 p-2 text-xs text-blue-900">IVA mista: proponiamo due righe al 10% e al 22% in proporzione al contratto. Verifica le quote nelle righe della fattura prima di salvare; per SAL, fasi e articoli conferma l’aliquota di ogni riga.</p>}
+                  {vatSplit && <p role="status" className="rounded-md bg-blue-50 p-2 text-xs text-blue-900">{tr("IVA mista: proponiamo due righe al 10% e al 22% in proporzione al contratto. Verifica le quote nelle righe della fattura prima di salvare; per SAL, fasi e articoli conferma l’aliquota di ogni riga.")}</p>}
               {/* Una riga a corpo: l'importo della rata, che si cambia in € o in %. */}
               {mode === "importo" && (
                 <div className="rounded-lg border p-3 space-y-2.5">
                   {ritenutaDaSvincolare > 0 && (
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-[11px]">
-                      <span>Ritenuta di garanzia trattenuta sui SAL: <strong className="tabular-nums">{fmt(ritenutaDaSvincolare)}</strong> senza IVA. Si fattura allo svincolo (collaudo o scadenza).</span>
+                      <span>{tr("Ritenuta di garanzia trattenuta sui SAL:")} <strong className="tabular-nums">{fmt(ritenutaDaSvincolare)}</strong> {tr("senza IVA. Si fattura allo svincolo (collaudo o scadenza).")}</span>
                       <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={() => {
                         setRataManualeId(null);
                         setImporto({ descrizione: `${DESCRIZIONE_SVINCOLO} trattenuta sui SAL${orderCode ? ` — commessa ${orderCode}` : ""}`, lordo: scriviImporto(ritenutaDaSvincolare * (1 + defaultVat / 100)), aliquota: String(defaultVat) });
                         dimenticaPrezzi((id) => id.startsWith("importo-rata"));
-                      }}>Fattura lo svincolo</Button>
+                      }}>{tr("Fattura lo svincolo")}</Button>
                     </div>
                   )}
 
                   <div className="grid grid-cols-3 gap-2 items-end">
                     <div className="space-y-1">
-                      <Label htmlFor="fatt-imp-lordo" className="text-[11px] text-muted-foreground">Importo IVA inclusa</Label>
+                      <Label htmlFor="fatt-imp-lordo" className="text-[11px] text-muted-foreground">{tr("Importo IVA inclusa")}</Label>
                       <Input
                         id="fatt-imp-lordo"
                         value={importo.lordo}
@@ -1478,7 +1479,7 @@ export function CreaFatturaDialog({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="fatt-imp-perc" className="text-[11px] text-muted-foreground">% del contratto</Label>
+                      <Label htmlFor="fatt-imp-perc" className="text-[11px] text-muted-foreground">{tr("% del contratto")}</Label>
                       <Input
                         id="fatt-imp-perc"
                         value={percScritta ?? (contratto > 0 ? scriviPercentuale(percentualeImporto) : "")}
@@ -1508,9 +1509,9 @@ export function CreaFatturaDialog({
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
                     <span>
-                      Contratto {fmt(contratto)}
+                      {tr("Contratto {importo}", { importo: fmt(contratto) })}
                       {selectedInstallment && (
-                        <> · rata prevista {fmt(selectedInstallment.amount || 0)}
+                        <> · {tr("rata prevista {importo}", { importo: fmt(selectedInstallment.amount || 0) })}
                           {contratto > 0 && ` (${scriviPercentuale(((selectedInstallment.amount || 0) / contratto) * 100)}%)`}</>
                       )}
                     </span>
@@ -1520,7 +1521,7 @@ export function CreaFatturaDialog({
                         onClick={() => applicaRata(selectedInstallment)}
                         className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
                       >
-                        <RotateCcw className="h-3 w-3" /> Torna all'importo della rata
+                        <RotateCcw className="h-3 w-3" /> {tr("Torna all'importo della rata")}
                       </button>
                     )}
                   </div>
@@ -1531,7 +1532,7 @@ export function CreaFatturaDialog({
               {mode === "sal" && (
                 <div className="border rounded-lg overflow-hidden">
                   <div className="px-3 py-1.5 bg-muted/60 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Verbali SAL · importi senza IVA
+                    {tr("Verbali SAL · importi senza IVA")}
                   </div>
                   <div className="divide-y max-h-56 overflow-auto">
                     {salDisponibili.map((sal) => {
@@ -1547,15 +1548,15 @@ export function CreaFatturaDialog({
                           className={`w-full grid grid-cols-[1fr_auto] gap-2 px-3 py-2 text-left text-xs ${attivo ? "bg-primary/5" : "hover:bg-muted/30"} disabled:opacity-60 disabled:hover:bg-transparent`}
                         >
                           <span className="min-w-0">
-                            <span className="font-medium">SAL n. {sal.numero_sal}</span>
+                            <span className="font-medium">{tr("SAL n. {n}", { n: sal.numero_sal })}</span>
                             {sal.data_emissione && <span className="text-muted-foreground"> · {dataIt(sal.data_emissione)}</span>}
-                            <span className="text-muted-foreground"> · cumulativo {fmt(Number(sal.importo_totale))}</span>
+                            <span className="text-muted-foreground"> · {tr("cumulativo {importo}", { importo: fmt(Number(sal.importo_totale)) })}</span>
                           </span>
                           <span className="text-right tabular-nums">
                             {stato === "gia_fatturato"
-                              ? <span className="text-green-700 dark:text-green-400">Già fatturato</span>
+                              ? <span className="text-green-700 dark:text-green-400">{tr("Già fatturato")}</span>
                               : stato === "senza_quota"
-                                ? <span className="text-muted-foreground">Niente di nuovo</span>
+                                ? <span className="text-muted-foreground">{tr("Niente di nuovo")}</span>
                                 : <span className="font-medium">{fmt(quotaSal)}</span>}
                           </span>
                         </button>
@@ -1570,11 +1571,11 @@ export function CreaFatturaDialog({
                 <div className="border rounded-lg overflow-hidden">
                   <div className="hidden sm:grid grid-cols-[22px_1fr_84px_44px_84px_96px] gap-1 px-3 py-1.5 bg-muted/60 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     <span />
-                    <span>Fase · senza IVA</span>
-                    <span className="text-right">Venduto</span>
-                    <span className="text-right">Avanz.</span>
-                    <span className="text-right">In fatture/bozze</span>
-                    <span className="text-right">Ora</span>
+                    <span>{tr("Fase · senza IVA")}</span>
+                    <span className="text-right">{tr("Venduto")}</span>
+                    <span className="text-right">{tr("Avanz.")}</span>
+                    <span className="text-right">{tr("In fatture/bozze")}</span>
+                    <span className="text-right">{tr("Ora")}</span>
                   </div>
                   <div className="divide-y max-h-72 overflow-auto">
                     {fasiVendute.map((f) => {
@@ -1583,7 +1584,7 @@ export function CreaFatturaDialog({
                       return (
                         <div key={f.id} className={s.esclusa ? "opacity-45" : ""}>
                           <div className="grid grid-cols-[22px_1fr_96px] sm:grid-cols-[22px_1fr_84px_44px_84px_96px] gap-1 px-3 py-2 text-xs items-center">
-                            <Checkbox checked={!s.esclusa} onCheckedChange={() => cambiaScelta(f.id, { esclusa: !s.esclusa })} aria-label={`In fattura: ${f.nome}`} />
+                            <Checkbox checked={!s.esclusa} onCheckedChange={() => cambiaScelta(f.id, { esclusa: !s.esclusa })} aria-label={tr("In fattura: {voce}", { voce: f.nome })} />
                             <span className="min-w-0">
                               <span className="leading-tight line-clamp-2">{f.nome}</span>
                               {vociFase.length > 0 && (
@@ -1594,11 +1595,11 @@ export function CreaFatturaDialog({
                                   className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-medium text-primary hover:underline"
                                 >
                                   <ChevronRight className={`h-3 w-3 transition-transform ${s.aperta ? "rotate-90" : ""}`} />
-                                  {vociFase.length} {vociFase.length === 1 ? "voce" : "voci"} del computo
+                                  {tr(vociFase.length === 1 ? "{n} voce del computo" : "{n} voci del computo", { n: vociFase.length })}
                                 </button>
                               )}
                               <span className="block sm:hidden text-[10px] text-muted-foreground tabular-nums">
-                                {fmt(f.venduto)} · {f.avanzamento}% · in fatture/bozze {fmt(f.gia)}
+                                {fmt(f.venduto)} · {f.avanzamento}% · {tr("in fatture/bozze {importo}", { importo: fmt(f.gia) })}
                               </span>
                             </span>
                             <span className="hidden sm:block text-right tabular-nums text-muted-foreground">{fmt(f.venduto)}</span>
@@ -1612,7 +1613,7 @@ export function CreaFatturaDialog({
                                 onChange={(e) => cambiaScelta(f.id, { importo: e.target.value })}
                                 disabled={!!s.esclusa}
                                 inputMode="decimal"
-                                aria-label={`Importo da fatturare: ${f.nome}`}
+                                aria-label={tr("Importo da fatturare: {voce}", { voce: f.nome })}
                                 className="h-7 text-xs text-right tabular-nums px-1.5"
                               />
                             )}
@@ -1625,12 +1626,12 @@ export function CreaFatturaDialog({
                                 const calcolato = voceCalcolata(v, f);
                                 return (
                                   <div key={v.id} className={`grid grid-cols-[22px_1fr_96px] gap-1 py-1.5 pl-8 pr-3 text-[11px] items-center ${sv.esclusa ? "opacity-45" : ""}`}>
-                                    <Checkbox checked={!sv.esclusa} onCheckedChange={() => cambiaScelta(v.id, { esclusa: !sv.esclusa })} aria-label={`In fattura: ${v.descrizione}`} />
+                                    <Checkbox checked={!sv.esclusa} onCheckedChange={() => cambiaScelta(v.id, { esclusa: !sv.esclusa })} aria-label={tr("In fattura: {voce}", { voce: v.descrizione })} />
                                     <span className="min-w-0 leading-tight">
                                       <span className="line-clamp-2">{v.descrizione}</span>
                                       <span className="block text-[10px] text-muted-foreground tabular-nums">
                                         {v.quantita != null && v.unita ? `${String(v.quantita).replace(".", ",")} ${v.unita} · ` : ""}{fmt(Number(v.importo))}
-                                        {giaVoce > 0 ? ` · in fatture/bozze ${fmt(giaVoce)}` : ""}
+                                        {giaVoce > 0 ? ` · ${tr("in fatture/bozze {importo}", { importo: fmt(giaVoce) })}` : ""}
                                       </span>
                                     </span>
                                     <Input
@@ -1638,7 +1639,7 @@ export function CreaFatturaDialog({
                                       onChange={(e) => cambiaScelta(v.id, { importo: e.target.value })}
                                       disabled={!!sv.esclusa}
                                       inputMode="decimal"
-                                      aria-label={`Importo da fatturare: ${v.descrizione}`}
+                                      aria-label={tr("Importo da fatturare: {voce}", { voce: v.descrizione })}
                                       className="h-6 text-[11px] text-right tabular-nums px-1.5"
                                     />
                                   </div>
@@ -1652,7 +1653,7 @@ export function CreaFatturaDialog({
                     {fuoriFasi > 0 && (
                       <div className="grid grid-cols-[22px_1fr_96px] sm:grid-cols-[22px_1fr_84px_44px_84px_96px] gap-1 px-3 py-2 text-xs items-center">
                         <span />
-                        <span className="leading-tight text-muted-foreground">Fuori dalle fasi</span>
+                        <span className="leading-tight text-muted-foreground">{tr("Fuori dalle fasi")}</span>
                         <span className="hidden sm:block text-right tabular-nums text-muted-foreground">{fmt(fuoriFasi)}</span>
                         <span className="hidden sm:block" />
                         <span className="hidden sm:block" />
@@ -1661,7 +1662,7 @@ export function CreaFatturaDialog({
                           onChange={(e) => cambiaScelta("fuori-fasi", { importo: e.target.value })}
                           placeholder="0,00"
                           inputMode="decimal"
-                          aria-label="Importo da fatturare fuori dalle fasi"
+                          aria-label={tr("Importo da fatturare fuori dalle fasi")}
                           className="h-7 text-xs text-right tabular-nums px-1.5"
                         />
                       </div>
@@ -1670,7 +1671,7 @@ export function CreaFatturaDialog({
                   {contrattoNetto > 0 && totaleFasi > contrattoNetto + 1 && (
                     <p className="flex items-start gap-1.5 border-t px-3 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
                       <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                      Le fasi sommano {fmt(totaleFasi)}, il contratto {fmt(contrattoNetto)} senza IVA: controlla il venduto delle fasi.
+                      {tr("Le fasi sommano {fasi}, il contratto {contratto} senza IVA: controlla il venduto delle fasi.", { fasi: fmt(totaleFasi), contratto: fmt(contrattoNetto) })}
                     </p>
                   )}
                 </div>
@@ -1681,11 +1682,11 @@ export function CreaFatturaDialog({
                 <div className="border rounded-lg overflow-hidden">
                   <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 bg-muted/60">
                     <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      <Package className="h-3 w-3" /> Articoli · {includedItemRighe.length}/{orderItems.length} in fattura
+                      <Package className="h-3 w-3" /> {tr("Articoli · {inclusi}/{totale} in fattura", { inclusi: includedItemRighe.length, totale: orderItems.length })}
                     </span>
                     <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground" title="Per fatturare un SAL sugli articoli: ogni articolo al X%">
-                        Quota
+                      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground" title={tr("Per fatturare un SAL sugli articoli: ogni articolo al X%")}>
+                        {tr("Quota")}
                         <Input
                           value={quotaArticoli}
                           onChange={(e) => { setQuotaArticoli(e.target.value); dimenticaPrezzi((id) => orderItems.some((i) => i.id === id)); }}
@@ -1694,8 +1695,8 @@ export function CreaFatturaDialog({
                         />
                         %
                       </label>
-                      <button type="button" className="text-[10px] font-medium text-primary hover:underline" onClick={() => setExcludedItemIds(new Set())}>Tutti</button>
-                      <button type="button" className="text-[10px] font-medium text-muted-foreground hover:underline" onClick={() => setExcludedItemIds(new Set(orderItems.map((i) => i.id)))}>Nessuno</button>
+                      <button type="button" className="text-[10px] font-medium text-primary hover:underline" onClick={() => setExcludedItemIds(new Set())}>{tr("Tutti")}</button>
+                      <button type="button" className="text-[10px] font-medium text-muted-foreground hover:underline" onClick={() => setExcludedItemIds(new Set(orderItems.map((i) => i.id)))}>{tr("Nessuno")}</button>
                     </div>
                   </div>
                   <div className="divide-y max-h-56 overflow-auto">
@@ -1731,20 +1732,20 @@ export function CreaFatturaDialog({
                           value={testo}
                           onChange={(e) => scriviRiga(r.id, { descrizione: e.target.value })}
                           rows={Math.min(8, Math.max(2, testo.split("\n").reduce((righe, t) => righe + Math.max(1, Math.ceil(t.length / (isMobile ? 38 : 90))), 0)))}
-                          placeholder="Descrizione: acconto, saldo, lavori eseguiti, riferimento al preventivo, CIG…"
-                          aria-label="Descrizione della riga"
+                          placeholder={tr("Descrizione: acconto, saldo, lavori eseguiti, riferimento al preventivo, CIG…")}
+                          aria-label={tr("Descrizione della riga")}
                           autoFocus={!r.descrizione && t.descrizione === undefined}
                           maxLength={1000}
                           className="min-h-0 resize-y px-2 py-1.5 text-xs leading-snug"
                         />
                         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 max-sm:grid max-sm:grid-cols-[1fr_1.3fr_1.8fr_1fr] max-sm:gap-x-1.5 max-sm:items-end">
-                          <label className={etichetta}>Q.tà<Input value={t.quantita ?? String(r.quantita).replace(".", ",")} onChange={(e) => scriviRiga(r.id, { quantita: e.target.value })} inputMode="decimal" aria-label="Quantità" className={`${campo} w-12 text-right max-sm:w-full`} /></label>
-                          <label className={etichetta}>U.m.<Input value={t.unita ?? r.unita_misura} onChange={(e) => scriviRiga(r.id, { unita: e.target.value })} aria-label="Unità di misura" className={`${campo} w-16 max-sm:w-full`} /></label>
-                          <label className={etichetta}>Prezzo<Input value={t.prezzo ?? scriviImporto(r.prezzo_unitario)} onChange={(e) => scriviRiga(r.id, { prezzo: e.target.value })} inputMode="decimal" aria-label="Prezzo senza IVA" className={`${campo} w-24 text-right max-sm:w-full`} /></label>
-                          <label className={etichetta}>IVA %<Input value={t.aliquota ?? (r.natura_iva ? "0" : r.aliquota_iva)} onChange={(e) => scriviRiga(r.id, { aliquota: e.target.value })} disabled={!!r.natura_iva} inputMode="decimal" aria-label="Aliquota IVA" className={`${campo} w-11 text-right max-sm:w-full`} /></label>
+                          <label className={etichetta}>{tr("Q.tà")}<Input value={t.quantita ?? String(r.quantita).replace(".", ",")} onChange={(e) => scriviRiga(r.id, { quantita: e.target.value })} inputMode="decimal" aria-label={tr("Quantità")} className={`${campo} w-12 text-right max-sm:w-full`} /></label>
+                          <label className={etichetta}>{tr("U.m.")}<Input value={t.unita ?? r.unita_misura} onChange={(e) => scriviRiga(r.id, { unita: e.target.value })} aria-label={tr("Unità di misura")} className={`${campo} w-16 max-sm:w-full`} /></label>
+                          <label className={etichetta}>{tr("Prezzo")}<Input value={t.prezzo ?? scriviImporto(r.prezzo_unitario)} onChange={(e) => scriviRiga(r.id, { prezzo: e.target.value })} inputMode="decimal" aria-label={tr("Prezzo senza IVA")} className={`${campo} w-24 text-right max-sm:w-full`} /></label>
+                          <label className={etichetta}>IVA %<Input value={t.aliquota ?? (r.natura_iva ? "0" : r.aliquota_iva)} onChange={(e) => scriviRiga(r.id, { aliquota: e.target.value })} disabled={!!r.natura_iva} inputMode="decimal" aria-label={tr("Aliquota IVA")} className={`${campo} w-11 text-right max-sm:w-full`} /></label>
                           <span className="flex items-center justify-end gap-3 max-sm:col-span-full">
                             <span className="min-w-[84px] text-right text-xs font-medium tabular-nums">{fmt(r.imponibile)}</span>
-                            <button type="button" onClick={() => togliRiga(r.id)} title="Togli la riga" aria-label={`Togli la riga: ${r.descrizione || "senza descrizione"}`} className="text-muted-foreground hover:text-red-600">
+                            <button type="button" onClick={() => togliRiga(r.id)} title={tr("Togli la riga")} aria-label={tr("Togli la riga: {riga}", { riga: r.descrizione || tr("senza descrizione") })} className="text-muted-foreground hover:text-red-600">
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </span>
@@ -1755,9 +1756,9 @@ export function CreaFatturaDialog({
                 </div>
                 <div className="border-t px-2 py-1.5">
                   <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={aggiungiRiga}>
-                    <Plus className="h-3.5 w-3.5" /> Aggiungi riga
+                    <Plus className="h-3.5 w-3.5" /> {tr("Aggiungi riga")}
                   </Button>
-                  <span className="ml-1 hidden text-[11px] text-muted-foreground sm:inline">A prezzo 0 è una riga di solo testo (CIG, preventivo, CILA…).</span>
+                  <span className="ml-1 hidden text-[11px] text-muted-foreground sm:inline">{tr("A prezzo 0 è una riga di solo testo (CIG, preventivo, CILA…).")}</span>
                 </div>
               </div>
 
@@ -1780,12 +1781,12 @@ export function CreaFatturaDialog({
                   <Info className="h-4 w-4 shrink-0" />
                   <span>
                     {mode === "importo"
-                      ? "Scrivi l'importo da fatturare o aggiungi una riga."
+                      ? tr("Scrivi l'importo da fatturare o aggiungi una riga.")
                       : mode === "sal"
-                        ? "Nessun SAL con una quota da fatturare: scegline un altro o aggiungi una riga."
+                        ? tr("Nessun SAL con una quota da fatturare: scegline un altro o aggiungi una riga.")
                         : mode === "fasi"
-                          ? "Nessun importo proposto: verifica l'avanzamento delle fasi e gli importi già presenti in fatture o bozze. Puoi inserire un importo o aggiungere una riga."
-                          : "Nessuna riga selezionata: includi almeno un articolo o aggiungi una riga."}
+                          ? tr("Nessun importo proposto: verifica l'avanzamento delle fasi e gli importi già presenti in fatture o bozze. Puoi inserire un importo o aggiungere una riga.")
+                          : tr("Nessuna riga selezionata: includi almeno un articolo o aggiungi una riga.")}
                   </span>
                 </div>
               )}
@@ -1795,19 +1796,19 @@ export function CreaFatturaDialog({
                 <div className="rounded-lg border bg-muted/30 px-3 py-2 space-y-0.5">
                   {composta.effetti.esigibilita_iva === "S" && (
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>IVA versata dall'ente (split payment)</span>
+                      <span>{tr("IVA versata dall'ente (split payment)")}</span>
                       <span className="tabular-nums">−{fmt(totali.iva_totale)}</span>
                     </div>
                   )}
                   {totali.ritenuta_importo > 0 && (
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Ritenuta del 4% (condominio)</span>
+                      <span>{tr("Ritenuta del 4% (condominio)")}</span>
                       <span className="tabular-nums">−{fmt(totali.ritenuta_importo)}</span>
                     </div>
                   )}
                   {round2(totali.totale_da_pagare) !== round2(totali.totale_documento) && (
                     <div className="flex justify-between text-sm font-semibold">
-                      <span>Il cliente ti paga</span>
+                      <span>{tr("Il cliente ti paga")}</span>
                       <span className="tabular-nums">{fmt(totali.totale_da_pagare)}</span>
                     </div>
                   )}
@@ -1823,7 +1824,7 @@ export function CreaFatturaDialog({
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
             <p className={`${sectionTitle} flex items-center gap-1.5`}>
               <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" aria-hidden />
-              <Scale className="h-3.5 w-3.5" /> Clausole in fattura ({causaleArr.length})
+              <Scale className="h-3.5 w-3.5" /> {tr("Clausole in fattura ({n})", { n: causaleArr.length })}
             </p>
           </summary>
 
@@ -1838,25 +1839,25 @@ export function CreaFatturaDialog({
                   <label htmlFor={`cl-${c.id}`} className="flex-1 min-w-0 cursor-pointer">
                     <span className="text-xs font-medium">{c.titolo}</span>
                     <span className="ml-1.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                      dalle tue condizioni
+                      {tr("dalle tue condizioni")}
                     </span>
                     <span className="block text-[11px] text-muted-foreground leading-snug line-clamp-2">{c.testo}</span>
                   </label>
                 </div>
               </div>
             ))}
-            {clausoleMie.map((c) => rigaClausola(c.id, "Clausola aggiunta da te", undefined, true))}
+            {clausoleMie.map((c) => rigaClausola(c.id, tr("Clausola aggiunta da te"), undefined, true))}
             <div className="flex gap-1.5 p-2">
               <Input
-                aria-label="Nuova clausola personalizzata"
+                aria-label={tr("Nuova clausola personalizzata")}
                 value={nuovaClausola}
                 onChange={(e) => setNuovaClausola(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); aggiungiClausolaMia(); } }}
-                placeholder="Scrivi una clausola tua (es. Penale per ritardo, Collaudo entro…)"
+                placeholder={tr("Scrivi una clausola tua (es. Penale per ritardo, Collaudo entro…)")}
                 className="h-8 text-xs"
               />
               <Button type="button" size="sm" variant="outline" className="h-8 gap-1 shrink-0" onClick={aggiungiClausolaMia}>
-                <Plus className="h-3.5 w-3.5" /> Aggiungi
+                <Plus className="h-3.5 w-3.5" /> {tr("Aggiungi")}
               </Button>
             </div>
           </div>
@@ -1867,8 +1868,8 @@ export function CreaFatturaDialog({
             onClick={() => setAltreClausole((v) => !v)}
             className="text-[11px] font-medium text-primary hover:underline"
           >
-            {altreClausole ? "Nascondi" : "Mostra"} le clausole degli altri tipi ({clausoleAltre.length}
-            {altreAttive > 0 && `, ${altreAttive} spuntate`})
+            {altreClausole ? tr("Nascondi le clausole degli altri tipi") : tr("Mostra le clausole degli altri tipi")} ({clausoleAltre.length}
+            {altreAttive > 0 && `, ${tr("{n} spuntate", { n: altreAttive })}`})
           </button>
           {altreClausole && (
             <div className="rounded-lg border divide-y">
@@ -1885,16 +1886,16 @@ export function CreaFatturaDialog({
           {mostraCigCup && (
             <div className="rounded-lg border p-3 space-y-3" data-testid="sezione-pa-fattura">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="text-xs font-medium">Dati appalto e fatturazione PA</p>
+                <p className="text-xs font-medium">{tr("Dati appalto e fatturazione PA")}</p>
                 {riferimentiScelti && (
                   <button type="button" className="text-[11px] text-primary hover:underline" onClick={() => setRiferimentiScelti(null)}>
-                    Riprendi quelli della commessa
+                    {tr("Riprendi quelli della commessa")}
                   </button>
                 )}
               </div>
               {clientePA && matchedAnagrafica?.id && (
                 <div className="space-y-1">
-                  <Label htmlFor="fatt-ufficio-pa" className="text-[11px] text-muted-foreground">Ufficio destinatario (Codice Univoco Ufficio)</Label>
+                  <Label htmlFor="fatt-ufficio-pa" className="text-[11px] text-muted-foreground">{tr("Ufficio destinatario (Codice Univoco Ufficio)")}</Label>
                   <SelettoreUfficioPa
                     id="fatt-ufficio-pa"
                     anagraficaId={matchedAnagrafica.id}
@@ -1905,8 +1906,8 @@ export function CreaFatturaDialog({
                   />
                   {datiPa.ufficio && (
                     <p className="text-[11px] text-muted-foreground" data-testid="origine-ufficio">
-                      Codice <span className="font-mono">{datiPa.ufficio.codice}</span> ·{" "}
-                      {datiPa.ufficio.origine === "manuale" ? "scelto qui" : datiPa.ufficio.origine === "commessa" ? "dalla commessa" : "dall'anagrafica (predefinito)"}
+                      {tr("Codice")} <span className="font-mono">{datiPa.ufficio.codice}</span> ·{" "}
+                      {datiPa.ufficio.origine === "manuale" ? tr("scelto qui") : datiPa.ufficio.origine === "commessa" ? tr("dalla commessa") : tr("dall'anagrafica (predefinito)")}
                     </p>
                   )}
                 </div>
@@ -1915,31 +1916,29 @@ export function CreaFatturaDialog({
                 <p key={a} className="text-[11px] text-amber-700 dark:text-amber-400">{a}</p>
               ))}
               {rifCommessaPending ? (
-                <p className="text-xs text-muted-foreground">Carico i riferimenti della commessa…</p>
+                <p className="text-xs text-muted-foreground">{tr("Carico i riferimenti della commessa…")}</p>
               ) : (
                 <RiferimentiPaFatturaEditor
                   value={riferimentiPa}
                   onChange={setRiferimentiScelti}
                   righe={previewRighe}
-                  vuoto="La commessa non ha riferimenti PA: aggiungili qui (valgono solo per questa fattura) o nella Panoramica della commessa."
+                  vuoto={tr("La commessa non ha riferimenti PA: aggiungili qui (valgono solo per questa fattura) o nella Panoramica della commessa.")}
                 />
               )}
               {(profilo === "pa" || clientePA) && !riferimentiPa.some((r) => r.cig || r.cig_non_dovuto) && (
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                  Per un appalto pubblico il CIG in fattura è obbligatorio: senza, l'ente non può pagarla e la fattura non si invia.
-                  Se per questo affidamento non è dovuto, spunta «non dovuto» e scrivi il motivo.
+                  {tr("Per un appalto pubblico il CIG in fattura è obbligatorio: senza, l'ente non può pagarla e la fattura non si invia.")}{" "}
+                  {tr("Se per questo affidamento non è dovuto, spunta «non dovuto» e scrivi il motivo.")}
                 </p>
               )}
               {profilo === "pa" && matchedAnagrafica && !anagraficaPA && (
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                  In anagrafica il cliente non è segnato come Pubblica Amministrazione: questa fattura parte come
-                  fattura PA perché l'hai scelto qui. Correggi anche l'anagrafica, così la prossima volta è già giusta.
+                  {tr("In anagrafica il cliente non è segnato come Pubblica Amministrazione: questa fattura parte come fattura PA perché l'hai scelto qui. Correggi anche l'anagrafica, così la prossima volta è già giusta.")}
                 </p>
               )}
               {profilo === "pa" && !codiceUfficioValido(datiPa.ufficio?.codice ?? clienteSnapshot?.codice_sdi) && (
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                  Manca il Codice Univoco Ufficio dell'ente (6 caratteri): senza, lo SDI non sa a quale ufficio consegnare
-                  la fattura. Aggiungi l'ufficio nella scheda del cliente (uffici PA) o sceglilo nell'editor prima dell'invio.
+                  {tr("Manca il Codice Univoco Ufficio dell'ente (6 caratteri): senza, lo SDI non sa a quale ufficio consegnare la fattura. Aggiungi l'ufficio nella scheda del cliente (uffici PA) o sceglilo nell'editor prima dell'invio.")}
                 </p>
               )}
             </div>
@@ -1952,16 +1951,16 @@ export function CreaFatturaDialog({
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
             <p className={`${sectionTitle} flex items-center gap-1.5`}>
               <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" aria-hidden />
-              <Landmark className="h-3.5 w-3.5" /> Pagamento
+              <Landmark className="h-3.5 w-3.5" /> {tr("Pagamento")}
             </p>
             <span className="text-[11px] tabular-nums text-muted-foreground">
-              {scadenzePagamento.length > 1 ? `${scadenzePagamento.length} scadenze · 30% / 30% / 40%` : `Scadenza ${dataIt(dataScadenza)}`}
+              {scadenzePagamento.length > 1 ? tr("{n} scadenze · 30% / 30% / 40%", { n: scadenzePagamento.length }) : tr("Scadenza {data}", { data: dataIt(dataScadenza) })}
             </span>
           </summary>
           <div className="rounded-lg border p-3 space-y-3">
             <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
               <div className="space-y-1">
-                <Label htmlFor="fattura-metodo" className="text-[11px] text-muted-foreground">Come</Label>
+                <Label htmlFor="fattura-metodo" className="text-[11px] text-muted-foreground">{tr("Come")}</Label>
                 <Select value={metodo} onValueChange={setMetodoScelto}>
                   <SelectTrigger id="fattura-metodo" className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -1974,16 +1973,16 @@ export function CreaFatturaDialog({
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Scadenze della fattura</Label>
+                <Label className="text-[11px] text-muted-foreground">{tr("Scadenze della fattura")}</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {([
-                    ["vista", "Vista fattura"],
-                    ["30", "30 giorni"],
-                    ["60", "60 giorni"],
-                    ["90", "90 giorni"],
+                    ["vista", tr("Vista fattura")],
+                    ["30", tr("30 giorni")],
+                    ["60", tr("60 giorni")],
+                    ["90", tr("90 giorni")],
                     ["30-30-40", "30% / 30% / 40%"],
-                    ...(dataRata ? [["rata", `Data della rata · ${dataIt(dataRata)}`]] : []),
-                    ["data", "Altra data"],
+                    ...(dataRata ? [["rata", tr("Data della rata · {data}", { data: dataIt(dataRata) })]] : []),
+                    ["data", tr("Altra data")],
                   ] as Array<[Scadenza, string]>).map(([k, label]) => (
                     <button
                       key={k}
@@ -2000,7 +1999,7 @@ export function CreaFatturaDialog({
                   {scadenza === "data" && (
                     <Input
                       type="date"
-                      aria-label="Data di scadenza della fattura"
+                      aria-label={tr("Data di scadenza della fattura")}
                       value={dataLibera}
                       onChange={(e) => setDataLibera(e.target.value)}
                       className="h-7 w-36 text-[11px]"
@@ -2010,7 +2009,7 @@ export function CreaFatturaDialog({
               </div>
             </div>
             {scadenzePagamento.length > 1 && (
-              <ol aria-label="Scadenze della fattura" className="grid gap-2 sm:grid-cols-3">
+              <ol aria-label={tr("Scadenze della fattura")} className="grid gap-2 sm:grid-cols-3">
                 {scadenzePagamento.map((rata, i) => (
                   <li key={rata.numero_rata} className="rounded-md border bg-muted/30 px-2 py-1.5 text-xs">
                     <span className="text-muted-foreground">{QUOTE_30_30_40[i]}% · {dataIt(rata.data_scadenza)}</span>
@@ -2021,12 +2020,12 @@ export function CreaFatturaDialog({
             )}
             <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
               <span className="text-muted-foreground">
-                {scadenzePagamento.length === 1 && <>{fmt(totali.totale_da_pagare)} entro il {dataIt(dataScadenza)}</>}
+                {scadenzePagamento.length === 1 && <>{tr("{importo} entro il {data}", { importo: fmt(totali.totale_da_pagare), data: dataIt(dataScadenza) })}</>}
                 {bonifico && iban && <> · IBAN <span className="font-mono text-foreground">{iban.replace(/(.{4})/g, "$1 ").trim()}</span></>}
               </span>
               {bonifico && !iban && (
                 <Link to="/azienda/impostazioni/fatturazione" className="font-medium text-primary hover:underline">
-                  Aggiungi l'IBAN nelle impostazioni
+                  {tr("Aggiungi l'IBAN nelle impostazioni")}
                 </Link>
               )}
             </div>
@@ -2043,7 +2042,7 @@ export function CreaFatturaDialog({
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="fattura-note" className={sectionTitle}>
-              Note in fattura
+              {tr("Note in fattura")}
             </Label>
             <Textarea
               id="fattura-note"
@@ -2054,15 +2053,14 @@ export function CreaFatturaDialog({
               maxLength={500}
             />
             <p className="text-[11px] text-muted-foreground">
-              Righe, importi e clausole si possono ancora cambiare nell'editor che si apre dopo la creazione.
+              {tr("Righe, importi e clausole si possono ancora cambiare nell'editor che si apre dopo la creazione.")}
             </p>
           </div>
           {bonusLines.length > 0 && (
             <div className="rounded-lg border bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-2">
-              <p className="text-xs font-semibold">A quale pratica si riferisce questa fattura?</p>
+              <p className="text-xs font-semibold">{tr("A quale pratica si riferisce questa fattura?")}</p>
               <p className="text-[11px] text-muted-foreground">
-                La commessa è divisa su {bonusLines.length} agevolazioni: scegline una e la clausola
-                si compila da sola.
+                {tr("La commessa è divisa su {n} agevolazioni: scegline una e la clausola si compila da sola.", { n: bonusLines.length })}
               </p>
               <div className="flex flex-wrap gap-2">
                 {bonusLines.map((l) => {
@@ -2086,7 +2084,7 @@ export function CreaFatturaDialog({
                         })
                       }
                     >
-                      {l.label || preset?.label || "Agevolazione"} · {fmt(l.imponibile)}
+                      {l.label || preset?.label || tr("Agevolazione")} · {fmt(l.imponibile)}
                     </Button>
                   );
                 })}
@@ -2098,8 +2096,8 @@ export function CreaFatturaDialog({
           )}
         </div>
         </div>
-        <aside className="fattura-commessa-anteprima" aria-label="Anteprima PDF della bozza">
-          <h3 className="border-b px-3 py-2 text-sm font-medium">Anteprima PDF</h3>
+        <aside className="fattura-commessa-anteprima" aria-label={tr("Anteprima PDF della bozza")}>
+          <h3 className="border-b px-3 py-2 text-sm font-medium">{tr("Anteprima PDF")}</h3>
           <div className="fattura-commessa-foglio">
             {open && <PreviewFattura documento={documentoAnteprima} azienda={aziendaFiscale ?? null} logoAziendale={effectiveCompany?.logo_url} scale={1} />}
           </div>
@@ -2113,15 +2111,15 @@ export function CreaFatturaDialog({
             disabled={rataGiaFatturata(selectedInstallment) || previewRighe.length === 0}
             className="gap-1.5"
           >
-            <Eye className="h-4 w-4" /> Anteprima
+            <Eye className="h-4 w-4" /> {tr("Anteprima")}
           </Button>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Annulla
+              {tr("Annulla")}
             </Button>
             {rataGiaFatturata(selectedInstallment) ? (
               <Button onClick={apriFatturaCollegata} disabled={!idFatturaCollegata}>
-                <Receipt className="mr-1.5 h-4 w-4" /> Apri fattura
+                <Receipt className="mr-1.5 h-4 w-4" /> {tr("Apri fattura")}
               </Button>
             ) : <Button
               onClick={() => { void handleCreaFattura(); }}
@@ -2133,8 +2131,8 @@ export function CreaFatturaDialog({
                 <Receipt className="h-4 w-4 mr-1.5" />
               )}
               {(salvataggio || createMutation.isPending)
-                ? "Creazione in corso..."
-                : `Crea fattura · ${fmt(totali.totale_documento)}`}
+                ? tr("Creazione in corso...")
+                : tr("Crea fattura · {importo}", { importo: fmt(totali.totale_documento) })}
             </Button>}
           </div>
         </DialogFooter>
@@ -2144,9 +2142,9 @@ export function CreaFatturaDialog({
       <Dialog open={anteprima} onOpenChange={setAnteprima}>
         <DialogContent struttura="contenuta" className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-4 py-3 border-b shrink-0">
-            <DialogTitle className="text-sm font-medium">Anteprima — come la riceverà il cliente</DialogTitle>
+            <DialogTitle className="text-sm font-medium">{tr("Anteprima — come la riceverà il cliente")}</DialogTitle>
             <DialogDescription className="text-xs">
-              La bozza non è ancora creata: numero e data li assegna l'emissione.
+              {tr("La bozza non è ancora creata: numero e data li assegna l'emissione.")}
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-auto bg-muted/30 p-4 sm:p-6 flex justify-center">
@@ -2158,12 +2156,12 @@ export function CreaFatturaDialog({
             />
           </div>
           <DialogFooter className="px-4 py-3 border-t shrink-0">
-            <Button variant="outline" onClick={() => setAnteprima(false)}>Torna a modificare</Button>
+            <Button variant="outline" onClick={() => setAnteprima(false)}>{tr("Torna a modificare")}</Button>
             <Button
               onClick={() => { setAnteprima(false); void handleCreaFattura(); }}
               disabled={(salvataggio || createMutation.isPending)}
             >
-              <Receipt className="h-4 w-4 mr-1.5" /> Crea fattura · {fmt(totali.totale_documento)}
+              <Receipt className="h-4 w-4 mr-1.5" /> {tr("Crea fattura · {importo}", { importo: fmt(totali.totale_documento) })}
             </Button>
           </DialogFooter>
         </DialogContent>

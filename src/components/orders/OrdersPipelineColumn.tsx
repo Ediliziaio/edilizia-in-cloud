@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { formatCurrency } from "@/lib/formatters";
 import { inizioOggi, ritardoLavori } from "@/lib/orders/etichettePipeline";
 import { OrdersPipelineCard } from "./OrdersPipelineCard";
@@ -29,6 +30,7 @@ export function OrdersPipelineColumn({
   collapsed = false,
   onToggleCollapse, onMove,
 }: OrdersPipelineColumnProps) {
+  const t = useT();
   const { setNodeRef, isOver } = useDroppable({
     id: status.id,
     disabled: !canDrop,
@@ -53,9 +55,9 @@ export function OrdersPipelineColumn({
     return (
       <section
         ref={setNodeRef}
-        aria-label={`Colonna ${status.name}`}
+        aria-label={t("Colonna {fase}", { fase: status.name })}
         onClick={() => onToggleCollapse?.(status.id)}
-        title={`Espandi "${status.name}"`}
+        title={t("Espandi \"{fase}\"", { fase: status.name })}
         className={cn(
           "flex w-11 shrink-0 cursor-pointer flex-col items-center self-stretch rounded-lg border bg-muted/40 transition-colors hover:bg-muted/70",
           isOver && "border-dashed border-primary bg-primary/10"
@@ -64,7 +66,7 @@ export function OrdersPipelineColumn({
       >
         <button
           type="button"
-          aria-label={`Espandi ${status.name}`}
+          aria-label={t("Espandi {fase}", { fase: status.name })}
           className="mt-1.5 flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-primary"
         >
           <ChevronRight className="h-4 w-4" />
@@ -80,7 +82,7 @@ export function OrdersPipelineColumn({
   }
 
   return (
-    <section ref={setNodeRef} aria-label={`Colonna ${status.name}`} className="flex min-w-[280px] flex-1 flex-col">
+    <section ref={setNodeRef} aria-label={t("Colonna {fase}", { fase: status.name })} className="flex min-w-[280px] flex-1 flex-col">
       {/* Intestazione: riga colorata in alto, conteggio, totale e media */}
       <div
         className="shrink-0 rounded-t-lg border-b bg-muted/60 px-3 py-2.5"
@@ -92,15 +94,15 @@ export function OrdersPipelineColumn({
             <span
               className="rounded-full px-2 py-0.5 text-xs font-bold tabular-nums text-white shadow-sm"
               style={{ backgroundColor: colore }}
-              title={`${orders.length} ${orders.length === 1 ? "commessa" : "commesse"} in "${status.name}"`}
+              title={t(orders.length === 1 ? "{n} commessa in \"{fase}\"" : "{n} commesse in \"{fase}\"", { n: orders.length, fase: status.name })}
             >
               {orders.length}
             </span>
             {onToggleCollapse && (
               <button
                 type="button"
-                title={`Comprimi "${status.name}"`}
-                aria-label={`Comprimi ${status.name}`}
+                title={t("Comprimi \"{fase}\"", { fase: status.name })}
+                aria-label={t("Comprimi {fase}", { fase: status.name })}
                 onClick={() => onToggleCollapse(status.id)}
                 className="flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
@@ -111,8 +113,8 @@ export function OrdersPipelineColumn({
         </div>
         <p className="mt-0.5 h-4 truncate text-[11px] leading-4 text-muted-foreground">
           {orders.length > 0
-            ? showAmounts ? `${formatCurrency(totalAmount)} tot · ${formatCurrency(mediaAmount)} media · IVA incl.` : null
-            : "Nessuna commessa"}
+            ? showAmounts ? t("{totale} tot · {media} media · IVA incl.", { totale: formatCurrency(totalAmount), media: formatCurrency(mediaAmount) }) : null
+            : t("Nessuna commessa")}
         </p>
         {/* Riga sempre presente, anche vuota: così tutte le intestazioni hanno la
             stessa altezza e le commesse partono alla stessa quota in ogni colonna. */}
@@ -120,9 +122,9 @@ export function OrdersPipelineColumn({
           {urgentCount > 0 && (
             <span
               className="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-orange-700 ring-1 ring-orange-200"
-              title="Commesse oltre la scadenza prevista"
+              title={t("Commesse oltre la scadenza prevista")}
             >
-              {urgentCount} in ritardo
+              {t("{n} in ritardo", { n: urgentCount })}
             </span>
           )}
         </div>
@@ -152,7 +154,7 @@ export function OrdersPipelineColumn({
               isOver && "font-medium text-primary"
             )}
           >
-            {isOver ? "Rilascia qui" : "—"}
+            {isOver ? t("Rilascia qui") : "—"}
           </div>
         )}
       </div>

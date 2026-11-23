@@ -8,7 +8,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { CheckCircle2, ClipboardList, Clock, Loader2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { AcquistiCampoCard } from "@/components/warehouse/AcquistiCampoCard";
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,7 @@ interface Correzione {
 export const chiaveCorrezioniCommessa = (orderId: string) => ["correzioni-timbrature-commessa", orderId] as const;
 
 function CorrezioniTimbrature({ orderId, puoDecidere, utenteId, titolare }: { orderId: string; puoDecidere: boolean; utenteId?: string | null; titolare: boolean }) {
+  const t = useT();
   const qc = useQueryClient();
   const [respingi, setRespingi] = useState<{ id: string; testo: string } | null>(null);
   const { data = [], isLoading, isError, refetch } = useQuery({
@@ -66,30 +67,30 @@ function CorrezioniTimbrature({ orderId, puoDecidere, utenteId, titolare }: { or
       if (error) throw error;
     },
     onSuccess: (_d, v) => {
-      toast.success(v.approva ? "Approvata: la timbratura è nel registro" : "Respinta: l’operaio è avvisato");
+      toast.success(v.approva ? t("Approvata: la timbratura è nel registro") : t("Respinta: l’operaio è avvisato"));
       setRespingi(null);
       void qc.invalidateQueries({ queryKey: chiaveCorrezioniCommessa(orderId) });
       void qc.invalidateQueries({ queryKey: ["campo-da-approvare-conteggi", orderId] });
       // Le ore della commessa e del personale ripartono dalla timbratura nuova.
       for (const k of ["daily-hours", "commessa-ore-timbrate", "hr-labor-reconciliation", "hr-giornate", "campo-timbrature-storico"]) void qc.invalidateQueries({ queryKey: [k] });
     },
-    onError: (e) => toast.error(messaggioErrore(e, "Non sono riuscito a salvare la decisione. Riprova.")),
+    onError: (e) => toast.error(messaggioErrore(e, t("Non sono riuscito a salvare la decisione. Riprova."))),
   });
 
-  if (isError) return <p role="alert" className="text-sm text-destructive">Non riesco a leggere le correzioni delle timbrature. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></p>;
+  if (isError) return <p role="alert" className="text-sm text-destructive">{t("Non riesco a leggere le correzioni delle timbrature.")} <button type="button" className="underline" onClick={() => void refetch()}>{t("Riprova")}</button></p>;
   if (isLoading || data.length === 0) return null;
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Timbrature dimenticate</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Timbrature dimenticate")}</p>
       {data.map((c) => {
-        const nome = [c.persona?.first_name, c.persona?.last_name].filter(Boolean).join(" ") || "Operaio";
+        const nome = [c.persona?.first_name, c.persona?.last_name].filter(Boolean).join(" ") || t("Operaio");
         const occupato = decidi.isPending && decidi.variables?.id === c.id;
         return (
           <div key={c.id} className="rounded-xl border p-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-sm font-semibold">{nome} · {c.tipo === "entrata" ? "entrata" : "uscita"} del {format(parseISO(c.ora_richiesta), "EEE d MMM 'alle' HH:mm", { locale: it })}</p>
+                <p className="text-sm font-semibold">{t(c.tipo === "entrata" ? "{nome} · entrata del {giorno} alle {ora}" : "{nome} · uscita del {giorno} alle {ora}", { nome, giorno: format(parseISO(c.ora_richiesta), "EEE d MMM", { locale: dateFnsCampo() }), ora: format(parseISO(c.ora_richiesta), "HH:mm") })}</p>
                 <p className="mt-0.5 text-sm text-muted-foreground">«{c.motivo}»</p>
               </div>
               <Clock className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
@@ -98,20 +99,20 @@ function CorrezioniTimbrature({ orderId, puoDecidere, utenteId, titolare }: { or
             {puoDecidere && (titolare || c.user_id !== utenteId) && (respingi?.id === c.id ? (
               <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); decidi.mutate({ id: c.id, approva: false, risposta: respingi.testo }); }}>
                 <input autoFocus value={respingi.testo} onChange={(e) => setRespingi({ id: c.id, testo: e.target.value })} required maxLength={300}
-                  placeholder="Perché la respingi (lo legge l’operaio)" aria-label="Motivo del rifiuto"
+                  placeholder={t("Perché la respingi (lo legge l’operaio)")} aria-label={t("Motivo del rifiuto")}
                   className="h-10 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm" />
                 <div className="flex gap-2">
-                  <Button type="submit" size="sm" variant="destructive" disabled={occupato || !respingi.testo.trim()}>Respingi</Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => setRespingi(null)}>Annulla</Button>
+                  <Button type="submit" size="sm" variant="destructive" disabled={occupato || !respingi.testo.trim()}>{t("Respingi")}</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setRespingi(null)}>{t("Annulla")}</Button>
                 </div>
               </form>
             ) : (
               <div className="mt-3 flex gap-2">
                 <Button size="sm" className="gap-1.5" disabled={occupato} onClick={() => decidi.mutate({ id: c.id, approva: true })}>
-                  {occupato ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}Approva
+                  {occupato ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}{t("Approva")}
                 </Button>
                 <Button size="sm" variant="outline" className="gap-1.5" disabled={occupato} onClick={() => setRespingi({ id: c.id, testo: "" })}>
-                  <XCircle className="h-4 w-4" aria-hidden="true" />Respingi
+                  <XCircle className="h-4 w-4" aria-hidden="true" />{t("Respingi")}
                 </Button>
               </div>
             ))}
@@ -146,6 +147,7 @@ function useRapportiniInviati(orderId: string) {
  * decidere (timbrature dimenticate, bolle e acquisti), e niente se non ce ne sono.
  */
 export function DaApprovareCommessa({ orderId, onApriRapportini, compatto = false }: { orderId: string; onApriRapportini?: () => void; compatto?: boolean }) {
+  const t = useT();
   const { role, user } = useAuth();
   const permissions = usePermissions();
   const puoDecidere = role === "company_admin" || role === "super_admin" || !!permissions.canEditOrders;
@@ -165,23 +167,23 @@ export function DaApprovareCommessa({ orderId, onApriRapportini, compatto = fals
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <ClipboardList className="h-5 w-5 text-primary" aria-hidden="true" />
-          Da approvare dal cantiere
-          {n > 0 && <Badge className="bg-amber-100 text-amber-800">{n} rapportin{n === 1 ? "o" : "i"}</Badge>}
+          {t("Da approvare dal cantiere")}
+          {n > 0 && <Badge className="bg-amber-100 text-amber-800">{t(n === 1 ? "{n} rapportino" : "{n} rapportini", { n })}</Badge>}
         </CardTitle>
-        <p className="text-sm text-muted-foreground">Rapportini, bolle e timbrature dimenticate arrivano qui. Niente entra nei costi o nelle ore finché non lo approvi.</p>
+        <p className="text-sm text-muted-foreground">{t("Rapportini, bolle e timbrature dimenticate arrivano qui. Niente entra nei costi o nelle ore finché non lo approvi.")}</p>
       </CardHeader>
       <CardContent className="space-y-4">
         {n > 0 && (
           <button type="button" onClick={onApriRapportini}
             className="flex w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-left text-sm font-semibold text-amber-900">
-            <span>{n === 1 ? "1 rapportino aspetta l’approvazione" : `${n} rapportini aspettano l’approvazione`}</span>
-            <span className="text-xs font-normal underline">Vai ai rapportini</span>
+            <span>{n === 1 ? t("1 rapportino aspetta l’approvazione") : t("{n} rapportini aspettano l’approvazione", { n })}</span>
+            <span className="text-xs font-normal underline">{t("Vai ai rapportini")}</span>
           </button>
         )}
         <CorrezioniTimbrature orderId={orderId} puoDecidere={puoDecidere} utenteId={user?.id} titolare={titolare} />
         <AcquistiCampoCard orderId={orderId} />
         {n === 0 && !rapportini.isLoading && (
-          <p className="text-xs text-muted-foreground">Se qui sopra non c’è niente, dal cantiere non aspetta nulla.</p>
+          <p className="text-xs text-muted-foreground">{t("Se qui sopra non c’è niente, dal cantiere non aspetta nulla.")}</p>
         )}
       </CardContent>
     </Card>
@@ -190,6 +192,7 @@ export function DaApprovareCommessa({ orderId, onApriRapportini, compatto = fals
 
 /** Avviso in Panoramica: quante cose il cantiere aspetta dall'ufficio. Sparisce quando non c'è niente. */
 export function DaApprovareAvviso({ orderId, onOpen }: { orderId: string; onOpen: () => void }) {
+  const t = useT();
   const rapportini = useRapportiniInviati(orderId);
   const altri = useQuery({
     queryKey: ["campo-da-approvare-conteggi", orderId],
@@ -207,17 +210,17 @@ export function DaApprovareAvviso({ orderId, onOpen }: { orderId: string; onOpen
   const b = altri.data?.bolle ?? 0;
   if (r + c + b === 0) return null;
   const parti = [
-    r > 0 && `${r} rapportin${r === 1 ? "o" : "i"}`,
-    b > 0 && `${b} boll${b === 1 ? "a" : "e"}`,
-    c > 0 && `${c} timbratur${c === 1 ? "a dimenticata" : "e dimenticate"}`,
+    r > 0 && t(r === 1 ? "{n} rapportino" : "{n} rapportini", { n: r }),
+    b > 0 && t(b === 1 ? "{n} bolla" : "{n} bolle", { n: b }),
+    c > 0 && t(c === 1 ? "{n} timbratura dimenticata" : "{n} timbrature dimenticate", { n: c }),
   ].filter(Boolean).join(" · ");
   return (
-    <section className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center" aria-label="Da approvare dal cantiere">
+    <section className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center" aria-label={t("Da approvare dal cantiere")}>
       <div className="min-w-0 flex-1">
-        <h3 className="text-sm font-semibold text-amber-950">Il cantiere aspetta l’ufficio</h3>
+        <h3 className="text-sm font-semibold text-amber-950">{t("Il cantiere aspetta l’ufficio")}</h3>
         <p className="mt-1 text-sm text-amber-900">{parti}</p>
       </div>
-      <Button variant="outline" className="min-h-11 shrink-0 border-amber-300 font-semibold" onClick={onOpen}>Approva</Button>
+      <Button variant="outline" className="min-h-11 shrink-0 border-amber-300 font-semibold" onClick={onOpen}>{t("Approva")}</Button>
     </section>
   );
 }

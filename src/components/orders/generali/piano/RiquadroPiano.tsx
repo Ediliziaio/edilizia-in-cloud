@@ -11,6 +11,7 @@ import type { PropsScheda } from "@/components/orders/generali/tipiScheda";
 import { euro, euroSegno, nomePiano, tonoScostamento } from "@/components/orders/generali/piano/formato";
 import { useGeneralePianoNumeri } from "@/hooks/useGeneralePiano";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function Numero({ etichetta, valore, nota, tono }: { etichetta: string; valore: string; nota?: string; tono?: string }) {
   return (
@@ -23,6 +24,7 @@ function Numero({ etichetta, valore, nota, tono }: { etichetta: string; valore: 
 }
 
 export function RiquadroPiano({ riepilogo }: PropsScheda) {
+  const tr = useT();
   const n = useGeneralePianoNumeri(riepilogo);
   const [parametri, setParametri] = useSearchParams();
   const telefono = useIsMobile();
@@ -37,11 +39,11 @@ export function RiquadroPiano({ riepilogo }: PropsScheda) {
   const intestazione = (
     <div className="flex items-center justify-between gap-2">
       <h2 className="flex items-center gap-2 text-sm font-semibold">
-        <span className="generale-section-icon"><ChartNoAxesCombined aria-hidden="true" /></span>Piano economico
-        {n.inVista?.stato === "bozza" && <Badge variant="outline" className="font-normal">bozza, non approvato</Badge>}
+        <span className="generale-section-icon"><ChartNoAxesCombined aria-hidden="true" /></span>{tr("Piano economico")}
+        {n.inVista?.stato === "bozza" && <Badge variant="outline" className="font-normal">{tr("bozza, non approvato")}</Badge>}
       </h2>
       <Button variant="ghost" size="sm" className="h-8 shrink-0 px-2 text-xs" onClick={apri}>
-        Apri il piano <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
+        {tr("Apri il piano")} <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
       </Button>
     </div>
   );
@@ -61,7 +63,7 @@ export function RiquadroPiano({ riepilogo }: PropsScheda) {
       <section className="rounded-lg border bg-card px-4 py-3">
         {intestazione}
         <p className="mt-1 text-sm text-muted-foreground">
-          Scrivi {nomePiano(riepilogo.generale.modello)} per vedere qui il margine a finire e il capitale impegnato.
+          {tr("Scrivi {piano} per vedere qui il margine a finire e il capitale impegnato.", { piano: nomePiano(riepilogo.generale.modello) })}
         </p>
       </section>
     );
@@ -73,35 +75,35 @@ export function RiquadroPiano({ riepilogo }: PropsScheda) {
   // la stessa frase sotto (la Panoramica lo dice già nel percorso «Completa l'operazione»).
   if (n.piano.budgetCompleto === false) {
     return (
-      <section aria-label="Piano economico" className="generale-panel px-4 py-4">
+      <section aria-label={tr("Piano economico")} className="generale-panel px-4 py-4">
         {intestazione}
         <p className="mt-2 text-sm">
-          Capitale investito a oggi <span className="font-semibold tabular-nums">{euro(c.investitoOggi)}</span>
-          <span className="text-muted-foreground"> · costi registrati meno incassi</span>
+          {tr("Capitale investito a oggi")} <span className="font-semibold tabular-nums">{euro(c.investitoOggi)}</span>
+          <span className="text-muted-foreground"> {tr("· costi registrati meno incassi")}</span>
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">Margine previsto e scostamento compaiono quando il budget ha tutte le stime.</p>
+        <p className="mt-1 text-xs text-muted-foreground">{tr("Margine previsto e scostamento compaiono quando il budget ha tutte le stime.")}</p>
       </section>
     );
   }
   return (
-    <section aria-label="Piano economico" className="generale-panel px-4 py-4">
+    <section aria-label={tr("Piano economico")} className="generale-panel px-4 py-4">
       {intestazione}
       <div className="mt-2 grid grid-cols-2 gap-3">
         {/* Qui il budget è completo: con le stime incomplete il riquadro è la riga sola qui sopra. */}
-        <Numero etichetta="Margine previsto" valore={euro(t.previsto)} nota={n.inVista ? `versione ${n.inVista.numero}` : undefined} />
+        <Numero etichetta={tr("Margine previsto")} valore={euro(t.previsto)} nota={n.inVista ? tr("versione {n}", { n: n.inVista.numero }) : undefined} />
         <Numero
-          etichetta="Scostamento del margine"
+          etichetta={tr("Scostamento del margine")}
           valore={euroSegno(t.scostamento)}
           tono={t.scostamento < 0 ? "text-destructive" : undefined}
-          nota="stima finale rispetto al previsto"
+          nota={tr("stima finale rispetto al previsto")}
         />
-        <Numero etichetta="Capitale investito a oggi" valore={euro(c.investitoOggi)} nota="costi registrati meno incassi" />
+        <Numero etichetta={tr("Capitale investito a oggi")} valore={euro(c.investitoOggi)} nota={tr("costi registrati meno incassi")} />
       </div>
       {Math.abs(t.scostamento) >= 1 && (
         <p className={cn("mt-2 text-xs", tonoScostamento(t.scostamento, "margine"))}>
           {t.scostamento < 0
-            ? `La stima finale è sotto il previsto di ${euro(-t.scostamento)}: apri il piano per vedere quali voci pesano.`
-            : `La stima finale è sopra il previsto di ${euro(t.scostamento)}.`}
+            ? tr("La stima finale è sotto il previsto di {importo}: apri il piano per vedere quali voci pesano.", { importo: euro(-t.scostamento) })
+            : tr("La stima finale è sopra il previsto di {importo}.", { importo: euro(t.scostamento) })}
         </p>
       )}
     </section>

@@ -41,6 +41,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ContractImportDialog = lazy(() => import("@/components/orders/ContractImportDialog").then((m) => ({ default: m.ContractImportDialog })));
 
@@ -59,12 +60,13 @@ interface Lettura {
 
 const euro = (n: number | null | undefined) => (n == null ? "—" : formatCurrency(Number(n)));
 
-export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, etichetta = "Leggi contratto con l'AI" }: {
+export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, etichetta }: {
   orderId: string;
   companyId: string;
   perCommittente: boolean;
   etichetta?: string;
 }) {
+  const t = useT();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [lettore, setLettore] = useState(false);
@@ -89,7 +91,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
         db.from("order_work_phases").select("id", { count: "exact", head: true }).eq("order_id", orderId),
       ]);
       if (o.error || rate.error || voci.error || fasiOra.error) throw o.error ?? rate.error ?? voci.error ?? fasiOra.error;
-      if (!o.data) throw new Error("Commessa non trovata.");
+      if (!o.data) throw new Error(t("Commessa non trovata."));
       const commessa = o.data as Lettura["commessa"];
       const piano = pianoContrattoSuCommessa(ex, commessa, (rate.data ?? []) as RataEsistente[], fasiOra.count ?? 0);
       const vociEsistenti = voci.count ?? 0;
@@ -105,7 +107,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
       const giaNeiDocumenti = !!origine?.path?.startsWith(`${orderId}/`);
       setLettura({ ex, origine: origine ?? null, file: file ?? null, piano, commessa, vociEsistenti, giaNeiDocumenti, noteInterne: (o.data as { internal_notes?: string | null }).internal_notes ?? null });
     } catch (e) {
-      toast.error("Non riesco a leggere la commessa", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Non riesco a leggere la commessa"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setPreparo(false);
     }
@@ -135,12 +137,12 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
           p_versione: commessa.version,
         } as never);
         if (error) {
-          if (["PT409", "40001"].includes(error.code ?? "")) throw new Error("Qualcuno ha modificato la commessa nel frattempo: ricarica e rileggi il contratto.");
-          throw new Error((error.message ?? "Salvataggio non riuscito").replace(/^commessa_salva:\s*/, ""));
+          if (["PT409", "40001"].includes(error.code ?? "")) throw new Error(t("Qualcuno ha modificato la commessa nel frattempo: ricarica e rileggi il contratto."));
+          throw new Error((error.message ?? t("Salvataggio non riuscito")).replace(/^commessa_salva:\s*/, ""));
         }
-        if (scelte.importi && piano.campi.total_amount != null) fatti.push("importo");
-        if (campi.internal_notes) fatti.push("note dal contratto");
-        if (rate) fatti.push(`${piano.rateNuove?.length ?? 0} rate`);
+        if (scelte.importi && piano.campi.total_amount != null) fatti.push(t("importo"));
+        if (campi.internal_notes) fatti.push(t("note dal contratto"));
+        if (rate) fatti.push(t("{n} rate", { n: piano.rateNuove?.length ?? 0 }));
       }
       if (usaPianoOperativo && (scelte.fasi || scelte.voci)) {
         const operativo = pianoOperativoContratto(lettura.ex);
@@ -149,7 +151,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
         const fasi = scelte.fasi ? modelliDalPiano(operativo) : [];
         const date = pianificaFasi(fasi, { inizio, fine, lavorativo: calendarioCantiere({ sabato: false, chiusure }) });
         await salvaPianoOperativoContratto({ companyId, orderId, piano: operativo, fasi: fasiColPiano(fasi, date), aggiungiArticoli: scelte.voci, vatRate: piano.iva ?? commessa.vat_rate });
-        fatti.push("piano di lavoro e articoli collegati");
+        fatti.push(t("piano di lavoro e articoli collegati"));
       }
       if (!usaPianoOperativo && scelte.fasi && piano.fasi.length > 0) {
         // Le date: quelle della commessa, o quelle del contratto se si sono appena salvate.
@@ -158,8 +160,8 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
         const pianoFasi = pianificaFasi(piano.fasi, { inizio, fine, lavorativo: calendarioCantiere({ sabato: false, chiusure }) });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const errFasi = await salvaFasiDiPartenza(orderId, fasiColPiano(piano.fasi, pianoFasi), (nome, args) => (supabase as any).rpc(nome, args));
-        if (errFasi) throw new Error(`${fatti.length ? `${fatti.join(", ")} salvati, ma le fasi no` : "Fasi non create"}: ${errFasi}`);
-        fatti.push(`${piano.fasi.length} fasi`);
+        if (errFasi) throw new Error(fatti.length ? t("{elenco} salvati, ma le fasi no: {errore}", { elenco: fatti.join(", "), errore: errFasi }) : t("Fasi non create: {errore}", { errore: errFasi }));
+        fatti.push(t("{n} fasi", { n: piano.fasi.length }));
       }
       if (!usaPianoOperativo && scelte.voci && piano.voci.length > 0) {
         // Come le altre pagine: la funzione controlla permesso e visibilità della commessa (un utente d'ufficio senza
@@ -172,8 +174,8 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
             description: descrizioneVoceContratto(v),
           })),
         } as never);
-        if (error) throw new Error(`Importi e rate salvati, ma le voci no: ${error.message}`);
-        fatti.push(`${piano.voci.length} voci`);
+        if (error) throw new Error(t("Importi e rate salvati, ma le voci no: {errore}", { errore: error.message }));
+        fatti.push(t("{n} voci", { n: piano.voci.length }));
       }
       // L'originale l'ha già messo nei documenti il lettore (serve per farlo leggere all'AI): qui niente doppione.
       if (scelte.documento && file && user && !lettura.giaNeiDocumenti) {
@@ -191,15 +193,15 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
             await supabase.storage.from("order-attachments").remove(miniatura ? [percorso, miniatura] : [percorso]);
             throw eDb;
           }
-          fatti.push("contratto nei documenti");
+          fatti.push(t("contratto nei documenti"));
         } catch (e) {
-          toast.error("Il contratto originale non è stato salvato nei documenti", { description: e instanceof Error ? e.message : String(e) });
+          toast.error(t("Il contratto originale non è stato salvato nei documenti"), { description: e instanceof Error ? e.message : String(e) });
         }
       }
-      toast.success("Contratto applicato alla commessa", { description: fatti.length ? fatti.join(" · ") : "Nessuna modifica scelta." });
+      toast.success(t("Contratto applicato alla commessa"), { description: fatti.length ? fatti.join(" · ") : t("Nessuna modifica scelta.") });
       setLettura(null);
     } catch (e) {
-      toast.error("Contratto non applicato", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Contratto non applicato"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setSalvo(false);
       queryClient.invalidateQueries({ predicate: (q) => q.queryKey.includes(orderId) });
@@ -212,10 +214,10 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
   return (
     <>
       <Button size="sm" variant="outline" className="gap-1.5" disabled={preparo} onClick={() => setLettore(true)}>
-        {preparo ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanText className="h-4 w-4" />} {etichetta}
+        {preparo ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanText className="h-4 w-4" />} {etichetta ?? t("Leggi contratto con l'AI")}
       </Button>
       {lettore && (
-        <Suspense fallback={<p role="status">Apertura lettore…</p>}>
+        <Suspense fallback={<p role="status">{t("Apertura lettore…")}</p>}>
           <ContractImportDialog open companyId={companyId} orderId={orderId} destinazione={perCommittente ? "appaltatore" : "cliente"}
             onOpenChange={setLettore} onApply={(ex, file, origine) => void preparaAnteprima(ex, file, origine)} />
         </Suspense>
@@ -223,8 +225,8 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
       <Dialog open={!!lettura} onOpenChange={(o) => !o && !salvo && setLettura(null)}>
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Applica il contratto alla commessa</DialogTitle>
-            <DialogDescription>Scegli cosa prendere dal contratto. Le rate già fatturate o incassate restano come sono.</DialogDescription>
+            <DialogTitle>{t("Applica il contratto alla commessa")}</DialogTitle>
+            <DialogDescription>{t("Scegli cosa prendere dal contratto. Le rate già fatturate o incassate restano come sono.")}</DialogDescription>
           </DialogHeader>
           {lettura && p && (
             <div className="space-y-4 text-sm">
@@ -234,11 +236,11 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
 
               <label className="flex items-start gap-2">
                 <Checkbox checked={scelte.importi} disabled={p.campi.total_amount == null && p.campi.vat_rate == null}
-                  onCheckedChange={(v) => setScelte({ ...scelte, importi: v === true })} aria-label="Importo e IVA" />
+                  onCheckedChange={(v) => setScelte({ ...scelte, importi: v === true })} aria-label={t("Importo e IVA")} />
                 <span>
-                  <span className="font-medium">Importo e IVA</span>
+                  <span className="font-medium">{t("Importo e IVA")}</span>
                   <span className="block text-muted-foreground">
-                    Imponibile {euro(lettura.commessa.total_amount)} → <b>{euro(p.imponibile)}</b>
+                    {t("Imponibile")} {euro(lettura.commessa.total_amount)} → <b>{euro(p.imponibile)}</b>
                     {" · "}IVA {lettura.commessa.vat_rate ?? "—"}% → <b>{p.iva ?? "—"}%</b>
                   </span>
                 </span>
@@ -246,12 +248,12 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
 
               <label className="flex items-start gap-2">
                 <Checkbox checked={scelte.voci} disabled={p.voci.length === 0}
-                  onCheckedChange={(v) => setScelte({ ...scelte, voci: v === true })} aria-label="Voci del contratto" />
+                  onCheckedChange={(v) => setScelte({ ...scelte, voci: v === true })} aria-label={t("Voci del contratto")} />
                 <span className="min-w-0 flex-1">
-                  <span className="font-medium">Aggiungi {p.voci.length} voci del contratto</span>
+                  <span className="font-medium">{t("Aggiungi {n} voci del contratto", { n: p.voci.length })}</span>
                   <span className="block text-muted-foreground">
                     {/* Il conteggio non è affidabile per tutti (chi non vede i margini non legge le righe): niente «non ha voci». */}
-                    {lettura.vociEsistenti > 0 ? `La commessa ha già ${lettura.vociEsistenti} voci: queste si aggiungono, nessuna viene tolta.` : "Si aggiungono a quelle della commessa: nessuna viene tolta."}
+                    {lettura.vociEsistenti > 0 ? t("La commessa ha già {n} voci: queste si aggiungono, nessuna viene tolta.", { n: lettura.vociEsistenti }) : t("Si aggiungono a quelle della commessa: nessuna viene tolta.")}
                   </span>
                   {p.voci.length > 0 && (
                     <ul className="mt-1 max-h-32 overflow-y-auto rounded border text-xs">
@@ -268,15 +270,15 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
 
               <label className="flex items-start gap-2">
                 <Checkbox checked={scelte.rate} disabled={!p.rateNuove}
-                  onCheckedChange={(v) => setScelte({ ...scelte, rate: v === true })} aria-label="Rate del contratto" />
+                  onCheckedChange={(v) => setScelte({ ...scelte, rate: v === true })} aria-label={t("Rate del contratto")} />
                 <span className="min-w-0 flex-1">
-                  <span className="font-medium">Rate dal contratto</span>
+                  <span className="font-medium">{t("Rate dal contratto")}</span>
                   {p.rateNuove ? (
                     <span className="block text-muted-foreground">
-                      {p.rateTenute.length > 0 && <>Restano {p.rateTenute.length} rate fatturate o incassate ({euro(sommaRate(p.rateTenute))}). </>}
-                      {p.rateSostituite.length > 0 ? <>Sostituisce {p.rateSostituite.length} rate da incassare ({euro(sommaRate(p.rateSostituite))}). </> : null}
+                      {p.rateTenute.length > 0 && <>{t("Restano {n} rate fatturate o incassate ({importo}).", { n: p.rateTenute.length, importo: euro(sommaRate(p.rateTenute)) })} </>}
+                      {p.rateSostituite.length > 0 ? <>{t("Sostituisce {n} rate da incassare ({importo}).", { n: p.rateSostituite.length, importo: euro(sommaRate(p.rateSostituite)) })} </> : null}
                     </span>
-                  ) : <span className="block text-muted-foreground">Nessun piano dei pagamenti nel contratto.</span>}
+                  ) : <span className="block text-muted-foreground">{t("Nessun piano dei pagamenti nel contratto.")}</span>}
                   {p.rateNuove && p.rateNuove.length > 0 && (
                     <ul className="mt-1 rounded border text-xs">
                       {p.rateNuove.map((r) => (
@@ -291,13 +293,13 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
 
               {p.fasi.length > 0 && (
                 <label className="flex items-start gap-2">
-                  <Checkbox checked={scelte.fasi} onCheckedChange={(v) => setScelte({ ...scelte, fasi: v === true })} aria-label="Fasi di lavoro del contratto" />
+                  <Checkbox checked={scelte.fasi} onCheckedChange={(v) => setScelte({ ...scelte, fasi: v === true })} aria-label={t("Fasi di lavoro del contratto")} />
                   <span className="min-w-0 flex-1">
-                    <span className="font-medium">Crea {p.fasi.length} fasi di lavoro dal contratto</span>
-                    <span className="block text-muted-foreground">La commessa non ha ancora fasi. Prendono le date dall'inizio lavori, una dopo l'altra; si correggono poi nel Cantiere.</span>
+                    <span className="font-medium">{t("Crea {n} fasi di lavoro dal contratto", { n: p.fasi.length })}</span>
+                    <span className="block text-muted-foreground">{t("La commessa non ha ancora fasi. Prendono le date dall'inizio lavori, una dopo l'altra; si correggono poi nel Cantiere.")}</span>
                     <ol className="mt-1 max-h-32 list-decimal overflow-y-auto rounded border py-1 pl-7 pr-2 text-xs">
                       {p.fasi.map((f, i) => (
-                        <li key={i}>{f.nome}{f.giorni ? ` · ${f.giorni} gg` : ""}{f.sottofasi.length ? ` · ${f.sottofasi.length} sottofasi` : ""}</li>
+                        <li key={i}>{f.nome}{f.giorni ? ` · ${t("{n} gg", { n: f.giorni })}` : ""}{f.sottofasi.length ? ` · ${t("{n} sottofasi", { n: f.sottofasi.length })}` : ""}</li>
                       ))}
                     </ol>
                   </span>
@@ -306,9 +308,9 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
 
               {righeDocumentoFirmato(lettura.ex).length > 0 && (
                 <label className="flex items-start gap-2">
-                  <Checkbox checked={scelte.note} onCheckedChange={(v) => setScelte({ ...scelte, note: v === true })} aria-label="Note a mano, firma e allegato nelle note interne" />
+                  <Checkbox checked={scelte.note} onCheckedChange={(v) => setScelte({ ...scelte, note: v === true })} aria-label={t("Note a mano, firma e allegato nelle note interne")} />
                   <span className="min-w-0 flex-1">
-                    <span className="font-medium">Aggiungi alle note interne: firma, note scritte a mano e allegato</span>
+                    <span className="font-medium">{t("Aggiungi alle note interne: firma, note scritte a mano e allegato")}</span>
                     <pre className="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap rounded border px-2 py-1 font-sans text-xs text-muted-foreground">{righeDocumentoFirmato(lettura.ex).join("\n")}</pre>
                   </span>
                 </label>
@@ -316,20 +318,20 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
 
               <label className="flex items-start gap-2">
                 <Checkbox checked={scelte.documento || lettura.giaNeiDocumenti} disabled={!lettura.file || lettura.giaNeiDocumenti}
-                  onCheckedChange={(v) => setScelte({ ...scelte, documento: v === true })} aria-label="Salva il contratto nei documenti" />
+                  onCheckedChange={(v) => setScelte({ ...scelte, documento: v === true })} aria-label={t("Salva il contratto nei documenti")} />
                 <span>
-                  <span className="font-medium">Salva il contratto nei documenti della commessa</span>
+                  <span className="font-medium">{t("Salva il contratto nei documenti della commessa")}</span>
                   <span className="block text-muted-foreground">
-                    {lettura.giaNeiDocumenti ? `${lettura.file?.name ?? "Il contratto"} è già nei documenti, salvato alla lettura.` : lettura.file ? lettura.file.name : "Il file non è disponibile."} Non visibile al cliente.
+                    {lettura.giaNeiDocumenti ? t("{nome} è già nei documenti, salvato alla lettura.", { nome: lettura.file?.name ?? t("Il contratto") }) : lettura.file ? lettura.file.name : t("Il file non è disponibile.")}{" "}{t("Non visibile al cliente.")}
                   </span>
                 </span>
               </label>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" disabled={salvo} onClick={() => setLettura(null)}>Annulla</Button>
+            <Button variant="outline" disabled={salvo} onClick={() => setLettura(null)}>{t("Annulla")}</Button>
             <Button disabled={salvo || !lettura || !Object.values(scelte).some(Boolean)} onClick={() => void applica()}>
-              {salvo && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Applica
+              {salvo && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} {t("Applica")}
             </Button>
           </DialogFooter>
         </DialogContent>

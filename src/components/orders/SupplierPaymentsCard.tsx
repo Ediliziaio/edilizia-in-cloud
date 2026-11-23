@@ -11,6 +11,7 @@ import { differenceInDays, format, isValid, parseISO, startOfDay } from 'date-fn
 import { EmptyRow } from './EmptyRow';
 import { useSupplierPaymentNames, useSupplierPayments } from '@/hooks/useSupplierPayments';
 import { supplierPaymentSummary, type SupplierBudgetItem } from '@/lib/orders/supplierPaymentSummary';
+import { useT } from '@/lib/campo/lingua/LinguaCampo';
 
 interface SupplierPaymentsCardProps {
   items: SupplierBudgetItem[];
@@ -19,6 +20,7 @@ interface SupplierPaymentsCardProps {
 }
 
 export function SupplierPaymentsCard({ items, companyId, orderId }: SupplierPaymentsCardProps) {
+  const t = useT();
   const [paymentCostId,setPaymentCostId] = useState<string|null>(null);
   const [paymentOrderId,setPaymentOrderId] = useState<string|null>(null);
   const documents = useSupplierPayments(companyId, orderId);
@@ -46,43 +48,43 @@ export function SupplierPaymentsCard({ items, companyId, orderId }: SupplierPaym
   <Card>
     <CardHeader className="pb-3">
       <CardTitle className="flex items-center gap-2 text-base">
-        <Truck className="h-5 w-5 text-primary" />Pagamenti fornitori
+        <Truck className="h-5 w-5 text-primary" />{t("Pagamenti fornitori")}
       </CardTitle>
     </CardHeader>
     <CardContent className="space-y-4">
-      {loading ? <p role="status" className="text-sm text-muted-foreground">Leggo OdA, fatture e pagamenti…</p>
+      {loading ? <p role="status" className="text-sm text-muted-foreground">{t("Leggo OdA, fatture e pagamenti…")}</p>
         : error ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />Non riesco a verificare i pagamenti fornitori.
-          <Button size="sm" variant="outline" onClick={() => { void documents.refetch(); void names.refetch(); }}>Riprova</Button>
-        </div> : groups.length === 0 ? <EmptyRow icon={Truck}>Nessun fornitore associato a questa commessa</EmptyRow>
+          <AlertTriangle className="h-4 w-4 text-amber-600" />{t("Non riesco a verificare i pagamenti fornitori.")}
+          <Button size="sm" variant="outline" onClick={() => { void documents.refetch(); void names.refetch(); }}>{t("Riprova")}</Button>
+        </div> : groups.length === 0 ? <EmptyRow icon={Truck}>{t("Nessun fornitore associato a questa commessa")}</EmptyRow>
         : <>
           {invoiced > 0 && <div className="grid grid-cols-1 gap-2 border-b pb-3 text-sm min-[360px]:grid-cols-3">
-            <Money label="Fatturato" value={invoiced} />
-            <Money label="Pagato" value={paid} className="text-green-700" />
-            <Money label="Da pagare" value={unpaid} className="text-amber-700" />
+            <Money label={t("Fatturato")} value={invoiced} />
+            <Money label={t("Pagato")} value={paid} className="text-green-700" />
+            <Money label={t("Da pagare")} value={unpaid} className="text-amber-700" />
           </div>}
-          <p className="text-xs text-muted-foreground">Fatture IVA inclusa e pagamenti registrati. Il budget articoli non è un debito.</p>
+          <p className="text-xs text-muted-foreground">{t("Fatture IVA inclusa e pagamenti registrati. Il budget articoli non è un debito.")}</p>
           <div className="divide-y">
             {groups.map(group => <div key={group.key} className="space-y-2 py-3 first:pt-0 last:pb-0">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="min-w-0 break-words text-sm font-medium">{group.name}</span>
                 <Badge variant="outline" className={group.reviewCount ? 'text-amber-700' : group.invoiced > 0 && group.unpaid === 0 ? 'text-green-700' : ''}>
-                  {group.reviewCount ? 'Da verificare' : group.invoiced > 0 ? group.unpaid === 0 ? 'Pagato' : group.paid > 0 ? 'Parziale' : 'Da pagare'
-                    : group.ordered > 0 ? 'In attesa di fattura' : 'Solo budget'}
+                  {group.reviewCount ? t("Da verificare") : group.invoiced > 0 ? group.unpaid === 0 ? t("Pagato") : group.paid > 0 ? t("Parziale") : t("Da pagare")
+                    : group.ordered > 0 ? t("In attesa di fattura") : t("Solo budget")}
                 </Badge>
               </div>
               {group.invoiced > 0 && <>
                 <div className="flex flex-wrap justify-between gap-1 text-xs tabular-nums">
-                  <span>Pagato {formatCurrency(group.paid)} su {formatCurrency(group.invoiced)}</span>
-                  <span className="text-muted-foreground">Residuo {formatCurrency(group.unpaid)}</span>
+                  <span>{t("Pagato {pagato} su {fatturato}", { pagato: formatCurrency(group.paid), fatturato: formatCurrency(group.invoiced) })}</span>
+                  <span className="text-muted-foreground">{t("Residuo {importo}", { importo: formatCurrency(group.unpaid) })}</span>
                 </div>
                 <Progress value={100 * group.paid / group.invoiced} className="h-1.5" />
               </>}
               {group.nextDeadline && group.unpaid > 0 && <Deadline value={group.nextDeadline} />}
-              {group.reviewCount > 0 && <p className="text-xs text-amber-700">Collegamenti, note di credito o pagamenti da verificare: {formatCurrency(group.review)}. Esclusi dai totali verificati.</p>}
-              {group.ordered > 0 && <p className="text-xs text-muted-foreground">Ordinato {formatCurrency(group.ordered)} · {group.invoiceCount} fatture collegate</p>}
-              {group.estimated > 0 && group.invoiced === 0 && <p className="text-xs text-muted-foreground">Budget articoli: {formatCurrency(group.estimated)} (stima, non pagamento)</p>}
-              {(documents.data?.invoices??[]).filter(f=>f.company_cost_id && (group.orders.some(o=>o.id===f.purchase_order_id) || group.key===`invoice:${f.cedente_piva || f.id}` || documents.data?.entries.some(e=>e.supplier_id===group.key && e.cost_id===f.company_cost_id))).map(f=><Button key={f.id} variant="outline" size="sm" className="mr-2" onClick={()=>setPaymentCostId(f.company_cost_id!)}>Fattura {f.numero_fattura ?? 'fornitore'} · pagamenti</Button>)}
+              {group.reviewCount > 0 && <p className="text-xs text-amber-700">{t("Collegamenti, note di credito o pagamenti da verificare: {importo}. Esclusi dai totali verificati.", { importo: formatCurrency(group.review) })}</p>}
+              {group.ordered > 0 && <p className="text-xs text-muted-foreground">{t("Ordinato {importo}", { importo: formatCurrency(group.ordered) })} · {t("{n} fatture collegate", { n: group.invoiceCount })}</p>}
+              {group.estimated > 0 && group.invoiced === 0 && <p className="text-xs text-muted-foreground">{t("Budget articoli: {importo} (stima, non pagamento)", { importo: formatCurrency(group.estimated) })}</p>}
+              {(documents.data?.invoices??[]).filter(f=>f.company_cost_id && (group.orders.some(o=>o.id===f.purchase_order_id) || group.key===`invoice:${f.cedente_piva || f.id}` || documents.data?.entries.some(e=>e.supplier_id===group.key && e.cost_id===f.company_cost_id))).map(f=><Button key={f.id} variant="outline" size="sm" className="mr-2" onClick={()=>setPaymentCostId(f.company_cost_id!)}>{t("Fattura {numero} · pagamenti", { numero: f.numero_fattura ?? t("fornitore") })}</Button>)}
               {group.orders.map(order => <button type="button" key={order.id} onClick={()=>setPaymentOrderId(order.id)}
                 className="flex min-h-9 flex-wrap items-center justify-between gap-1 rounded px-1 text-xs text-primary hover:bg-muted focus-visible:outline focus-visible:outline-2">
                 <span>OdA #{order.oda_number} · {order.status}</span><span className="tabular-nums">{formatCurrency(Number(order.total) || 0)}</span>
@@ -99,10 +101,11 @@ function Money({ label, value, className = '' }: { label: string; value: number;
   return <div><div className="text-xs text-muted-foreground">{label}</div><div className={`font-semibold tabular-nums ${className}`}>{formatCurrency(value)}</div></div>;
 }
 function Deadline({ value }: { value: string }) {
+  const t = useT();
   const date = parseISO(value);
-  if (!isValid(date)) return <p className="text-xs text-amber-700">Data scadenza da verificare</p>;
+  if (!isValid(date)) return <p className="text-xs text-amber-700">{t("Data scadenza da verificare")}</p>;
   const expired = differenceInDays(startOfDay(date), startOfDay(new Date())) < 0;
   return <p className={`text-xs ${expired ? 'text-red-600' : 'text-muted-foreground'}`}>
-    Scadenza: {format(date, 'dd/MM/yyyy')}{expired ? ' · scaduta' : ''}
+    {t("Scadenza: {data}", { data: format(date, 'dd/MM/yyyy') })}{expired ? ` · ${t("scaduta")}` : ''}
   </p>;
 }

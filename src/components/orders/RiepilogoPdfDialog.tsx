@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { GRUPPI_RIEPILOGO, GRUPPI_SINTETICO, type GruppoRiepilogo } from "@/lib/orders/riepilogoCommessaDati";
 import { AnteprimaPdfDialog } from "./AnteprimaPdfDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface SceltaRiepilogo {
   perCliente: boolean;
@@ -40,6 +41,7 @@ const scarica = ({ blob, filename }: FilePdf) => {
 
 /** Cosa mettere nel Riepilogo commessa, prima di generarlo. */
 export function RiepilogoPdfDialog({ open, onOpenChange, occupato, onPrepara }: Props) {
+  const t = useT();
   const [versione, setVersione] = useState<Versione>("completa");
   const [tolti, setTolti] = useState<Set<GruppoRiepilogo>>(new Set());
   const [anteprima, setAnteprima] = useState<FilePdf | null>(null);
@@ -62,16 +64,16 @@ export function RiepilogoPdfDialog({ open, onOpenChange, occupato, onPrepara }: 
       <Dialog open={open && !anteprima} onOpenChange={(aperto) => { if (!aperto) chiudi(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Riepilogo commessa</DialogTitle>
-            <DialogDescription>Scegli la versione e cosa includere.</DialogDescription>
+            <DialogTitle>{t("Riepilogo commessa")}</DialogTitle>
+            <DialogDescription>{t("Scegli la versione e cosa includere.")}</DialogDescription>
           </DialogHeader>
           <RadioGroup value={versione} onValueChange={(v) => { setVersione(v as Versione); setTolti(new Set()); }} className="gap-1.5">
             {VERSIONI.map((v) => (
               <Label key={v.id} htmlFor={`riepilogo-${v.id}`} className="flex cursor-pointer items-start gap-2 rounded border p-2 font-normal">
                 <RadioGroupItem id={`riepilogo-${v.id}`} value={v.id} className="mt-0.5" />
                 <span>
-                  <span className="block text-sm font-medium">{v.nome}</span>
-                  <span className="block text-xs text-muted-foreground">{v.testo}</span>
+                  <span className="block text-sm font-medium">{t(v.nome)}</span>
+                  <span className="block text-xs text-muted-foreground">{t(v.testo)}</span>
                 </span>
               </Label>
             ))}
@@ -87,24 +89,24 @@ export function RiepilogoPdfDialog({ open, onOpenChange, occupato, onPrepara }: 
                     return dopo;
                   })}
                 />
-                {g.label}
+                {t(g.label)}
               </Label>
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" disabled={occupato} onClick={() => { void genera(setAnteprima); }}>Anteprima</Button>
+            <Button variant="outline" disabled={occupato} onClick={() => { void genera(setAnteprima); }}>{t("Anteprima")}</Button>
             <Button disabled={occupato} onClick={() => { void genera((f) => { scarica(f); chiudi(); }); }}>
               {occupato && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Scarica PDF
+              {t("Scarica PDF")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       <AnteprimaPdfDialog
         file={anteprima}
-        titolo="Anteprima del riepilogo"
-        descrizione={versione === "cliente" ? "Versione per il cliente: controlla che sia tutto giusto." : "Controlla il documento prima di scaricarlo."}
-        azione="Scarica PDF"
+        titolo={t("Anteprima del riepilogo")}
+        descrizione={versione === "cliente" ? t("Versione per il cliente: controlla che sia tutto giusto.") : t("Controlla il documento prima di scaricarlo.")}
+        azione={t("Scarica PDF")}
         onConferma={() => { if (anteprima) scarica(anteprima); chiudi(); }}
         onChiudi={() => setAnteprima(null)}
       />

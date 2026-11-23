@@ -69,6 +69,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { exportToCSV, type CsvColumn } from "@/lib/csvExport";
+import { useT, sostituisci } from "@/lib/campo/lingua/LinguaCampo";
+
+/** Chi traduce: in pagina `useT()`, nel CSV l'italiano. */
+type Traduttore = (testo: string, valori?: Readonly<Record<string, string | number>>) => string;
+const ITALIANO: Traduttore = (testo, valori) => sostituisci(testo, valori);
 
 type CommissionType = "fixed" | "percentage_sold" | "percentage_collected";
 type GenericCompensationType = CommissionType | "percentage_margin" | "bonus" | "malus" | "manual";
@@ -188,7 +193,11 @@ interface CompensationViewRow {
   customerName: string;
   ruleLabel: string;
   ruleDetail: string;
+  /** Tipo e valore della regola: per riscriverla nella lingua di chi guarda. */
+  ruleType: string | null;
+  ruleValue: number | null;
   currentAgreement?: string;
+  agreementSource?: CommissionRow["salesperson"];
   gross: number;
   bonus: number;
   deductions: number;
@@ -284,15 +293,24 @@ function orderName(order: OrderLike | null | undefined): string {
   return order.order_code || order.description || order.id.slice(0, 8);
 }
 
-function formatRule(type?: string | null, value?: number | null): string {
+function formatRule(type?: string | null, value?: number | null, tr: Traduttore = ITALIANO): string {
   if (type === "fixed") return formatCurrency(value || 0);
-  if (type === "percentage_sold") return `${numeric(value)}% su venduto`;
-  if (type === "percentage_collected") return `${numeric(value)}% su incassato`;
-  if (type === "percentage_margin") return `${numeric(value)}% su margine`;
-  if (type === "bonus") return `Premio ${formatCurrency(value || 0)}`;
-  if (type === "malus") return `Malus ${formatCurrency(value || 0)}`;
-  if (type === "manual") return `Manuale ${formatCurrency(value || 0)}`;
-  return "Regola non impostata";
+  if (type === "percentage_sold") return tr("{perc}% su venduto", { perc: numeric(value) });
+  if (type === "percentage_collected") return tr("{perc}% su incassato", { perc: numeric(value) });
+  if (type === "percentage_margin") return tr("{perc}% su margine", { perc: numeric(value) });
+  if (type === "bonus") return tr("Premio {importo}", { importo: formatCurrency(value || 0) });
+  if (type === "malus") return tr("Malus {importo}", { importo: formatCurrency(value || 0) });
+  if (type === "manual") return tr("Manuale {importo}", { importo: formatCurrency(value || 0) });
+  return tr("Regola non impostata");
+}
+
+/** L'accordo attuale del venditore (fisso, fisso + provvigione o solo provvigione). */
+function formatAgreement(salesperson: CommissionRow["salesperson"] | undefined, tr: Traduttore = ITALIANO): string {
+  if (salesperson?.compensation_mode === "fixed_only") return tr("Solo fisso");
+  const regola = formatRule(salesperson?.commission_type, salesperson?.commission_value, tr);
+  return salesperson?.compensation_mode === "fixed_plus_commission"
+    ? tr("{importo}/mese + {regola}", { importo: formatCurrency(salesperson.fixed_monthly_eur || 0), regola })
+    : regola;
 }
 
 function formatDate(value: string | null | undefined): string | null {
@@ -466,6 +484,7 @@ function deriveDraftStatus(args: {
 }
 
 export function OrderCommissionsOverview() {
+  const t = useT();
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const [searchParams] = useSearchParams();
@@ -736,8 +755,10 @@ export function OrderCommissionsOverview() {
         customerName: customerName(row.order?.customer),
         ruleLabel: COMMISSION_TYPE_LABELS[row.commission_type] ?? row.commission_type,
         ruleDetail: formatRule(row.commission_type, row.commission_value),
-        currentAgreement: row.salesperson?.compensation_mode === "fixed_only" ? "Solo fisso"
-          : `${row.salesperson?.compensation_mode === "fixed_plus_commission" ? `${formatCurrency(row.salesperson.fixed_monthly_eur || 0)}/mese + ` : ""}${formatRule(row.salesperson?.commission_type, row.salesperson?.commission_value)}`,
+        ruleType: row.commission_type,
+        ruleValue: row.commission_value,
+        currentAgreement: formatAgreement(row.salesperson),
+        agreementSource: row.salesperson,
         gross,
         bonus,
         deductions,
@@ -773,6 +794,8 @@ export function OrderCommissionsOverview() {
           customerName: customerName(row.order?.customer),
           ruleLabel: COMMISSION_TYPE_LABELS[row.compensation_type] ?? row.compensation_type,
           ruleDetail: formatRule(row.compensation_type, row.compensation_value),
+          ruleType: row.compensation_type,
+          ruleValue: row.compensation_value,
           gross,
           bonus,
           deductions,
@@ -808,6 +831,8 @@ export function OrderCommissionsOverview() {
         customerName: customerName(order?.customer),
         ruleLabel: COMMISSION_TYPE_LABELS[row.compensation_type] ?? row.compensation_type,
         ruleDetail: formatRule(row.compensation_type, row.compensation_value),
+        ruleType: row.compensation_type,
+        ruleValue: row.compensation_value,
         gross: row.gross_amount,
         bonus: row.bonus_amount,
         deductions: row.deduction_amount,
@@ -1040,12 +1065,12 @@ export function OrderCommissionsOverview() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["orders-variable-compensations", effectiveCompany?.id] });
       await queryClient.invalidateQueries({ queryKey: ["compensation-beneficiaries", effectiveCompany?.id] });
-      toast.success("Compenso aggiunto");
+      toast.success(t("Compenso aggiunto"));
       setAddDialogOpen(false);
     },
     onError: (error) => {
       if (!effectiveCompany?.id) {
-        toast.error("Impossibile aggiungere il compenso");
+        toast.error(t("Impossibile aggiungere il compenso"));
         return;
       }
 
@@ -1055,7 +1080,7 @@ export function OrderCommissionsOverview() {
           ? newBeneficiaryName.trim()
           : beneficiaryOptions.find((beneficiary) => beneficiary.id === selectedBeneficiaryId)?.display_name || "";
         if (!order || !displayName) {
-          toast.error("Seleziona commessa e beneficiario");
+          toast.error(t("Seleziona commessa e beneficiario"));
           return;
         }
         const role = selectedBeneficiaryId === "__new__"
@@ -1082,14 +1107,14 @@ export function OrderCommissionsOverview() {
         const next = [localRow, ...localRows];
         writeLocalRows(effectiveCompany.id, next);
         setLocalRows(next);
-        toast.success("Compenso aggiunto in locale", {
-          description: "Il DB generico non e ancora disponibile: lo tengo nel browser per la demo locale.",
+        toast.success(t("Compenso aggiunto in locale"), {
+          description: t("Il DB generico non e ancora disponibile: lo tengo nel browser per la demo locale."),
         });
         setAddDialogOpen(false);
         return;
       }
 
-      toast.error("Impossibile aggiungere il compenso");
+      toast.error(t("Impossibile aggiungere il compenso"));
     },
   });
 
@@ -1142,17 +1167,17 @@ export function OrderCommissionsOverview() {
       setLiquidateTarget(null);
       toast.success(
         paid
-          ? `${count} compenso${count === 1 ? "" : "i"} segnat${count === 1 ? "o" : "i"} come pagat${count === 1 ? "o" : "i"}`
-          : "Pagamento annullato",
+          ? t(count === 1 ? "{n} compenso segnato come pagato" : "{n} compensi segnati come pagati", { n: count })
+          : t("Pagamento annullato"),
       );
     },
-    onError: () => toast.error("Operazione non riuscita"),
+    onError: () => toast.error(t("Operazione non riuscita")),
   });
 
   const openLiquidateBeneficiary = (summaryId: string, name: string) => {
     const rows = filteredRows.filter((row) => row.beneficiaryId === summaryId && row.statusInfo.status === "payable");
     if (rows.length === 0) {
-      toast.info("Nessun compenso pagabile per questo beneficiario");
+      toast.info(t("Nessun compenso pagabile per questo beneficiario"));
       return;
     }
     const amount = rows.reduce((sum, row) => sum + row.net, 0);
@@ -1238,21 +1263,21 @@ export function OrderCommissionsOverview() {
     <div className="space-y-4 min-w-0">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Provvigioni e compensi</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Controlla quanto spetta a ogni venditore o beneficiario e registra i pagamenti.</p>
+          <h2 className="text-xl font-semibold tracking-tight">{t("Provvigioni e compensi")}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t("Controlla quanto spetta a ogni venditore o beneficiario e registra i pagamenti.")}</p>
         </div>
-        {!readOnly && <Button asChild variant="outline" size="sm"><Link to="/azienda/impostazioni/persone?tab=venditori">Configura venditori</Link></Button>}
+        {!readOnly && <Button asChild variant="outline" size="sm"><Link to="/azienda/impostazioni/persone?tab=venditori">{t("Configura venditori")}</Link></Button>}
       </div>
       {(legacyError || genericError || ledgerError) && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
-        Non è stato possibile caricare tutti i compensi. Gli importi potrebbero essere incompleti.
-        <Button variant="outline" size="sm" className="ml-3" onClick={() => { queryClient.invalidateQueries({ queryKey: ["orders-commissions-overview"] }); queryClient.invalidateQueries({ queryKey: ["orders-variable-compensations"] }); queryClient.invalidateQueries({ queryKey: ["orders-commissions-overview-ledger"] }); }}>Riprova</Button>
+        {t("Non è stato possibile caricare tutti i compensi. Gli importi potrebbero essere incompleti.")}
+        <Button variant="outline" size="sm" className="ml-3" onClick={() => { queryClient.invalidateQueries({ queryKey: ["orders-commissions-overview"] }); queryClient.invalidateQueries({ queryKey: ["orders-variable-compensations"] }); queryClient.invalidateQueries({ queryKey: ["orders-commissions-overview-ledger"] }); }}>{t("Riprova")}</Button>
       </div>}
-      <OperationalSummary label="Riepilogo provvigioni" title="Compensi e pagamenti" icon={WalletCards} columns={3} error={!!legacyError || !!genericError || !!ledgerError} note="Importi riferiti ai filtri attivi.">
-        <OperationalSummaryMetric label="Da pagare ora" isLoading={isLoading} value={formatCurrency(totals.payable)} icon={WalletCards} tone="green" />
-        <OperationalSummaryMetric label="In attesa" isLoading={isLoading} value={formatCurrency(totals.held)} icon={Clock3} tone="orange" />
-        <OperationalSummaryMetric label="Già pagato" isLoading={isLoading} value={formatCurrency(totals.paid)} icon={CheckCircle2} tone="blue" />
+      <OperationalSummary label={t("Riepilogo provvigioni")} title={t("Compensi e pagamenti")} icon={WalletCards} columns={3} error={!!legacyError || !!genericError || !!ledgerError} note={t("Importi riferiti ai filtri attivi.")}>
+        <OperationalSummaryMetric label={t("Da pagare ora")} isLoading={isLoading} value={formatCurrency(totals.payable)} icon={WalletCards} tone="green" />
+        <OperationalSummaryMetric label={t("In attesa")} isLoading={isLoading} value={formatCurrency(totals.held)} icon={Clock3} tone="orange" />
+        <OperationalSummaryMetric label={t("Già pagato")} isLoading={isLoading} value={formatCurrency(totals.paid)} icon={CheckCircle2} tone="blue" />
       </OperationalSummary>
-      <p className="text-xs text-muted-foreground">Importi riferiti ai filtri attivi · Totale netto {formatCurrency(totals.net)} · Premi {formatCurrency(totals.bonus)} · Decurtazioni {formatCurrency(totals.deductions)}. In attesa include stime, scadenze future, verifiche e blocchi.</p>
+      <p className="text-xs text-muted-foreground">{t("Importi riferiti ai filtri attivi · Totale netto {netto} · Premi {premi} · Decurtazioni {decurtazioni}. In attesa include stime, scadenze future, verifiche e blocchi.", { netto: formatCurrency(totals.net), premi: formatCurrency(totals.bonus), decurtazioni: formatCurrency(totals.deductions) })}</p>
 
       <Card>
         <CardContent className="flex flex-col gap-2 p-3 lg:flex-row lg:items-center lg:overflow-x-auto">
@@ -1261,45 +1286,45 @@ export function OrderCommissionsOverview() {
             <Input
               value={search}
               onChange={(event) => { setSearch(event.target.value); setPage(1); }}
-              placeholder="Cerca commessa, cliente o beneficiario"
-              aria-label="Cerca commessa, cliente o beneficiario"
+              placeholder={t("Cerca commessa, cliente o beneficiario")}
+              aria-label={t("Cerca commessa, cliente o beneficiario")}
               className="pl-9 h-9"
             />
           </div>
           {/* Keep desktop filters and actions on a single line. */}
           <div className="grid min-w-0 grid-cols-2 gap-2 lg:contents">
             <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value as StatusFilter); setPage(1); }}>
-              <SelectTrigger aria-label="Stato del compenso" className="h-9 min-w-0 lg:w-[140px] lg:shrink-0"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={t("Stato del compenso")} className="h-9 min-w-0 lg:w-[140px] lg:shrink-0"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(STATUS_FILTER_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                  <SelectItem key={value} value={value}>{t(label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={beneficiaryFilter} onValueChange={(value) => { setBeneficiaryFilter(value); setPage(1); }}>
-              <SelectTrigger aria-label="Beneficiario" className="h-9 min-w-0 lg:w-[170px] lg:shrink-0"><SelectValue placeholder="Beneficiario" /></SelectTrigger>
+              <SelectTrigger aria-label={t("Beneficiario")} className="h-9 min-w-0 lg:w-[170px] lg:shrink-0"><SelectValue placeholder={t("Beneficiario")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i beneficiari</SelectItem>
+                <SelectItem value="all">{t("Tutti i beneficiari")}</SelectItem>
                 {filterBeneficiaries.map(([id, name]) => (
                   <SelectItem key={id} value={id}>{name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={periodFilter} onValueChange={(value) => { setPeriodFilter(value as PeriodFilter); setPage(1); }}>
-              <SelectTrigger aria-label="Periodo" className="h-9 col-span-2 min-w-0 lg:w-[145px] lg:shrink-0"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={t("Periodo")} className="h-9 col-span-2 min-w-0 lg:w-[145px] lg:shrink-0"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i periodi</SelectItem>
-                <SelectItem value="current_month">Mese corrente</SelectItem>
-                <SelectItem value="last_month">Mese scorso</SelectItem>
-                <SelectItem value="current_year">Anno corrente</SelectItem>
+                <SelectItem value="all">{t("Tutti i periodi")}</SelectItem>
+                <SelectItem value="current_month">{t("Mese corrente")}</SelectItem>
+                <SelectItem value="last_month">{t("Mese scorso")}</SelectItem>
+                <SelectItem value="current_year">{t("Anno corrente")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground lg:contents">
-            <span className="lg:sr-only">Date riferite a:</span>
+            <span className="lg:sr-only">{t("Date riferite a:")}</span>
             <Select value={dateBasis} onValueChange={(value) => { setDateBasis(value as typeof dateBasis); setPage(1); }}>
-              <SelectTrigger aria-label="Data di riferimento del periodo" className="h-9 w-full lg:w-[180px] lg:shrink-0"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="expected">Pagamento previsto</SelectItem><SelectItem value="paid">Pagamento effettuato</SelectItem><SelectItem value="created">Inserimento compenso</SelectItem></SelectContent>
+              <SelectTrigger aria-label={t("Data di riferimento del periodo")} className="h-9 w-full lg:w-[180px] lg:shrink-0"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="expected">{t("Pagamento previsto")}</SelectItem><SelectItem value="paid">{t("Pagamento effettuato")}</SelectItem><SelectItem value="created">{t("Inserimento compenso")}</SelectItem></SelectContent>
             </Select>
           </div>
           {/* Actions share the filter row on desktop. */}
@@ -1307,61 +1332,61 @@ export function OrderCommissionsOverview() {
             {!readOnly && (
               <Button className="h-9 shrink-0 gap-2 whitespace-nowrap" onClick={openAddDialog}>
                 <Plus className="h-4 w-4" />
-                <span className="sm:hidden">Compenso</span>
-                <span className="hidden sm:inline">Aggiungi compenso</span>
+                <span className="sm:hidden">{t("Compenso")}</span>
+                <span className="hidden sm:inline">{t("Aggiungi compenso")}</span>
               </Button>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="h-9 shrink-0 gap-2 whitespace-nowrap" disabled={filteredRows.length === 0}>
                   <Download className="h-4 w-4" />
-                  Esporta
+                  {t("Esporta")}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
                 <DropdownMenuItem onClick={exportCompensationsCsv}>
                   <FileText className="h-4 w-4 mr-2" />
-                  Compensi (righe filtrate) CSV
+                  {t("Compensi (righe filtrate) CSV")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={exportBeneficiariesCsv}>
                   <UsersRound className="h-4 w-4 mr-2" />
-                  Riepilogo per beneficiario CSV
+                  {t("Riepilogo per beneficiario CSV")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {(search || statusFilter !== "all" || beneficiaryFilter !== "all" || periodFilter !== "all") && <Button variant="ghost" className="h-9 shrink-0 whitespace-nowrap" onClick={() => { setSearch(""); setStatusFilter("all"); setBeneficiaryFilter("all"); setPeriodFilter("all"); setPage(1); }}>Azzera filtri</Button>}
+            {(search || statusFilter !== "all" || beneficiaryFilter !== "all" || periodFilter !== "all") && <Button variant="ghost" className="h-9 shrink-0 whitespace-nowrap" onClick={() => { setSearch(""); setStatusFilter("all"); setBeneficiaryFilter("all"); setPeriodFilter("all"); setPage(1); }}>{t("Azzera filtri")}</Button>}
           </div>
         </CardContent>
       </Card>
 
       <div className="flex items-center justify-between gap-3 overflow-x-auto">
-        <div className="flex shrink-0 gap-1 whitespace-nowrap rounded-lg border p-1" aria-label="Vista provvigioni">
-          <Button size="sm" variant={view === "rows" ? "secondary" : "ghost"} aria-pressed={view === "rows"} onClick={() => setView("rows")}>Elenco compensi</Button>
-          <Button size="sm" variant={view === "beneficiaries" ? "secondary" : "ghost"} aria-pressed={view === "beneficiaries"} onClick={() => setView("beneficiaries")}>Per venditore / beneficiario</Button>
+        <div className="flex shrink-0 gap-1 whitespace-nowrap rounded-lg border p-1" aria-label={t("Vista provvigioni")}>
+          <Button size="sm" variant={view === "rows" ? "secondary" : "ghost"} aria-pressed={view === "rows"} onClick={() => setView("rows")}>{t("Elenco compensi")}</Button>
+          <Button size="sm" variant={view === "beneficiaries" ? "secondary" : "ghost"} aria-pressed={view === "beneficiaries"} onClick={() => setView("beneficiaries")}>{t("Per venditore / beneficiario")}</Button>
         </div>
-        <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">{filteredRows.length} compensi · {beneficiarySummaries.length} beneficiari</span>
+        <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">{t("{compensi} compensi · {beneficiari} beneficiari", { compensi: filteredRows.length, beneficiari: beneficiarySummaries.length })}</span>
       </div>
-      {periodFilter !== "all" && dateBasis === "expected" && <p className="text-xs text-muted-foreground">I compensi senza una data prevista non rientrano nel periodo scelto. Seleziona “Tutti i periodi” per vederli.</p>}
+      {periodFilter !== "all" && dateBasis === "expected" && <p className="text-xs text-muted-foreground">{t("I compensi senza una data prevista non rientrano nel periodo scelto. Seleziona “Tutti i periodi” per vederli.")}</p>}
       <div className="min-w-0">
         {view === "beneficiaries" && <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <UsersRound className="h-4 w-4" />
-              Beneficiari
+              {t("Beneficiari")}
             </CardTitle>
-            <CardDescription>Commerciali, partner, tecnici o altri soggetti remunerati.</CardDescription>
+            <CardDescription>{t("Commerciali, partner, tecnici o altri soggetti remunerati.")}</CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <Table className="min-w-[700px]">
-              <TableHeader><TableRow><TableHead>Venditore / beneficiario</TableHead><TableHead>Compensi</TableHead><TableHead className="text-right">Da pagare ora</TableHead><TableHead className="text-right">In attesa</TableHead><TableHead className="text-right">Pagato</TableHead><TableHead>Azioni</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>{t("Venditore / beneficiario")}</TableHead><TableHead>{t("Compensi")}</TableHead><TableHead className="text-right">{t("Da pagare ora")}</TableHead><TableHead className="text-right">{t("In attesa")}</TableHead><TableHead className="text-right">{t("Pagato")}</TableHead><TableHead>{t("Azioni")}</TableHead></TableRow></TableHeader>
               <TableBody>
-                {isLoading ? <TableRow><TableCell colSpan={6}>Caricamento…</TableCell></TableRow> : beneficiarySummaries.length === 0 ? <TableRow><TableCell colSpan={6} className="py-8 text-center">Nessun beneficiario per questi filtri.</TableCell></TableRow> : beneficiarySummaries.map((summary) => <TableRow key={summary.id}>
-                  <TableCell><div className="flex items-center gap-2"><button className="text-left font-medium text-primary hover:underline" onClick={() => { setBeneficiaryFilter(summary.id); setPage(1); setView("rows"); }}>{summary.name}</button><p className="text-xs text-muted-foreground">{summary.role}</p></div></TableCell>
+                {isLoading ? <TableRow><TableCell colSpan={6}>{t("Caricamento…")}</TableCell></TableRow> : beneficiarySummaries.length === 0 ? <TableRow><TableCell colSpan={6} className="py-8 text-center">{t("Nessun beneficiario per questi filtri.")}</TableCell></TableRow> : beneficiarySummaries.map((summary) => <TableRow key={summary.id}>
+                  <TableCell><div className="flex items-center gap-2"><button className="text-left font-medium text-primary hover:underline" onClick={() => { setBeneficiaryFilter(summary.id); setPage(1); setView("rows"); }}>{summary.name}</button><p className="text-xs text-muted-foreground">{t(summary.role)}</p></div></TableCell>
                   <TableCell>{summary.rowsCount}</TableCell>
                   <TableCell className="text-right font-medium tabular-nums">{formatCurrency(summary.payable)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(summary.held)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(summary.paid)}</TableCell>
-                  <TableCell>{!readOnly && summary.payable > 0 && <Button size="sm" variant="outline" onClick={() => openLiquidateBeneficiary(summary.id, summary.name)} disabled={setPaidMutation.isPending}>Registra pagamento</Button>}</TableCell>
+                  <TableCell>{!readOnly && summary.payable > 0 && <Button size="sm" variant="outline" onClick={() => openLiquidateBeneficiary(summary.id, summary.name)} disabled={setPaidMutation.isPending}>{t("Registra pagamento")}</Button>}</TableCell>
                 </TableRow>)}
               </TableBody>
             </Table>
@@ -1372,26 +1397,26 @@ export function OrderCommissionsOverview() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Euro className="h-4 w-4" />
-              Elenco compensi
+              {t("Elenco compensi")}
             </CardTitle>
-            <CardDescription>Una riga per compenso. Apri il dettaglio per vedere calcolo, date e situazione del pagamento.</CardDescription>
+            <CardDescription>{t("Una riga per compenso. Apri il dettaglio per vedere calcolo, date e situazione del pagamento.")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
               <Table className="min-w-[1100px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap [&_td]:py-2.5">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Venditore / beneficiario</TableHead>
-                    <TableHead>Commessa / contratto</TableHead>
-                    <TableHead>Modalità compenso</TableHead>
-                    <TableHead>Inserito il</TableHead>
-                    <TableHead>Pagamento previsto</TableHead>
-                    <TableHead>Pagato il</TableHead>
-                    <TableHead className="text-right">Base + premi</TableHead>
-                    <TableHead className="text-right">Decurtazioni</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead className="text-right">Netto</TableHead>
-                    <TableHead className="w-[92px]">Azioni</TableHead>
+                    <TableHead>{t("Venditore / beneficiario")}</TableHead>
+                    <TableHead>{t("Commessa / contratto")}</TableHead>
+                    <TableHead>{t("Modalità compenso")}</TableHead>
+                    <TableHead>{t("Inserito il")}</TableHead>
+                    <TableHead>{t("Pagamento previsto")}</TableHead>
+                    <TableHead>{t("Pagato il")}</TableHead>
+                    <TableHead className="text-right">{t("Base + premi")}</TableHead>
+                    <TableHead className="text-right">{t("Decurtazioni")}</TableHead>
+                    <TableHead>{t("Stato")}</TableHead>
+                    <TableHead className="text-right">{t("Netto")}</TableHead>
+                    <TableHead className="w-[92px]">{t("Azioni")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1406,7 +1431,7 @@ export function OrderCommissionsOverview() {
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={11} className="py-10 text-center text-sm text-muted-foreground">
-                        Nessun compenso nel periodo selezionato.
+                        {t("Nessun compenso nel periodo selezionato.")}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -1415,7 +1440,7 @@ export function OrderCommissionsOverview() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <button className="text-left font-medium text-primary hover:underline" onClick={() => setSelectedRowId(row.id)}>{row.beneficiaryName}</button>
-                            <p className="text-xs text-muted-foreground">{row.role}</p>
+                            <p className="text-xs text-muted-foreground">{t(row.role)}</p>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -1430,20 +1455,20 @@ export function OrderCommissionsOverview() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm">{row.ruleDetail}</span>
-                            {row.source === "local" && <Badge variant="outline">Solo su questo browser</Badge>}
+                            <span className="text-sm">{formatRule(row.ruleType, row.ruleValue, t)}</span>
+                            {row.source === "local" && <Badge variant="outline">{t("Solo su questo browser")}</Badge>}
 
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">{formatDate(row.createdAt)}</TableCell>
-                        <TableCell className="whitespace-nowrap">{formatDate(row.expectedDate) || "Da definire"}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatDate(row.expectedDate) || t("Da definire")}</TableCell>
                         <TableCell className="whitespace-nowrap">{formatDate(row.paidDate) || "—"}</TableCell>
                         <TableCell className="text-right tabular-nums">{formatCurrency(row.gross + row.bonus)}</TableCell>
                         <TableCell className="text-right tabular-nums">{formatCurrency(row.deductions)}</TableCell>
                         <TableCell>
                           <div className="space-y-1">
                             <Badge variant="outline" className={STATUS_BADGE_CLASS[row.statusInfo.status]}>
-                              {row.statusInfo.label}
+                              {t(row.statusInfo.label)}
                             </Badge>
 
                           </div>
@@ -1455,17 +1480,17 @@ export function OrderCommissionsOverview() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
-                          <Button variant="outline" size="sm" className="h-8" onClick={() => setSelectedRowId(row.id)}>Apri dettaglio</Button>
+                          <Button variant="outline" size="sm" className="h-8" onClick={() => setSelectedRowId(row.id)}>{t("Apri dettaglio")}</Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Azioni compenso">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("Azioni compenso")}>
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-52">
                               <DropdownMenuItem onClick={() => setSelectedRowId(row.id)}>
                                 <FileText className="h-4 w-4 mr-2" />
-                                Dettaglio
+                                {t("Dettaglio")}
                               </DropdownMenuItem>
                               {!readOnly && (
                                 <>
@@ -1476,7 +1501,7 @@ export function OrderCommissionsOverview() {
                                       disabled={setPaidMutation.isPending}
                                     >
                                       <Undo2 className="h-4 w-4 mr-2" />
-                                      Annulla pagamento
+                                      {t("Annulla pagamento")}
                                     </DropdownMenuItem>
                                   ) : (
                                     <DropdownMenuItem
@@ -1484,7 +1509,7 @@ export function OrderCommissionsOverview() {
                                       disabled={setPaidMutation.isPending || row.statusInfo.status !== "payable"}
                                     >
                                       <BadgeCheck className="h-4 w-4 mr-2 text-emerald-600" />
-                                      Segna come pagato
+                                      {t("Segna come pagato")}
                                     </DropdownMenuItem>
                                   )}
                                 </>
@@ -1500,8 +1525,8 @@ export function OrderCommissionsOverview() {
               </Table>
             </div>
             {pageCount > 1 && <div className="mt-4 flex items-center justify-between gap-2 text-sm">
-              <span className="text-muted-foreground">Pagina {currentPage} di {pageCount} · {filteredRows.length} compensi</span>
-              <div className="flex gap-2"><Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Precedente</Button><Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Successiva</Button></div>
+              <span className="text-muted-foreground">{t("Pagina {pagina} di {pagine} · {n} compensi", { pagina: currentPage, pagine: pageCount, n: filteredRows.length })}</span>
+              <div className="flex gap-2"><Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t("Precedente")}</Button><Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>{t("Successiva")}</Button></div>
             </div>}
           </CardContent>
         </Card>}
@@ -1512,45 +1537,45 @@ export function OrderCommissionsOverview() {
           {selectedRow && (
             <>
               <DialogHeader className="shrink-0 border-b px-6 pb-4 pt-6">
-                <DialogTitle>Dettaglio compenso</DialogTitle>
+                <DialogTitle>{t("Dettaglio compenso")}</DialogTitle>
                 <DialogDescription>
                   {selectedRow.beneficiaryName} · {orderName(selectedRow.order)}
                 </DialogDescription>
               </DialogHeader>
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
               {selectedRow.order && <CommissionContractDetails key={selectedRow.order.id} orderId={selectedRow.order.id} />}
-              <div className="border-t pt-5"><h3 className="font-semibold">Provvigione del beneficiario</h3><p className="mt-1 text-sm text-muted-foreground">{selectedRow.beneficiaryName} · {selectedRow.role}</p></div>
+              <div className="border-t pt-5"><h3 className="font-semibold">{t("Provvigione del beneficiario")}</h3><p className="mt-1 text-sm text-muted-foreground">{selectedRow.beneficiaryName} · {t(selectedRow.role)}</p></div>
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Stato</p>
+                  <p className="text-xs text-muted-foreground">{t("Stato")}</p>
                   <Badge variant="outline" className={`mt-2 ${STATUS_BADGE_CLASS[selectedRow.statusInfo.status]}`}>
-                    {selectedRow.statusInfo.label}
+                    {t(selectedRow.statusInfo.label)}
                   </Badge>
-                  <p className="mt-2 text-xs text-muted-foreground">{selectedRow.statusInfo.hint}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{t(selectedRow.statusInfo.hint)}</p>
                 </div>
                 <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Regola</p>
-                  <p className="mt-2 font-medium">{selectedRow.ruleLabel}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{selectedRow.ruleDetail}</p>
+                  <p className="text-xs text-muted-foreground">{t("Regola")}</p>
+                  <p className="mt-2 font-medium">{t(selectedRow.ruleLabel)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{formatRule(selectedRow.ruleType, selectedRow.ruleValue, t)}</p>
                 </div>
                 <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Netto provvigione</p>
+                  <p className="text-xs text-muted-foreground">{t("Netto provvigione")}</p>
                   <p className="mt-2 text-xl font-semibold tabular-nums">{formatCurrency(selectedRow.net)}</p>
 
                 </div>
               </div>
               <div className="grid gap-3 rounded-lg bg-muted/40 p-4 text-sm sm:grid-cols-3">
-                <div><p className="text-muted-foreground">Inserito il</p><p className="mt-1 font-medium">{formatDate(selectedRow.createdAt)}</p></div>
-                <div><p className="text-muted-foreground">Pagamento previsto</p><p className="mt-1 font-medium">{formatDate(selectedRow.expectedDate) || "Da definire"}</p></div>
-                <div><p className="text-muted-foreground">Pagato il</p><p className="mt-1 font-medium">{formatDate(selectedRow.paidDate) || "Non registrato"}</p></div>
+                <div><p className="text-muted-foreground">{t("Inserito il")}</p><p className="mt-1 font-medium">{formatDate(selectedRow.createdAt)}</p></div>
+                <div><p className="text-muted-foreground">{t("Pagamento previsto")}</p><p className="mt-1 font-medium">{formatDate(selectedRow.expectedDate) || t("Da definire")}</p></div>
+                <div><p className="text-muted-foreground">{t("Pagato il")}</p><p className="mt-1 font-medium">{formatDate(selectedRow.paidDate) || t("Non registrato")}</p></div>
               </div>
-              {selectedRow.currentAgreement && <details className="rounded-md border p-3 text-sm"><summary className="cursor-pointer font-medium">Accordo attuale del venditore</summary><p className="mt-2">{selectedRow.currentAgreement}</p><p className="mt-1 text-xs text-muted-foreground">La riga riguarda il compenso della commessa con la regola riportata sopra; l'accordo attuale può essere diverso da quello assegnato alla commessa.</p></details>}
-              {selectedRow.source === "local" && <p role="note" className="rounded-md border p-3 text-sm">Compenso di prova salvato solo in questo browser, non condiviso con gli altri dispositivi.</p>}
-              {selectedRow.source !== "legacy" && <p className="text-xs text-muted-foreground">Il dettaglio mostra il calcolo registrato all'inserimento. Verifica eventuali incassi o variazioni successivi prima del pagamento.</p>}
+              {selectedRow.currentAgreement && <details className="rounded-md border p-3 text-sm"><summary className="cursor-pointer font-medium">{t("Accordo attuale del venditore")}</summary><p className="mt-2">{formatAgreement(selectedRow.agreementSource, t)}</p><p className="mt-1 text-xs text-muted-foreground">{t("La riga riguarda il compenso della commessa con la regola riportata sopra; l'accordo attuale può essere diverso da quello assegnato alla commessa.")}</p></details>}
+              {selectedRow.source === "local" && <p role="note" className="rounded-md border p-3 text-sm">{t("Compenso di prova salvato solo in questo browser, non condiviso con gli altri dispositivi.")}</p>}
+              {selectedRow.source !== "legacy" && <p className="text-xs text-muted-foreground">{t("Il dettaglio mostra il calcolo registrato all'inserimento. Verifica eventuali incassi o variazioni successivi prima del pagamento.")}</p>}
               <div className="space-y-2">
                 {selectedRow.breakdown.map((line) => (
                   <div key={line.label} className="flex items-center justify-between rounded-md border p-3 text-sm">
-                    <span className="text-muted-foreground">{line.label}</span>
+                    <span className="text-muted-foreground">{t(line.label)}</span>
                     <span className={line.kind === "malus" ? "font-medium tabular-nums text-red-700" : line.kind === "bonus" ? "font-medium tabular-nums text-emerald-700" : "font-medium tabular-nums"}>
                       {Math.abs(line.amount) < 0.005 ? formatCurrency(0) : line.amount < 0 ? `-${formatCurrency(Math.abs(line.amount))}` : formatCurrency(line.amount)}
                     </span>
@@ -1559,9 +1584,9 @@ export function OrderCommissionsOverview() {
               </div>
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-background px-6 py-4">
-                {selectedRow.order && <Button asChild variant="outline"><Link to={`/azienda/ordini/${selectedRow.order.id}`}>Apri commessa / contratto</Link></Button>}
-                {!readOnly && selectedRow.statusInfo.status === "payable" && <Button onClick={() => { setPaymentDate(format(new Date(), "yyyy-MM-dd")); setLiquidateTarget({ name: selectedRow.beneficiaryName, rows: [selectedRow], amount: selectedRow.net }); setSelectedRowId(null); }}>Registra pagamento</Button>}
-                {!readOnly && selectedRow.statusInfo.status === "paid" && <Button variant="outline" disabled={setPaidMutation.isPending} onClick={() => setPaidMutation.mutate({ rows: [selectedRow], paid: false })}>Annulla registrazione pagamento</Button>}
+                {selectedRow.order && <Button asChild variant="outline"><Link to={`/azienda/ordini/${selectedRow.order.id}`}>{t("Apri commessa / contratto")}</Link></Button>}
+                {!readOnly && selectedRow.statusInfo.status === "payable" && <Button onClick={() => { setPaymentDate(format(new Date(), "yyyy-MM-dd")); setLiquidateTarget({ name: selectedRow.beneficiaryName, rows: [selectedRow], amount: selectedRow.net }); setSelectedRowId(null); }}>{t("Registra pagamento")}</Button>}
+                {!readOnly && selectedRow.statusInfo.status === "paid" && <Button variant="outline" disabled={setPaidMutation.isPending} onClick={() => setPaidMutation.mutate({ rows: [selectedRow], paid: false })}>{t("Annulla registrazione pagamento")}</Button>}
               </div>
             </>
           )}
@@ -1571,18 +1596,18 @@ export function OrderCommissionsOverview() {
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Aggiungi compenso variabile</DialogTitle>
+            <DialogTitle>{t("Aggiungi compenso variabile")}</DialogTitle>
             <DialogDescription>
-              Assegna un premio, una provvigione o un compenso a qualunque beneficiario collegato alla commessa.
+              {t("Assegna un premio, una provvigione o un compenso a qualunque beneficiario collegato alla commessa.")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>Commessa</Label>
+              <Label>{t("Commessa")}</Label>
               <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleziona commessa" />
+                  <SelectValue placeholder={t("Seleziona commessa")} />
                 </SelectTrigger>
                 <SelectContent>
                   {orderOptions.map((order) => (
@@ -1595,16 +1620,16 @@ export function OrderCommissionsOverview() {
             </div>
 
             <div className="space-y-2">
-              <Label>Beneficiario</Label>
+              <Label>{t("Beneficiario")}</Label>
               <Select value={selectedBeneficiaryId} onValueChange={setSelectedBeneficiaryId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleziona beneficiario" />
+                  <SelectValue placeholder={t("Seleziona beneficiario")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__new__">Nuovo beneficiario</SelectItem>
+                  <SelectItem value="__new__">{t("Nuovo beneficiario")}</SelectItem>
                   {beneficiaryOptions.map((beneficiary) => (
                     <SelectItem key={beneficiary.id} value={beneficiary.id}>
-                      {beneficiary.display_name} · {ROLE_LABELS[beneficiary.role] ?? beneficiary.role}
+                      {beneficiary.display_name} · {ROLE_LABELS[beneficiary.role] ? t(ROLE_LABELS[beneficiary.role]) : beneficiary.role}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1614,18 +1639,18 @@ export function OrderCommissionsOverview() {
             {selectedBeneficiaryId === "__new__" && (
               <>
                 <div className="space-y-2">
-                  <Label>Nome beneficiario</Label>
-                  <Input value={newBeneficiaryName} onChange={(event) => setNewBeneficiaryName(event.target.value)} placeholder="Es. Partner Rossi" />
+                  <Label>{t("Nome beneficiario")}</Label>
+                  <Input value={newBeneficiaryName} onChange={(event) => setNewBeneficiaryName(event.target.value)} placeholder={t("Es. Partner Rossi")} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Ruolo</Label>
+                  <Label>{t("Ruolo")}</Label>
                   <Select value={newBeneficiaryRole} onValueChange={setNewBeneficiaryRole}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                        <SelectItem key={value} value={value}>{t(label)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1634,60 +1659,60 @@ export function OrderCommissionsOverview() {
             )}
 
             <div className="space-y-2">
-              <Label>Tipo compenso</Label>
+              <Label>{t("Tipo compenso")}</Label>
               <Select value={compensationType} onValueChange={(value) => setCompensationType(value as GenericCompensationType)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="fixed">Importo fisso</SelectItem>
-                  <SelectItem value="percentage_sold">% sul venduto</SelectItem>
-                  <SelectItem value="percentage_collected">% sull'incassato</SelectItem>
-                  <SelectItem value="bonus">Premio</SelectItem>
-                  <SelectItem value="malus">Malus</SelectItem>
-                  <SelectItem value="manual">Manuale</SelectItem>
+                  <SelectItem value="fixed">{t("Importo fisso")}</SelectItem>
+                  <SelectItem value="percentage_sold">{t("% sul venduto")}</SelectItem>
+                  <SelectItem value="percentage_collected">{t("% sull'incassato")}</SelectItem>
+                  <SelectItem value="bonus">{t("Premio")}</SelectItem>
+                  <SelectItem value="malus">{t("Malus")}</SelectItem>
+                  <SelectItem value="manual">{t("Manuale")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label>{compensationType.includes("percentage") ? "Percentuale" : "Importo"}</Label>
+              <Label>{compensationType.includes("percentage") ? t("Percentuale") : t("Importo")}</Label>
               <Input type="number" min="0" step={compensationType.includes("percentage") ? "0.1" : "0.01"} value={compensationValue} onChange={(event) => setCompensationValue(event.target.value)} />
             </div>
 
             <div className="space-y-2">
-              <Label>Premio extra</Label>
+              <Label>{t("Premio extra")}</Label>
               <Input type="number" min="0" step="0.01" value={bonusAmount} onChange={(event) => setBonusAmount(event.target.value)} />
             </div>
 
             <div className="space-y-2">
-              <Label>Decurtazione</Label>
+              <Label>{t("Decurtazione")}</Label>
               <Input type="number" min="0" step="0.01" value={deductionAmount} onChange={(event) => setDeductionAmount(event.target.value)} />
             </div>
 
             <div className="space-y-2">
-              <Label>Data prevista pagamento</Label>
+              <Label>{t("Data prevista pagamento")}</Label>
               <Input type="date" value={expectedPaymentDate} onChange={(event) => setExpectedPaymentDate(event.target.value)} />
             </div>
 
             <div className="rounded-md border p-3">
-              <p className="text-xs text-muted-foreground">Simulazione netto</p>
+              <p className="text-xs text-muted-foreground">{t("Simulazione netto")}</p>
               <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCurrency(draftAmounts.net)}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Base {formatCurrency(draftAmounts.gross)} · Premi {formatCurrency(draftAmounts.bonus)} · Decurt. {formatCurrency(draftAmounts.deduction)}
+                {t("Base {base} · Premi {premi} · Decurt. {decurtazioni}", { base: formatCurrency(draftAmounts.gross), premi: formatCurrency(draftAmounts.bonus), decurtazioni: formatCurrency(draftAmounts.deduction) })}
               </p>
               {compensationType === "percentage_collected" && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Incassato netto rilevato {formatCurrency(draftAmounts.collectedAmount)}
+                  {t("Incassato netto rilevato {importo}", { importo: formatCurrency(draftAmounts.collectedAmount) })}
                 </p>
               )}
             </div>
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>{t("Annulla")}</Button>
             <Button onClick={() => saveCompensationMutation.mutate()} disabled={saveCompensationMutation.isPending || !canSaveCompensation}>
-              Salva compenso
+              {t("Salva compenso")}
             </Button>
           </div>
         </DialogContent>
@@ -1696,34 +1721,34 @@ export function OrderCommissionsOverview() {
       <Dialog open={!!liquidateTarget} onOpenChange={(open) => !open && !setPaidMutation.isPending && setLiquidateTarget(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Registra pagamento</DialogTitle>
+            <DialogTitle>{t("Registra pagamento")}</DialogTitle>
             <DialogDescription>
-              Registra il pagamento già effettuato a <strong>{liquidateTarget?.name}</strong>. Questa operazione non esegue bonifici e si può annullare dal dettaglio.
+              {t("Registra il pagamento già effettuato a {nome}. Questa operazione non esegue bonifici e si può annullare dal dettaglio.", { nome: liquidateTarget?.name ?? "" })}
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border p-3 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Compensi pagabili</span>
+              <span className="text-muted-foreground">{t("Compensi pagabili")}</span>
               <span className="font-medium tabular-nums">{liquidateTarget?.rows.length ?? 0}</span>
             </div>
             <div className="mt-1.5 flex items-center justify-between">
-              <span className="text-muted-foreground">Totale netto</span>
+              <span className="text-muted-foreground">{t("Totale netto")}</span>
               <span className="font-semibold tabular-nums text-emerald-700">{formatCurrency(liquidateTarget?.amount ?? 0)}</span>
             </div>
           </div>
           <div className="max-h-40 overflow-y-auto rounded-md border p-3 text-sm space-y-2">
             {liquidateTarget?.rows.map((row) => <div key={row.id} className="flex justify-between gap-3"><span>{orderName(row.order)}</span><span className="tabular-nums">{formatCurrency(row.net)}</span></div>)}
           </div>
-          <div className="space-y-2"><Label htmlFor="commission-payment-date">Data del pagamento</Label><Input id="commission-payment-date" type="date" max={format(new Date(), "yyyy-MM-dd")} value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} /></div>
+          <div className="space-y-2"><Label htmlFor="commission-payment-date">{t("Data del pagamento")}</Label><Input id="commission-payment-date" type="date" max={format(new Date(), "yyyy-MM-dd")} value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} /></div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" disabled={setPaidMutation.isPending} onClick={() => setLiquidateTarget(null)}>Annulla</Button>
+            <Button variant="outline" disabled={setPaidMutation.isPending} onClick={() => setLiquidateTarget(null)}>{t("Annulla")}</Button>
             <Button
               className="gap-1.5"
               onClick={() => liquidateTarget && setPaidMutation.mutate({ rows: liquidateTarget.rows, paid: true, date: paymentDate })}
               disabled={setPaidMutation.isPending || !!legacyError || !!genericError || !!ledgerError || !paymentDate || paymentDate > format(new Date(), "yyyy-MM-dd")}
             >
               {setPaidMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
-              Conferma pagamento {formatCurrency(liquidateTarget?.amount ?? 0)}
+              {t("Conferma pagamento {importo}", { importo: formatCurrency(liquidateTarget?.amount ?? 0) })}
             </Button>
           </div>
         </DialogContent>

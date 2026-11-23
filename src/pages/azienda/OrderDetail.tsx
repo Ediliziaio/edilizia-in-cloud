@@ -182,6 +182,7 @@ import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCommessaCampoSync } from "@/hooks/useCommessaCampoSync";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 // ── Giornale Tab Content ─────────────────────────────────────────
 
 // ── Order Alert logic ────────────────────────────────────────────
@@ -204,6 +205,7 @@ function parseValidOrderDate(value: string | null): Date | null {
 }
 
 function getOrderAlerts(
+  t: ReturnType<typeof useT>,
   order: { expected_date: string | null; warehouse_arrival_date: string | null },
   items: { name: string; status: string }[],
   installments: { label: string; amount: number; is_paid: boolean; expected_date?: string | null }[] = []
@@ -225,8 +227,8 @@ function getOrderAlerts(
       if (giorni < 0) {
         alerts.push({
           type: 'urgent',
-          title: `Rata scaduta da ${Math.abs(giorni)} giorn${Math.abs(giorni) === 1 ? 'o' : 'i'}`,
-          description: `${prossima.label} di ${formatCurrency(prossima.amount)} era previsto il ${format(dataRata, "dd/MM/yyyy")} — sollecita l'incasso.`,
+          title: t(Math.abs(giorni) === 1 ? "Rata scaduta da {n} giorno" : "Rata scaduta da {n} giorni", { n: Math.abs(giorni) }),
+          description: t("{rata} di {importo} era previsto il {data} — sollecita l'incasso.", { rata: prossima.label, importo: formatCurrency(prossima.amount), data: format(dataRata, "dd/MM/yyyy") }),
           icon: <AlertTriangle className="h-4 w-4" />,
           sollecitabile: true,
           section: "section-pagamenti",
@@ -234,9 +236,9 @@ function getOrderAlerts(
       } else if (giorni <= 14) {
         alerts.push({
           type: 'info',
-          title: giorni === 0 ? 'Incasso previsto oggi' : `Prossimo incasso tra ${giorni} giorn${giorni === 1 ? 'o' : 'i'}`,
+          title: giorni === 0 ? t("Incasso previsto oggi") : t(giorni === 1 ? "Prossimo incasso tra {n} giorno" : "Prossimo incasso tra {n} giorni", { n: giorni }),
           section: "section-pagamenti",
-          description: `${prossima.label} di ${formatCurrency(prossima.amount)} previsto il ${format(dataRata, "dd/MM/yyyy")}.`,
+          description: t("{rata} di {importo} previsto il {data}.", { rata: prossima.label, importo: formatCurrency(prossima.amount), data: format(dataRata, "dd/MM/yyyy") }),
           icon: <AlertCircle className="h-4 w-4" />,
         });
       }
@@ -254,11 +256,15 @@ function getOrderAlerts(
       const daysUntilPosa = differenceInDays(expectedDate, today);
       if (daysUntilPosa <= 7) {
         const itemNames = itemsNonPronti.slice(0, 3).map(i => i.name).join(', ');
-        const moreItems = itemsNonPronti.length > 3 ? ` e altri ${itemsNonPronti.length - 3}` : '';
+        const nonPronti = itemsNonPronti.length;
         alerts.push({
           type: 'urgent',
-          title: daysUntilPosa <= 0 ? 'Posa scaduta!' : daysUntilPosa === 1 ? 'Posa prevista domani!' : `Posa prevista tra ${daysUntilPosa} giorni`,
-          description: `${itemsNonPronti.length} articol${itemsNonPronti.length > 1 ? 'i' : 'o'} non ancora pront${itemsNonPronti.length > 1 ? 'i' : 'o'}: ${itemNames}${moreItems}`,
+          title: daysUntilPosa <= 0 ? t("Posa scaduta!") : daysUntilPosa === 1 ? t("Posa prevista domani!") : t("Posa prevista tra {n} giorni", { n: daysUntilPosa }),
+          description: nonPronti > 3
+            ? t("{n} articoli non ancora pronti: {nomi} e altri {altri}", { n: nonPronti, nomi: itemNames, altri: nonPronti - 3 })
+            : nonPronti > 1
+              ? t("{n} articoli non ancora pronti: {nomi}", { n: nonPronti, nomi: itemNames })
+              : t("{n} articolo non ancora pronto: {nomi}", { n: nonPronti, nomi: itemNames }),
           icon: <AlertTriangle className="h-4 w-4" />,
         });
       }
@@ -272,8 +278,8 @@ function getOrderAlerts(
       if (isBefore(arrivalDate, today)) {
         alerts.push({
           type: 'warning',
-          title: 'Merce in ritardo',
-          description: `${itemsOrdinati.length} articol${itemsOrdinati.length > 1 ? 'i' : 'o'} dovrebbe${itemsOrdinati.length > 1 ? 'ro' : ''} essere già arrivat${itemsOrdinati.length > 1 ? 'i' : 'o'} in magazzino`,
+          title: t("Merce in ritardo"),
+          description: t(itemsOrdinati.length > 1 ? "{n} articoli dovrebbero essere già arrivati in magazzino" : "{n} articolo dovrebbe essere già arrivato in magazzino", { n: itemsOrdinati.length }),
           icon: <AlertCircle className="h-4 w-4" />,
         });
       }
@@ -282,11 +288,10 @@ function getOrderAlerts(
 
   if (itemsDaOrdinare.length > 0 && alerts.length === 0) {
     const itemNames = itemsDaOrdinare.slice(0, 3).map(i => i.name).join(', ');
-    const moreItems = itemsDaOrdinare.length > 3 ? ` e altri ${itemsDaOrdinare.length - 3}` : '';
     alerts.push({
       type: 'info',
-      title: `${itemsDaOrdinare.length} articol${itemsDaOrdinare.length > 1 ? 'i' : 'o'} da ordinare`,
-      description: `${itemNames}${moreItems}`,
+      title: t(itemsDaOrdinare.length > 1 ? "{n} articoli da ordinare" : "{n} articolo da ordinare", { n: itemsDaOrdinare.length }),
+      description: itemsDaOrdinare.length > 3 ? t("{nomi} e altri {altri}", { nomi: itemNames, altri: itemsDaOrdinare.length - 3 }) : itemNames,
       icon: <Package className="h-4 w-4" />,
     });
   }
@@ -402,6 +407,7 @@ function OrderDetailInner() {
   const { id } = useParams<{ id: string }>();
   const propostaMappa = (useLocation().state as { propostaMappa?: PropostaCommessaMappa } | null)?.propostaMappa;
   const navigate = useNavigate();
+  const t = useT();
   const { user, effectiveCompany, role } = useAuth();
   const permissions = usePermissions();
   const puoScrivereRate = (!!permissions.canEditOrders || !!permissions.canManagePayments) && !permissions.solaLettura;
@@ -445,7 +451,7 @@ function OrderDetailInner() {
   const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
   // Fattura, proforma, DDT e note di credito dal sistema: lo stesso stato in testata e nella sezione (15/11/2026).
   const documentiBloccati = !isNativeBilling || permissions.solaLettura;
-  const motivoDocumentiBloccati = permissions.solaLettura ? "Accesso in sola lettura" : "Per creare fatture, proforma, DDT e note di credito dal sistema attiva la fatturazione nativa in Impostazioni > Fatturazione.";
+  const motivoDocumentiBloccati = permissions.solaLettura ? t("Accesso in sola lettura") : t("Per creare fatture, proforma, DDT e note di credito dal sistema attiva la fatturazione nativa in Impostazioni > Fatturazione.");
 
   const { getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
   const [riepilogoAperto, setRiepilogoAperto] = useState(false);
@@ -797,10 +803,10 @@ function OrderDetailInner() {
       queryClient.invalidateQueries({ queryKey: ["order-status-history", id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
-      toast.success("Stato aggiornato");
+      toast.success(t("Stato aggiornato"));
       setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" });
     },
-    onError: (e: unknown) => { const m = (e as { message?: string } | null)?.message; toast.error(m ? `Stato non aggiornato: ${m}` : "Errore nell'aggiornamento dello stato."); },
+    onError: (e: unknown) => { const m = (e as { message?: string } | null)?.message; toast.error(m ? t("Stato non aggiornato: {motivo}", { motivo: m }) : t("Errore nell'aggiornamento dello stato.")); },
   });
 
   // Update notes mutation
@@ -815,19 +821,19 @@ function OrderDetailInner() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) });
-      toast.success("Note salvate");
+      toast.success(t("Note salvate"));
       setIsEditingNotes(false);
     },
-    onError: () => { toast.error("Errore nel salvataggio delle note."); },
+    onError: () => { toast.error(t("Errore nel salvataggio delle note.")); },
   });
 
   // Delete order mutation — richiede il permesso "Elimina Ordini" (can_delete_orders)
   const deleteOrderMutation = useMutation({
     mutationFn: () => {
       const companyId = effectiveCompany?.id;
-      if (!companyId) throw new Error("Nessuna azienda selezionata.");
+      if (!companyId) throw new Error(t("Nessuna azienda selezionata."));
       if (!permissions.isAdmin && !permissions.canDeleteOrders) {
-        throw new Error("Non hai il permesso di eliminare le commesse (chiedi all'amministratore).");
+        throw new Error(t("Non hai il permesso di eliminare le commesse (chiedi all'amministratore)."));
       }
       return deleteOrderCascading(id!, companyId);
     },
@@ -839,11 +845,11 @@ function OrderDetailInner() {
       queryClient.invalidateQueries({ queryKey: queryKeys.cruscotto.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
-      toast.success("Commessa spostata nel cestino");
+      toast.success(t("Commessa spostata nel cestino"));
       navigate("/azienda/ordini");
     },
     onError: (error) => {
-      toast.error("Errore nell'eliminazione della commessa.", {
+      toast.error(t("Errore nell'eliminazione della commessa."), {
         description: error instanceof Error ? error.message : undefined,
       });
     },
@@ -926,9 +932,9 @@ function OrderDetailInner() {
         queryClient.invalidateQueries({ queryKey: ["cashflow"] });
       }
       const numero = installment.fattura?.numero;
-      toast.success(paid ? `${installment.label} segnato come pagato` : `${installment.label} segnato come da pagare`, {
+      toast.success(paid ? t("{rata} segnato come pagato", { rata: installment.label }) : t("{rata} segnato come da pagare", { rata: installment.label }), {
         description: installment.documento_fiscale_id && numero && !numero.startsWith("Bozza")
-          ? (paid ? `Incasso registrato sulla fattura n. ${numero}.` : `Incasso tolto dalla fattura n. ${numero}.`)
+          ? (paid ? t("Incasso registrato sulla fattura n. {numero}.", { numero }) : t("Incasso tolto dalla fattura n. {numero}.", { numero }))
           : undefined,
       });
     },
@@ -936,8 +942,8 @@ function OrderDetailInner() {
       // Gli errori del database non sono Error: il motivo sta in .message
       // (per esempio «la rata è incassata con la fattura n. …»).
       const motivo = (error as { message?: string } | null)?.message;
-      toast.error("Errore", {
-        description: motivo || "Impossibile aggiornare lo stato del pagamento.",
+      toast.error(t("Errore"), {
+        description: motivo || t("Impossibile aggiornare lo stato del pagamento."),
       });
     },
   });
@@ -963,7 +969,7 @@ function OrderDetailInner() {
   // dettaglio (solo rate già su DB — id presente). Scrittura immediata.
   const updateInstallmentDateMutation = useMutation({
     mutationFn: async ({ installment, field, date }: { installment: Installment; field: 'paid_date' | 'expected_date'; date?: Date }) => {
-      if (!installment.id) throw new Error("Rata non ancora salvata");
+      if (!installment.id) throw new Error(t("Rata non ancora salvata"));
       // en-CA = YYYY-MM-DD locale (mai toISOString: bug UTC serale)
       const value = date ? date.toLocaleDateString('en-CA') : null;
       const patch: Pick<TablesUpdate<"order_installments">, 'paid_date' | 'expected_date'> = { [field]: value };
@@ -978,11 +984,11 @@ function OrderDetailInner() {
     },
     onSuccess: (_, { field }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(id) });
-      toast.success(field === 'paid_date' ? "Data incasso aggiornata" : "Data prevista aggiornata");
+      toast.success(field === 'paid_date' ? t("Data incasso aggiornata") : t("Data prevista aggiornata"));
     },
     onError: (error) => {
-      toast.error("Errore", {
-        description: error instanceof Error ? error.message : "Impossibile aggiornare la data.",
+      toast.error(t("Errore"), {
+        description: error instanceof Error ? error.message : t("Impossibile aggiornare la data."),
       });
     },
   });
@@ -1047,16 +1053,16 @@ function OrderDetailInner() {
         assignedTo: ((order as { assigned_to?: string | null }).assigned_to) ?? null,
       });
       if (created === 0) {
-        toast.info("Le attività del processo standard sono già presenti su questa commessa.");
+        toast.info(t("Le attività del processo standard sono già presenti su questa commessa."));
         return;
       }
-      toast.success(`${created} attività create dal flusso "${PLAYBOOK_LABELS[playbookKey]}". Le trovi nella card Attività.`);
+      toast.success(t("{n} attività create dal flusso \"{flusso}\". Le trovi nella card Attività.", { n: created, flusso: PLAYBOOK_LABELS[playbookKey] }));
       queryClient.invalidateQueries({ queryKey: ["order-next-task", id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       invalidateOfficeWorkspace(queryClient, id);
       queryClient.invalidateQueries({ queryKey: ["order-flusso-da-applicare", id] });
     } catch (e) {
-      toast.error("Errore nell'applicare il processo standard: " + (e instanceof Error ? e.message : "riprova"));
+      toast.error(t("Errore nell'applicare il processo standard: {motivo}", { motivo: e instanceof Error ? e.message : t("riprova") }));
     } finally {
       setApplyingPlaybook(false);
     }
@@ -1106,26 +1112,26 @@ function OrderDetailInner() {
     }));
     return conDataEffettiva;
   }, [order, displayInstallments, agreedAmount]);
-  const orderAlerts = useMemo(() => order ? getOrderAlerts(order, displayItems, resolvedInstallments) : [], [order, displayItems, resolvedInstallments]);
+  const orderAlerts = useMemo(() => order ? getOrderAlerts(t, order, displayItems, resolvedInstallments) : [], [t, order, displayItems, resolvedInstallments]);
 
   const handleAttachmentsRefresh = () => { refetchAttachments(); };
 
   const formatAttachmentType = (documento: OrderDocumentSummary) => {
     const name = documento.file_name.toLowerCase();
-    if (name.includes("collaudo") || name.includes("verbale")) return "Collaudo";
-    if (name.includes("contratto")) return "Contratto";
+    if (name.includes("collaudo") || name.includes("verbale")) return t("Collaudo");
+    if (name.includes("contratto")) return t("Contratto");
     if (name.includes("ddt")) return "DDT";
-    if (documento.file_type.includes("image")) return "Foto";
-    return "Documento";
+    if (documento.file_type.includes("image")) return t("Foto");
+    return t("Documento");
   };
 
   const handleDownloadFiscalDocument = async (documento: LinkedFiscalDocument) => {
     try {
       await downloadNativePDF(documento.id, documento.numero || "documento");
-      toast.info("Stampa richiesta", { description: "Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente.", duration: 12000 });
+      toast.info(t("Stampa richiesta"), { description: t("Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente."), duration: 12000 });
     } catch (error) {
-      toast.error("Download non riuscito", {
-        description: error instanceof Error ? error.message : "Apri il documento e riprova dal dettaglio.",
+      toast.error(t("Download non riuscito"), {
+        description: error instanceof Error ? error.message : t("Apri il documento e riprova dal dettaglio."),
       });
     }
   };
@@ -1136,8 +1142,8 @@ function OrderDetailInner() {
       .createSignedUrl(documento.file_url, 3600);
 
     if (error || !data?.signedUrl) {
-      toast.error("Documento non scaricabile", {
-        description: "Il file potrebbe essere stato spostato o eliminato.",
+      toast.error(t("Documento non scaricabile"), {
+        description: t("Il file potrebbe essere stato spostato o eliminato."),
       });
       return;
     }
@@ -1232,11 +1238,11 @@ function OrderDetailInner() {
   const handleDownloadPDF = useCallback(() => {
     if (!order) return;
     if (!permissions.canViewOrderAmounts) {
-      toast.error("Non hai i permessi per esportare il PDF economico della commessa.");
+      toast.error(t("Non hai i permessi per esportare il PDF economico della commessa."));
       return;
     }
     setRiepilogoAperto(true);
-  }, [order, permissions.canViewOrderAmounts]);
+  }, [order, permissions.canViewOrderAmounts, t]);
 
   const preparaRiepilogo = useCallback(async (scelta: SceltaRiepilogo) => {
     setPdfPreparing(true);
@@ -1245,17 +1251,17 @@ function OrderDetailInner() {
       return opts ? await getPDFBlob(opts) : null;
     } catch (e) {
       console.error("[OrderDetail] preparazione dati PDF fallita:", e);
-      toast.error("Impossibile preparare i dati per il PDF. Riprova.");
+      toast.error(t("Impossibile preparare i dati per il PDF. Riprova."));
       return null;
     } finally {
       setPdfPreparing(false);
     }
-  }, [gatherPdfOpts, getPDFBlob]);
+  }, [gatherPdfOpts, getPDFBlob, t]);
 
   // Genera il PDF come blob (per allegarlo all'email del cliente).
   const getPdfBlobForOrder = useCallback(async () => {
     if (!permissions.canViewOrderAmounts) {
-      toast.error("Non hai i permessi per esportare il PDF economico della commessa.");
+      toast.error(t("Non hai i permessi per esportare il PDF economico della commessa."));
       return null;
     }
     try {
@@ -1265,10 +1271,10 @@ function OrderDetailInner() {
       return await getPDFBlob(opts);
     } catch (e) {
       console.error("[OrderDetail] generazione blob PDF fallita:", e);
-      toast.error("Impossibile generare il PDF. Riprova.");
+      toast.error(t("Impossibile generare il PDF. Riprova."));
       return null;
     }
-  }, [gatherPdfOpts, getPDFBlob, permissions.canViewOrderAmounts]);
+  }, [gatherPdfOpts, getPDFBlob, permissions.canViewOrderAmounts, t]);
 
   if (orderLoading || (schedaAbilitata && !schedaPronta) || (variationsEnabled && variations.isPending)) {
     return (
@@ -1286,24 +1292,24 @@ function OrderDetailInner() {
   }
 
   if (variationsEnabled && variations.isError) {
-    return <div role="alert" className="p-6 space-y-3"><p>Impossibile verificare le varianti della commessa. Gli importi non vengono mostrati per evitare saldi incompleti.</p><Button onClick={() => void variations.refetch()}>Riprova</Button></div>;
+    return <div role="alert" className="p-6 space-y-3"><p>{t("Impossibile verificare le varianti della commessa. Gli importi non vengono mostrati per evitare saldi incompleti.")}</p><Button onClick={() => void variations.refetch()}>{t("Riprova")}</Button></div>;
   }
 
   if (!order) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Commessa non trovata</p>
-        <Button className="mt-4" onClick={() => navigate("/azienda/ordini")}>Torna alle commesse</Button>
+        <p className="text-muted-foreground">{t("Commessa non trovata")}</p>
+        <Button className="mt-4" onClick={() => navigate("/azienda/ordini")}>{t("Torna alle commesse")}</Button>
       </div>
     );
   }
 
   if (order.deleted_at) {
-    return <section className="m-4 rounded-xl border border-amber-300 bg-amber-50 p-6" aria-label="Commessa nel cestino">
-      <h1 className="text-xl font-semibold">{order.order_code} · Commessa nel cestino</h1>
-      <p className="mt-2">{order.description}</p>
-      <p className="mt-3 text-sm">Questa commessa è stata cestinata. Le azioni operative e i solleciti sono sospesi. Documenti e storico restano conservati; per riprendere il lavoro ripristina la commessa dal cestino.</p>
-      <Button className="mt-4" onClick={() => navigate("/azienda/ordini")}>Torna alle commesse</Button>
+    return <section className="m-4 rounded-xl border border-amber-300 bg-amber-50 p-6" aria-label={t("Commessa nel cestino")}>
+      <h1 className="text-xl font-semibold">{order.order_code} · {t("Commessa nel cestino")}</h1>
+      <p className="mt-2" dir="auto">{order.description}</p>
+      <p className="mt-3 text-sm">{t("Questa commessa è stata cestinata. Le azioni operative e i solleciti sono sospesi. Documenti e storico restano conservati; per riprendere il lavoro ripristina la commessa dal cestino.")}</p>
+      <Button className="mt-4" onClick={() => navigate("/azienda/ordini")}>{t("Torna alle commesse")}</Button>
     </section>;
   }
 
@@ -1320,7 +1326,7 @@ function OrderDetailInner() {
     (!isMobile || v.value === "tutte" || v.value === "altri")
     && (!(operationalIntervention || contractFinancePending) || v.value === "fornitori" || v.value === "altri"));
   const vistaCosti = visteCosti.some(v => v.value === activeCostiView) ? activeCostiView : visteCosti[0].value;
-  const contractFinanceNotice = <QuoteCard title={operationalIntervention ? "Intervento operativo" : "Dati economici da confermare"}><p className="text-sm text-slate-600">{operationalIntervention ? "Importi, IVA, SAL e pagamenti si gestiscono sul contratto di origine. Qui si organizzano le lavorazioni." : "Conferma cliente di fatturazione, quota economica, aliquota e regime IVA e pagamenti. La bozza non applica aliquote o rate predefinite."}</p>{!operationalIntervention && permissions.canEditOrders && <Button variant="link" className="mt-2 h-auto p-0" onClick={()=>navigate(`/azienda/ordini/${id}/modifica`)}>Completa i dati del contratto</Button>}</QuoteCard>;
+  const contractFinanceNotice = <QuoteCard title={operationalIntervention ? t("Intervento operativo") : t("Dati economici da confermare")}><p className="text-sm text-slate-600">{operationalIntervention ? t("Importi, IVA, SAL e pagamenti si gestiscono sul contratto di origine. Qui si organizzano le lavorazioni.") : t("Conferma cliente di fatturazione, quota economica, aliquota e regime IVA e pagamenti. La bozza non applica aliquote o rate predefinite.")}</p>{!operationalIntervention && permissions.canEditOrders && <Button variant="link" className="mt-2 h-auto p-0" onClick={()=>navigate(`/azienda/ordini/${id}/modifica`)}>{t("Completa i dati del contratto")}</Button>}</QuoteCard>;
 
   // Incassato e da incassare: una regola sola, la stessa del piano rate (incassiDellaCommessa).
   const vatSplit = ivaMistaDaOrdine(order);
@@ -1353,7 +1359,7 @@ function OrderDetailInner() {
                     onClick={() => setCreaFatturaOpen(true)}
                   >
                     <Receipt className="h-3.5 w-3.5 mr-1" />
-                    Fattura
+                    {t("Fattura")}
                   </Button>
                   )}
                   {permissions.canViewBilling && (
@@ -1389,21 +1395,21 @@ function OrderDetailInner() {
                     onClick={() => setCreaNotaCreditoOpen(true)}
                   >
                     <FileWarning className="h-3.5 w-3.5 mr-1" />
-                    N. Credito
+                    {t("N. Credito")}
                   </Button>
                   )}
                   {/* Telefono: in vista solo «Fattura»; proforma, DDT e nota di credito nel menu. */}
                   {(permissions.canViewBilling || permissions.canEditOrders || permissions.canViewWarehouse) && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="sm:hidden" disabled={documentiBloccati} aria-label="Altri documenti">
-                        <MoreHorizontal className="h-3.5 w-3.5 mr-1" />Altro
+                      <Button variant="outline" size="sm" className="sm:hidden" disabled={documentiBloccati} aria-label={t("Altri documenti")}>
+                        <MoreHorizontal className="h-3.5 w-3.5 mr-1" />{t("Altro")}
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       {permissions.canViewBilling && <DropdownMenuItem onSelect={() => setCreaProformaOpen(true)}><FileText className="mr-2 h-3.5 w-3.5" />Proforma</DropdownMenuItem>}
                       <DropdownMenuItem onSelect={() => setCreaDDTOpen(true)}><Truck className="mr-2 h-3.5 w-3.5" />DDT</DropdownMenuItem>
-                      {permissions.canViewBilling && <DropdownMenuItem onSelect={() => setCreaNotaCreditoOpen(true)}><FileWarning className="mr-2 h-3.5 w-3.5" />Nota di credito</DropdownMenuItem>}
+                      {permissions.canViewBilling && <DropdownMenuItem onSelect={() => setCreaNotaCreditoOpen(true)}><FileWarning className="mr-2 h-3.5 w-3.5" />{t("Nota di credito")}</DropdownMenuItem>}
                     </DropdownMenuContent>
                   </DropdownMenu>
                   )}
@@ -1522,7 +1528,7 @@ function OrderDetailInner() {
         if (isNativeBilling && !permissions.solaLettura) setCreaFatturaOpen(true);
       } : undefined}
       invoiceDisabled={documentiBloccati}
-      invoiceHint={documentiBloccati ? motivoDocumentiBloccati : "Prepara una fattura collegata alla commessa"}
+      invoiceHint={documentiBloccati ? motivoDocumentiBloccati : t("Prepara una fattura collegata alla commessa")}
       askSilvio={
         <SilvioCommessa
           className="ml-auto"
@@ -1560,7 +1566,7 @@ function OrderDetailInner() {
         nomeCliente={
           order.customer
             ? nomeClienteProfilo(order.customer)
-            : order.client_name || "Cliente non disponibile"
+            : order.client_name || t("Cliente non disponibile")
         }
         referente={order.order_type === "appaltatore_lavoro" && order.customer?.business_name
           ? [order.customer.first_name, order.customer.last_name].filter(Boolean).join(" ") : undefined}
@@ -1662,7 +1668,7 @@ function OrderDetailInner() {
             {isMobile && <div className="rounded-xl border bg-card px-3 py-2">{statoCommessa}</div>}
             {contractLink.data?.workflow_kind !== "intervento" && <ContractInterventions key={id} orderId={id!} />}
             {orderAlerts.length > 0 && <section aria-labelledby="order-attention-title" className="rounded-xl border border-orange-200 bg-white">
-              <h2 id="order-attention-title" className="border-b border-orange-100 bg-orange-50 px-4 py-3 text-base font-semibold text-orange-950 max-md:px-3.5 max-md:py-2.5 max-md:text-[15px]">Da controllare</h2>
+              <h2 id="order-attention-title" className="border-b border-orange-100 bg-orange-50 px-4 py-3 text-base font-semibold text-orange-950 max-md:px-3.5 max-md:py-2.5 max-md:text-[15px]">{t("Da controllare")}</h2>
               <div className="divide-y divide-slate-100">
                 {orderAlerts.map(alert => isMobile ? <button key={alert.title} type="button" className="flex w-full items-center gap-2 px-3 py-2.5 text-left active:bg-muted"
                   onClick={() => navigateTo({ tab: alert.section === "section-pagamenti" ? "finanza" : "articoli", section: alert.section ?? "section-materiali" })}>
@@ -1672,9 +1678,9 @@ function OrderDetailInner() {
                   <span className={cn("mt-1 hidden sm:block", alert.type === "urgent" ? "text-red-700" : "text-orange-700")}>{alert.icon}</span>
                   <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">{alert.title}</h3><p className="mt-1 text-sm text-slate-600">{alert.description}</p></div>
                   <Button variant="outline" className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950" onClick={() => navigateTo({ tab: alert.section === "section-pagamenti" ? "finanza" : "articoli", section: alert.section ?? "section-materiali" })}>
-                    {alert.section === "section-pagamenti" ? "Apri pagamenti" : "Verifica materiali"}<ArrowRight className="ml-2 h-4 w-4" />
+                    {alert.section === "section-pagamenti" ? t("Apri pagamenti") : t("Verifica materiali")}<ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
-                  {alert.sollecitabile && (order.customer?.phone || order.customer?.email) && <Button variant="outline" className="min-h-11 border-red-300 text-red-700" onClick={() => sollecitoRef.current?.()}><BellRing className="mr-2 h-4 w-4" />Sollecita ora</Button>}
+                  {alert.sollecitabile && (order.customer?.phone || order.customer?.email) && <Button variant="outline" className="min-h-11 border-red-300 text-red-700" onClick={() => sollecitoRef.current?.()}><BellRing className="mr-2 h-4 w-4" />{t("Sollecita ora")}</Button>}
                 </div>)}
               </div>
             </section>}
@@ -1729,7 +1735,7 @@ function OrderDetailInner() {
                 snapshot={{ name: order.client_name, email: order.client_email, phone: order.client_phone }}
                 indirizzoLavori={order.indirizzo_lavori || order.work_address}
               />
-              <section id="section-pianificazione" aria-label="Date e appuntamenti" className="scroll-mt-24">
+              <section id="section-pianificazione" aria-label={t("Date e appuntamenti")} className="scroll-mt-24">
                 <OrdineTempistiche
                   orderId={order.id}
                   expectedDate={order.expected_date}
@@ -1746,12 +1752,12 @@ function OrderDetailInner() {
                 se acceso a mano o se contratto generale / computo hanno già dei codici. */}
             {id && <RiquadroRiferimentiPa orderId={id} puoModificare={permissions.canEditOrders} />}
 
-              {id && !isMobile && <details className="rounded-lg border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold">Campi aggiuntivi della commessa</summary><p className="my-2 text-xs text-muted-foreground">Dati interni, senza modificare importi, contratto o documento cliente.</p><EntityCustomFieldsSection entityType="order" entityId={id} /></details>}
+              {id && !isMobile && <details className="rounded-lg border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold">{t("Campi aggiuntivi della commessa")}</summary><p className="my-2 text-xs text-muted-foreground">{t("Dati interni, senza modificare importi, contratto o documento cliente.")}</p><EntityCustomFieldsSection entityType="order" entityId={id} /></details>}
               </div>
               <div className="min-w-0 space-y-3">
-                <QuoteCard title="Lavoro previsto" icon={<HardHat className="h-4 w-4" />}>
-                  <p className="whitespace-pre-wrap break-words text-sm text-slate-600">{order.work_description || order.description || "Descrizione non inserita"}</p>
-                  <Button type="button" variant="link" className="mt-2 h-auto p-0 text-sm" onClick={() => navigateTo({ tab: "cantiere", section: "section-diario" })}>Registro della commessa <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button>
+                <QuoteCard title={t("Lavoro previsto")} icon={<HardHat className="h-4 w-4" />}>
+                  <p className="whitespace-pre-wrap break-words text-sm text-slate-600" dir="auto">{order.work_description || order.description || t("Descrizione non inserita")}</p>
+                  <Button type="button" variant="link" className="mt-2 h-auto p-0 text-sm" onClick={() => navigateTo({ tab: "cantiere", section: "section-diario" })}>{t("Registro della commessa")} <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button>
                 </QuoteCard>
               <div id="section-note" className="scroll-mt-24 space-y-3">
                 <RiepilogoFasiUfficio orderId={id!} onOpen={() => navigateTo({ tab: "cantiere", cantiereView: "ufficio" })} />
@@ -1767,7 +1773,7 @@ function OrderDetailInner() {
                     onNotesChange={setEditedNotes}
                   />
                 ) : (
-                  <QuoteCard title="Note interne"><p className="whitespace-pre-wrap break-words text-sm text-slate-600">{order.internal_notes || "Nessuna nota interna"}</p></QuoteCard>
+                  <QuoteCard title={t("Note interne")}><p className="whitespace-pre-wrap break-words text-sm text-slate-600" dir="auto">{order.internal_notes || t("Nessuna nota interna")}</p></QuoteCard>
                 )}
               </div>
                   <LinkedAppointments key={id} orderId={id!} editable={permissions.canEditOrders} defaultAddress={order.work_address || order.customer?.address} />
@@ -1782,7 +1788,7 @@ function OrderDetailInner() {
                 </>}
                 actions={permissions.canEditOrders && effectiveCompany?.id && id ? <>
                   <ContrattoAIDialog orderId={id} companyId={effectiveCompany.id} />
-                  {puoImportareNellaCommessa && <LeggiContrattoCommessa orderId={id} companyId={effectiveCompany.id} perCommittente={inAppalto} etichetta="Leggi un contratto firmato" />}
+                  {puoImportareNellaCommessa && <LeggiContrattoCommessa orderId={id} companyId={effectiveCompany.id} perCommittente={inAppalto} etichetta={t("Leggi un contratto firmato")} />}
                 </> : undefined}
               />
             </div>}
@@ -1793,7 +1799,7 @@ function OrderDetailInner() {
           <TabsContent value="articoli" className="order-detail-tab-panel space-y-4 mt-4">
             {permissions.canEditOrders && effectiveCompany?.id && <LegacyWorkReview items={orderItems} orderId={id!} companyId={effectiveCompany.id} showAmounts={permissions.canViewOrderAmounts} />}
             <div id="materiali-workspace" className="scroll-mt-24 space-y-2">
-              <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, offerte: conteggioOfferte, acquisti: conteggiViste?.ordiniAcquisto, bolle: bolleCommessa?.length }} />
+              <OrderWorkspaceNav label={t("Viste dei materiali")} views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, offerte: conteggioOfferte, acquisti: conteggiViste?.ordiniAcquisto, bolle: bolleCommessa?.length }} />
             </div>
             <DocumentiInPopup orderId={id!}>
             <OrderViewTransition viewKey={activeMaterialiView}>
@@ -1802,8 +1808,8 @@ function OrderDetailInner() {
                 lavorazioni e descrizioni, con validazione del tecnico, acquisti e
                 prezzi. Aggiungere, modificare, duplicare e allegare si fa da qui:
                 il vecchio «Articoli della Commessa» qui sotto non c'è più. */}
-            <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Articoli per fase non disponibili. Ricarica la pagina per riprovare.</p>}>
-              <Suspense fallback={<p className="p-4 text-sm text-slate-600">Carico gli articoli per fase…</p>}>
+            <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">{t("Articoli per fase non disponibili. Ricarica la pagina per riprovare.")}</p>}>
+              <Suspense fallback={<p className="p-4 text-sm text-slate-600">{t("Carico gli articoli per fase…")}</p>}>
                 <MaterialiPerFase
                   orderId={id!}
                   orderCode={order.order_code}
@@ -1827,7 +1833,7 @@ function OrderDetailInner() {
             </ErrorBoundary>
             <div id="section-materiali" className="scroll-mt-24">
               {/* Controllo misure: solo se ci sono articoli su misura (altrimenti null) */}
-              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Controllo misure non disponibile. Ricarica la pagina per riprovare.</p>}>
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">{t("Controllo misure non disponibile. Ricarica la pagina per riprovare.")}</p>}>
                 <OrderMeasureControl orderId={id!} onProponiVariante={() => navigateTo({ tab: "finanza", economiaView: "varianti" })} />
               </ErrorBoundary>
             </div>
@@ -1851,13 +1857,13 @@ function OrderDetailInner() {
                         <strong className="text-foreground">
                           {displayItems.length}
                         </strong>{" "}
-                        articoli
+                        {t("articoli")}
                       </span>
                     </div>
                     <div className="text-sm">
                       <span className="text-muted-foreground">
-                        <span className="max-sm:hidden">Costo sulle righe articolo</span>
-                        <span className="sm:hidden">Costo</span>{" "}
+                        <span className="max-sm:hidden">{t("Costo sulle righe articolo")}</span>
+                        <span className="sm:hidden">{t("Costo")}</span>{" "}
                       </span>
                       <strong className="tabular-nums">
                         {formatCurrency(tot)}
@@ -1878,8 +1884,7 @@ function OrderDetailInner() {
                   })
                 }
               >
-                <HardHat className="mr-2 h-4 w-4" /> Lavorazioni e manodopera in
-                Cantiere <ArrowRight className="ml-2 h-4 w-4" />
+                <HardHat className="mr-2 h-4 w-4" /> {t("Lavorazioni e manodopera in Cantiere")} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
             </>}
@@ -1904,7 +1909,7 @@ function OrderDetailInner() {
                 orderCode={order.order_code}
                 items={displayItems}
               />
-            ) : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare gli ordini d’acquisto di questa commessa.</p>} />
+            ) : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">{t("Il tuo ruolo non permette di consultare gli ordini d’acquisto di questa commessa.")}</p>} />
             </div>}
             </OrderViewTransition>
             </DocumentiInPopup>
@@ -1912,9 +1917,9 @@ function OrderDetailInner() {
 
           {/* Fatture e costi: tutto quello che esce dalla commessa, diviso per chi lo riceve. */}
           <TabsContent value="costi" className="commessa-cost-workspace order-detail-tab-panel space-y-4 mt-4">
-            {!permissions.canViewCosts ? <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare fatture e costi di questa commessa.</p> : <>
+            {!permissions.canViewCosts ? <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">{t("Il tuo ruolo non permette di consultare fatture e costi di questa commessa.")}</p> : <>
             <div id="costi-workspace" className="scroll-mt-24">
-              <OrderWorkspaceNav label="Viste di fatture e costi" views={visteCosti} value={vistaCosti} onChange={costiView => navigateTo({ tab: "costi", costiView })} counts={{ fornitori: fattureCommessa?.filter(f => f.legame !== "suggerita").length }} />
+              <OrderWorkspaceNav label={t("Viste di fatture e costi")} views={visteCosti} value={vistaCosti} onChange={costiView => navigateTo({ tab: "costi", costiView })} counts={{ fornitori: fattureCommessa?.filter(f => f.legame !== "suggerita").length }} />
             </div>
             <DocumentiInPopup orderId={id!}>
             <OrderViewTransition viewKey={vistaCosti}>
@@ -1943,12 +1948,12 @@ function OrderDetailInner() {
           <TabsContent value="finanza" className="order-detail-tab-panel space-y-4 mt-4">
             {operationalIntervention || contractFinancePending ? contractFinanceNotice : <>
             <div id="economia-workspace" className="scroll-mt-24">
-              <OrderWorkspaceNav label="Viste economiche" views={visteEconomiche} value={activeEconomiaView} onChange={economiaView => navigateTo({ tab: "finanza", economiaView })} />
+              <OrderWorkspaceNav label={t("Viste economiche")} views={visteEconomiche} value={activeEconomiaView} onChange={economiaView => navigateTo({ tab: "finanza", economiaView })} />
             </div>
             <OrderViewTransition viewKey={activeEconomiaView}>
             <Suspense fallback={vistaInCaricamento}>
             {activeEconomiaView === "sal" && <details open className="rounded-xl border border-slate-300 bg-white">
-              <summary id="section-sal" className="cursor-pointer scroll-mt-24 px-4 py-3 text-sm font-medium">SAL e avanzamento economico</summary>
+              <summary id="section-sal" className="cursor-pointer scroll-mt-24 px-4 py-3 text-sm font-medium">{t("SAL e avanzamento economico")}</summary>
               <div className="p-4 pt-0">
                 {companyId && <OrdineSAL orderId={id!} companyId={companyId}
                   showPaymentProgress={false} orderTotalAmount={agreedAmount}
@@ -1963,7 +1968,7 @@ function OrderDetailInner() {
             {/* Conto economico: riepilogo a colpo d'occhio, sempre in cima */}
             {/* Conto economico = costi + margine → solo a chi può vederli. */}
             {activeEconomiaView === "margini" && contractLink.data?.workflow_kind !== "contratto" && (permissions.canViewCosts || permissions.canViewMargins) && (
-              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Conto economico non disponibile. Ricarica la pagina per riprovare.</p>}>
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">{t("Conto economico non disponibile. Ricarica la pagina per riprovare.")}</p>}>
                 <OrderEconomicsSummary
                   orderId={id!}
                   totalAmount={order.total_amount}
@@ -1987,7 +1992,7 @@ function OrderDetailInner() {
             )}
 
             {activeEconomiaView === "rendiconto" && inAppalto && (
-              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Rendiconto non disponibile. Ricarica la pagina per riprovare.</p>}>
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">{t("Rendiconto non disponibile. Ricarica la pagina per riprovare.")}</p>}>
                 <div id="section-rendiconto" className="scroll-mt-24">
                   <RendicontoAppalto
                     orderId={id!}
@@ -2062,7 +2067,7 @@ function OrderDetailInner() {
             </div>}
 
             {activeEconomiaView === "margini" && permissions.canViewOrderAmounts && permissions.canViewCosts && (
-              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border bg-background p-4 text-sm">IVA, trattenute e cassa non disponibili.</p>}>
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border bg-background p-4 text-sm">{t("IVA, trattenute e cassa non disponibili.")}</p>}>
                 <IncassiMarginiCommessa orderId={id!} rate={displayInstallments} documenti={fattureCollegate}
                   statoIncassi={installmentsError || fattureCommessaQuery.isError ? "errore"
                     : installmentsPending || fattureCommessaQuery.isPending ? "in_caricamento" : "pronto"}
@@ -2079,14 +2084,14 @@ function OrderDetailInner() {
                 costo), chi finanzia il cantiere coi movimenti veri e la previsione sui materiali. Stavano
                 in fondo agli incassi, dove nessuno le trovava. */}
             {activeEconomiaView === "margini" && permissions.canViewMargins && permissions.canViewOrderAmounts && (
-              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Provvigioni non disponibili. Ricarica la pagina per riprovare.</p>}>
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">{t("Provvigioni non disponibili. Ricarica la pagina per riprovare.")}</p>}>
                 <div id="section-provvigioni" className="scroll-mt-24">
                   <OrderCommissions orderId={id!} totalAmount={agreedAmount} collectedAmount={collectedAmount} vatRate={order.vat_rate ?? 22} readOnly={permissions.solaLettura} />
                 </div>
               </ErrorBoundary>
             )}
             {activeEconomiaView === "margini" && permissions.canViewOrderAmounts && permissions.canViewCosts && (
-              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Movimenti di cassa non disponibili. Ricarica la pagina per riprovare.</p>}>
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">{t("Movimenti di cassa non disponibili. Ricarica la pagina per riprovare.")}</p>}>
                 <EsposizioneCommessa
                   orderId={id!}
                   totalAmount={agreedAmount}
@@ -2111,7 +2116,7 @@ function OrderDetailInner() {
             {activeEconomiaView === "margini" && (permissions.canViewCosts || permissions.canViewMargins) && !isMobile && <div>
               <OrderErrors orderId={id!} />
             </div>}
-            {activeEconomiaView === "margini" && !(permissions.canViewCosts || permissions.canViewMargins) && <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare costi e margini. Puoi aprire le altre viste consentite.</p>}
+            {activeEconomiaView === "margini" && !(permissions.canViewCosts || permissions.canViewMargins) && <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">{t("Il tuo ruolo non permette di consultare costi e margini. Puoi aprire le altre viste consentite.")}</p>}
             {activeEconomiaView === "varianti" && effectiveCompany?.id && <div id="section-varianti" className="scroll-mt-24">
               {/* Per privato e committente (14/11/2026): un preventivo accettato diventa lavoro extra, un contratto
                   letto con l'AI aggiorna importo, voci e rate. Solo a chi modifica le commesse e ne vede gli importi. */}
@@ -2141,8 +2146,8 @@ function OrderDetailInner() {
           {/* Un solo percorso operativo su desktop e mobile. Nessuna duplicazione dei dati. */}
           <TabsContent value="cantiere" className="order-detail-tab-panel mt-2 space-y-3 sm:mt-4 sm:space-y-4">
             {contractLink.data?.workflow_kind === "contratto" ? <>
-              <section id="section-squadra" aria-label="Organizzazione del contratto" className="space-y-3 scroll-mt-24">
-                <h2 className="text-base font-semibold">Organizzazione</h2>
+              <section id="section-squadra" aria-label={t("Organizzazione del contratto")} className="space-y-3 scroll-mt-24">
+                <h2 className="text-base font-semibold">{t("Organizzazione")}</h2>
                 {figureResponsabilita}
               </section>
               <ContractInterventions key={id} orderId={id!} />
@@ -2175,7 +2180,7 @@ function OrderDetailInner() {
             {vistaCantiere === "sicurezza" && <div id="section-sicurezza" className="scroll-mt-24">
               {permissions.canViewSicurezzaCantiere && companyId
                 ? <ErrorBoundary><SicurezzaCommessa key={id} companyId={companyId} orderId={id!} nomeCommessa={[order.order_code, order.description].filter(Boolean).join(" · ")} /></ErrorBoundary>
-                : <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Per vedere i documenti di sicurezza serve il permesso «Sicurezza cantiere». Chiedilo al titolare.</p>}
+                : <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{t("Per vedere i documenti di sicurezza serve il permesso «Sicurezza cantiere». Chiedilo al titolare.")}</p>}
             </div>}
             {vistaCantiere === "cronoprogramma" && <div id="section-cronoprogramma" className="scroll-mt-24">
               <ErrorBoundary>
@@ -2195,7 +2200,7 @@ function OrderDetailInner() {
             {vistaCantiere === "squadra" && <div id="section-statistiche" className="space-y-4 scroll-mt-24">
               <ErrorBoundary><OreEPersone key={id} orderId={id!} inizioLavori={order.work_start_date ?? order.created_at} /></ErrorBoundary>
               {/* Squadre, ditte e costi del personale: il riepilogo di prima, chiuso finché non serve. */}
-              <OrderDisclosure title="Squadre, ditte e costi del personale">
+              <OrderDisclosure title={t("Squadre, ditte e costi del personale")}>
                 <OrderResourceStatistics key={id} orderId={id!} onManage={() => navigateTo({ tab: "cantiere", cantiereView: "lavorazioni" })} />
               </OrderDisclosure>
             </div>}
@@ -2213,13 +2218,13 @@ function OrderDetailInner() {
             <div id="section-foto" className="space-y-4 scroll-mt-24">
               <OrdineFotoCantiere orderId={id!} />
               {/* Chiuse finché non servono: i loro dati si chiedono alla prima apertura. */}
-              <OrderDisclosure title="Aggiornamenti WhatsApp">
+              <OrderDisclosure title={t("Aggiornamenti WhatsApp")}>
                 <WhatsAppActivityFeed cantiereId={id!} />
               </OrderDisclosure>
             </div>
             {effectiveCompany?.id && <ProblemiApertiGiornale orderId={id!} companyId={effectiveCompany.id} />}
             {effectiveCompany?.id && (
-              <OrderDisclosure id="section-diario" title="Storico della commessa · stati, varianti e SAL">
+              <OrderDisclosure id="section-diario" title={t("Storico della commessa · stati, varianti e SAL")}>
                 <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
               </OrderDisclosure>
             )}
@@ -2252,8 +2257,8 @@ function OrderDetailInner() {
         <Dialog open={opsOpen} onOpenChange={setOpsOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Responsabile commessa</DialogTitle>
-              <DialogDescription>Chi segue questa commessa in azienda.</DialogDescription>
+              <DialogTitle>{t("Responsabile commessa")}</DialogTitle>
+              <DialogDescription>{t("Chi segue questa commessa in azienda.")}</DialogDescription>
             </DialogHeader>
             <OrderOperationalPanel
               orderId={id!}
@@ -2319,7 +2324,7 @@ function OrderDetailInner() {
         <DialogContent className="max-w-lg max-h-[88vh] overflow-y-auto">
           {/* Il titolo lo mostra già la scheda firma qui sotto. */}
           <DialogHeader className="sr-only">
-            <DialogTitle>Firma digitale</DialogTitle>
+            <DialogTitle>{t("Firma digitale")}</DialogTitle>
           </DialogHeader>
           <OrdineFirma
             orderId={id!}
@@ -2370,12 +2375,12 @@ function OrderDetailInner() {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Conferma cambio stato</DialogTitle>
+            <DialogTitle>{t("Conferma cambio stato")}</DialogTitle>
             <DialogDescription>
-              Vuoi cambiare lo stato della commessa a "{statusChangeDialog.targetStatusName}"?{" "}
+              {t("Vuoi cambiare lo stato della commessa a \"{stato}\"?", { stato: statusChangeDialog.targetStatusName })}{" "}
               {avvisoAlCliente(order?.customer_id, avvisoCambioAttivo)
-                ? <strong className="font-medium text-foreground">Il cliente riceverà un avviso.</strong>
-                : "Il cliente non riceverà avvisi."}
+                ? <strong className="font-medium text-foreground">{t("Il cliente riceverà un avviso.")}</strong>
+                : t("Il cliente non riceverà avvisi.")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -2385,10 +2390,10 @@ function OrderDetailInner() {
                 setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" })
               }
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button onClick={confirmStatusChange} disabled={updateStatusMutation.isPending}>
-              {updateStatusMutation.isPending ? "Aggiornamento..." : "Conferma"}
+              {updateStatusMutation.isPending ? t("Aggiornamento...") : t("Conferma")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2481,18 +2486,19 @@ function OrderDetailInner() {
 
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
+  const t = useT();
   // Un indirizzo che non è una commessa (/ordini/nuova): il database rispondeva
   // 400 a ogni lettura e la pagina restava sui riquadri grigi per sempre.
   if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Commessa non trovata</p>
-        <Button asChild className="mt-4"><Link to="/azienda/ordini">Torna alle commesse</Link></Button>
+        <p className="text-muted-foreground">{t("Commessa non trovata")}</p>
+        <Button asChild className="mt-4"><Link to="/azienda/ordini">{t("Torna alle commesse")}</Link></Button>
       </div>
     );
   }
   return (
-    <ErrorBoundary title="Errore nel dettaglio commessa">
+    <ErrorBoundary title={t("Errore nel dettaglio commessa")}>
       <OrderDetailInner />
     </ErrorBoundary>
   );

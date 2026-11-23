@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { ChevronDown, ChevronUp, X, SlidersHorizontal, RotateCcw, Search } from "lucide-react";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
 import { it } from "date-fns/locale";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -128,8 +129,8 @@ function SearchableRadioList({
   items,
   value,
   onChange,
-  allLabel = "Tutti",
-  placeholder = "Cerca...",
+  allLabel,
+  placeholder,
 }: {
   items: Array<{ id: string; name: string }>;
   value: string;
@@ -137,6 +138,7 @@ function SearchableRadioList({
   allLabel?: string;
   placeholder?: string;
 }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     if (!search) return items;
@@ -151,7 +153,7 @@ function SearchableRadioList({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
           <Input
             type="text"
-            placeholder={placeholder}
+            placeholder={placeholder ?? t("Cerca...")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="text-sm pl-8 h-8"
@@ -168,7 +170,7 @@ function SearchableRadioList({
               onChange={() => onChange("all")}
               className="accent-primary"
             />
-            <span className="text-sm font-medium">{allLabel}</span>
+            <span className="text-sm font-medium">{allLabel ?? t("Tutti")}</span>
           </label>
         )}
         {filtered.map((item) => (
@@ -184,7 +186,7 @@ function SearchableRadioList({
           </label>
         ))}
         {filtered.length === 0 && search && (
-          <p className="text-xs text-muted-foreground text-center py-2">Nessun risultato</p>
+          <p className="text-xs text-muted-foreground text-center py-2">{t("Nessun risultato")}</p>
         )}
       </div>
     </div>
@@ -195,13 +197,14 @@ function SearchableCheckboxList({
   items,
   selected,
   onToggle,
-  placeholder = "Cerca...",
+  placeholder,
 }: {
   items: Array<{ id: string; name: string }>;
   selected: string[];
   onToggle: (id: string) => void;
   placeholder?: string;
 }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     if (!search) return items;
@@ -216,7 +219,7 @@ function SearchableCheckboxList({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
           <Input
             type="text"
-            placeholder={placeholder}
+            placeholder={placeholder ?? t("Cerca...")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="text-sm pl-8 h-8"
@@ -240,7 +243,7 @@ function SearchableCheckboxList({
           </div>
         ))}
         {filtered.length === 0 && search && (
-          <p className="text-xs text-muted-foreground text-center py-2">Nessun risultato</p>
+          <p className="text-xs text-muted-foreground text-center py-2">{t("Nessun risultato")}</p>
         )}
       </div>
     </div>
@@ -258,6 +261,7 @@ function DateRangeSidebarSection({
   onRangeChange: (range: DateRange) => void;
   defaultOpen?: boolean;
 }) {
+  const tr = useT();
   const hasValue = range.from || range.to;
   return (
     <CollapsibleSection title={title} defaultOpen={defaultOpen || !!hasValue}>
@@ -265,25 +269,25 @@ function DateRangeSidebarSection({
         {hasValue && (
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-muted-foreground">
-              {range.from ? format(range.from, "dd/MM/yyyy", { locale: it }) : "..."} — {range.to ? format(range.to, "dd/MM/yyyy", { locale: it }) : "..."}
+              {range.from ? format(range.from, "dd/MM/yyyy", { locale: dateFnsCampo() }) : "..."} — {range.to ? format(range.to, "dd/MM/yyyy", { locale: dateFnsCampo() }) : "..."}
             </span>
             <button
               type="button"
               onClick={() => onRangeChange({ from: undefined, to: undefined })}
               className="text-xs text-muted-foreground hover:text-gray-700 underline"
             >
-              Cancella
+              {tr("Cancella")}
             </button>
           </div>
         )}
         <div className="flex flex-wrap gap-1.5 mb-2">
-          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { const t = new Date(); onRangeChange({ from: startOfDay(t), to: endOfDay(t) }); }}>Oggi</Button>
-          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { const t = new Date(); onRangeChange({ from: startOfWeek(t, { locale: it }), to: endOfWeek(t, { locale: it }) }); }}>Settimana</Button>
-          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { const t = new Date(); onRangeChange({ from: startOfMonth(t), to: endOfMonth(t) }); }}>Mese</Button>
-          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { const t = new Date(); onRangeChange({ from: startOfDay(t), to: endOfDay(addDays(t, 7)) }); }}>+7gg</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { const t = new Date(); onRangeChange({ from: startOfDay(t), to: endOfDay(t) }); }}>{tr("Oggi")}</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { const t = new Date(); onRangeChange({ from: startOfWeek(t, { locale: it }), to: endOfWeek(t, { locale: it }) }); }}>{tr("Settimana")}</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { const t = new Date(); onRangeChange({ from: startOfMonth(t), to: endOfMonth(t) }); }}>{tr("Mese")}</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { const t = new Date(); onRangeChange({ from: startOfDay(t), to: endOfDay(addDays(t, 7)) }); }}>{tr("+7gg")}</Button>
         </div>
         <div>
-          <Label className="text-xs text-gray-500 mb-1 block">Dal</Label>
+          <Label className="text-xs text-gray-500 mb-1 block">{tr("Dal")}</Label>
           <Input
             type="date"
             value={range.from ? format(range.from, "yyyy-MM-dd") : ""}
@@ -292,7 +296,7 @@ function DateRangeSidebarSection({
           />
         </div>
         <div>
-          <Label className="text-xs text-gray-500 mb-1 block">Al</Label>
+          <Label className="text-xs text-gray-500 mb-1 block">{tr("Al")}</Label>
           <Input
             type="date"
             value={range.to ? format(range.to, "yyyy-MM-dd") : ""}
@@ -328,6 +332,7 @@ function SidebarContent({
   expectedDateRange = { from: undefined, to: undefined },
   onExpectedDateRangeChange,
 }: Omit<OrdersFilterSidebarProps, "isOpen">) {
+  const t = useT();
   const sidebarCount = countActiveFilters(filters);
   const urlCount = [
     customerFilter !== "all",
@@ -378,7 +383,7 @@ function SidebarContent({
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4 text-gray-500" />
-          <span className="font-semibold text-sm text-gray-800">Filtri avanzati</span>
+          <span className="font-semibold text-sm text-gray-800">{t("Filtri avanzati")}</span>
           {activeCount > 0 && (
             <Badge variant="secondary" className="h-5 px-1.5 text-xs">
               {activeCount}
@@ -387,20 +392,20 @@ function SidebarContent({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground font-medium">
-            {ordersCount === null ? "Aggiornamento…" : `${ordersCount} commess${ordersCount === 1 ? "a" : "e"}`}
+            {ordersCount === null ? t("Aggiornamento…") : t(ordersCount === 1 ? "{n} commessa" : "{n} commesse", { n: ordersCount })}
           </span>
           <button
             type="button"
             onClick={onClose}
             className="p-1 rounded hover:bg-gray-100 transition-colors"
-            aria-label="Chiudi filtri"
+            aria-label={t("Chiudi filtri")}
           >
             <X className="h-4 w-4 text-gray-500" />
           </button>
         </div>
       </div>
 
-      {optionsError && <div role="alert" className="bg-amber-50 p-3 text-sm text-amber-900">Impossibile caricare gli elenchi di persone e fornitori. <button type="button" className="underline" onClick={onRetryOptions}>Riprova elenchi</button></div>}
+      {optionsError && <div role="alert" className="bg-amber-50 p-3 text-sm text-amber-900">{t("Impossibile caricare gli elenchi di persone e fornitori.")} <button type="button" className="underline" onClick={onRetryOptions}>{t("Riprova elenchi")}</button></div>}
 
       {/* Scrollable filter content */}
       <div className="flex-1 overflow-y-auto">
@@ -408,10 +413,10 @@ function SidebarContent({
         {/* Sotto 1024 px la pagina ha già la sua ricerca («Cerca commesse») sopra l'elenco:
             due caselle di ricerca diverse per la stessa lista confondevano. Da computer resta questa. */}
         <div className="max-lg:hidden">
-        <CollapsibleSection title="Cerca">
+        <CollapsibleSection title={t("Cerca")}>
           <Input
             type="text"
-            placeholder="Numero, codice, descrizione..."
+            placeholder={t("Numero, codice, descrizione...")}
             value={filters.orderSearch}
             onChange={(e) => update({ orderSearch: e.target.value })}
             className="text-sm"
@@ -421,7 +426,7 @@ function SidebarContent({
 
         {/* ── Stato commessa ───────────────────────────────── */}
         {statuses.length > 0 && (
-          <CollapsibleSection title="Stato commessa">
+          <CollapsibleSection title={t("Stato commessa")}>
             <div className="space-y-2">
               {statuses.map((status) => (
                 <div key={status.id} className="flex items-center gap-2">
@@ -448,7 +453,7 @@ function SidebarContent({
                   onClick={() => update({ includeStatuses: [] })}
                   className="text-xs text-muted-foreground hover:text-gray-700 underline mt-1"
                 >
-                  Deseleziona tutti
+                  {t("Deseleziona tutti")}
                 </button>
               )}
             </div>
@@ -457,9 +462,9 @@ function SidebarContent({
 
         {/* ── Escludi stati ─────────────────────────────────── */}
         {statuses.length > 0 && (
-          <CollapsibleSection title="Escludi stati" defaultOpen={false}>
+          <CollapsibleSection title={t("Escludi stati")} defaultOpen={false}>
             <p className="text-xs text-amber-600 mb-2 bg-amber-50 px-2 py-1 rounded">
-              Nascondi commesse con questi stati
+              {t("Nascondi commesse con questi stati")}
             </p>
             <div className="space-y-2">
               {statuses.map((status) => (
@@ -486,10 +491,10 @@ function SidebarContent({
         )}
 
         {/* ── Data commessa ────────────────────────────────── */}
-        <CollapsibleSection title="Data commessa">
+        <CollapsibleSection title={t("Data commessa")}>
           <div className="space-y-2">
             <div>
-              <Label className="text-xs text-gray-500 mb-1 block">Dal</Label>
+              <Label className="text-xs text-gray-500 mb-1 block">{t("Dal")}</Label>
               <Input
                 type="date"
                 value={filters.dateFrom}
@@ -498,7 +503,7 @@ function SidebarContent({
               />
             </div>
             <div>
-              <Label className="text-xs text-gray-500 mb-1 block">Al</Label>
+              <Label className="text-xs text-gray-500 mb-1 block">{t("Al")}</Label>
               <Input
                 type="date"
                 value={filters.dateTo}
@@ -510,10 +515,10 @@ function SidebarContent({
         </CollapsibleSection>
 
         {/* ── Data creazione ────────────────────────────────── */}
-        <CollapsibleSection title="Data creazione" defaultOpen={false}>
+        <CollapsibleSection title={t("Data creazione")} defaultOpen={false}>
           <div className="space-y-2">
             <div>
-              <Label className="text-xs text-gray-500 mb-1 block">Dal</Label>
+              <Label className="text-xs text-gray-500 mb-1 block">{t("Dal")}</Label>
               <Input
                 type="date"
                 value={filters.createdFrom}
@@ -522,7 +527,7 @@ function SidebarContent({
               />
             </div>
             <div>
-              <Label className="text-xs text-gray-500 mb-1 block">Al</Label>
+              <Label className="text-xs text-gray-500 mb-1 block">{t("Al")}</Label>
               <Input
                 type="date"
                 value={filters.createdTo}
@@ -534,7 +539,7 @@ function SidebarContent({
         </CollapsibleSection>
 
         {/* ── Stato pagamento ───────────────────────────────── */}
-        <CollapsibleSection title="Stato pagamento">
+        <CollapsibleSection title={t("Stato pagamento")}>
           <div className="space-y-2">
             {(
               [
@@ -553,17 +558,17 @@ function SidebarContent({
                   onChange={() => update({ paymentStatus: opt.value })}
                   className="accent-primary"
                 />
-                <span className="text-sm">{opt.label}</span>
+                <span className="text-sm">{t(opt.label)}</span>
               </label>
             ))}
           </div>
         </CollapsibleSection>
 
         {/* ── Importo ──────────────────────────────────────── */}
-        <CollapsibleSection title="Contratto senza varianti (€)" defaultOpen={false}>
+        <CollapsibleSection title={t("Contratto senza varianti (€)")} defaultOpen={false}>
           <div className="space-y-2">
             <div>
-              <Label className="text-xs text-gray-500 mb-1 block">Minimo</Label>
+              <Label className="text-xs text-gray-500 mb-1 block">{t("Minimo")}</Label>
               <Input
                 type="number"
                 placeholder="0"
@@ -573,7 +578,7 @@ function SidebarContent({
               />
             </div>
             <div>
-              <Label className="text-xs text-gray-500 mb-1 block">Massimo</Label>
+              <Label className="text-xs text-gray-500 mb-1 block">{t("Massimo")}</Label>
               <Input
                 type="number"
                 placeholder="∞"
@@ -587,51 +592,51 @@ function SidebarContent({
 
         {/* ── Commerciale ──────────────────────────────────── */}
         {salespeople.length > 0 && (
-          <CollapsibleSection title="Commerciale" defaultOpen={!!filters.salespersonId}>
+          <CollapsibleSection title={t("Commerciale")} defaultOpen={!!filters.salespersonId}>
             <SearchableRadioList
               items={salespeople}
               value={filters.salespersonId || "all"}
               onChange={(v) => update({ salespersonId: v === "all" ? "" : v })}
-              allLabel="Tutti i commerciali"
-              placeholder="Cerca commerciale..."
+              allLabel={t("Tutti i commerciali")}
+              placeholder={t("Cerca commerciale...")}
             />
           </CollapsibleSection>
         )}
 
         {/* ── Manodopera ───────────────────────────────────── */}
         {laborList.length > 0 && (
-          <CollapsibleSection title="Manodopera" defaultOpen={filters.laborIds.length > 0}>
+          <CollapsibleSection title={t("Manodopera")} defaultOpen={filters.laborIds.length > 0}>
             <SearchableCheckboxList
               items={laborList}
               selected={filters.laborIds}
               onToggle={toggleLabor}
-              placeholder="Cerca manodopera..."
+              placeholder={t("Cerca manodopera...")}
             />
           </CollapsibleSection>
         )}
 
         {/* ── Cliente ─────────────────────────────────────── */}
         {uniqueCustomers.length > 0 && onCustomerFilterChange && (
-          <CollapsibleSection title="Cliente" defaultOpen={customerFilter !== "all"}>
+          <CollapsibleSection title={t("Cliente")} defaultOpen={customerFilter !== "all"}>
             <SearchableRadioList
               items={uniqueCustomers}
               value={customerFilter}
               onChange={onCustomerFilterChange}
-              allLabel="Tutti i clienti"
-              placeholder="Cerca cliente..."
+              allLabel={t("Tutti i clienti")}
+              placeholder={t("Cerca cliente...")}
             />
           </CollapsibleSection>
         )}
 
         {/* ── Fornitore ───────────────────────────────────── */}
         {uniqueSuppliers.length > 0 && onSupplierFilterChange && (
-          <CollapsibleSection title="Fornitore" defaultOpen={supplierFilter !== "all"}>
+          <CollapsibleSection title={t("Fornitore")} defaultOpen={supplierFilter !== "all"}>
             <SearchableRadioList
               items={uniqueSuppliers}
               value={supplierFilter}
               onChange={onSupplierFilterChange}
-              allLabel="Tutti i fornitori"
-              placeholder="Cerca fornitore..."
+              allLabel={t("Tutti i fornitori")}
+              placeholder={t("Cerca fornitore...")}
             />
           </CollapsibleSection>
         )}
@@ -639,7 +644,7 @@ function SidebarContent({
         {/* ── Data Contratto ──────────────────────────────── */}
         {onContractDateRangeChange && (
           <DateRangeSidebarSection
-            title="Data Contratto"
+            title={t("Data Contratto")}
             range={contractDateRange}
             onRangeChange={onContractDateRangeChange}
           />
@@ -648,7 +653,7 @@ function SidebarContent({
         {/* ── Arrivo Merce ────────────────────────────────── */}
         {onWarehouseDateRangeChange && (
           <DateRangeSidebarSection
-            title="Arrivo Merce"
+            title={t("Arrivo Merce")}
             range={warehouseDateRange}
             onRangeChange={onWarehouseDateRangeChange}
           />
@@ -657,7 +662,7 @@ function SidebarContent({
         {/* ── Data Posa ───────────────────────────────────── */}
         {onExpectedDateRangeChange && (
           <DateRangeSidebarSection
-            title="Data Posa"
+            title={t("Data Posa")}
             range={expectedDateRange}
             onRangeChange={onExpectedDateRangeChange}
           />
@@ -674,7 +679,7 @@ function SidebarContent({
             onClick={reset}
           >
             <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-            Ripristina filtri
+            {t("Ripristina filtri")}
           </Button>
         </div>
       )}
@@ -706,11 +711,12 @@ export function OrdersFilterSidebar({
   expectedDateRange,
   onExpectedDateRangeChange,
 }: OrdersFilterSidebarProps) {
+  const t = useT();
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="p-0 w-80 max-w-full flex flex-col data-[state=open]:duration-200 data-[state=closed]:duration-150 motion-reduce:animate-none">
         <SheetHeader className="sr-only">
-          <SheetTitle>Filtri avanzati</SheetTitle>
+          <SheetTitle>{t("Filtri avanzati")}</SheetTitle>
         </SheetHeader>
         <SidebarContent
           filters={filters}

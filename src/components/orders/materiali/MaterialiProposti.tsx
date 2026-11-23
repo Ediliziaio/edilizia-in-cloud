@@ -21,11 +21,13 @@ import {
   articoloDaMateriale, prezzoRiga, quantitaAcquisto,
   type ArticoloCatalogo, type Collegamento, type MaterialeCollegato, type SceltaArticolo, type VoceListino,
 } from "@/lib/distinta/collegaArticoli";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type FiltroMateriali = "tutti" | "da_controllare" | "senza_articolo" | "senza_prezzo" | "in_magazzino";
 
-const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 });
-const num = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+type Traduci = ReturnType<typeof useT>;
+const euro = (n: number) => n.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 2 });
+const num = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 2 });
 
 function filtraMateriali(m: MaterialeCollegato, f: FiltroMateriali, avvisi?: Map<string, string>): boolean {
   if (f === "da_controllare") return m.verifica_acquisto?.stato === "da_verificare" || m.affidabilita < 0.65 || !!avvisi?.has(m.chiave);
@@ -40,11 +42,12 @@ const ETICHETTE_FILTRO: Record<FiltroMateriali, string> = {
 };
 
 function Sicurezza({ m }: { m: MaterialeCollegato }) {
+  const t = useT();
   if (m.verifica_acquisto?.stato === "da_verificare") return <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800"
-    title={m.verifica_acquisto.motivi.join("\n")}><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />Da verificare</span>;
+    title={m.verifica_acquisto.motivi.join("\n")}><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />{t("Da verificare")}</span>;
   const v = m.affidabilita;
-  const [testo, colore] = v >= 0.85 ? ["Sicuro", "bg-emerald-500"] : v >= 0.65 ? ["Probabile", "bg-sky-500"] : ["Da controllare", "bg-amber-500"];
-  const dettagli = [`${testo} ${Math.round(v * 100)}%`, ETICHETTA_FONTE_MATERIALE[m.fonte], ...m.note].join("\n");
+  const [testo, colore] = v >= 0.85 ? [t("Sicuro"), "bg-emerald-500"] : v >= 0.65 ? [t("Probabile"), "bg-sky-500"] : [t("Da controllare"), "bg-amber-500"];
+  const dettagli = [`${testo} ${Math.round(v * 100)}%`, t(ETICHETTA_FONTE_MATERIALE[m.fonte]), ...m.note].join("\n");
   return (
     <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] tabular-nums text-slate-600" title={dettagli} aria-label={`${testo} ${Math.round(v * 100)}%`}>
       <span className={cn("h-2 w-2 rounded-full", colore)} aria-hidden />{Math.round(v * 100)}%
@@ -52,21 +55,21 @@ function Sicurezza({ m }: { m: MaterialeCollegato }) {
   );
 }
 
-function provenienza(origini: OrigineRiga[]): { breve: string; tutte: string } {
+function provenienza(origini: OrigineRiga[], t: Traduci): { breve: string; tutte: string } {
   const etichetta = (o: OrigineRiga) => o.tipo === "computo"
-    ? `${o.codice ? `${o.codice} · ` : ""}${o.descrizione} (${o.quantita_voce.toLocaleString("it-IT")} ${o.unita_voce ?? ""})`.replace(/ \)$/, ")")
-    : o.tipo === "contratto" ? `Documento · ${o.descrizione}` : `Tavola ${o.documento ?? ""} · ${o.simbolo}${o.locale ? ` · ${o.locale}` : ""}`;
+    ? `${o.codice ? `${o.codice} · ` : ""}${o.descrizione} (${o.quantita_voce.toLocaleString(intlCampo())} ${o.unita_voce ?? ""})`.replace(/ \)$/, ")")
+    : o.tipo === "contratto" ? t("Documento · {descrizione}", { descrizione: o.descrizione }) : `${t("Tavola {documento}", { documento: o.documento ?? "" })} · ${o.simbolo}${o.locale ? ` · ${o.locale}` : ""}`;
   const prima = origini[0];
   if (!prima) return { breve: "", tutte: "" };
-  return { breve: `da ${etichetta(prima)}${origini.length > 1 ? ` e altre ${origini.length - 1}` : ""}`, tutte: origini.map(etichetta).join("\n") };
+  return { breve: origini.length > 1 ? t("da {origine} e altre {n}", { origine: etichetta(prima), n: origini.length - 1 }) : t("da {origine}", { origine: etichetta(prima) }), tutte: origini.map(etichetta).join("\n") };
 }
 
 /** «Listino Primavera 2026», ma «Listino» se il listino si chiama già così (Demo 2: «Listino Listino»). */
-const nomeListino = (nome: string | null | undefined) => !nome?.trim() ? "Listino" : /^listino\b/i.test(nome.trim()) ? nome.trim() : `Listino ${nome.trim()}`;
+const nomeListino = (nome: string | null | undefined, t: Traduci) => !nome?.trim() ? t("Listino") : /^listino\b/i.test(nome.trim()) ? nome.trim() : t("Listino {nome}", { nome: nome.trim() });
 
-function nomeCollegamento(c: Collegamento, fornitori: Map<string, string>): { nome: string; sotto: string } {
+function nomeCollegamento(c: Collegamento, fornitori: Map<string, string>, t: Traduci): { nome: string; sotto: string } {
   const fornitore = c.supplier_id ? fornitori.get(c.supplier_id) : null;
-  const dove = c.tipo === "listino" ? [nomeListino(c.listino), fornitore].filter(Boolean).join(" · ") : fornitore ?? "Catalogo";
+  const dove = c.tipo === "listino" ? [nomeListino(c.listino, t), fornitore].filter(Boolean).join(" · ") : fornitore ?? t("Catalogo");
   return { nome: c.nome, sotto: dove };
 }
 
@@ -76,6 +79,7 @@ function SceltaArticoloRiga({ m, articoli, listini, fornitori, mostraPrezzi, onS
   onScegli: (s: SceltaArticolo) => void; onChiudi: () => void;
   onAggiungiAlCatalogo?: (m: MaterialeCollegato) => Promise<string | null>;
 }) {
+  const tr = useT();
   const [aggiungo, setAggiungo] = useState(false);
   const [cerca, setCerca] = useState("");
   const trovati = useMemo(() => {
@@ -85,12 +89,12 @@ function SceltaArticoloRiga({ m, articoli, listini, fornitori, mostraPrezzi, onS
     const ok = (testo: string) => { const n = normalizzaTesto(testo); return parole.every((p) => n.includes(p)); };
     return [
       ...articoli.filter((a) => ok(`${a.name} ${a.sku ?? ""} ${a.marca ?? ""} ${a.modello ?? ""}`)).slice(0, 6)
-        .map((a) => ({ tipo: "articolo" as const, id: a.id, nome: a.name, sotto: (a.supplier_id && fornitori.get(a.supplier_id)) || "Catalogo", unita: a.unit_of_measure ?? null, prezzo: Number(a.prezzo_acquisto_netto) || Number(a.standard_cost) || null })),
+        .map((a) => ({ tipo: "articolo" as const, id: a.id, nome: a.name, sotto: (a.supplier_id && fornitori.get(a.supplier_id)) || tr("Catalogo"), unita: a.unit_of_measure ?? null, prezzo: Number(a.prezzo_acquisto_netto) || Number(a.standard_cost) || null })),
       ...listini.filter((l) => ok(`${l.descrizione} ${l.codice ?? ""}`)).slice(0, 6)
-        .map((l) => ({ tipo: "listino" as const, id: l.id, nome: l.descrizione, sotto: [nomeListino(l.listino), l.supplier_id ? fornitori.get(l.supplier_id) : null].filter(Boolean).join(" · "), unita: l.unita ?? null,
+        .map((l) => ({ tipo: "listino" as const, id: l.id, nome: l.descrizione, sotto: [nomeListino(l.listino, tr), l.supplier_id ? fornitori.get(l.supplier_id) : null].filter(Boolean).join(" · "), unita: l.unita ?? null,
           prezzo: Number(l.prezzo) > 0 ? Math.round(Number(l.prezzo) * (1 - (Number(l.sconto_pct) || 0) / 100) * 100) / 100 : null })),
     ];
-  }, [cerca, articoli, listini, fornitori]);
+  }, [cerca, articoli, listini, fornitori, tr]);
   const attuale = m.collegamento ? `${m.collegamento.tipo}:${m.collegamento.id}` : null;
   const Voce = ({ id, tipo, nome, sotto, motivo, prezzo, unita }: { id: string; tipo: "articolo" | "listino"; nome: string; sotto: string; motivo?: string; prezzo: number | null; unita: string | null }) => (
     <li>
@@ -107,24 +111,24 @@ function SceltaArticoloRiga({ m, articoli, listini, fornitori, mostraPrezzi, onS
   return (
     <div className="space-y-2 rounded-md border bg-white p-2 shadow-sm" data-scelta-articolo={m.descrizione}>
       <div className="flex items-center gap-2">
-        <span className="text-xs font-medium text-slate-700">Articolo per «{m.descrizione}»</span>
-        <button type="button" onClick={onChiudi} className="ml-auto rounded p-0.5 text-slate-500 hover:bg-slate-100" aria-label="Chiudi la scelta dell'articolo"><X className="h-3.5 w-3.5" /></button>
+        <span className="text-xs font-medium text-slate-700">{tr("Articolo per «{descrizione}»", { descrizione: m.descrizione })}</span>
+        <button type="button" onClick={onChiudi} className="ml-auto rounded p-0.5 text-slate-500 hover:bg-slate-100" aria-label={tr("Chiudi la scelta dell'articolo")}><X className="h-3.5 w-3.5" /></button>
       </div>
       {m.candidati.length > 0 ? (
-        <ul className="space-y-0.5" aria-label="Abbinamenti possibili">
+        <ul className="space-y-0.5" aria-label={tr("Abbinamenti possibili")}>
           {m.candidati.map((c) => {
-            const n = nomeCollegamento(c.collegamento, fornitori);
+            const n = nomeCollegamento(c.collegamento, fornitori, tr);
             return <Voce key={`${c.collegamento.tipo}:${c.collegamento.id}`} tipo={c.collegamento.tipo} id={c.collegamento.id} nome={n.nome} sotto={n.sotto} motivo={c.motivo} prezzo={c.collegamento.prezzo} unita={c.collegamento.unita} />;
           })}
         </ul>
-      ) : <p className="text-[11px] text-slate-500">Nessun articolo o listino che gli somigli: cercalo qui sotto.</p>}
+      ) : <p className="text-[11px] text-slate-500">{tr("Nessun articolo o listino che gli somigli: cercalo qui sotto.")}</p>}
       <label className="flex items-center gap-1.5 rounded border px-2">
         <Search className="h-3.5 w-3.5 text-slate-400" aria-hidden />
-        <input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca nel catalogo e nei listini…" aria-label="Cerca un articolo"
+        <input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={tr("Cerca nel catalogo e nei listini…")} aria-label={tr("Cerca un articolo")}
           className="h-7 min-w-0 flex-1 bg-transparent text-xs outline-none" onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onChiudi(); } }} />
       </label>
-      {trovati.length > 0 && <ul className="max-h-48 space-y-0.5 overflow-auto" aria-label="Risultati della ricerca">{trovati.map((t) => <Voce key={`${t.tipo}:${t.id}`} {...t} />)}</ul>}
-      {cerca.trim().length >= 2 && !trovati.length && <p className="text-[11px] text-slate-500">Niente nel catalogo con «{cerca.trim()}».</p>}
+      {trovati.length > 0 && <ul className="max-h-48 space-y-0.5 overflow-auto" aria-label={tr("Risultati della ricerca")}>{trovati.map((t) => <Voce key={`${t.tipo}:${t.id}`} {...t} />)}</ul>}
+      {cerca.trim().length >= 2 && !trovati.length && <p className="text-[11px] text-slate-500">{tr("Niente nel catalogo con «{cerca}».", { cerca: cerca.trim() })}</p>}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {onAggiungiAlCatalogo && (
           <button type="button" disabled={aggiungo} className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 underline-offset-2 hover:underline disabled:opacity-60"
@@ -134,10 +138,10 @@ function SceltaArticoloRiga({ m, articoli, listini, fornitori, mostraPrezzi, onS
               setAggiungo(false);
               if (id) onScegli({ tipo: "articolo", id });
             }}>
-            <Plus className="h-3 w-3" aria-hidden />{aggiungo ? "Aggiungo…" : `Aggiungi «${articoloDaMateriale(m).name}» al catalogo`}
+            <Plus className="h-3 w-3" aria-hidden />{aggiungo ? tr("Aggiungo…") : tr("Aggiungi «{nome}» al catalogo", { nome: articoloDaMateriale(m).name })}
           </button>
         )}
-        <button type="button" onClick={() => onScegli({ tipo: "nessuno" })} className="text-[11px] font-medium text-slate-600 underline-offset-2 hover:underline">Nessun articolo: lo scelgo dopo</button>
+        <button type="button" onClick={() => onScegli({ tipo: "nessuno" })} className="text-[11px] font-medium text-slate-600 underline-offset-2 hover:underline">{tr("Nessun articolo: lo scelgo dopo")}</button>
       </div>
     </div>
   );
@@ -161,6 +165,7 @@ export function MaterialiProposti({
   /** Materiali (chiave) le cui voci costano meno dei loro materiali: quantità o resa da controllare. */
   avvisiCosto?: Map<string, string>;
 }) {
+  const t = useT();
   const [filtro, setFiltro] = useState<FiltroMateriali>("tutti");
   const [aperta, setAperta] = useState<string | null>(null);
   const [chiuse, setChiuse] = useState<Record<string, boolean>>({});
@@ -171,13 +176,13 @@ export function MaterialiProposti({
   const colonne = mostraPrezzi ? 7 : 5;
 
   return (
-    <section aria-label="Materiali che entrano" className="text-sm">
+    <section aria-label={t("Materiali che entrano")} className="text-sm">
       <div className="sticky top-0 z-10 -mx-5 flex flex-wrap items-center gap-1.5 border-b bg-white/95 px-5 py-2 backdrop-blur">
         <label className="mr-1 flex items-center gap-1.5 text-xs font-medium">
-          <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" aria-label="Seleziona tutti i materiali" checked={tuttiAccesi}
+          <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" aria-label={t("Seleziona tutti i materiali")} checked={tuttiAccesi}
             ref={(el) => { if (el) el.indeterminate = accesi.length > 0 && !tuttiAccesi; }}
             onChange={(e) => { const si = e.target.checked; setAccese(() => Object.fromEntries(materiali.map((r) => [r.chiave, si]))); }} />
-          {accesi.length === materiali.length ? `${materiali.length} materiali` : `${accesi.length} su ${materiali.length}`}
+          {accesi.length === materiali.length ? t("{n} materiali", { n: materiali.length }) : t("{accesi} su {totale}", { accesi: accesi.length, totale: materiali.length })}
         </label>
         {(Object.keys(ETICHETTE_FILTRO) as FiltroMateriali[]).filter((f) => f === "tutti" || conteggi[f] > 0)
           .filter((f) => mostraPrezzi || f !== "senza_prezzo")
@@ -186,7 +191,7 @@ export function MaterialiProposti({
               className={cn("rounded-full border px-2 py-0.5 text-[11px] tabular-nums transition-colors",
                 filtro === f ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300",
                 f === "da_controllare" && filtro !== f && "border-amber-200 bg-amber-50 text-amber-900")}>
-              {ETICHETTE_FILTRO[f]} {conteggi[f]}
+              {t(ETICHETTE_FILTRO[f])} {conteggi[f]}
             </button>
           ))}
       </div>
@@ -199,10 +204,10 @@ export function MaterialiProposti({
         </colgroup>
         <thead className="text-[10px] uppercase tracking-wide text-slate-500">
           <tr>
-            <th /><th className="py-1.5 text-left font-medium">Materiale</th><th className="text-right font-medium">Da ordinare</th>
-            <th className="pl-3 text-left font-medium">Articolo · fornitore</th>
-            {mostraPrezzi && <><th className="text-right font-medium">Prezzo</th><th className="text-right font-medium">Totale</th></>}
-            <th className="text-right font-medium" title="Quanto è sicura la proposta">Sic.</th>
+            <th /><th className="py-1.5 text-left font-medium">{t("Materiale")}</th><th className="text-right font-medium">{t("Da ordinare")}</th>
+            <th className="pl-3 text-left font-medium">{t("Articolo · fornitore")}</th>
+            {mostraPrezzi && <><th className="text-right font-medium">{t("Prezzo")}</th><th className="text-right font-medium">{t("Totale")}</th></>}
+            <th className="text-right font-medium" title={t("Quanto è sicura la proposta")}>{t("Sic.")}</th>
           </tr>
         </thead>
         {perFase.map(([fase, tutte]) => {
@@ -215,7 +220,7 @@ export function MaterialiProposti({
             <tbody key={fase} className="border-t">
               <tr className="bg-slate-50">
                 <td className="py-1.5 pl-1">
-                  <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" aria-label={`Seleziona i materiali di ${nomeFase(fase)}`}
+                  <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" aria-label={t("Seleziona i materiali di {fase}", { fase: nomeFase(fase) })}
                     checked={tutte.every(accesa)} ref={(el) => { if (el) el.indeterminate = tutte.some(accesa) && !tutte.every(accesa); }}
                     onChange={(e) => { const si = e.target.checked; setAccese((a) => ({ ...a, ...Object.fromEntries(tutte.map((r) => [r.chiave, si])) })); }} />
                 </td>
@@ -224,23 +229,23 @@ export function MaterialiProposti({
                     className="flex w-full items-center gap-2 text-left">
                     <ChevronDown className={cn("h-3.5 w-3.5 text-slate-500 transition-transform", chiusa && "-rotate-90")} aria-hidden />
                     <span className="font-semibold text-slate-900">{nomeFase(fase)}</span>
-                    <span className="text-slate-500">· {tutte.filter(accesa).length}{tutte.some((r) => !accesa(r)) ? ` su ${tutte.length}` : ""}</span>
-                    <span className="text-[11px] text-slate-500">· collegati {collegati}/{tutte.length}</span>
+                    <span className="text-slate-500">· {tutte.some((r) => !accesa(r)) ? t("{accesi} su {totale}", { accesi: tutte.filter(accesa).length, totale: tutte.length }) : tutte.filter(accesa).length}</span>
+                    <span className="text-[11px] text-slate-500">· {t("collegati {collegati}/{totale}", { collegati, totale: tutte.length })}</span>
                     {mostraPrezzi && totaleFase > 0 && <span className="ml-auto pr-14 tabular-nums font-medium text-slate-700">{euro(totaleFase)}</span>}
                   </button>
                 </td>
               </tr>
               {!chiusa && righe.map((m) => {
-                const p = provenienza(m.origini);
+                const p = provenienza(m.origini, t);
                 const q = quantitaAcquisto(m);
                 const prezzo = prezzoRiga(m);
-                const c = m.collegamento ? nomeCollegamento(m.collegamento, fornitori) : null;
+                const c = m.collegamento ? nomeCollegamento(m.collegamento, fornitori, t) : null;
                 const on = accesa(m);
                 return (
                   <Fragment key={m.chiave}>
                     <tr className={cn("border-t border-slate-100 align-top hover:bg-slate-50/60", !on && "opacity-50")} data-materiale={m.descrizione}>
                       <td className="py-1.5 pl-1">
-                        <Checkbox checked={on} aria-label={`Includi ${m.descrizione}`} onCheckedChange={(v) => setAccese((a) => ({ ...a, [m.chiave]: v === true }))} />
+                        <Checkbox checked={on} aria-label={t("Includi {nome}", { nome: m.descrizione })} onCheckedChange={(v) => setAccese((a) => ({ ...a, [m.chiave]: v === true }))} />
                       </td>
                       <td className="min-w-0 py-1.5 pr-2">
                         <p className="truncate" title={[m.descrizione, m.specifiche].filter(Boolean).join(" · ")}>
@@ -249,7 +254,7 @@ export function MaterialiProposti({
                         </p>
                         <p className="truncate text-[11px] text-slate-500" title={p.tutte}>{p.breve}</p>
                         {m.note.map((n) => <p key={n} className="truncate text-[11px] text-slate-500" title={n}>{n}</p>)}
-                        {m.verifica_acquisto?.stato === "da_verificare" && <p className="text-[11px] font-medium text-amber-800">Dati da completare prima dell'acquisto</p>}
+                        {m.verifica_acquisto?.stato === "da_verificare" && <p className="text-[11px] font-medium text-amber-800">{t("Dati da completare prima dell'acquisto")}</p>}
                         {avvisiCosto?.get(m.chiave) && (
                           <p className="flex items-center gap-1 text-[11px] font-medium text-amber-800" title={avvisiCosto.get(m.chiave)}>
                             <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden /><span className="truncate">{avvisiCosto.get(m.chiave)}</span>
@@ -259,24 +264,24 @@ export function MaterialiProposti({
                       <td className="py-1.5 text-right tabular-nums">
                         <span className="font-medium text-slate-900">{num(q.quantita)} {q.unita}</span>
                         {m.conversione
-                          ? <span className="block text-[11px] text-slate-500" title={m.conversione.comune ? "Confezione d'uso comune: cambia scegliendo l'articolo" : m.conversione.testo}>{num(m.quantita_calcolata)} {m.unita_misura}{m.conversione.comune ? " · uso comune" : ""}</span>
-                          : m.sfrido ? <span className="block text-[11px] text-slate-400">+{m.sfrido}% sfrido</span> : null}
+                          ? <span className="block text-[11px] text-slate-500" title={m.conversione.comune ? t("Confezione d'uso comune: cambia scegliendo l'articolo") : m.conversione.testo}>{num(m.quantita_calcolata)} {m.unita_misura}{m.conversione.comune ? " · " + t("uso comune") : ""}</span>
+                          : m.sfrido ? <span className="block text-[11px] text-slate-400">{t("+{n}% sfrido", { n: m.sfrido })}</span> : null}
                       </td>
                       <td className="min-w-0 py-1.5 pl-3">
                         <button type="button" onClick={() => setAperta(aperta === m.chiave ? null : m.chiave)} aria-expanded={aperta === m.chiave}
-                          aria-label={c ? `Cambia l'articolo di ${m.descrizione}` : `Scegli l'articolo di ${m.descrizione}`}
+                          aria-label={c ? t("Cambia l'articolo di {nome}", { nome: m.descrizione }) : t("Scegli l'articolo di {nome}", { nome: m.descrizione })}
                           className={cn("group flex w-full min-w-0 items-start gap-1 rounded px-1 py-0.5 text-left hover:bg-slate-100",
                             !c && "border border-dashed border-slate-300 text-slate-500")}>
                           {c ? <Link2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" aria-hidden /> : null}
                           <span className="min-w-0 flex-1">
-                            <span className={cn("block truncate", c ? "text-slate-900" : "text-[11px]")}>{c ? c.nome : m.candidati.length ? `Scegli fra ${m.candidati.length} simili` : "Scegli l'articolo"}</span>
+                            <span className={cn("block truncate", c ? "text-slate-900" : "text-[11px]")}>{c ? c.nome : m.candidati.length ? t("Scegli fra {n} simili", { n: m.candidati.length }) : t("Scegli l'articolo")}</span>
                             {c && <span className="block truncate text-[11px] text-slate-500">{c.sotto}</span>}
                           </span>
                           <ChevronDown className="mt-0.5 h-3 w-3 shrink-0 text-slate-400 opacity-0 group-hover:opacity-100" aria-hidden />
                         </button>
                         {m.magazzino && (
-                          <span className="mt-0.5 flex items-center gap-1 px-1 text-[11px] text-emerald-700" title={`In magazzino: ${m.magazzino.nome}`}>
-                            <Box className="h-3 w-3" aria-hidden />In magazzino {num(m.magazzino.disponibile)} {m.magazzino.unita ?? ""}
+                          <span className="mt-0.5 flex items-center gap-1 px-1 text-[11px] text-emerald-700" title={t("In magazzino: {nome}", { nome: m.magazzino.nome })}>
+                            <Box className="h-3 w-3" aria-hidden />{t("In magazzino {quantita} {unita}", { quantita: num(m.magazzino.disponibile), unita: m.magazzino.unita ?? "" })}
                           </span>
                         )}
                       </td>
@@ -305,7 +310,7 @@ export function MaterialiProposti({
           );
         })}
       </table>
-      {!materiali.some((m) => filtraMateriali(m, filtro, avvisiCosto)) && <p className="py-6 text-center text-xs text-slate-500">Nessun materiale con questo filtro.</p>}
+      {!materiali.some((m) => filtraMateriali(m, filtro, avvisiCosto)) && <p className="py-6 text-center text-xs text-slate-500">{t("Nessun materiale con questo filtro.")}</p>}
     </section>
   );
 }

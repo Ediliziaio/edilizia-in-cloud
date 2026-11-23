@@ -11,7 +11,6 @@ import { isClientReport } from "@/lib/campo/reportKind";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { Loader2, PenLine, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +23,7 @@ import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { refreshRapportinoQueries } from "@/lib/orders/refreshRapportinoQueries";
 import { ArrivoRapportino } from "@/components/orders/ArrivoRapportino";
 import { campoArrivo, leggiArrivo, mezzoStradale, type ArrivoRapportino as DatiArrivo } from "@/lib/campo/arrivoRapportino";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Voce = Record<string, unknown>;
 interface Bozza {
@@ -42,25 +42,28 @@ const NUOVO_MATERIALE = { nome: "", quantita: "1", unita: "", provenienza: "acqu
 const titolo = "text-[11px] font-semibold uppercase tracking-wide text-slate-500";
 
 // Fuori dal componente: dentro, ogni tasto ricreerebbe il campo e toglierebbe il cursore.
-const Riga = ({ nome, valore, onValore, unita, onTogli }: { nome: string; valore: unknown; onValore: (v: string) => void; unita: string; onTogli?: () => void }) => (
-  <li className="flex items-center gap-2 py-1">
+const Riga = ({ nome, valore, onValore, unita, onTogli }: { nome: string; valore: unknown; onValore: (v: string) => void; unita: string; onTogli?: () => void }) => {
+  const t = useT();
+  return <li className="flex items-center gap-2 py-1">
     <span className="min-w-0 flex-1 truncate">{nome}</span>
     <Input aria-label={`${nome}: ${unita}`} inputMode="decimal" className="h-8 w-20 text-right text-[13px]" value={String(valore ?? "")} onChange={(e) => onValore(e.target.value)} />
     <span className="w-8 text-xs text-muted-foreground">{unita}</span>
-    {onTogli && <button type="button" aria-label={`Togli ${nome}`} onClick={onTogli} className="tap-compact p-1 text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>}
-  </li>
-);
+    {onTogli && <button type="button" aria-label={t("Togli {nome}", { nome })} onClick={onTogli} className="tap-compact p-1 text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>}
+  </li>;
+};
 
 type PropsCorrezione = { rapportinoId: string; orderId: string; onCorretto?: () => void };
 export function CorreggiRapportino(props: PropsCorrezione) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   return <>
-    <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => setAperto(true)}><PenLine className="mr-1 h-3.5 w-3.5" />Modifica rapportino</Button>
+    <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => setAperto(true)}><PenLine className="mr-1 h-3.5 w-3.5" />{t("Modifica rapportino")}</Button>
     {aperto && <EditorRapportino {...props} onClose={() => setAperto(false)} />}
   </>;
 }
 function EditorRapportino(props: PropsCorrezione & { onClose: () => void }) {
   const { rapportinoId, orderId, onClose } = props;
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const aperto = true;
@@ -72,16 +75,17 @@ function EditorRapportino(props: PropsCorrezione & { onClose: () => void }) {
     queryFn: async () => {
       const { data, error } = await db.from("campo_rapportini").select(COLONNE_RAPPORTINO).eq("id", rapportinoId).eq("company_id", companyId!).eq("order_id", orderId).maybeSingle();
       if (error) throw new Error(error.message);
-      if (!data || data.company_id !== companyId || data.order_id !== orderId) throw new Error("Rapportino non disponibile in questa commessa.");
+      if (!data || data.company_id !== companyId || data.order_id !== orderId) throw new Error(t("Rapportino non disponibile in questa commessa."));
       return data;
     },
   });
-  if (riga.isPending || riga.isError || !riga.data) return <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}><DialogContent><DialogHeader><DialogTitle>Modifica rapportino</DialogTitle></DialogHeader>
-    {riga.isError ? <p role="alert">Impossibile caricare il rapportino. <Button variant="outline" onClick={() => void riga.refetch()}>Riprova</Button></p> : <p role="status">Carico…</p>}
-    <DialogFooter><Button variant="outline" onClick={onClose}>Annulla</Button><Button disabled>Salva</Button></DialogFooter></DialogContent></Dialog>;
+  if (riga.isPending || riga.isError || !riga.data) return <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}><DialogContent><DialogHeader><DialogTitle>{t("Modifica rapportino")}</DialogTitle></DialogHeader>
+    {riga.isError ? <p role="alert">{t("Impossibile caricare il rapportino.")} <Button variant="outline" onClick={() => void riga.refetch()}>{t("Riprova")}</Button></p> : <p role="status">{t("Carico…")}</p>}
+    <DialogFooter><Button variant="outline" onClick={onClose}>{t("Annulla")}</Button><Button disabled>{t("Salva")}</Button></DialogFooter></DialogContent></Dialog>;
   return <FormRapportino {...props} riga={riga} />;
 }
 function FormRapportino({ rapportinoId, orderId, onCorretto, onClose, riga }: PropsCorrezione & { onClose: () => void; riga: UseQueryResult<Voce, Error> }) {
+  const t = useT();
   const qc = useQueryClient();
   const { effectiveCompany, role, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -118,8 +122,8 @@ function FormRapportino({ rapportinoId, orderId, onCorretto, onClose, riga }: Pr
   const salva = useMutation({
     mutationFn: async () => {
       if (!b || !riga.data) return;
-      if (nuovo.nome.trim()) throw new Error("Aggiungi il materiale al rapportino oppure svuota il campo prima di salvare.");
-      if (b.materiali.some((m) => !String(m.nome ?? m.descrizione ?? "").trim())) throw new Error("Scrivi la descrizione dei materiali.");
+      if (nuovo.nome.trim()) throw new Error(t("Aggiungi il materiale al rapportino oppure svuota il campo prima di salvare."));
+      if (b.materiali.some((m) => !String(m.nome ?? m.descrizione ?? "").trim())) throw new Error(t("Scrivi la descrizione dei materiali."));
       riferimentiUnici(b.presenze, "employee_id", "Operai");
       riferimentiUnici(b.mezzi, "mezzo_id", "Mezzi");
       const campi: Voce = {
@@ -139,14 +143,14 @@ function FormRapportino({ rapportinoId, orderId, onCorretto, onClose, riga }: Pr
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast.success(richiedeApprovazione ? "Rapportino corretto: in attesa di una nuova approvazione" : "Rapportino corretto");
+      toast.success(richiedeApprovazione ? t("Rapportino corretto: in attesa di una nuova approvazione") : t("Rapportino corretto"));
       refreshWorkQueries(qc, orderId);
       refreshRapportinoQueries(qc, orderId, companyId);
       void qc.invalidateQueries({ predicate: ({ queryKey }) => typeof queryKey[0] === "string" && /rappor|appalto-rendiconto/.test(queryKey[0]) });
       setAperto(false);
       onCorretto?.();
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Correzione non salvata"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("Correzione non salvata")),
   });
 
   const modifica = (k: "presenze" | "fasi" | "materiali" | "mezzi", i: number, campo: string, v: string) =>
@@ -159,87 +163,87 @@ function FormRapportino({ rapportinoId, orderId, onCorretto, onClose, riga }: Pr
       {aperto && (
         <Dialog open onOpenChange={(o) => { if (!o && !salva.isPending) setAperto(false); }}>
           <DialogContent className="max-h-[92dvh] overflow-y-auto text-[13px] sm:max-w-2xl">
-            <DialogHeader><DialogTitle className="max-md:text-base">Correggi il rapportino</DialogTitle></DialogHeader>
-            {riga.isError ? <p role="alert">Impossibile caricare il rapportino. <Button variant="outline" onClick={() => void riga.refetch()}>Riprova</Button></p> : !b ? <p role="status" className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Carico…</p> : (
+            <DialogHeader><DialogTitle className="max-md:text-base">{t("Correggi il rapportino")}</DialogTitle></DialogHeader>
+            {riga.isError ? <p role="alert">{t("Impossibile caricare il rapportino.")} <Button variant="outline" onClick={() => void riga.refetch()}>{t("Riprova")}</Button></p> : !b ? <p role="status" className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{t("Carico…")}</p> : (
               <fieldset disabled={salva.isPending} className="space-y-3">
-                {approvato && <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">{richiedeApprovazione ? "Stai correggendo il tuo rapportino approvato: dopo il salvataggio un altro utente dell’ufficio dovrà approvarlo di nuovo." : "È già approvato: ore, costi, fasi e rendiconto si aggiornano insieme. I documenti confermati o firmati bloccano la correzione."}</p>}
-                <div><p className={titolo}>Cosa si è fatto</p><Textarea aria-label="Lavoro svolto" rows={3} className="mt-1 text-[13px]" value={b.descrizione} onChange={(e) => setB({ ...b, descrizione: e.target.value })} /></div>
+                {approvato && <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">{richiedeApprovazione ? t("Stai correggendo il tuo rapportino approvato: dopo il salvataggio un altro utente dell’ufficio dovrà approvarlo di nuovo.") : t("È già approvato: ore, costi, fasi e rendiconto si aggiornano insieme. I documenti confermati o firmati bloccano la correzione.")}</p>}
+                <div><p className={titolo}>{t("Cosa si è fatto")}</p><Textarea aria-label={t("Lavoro svolto")} rows={3} className="mt-1 text-[13px]" value={b.descrizione} onChange={(e) => setB({ ...b, descrizione: e.target.value })} /></div>
                 {b.conPresenze ? (
-                  <div><p className={titolo}>Chi ha lavorato</p><ul className="divide-y">
+                  <div><p className={titolo}>{t("Chi ha lavorato")}</p><ul className="divide-y">
                     {b.presenze.map((p, i) => <li key={i} className="flex flex-wrap items-center gap-2 py-1">
-                      {p.subappaltatore_id ? <span className="flex-1">{String(p.nome ?? "Ditta")}</span> : <UniformSelect aria-label={`Operaio ${i + 1}`} className="min-w-0 flex-1 rounded border bg-background p-1" value={String(p.employee_id ?? "")} onChange={(e) => {
+                      {p.subappaltatore_id ? <span className="flex-1">{p.nome != null ? String(p.nome) : t("Ditta")}</span> : <UniformSelect aria-label={t("Operaio {n}", { n: i + 1 })} className="min-w-0 flex-1 rounded border bg-background p-1" value={String(p.employee_id ?? "")} onChange={(e) => {
                         const scelta = persone.data?.find((x) => x.id === e.target.value); if (!scelta) return;
                         setB({ ...b, presenze: b.presenze.map((x, n) => n === i ? { ...x, employee_id: scelta.id, nome: scelta.nome } : x) });
-                      }}><option value={String(p.employee_id ?? "")}>{String(p.nome ?? "Senza nome")}</option>{persone.data?.filter((x) => x.id !== p.employee_id && !b.presenze.some((v) => v.employee_id === x.id)).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}</UniformSelect>}
-                      <Input aria-label={`Ore di ${p.nome}`} inputMode="decimal" className="h-8 w-20" value={String(p.ore ?? "")} onChange={(e) => modifica("presenze", i, "ore", e.target.value)} />
-                      <button type="button" aria-label={`Togli ${p.nome}`} className="tap-compact" onClick={() => togli("presenze", i)}><X className="h-4 w-4" /></button>
+                      }}><option value={String(p.employee_id ?? "")}>{p.nome != null ? String(p.nome) : t("Senza nome")}</option>{persone.data?.filter((x) => x.id !== p.employee_id && !b.presenze.some((v) => v.employee_id === x.id)).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}</UniformSelect>}
+                      <Input aria-label={t("Ore di {nome}", { nome: String(p.nome) })} inputMode="decimal" className="h-8 w-20" value={String(p.ore ?? "")} onChange={(e) => modifica("presenze", i, "ore", e.target.value)} />
+                      <button type="button" aria-label={t("Togli {nome}", { nome: String(p.nome) })} className="tap-compact" onClick={() => togli("presenze", i)}><X className="h-4 w-4" /></button>
                     </li>)}
                   </ul></div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
-                    <label><span className={titolo}>Ore</span><Input inputMode="decimal" className="mt-1 h-8 text-[13px]" value={b.ore} onChange={(e) => setB({ ...b, ore: e.target.value })} /></label>
-                    <label><span className={titolo}>Straordinario</span><Input inputMode="decimal" className="mt-1 h-8 text-[13px]" value={b.straordinario} onChange={(e) => setB({ ...b, straordinario: e.target.value })} /></label>
+                    <label><span className={titolo}>{t("Ore")}</span><Input inputMode="decimal" className="mt-1 h-8 text-[13px]" value={b.ore} onChange={(e) => setB({ ...b, ore: e.target.value })} /></label>
+                    <label><span className={titolo}>{t("Straordinario")}</span><Input inputMode="decimal" className="mt-1 h-8 text-[13px]" value={b.straordinario} onChange={(e) => setB({ ...b, straordinario: e.target.value })} /></label>
                   </div>
                 )}
                 <div className="space-y-1">
-                  {persone.isError ? <p role="alert">Elenco operai non disponibile. <button type="button" className="underline" onClick={() => void persone.refetch()}>Riprova</button></p> : <UniformSelect aria-label="Aggiungi operaio" value="" className="w-full rounded border bg-background p-2" disabled={persone.isLoading} onChange={(e) => {
+                  {persone.isError ? <p role="alert">{t("Elenco operai non disponibile.")} <button type="button" className="underline" onClick={() => void persone.refetch()}>{t("Riprova")}</button></p> : <UniformSelect aria-label={t("Aggiungi operaio")} value="" className="w-full rounded border bg-background p-2" disabled={persone.isLoading} onChange={(e) => {
                     const p = persone.data?.find((x) => x.id === e.target.value); if (!p) return;
                     // I rapportini senza presenze mantengono le ore dell'autore: non convertirli implicitamente.
                     setB({ ...b, conPresenze: true, presenze: [...b.presenze, { employee_id: p.id, nome: p.nome, ore: "0" }] });
-                  }}><option value="">Aggiungi operaio…</option>{persone.data?.filter((x) => !b.presenze.some((v) => v.employee_id === x.id)).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</UniformSelect>}
-                  {!b.conPresenze && <p className="text-xs text-muted-foreground">Aggiungendo operai, le ore saranno calcolate dalle presenze: inserisci anche l’autore se ha lavorato.</p>}
+                  }}><option value="">{t("Aggiungi operaio…")}</option>{persone.data?.filter((x) => !b.presenze.some((v) => v.employee_id === x.id)).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</UniformSelect>}
+                  {!b.conPresenze && <p className="text-xs text-muted-foreground">{t("Aggiungendo operai, le ore saranno calcolate dalle presenze: inserisci anche l’autore se ha lavorato.")}</p>}
                 </div>
-                {b.fasi.length > 0 && <div><p className={titolo}>Fasi</p><ul className="divide-y">
-                  {b.fasi.map((f, i) => <Riga key={i} nome={String(f.nome ?? `Fase ${i + 1}`)} valore={f.percentuale} unita="%" onValore={(v) => modifica("fasi", i, "percentuale", v)} />)}
+                {b.fasi.length > 0 && <div><p className={titolo}>{t("Fasi")}</p><ul className="divide-y">
+                  {b.fasi.map((f, i) => <Riga key={i} nome={f.nome != null ? String(f.nome) : t("Fase {n}", { n: i + 1 })} valore={f.percentuale} unita="%" onValore={(v) => modifica("fasi", i, "percentuale", v)} />)}
                 </ul></div>}
-                <div><p className={titolo}>Materiali</p>{b.materiali.length > 0 && <ul className="divide-y">
+                <div><p className={titolo}>{t("Materiali")}</p>{b.materiali.length > 0 && <ul className="divide-y">
                   {b.materiali.map((m, i) => <li key={i} className="grid grid-cols-[minmax(0,1fr)_5rem_4rem_auto] gap-1 py-1">
-                    <Input aria-label={`Descrizione materiale ${i + 1}`} value={String(m.nome ?? m.descrizione ?? "")} onChange={(e) => modifica("materiali", i, m.nome != null ? "nome" : "descrizione", e.target.value)} />
-                    <Input aria-label={`Quantità materiale ${i + 1}`} inputMode="decimal" value={String(m.quantita ?? "")} onChange={(e) => modifica("materiali", i, "quantita", e.target.value)} />
-                    <Input aria-label={`Unità materiale ${i + 1}`} value={String(m.unita ?? m.unita_misura ?? "")} onChange={(e) => modifica("materiali", i, m.unita_misura != null ? "unita_misura" : "unita", e.target.value)} />
-                    <button type="button" aria-label={`Togli materiale ${i + 1}`} className="tap-compact" onClick={() => togli("materiali", i)}><X className="h-4 w-4" /></button>
+                    <Input aria-label={t("Descrizione materiale {n}", { n: i + 1 })} value={String(m.nome ?? m.descrizione ?? "")} onChange={(e) => modifica("materiali", i, m.nome != null ? "nome" : "descrizione", e.target.value)} />
+                    <Input aria-label={t("Quantità materiale {n}", { n: i + 1 })} inputMode="decimal" value={String(m.quantita ?? "")} onChange={(e) => modifica("materiali", i, "quantita", e.target.value)} />
+                    <Input aria-label={t("Unità materiale {n}", { n: i + 1 })} value={String(m.unita ?? m.unita_misura ?? "")} onChange={(e) => modifica("materiali", i, m.unita_misura != null ? "unita_misura" : "unita", e.target.value)} />
+                    <button type="button" aria-label={t("Togli materiale {n}", { n: i + 1 })} className="tap-compact" onClick={() => togli("materiali", i)}><X className="h-4 w-4" /></button>
                   </li>)}
                 </ul>}
                   <div className="mt-1 grid grid-cols-6 gap-1.5">
-                    <Input aria-label="Materiale non previsto" placeholder="Aggiungi materiale" className="col-span-6 h-8 text-[13px]" value={nuovo.nome} onChange={(e) => setNuovo({ ...nuovo, nome: e.target.value })} />
+                    <Input aria-label={t("Materiale non previsto")} placeholder={t("Aggiungi materiale")} className="col-span-6 h-8 text-[13px]" value={nuovo.nome} onChange={(e) => setNuovo({ ...nuovo, nome: e.target.value })} />
                     {nuovo.nome.trim() && <>
-                      <Input aria-label="Quantità" inputMode="decimal" placeholder="Q.tà" className="col-span-1 h-8 px-1.5 text-[13px]" value={nuovo.quantita} onChange={(e) => setNuovo({ ...nuovo, quantita: e.target.value })} />
-                      <Input aria-label="Unità" placeholder="Unità" className="col-span-1 h-8 px-1.5 text-[13px]" value={nuovo.unita} onChange={(e) => setNuovo({ ...nuovo, unita: e.target.value })} />
-                      <UniformSelect aria-label="Da dove viene" className="col-span-2 h-8 rounded-md border bg-background px-1 text-[13px]" value={nuovo.provenienza} onChange={(e) => setNuovo({ ...nuovo, provenienza: e.target.value })}>
-                        <option value="acquistato">Comprato</option>
-                        <option value="magazzino">Da magazzino</option>
-                        <option value="consumo">Consumo minuto</option>
+                      <Input aria-label={t("Quantità")} inputMode="decimal" placeholder={t("Q.tà")} className="col-span-1 h-8 px-1.5 text-[13px]" value={nuovo.quantita} onChange={(e) => setNuovo({ ...nuovo, quantita: e.target.value })} />
+                      <Input aria-label={t("Unità")} placeholder={t("Unità")} className="col-span-1 h-8 px-1.5 text-[13px]" value={nuovo.unita} onChange={(e) => setNuovo({ ...nuovo, unita: e.target.value })} />
+                      <UniformSelect aria-label={t("Da dove viene")} className="col-span-2 h-8 rounded-md border bg-background px-1 text-[13px]" value={nuovo.provenienza} onChange={(e) => setNuovo({ ...nuovo, provenienza: e.target.value })}>
+                        <option value="acquistato">{t("Comprato")}</option>
+                        <option value="magazzino">{t("Da magazzino")}</option>
+                        <option value="consumo">{t("Consumo minuto")}</option>
                       </UniformSelect>
-                      <UniformSelect aria-label="Lavorazione" className="col-span-2 h-8 rounded-md border bg-background px-1 text-[13px]" value={nuovo.fase_id} onChange={(e) => setNuovo({ ...nuovo, fase_id: e.target.value })}>
-                        <option value="">Lavorazione</option>
+                      <UniformSelect aria-label={t("Lavorazione")} className="col-span-2 h-8 rounded-md border bg-background px-1 text-[13px]" value={nuovo.fase_id} onChange={(e) => setNuovo({ ...nuovo, fase_id: e.target.value })}>
+                        <option value="">{t("Lavorazione")}</option>
                         {[...(nomiFasi ?? new Map<string, string>()).entries()].map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
                       </UniformSelect>
                       <Button type="button" size="sm" variant="outline" className="col-span-6 h-7" onClick={() => {
                         setB({ ...b, materiali: [...b.materiali, { nome: nuovo.nome.trim(), quantita: nuovo.quantita, unita: nuovo.unita.trim(), provenienza: nuovo.provenienza, ...(nuovo.fase_id ? { fase_id: nuovo.fase_id } : {}) }] });
                         setNuovo(NUOVO_MATERIALE);
-                      }}>Aggiungi al rapportino</Button>
+                      }}>{t("Aggiungi al rapportino")}</Button>
                     </>}
                   </div>
                 </div>
-                <div><p className={titolo}>Mezzi</p><ul className="divide-y">
-                  {b.mezzi.map((m, i) => <Riga key={i} nome={String(m.nome ?? "Mezzo")} valore={m.ore} unita="ore" onValore={(v) => modifica("mezzi", i, "ore", v)} onTogli={() => togli("mezzi", i)} />)}
+                <div><p className={titolo}>{t("Mezzi")}</p><ul className="divide-y">
+                  {b.mezzi.map((m, i) => <Riga key={i} nome={m.nome != null ? String(m.nome) : t("Mezzo")} valore={m.ore} unita={t("ore")} onValore={(v) => modifica("mezzi", i, "ore", v)} onTogli={() => togli("mezzi", i)} />)}
                 </ul>
-                  {mezzi.isError ? <p role="alert">Elenco mezzi non disponibile. <button type="button" className="underline" onClick={() => void mezzi.refetch()}>Riprova</button></p> : <UniformSelect aria-label="Aggiungi mezzo" value="" className="w-full rounded border bg-background p-2" disabled={mezzi.isLoading} onChange={(e) => {
+                  {mezzi.isError ? <p role="alert">{t("Elenco mezzi non disponibile.")} <button type="button" className="underline" onClick={() => void mezzi.refetch()}>{t("Riprova")}</button></p> : <UniformSelect aria-label={t("Aggiungi mezzo")} value="" className="w-full rounded border bg-background p-2" disabled={mezzi.isLoading} onChange={(e) => {
                     const m = mezzi.data?.find((x) => x.id === e.target.value); if (m) setB({ ...b, mezzi: [...b.mezzi, { mezzo_id: m.id, nome: m.nome, ore: "" }] });
-                  }}><option value="">Aggiungi mezzo…</option>{mezzi.data?.filter((x) => !b.mezzi.some((m) => m.mezzo_id === x.id)).map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}</UniformSelect>}
-                  <p className="text-xs text-muted-foreground">Per sostituire un mezzo, rimuovilo e aggiungi quello corretto. Ore vuote o pari a zero: si usa la stima prevista dal sistema. Togli i mezzi non utilizzati.</p>
+                  }}><option value="">{t("Aggiungi mezzo…")}</option>{mezzi.data?.filter((x) => !b.mezzi.some((m) => m.mezzo_id === x.id)).map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}</UniformSelect>}
+                  <p className="text-xs text-muted-foreground">{t("Per sostituire un mezzo, rimuovilo e aggiungi quello corretto. Ore vuote o pari a zero: si usa la stima prevista dal sistema. Togli i mezzi non utilizzati.")}</p>
                 </div>
                 {riga.data && !isClientReport(riga.data) && <ArrivoRapportino valore={b.arrivo} onChange={arrivo => setB({ ...b, arrivo })}
                   mezzi={(mezzi.data ?? []).filter(mezzoStradale)} caricamento={mezzi.isLoading} errore={mezzi.isError}
                   riprova={() => void mezzi.refetch()} />}
-                <div><p className={titolo}>Note</p><Textarea aria-label="Note del rapportino" rows={2} className="mt-1 text-[13px]" value={b.note} onChange={(e) => setB({ ...b, note: e.target.value })} /></div>
-                <div><p className={titolo}>Motivo della correzione{approvato ? " *" : ""}</p><Input aria-label="Motivo della correzione" className="mt-1 h-8 text-[13px]" value={b.motivo} onChange={(e) => setB({ ...b, motivo: e.target.value })} placeholder="Es. ore sbagliate" /></div>
+                <div><p className={titolo}>{t("Note")}</p><Textarea aria-label={t("Note del rapportino")} rows={2} className="mt-1 text-[13px]" value={b.note} onChange={(e) => setB({ ...b, note: e.target.value })} /></div>
+                <div><p className={titolo}>{t("Motivo della correzione")}{approvato ? " *" : ""}</p><Input aria-label={t("Motivo della correzione")} className="mt-1 h-8 text-[13px]" value={b.motivo} onChange={(e) => setB({ ...b, motivo: e.target.value })} placeholder={t("Es. ore sbagliate")} /></div>
               </fieldset>
             )}
             <DialogFooter className="flex-row justify-end gap-2">
-              <Button variant="outline" disabled={salva.isPending} onClick={() => setAperto(false)}>Annulla</Button>
+              <Button variant="outline" disabled={salva.isPending} onClick={() => setAperto(false)}>{t("Annulla")}</Button>
               <Button disabled={!b || riga.isFetching || riga.isError || salva.isPending || (approvato && !b.motivo.trim())} onClick={() => salva.mutate()}>
-                {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Salva
+                {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{t("Salva")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -255,17 +259,18 @@ const ETICHETTE: Record<string, string> = {
   voce: "Voce del rapportino", voce_id: "Riferimento voce", percentuale_avanzamento: "Avanzamento", campi_extra: "Campi", foto_urls: "Foto", data_lavoro: "Data",
 };
 
-function descrivi(k: string, v: unknown): string {
-  if (k === "presenze") return lista(v).map((p) => `${p.nome ?? "?"} ${p.ore ?? 0} h`).join(", ") || "nessuno";
-  if (k === "materiali_usati") return lista(v).map((m) => `${m.nome ?? m.descrizione ?? "?"} ${m.quantita ?? ""}`).join(", ") || "nessuno";
-  if (k === "mezzi_usati") return lista(v).map((m) => `${m.nome ?? "?"}${m.ore != null ? ` ${m.ore} h` : ""}`).join(", ") || "nessuno";
-  if (k === "fasi_lavorate") return lista(v).map((f) => `${f.nome ?? "fase"} ${f.percentuale ?? 0}%`).join(", ") || "nessuna";
-  if (k === "voce" && v && typeof v === "object") { const x = v as Voce; return `${x.descrizione ?? "Voce"} · ${x.quantita ?? ""} ${x.unita ?? ""}`; }
-  if (Array.isArray(v) || (v && typeof v === "object")) return "modificati";
-  return v == null || v === "" ? "vuoto" : String(v);
+function descrivi(k: string, v: unknown, t: ReturnType<typeof useT>): string {
+  if (k === "presenze") return lista(v).map((p) => `${p.nome ?? "?"} ${p.ore ?? 0} h`).join(", ") || t("nessuno");
+  if (k === "materiali_usati") return lista(v).map((m) => `${m.nome ?? m.descrizione ?? "?"} ${m.quantita ?? ""}`).join(", ") || t("nessuno");
+  if (k === "mezzi_usati") return lista(v).map((m) => `${m.nome ?? "?"}${m.ore != null ? ` ${m.ore} h` : ""}`).join(", ") || t("nessuno");
+  if (k === "fasi_lavorate") return lista(v).map((f) => `${f.nome ?? t("fase")} ${f.percentuale ?? 0}%`).join(", ") || t("nessuna");
+  if (k === "voce" && v && typeof v === "object") { const x = v as Voce; return `${x.descrizione ?? t("Voce")} · ${x.quantita ?? ""} ${x.unita ?? ""}`; }
+  if (Array.isArray(v) || (v && typeof v === "object")) return t("modificati");
+  return v == null || v === "" ? t("vuoto") : String(v);
 }
 
 export function StoricoRapportino({ rapportinoId }: { rapportinoId: string }) {
+  const t = useT();
   const storico = useQuery({
     queryKey: ["rapportino-modifiche", rapportinoId],
     retry: false,
@@ -275,19 +280,19 @@ export function StoricoRapportino({ rapportinoId }: { rapportinoId: string }) {
       return data ?? [];
     },
   });
-  if (storico.isError) return <p role="alert" className="text-xs">Storico non disponibile. <button type="button" className="underline" onClick={() => void storico.refetch()}>Riprova</button></p>;
+  if (storico.isError) return <p role="alert" className="text-xs">{t("Storico non disponibile.")} <button type="button" className="underline" onClick={() => void storico.refetch()}>{t("Riprova")}</button></p>;
   const modifiche = (storico.data ?? []).filter((m) => typeof m.fatta_il === "string");
   if (!modifiche.length) return null;
   return (
     <details className="rounded-lg border px-3 py-1.5 text-[13px]">
-      <summary className="cursor-pointer text-xs font-medium text-slate-600">Modifiche ({modifiche.length})</summary>
+      <summary className="cursor-pointer text-xs font-medium text-slate-600">{t("Modifiche ({n})", { n: modifiche.length })}</summary>
       <ul className="mt-1.5 space-y-2">
         {modifiche.map((m) => (
           <li key={String(m.id)} className="text-xs">
-            <p className="font-medium text-slate-800">{String(m.fatta_da_nome || "Sistema")} · {format(parseISO(String(m.fatta_il)), "d MMM yyyy HH:mm", { locale: it })}</p>
-            {m.motivo ? <p className="text-slate-600">Motivo: {String(m.motivo)}</p> : null}
+            <p className="font-medium text-slate-800">{m.fatta_da_nome ? String(m.fatta_da_nome) : t("Sistema")} · {format(parseISO(String(m.fatta_il)), "d MMM yyyy HH:mm", { locale: dateFnsCampo() })}</p>
+            {m.motivo ? <p className="text-slate-600">{t("Motivo: {motivo}", { motivo: String(m.motivo) })}</p> : null}
             {Object.keys((m.dopo ?? {}) as Voce).map((k) => (
-              <p key={k} className="text-muted-foreground">{ETICHETTE[k] ?? k}: {descrivi(k, (m.prima as Voce)?.[k])} → {descrivi(k, (m.dopo as Voce)?.[k])}</p>
+              <p key={k} className="text-muted-foreground">{ETICHETTE[k] ? t(ETICHETTE[k]) : k}: {descrivi(k, (m.prima as Voce)?.[k], t)} → {descrivi(k, (m.dopo as Voce)?.[k], t)}</p>
             ))}
           </li>
         ))}

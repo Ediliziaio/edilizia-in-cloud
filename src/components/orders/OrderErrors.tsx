@@ -40,6 +40,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface OrderError {
   id: string;
@@ -312,6 +313,7 @@ function suggestAnomalyFromText(text: string) {
 }
 
 export function OrderErrors({ orderId }: OrderErrorsProps) {
+  const tr = useT();
   const { user, effectiveCompany } = useAuth();
   
   const queryClient = useQueryClient();
@@ -409,7 +411,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
         add({
           id: row.salesperson_id,
           role: "venditore",
-          name: `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Venditore senza nome",
+          name: `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || tr("Venditore senza nome"),
         });
       });
       (employeesRes.data ?? []).forEach((row: any) => {
@@ -418,18 +420,18 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
         add({
           id: row.employee_id,
           role: "operaio",
-          name: `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Operaio senza nome",
+          name: `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || tr("Operaio senza nome"),
         });
       });
       (teamsRes.data ?? []).forEach((row: any) => {
         const team = row.external_team;
         if (!team) return;
-        add({ id: row.external_team_id, role: "subappaltatore", name: team.name || "Subappaltatore senza nome" });
+        add({ id: row.external_team_id, role: "subappaltatore", name: team.name || tr("Subappaltatore senza nome") });
       });
       (itemsRes.data ?? []).forEach((row: any) => {
         const supplier = row.supplier;
         if (!supplier || !row.supplier_id) return;
-        add({ id: row.supplier_id, role: "fornitore", name: supplier.name || "Fornitore senza nome" });
+        add({ id: row.supplier_id, role: "fornitore", name: supplier.name || tr("Fornitore senza nome") });
       });
 
       return [...map.values()];
@@ -473,11 +475,11 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
     },
     onSuccess: () => {
       if (effectiveCompany?.id) refreshOrderErrorQueries(queryClient, orderId, effectiveCompany.id);
-      toast.success("Errore registrato", { description: "L'errore è stato aggiunto alla commessa." });
+      toast.success(tr("Errore registrato"), { description: tr("L'errore è stato aggiunto alla commessa.") });
       resetForm();
     },
     onError: () => {
-      toast.error("Errore", { description: "Impossibile salvare l'errore." });
+      toast.error(tr("Errore"), { description: tr("Impossibile salvare l'errore.") });
     },
   });
 
@@ -488,10 +490,10 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
     },
     onSuccess: () => {
       if (effectiveCompany?.id) refreshOrderErrorQueries(queryClient, orderId, effectiveCompany.id);
-      toast.success("Errore rimosso", { description: "L'errore è stato eliminato." });
+      toast.success(tr("Errore rimosso"), { description: tr("L'errore è stato eliminato.") });
     },
     onError: () => {
-      toast.error("Errore", { description: "Impossibile eliminare." });
+      toast.error(tr("Errore"), { description: tr("Impossibile eliminare.") });
     },
   });
 
@@ -511,15 +513,15 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
   const handleSave = () => {
     const parsedAmount = parseAmount(amount);
     if (!description.trim()) {
-      toast.error("Errore", { description: "Inserisci il motivo dell'errore." });
+      toast.error(tr("Errore"), { description: tr("Inserisci il motivo dell'errore.") });
       return;
     }
     if (!amount || parsedAmount <= 0) {
-      toast.error("Errore", { description: "Inserisci un importo valido." });
+      toast.error(tr("Errore"), { description: tr("Inserisci un importo valido.") });
       return;
     }
     if (!effectiveCompany?.id || !user?.id) {
-      toast.error("Sessione non valida", { description: "Ricarica la pagina e riprova." });
+      toast.error(tr("Sessione non valida"), { description: tr("Ricarica la pagina e riprova.") });
       return;
     }
     addErrorMutation.mutate();
@@ -544,8 +546,8 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
     setProcessOrigin(suggestion.origin);
     setOwnerRole(suggestion.owner);
     setCorrectiveAction(suggestion.action);
-    toast.success("Suggerimento AI applicato", {
-      description: "Controlla causa e soggetto da verificare prima di salvare.",
+    toast.success(tr("Suggerimento AI applicato"), {
+      description: tr("Controlla causa e soggetto da verificare prima di salvare."),
     });
   };
 
@@ -659,32 +661,32 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
         <CardTitle className="flex items-center gap-2 min-w-0">
           <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-          <span className="truncate">Errori / Perdite</span>
+          <span className="truncate">{tr("Errori / Perdite")}</span>
         </CardTitle>
         <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)} className="shrink-0">
           <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline ml-1">Aggiungi</span>
+          <span className="hidden sm:inline ml-1">{tr("Aggiungi")}</span>
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
         {registroAnnuale && registroAnnuale.conteggio > 0 && (
           <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-            In azienda, ultimi 12 mesi: <span className="font-semibold text-foreground">{registroAnnuale.conteggio} errori</span> per{" "}
+            {tr("In azienda, ultimi 12 mesi:")} <span className="font-semibold text-foreground">{tr(registroAnnuale.conteggio === 1 ? "{n} errore" : "{n} errori", { n: registroAnnuale.conteggio })}</span> {tr("per")}{" "}
             <span className="font-semibold text-destructive">{formatCurrency(registroAnnuale.totale)}</span>
             {registroAnnuale.top && registroAnnuale.top.costo > 0 && (
               <>
-                {" "}— nascono soprattutto da{" "}
+                {" "}{tr("— nascono soprattutto da")}{" "}
                 <span className="font-medium text-foreground">
-                  {PROCESS_ORIGINS.find((o) => o.value === registroAnnuale.top!.origine)?.label ?? registroAnnuale.top.origine}
+                  {tr(PROCESS_ORIGINS.find((o) => o.value === registroAnnuale.top!.origine)?.label ?? registroAnnuale.top.origine)}
                 </span>{" "}
                 ({formatCurrency(registroAnnuale.top.costo)})
               </>
             )}
-            . Prima lo scopri, meno costa: da 0 € al ricontrollo del rilievo al 67% del margine sul reclamo.
+            {tr(". Prima lo scopri, meno costa: da 0 € al ricontrollo del rilievo al 67% del margine sul reclamo.")}
           </p>
         )}
         {errors.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessun errore registrato</p>
+          <p className="text-sm text-muted-foreground">{tr("Nessun errore registrato")}</p>
         ) : (
           <>
             {errors.map((err) => {
@@ -698,11 +700,11 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-destructive/10 text-destructive">
-                          {typeConfig?.label || err.error_type}
+                          {typeConfig?.label ? tr(typeConfig.label) : err.error_type}
                         </span>
                         {catConfig && (
                           <Badge variant="outline" className={`text-xs ${catConfig.color}`}>
-                            {catConfig.label}
+                            {tr(catConfig.label)}
                           </Badge>
                         )}
                         <span className="text-xs text-muted-foreground">{formatDate(err.error_date)}</span>
@@ -722,13 +724,13 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Eliminare questo errore?</AlertDialogTitle>
-                          <AlertDialogDescription>L'errore verrà rimosso dalla commessa.</AlertDialogDescription>
+                          <AlertDialogTitle>{tr("Eliminare questo errore?")}</AlertDialogTitle>
+                          <AlertDialogDescription>{tr("L'errore verrà rimosso dalla commessa.")}</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Annulla</AlertDialogCancel>
+                          <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
                           <AlertDialogAction onClick={() => deleteErrorMutation.mutate(err.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                            Elimina
+                            {tr("Elimina")}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -742,18 +744,18 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
             <div className="pt-2 border-t space-y-1">
               {totalFornitura > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Fornitura / logistica</span>
+                  <span className="text-muted-foreground">{tr("Fornitura / logistica")}</span>
                   <span className="text-destructive">{formatCurrency(totalFornitura)}</span>
                 </div>
               )}
               {totalEsecuzione > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Esecuzione / manodopera</span>
+                  <span className="text-muted-foreground">{tr("Esecuzione / manodopera")}</span>
                   <span className="text-destructive">{formatCurrency(totalEsecuzione)}</span>
                 </div>
               )}
               <div className="flex justify-between font-semibold">
-                <span>Totale Perdite</span>
+                <span>{tr("Totale Perdite")}</span>
                 <span className="text-destructive">-{formatCurrency(totalErrors)}</span>
               </div>
             </div>
@@ -761,12 +763,12 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
             {/* Summary by category */}
             {categoryBreakdown.length > 0 && (
               <div className="pt-2 border-t space-y-1.5">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Frequenza per categoria</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{tr("Frequenza per categoria")}</p>
                 {categoryBreakdown.map(cat => (
                   <div key={cat.value} className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className={`text-xs ${cat.color}`}>
-                        {cat.label}
+                        {tr(cat.label)}
                       </Badge>
                       <span className="text-muted-foreground">× {cat.count}</span>
                     </div>
@@ -783,15 +785,15 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Registra anomalia operativa</DialogTitle>
+            <DialogTitle>{tr("Registra anomalia operativa")}</DialogTitle>
             <DialogDescription>
-              Chi registra non è la causa. Qui devi indicare dove nasce la perdita e chi va verificato.
+              {tr("Chi registra non è la causa. Qui devi indicare dove nasce la perdita e chi va verificato.")}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Tipo anomalia</Label>
+                <Label>{tr("Tipo anomalia")}</Label>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {ERROR_TYPES.map((t) => {
                     const Icon = t.icon;
@@ -809,8 +811,8 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                         <div className="flex items-start gap-2">
                           <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", active ? "text-current" : "text-orange-500")} />
                           <div>
-                            <p className="text-sm font-semibold">{t.label}</p>
-                            <p className="text-xs text-muted-foreground">{t.description}</p>
+                            <p className="text-sm font-semibold">{tr(t.label)}</p>
+                            <p className="text-xs text-muted-foreground">{tr(t.description)}</p>
                           </div>
                         </div>
                       </button>
@@ -821,7 +823,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Categoria / causa</Label>
+                  <Label>{tr("Categoria / causa")}</Label>
                   <Select value={errorCategory} onValueChange={handleCategoryChange}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -829,7 +831,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                         <SelectItem key={c.value} value={c.value}>
                           <div className="flex items-center gap-2">
                             <c.icon className="h-4 w-4" />
-                            <span>{c.label}</span>
+                            <span>{tr(c.label)}</span>
                           </div>
                         </SelectItem>
                       ))}
@@ -846,14 +848,14 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                           errorCategory === cat.value ? "border-orange-200 bg-orange-50 text-orange-700" : "border-slate-200 text-slate-600 hover:bg-slate-50",
                         )}
                       >
-                        {cat.label}
+                        {tr(cat.label)}
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Importo perso *</Label>
+                  <Label>{tr("Importo perso *")}</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
                     <Input
@@ -865,7 +867,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                     />
                   </div>
                   <Badge variant="outline" className={cn("border text-xs", severity.color)}>
-                    {severity.label}
+                    {tr(severity.label)}
                   </Badge>
                 </div>
               </div>
@@ -874,21 +876,21 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                 <div className="mb-3 flex items-center gap-2">
                   <Target className="h-4 w-4 text-orange-500" />
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">Causa approfondita</p>
-                    <p className="text-xs text-muted-foreground">Serve per evitare che il registratore venga confuso con il responsabile.</p>
+                    <p className="text-sm font-semibold text-slate-900">{tr("Causa approfondita")}</p>
+                    <p className="text-xs text-muted-foreground">{tr("Serve per evitare che il registratore venga confuso con il responsabile.")}</p>
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Causa precisa</Label>
+                    <Label className="text-xs">{tr("Causa precisa")}</Label>
                     <Select value={rootCause} onValueChange={setRootCause}>
                       <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {ROOT_CAUSES.map((item) => (
                           <SelectItem key={item.value} value={item.value}>
                             <div>
-                              <p>{item.label}</p>
-                              <p className="text-xs text-muted-foreground">{item.hint}</p>
+                              <p>{tr(item.label)}</p>
+                              <p className="text-xs text-muted-foreground">{tr(item.hint)}</p>
                             </div>
                           </SelectItem>
                         ))}
@@ -896,34 +898,34 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Dove nasce</Label>
+                    <Label className="text-xs">{tr("Dove nasce")}</Label>
                     <Select value={processOrigin} onValueChange={setProcessOrigin}>
                       <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {PROCESS_ORIGINS.map((item) => (
-                          <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                          <SelectItem key={item.value} value={item.value}>{tr(item.label)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Da verificare</Label>
+                    <Label className="text-xs">{tr("Da verificare")}</Label>
                     <Select value={ownerRole} onValueChange={setOwnerRole}>
                       <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {OWNER_ROLES.map((item) => (
-                          <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                          <SelectItem key={item.value} value={item.value}>{tr(item.label)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="mt-3 space-y-1.5">
-                  <Label className="text-xs">Azione correttiva prevista</Label>
+                  <Label className="text-xs">{tr("Azione correttiva prevista")}</Label>
                   <Input
                     value={correctiveAction}
                     onChange={(e) => setCorrectiveAction(e.target.value)}
-                    placeholder="Es. aprire reclamo, rifare rilievo, bloccare fornitore, correggere checklist..."
+                    placeholder={tr("Es. aprire reclamo, rifare rilievo, bloccare fornitore, correggere checklist...")}
                     className="bg-white"
                     maxLength={180}
                   />
@@ -931,11 +933,11 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
               </div>
 
               <div className="space-y-2">
-                <Label>Dettaglio operativo *</Label>
+                <Label>{tr("Dettaglio operativo *")}</Label>
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Scrivi cosa è successo in pratica, quale materiale/lavorazione riguarda e perché genera costo extra..."
+                  placeholder={tr("Scrivi cosa è successo in pratica, quale materiale/lavorazione riguarda e perché genera costo extra...")}
                   rows={4}
                   maxLength={500}
                 />
@@ -960,12 +962,12 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                   disabled={!description.trim()}
                 >
                   <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                  Suggerisci causa con AI
+                  {tr("Suggerisci causa con AI")}
                 </Button>
               </div>
 
               <div className="space-y-2">
-                <Label>Data anomalia</Label>
+                <Label>{tr("Data anomalia")}</Label>
                 <Input
                   type="date"
                   value={errorDate}
@@ -978,23 +980,23 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
               <div className="rounded-xl bg-white p-3 shadow-sm">
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <Sparkles className="h-4 w-4 text-orange-500" />
-                  Analisi automatica
+                  {tr("Analisi automatica")}
                 </div>
                 <div className="mt-3 space-y-2 text-xs">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">Sorgente</span>
-                    <span className="font-medium text-slate-900">{selectedType.label}</span>
+                    <span className="text-muted-foreground">{tr("Sorgente")}</span>
+                    <span className="font-medium text-slate-900">{tr(selectedType.label)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">Causa</span>
-                    <span className="font-medium text-slate-900">{selectedCategory.label}</span>
+                    <span className="text-muted-foreground">{tr("Causa")}</span>
+                    <span className="font-medium text-slate-900">{tr(selectedCategory.label)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">Da verificare</span>
-                    <span className="font-medium text-orange-700">{recommendedResponsibility}</span>
+                    <span className="text-muted-foreground">{tr("Da verificare")}</span>
+                    <span className="font-medium text-orange-700">{tr(recommendedResponsibility)}</span>
                   </div>
                   <div className="rounded-lg border border-slate-100 bg-slate-50 p-2 text-slate-600">
-                    Registratore: <span className="font-medium">utente corrente</span>. Non viene contato come causa nelle statistiche.
+                    {tr("Registratore:")} <span className="font-medium">{tr("utente corrente")}</span>{tr(". Non viene contato come causa nelle statistiche.")}
                   </div>
                 </div>
               </div>
@@ -1002,13 +1004,13 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
               <div className="rounded-xl bg-white p-3 shadow-sm">
                 <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
                   <Target className="h-4 w-4 text-orange-500" />
-                  Soggetti collegati
+                  {tr("Soggetti collegati")}
                 </div>
                 {isFetchingActors ? (
-                  <p className="text-xs text-muted-foreground">Caricamento collegamenti...</p>
+                  <p className="text-xs text-muted-foreground">{tr("Caricamento collegamenti...")}</p>
                 ) : suggestedActors.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    Nessun soggetto coerente collegato. Assegna venditori, operai, fornitori o subappaltatori alla commessa.
+                    {tr("Nessun soggetto coerente collegato. Assegna venditori, operai, fornitori o subappaltatori alla commessa.")}
                   </p>
                 ) : (
                   <div className="space-y-1.5">
@@ -1019,7 +1021,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                           <Icon className="h-3.5 w-3.5 text-slate-500" />
                           <div className="min-w-0">
                             <p className="truncate text-xs font-medium text-slate-800">{actor.name}</p>
-                            <p className="text-[10px] uppercase text-slate-500">{actor.role}</p>
+                            <p className="text-[10px] uppercase text-slate-500">{tr(actor.role)}</p>
                           </div>
                         </div>
                       );
@@ -1031,16 +1033,16 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
               <div className="rounded-xl border border-orange-100 bg-orange-50/80 p-3 text-xs text-orange-800">
                 <div className="mb-1 flex items-center gap-2 font-semibold">
                   <Lightbulb className="h-3.5 w-3.5" />
-                  Suggerimento
+                  {tr("Suggerimento")}
                 </div>
-                La statistica globale userà questi collegamenti per capire chi genera più anomalie e quanto impattano sui margini.
+                {tr("La statistica globale userà questi collegamenti per capire chi genera più anomalie e quanto impattano sui margini.")}
               </div>
             </aside>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={resetForm}>Annulla</Button>
+            <Button variant="outline" onClick={resetForm}>{tr("Annulla")}</Button>
             <Button onClick={handleSave} disabled={addErrorMutation.isPending}>
-              {addErrorMutation.isPending ? "Salvataggio..." : "Salva Errore"}
+              {addErrorMutation.isPending ? tr("Salvataggio...") : tr("Salva Errore")}
             </Button>
           </DialogFooter>
         </DialogContent>

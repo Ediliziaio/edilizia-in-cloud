@@ -17,6 +17,7 @@ import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { ODA_STATI_EMESSI } from "@/lib/odaStatus";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   odaId: string;
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export function OdaImpattoCommessaCard({ odaId, orderId, imponibileOrdine, statoOrdine }: Props) {
+  const t = useT();
   const { data } = useQuery({
     queryKey: ["oda-impatto-commessa", orderId, odaId],
     queryFn: async () => {
@@ -78,28 +80,28 @@ export function OdaImpattoCommessaCard({ odaId, orderId, imponibileOrdine, stato
     : "text-emerald-600";
 
   return (
-    <QuoteCard title="Impatto sulla commessa" icon={<Scale className="h-4 w-4" />}>
+    <QuoteCard title={t("Impatto sulla commessa")} icon={<Scale className="h-4 w-4" />}>
       <div className="space-y-2 text-sm">
-        <p className="text-xs text-slate-500">Importi al netto dell’IVA.</p>
+        <p className="text-xs text-slate-500">{t("Importi al netto dell’IVA.")}</p>
         <div className="flex justify-between">
-          <span className="text-slate-500">Valore commessa{codice ? ` (${codice})` : ""}</span>
+          <span className="text-slate-500">{codice ? t("Valore commessa ({codice})", { codice }) : t("Valore commessa")}</span>
           <span className="font-medium text-slate-900 tabular-nums">{formatCurrency(valoreCommessa)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-slate-500">
-            Altri ordini emessi{numAltri > 0 ? ` (${numAltri})` : ""}
+            {numAltri > 0 ? t("Altri ordini emessi ({n})", { n: numAltri }) : t("Altri ordini emessi")}
           </span>
           <span className="font-medium text-slate-900 tabular-nums">{formatCurrency(impegnatoAltri)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-slate-500">
-            {questoEmesso ? "Questo ordine" : "Questo ordine (bozza)"}
+            {questoEmesso ? t("Questo ordine") : t("Questo ordine (bozza)")}
           </span>
           <span className="font-medium text-slate-900 tabular-nums">{formatCurrency(imponibileOrdine)}</span>
         </div>
         <div className="flex justify-between border-t border-slate-100 pt-2">
           <span className="font-semibold text-slate-700">
-            {questoEmesso ? "Impegnato totale" : "Impegnato se lo mandi"}
+            {questoEmesso ? t("Impegnato totale") : t("Impegnato se lo mandi")}
           </span>
           <span className={`font-bold tabular-nums ${testoPct ?? "text-slate-900"}`}>
             {formatCurrency(totale)}
@@ -118,14 +120,12 @@ export function OdaImpattoCommessaCard({ odaId, orderId, imponibileOrdine, stato
 
         {pct != null && pct > 100 && (
           <p className="text-xs text-red-600 font-medium">
-            Gli acquisti superano l'intero valore della commessa: qui si lavora in
-            perdita ancora prima della manodopera.
+            {t("Gli acquisti superano l'intero valore della commessa: qui si lavora in perdita ancora prima della manodopera.")}
           </p>
         )}
         {pct != null && pct > 70 && pct <= 100 && (
           <p className="text-xs text-amber-700">
-            Acquisti oltre il 70% della vendita: con la manodopera il margine
-            rischia di sparire. Controlla prima di mandare altri ordini.
+            {t("Acquisti oltre il 70% della vendita: con la manodopera il margine rischia di sparire. Controlla prima di mandare altri ordini.")}
           </p>
         )}
 
@@ -133,7 +133,7 @@ export function OdaImpattoCommessaCard({ odaId, orderId, imponibileOrdine, stato
           to={`/azienda/ordini/${orderId}`}
           className="inline-flex items-center gap-1 text-xs text-orange-600 font-semibold hover:text-orange-700 pt-1"
         >
-          Apri la commessa <ExternalLink className="h-3 w-3" />
+          {t("Apri la commessa")} <ExternalLink className="h-3 w-3" />
         </Link>
       </div>
     </QuoteCard>

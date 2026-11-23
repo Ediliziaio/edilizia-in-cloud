@@ -10,8 +10,10 @@ import { useGeneraleDellaCommessa, useRiepilogoGenerale } from "@/hooks/useComme
 import { nomeCriterio, useQuoteCostiComuni } from "@/hooks/useQuoteCostiComuni";
 import { DEFINIZIONI_MODELLI, formattaEuro, quota as quotaDi } from "@/lib/orders/commesseGenerali";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function PercorsoGenerale({ orderId }: { orderId: string }) {
+  const t = useT();
   const { data: g } = useGeneraleDellaCommessa(orderId);
   const navigate = useNavigate();
   const { data: r } = useRiepilogoGenerale(g?.id);
@@ -32,7 +34,7 @@ export function PercorsoGenerale({ orderId }: { orderId: string }) {
   const vai = (id: string) => navigate(`/azienda/ordini/${id}`);
 
   return (
-    <nav aria-label="Commessa generale" className="px-3 pt-2 sm:px-6">
+    <nav aria-label={t("Commessa generale")} className="px-3 pt-2 sm:px-6">
       <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-2 py-1.5">
         <Link
           to={`/azienda/ordini/${g.id}`}
@@ -41,31 +43,31 @@ export function PercorsoGenerale({ orderId }: { orderId: string }) {
           <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span className="truncate">
-            <span className="text-muted-foreground">{def ? `${def.nome}: ` : "Parte di "}</span>
+            <span className="text-muted-foreground">{def ? t("{tipo}: ", { tipo: t(def.nome) }) : t("Parte di ")}</span>
             <span className="font-medium">{[g.codice, g.nome].filter(Boolean).join(" · ")}</span>
           </span>
         </Link>
         {sulValore !== null && (
           <span className="text-xs tabular-nums text-muted-foreground">
-            {formattaEuro(figlia!.importo!)} · {Math.round(sulValore)}% di {formattaEuro(valore!)}
+            {t("{importo} · {perc}% di {valore}", { importo: formattaEuro(figlia!.importo!), perc: Math.round(sulValore), valore: formattaEuro(valore!) })}
           </span>
         )}
-        {g.modello === "appalto" && r?.permessi.importi && <Link to={`/azienda/ordini/${g.id}?scheda=contratto`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-primary hover:bg-muted"><FileText className="h-3.5 w-3.5" aria-hidden="true" />Contratto della commessa principale</Link>}
+        {g.modello === "appalto" && r?.permessi.importi && <Link to={`/azienda/ordini/${g.id}?scheda=contratto`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-primary hover:bg-muted"><FileText className="h-3.5 w-3.5" aria-hidden="true" />{t("Contratto della commessa principale")}</Link>}
 
         {g.sorelle.length > 1 && indice >= 0 && (
           <div className="ml-auto flex items-center gap-1">
             <Button
               variant="ghost" size="icon" className="h-7 w-7"
               disabled={!prima} onClick={() => prima && vai(prima.id)}
-              aria-label={prima ? `Precedente: ${etichetta(prima)}` : "Nessuna precedente"}
+              aria-label={prima ? t("Precedente: {nome}", { nome: etichetta(prima) }) : t("Nessuna precedente")}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Select value={orderId} onValueChange={vai}>
-              <SelectTrigger className="h-7 w-auto min-w-[7rem] max-w-[16rem] gap-1 text-xs" aria-label={`Vai a un altro ${def?.figlia.una ?? "lavoro"}`}>
+              <SelectTrigger className="h-7 w-auto min-w-[7rem] max-w-[16rem] gap-1 text-xs" aria-label={t("Vai a un altro {cosa}", { cosa: def ? t(def.figlia.una) : t("lavoro") })}>
                 <SelectValue>
-                  {indice + 1} di {g.sorelle.length}
-                  <span className="hidden sm:inline"> · {def?.figlia.tante.toLowerCase() ?? "commesse"}</span>
+                  {t("{fatti} di {totale}", { fatti: indice + 1, totale: g.sorelle.length })}
+                  <span className="hidden sm:inline"> · {def ? t(def.figlia.tante).toLowerCase() : t("commesse")}</span>
                 </SelectValue>
               </SelectTrigger>
               <SelectContent align="end" className="max-h-80">
@@ -77,7 +79,7 @@ export function PercorsoGenerale({ orderId }: { orderId: string }) {
             <Button
               variant="ghost" size="icon" className="h-7 w-7"
               disabled={!dopo} onClick={() => dopo && vai(dopo.id)}
-              aria-label={dopo ? `Successiva: ${etichetta(dopo)}` : "Nessuna successiva"}
+              aria-label={dopo ? t("Successiva: {nome}", { nome: etichetta(dopo) }) : t("Nessuna successiva")}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -86,20 +88,20 @@ export function PercorsoGenerale({ orderId }: { orderId: string }) {
       </div>
       {errore && r?.permessi.margini && !figlia?.divisa && (
         <div role="alert" className="mt-1.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
-          <p>Costi comuni non disponibili. Il margine pieno sarà visibile dopo l’aggiornamento.</p>
-          <Button size="sm" variant="outline" disabled={ricarica} onClick={() => void riprova()}>Riprova</Button>
+          <p>{t("Costi comuni non disponibili. Il margine pieno sarà visibile dopo l’aggiornamento.")}</p>
+          <Button size="sm" variant="outline" disabled={ricarica} onClick={() => void riprova()}>{t("Riprova")}</Button>
         </div>
       )}
       {mostraQuota && (
         // La parte dei costi registrati sulla generale (terreno, oneri, costi di cantiere) che tocca a questa commessa.
         <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg border border-dashed bg-muted/30 px-3 py-1.5 text-xs">
           <span>
-            Quota dei costi comuni: <span className="font-medium tabular-nums">{formattaEuro(quota!.importo)}</span>
-            <span className="text-muted-foreground"> ({Math.round(quota!.parte * 1000) / 10}% di {formattaEuro(quote!.totale)}, {nomeCriterio(quote!.criterio)})</span>
+            {t("Quota dei costi comuni:")} <span className="font-medium tabular-nums">{formattaEuro(quota!.importo)}</span>
+            <span className="text-muted-foreground"> {t("({perc}% di {totale}, {criterio})", { perc: Math.round(quota!.parte * 1000) / 10, totale: formattaEuro(quote!.totale), criterio: nomeCriterio(quote!.criterio) })}</span>
           </span>
           {figlia?.margine != null && pieno !== null && (
             <span>
-              Margine diretto <span className="tabular-nums">{formattaEuro(figlia.margine)}</span> → margine pieno{" "}
+              {t("Margine diretto")} <span className="tabular-nums">{formattaEuro(figlia.margine)}</span> {t("→ margine pieno")}{" "}
               <span className={cn("font-semibold tabular-nums", pieno < 0 ? "text-destructive" : "text-emerald-700 dark:text-emerald-400")}>{formattaEuro(pieno)}</span>
             </span>
           )}

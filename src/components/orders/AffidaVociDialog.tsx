@@ -24,6 +24,7 @@ import {
   chiaveAffidamenti, perDitta, riepilogoChiFaCosa, statoVoce, type AffidamentoChiFaCosa, type VoceChiFaCosa,
 } from "@/lib/subappaltatori/affidamentiCommessa";
 import { OfficeSelect } from "./OfficeSelect";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -31,7 +32,7 @@ const db = supabase as any;
 const ORIGINE: Record<AffidamentoChiFaCosa["origine_prezzo"], string> = {
   listino_ditta: "listino della ditta", costo_aziendale: "costo nostro, non della ditta", manuale: "a mano",
 };
-const qt = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 3 });
+const qt = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 3 });
 
 /** Gli affidamenti di una commessa: la stessa cache per la finestra e per i contratti delle ditte. */
 export function useAffidamentiCommessa(orderId: string) {
@@ -54,6 +55,7 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
   dittaFissa?: { id: string; nome: string };
   onAffidate?: () => void;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const affidamenti = useAffidamentiCommessa(orderId);
   const ditte = useQuery({
@@ -67,7 +69,7 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
   });
 
   const lista = useMemo(() => affidamenti.data ?? [], [affidamenti.data]);
-  const nome = (id: string) => ditte.data?.find((d) => d.id === id)?.ragione_sociale ?? "Ditta";
+  const nome = (id: string) => ditte.data?.find((d) => d.id === id)?.ragione_sociale ?? t("Ditta");
   const riepilogo = useMemo(() => riepilogoChiFaCosa(voci, lista), [voci, lista]);
   const ditteRiep = useMemo(() => perDitta(voci, lista), [voci, lista]);
 
@@ -101,38 +103,38 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
 
   const affida = useMutation({
     mutationFn: async () => {
-      if (!ditta) throw new Error("Scegli la ditta.");
-      if (scelte.size === 1 && quantita.trim() && (quantitaUnica == null || quantitaUnica <= 0)) throw new Error("La quantità non si legge.");
+      if (!ditta) throw new Error(t("Scegli la ditta."));
+      if (scelte.size === 1 && quantita.trim() && (quantitaUnica == null || quantitaUnica <= 0)) throw new Error(t("La quantità non si legge."));
       const righe = [...scelte].map((voce_id) => (scelte.size === 1 && quantitaUnica ? { voce_id, quantita: quantitaUnica } : { voce_id }));
       const { data, error } = await db.rpc("affida_voci", { p_order: orderId, p_subappaltatore: ditta, p_voci: righe, p_comprende: comprende });
       if (error) throw error;
       return data as { affidate: number; gia_piene: number };
     },
     onSuccess: (r) => {
-      toast.success(`${r.affidate} ${r.affidate === 1 ? "voce affidata" : "voci affidate"} a ${nome(ditta)}${r.gia_piene ? ` · ${r.gia_piene} ${r.gia_piene === 1 ? "aveva" : "avevano"} già tutta la quantità affidata` : ""}.`);
+      toast.success(`${t(r.affidate === 1 ? "{n} voce affidata a {ditta}" : "{n} voci affidate a {ditta}", { n: r.affidate, ditta: nome(ditta) })}${r.gia_piene ? ` · ${t(r.gia_piene === 1 ? "{n} aveva già tutta la quantità affidata" : "{n} avevano già tutta la quantità affidata", { n: r.gia_piene })}` : ""}.`);
       setScelte(new Set()); setQuantita(""); aggiorna();
       if (r.affidate > 0) onAffidate?.();
     },
-    onError: (e: Error) => toast.error(e.message || "Affidamento non riuscito."),
+    onError: (e: Error) => toast.error(e.message || t("Affidamento non riuscito.")),
   });
 
   const modifica = useMutation({
     mutationFn: async () => {
       if (!inModifica) return;
       const q = parseAssignmentAmount(inModifica.quantita, 3);
-      if (q == null || q <= 0) throw new Error("La quantità non si legge.");
+      if (q == null || q <= 0) throw new Error(t("La quantità non si legge."));
       const vuoto = !inModifica.prezzo.trim();
       const p = vuoto ? null : parseAssignmentAmount(inModifica.prezzo, 4);
-      if (!vuoto && p == null) throw new Error("Il prezzo non si legge.");
+      if (!vuoto && p == null) throw new Error(t("Il prezzo non si legge."));
       // Il contratto è al centesimo: 12,345 qui e 12,35 nel contratto davano due totali diversi.
-      if (p != null && Math.abs(Math.round(p * 100) - p * 100) > 1e-6) throw new Error("Il prezzo va al centesimo (es. 12,35, non 12,345).");
+      if (p != null && Math.abs(Math.round(p * 100) - p * 100) > 1e-6) throw new Error(t("Il prezzo va al centesimo (es. 12,35, non 12,345)."));
       const { error } = await db.rpc("affidamento_modifica", {
         p_id: inModifica.id, p_quantita: q, p_prezzo: p, p_comprende: inModifica.comprende, p_togli_prezzo: vuoto,
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Quota aggiornata."); setInModifica(null); aggiorna(); },
-    onError: (e: Error) => toast.error(e.message || "Quota non aggiornata."),
+    onSuccess: () => { toast.success(t("Quota aggiornata.")); setInModifica(null); aggiorna(); },
+    onError: (e: Error) => toast.error(e.message || t("Quota non aggiornata.")),
   });
 
   const togli = useMutation({
@@ -140,8 +142,8 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
       const { error } = await db.rpc("affidamento_togli", { p_ids: ids });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Quota tolta: la voce torna senza ditta."); setInModifica(null); aggiorna(); },
-    onError: (e: Error) => toast.error(e.message || "Quota non tolta."),
+    onSuccess: () => { toast.success(t("Quota tolta: la voce torna senza ditta.")); setInModifica(null); aggiorna(); },
+    onError: (e: Error) => toast.error(e.message || t("Quota non tolta.")),
   });
 
   const occupato = affida.isPending || modifica.isPending || togli.isPending;
@@ -150,37 +152,37 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
     <Dialog open onOpenChange={(o) => !o && !occupato && onChiudi()}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
-          <DialogTitle>{dittaFissa ? `Nuove voci per ${dittaFissa.nome}` : "Affida le voci alle ditte"}</DialogTitle>
+          <DialogTitle>{dittaFissa ? t("Nuove voci per {ditta}", { ditta: dittaFissa.nome }) : t("Affida le voci alle ditte")}</DialogTitle>
           <DialogDescription>
-            Scegli le voci (o una fase intera), poi la ditta. Il prezzo lo propone il listino della ditta; una voce si può dividere fra più ditte per quantità, mai oltre il totale.
+            {t("Scegli le voci (o una fase intera), poi la ditta. Il prezzo lo propone il listino della ditta; una voce si può dividere fra più ditte per quantità, mai oltre il totale.")}
           </DialogDescription>
         </DialogHeader>
 
         {affidamenti.isLoading || ditte.isLoading ? (
-          <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" />Caricamento…</p>
+          <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" />{t("Caricamento…")}</p>
         ) : affidamenti.isError || ditte.isError ? (
           <p role="alert" className="text-sm text-destructive">
-            Non riesco a leggere affidamenti o ditte.{" "}
-            <button type="button" className="underline" onClick={() => { void affidamenti.refetch(); void ditte.refetch(); }}>Riprova</button>
+            {t("Non riesco a leggere affidamenti o ditte.")}{" "}
+            <button type="button" className="underline" onClick={() => { void affidamenti.refetch(); void ditte.refetch(); }}>{t("Riprova")}</button>
           </p>
         ) : (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-              <Riquadro titolo="Venduto" valore={formatCurrency(riepilogo.venduto)} />
-              <Riquadro titolo={`Alle ditte (${riepilogo.ditte})`} valore={formatCurrency(riepilogo.costoDitte)}
-                nota={riepilogo.quoteSenzaPrezzo ? `${riepilogo.quoteSenzaPrezzo} senza prezzo` : riepilogo.materialiNostri ? `+ materiali nostri ${formatCurrency(riepilogo.materialiNostri)}` : undefined} />
-              <Riquadro titolo="Margine sull'affidato" valore={formatCurrency(riepilogo.margine)}
-                nota={riepilogo.quoteSenzaPrezzo ? `provvisorio: ${riepilogo.quoteSenzaPrezzo} ${riepilogo.quoteSenzaPrezzo === 1 ? "quota" : "quote"} senza prezzo` : riepilogo.marginePct != null ? `${riepilogo.marginePct.toLocaleString("it-IT")}%` : undefined} rosso={riepilogo.margine < 0} />
-              <Riquadro titolo="Senza ditta" valore={formatCurrency(riepilogo.vendutoSenzaDitta)} nota={`${riepilogo.vociSenzaDitta} ${riepilogo.vociSenzaDitta === 1 ? "voce" : "voci"} su ${riepilogo.voci}`} />
+              <Riquadro titolo={t("Venduto")} valore={formatCurrency(riepilogo.venduto)} />
+              <Riquadro titolo={t("Alle ditte ({n})", { n: riepilogo.ditte })} valore={formatCurrency(riepilogo.costoDitte)}
+                nota={riepilogo.quoteSenzaPrezzo ? t("{n} senza prezzo", { n: riepilogo.quoteSenzaPrezzo }) : riepilogo.materialiNostri ? t("+ materiali nostri {importo}", { importo: formatCurrency(riepilogo.materialiNostri) }) : undefined} />
+              <Riquadro titolo={t("Margine sull'affidato")} valore={formatCurrency(riepilogo.margine)}
+                nota={riepilogo.quoteSenzaPrezzo ? t(riepilogo.quoteSenzaPrezzo === 1 ? "provvisorio: {n} quota senza prezzo" : "provvisorio: {n} quote senza prezzo", { n: riepilogo.quoteSenzaPrezzo }) : riepilogo.marginePct != null ? `${riepilogo.marginePct.toLocaleString(intlCampo())}%` : undefined} rosso={riepilogo.margine < 0} />
+              <Riquadro titolo={t("Senza ditta")} valore={formatCurrency(riepilogo.vendutoSenzaDitta)} nota={t(riepilogo.vociSenzaDitta === 1 ? "{n} voce su {totale}" : "{n} voci su {totale}", { n: riepilogo.vociSenzaDitta, totale: riepilogo.voci })} />
             </div>
 
             {ditteRiep.size > 0 && (
-              <ul className="flex flex-wrap gap-1.5 text-xs" aria-label="Ditte con voci affidate">
+              <ul className="flex flex-wrap gap-1.5 text-xs" aria-label={t("Ditte con voci affidate")}>
                 {[...ditteRiep.entries()].map(([id, r]) => (
                   <li key={id} className="rounded-md border px-2 py-1">
-                    <span className="font-medium">{nome(id)}</span> · {r.voci} {r.voci === 1 ? "voce" : "voci"} · {formatCurrency(r.costo)}
-                    {r.venduto > 0 && <span className="text-muted-foreground"> su {formatCurrency(r.venduto)}</span>}
-                    {r.aContratto > 0 && <span className="text-muted-foreground"> · {r.aContratto} a contratto</span>}
+                    <span className="font-medium">{nome(id)}</span> · {t(r.voci === 1 ? "{n} voce" : "{n} voci", { n: r.voci })} · {formatCurrency(r.costo)}
+                    {r.venduto > 0 && <span className="text-muted-foreground"> {t("su {importo}", { importo: formatCurrency(r.venduto) })}</span>}
+                    {r.aContratto > 0 && <span className="text-muted-foreground"> · {t("{n} a contratto", { n: r.aContratto })}</span>}
                   </li>
                 ))}
               </ul>
@@ -189,10 +191,10 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative min-w-[12rem] flex-1">
                 <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca voce o fase" className="h-9 pl-8" aria-label="Cerca voce o fase" />
+                <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={t("Cerca voce o fase")} className="h-9 pl-8" aria-label={t("Cerca voce o fase")} />
               </div>
               <label className="flex items-center gap-2 text-sm">
-                <Switch checked={soloSenza} onCheckedChange={setSoloSenza} aria-label="Solo le voci senza ditta" />Solo senza ditta
+                <Switch checked={soloSenza} onCheckedChange={setSoloSenza} aria-label={t("Solo le voci senza ditta")} />{t("Solo senza ditta")}
               </label>
             </div>
 
@@ -203,10 +205,10 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
                 return (
                   <section key={fase.id} aria-label={fase.name}>
                     <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5">
-                      <Checkbox checked={tutte} disabled={!libere.length} aria-label={`Scegli tutte le voci libere di ${fase.name}`}
+                      <Checkbox checked={tutte} disabled={!libere.length} aria-label={t("Scegli tutte le voci libere di {fase}", { fase: fase.name })}
                         onCheckedChange={(c) => cambiaScelta(libere, c === true)} />
                       <span className="text-sm font-medium">{fase.name}</span>
-                      <span className="text-xs text-muted-foreground">{vf.length} {vf.length === 1 ? "voce" : "voci"}{libere.length < vf.length ? ` · ${vf.length - libere.length} già ${vf.length - libere.length === 1 ? "affidata" : "affidate"}` : ""}</span>
+                      <span className="text-xs text-muted-foreground">{t(vf.length === 1 ? "{n} voce" : "{n} voci", { n: vf.length })}{libere.length < vf.length ? ` · ${t(vf.length - libere.length === 1 ? "{n} già affidata" : "{n} già affidate", { n: vf.length - libere.length })}` : ""}</span>
                     </div>
                     <ul className="divide-y">
                       {vf.map((v) => {
@@ -215,43 +217,43 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
                           <li key={v.id} className="px-3 py-1.5">
                             {/* Una voce, una riga (11/11/2026): nome, quantità e venduto, chi la fa. */}
                             <div className="flex items-start gap-2">
-                              <Checkbox className="mt-[3px]" checked={scelte.has(v.id)} disabled={s.piena} aria-label={`Scegli ${v.descrizione}`}
+                              <Checkbox className="mt-[3px]" checked={scelte.has(v.id)} disabled={s.piena} aria-label={t("Scegli {voce}", { voce: v.descrizione })}
                                 onCheckedChange={(c) => cambiaScelta([v.id], c === true)} />
                               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
                                 <p className="min-w-[10rem] flex-1 truncate text-sm" title={v.descrizione}>{v.descrizione}</p>
                                 <p className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-                                  {qt(Number(v.quantita))} {v.unita ?? ""} · venduto {formatCurrency(Number(v.importo) || 0)}
-                                  {!s.piena && s.affidata > 0 && <> · <span className="text-amber-800">restano {qt(s.residua)} {v.unita ?? ""}</span></>}
-                                  {s.margine != null && <> · margine <span className={s.margine < 0 ? "text-destructive" : ""}>{formatCurrency(s.margine)}</span></>}
+                                  {qt(Number(v.quantita))} {v.unita ?? ""} · {t("venduto {importo}", { importo: formatCurrency(Number(v.importo) || 0) })}
+                                  {!s.piena && s.affidata > 0 && <> · <span className="text-amber-800">{t("restano {quantita}", { quantita: `${qt(s.residua)} ${v.unita ?? ""}` })}</span></>}
+                                  {s.margine != null && <> · {t("margine")} <span className={s.margine < 0 ? "text-destructive" : ""}>{formatCurrency(s.margine)}</span></>}
                                 </p>
-                                {s.oltre > 0.0005 && <p className="w-full text-[11px] font-medium text-red-700">Affidati {qt(s.oltre)} {v.unita ?? ""} più della voce: da rivedere (togli una quota, o variante del contratto)</p>}
+                                {s.oltre > 0.0005 && <p className="w-full text-[11px] font-medium text-red-700">{t("Affidati {quantita} più della voce: da rivedere (togli una quota, o variante del contratto)", { quantita: `${qt(s.oltre)} ${v.unita ?? ""}` })}</p>}
                                 <div className="flex shrink-0 flex-wrap gap-1">
-                                  {s.quote.length === 0 && <Badge variant="outline" className="h-5 px-1.5 text-[11px] font-normal">Senza ditta</Badge>}
+                                  {s.quote.length === 0 && <Badge variant="outline" className="h-5 px-1.5 text-[11px] font-normal">{t("Senza ditta")}</Badge>}
                                   {s.quote.map((a) => (
                                     <button key={a.id} type="button" disabled={a.stato === "a_contratto" || occupato}
                                       className="rounded-md border bg-background px-1.5 py-0.5 text-left text-[11px] hover:bg-muted disabled:opacity-80"
-                                      title={a.stato === "a_contratto" ? "In un contratto: si cambia con una variante" : `Prezzo: ${ORIGINE[a.origine_prezzo]}`}
-                                      aria-label={`Quota di ${nome(a.subappaltatore_id)} su ${v.descrizione}`}
+                                      title={a.stato === "a_contratto" ? t("In un contratto: si cambia con una variante") : t("Prezzo: {origine}", { origine: t(ORIGINE[a.origine_prezzo]) })}
+                                      aria-label={t("Quota di {ditta} su {voce}", { ditta: nome(a.subappaltatore_id), voce: v.descrizione })}
                                       onClick={() => setInModifica({ id: a.id, quantita: String(a.quantita).replace(".", ","), prezzo: a.prezzo_unitario == null ? "" : String(a.prezzo_unitario).replace(".", ","), comprende: a.comprende })}>
-                                      <span className="font-medium">{nome(a.subappaltatore_id)}</span> · {qt(a.quantita)} {v.unita ?? ""} × {a.prezzo_unitario == null ? <span className="text-destructive">prezzo da scrivere</span> : formatCurrency(a.prezzo_unitario)}
-                                      {a.comprende === "posa" ? " · solo posa" : ""}{a.stato === "a_contratto" ? " · a contratto" : ""}
+                                      <span className="font-medium">{nome(a.subappaltatore_id)}</span> · {qt(a.quantita)} {v.unita ?? ""} × {a.prezzo_unitario == null ? <span className="text-destructive">{t("prezzo da scrivere")}</span> : formatCurrency(a.prezzo_unitario)}
+                                      {a.comprende === "posa" ? ` · ${t("solo posa")}` : ""}{a.stato === "a_contratto" ? ` · ${t("a contratto")}` : ""}
                                     </button>
                                   ))}
                                 </div>
                                 {inModifica && s.quote.some((a) => a.id === inModifica.id) && (
                                   <div className="flex w-full flex-wrap items-end gap-2 rounded-md border bg-muted/30 p-2">
-                                    <label className="text-xs">Quantità
+                                    <label className="text-xs">{t("Quantità")}
                                       <Input value={inModifica.quantita} onChange={(e) => setInModifica({ ...inModifica, quantita: e.target.value })} inputMode="decimal" className="h-8 w-24 text-right" />
                                     </label>
-                                    <label className="text-xs">Prezzo
+                                    <label className="text-xs">{t("Prezzo")}
                                       <Input value={inModifica.prezzo} onChange={(e) => setInModifica({ ...inModifica, prezzo: e.target.value })} inputMode="decimal" placeholder="—" className="h-8 w-24 text-right" />
                                     </label>
-                                    <OfficeSelect label="Cosa comprende il prezzo" className="h-8 w-40" value={inModifica.comprende}
+                                    <OfficeSelect label={t("Cosa comprende il prezzo")} className="h-8 w-40" value={inModifica.comprende}
                                       onValueChange={(c) => setInModifica({ ...inModifica, comprende: c as AffidamentoChiFaCosa["comprende"] })}
-                                      options={[{ value: "posa", label: "Solo posa" }, { value: "fornitura_e_posa", label: "Fornitura e posa" }]} />
-                                    <Button size="sm" disabled={occupato} onClick={() => modifica.mutate()}>{modifica.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}Salva</Button>
-                                    <Button size="sm" variant="ghost" disabled={occupato} onClick={() => togli.mutate([inModifica.id])}><X className="mr-1 h-3.5 w-3.5" />Togli</Button>
-                                    <Button size="sm" variant="ghost" disabled={occupato} onClick={() => setInModifica(null)}>Annulla</Button>
+                                      options={[{ value: "posa", label: t("Solo posa") }, { value: "fornitura_e_posa", label: t("Fornitura e posa") }]} />
+                                    <Button size="sm" disabled={occupato} onClick={() => modifica.mutate()}>{modifica.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{t("Salva")}</Button>
+                                    <Button size="sm" variant="ghost" disabled={occupato} onClick={() => togli.mutate([inModifica.id])}><X className="mr-1 h-3.5 w-3.5" />{t("Togli")}</Button>
+                                    <Button size="sm" variant="ghost" disabled={occupato} onClick={() => setInModifica(null)}>{t("Annulla")}</Button>
                                   </div>
                                 )}
                               </div>
@@ -263,23 +265,23 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
                   </section>
                 );
               })}
-              {gruppi.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">{voci.length ? "Nessuna voce con questi filtri." : "La commessa non ha voci: si affidano le voci del computo o del preventivo."}</p>}
+              {gruppi.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">{voci.length ? t("Nessuna voce con questi filtri.") : t("La commessa non ha voci: si affidano le voci del computo o del preventivo.")}</p>}
             </div>
 
             {scelte.size > 0 && (
               <div className="sticky bottom-0 flex flex-wrap items-end gap-2 rounded-md border bg-background p-2 shadow-sm">
-                <span className="text-sm">{scelte.size} {scelte.size === 1 ? "voce scelta" : "voci scelte"}{sceltePiene.length ? ` (${sceltePiene.length} già piene)` : ""}</span>
-                {dittaFissa ? <p className="flex-1 text-sm font-medium">{dittaFissa.nome}</p> : <OfficeSelect label="Ditta" className="h-9 min-w-[14rem] flex-1" value={ditta} onValueChange={setDitta} placeholder="Scegli la ditta"
+                <span className="text-sm">{t(scelte.size === 1 ? "{n} voce scelta" : "{n} voci scelte", { n: scelte.size })}{sceltePiene.length ? ` (${t("{n} già piene", { n: sceltePiene.length })})` : ""}</span>
+                {dittaFissa ? <p className="flex-1 text-sm font-medium">{dittaFissa.nome}</p> : <OfficeSelect label={t("Ditta")} className="h-9 min-w-[14rem] flex-1" value={ditta} onValueChange={setDitta} placeholder={t("Scegli la ditta")}
                   options={(ditte.data ?? []).filter((d) => d.is_active !== false).map((d) => ({ value: d.id, label: d.ragione_sociale }))} />}
-                <OfficeSelect label="Cosa comprende il prezzo" className="h-9 w-44" value={comprende} onValueChange={(c) => setComprende(c as typeof comprende)}
-                  options={[{ value: "posa", label: "Solo posa" }, { value: "fornitura_e_posa", label: "Fornitura e posa" }]} />
+                <OfficeSelect label={t("Cosa comprende il prezzo")} className="h-9 w-44" value={comprende} onValueChange={(c) => setComprende(c as typeof comprende)}
+                  options={[{ value: "posa", label: t("Solo posa") }, { value: "fornitura_e_posa", label: t("Fornitura e posa") }]} />
                 {scelte.size === 1 && (
-                  <Input value={quantita} onChange={(e) => setQuantita(e.target.value)} inputMode="decimal" placeholder="Quantità: tutto il resto"
-                    aria-label="Quantità da affidare (vuoto = tutto il resto)" className="h-9 w-44" />
+                  <Input value={quantita} onChange={(e) => setQuantita(e.target.value)} inputMode="decimal" placeholder={t("Quantità: tutto il resto")}
+                    aria-label={t("Quantità da affidare (vuoto = tutto il resto)")} className="h-9 w-44" />
                 )}
-                <Button size="sm" variant="ghost" disabled={occupato} onClick={() => setScelte(new Set())}>Annulla</Button>
+                <Button size="sm" variant="ghost" disabled={occupato} onClick={() => setScelte(new Set())}>{t("Annulla")}</Button>
                 <Button size="sm" disabled={!ditta || occupato} onClick={() => affida.mutate()}>
-                  {affida.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Affida
+                  {affida.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{t("Affida")}
                 </Button>
               </div>
             )}

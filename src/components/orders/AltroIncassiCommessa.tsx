@@ -9,6 +9,7 @@ import { BloccaPrezzoCard } from "./BloccaPrezzoCard";
 import { BonusRipartizioneCard } from "./BonusRipartizioneCard";
 import { IvaCommessa } from "./IvaCommessa";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function AltroIncassiCommessa({ orderId, vatRate, hasBuildingBonus, customerId, saldoPagato, pivaImpresa, conIva, conImporti }: {
   orderId: string; vatRate: number; hasBuildingBonus: boolean; customerId?: string | null; saldoPagato: boolean;
@@ -18,12 +19,13 @@ export function AltroIncassiCommessa({ orderId, vatRate, hasBuildingBonus, custo
   /** Blocca prezzo e bonus sono importi del cliente. */
   conImporti: boolean;
 }) {
+  const t = useT();
   // Chi arriva da un link alle ritenute (#section-ritenute) le trova aperte, non una riga chiusa.
   const { hash, search } = useLocation();
   const sezione = hash.slice(1) || new URLSearchParams(search).get("section");
   return (
     <section aria-labelledby="altri-dati-economici" className="space-y-2">
-      <h3 id="altri-dati-economici" className="pt-2 text-sm font-semibold">Altri dati economici</h3>
+      <h3 id="altri-dati-economici" className="pt-2 text-sm font-semibold">{t("Altri dati economici")}</h3>
       {conImporti && (
         <>
           {/* Blocca prezzo: soldi che stanno FUORI dal contratto e vanno restituiti. */}

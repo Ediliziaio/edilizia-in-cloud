@@ -13,6 +13,7 @@ import { STILE_STATO, euro } from "@/components/orders/generali/unita/aspetto";
 import { useSalvaUnita } from "@/hooks/useGeneraleUnita";
 import { leggiMq } from "@/components/orders/generali/design/SuperficieAMano";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   elenco: ElencoUnita;
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export function TabellaUnita({ elenco, conti, riepilogo, onApri, generaleId, puoModificare, totale = "Totale" }: Props) {
+  const tr = useT();
   const p = elenco.permessi;
   const vive = [...unitaVive(elenco.unita)].sort((a, b) => confrontaSigle(a.sigla, b.sigla));
   const [inModifica, setInModifica] = useState<string | null>(null);
@@ -40,17 +42,17 @@ export function TabellaUnita({ elenco, conti, riepilogo, onApri, generaleId, puo
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left text-xs text-muted-foreground">
-            <th className="px-3 py-2 font-medium">Unità</th>
-            <th className="px-2 py-2 font-medium">Piano</th>
+            <th className="px-3 py-2 font-medium">{tr("Unità")}</th>
+            <th className="px-2 py-2 font-medium">{tr("Piano")}</th>
             <th className="px-2 py-2 text-right font-medium">m²</th>
             <th className="px-2 py-2 text-right font-medium">‰</th>
-            {p.importi && <th className="px-2 py-2 text-right font-medium">Listino</th>}
-            {p.importi && <th className="px-2 py-2 text-right font-medium">Prezzo</th>}
-            <th className="px-2 py-2 font-medium">Stato</th>
-            <th className="px-2 py-2 font-medium">Acquirente</th>
-            {p.importi && <th className="px-2 py-2 text-right font-medium">Pagato</th>}
-            {p.importi && <th className="px-2 py-2 text-right font-medium">Da incassare</th>}
-            {margini && <th className="px-3 py-2 text-right font-medium">Margine</th>}
+            {p.importi && <th className="px-2 py-2 text-right font-medium">{tr("Listino")}</th>}
+            {p.importi && <th className="px-2 py-2 text-right font-medium">{tr("Prezzo")}</th>}
+            <th className="px-2 py-2 font-medium">{tr("Stato")}</th>
+            <th className="px-2 py-2 font-medium">{tr("Acquirente")}</th>
+            {p.importi && <th className="px-2 py-2 text-right font-medium">{tr("Pagato")}</th>}
+            {p.importi && <th className="px-2 py-2 text-right font-medium">{tr("Da incassare")}</th>}
+            {margini && <th className="px-3 py-2 text-right font-medium">{tr("Margine")}</th>}
           </tr>
         </thead>
         <tbody className="divide-y">
@@ -64,7 +66,7 @@ export function TabellaUnita({ elenco, conti, riepilogo, onApri, generaleId, puo
                     {u.sigla}
                   </button>
                   {u.tipologia && <span className="ml-1.5 text-xs text-muted-foreground">{u.tipologia}</span>}
-                  {u.edificio && <p className="text-xs text-muted-foreground">{u.edificio}</p>}
+                  {u.edificio && <p className="text-xs text-muted-foreground" dir="auto">{u.edificio}</p>}
                 </td>
                 <td className="px-2 py-2 text-xs">{u.piano ? etichettaPiano(u.piano) : "—"}</td>
                 <td className="px-2 py-2 text-right tabular-nums" onClick={(ev) => mqScrivibili && ev.stopPropagation()}>
@@ -74,7 +76,7 @@ export function TabellaUnita({ elenco, conti, riepilogo, onApri, generaleId, puo
                     <input
                       autoFocus
                       inputMode="decimal"
-                      aria-label={`Metri quadri di ${u.sigla}`}
+                      aria-label={tr("Metri quadri di {sigla}", { sigla: u.sigla })}
                       defaultValue={u.mq !== null ? String(u.mq) : ""}
                       disabled={salvaMq.isPending}
                       className="w-20 rounded border bg-background px-1.5 py-0.5 text-right tabular-nums"
@@ -97,7 +99,7 @@ export function TabellaUnita({ elenco, conti, riepilogo, onApri, generaleId, puo
                     <button
                       type="button"
                       className={cn("w-full rounded px-1 text-right hover:bg-muted", u.mq === null && "text-muted-foreground")}
-                      title="Scrivi i metri quadri"
+                      title={tr("Scrivi i metri quadri")}
                       onClick={() => setInModifica(u.orderId)}
                     >
                       {u.mq !== null ? formattaNumero(u.mq) : "—"}
@@ -110,10 +112,10 @@ export function TabellaUnita({ elenco, conti, riepilogo, onApri, generaleId, puo
                 <td className="px-2 py-2 text-xs">
                   <span className="inline-flex items-center gap-1.5">
                     <span className={cn("h-2 w-2 shrink-0 rounded-full", STILE_STATO[u.stato].punto)} aria-hidden="true" />
-                    {NOMI_STATO[u.stato].una}
+                    {tr(NOMI_STATO[u.stato].una)}
                   </span>
                 </td>
-                <td className="max-w-[12rem] truncate px-2 py-2 text-xs">{u.acquirente ?? "—"}</td>
+                <td className="max-w-[12rem] truncate px-2 py-2 text-xs" dir="auto">{u.acquirente ?? "—"}</td>
                 {p.importi && <td className="px-2 py-2 text-right tabular-nums">{pag.pagato ? euro(pag.pagato) : "—"}</td>}
                 {p.importi && <td className="px-2 py-2 text-right tabular-nums">{pag.residuo !== null ? euro(pag.residuo) : "—"}</td>}
                 {margini && (
@@ -126,7 +128,7 @@ export function TabellaUnita({ elenco, conti, riepilogo, onApri, generaleId, puo
         {vive.length > 1 && (
           <tfoot>
             <tr className="border-t bg-muted/30 text-sm font-medium">
-              <td className="px-3 py-2">{totale}</td>
+              <td className="px-3 py-2">{tr(totale)}</td>
               <td className="px-2 py-2" />
               <td className="px-2 py-2 text-right tabular-nums">{formattaNumero(riepilogo.mq)}</td>
               <td className="px-2 py-2 text-right tabular-nums">{formattaNumero(riepilogo.millesimi)}</td>

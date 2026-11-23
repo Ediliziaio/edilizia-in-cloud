@@ -8,6 +8,7 @@ import { euro, nomeMese, nomePiano } from "@/components/orders/generali/piano/fo
 import { messaggioPiano, useNuovaVersionePiano } from "@/hooks/useGeneralePiano";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { CATEGORIE_PIANO, vociDiPartenza } from "@/lib/orders/generali/pianoCategorie";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function PrimoPiano({ riepilogo, puoModificare, mese, onCreato, onImportaFile }: {
   riepilogo: RiepilogoGenerale;
@@ -17,6 +18,7 @@ export function PrimoPiano({ riepilogo, puoModificare, mese, onCreato, onImporta
   onCreato: (versioneId: string, incolla: boolean) => void;
   onImportaFile: () => void;
 }) {
+  const t = useT();
   const g = riepilogo.generale;
   const crea = useNuovaVersionePiano(g.id);
   const voci = vociDiPartenza(g.modello, mese, riepilogo.permessi.importi ? g.valore : null);
@@ -24,7 +26,7 @@ export function PrimoPiano({ riepilogo, puoModificare, mese, onCreato, onImporta
   const parti = (conVoci: boolean, incolla = false) =>
     crea.mutate(conVoci ? voci : [], {
       onSuccess: (id) => {
-        if (!incolla) toast.success(conVoci ? "Piano creato: scrivi gli importi e correggi i mesi" : "Piano creato");
+        if (!incolla) toast.success(conVoci ? t("Piano creato: scrivi gli importi e correggi i mesi") : t("Piano creato"));
         onCreato(id, incolla);
       },
       onError: (e) => toast.error(messaggioPiano(e, "il piano")),
@@ -32,24 +34,23 @@ export function PrimoPiano({ riepilogo, puoModificare, mese, onCreato, onImporta
 
   return (
     <section aria-labelledby="primo-piano-titolo" className="rounded-lg border bg-card px-4 py-5 sm:px-6">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Prossimo passo</p>
-      <h2 id="primo-piano-titolo" className="mt-1 text-lg font-semibold">Scrivi {nomePiano(g.modello)}</h2>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("Prossimo passo")}</p>
+      <h2 id="primo-piano-titolo" className="mt-1 text-lg font-semibold">{t("Scrivi {piano}", { piano: nomePiano(g.modello) })}</h2>
       <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        Ricavi e costi previsti, ognuno con il mese in cui il denaro entra o esce. Da lì l'app confronta il previsto con
-        quello che registri sulle commesse e ti dice margine a finire, flusso di cassa e capitale impegnato.
+        {t("Ricavi e costi previsti, ognuno con il mese in cui il denaro entra o esce. Da lì l'app confronta il previsto con quello che registri sulle commesse e ti dice margine a finire, flusso di cassa e capitale impegnato.")}
       </p>
 
       <div className="mt-4 rounded-md border bg-muted/20">
-        <p className="border-b px-3 py-2 text-xs text-muted-foreground">Le voci tipiche da cui partire (importi da scrivere, mesi da correggere):</p>
+        <p className="border-b px-3 py-2 text-xs text-muted-foreground">{t("Le voci tipiche da cui partire (importi da scrivere, mesi da correggere):")}</p>
         <ul className="divide-y text-sm">
           {voci.map((v) => (
             <li key={`${v.categoria}-${v.descrizione}`} className="flex items-center justify-between gap-3 px-3 py-1.5">
               <span className="min-w-0 truncate">
                 {v.descrizione}
-                <span className="ml-1.5 text-xs text-muted-foreground">{v.tipo === "ricavo" ? "ricavo" : CATEGORIE_PIANO[v.categoria].nome.toLowerCase()}</span>
+                <span className="ml-1.5 text-xs text-muted-foreground">{v.tipo === "ricavo" ? t("ricavo") : CATEGORIE_PIANO[v.categoria].nome.toLowerCase()}</span>
               </span>
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                {v.importo > 0 ? `${euro(v.importo)} · ` : ""}{nomeMese(v.mese)}{v.durataMesi > 1 ? ` per ${v.durataMesi} mesi` : ""}
+                {v.importo > 0 ? `${euro(v.importo)} · ` : ""}{nomeMese(v.mese)}{v.durataMesi > 1 ? ` ${t("per {n} mesi", { n: v.durataMesi })}` : ""}
               </span>
             </li>
           ))}
@@ -59,21 +60,21 @@ export function PrimoPiano({ riepilogo, puoModificare, mese, onCreato, onImporta
       {puoModificare ? (
         <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="outline" onClick={onImportaFile} disabled={crea.isPending}>
-            <FileSpreadsheet className="mr-1.5 h-4 w-4" /> Importa business plan
+            <FileSpreadsheet className="mr-1.5 h-4 w-4" /> {t("Importa business plan")}
           </Button>
           <Button onClick={() => parti(true)} disabled={crea.isPending}>
             {crea.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-            Parti con queste voci
+            {t("Parti con queste voci")}
           </Button>
           <Button variant="outline" onClick={() => parti(false, true)} disabled={crea.isPending}>
-            <ClipboardPaste className="mr-1.5 h-4 w-4" /> Incolla da Excel
+            <ClipboardPaste className="mr-1.5 h-4 w-4" /> {t("Incolla da Excel")}
           </Button>
           <Button variant="ghost" onClick={() => parti(false)} disabled={crea.isPending}>
-            <FilePlus2 className="mr-1.5 h-4 w-4" /> Parti da zero
+            <FilePlus2 className="mr-1.5 h-4 w-4" /> {t("Parti da zero")}
           </Button>
         </div>
       ) : (
-        <p className="mt-4 text-sm text-muted-foreground">Il piano lo scrive chi può modificare le commesse, da tablet o computer.</p>
+        <p className="mt-4 text-sm text-muted-foreground">{t("Il piano lo scrive chi può modificare le commesse, da tablet o computer.")}</p>
       )}
     </section>
   );

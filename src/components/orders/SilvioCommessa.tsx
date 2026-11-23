@@ -20,6 +20,7 @@ import { AllocazioneOperaiAIDialog } from "@/components/orders/AllocazioneOperai
 import { PianoCantiereDialog } from "@/components/orders/PianoCantiereDialog";
 import { useCreaConSilvioAttivo } from "@/components/silvio-commessa/useCreaConSilvioAttivo";
 import { SilvioBottone, apriChatSilvio } from "@/components/silvio/SilvioAiuto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SilvioCommessa({ orderId, companyId, riferimento, puoModificare, onRapportiniDaDocumenti, className }: {
   orderId: string;
@@ -30,6 +31,7 @@ export function SilvioCommessa({ orderId, companyId, riferimento, puoModificare,
   onRapportiniDaDocumenti?: () => void;
   className?: string;
 }) {
+  const t = useT();
   const [operai, setOperai] = useState(false);
   const [piano, setPiano] = useState(false);
   const pianoAttivo = useCreaConSilvioAttivo(companyId);
@@ -41,25 +43,25 @@ export function SilvioCommessa({ orderId, companyId, riferimento, puoModificare,
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
           <DropdownMenuItem onSelect={() => apriChatSilvio(`Sulla ${riferimento}: `)}>
-            <MessageSquare className="mr-2 h-4 w-4" />Chiedi a Silvio su questa commessa
+            <MessageSquare className="mr-2 h-4 w-4" />{t("Chiedi a Silvio su questa commessa")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => apriChatSilvio(`Analizza la ${riferimento}: stato di avanzamento, costi rispetto al previsto, scadenze, margine e criticità. Cosa devo sapere e quali sono le prossime mosse?`)}>
-            <BarChart3 className="mr-2 h-4 w-4" />Analizza la commessa
+            <BarChart3 className="mr-2 h-4 w-4" />{t("Analizza la commessa")}
           </DropdownMenuItem>
           {pianoAttivo && (
             <DropdownMenuItem onSelect={() => setPiano(true)}>
-              <Calculator className="mr-2 h-4 w-4" />Calcola come finire
+              <Calculator className="mr-2 h-4 w-4" />{t("Calcola come finire")}
             </DropdownMenuItem>
           )}
           {puoModificare && companyId && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => setOperai(true)}>
-                <Users className="mr-2 h-4 w-4" />Suggerisci chi assegnare
+                <Users className="mr-2 h-4 w-4" />{t("Suggerisci chi assegnare")}
               </DropdownMenuItem>
               {onRapportiniDaDocumenti && (
                 <DropdownMenuItem onSelect={onRapportiniDaDocumenti}>
-                  <FileUp className="mr-2 h-4 w-4" />Rapportini dai documenti
+                  <FileUp className="mr-2 h-4 w-4" />{t("Rapportini dai documenti")}
                 </DropdownMenuItem>
               )}
             </>

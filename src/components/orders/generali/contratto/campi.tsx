@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { daTesto, numeroIt } from "./formato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function Campo({ etichetta, aiuto, errore, children, className }: {
   etichetta: string; aiuto?: string; errore?: string; children: (id: string) => ReactNode; className?: string;
@@ -28,11 +29,12 @@ export function CampoNumero({ etichetta, valore, onChange, aiuto, errore, suffis
   etichetta: string; valore: number | null; onChange: (v: number | null) => void; aiuto?: string; errore?: string;
   suffisso?: string; decimali?: number; segno?: boolean; placeholder?: string;
 }) {
+  const t = useT();
   const [testo, setTesto] = useState(numeroIt(valore, decimali));
   const letto = daTesto(testo);
   const sbagliato = letto !== null && (Number.isNaN(letto) || (!segno && letto < 0));
   return (
-    <Campo etichetta={etichetta} aiuto={aiuto} errore={errore ?? (sbagliato ? "Scrivi un numero, ad esempio 1.250,50." : undefined)}>
+    <Campo etichetta={etichetta} aiuto={aiuto} errore={errore ?? (sbagliato ? t("Scrivi un numero, ad esempio 1.250,50.") : undefined)}>
       {(id) => (
         <div className="relative">
           <Input
@@ -65,6 +67,7 @@ export interface RigaOrigine { etichetta: string; valore: string; nota?: string;
 export function NumeroCheSiApre({ etichetta, valore, nota, righe, titolo, descrizione, tono }: {
   etichetta: string; valore: string; nota?: string; righe?: RigaOrigine[]; titolo?: string; descrizione?: string; tono?: "rosso" | "verde";
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const contenuto = (
     <>
@@ -80,7 +83,7 @@ export function NumeroCheSiApre({ etichetta, valore, nota, righe, titolo, descri
         type="button"
         onClick={() => setAperto(true)}
         className="rounded-lg border bg-card px-3 py-2.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label={`${etichetta}: ${valore}. Mostra da dove viene`}
+        aria-label={t("{etichetta}: {valore}. Mostra da dove viene", { etichetta, valore })}
       >
         {contenuto}
       </button>

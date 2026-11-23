@@ -21,8 +21,9 @@ import {
   type AliquotaSal, type DatiFattura, type IvaVendita, type OrigineFattura,
 } from "@/lib/orders/generali/fatture";
 import type { DocumentoFiscale } from "@/types/fatturazione";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+const euro = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR" }).format(n);
 
 interface Props {
   generaleId: string;
@@ -34,18 +35,19 @@ interface Props {
 }
 
 export function FatturaDialog({ generaleId, origine, id, open, onOpenChange }: Props) {
+  const t = useT();
   const dati = useDatiFatturaGenerale(origine, id, open);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Crea fattura</DialogTitle>
+          <DialogTitle>{t("Crea fattura")}</DialogTitle>
           <DialogDescription>
-            Nasce una bozza da controllare nella scheda del documento prima dell'emissione.
+            {t("Nasce una bozza da controllare nella scheda del documento prima dell'emissione.")}
           </DialogDescription>
         </DialogHeader>
         {dati.isLoading ? (
-          <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Preparo i dati…</div>
+          <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t("Preparo i dati…")}</div>
         ) : dati.error ? (
           <Alert variant="destructive"><AlertDescription>{messaggioFattura(dati.error)}</AlertDescription></Alert>
         ) : dati.data ? (
@@ -57,6 +59,7 @@ export function FatturaDialog({ generaleId, origine, id, open, onOpenChange }: P
 }
 
 function Contenuto({ generaleId, origine, id, dati, chiudi }: { generaleId: string; origine: OrigineFattura; id: string; dati: DatiFattura; chiudi: () => void }) {
+  const t = useT();
   const navigate = useNavigate();
   const crea = useCreaFatturaGenerale(generaleId);
   const [aliquotaSal, setAliquotaSal] = useState<AliquotaSal>("22");
@@ -81,10 +84,10 @@ function Contenuto({ generaleId, origine, id, dati, chiudi }: { generaleId: stri
   if (dati.esistente) {
     return (
       <div className="space-y-4">
-        <p className="text-sm">Da qui è già nata la {etichettaFattura(dati.esistente).toLowerCase()}: non se ne crea una seconda.</p>
+        <p className="text-sm">{t("Da qui è già nata la {fattura}: non se ne crea una seconda.", { fattura: etichettaFattura(dati.esistente).toLowerCase() })}</p>
         <DialogFooter>
-          <Button variant="outline" onClick={chiudi}>Chiudi</Button>
-          <Button onClick={() => apri(dati.esistente!.id)}><FileText className="mr-1.5 h-4 w-4" /> Apri la fattura</Button>
+          <Button variant="outline" onClick={chiudi}>{t("Chiudi")}</Button>
+          <Button onClick={() => apri(dati.esistente!.id)}><FileText className="mr-1.5 h-4 w-4" /> {t("Apri la fattura")}</Button>
         </DialogFooter>
       </div>
     );
@@ -94,7 +97,7 @@ function Contenuto({ generaleId, origine, id, dati, chiudi }: { generaleId: stri
     if (crea.isPending) return;
     crea.mutate({ origine, id, bozza }, {
       onSuccess: (r) => {
-        toast.success(r.esistente ? "C'era già una fattura: apro quella." : "Bozza di fattura pronta: controllala nella scheda del documento.");
+        toast.success(r.esistente ? t("C'era già una fattura: apro quella.") : t("Bozza di fattura pronta: controllala nella scheda del documento."));
         apri(r.id);
       },
       onError: (e) => toast.error(messaggioFattura(e)),
@@ -107,47 +110,47 @@ function Contenuto({ generaleId, origine, id, dati, chiudi }: { generaleId: stri
   return (
     <div className="space-y-4 text-sm">
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-        <dt className="text-muted-foreground">Cliente</dt>
+        <dt className="text-muted-foreground">{t("Cliente")}</dt>
         <dd className="font-medium">{cliente ? nomeCliente(cliente) : "—"}</dd>
         {sal && (
           <>
             <dt className="text-muted-foreground">SAL</dt>
-            <dd>n. {sal.numero}{sal.riferimentoContratto ? ` · contratto ${sal.riferimentoContratto}` : ""}</dd>
-            <dt className="text-muted-foreground">Lordo</dt>
+            <dd>n. {sal.numero}{sal.riferimentoContratto ? ` · ${t("contratto {numero}", { numero: sal.riferimentoContratto })}` : ""}</dd>
+            <dt className="text-muted-foreground">{t("Lordo")}</dt>
             <dd className="tabular-nums">{euro(sal.lordo)}</dd>
-            {sal.ritenuta !== 0 && (<><dt className="text-muted-foreground">Ritenuta</dt><dd className="tabular-nums">−{euro(sal.ritenuta)}</dd></>)}
-            {sal.recupero !== 0 && (<><dt className="text-muted-foreground">Anticipazione</dt><dd className="tabular-nums">−{euro(sal.recupero)}</dd></>)}
-            <dt className="text-muted-foreground">Imponibile</dt>
-            <dd className="font-medium tabular-nums">{euro(sal.netto)} <span className="font-normal text-muted-foreground">(netto del SAL)</span></dd>
+            {sal.ritenuta !== 0 && (<><dt className="text-muted-foreground">{t("Ritenuta")}</dt><dd className="tabular-nums">−{euro(sal.ritenuta)}</dd></>)}
+            {sal.recupero !== 0 && (<><dt className="text-muted-foreground">{t("Anticipazione")}</dt><dd className="tabular-nums">−{euro(sal.recupero)}</dd></>)}
+            <dt className="text-muted-foreground">{t("Imponibile")}</dt>
+            <dd className="font-medium tabular-nums">{euro(sal.netto)} <span className="font-normal text-muted-foreground">{t("(netto del SAL)")}</span></dd>
             {(sal.cig || sal.cup) && (<><dt className="text-muted-foreground">CIG / CUP</dt><dd>{[sal.cig, sal.cup].filter(Boolean).join(" · ")}</dd></>)}
           </>
         )}
         {pag && (
           <>
-            <dt className="text-muted-foreground">Pagamento</dt>
-            <dd>{NOMI_PAGAMENTO[pag.tipo]} di {euro(pag.importo)}</dd>
-            <dt className="text-muted-foreground">Unità</dt>
-            <dd>{[pag.unita, pag.piano ? `piano ${pag.piano}` : null, pag.mq ? `${pag.mq} m²` : null].filter(Boolean).join(" · ")}</dd>
+            <dt className="text-muted-foreground">{t("Pagamento")}</dt>
+            <dd>{t("{tipo} di {importo}", { tipo: NOMI_PAGAMENTO[pag.tipo], importo: euro(pag.importo) })}</dd>
+            <dt className="text-muted-foreground">{t("Unità")}</dt>
+            <dd>{[pag.unita, pag.piano ? t("piano {n}", { n: pag.piano }) : null, pag.mq ? `${pag.mq} m²` : null].filter(Boolean).join(" · ")}</dd>
           </>
         )}
         <dt className="text-muted-foreground">IVA</dt>
         <dd className="tabular-nums">{euro(bozza.iva_totale ?? 0)}</dd>
-        <dt className="text-muted-foreground">Totale</dt>
+        <dt className="text-muted-foreground">{t("Totale")}</dt>
         <dd className="font-semibold tabular-nums">
           {euro(bozza.totale_documento ?? 0)}
           {bozza.totale_da_pagare !== bozza.totale_documento && (
-            <span className="ml-1 font-normal text-muted-foreground">· da incassare {euro(bozza.totale_da_pagare ?? 0)}</span>
+            <span className="ml-1 font-normal text-muted-foreground">{t("· da incassare {importo}", { importo: euro(bozza.totale_da_pagare ?? 0) })}</span>
           )}
         </dd>
       </dl>
 
       {sal && sal.reverseCharge && (
-        <p className="text-muted-foreground">Contratto in reverse charge: IVA a zero (N6.3) con la dicitura di legge.</p>
+        <p className="text-muted-foreground">{t("Contratto in reverse charge: IVA a zero (N6.3) con la dicitura di legge.")}</p>
       )}
       {sal && !sal.reverseCharge && (
         <fieldset className="space-y-2">
-          <legend className="font-medium">Aliquota IVA</legend>
-          {sal.splitPayment && <p className="text-muted-foreground">Split payment dal contratto: l'IVA la versa il committente, a te arriva l'imponibile.</p>}
+          <legend className="font-medium">{t("Aliquota IVA")}</legend>
+          {sal.splitPayment && <p className="text-muted-foreground">{t("Split payment dal contratto: l'IVA la versa il committente, a te arriva l'imponibile.")}</p>}
           <RadioGroup value={aliquotaSal} onValueChange={(v) => setAliquotaSal(v as AliquotaSal)} className="gap-1.5">
             {ALIQUOTE_SAL.map((a) => (
               <div key={a.valore} className="flex items-center gap-2">
@@ -161,8 +164,8 @@ function Contenuto({ generaleId, origine, id, dati, chiudi }: { generaleId: stri
 
       {pag && (
         <fieldset className="space-y-2">
-          <legend className="font-medium">IVA della vendita</legend>
-          <p className="text-xs text-muted-foreground">Il movimento dell'unità è al netto dell'IVA: l'imposta si aggiunge. Se hai inserito un importo già lordo, seleziona lo scorporo qui sotto.</p>
+          <legend className="font-medium">{t("IVA della vendita")}</legend>
+          <p className="text-xs text-muted-foreground">{t("Il movimento dell'unità è al netto dell'IVA: l'imposta si aggiunge. Se hai inserito un importo già lordo, seleziona lo scorporo qui sotto.")}</p>
           <RadioGroup value={ivaVendita} onValueChange={(v) => setIvaVendita(v as IvaVendita)} className="gap-1.5">
             {IVA_VENDITA.map((a) => (
               <div key={a.valore} className="flex items-start gap-2">
@@ -176,7 +179,7 @@ function Contenuto({ generaleId, origine, id, dati, chiudi }: { generaleId: stri
           {ivaVendita !== "esente" && (
             <div className="flex items-center gap-2 pt-1">
               <Checkbox id="iva-inclusa" checked={ivaInclusa} onCheckedChange={(v) => setIvaInclusa(v === true)} />
-              <Label htmlFor="iva-inclusa" className="text-sm font-normal">L'importo versato comprende l'IVA (si scorpora)</Label>
+              <Label htmlFor="iva-inclusa" className="text-sm font-normal">{t("L'importo versato comprende l'IVA (si scorpora)")}</Label>
             </div>
           )}
         </fieldset>
@@ -189,7 +192,7 @@ function Contenuto({ generaleId, origine, id, dati, chiudi }: { generaleId: stri
             <p>{AVVISO_CAPARRA}</p>
             <div className="flex items-center gap-2">
               <Checkbox id="caparra-voluta" checked={caparraVoluta} onCheckedChange={(v) => setCaparraVoluta(v === true)} />
-              <Label htmlFor="caparra-voluta" className="text-sm font-normal">La fatturo lo stesso</Label>
+              <Label htmlFor="caparra-voluta" className="text-sm font-normal">{t("La fatturo lo stesso")}</Label>
             </div>
           </AlertDescription>
         </Alert>
@@ -197,18 +200,18 @@ function Contenuto({ generaleId, origine, id, dati, chiudi }: { generaleId: stri
       {!cliente ? (
         <Alert variant="destructive">
           <AlertDescription>
-            {origine === "sal" ? "La commessa generale non ha un committente" : "L'unità non ha un acquirente"}: la bozza nasce senza cliente e lo scegli nell'editor.
+            {origine === "sal" ? t("La commessa generale non ha un committente") : t("L'unità non ha un acquirente")}{t(": la bozza nasce senza cliente e lo scegli nell'editor.")}
           </AlertDescription>
         </Alert>
       ) : mancaNelCliente.length > 0 ? (
-        <p className="text-muted-foreground">Prima di emettere, nell'editor completa {mancaNelCliente.join(", ")}.</p>
+        <p className="text-muted-foreground">{t("Prima di emettere, nell'editor completa {campi}.", { campi: mancaNelCliente.join(", ") })}</p>
       ) : null}
 
       <DialogFooter>
-        <Button variant="outline" onClick={chiudi}>Annulla</Button>
+        <Button variant="outline" onClick={chiudi}>{t("Annulla")}</Button>
         <Button onClick={prepara} disabled={crea.isPending || (caparra && !caparraVoluta)}>
           {crea.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
-          Prepara la bozza
+          {t("Prepara la bozza")}
         </Button>
       </DialogFooter>
     </div>

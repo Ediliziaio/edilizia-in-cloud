@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { X } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function IntestazioneScheda({
   icona: Icona,
@@ -36,15 +37,16 @@ export function FiltroAttivo({
   children: ReactNode;
   onReset: () => void;
 }) {
+  const t = useT();
   return (
     <div
       className="generale-filter-active"
       role="status"
-      aria-label="Filtro attivo"
+      aria-label={t("Filtro attivo")}
     >
       <span>{children}</span>
       <button type="button" onClick={onReset}>
-        <X aria-hidden="true" /> Rimuovi filtro
+        <X aria-hidden="true" /> {t("Rimuovi filtro")}
       </button>
     </div>
   );

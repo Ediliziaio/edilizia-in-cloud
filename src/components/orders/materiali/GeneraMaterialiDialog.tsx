@@ -24,6 +24,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, FileText, Loader2, Sparkles, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -198,6 +199,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
   /** Dopo il salvataggio: apre la scelta dei materiali proposti. */
   onProposti?: () => void;
 }) {
+  const tr = useT();
   const { effectiveCompany, user } = useAuth();
   const permessi = usePermissions();
   const [apriComputo, setApriComputo] = useState(false);
@@ -261,8 +263,8 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
     salvaComputo.mutate(
       { voci: c.voci, file: [], totaleDocumento: null, titolo: c.titolo, origine: "preventivo" },
       {
-        onSuccess: ({ id }) => { setComputoId(id); toast.info(`Uso il computo del preventivo${c.quoteNumber ? ` ${c.quoteNumber}` : ""}`, { description: `${c.voci.length} voci, con misure e capitoli: il file non serve.` }); },
-        onError: (e) => toast.error("Computo del preventivo non copiato", { description: e instanceof Error ? e.message : String(e) }),
+        onSuccess: ({ id }) => { setComputoId(id); toast.info(c.quoteNumber ? tr("Uso il computo del preventivo {numero}", { numero: c.quoteNumber }) : tr("Uso il computo del preventivo"), { description: tr("{n} voci, con misure e capitoli: il file non serve.", { n: c.voci.length }) }); },
+        onError: (e) => toast.error(tr("Computo del preventivo non copiato"), { description: e instanceof Error ? e.message : String(e) }),
       },
     );
   }, [open, senzaComputo, dalPreventivo.data, salvaComputo]);
@@ -287,10 +289,10 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
         onSuccess: ({ id, riusato, nonArchiviati }) => {
           setComputoId(id);
           setScelte({});
-          if (nonArchiviati.length) toast.info("Computo salvato con le sue voci", { description: `Il file originale (${nonArchiviati.join(", ")}) non è archiviato: si conservano PDF, Excel, PriMus e foto.` });
-          if (riusato) toast.info("Questo computo è già nella commessa: uso quello", { description: "Nessun doppione: i materiali generati prima e non ordinati si aggiornano quando salvi." });
+          if (nonArchiviati.length) toast.info(tr("Computo salvato con le sue voci"), { description: tr("Il file originale ({file}) non è archiviato: si conservano PDF, Excel, PriMus e foto.", { file: nonArchiviati.join(", ") }) });
+          if (riusato) toast.info(tr("Questo computo è già nella commessa: uso quello"), { description: tr("Nessun doppione: i materiali generati prima e non ordinati si aggiornano quando salvi.") });
         },
-        onError: (e) => toast.error("Computo non salvato", { description: e instanceof Error ? e.message : String(e) }),
+        onError: (e) => toast.error(tr("Computo non salvato"), { description: e instanceof Error ? e.message : String(e) }),
       },
     );
   };
@@ -386,7 +388,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
   }, [materiali, sceltaArticolo, dati.data]);
   const righeRicordi = [
     ...testoRicordi(ricordi),
-    ...aliasNuovi.map((a) => `«${a.alias_text}» → ${dati.data?.catalogo.articoli.find((x) => x.id === a.article_template_id)?.name ?? "articolo"}`),
+    ...aliasNuovi.map((a) => `«${a.alias_text}» → ${dati.data?.catalogo.articoli.find((x) => x.id === a.article_template_id)?.name ?? tr("articolo")}`),
   ];
   // Ripresa dopo un'interruzione (23/11/2026): le scelte non salvate restano su questo dispositivo,
   // per commessa e computo, e si ritrovano alla riapertura.
@@ -422,9 +424,9 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
   const [vediSenza, setVediSenza] = useState(false);
 
   const nomeFase = (id: string | null) => {
-    if (!id) return "Senza fase";
-    if (id.startsWith(NUOVA)) return `${id.slice(NUOVA.length)} (nuova)`;
-    return dati.data?.fasi.find((f) => f.id === id)?.name ?? "Fase";
+    if (!id) return tr("Senza fase");
+    if (id.startsWith(NUOVA)) return tr("{nome} (nuova)", { nome: id.slice(NUOVA.length) });
+    return dati.data?.fasi.find((f) => f.id === id)?.name ?? tr("Fase");
   };
   const perFase = useMemo(() => {
     const m = new Map<string, MaterialeCollegato[]>();
@@ -465,15 +467,15 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
         if (Array.isArray(richiesti)) mancanti.push(...richiesti);
       }
       // L'AI può dire che una voce è solo lavoro (nolo, manodopera, oneri): va detto, non «0 proposte».
-      const lavoro = soloLavoro ? `${soloLavoro} ${soloLavoro === 1 ? "voce è" : "voci sono"} solo lavoro, senza materiali da comprare.` : "";
-      if (create) toast.success(`L'AI ha proposto i materiali di ${create} ${create === 1 ? "voce" : "voci"}`, { description: `Compaiono qui sotto spenti, «Da controllare»: accendili per salvarli. ${lavoro}`.trim() });
-      else toast.info(soloLavoro ? "Nessun materiale da comprare" : "L'AI non ha proposto materiali", { description: lavoro || "Riprova, o aggiungi i materiali a mano." });
-      if (daVerificare) toast.warning(`${daVerificare} voci richiedono altri dati`, { description: "Non sono voci senza materiali: completa specifiche e misure prima di calcolare gli acquisti." });
+      const lavoro = soloLavoro ? tr(soloLavoro === 1 ? "{n} voce è solo lavoro, senza materiali da comprare." : "{n} voci sono solo lavoro, senza materiali da comprare.", { n: soloLavoro }) : "";
+      if (create) toast.success(tr(create === 1 ? "L'AI ha proposto i materiali di {n} voce" : "L'AI ha proposto i materiali di {n} voci", { n: create }), { description: `${tr("Compaiono qui sotto spenti, «Da controllare»: accendili per salvarli.")} ${lavoro}`.trim() });
+      else toast.info(soloLavoro ? tr("Nessun materiale da comprare") : tr("L'AI non ha proposto materiali"), { description: lavoro || tr("Riprova, o aggiungi i materiali a mano.") });
+      if (daVerificare) toast.warning(tr("{n} voci richiedono altri dati", { n: daVerificare }), { description: tr("Non sono voci senza materiali: completa specifiche e misure prima di calcolare gli acquisti.") });
       setDatiDaChiedere(mancanti);
       qc.invalidateQueries({ queryKey: ["scomposizioni"] });
       qc.invalidateQueries({ queryKey: ["genera-materiali", orderId, companyId] });
     } catch (e) {
-      toast.error("Proposta non riuscita", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Proposta non riuscita"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setProponendo(false);
     }
@@ -486,11 +488,11 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
     const { data, error } = await supabase.from("article_templates")
       .insert({ company_id: companyId, name: a.name, unit_of_measure: a.unit_of_measure, description: a.description, supplier_id: a.supplier_id, vat_rate: 22 })
       .select("id, name, sku, unit_of_measure, supplier_id, prezzo_acquisto_netto, standard_cost, marca, modello").single();
-    if (error || !data) { toast.error("Articolo non aggiunto al catalogo", { description: messaggioErrore(error) }); return null; }
+    if (error || !data) { toast.error(tr("Articolo non aggiunto al catalogo"), { description: messaggioErrore(error) }); return null; }
     // Subito nel catalogo della finestra, senza aspettare la rilettura.
     qc.setQueryData(["genera-materiali", orderId, companyId], (d: typeof dati.data) => d ? { ...d, catalogo: { ...d.catalogo, articoli: [...d.catalogo.articoli, data as ArticoloCatalogo] } } : d);
     qc.invalidateQueries({ queryKey: ["article-templates"] });
-    toast.success(`«${a.name}» aggiunto al catalogo`, { description: "Il prezzo d'acquisto lo scrivi nel catalogo, o arriva dal primo ordine." });
+    toast.success(tr("«{nome}» aggiunto al catalogo", { nome: a.name }), { description: tr("Il prezzo d'acquisto lo scrivi nel catalogo, o arriva dal primo ordine.") });
     return data.id;
   };
   const [salvando, setSalvando] = useState(false);
@@ -520,10 +522,10 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
       const { data, error } = await (supabase as any).rpc("materiali_proponi", { p_order: orderId, p_righe: righe, p_computo: scelto?.id ?? null });
       if (error) throw error;
       const esito = data as { proposti: number; gia_decisi: number; gia_articoli: number };
-      toast.success(`${esito.proposti} materiali da confermare in Articoli`, {
-        description: [esito.gia_articoli ? `${esito.gia_articoli} erano già negli articoli` : null,
-          esito.gia_decisi ? `${esito.gia_decisi} già confermati o scartati prima` : null].filter(Boolean).join(" · ")
-          || "Spunta, fase per fase, quelli da comprare e premi «Inserisci negli articoli».",
+      toast.success(tr("{n} materiali da confermare in Articoli", { n: esito.proposti }), {
+        description: [esito.gia_articoli ? tr("{n} erano già negli articoli", { n: esito.gia_articoli }) : null,
+          esito.gia_decisi ? tr("{n} già confermati o scartati prima", { n: esito.gia_decisi }) : null].filter(Boolean).join(" · ")
+          || tr("Spunta, fase per fase, quelli da comprare e premi «Inserisci negli articoli»."),
       });
       // Commessa nata senza preventivo: dal computo anche le lavorazioni (fasi, sottofasi, importi), 17/11/2026.
       if (conLavorazioni && dati.data?.senzaLavorazioni && scelto?.id) {
@@ -537,11 +539,11 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: lav, error: errLav } = await (supabase as any).rpc("commessa_lavorazioni_dal_computo", { p_order_id: orderId, p_computo_id: scelto.id, p_fasi: fasiScelte });
-        if (errLav) toast.warning("Materiali salvati, lavorazioni non create", { description: messaggioErrore(errLav) });
+        if (errLav) toast.warning(tr("Materiali salvati, lavorazioni non create"), { description: messaggioErrore(errLav) });
         else {
           const l = lav as { fasi: number; fasi_nuove: number; voci: number; voci_con_costo: number };
-          toast.success(`${l.voci} lavorazioni in ${l.fasi} fasi, con gli importi del computo`, {
-            description: l.voci_con_costo ? `${l.voci_con_costo} con il costo dal listino aziendale.` : "Nessuna voce ha un costo nel listino aziendale: il costo previsto resta da scrivere.",
+          toast.success(tr("{voci} lavorazioni in {fasi} fasi, con gli importi del computo", { voci: l.voci, fasi: l.fasi }), {
+            description: l.voci_con_costo ? tr("{n} con il costo dal listino aziendale.", { n: l.voci_con_costo }) : tr("Nessuna voce ha un costo nel listino aziendale: il costo previsto resta da scrivere."),
           });
           qc.invalidateQueries({ queryKey: ["genera-materiali", orderId, companyId] });
           // Le voci e le sottofasi nuove: costo previsto, margine e lavorazioni si rileggono.
@@ -555,13 +557,13 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
       if (ricorda && righeRicordi.length) {
         try {
           const n = await ricordaScelte(companyId, ricordi, aliasNuovi);
-          toast.success(`Ricordato per i prossimi computi (${n})`, {
-            description: righeRicordi.length > 3 ? `${righeRicordi.slice(0, 2).join(" · ")} · e altre ${righeRicordi.length - 2}` : righeRicordi.join(" · "),
+          toast.success(tr("Ricordato per i prossimi computi ({n})", { n }), {
+            description: righeRicordi.length > 3 ? `${righeRicordi.slice(0, 2).join(" · ")} · ${tr("e altre {n}", { n: righeRicordi.length - 2 })}` : righeRicordi.join(" · "),
           });
           qc.invalidateQueries({ queryKey: ["scomposizioni"] });
           qc.invalidateQueries({ queryKey: ["genera-materiali", orderId, companyId] });
         } catch (e) {
-          toast.error("Scelte non ricordate", { description: messaggioErrore(e) });
+          toast.error(tr("Scelte non ricordate"), { description: messaggioErrore(e) });
         }
       }
       await Promise.all([
@@ -574,7 +576,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
       onOpenChange(false);
       if (esito.proposti > 0) onProposti?.();
     } catch (e) {
-      toast.error("Materiali non salvati", { description: messaggioErrore(e) });
+      toast.error(tr("Materiali non salvati"), { description: messaggioErrore(e) });
     } finally {
       setSalvando(false);
     }
@@ -602,12 +604,12 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
   const avvisiAltri = (risultato?.avvisi ?? []).filter((a) => a.tipo !== "senza_scomposizione");
   const totaleComputo = vociComputo.reduce((t, v) => t + (Number((v as { importo_computo?: number | null }).importo_computo) || 0) * ((v as { is_detrazione?: boolean | null }).is_detrazione ? -1 : 1), 0);
   const passiVisibili: { id: Passo; etichetta: string; conteggio: number | null; tono: "attenzione" | "ok" | null }[] = [
-    ...(scelto ? [{ id: "voci" as const, etichetta: "Voci", conteggio: voci.data?.length ?? 0, tono: null }] : []),
-    { id: "controllo" as const, etichetta: "Controllo", conteggio: daVerificare.length + vociDaChiarire.length + (letto?.sommeDaControllare.length ?? 0), tono: daVerificare.length ? "attenzione" as const : "ok" as const },
-    ...(capitoli.length ? [{ id: "fasi" as const, etichetta: "Fasi", conteggio: capitoli.length, tono: null }] : []),
-    ...(servizi.length ? [{ id: "noli" as const, etichetta: "Noli e servizi", conteggio: servizi.length, tono: null }] : []),
-    { id: "materiali" as const, etichetta: "Materiali", conteggio: daSalvare.length, tono: risultato?.senzaScomposizione.length ? "attenzione" as const : null },
-    { id: "acquisti" as const, etichetta: "Piano acquisti", conteggio: null, tono: null },
+    ...(scelto ? [{ id: "voci" as const, etichetta: tr("Voci"), conteggio: voci.data?.length ?? 0, tono: null }] : []),
+    { id: "controllo" as const, etichetta: tr("Controllo"), conteggio: daVerificare.length + vociDaChiarire.length + (letto?.sommeDaControllare.length ?? 0), tono: daVerificare.length ? "attenzione" as const : "ok" as const },
+    ...(capitoli.length ? [{ id: "fasi" as const, etichetta: tr("Fasi"), conteggio: capitoli.length, tono: null }] : []),
+    ...(servizi.length ? [{ id: "noli" as const, etichetta: tr("Noli e servizi"), conteggio: servizi.length, tono: null }] : []),
+    { id: "materiali" as const, etichetta: tr("Materiali"), conteggio: daSalvare.length, tono: risultato?.senzaScomposizione.length ? "attenzione" as const : null },
+    { id: "acquisti" as const, etichetta: tr("Piano acquisti"), conteggio: null, tono: null },
   ];
   // Si apre sul primo passo che chiede attenzione: il controllo se qualcosa non torna, se no i materiali.
   const passoAttivo: Passo = passo && passiVisibili.some((p) => p.id === passo) ? passo : daVerificare.length ? "controllo" : "materiali";
@@ -617,10 +619,10 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
 
   const riprovaUltimo = nonLetto && (
     <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-rose-200 bg-rose-50/60 p-2 text-xs text-rose-700">
-      <span className="min-w-0 flex-1">L'ultimo file («{nonLetto.file_name}») non si è letto: {nonLetto.extraction_error || "riprova con il PDF di PriMus o l'XPWE"}.</span>
+      <span className="min-w-0 flex-1">{tr("L'ultimo file («{file}») non si è letto: {motivo}.", { file: nonLetto.file_name, motivo: nonLetto.extraction_error || tr("riprova con il PDF di PriMus o l'XPWE") })}</span>
       <Button type="button" size="sm" variant="outline" className="h-7 bg-white" disabled={riprova.isPending}
-        onClick={() => riprova.mutate(nonLetto.id, { onError: (e) => toast.error(e instanceof Error ? e.message : "Lettura non riuscita.") })}>
-        {riprova.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden />}Riprova la lettura
+        onClick={() => riprova.mutate(nonLetto.id, { onError: (e) => toast.error(e instanceof Error ? e.message : tr("Lettura non riuscita.")) })}>
+        {riprova.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden />}{tr("Riprova la lettura")}
       </Button>
     </div>
   );
@@ -633,15 +635,15 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
         onAggiungi={daImporta}
         vociPresenti={0}
         consentiAi
-        titolo="Genera dal computo"
-        notaDestinazione="Le voci diventano il computo della commessa."
+        titolo={tr("Genera dal computo")}
+        notaDestinazione={tr("Le voci diventano il computo della commessa.")}
         descrizione={scelto
-          ? `Carica un altro computo: le voci si leggono da sole, le rivedi e poi vedi i materiali da comprare. «${scelto.titolo || scelto.file_name}» resta archiviato, non cancellato.`
-          : "Carica il computo della commessa: le voci si leggono da sole, le rivedi e poi vedi i materiali da comprare, divisi per fase. I materiali arrivano come proposte da confermare nella scheda Articoli."}
-        etichettaConferma={(n) => `Avanti: materiali da ${n} ${n === 1 ? "voce" : "voci"}`}
+          ? tr("Carica un altro computo: le voci si leggono da sole, le rivedi e poi vedi i materiali da comprare. «{nome}» resta archiviato, non cancellato.", { nome: scelto.titolo || scelto.file_name })
+          : tr("Carica il computo della commessa: le voci si leggono da sole, le rivedi e poi vedi i materiali da comprare, divisi per fase. I materiali arrivano come proposte da confermare nella scheda Articoli.")}
+        etichettaConferma={(n) => tr(n === 1 ? "Avanti: materiali da {n} voce" : "Avanti: materiali da {n} voci", { n })}
         altreFonti={<div className="space-y-2">
           {riprovaUltimo}
-          <p className="text-xs text-muted-foreground">Senza computo puoi partire dalle tavole: «Tavole» nella barra degli articoli.</p>
+          <p className="text-xs text-muted-foreground">{tr("Senza computo puoi partire dalle tavole: «Tavole» nella barra degli articoli.")}</p>
         </div>}
       />
     );
@@ -649,56 +651,56 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
 
   return (
     <Dialog open={open} onOpenChange={(o) => {
-      if (!o && bozzaVoce) { setPasso("voci"); toast.info("Salva o annulla la modifica della voce prima di chiudere."); return; }
+      if (!o && bozzaVoce) { setPasso("voci"); toast.info(tr("Salva o annulla la modifica della voce prima di chiudere.")); return; }
       onOpenChange(o);
     }}>
       <DialogContent className="flex max-h-[92vh] max-w-6xl flex-col gap-0 overflow-hidden p-0">
         {/* Testata in una riga: titolo, il computo e le sue azioni. La spiegazione è nel suggerimento. */}
         <DialogHeader className="space-y-1 border-b px-5 pb-3 pt-4 text-left">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pr-8">
-            <DialogTitle className="text-base">Genera dal computo</DialogTitle>
+            <DialogTitle className="text-base">{tr("Genera dal computo")}</DialogTitle>
             {salvaComputo.isPending ? (
-              <span className="flex items-center gap-1.5 text-xs text-slate-600"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />Salvo il computo nella commessa…</span>
+              <span className="flex items-center gap-1.5 text-xs text-slate-600"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />{tr("Salvo il computo nella commessa…")}</span>
             ) : inLettura ? (
               <span className="flex items-center gap-1.5 text-xs text-slate-600"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                Sto leggendo «{inLettura.titolo || inLettura.file_name}»{inLettura.progresso ? ` (${inLettura.progresso})` : ""}</span>
+                {tr("Sto leggendo «{nome}»", { nome: inLettura.titolo || inLettura.file_name })}{inLettura.progresso ? ` (${inLettura.progresso})` : ""}</span>
             ) : scelto ? (
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-xs">
                 <FileText className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
                 {letti.length > 1 ? (
                   <Select value={scelto.id} onValueChange={(id) => { setComputoId(id); setScelte({}); setAccese({}); setSceltaArticolo({}); }}>
-                    <SelectTrigger disabled={bozzaVoce} className="h-7 w-auto max-w-xs gap-1 border-slate-200 px-2 text-xs" aria-label="Computo"><SelectValue /></SelectTrigger>
+                    <SelectTrigger disabled={bozzaVoce} className="h-7 w-auto max-w-xs gap-1 border-slate-200 px-2 text-xs" aria-label={tr("Computo")}><SelectValue /></SelectTrigger>
                     <SelectContent>{letti.map((c) => <SelectItem key={c.id} value={c.id}>{c.titolo || c.file_name} · {c.stato}</SelectItem>)}</SelectContent>
                   </Select>
                 ) : <span className="min-w-0 truncate font-medium text-slate-800">{scelto.titolo || scelto.file_name}</span>}
-                <span className="text-slate-500">{scelto.stato}{voci.data ? ` · ${voci.data.length} voci` : ""}</span>
-                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setVoceInRevisione(null); setPasso("voci"); }}>{scelto.ripartizione_origine_id ? "Vedi voci" : "Modifica voci"}</Button>
-                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setApriComputo(true)}>Documento e misure</Button>
-                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={bozzaVoce} onClick={() => setImporta(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />Carica un altro</Button>
+                <span className="text-slate-500">{scelto.stato}{voci.data ? ` · ${tr("{n} voci", { n: voci.data.length })}` : ""}</span>
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setVoceInRevisione(null); setPasso("voci"); }}>{scelto.ripartizione_origine_id ? tr("Vedi voci") : tr("Modifica voci")}</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setApriComputo(true)}>{tr("Documento e misure")}</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={bozzaVoce} onClick={() => setImporta(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />{tr("Carica un altro")}</Button>
               </div>
             ) : !computi.isLoading && companyId ? (
               <div className="flex flex-1 items-center gap-2 text-xs text-slate-600">
-                <span>{soloOriginaliRipartiti ? "Il computo è ripartito. Assegna una quota a questa commessa per usarlo qui." : "Nessun computo: i materiali vengono dalle tavole contate."}</span>
-                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setImporta(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />Carica il computo</Button>
+                <span>{soloOriginaliRipartiti ? tr("Il computo è ripartito. Assegna una quota a questa commessa per usarlo qui.") : tr("Nessun computo: i materiali vengono dalle tavole contate.")}</span>
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setImporta(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />{tr("Carica il computo")}</Button>
               </div>
             ) : null}
           </div>
           <DialogDescription className="text-xs">
-            Rivedi le voci, collega le fasi e prepara i materiali. Le quantità stimate restano da confermare prima dell'acquisto.
+            {tr("Rivedi le voci, collega le fasi e prepara i materiali. Le quantità stimate restano da confermare prima dell'acquisto.")}
           </DialogDescription>
           {riprovaUltimo}
         </DialogHeader>
 
         {ripreseDal && !caricamento && risultato && (
           <p role="status" className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-sky-50 px-4 py-1.5 text-xs text-sky-950">
-            Riprese le scelte che avevi lasciato il {new Date(ripreseDal).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}: fasi, righe spente e articoli abbinati.
-            <button type="button" className="font-medium underline underline-offset-2" onClick={ricomincia}>Ricomincia da capo</button>
+            {tr("Riprese le scelte che avevi lasciato il {data}: fasi, righe spente e articoli abbinati.", { data: new Date(ripreseDal).toLocaleString(intlCampo(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) })}
+            <button type="button" className="font-medium underline underline-offset-2" onClick={ricomincia}>{tr("Ricomincia da capo")}</button>
           </p>
         )}
 
         {/* I passi (17/11/2026): una cosa per volta, coi numeri in vista. Si salta liberamente fra i passi. */}
         {!caricamento && risultato && !nienteDaLeggere && (
-          <nav aria-label="Passi" role="tablist" className="flex shrink-0 gap-1 overflow-x-auto border-b bg-slate-50/70 px-4 py-1.5">
+          <nav aria-label={tr("Passi")} role="tablist" className="flex shrink-0 gap-1 overflow-x-auto border-b bg-slate-50/70 px-4 py-1.5">
             {passiVisibili.map((p, i) => {
               const attivo = p.id === passoAttivo;
               return (
@@ -710,7 +712,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
                   {p.etichetta}
                   {p.conteggio != null && (
                     <span className={cn("rounded-full px-1.5 tabular-nums text-[11px]", p.tono === "attenzione" ? "bg-amber-100 text-amber-900" : p.tono === "ok" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200/70 text-slate-700")}>
-                      {p.tono === "ok" ? <Check className="h-3 w-3" aria-label="Niente da controllare" /> : p.conteggio}
+                      {p.tono === "ok" ? <Check className="h-3 w-3" aria-label={tr("Niente da controllare")} /> : p.conteggio}
                     </span>
                   )}
                 </button>
@@ -720,7 +722,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
         )}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
-          {caricamento && <p className="py-6 text-sm text-slate-500">Leggo computo, scomposizioni, catalogo e magazzino…</p>}
+          {caricamento && <p className="py-6 text-sm text-slate-500">{tr("Leggo computo, scomposizioni, catalogo e magazzino…")}</p>}
 
           {!caricamento && risultato && !nienteDaLeggere && (
             <div className="space-y-3 pt-3 text-sm">
@@ -731,34 +733,34 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
                   onSalvata={() => { setAccese({}); setVoceInRevisione(null); }} />
               </div>}
               {passoAttivo === "controllo" && (
-                <section aria-label="Controllo del computo" className="space-y-2">
+                <section aria-label={tr("Controllo del computo")} className="space-y-2">
                   <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-slate-600">
-                    <span className="font-semibold text-slate-900">{vociComputo.length} voci lette</span>
+                    <span className="font-semibold text-slate-900">{tr("{n} voci lette", { n: vociComputo.length })}</span>
                     {mostraPrezzi && totaleComputo > 0 && <span>· {euro(totaleComputo)}</span>}
-                    <span>· {capitoli.length} capitoli</span>
-                    {servizi.length > 0 && <span>· {servizi.length} noli e servizi</span>}
+                    <span>· {tr("{n} capitoli", { n: capitoli.length })}</span>
+                    {servizi.length > 0 && <span>· {tr("{n} noli e servizi", { n: servizi.length })}</span>}
                   </p>
                   {daVerificare.length > 0 ? (
                     <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                      <span className="font-semibold">{daVerificare.length} voci con quantità o unità che non tornano</span>
-                      {mostraPrezzi && importoInGioco(incongruenze) > 0 && <> · {euro(importoInGioco(incongruenze))} in gioco</>}
-                      {" "}— apri la voce e correggila, oppure verifica il dato con il progettista. Le proposte incomplete restano da confermare.
+                      <span className="font-semibold">{tr("{n} voci con quantità o unità che non tornano", { n: daVerificare.length })}</span>
+                      {mostraPrezzi && importoInGioco(incongruenze) > 0 && <> · {tr("{importo} in gioco", { importo: euro(importoInGioco(incongruenze)) })}</>}
+                      {" "}{tr("— apri la voce e correggila, oppure verifica il dato con il progettista. Le proposte incomplete restano da confermare.")}
                     </p>
                   ) : (
                     <p className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-                      <Check className="h-3.5 w-3.5" aria-hidden />Nei numeri del computo non c'è niente che non torni.
+                      <Check className="h-3.5 w-3.5" aria-hidden />{tr("Nei numeri del computo non c'è niente che non torni.")}
                     </p>
                   )}
                   {incongruenze.length > 0 && (
                     <ul className="divide-y rounded-md border bg-white text-xs">
                       {incongruenze.map((x, i) => (
                         <li key={`${x.voce_id}-${x.regola}-${i}`} className="grid grid-cols-[4.5rem_1fr_auto] gap-3 px-3 py-2">
-                          <span className="tabular-nums text-slate-500">voce {x.numero.length > 12 ? "varie" : x.numero}</span>
+                          <span className="tabular-nums text-slate-500">{tr("voce {n}", { n: x.numero.length > 12 ? tr("varie") : x.numero })}</span>
                           <span className="min-w-0">
                             <span className={cn("font-medium", x.gravita === "verifica" ? "text-amber-900" : "text-slate-700")}>{x.titolo}</span>
                             <span className="block text-slate-600">{x.messaggio}</span>
                             {vociComputo.some(v => v.id === x.voce_id) && <button type="button" className="mt-1 font-medium text-primary underline underline-offset-2"
-                              onClick={() => { setVoceInRevisione(x.voce_id); setPasso("voci"); }}>Apri voce {x.numero}</button>}
+                              onClick={() => { setVoceInRevisione(x.voce_id); setPasso("voci"); }}>{tr("Apri voce {n}", { n: x.numero })}</button>}
                           </span>
                           <span className="tabular-nums text-slate-700">{mostraPrezzi && x.importo ? euro(x.importo) : ""}</span>
                         </li>
@@ -769,27 +771,27 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
               )}
 
               {passoAttivo === "controllo" && letto && (vociDaChiarire.length > 0 || letto.sommeDaControllare.length > 0) && (
-                <section aria-label="Voci da chiarire" className="space-y-1">
-                  <p className="text-xs font-semibold text-slate-900">Da chiarire prima di comprare ({vociDaChiarire.length + letto.sommeDaControllare.length})</p>
+                <section aria-label={tr("Voci da chiarire")} className="space-y-1">
+                  <p className="text-xs font-semibold text-slate-900">{tr("Da chiarire prima di comprare ({n})", { n: vociDaChiarire.length + letto.sommeDaControllare.length })}</p>
                   <ul className="divide-y rounded-md border bg-white text-xs">
                     {vociDaChiarire.map((v) => (
                       <li key={v.voce_id} className="grid grid-cols-[4.5rem_1fr] gap-3 px-3 py-2">
-                        <span className="tabular-nums text-slate-500">voce {v.numero ?? "—"}</span>
+                        <span className="tabular-nums text-slate-500">{tr("voce")} {v.numero ?? "—"}</span>
                         <span className="min-w-0">
                           <span className="font-medium text-slate-800">{v.descrizione}</span>
-                          <span className="ml-2 text-slate-500">{v.quantita != null && v.quantita > 0 ? `${v.quantita.toLocaleString("it-IT")} ${v.unita ?? ""}` : "senza quantità"}</span>
+                          <span className="ml-2 text-slate-500">{v.quantita != null && v.quantita > 0 ? `${v.quantita.toLocaleString(intlCampo())} ${v.unita ?? ""}` : tr("senza quantità")}</span>
                           {v.daChiarire.map((d) => <span key={d} className="block text-slate-600">{d}</span>)}
                           <button type="button" className="mt-1 font-medium text-primary underline underline-offset-2"
-                            onClick={() => { setVoceInRevisione(v.voce_id); setPasso("voci"); }}>Apri voce {v.numero ?? ""}</button>
+                            onClick={() => { setVoceInRevisione(v.voce_id); setPasso("voci"); }}>{tr("Apri voce")} {v.numero ?? ""}</button>
                         </span>
                       </li>
                     ))}
                     {letto.sommeDaControllare.map((x) => (
                       <li key={x.chiave} className="grid grid-cols-[4.5rem_1fr] gap-3 px-3 py-2">
-                        <span className="tabular-nums text-slate-500">voci {x.voci.map((v) => v.numero ?? "—").join(", ")}</span>
+                        <span className="tabular-nums text-slate-500">{tr("voci {numeri}", { numeri: x.voci.map((v) => v.numero ?? "—").join(", ") })}</span>
                         <span className="min-w-0">
                           <span className="font-medium text-slate-800">{x.materiale}</span>
-                          <span className="block text-slate-600">Sommato da voci con caratteristiche diverse ({x.voci.map((v) => v.caratteristiche.join(" · ") || "nessuna").join(" / ")}): se sono articoli diversi, cambia il nome di una delle voci.</span>
+                          <span className="block text-slate-600">{tr("Sommato da voci con caratteristiche diverse ({caratteristiche}): se sono articoli diversi, cambia il nome di una delle voci.", { caratteristiche: x.voci.map((v) => v.caratteristiche.join(" · ") || tr("nessuna")).join(" / ") })}</span>
                         </span>
                       </li>
                     ))}
@@ -798,12 +800,12 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
               )}
 
               {passoAttivo === "fasi" && (
-                <section aria-label="Capitoli e fasi" className="space-y-2">
+                <section aria-label={tr("Capitoli e fasi")} className="space-y-2">
                   <p className="text-xs text-slate-600">
-                    {fasiNuove.length > 0 && !(dati.data?.fasi.length) ? "La commessa non ha fasi: ogni capitolo ne diventa una. " : "Ogni capitolo va in una fase della commessa. "}
-                    Le voci di un altro mestiere vanno comunque nella loro fase.
-                    {suggerimentiAI.isFetching && <span className="ml-2 inline-flex items-center gap-1 text-violet-700"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />l'AI propone {incerti.length}</span>}
-                    {suggerimentiAI.isError && <span className="ml-2 text-amber-800">Proposta dell'AI non disponibile: scegli tu la fase.</span>}
+                    {fasiNuove.length > 0 && !(dati.data?.fasi.length) ? tr("La commessa non ha fasi: ogni capitolo ne diventa una.") : tr("Ogni capitolo va in una fase della commessa.")}{" "}
+                    {tr("Le voci di un altro mestiere vanno comunque nella loro fase.")}
+                    {suggerimentiAI.isFetching && <span className="ml-2 inline-flex items-center gap-1 text-violet-700"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />{tr("l'AI propone {n}", { n: incerti.length })}</span>}
+                    {suggerimentiAI.isError && <span className="ml-2 text-amber-800">{tr("Proposta dell'AI non disponibile: scegli tu la fase.")}</span>}
                   </p>
                   <ul className="divide-y rounded-md border bg-white">
                     {capitoli.map((c) => {
@@ -818,22 +820,22 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
                               {tag && <span className="rounded bg-slate-100 px-1.5 text-[10px] font-semibold text-slate-600">{tag}</span>}
                               <span className="truncate font-medium text-slate-900">{nome}</span>
                             </span>
-                            <span className="text-xs text-slate-500">{quante} {quante === 1 ? "voce" : "voci"}</span>
+                            <span className="text-xs text-slate-500">{tr(quante === 1 ? "{n} voce" : "{n} voci", { n: quante })}</span>
                           </span>
                           <span className="text-[11px]">
                             {s && !sicuri.has(c) && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-violet-800" title={`Suggerimento dell'AI: ${s.motivo}`}>
+                              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-violet-800" title={tr("Suggerimento dell'AI: {motivo}", { motivo: s.motivo })}>
                                 <Sparkles className="h-3 w-3" aria-hidden />AI {Math.round(s.confidenza * 100)}%
                               </span>
                             )}
                           </span>
                           <Select value={mappa[c] ?? SENZA} onValueChange={(v) => setMappa({ ...mappa, [c]: v })}>
-                            <SelectTrigger className="h-8 text-xs" aria-label={`Fase per ${c}`}><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-8 text-xs" aria-label={tr("Fase per {capitolo}", { capitolo: c })}><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {(dati.data?.fasi ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-                              {nuovaAI && <SelectItem value={NUOVA + nuovaAI}>Nuova fase «{nuovaAI}» (AI)</SelectItem>}
-                              {c !== "Senza capitolo" && <SelectItem value={NUOVA + c}>Nuova fase «{nome}»</SelectItem>}
-                              <SelectItem value={SENZA}>{c === "Senza capitolo" ? "Dal testo della voce" : "Senza fase"}</SelectItem>
+                              {nuovaAI && <SelectItem value={NUOVA + nuovaAI}>{tr("Nuova fase «{nome}» (AI)", { nome: nuovaAI })}</SelectItem>}
+                              {c !== "Senza capitolo" && <SelectItem value={NUOVA + c}>{tr("Nuova fase «{nome}»", { nome })}</SelectItem>}
+                              <SelectItem value={SENZA}>{c === "Senza capitolo" ? tr("Dal testo della voce") : tr("Senza fase")}</SelectItem>
                             </SelectContent>
                           </Select>
                         </li>
@@ -844,18 +846,18 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
               )}
 
               {passoAttivo === "noli" && (
-                <section aria-label="Noli, servizi e ore" className="space-y-2">
-                  <p className="text-xs text-slate-600">Non sono materiali da ordinare: si contrattano con noleggiatori, imprese e professionisti, per la durata del cantiere.</p>
+                <section aria-label={tr("Noli, servizi e ore")} className="space-y-2">
+                  <p className="text-xs text-slate-600">{tr("Non sono materiali da ordinare: si contrattano con noleggiatori, imprese e professionisti, per la durata del cantiere.")}</p>
                   <ul className="divide-y rounded-md border bg-white text-xs">
                     {servizi.map((x) => (
                       <li key={x.voce_id} className="grid grid-cols-[7.5rem_1fr_auto] gap-3 px-3 py-2">
-                        <span className="font-medium text-slate-700">{ETICHETTA_SERVIZIO[x.tipo]}{x.mesi ? ` · ${x.mesi.toLocaleString("it-IT")} mesi` : ""}</span>
+                        <span className="font-medium text-slate-700">{tr(ETICHETTA_SERVIZIO[x.tipo])}{x.mesi ? ` · ${tr("{n} mesi", { n: x.mesi.toLocaleString(intlCampo()) })}` : ""}</span>
                         <span className="min-w-0">
                           <span className="block truncate text-slate-800" title={x.descrizione}>{x.numero ? `${x.numero} · ` : ""}{x.descrizione}</span>
                           <span className="block text-slate-500">{x.nota}</span>
                           {x.tipo === "nolo" && mezziPerNolo(x.descrizione, mezziAzienda.data ?? [], orderId).map((m) => (
                             <span key={m.mezzo.id} className={cn("block", m.libero ? "text-emerald-800" : "text-slate-500")}>
-                              {m.libero ? "L'azienda ce l'ha: " : "L'azienda ce l'ha, ma: "}{m.motivo}{m.libero ? " — assegnalo da Cantiere → Mezzi invece di noleggiare." : ""}
+                              {m.libero ? tr("L'azienda ce l'ha: {motivo} — assegnalo da Cantiere → Mezzi invece di noleggiare.", { motivo: m.motivo }) : tr("L'azienda ce l'ha, ma: {motivo}", { motivo: m.motivo })}
                             </span>
                           ))}
                         </span>
@@ -868,20 +870,20 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
 
               {passoAttivo === "acquisti" && (
                 disponibilita.isError ? <div role="alert" className="rounded-md border border-amber-200 p-3 text-xs">
-                  <p>Non riesco a verificare magazzino e ordini. Il fabbisogno netto non è disponibile.</p>
-                  <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => disponibilita.refetch()}>Riprova la verifica</Button>
-                </div> : !disponibilita.data ? <p role="status">Verifico giacenze disponibili, ordini e date delle fasi…</p> :
+                  <p>{tr("Non riesco a verificare magazzino e ordini. Il fabbisogno netto non è disponibile.")}</p>
+                  <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => disponibilita.refetch()}>{tr("Riprova la verifica")}</Button>
+                </div> : !disponibilita.data ? <p role="status">{tr("Verifico giacenze disponibili, ordini e date delle fasi…")}</p> :
                   <>
                     {variazioni.length > 0 && (
-                      <section aria-label="Cambiato rispetto agli articoli confermati" className="mb-2 rounded-md border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-950">
-                        <p className="font-semibold">Il computo è cambiato su {variazioni.length} {variazioni.length === 1 ? "articolo già confermato" : "articoli già confermati"}: restano come li hai confermati, decidi tu se correggerli.</p>
+                      <section aria-label={tr("Cambiato rispetto agli articoli confermati")} className="mb-2 rounded-md border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-950">
+                        <p className="font-semibold">{tr(variazioni.length === 1 ? "Il computo è cambiato su {n} articolo già confermato: restano come li hai confermati, decidi tu se correggerli." : "Il computo è cambiato su {n} articoli già confermati: restano come li hai confermati, decidi tu se correggerli.", { n: variazioni.length })}</p>
                         <ul className="mt-1 max-h-32 space-y-0.5 overflow-auto">
                           {variazioni.map((x) => (
                             <li key={x.order_item_id} className="flex justify-between gap-3">
                               <span className="min-w-0 truncate" title={x.nome}>{x.nome}</span>
                               <span className="shrink-0 tabular-nums">
-                                {x.tipo === "non_piu_nel_computo" ? "non è più nel computo"
-                                  : `${Number(x.prima).toLocaleString("it-IT")} → ${Number(x.ora).toLocaleString("it-IT")} ${x.unita ?? ""}`}
+                                {x.tipo === "non_piu_nel_computo" ? tr("non è più nel computo")
+                                  : `${Number(x.prima).toLocaleString(intlCampo())} → ${Number(x.ora).toLocaleString(intlCampo())} ${x.unita ?? ""}`}
                               </span>
                             </li>
                           ))}
@@ -895,26 +897,26 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
               {passoAttivo === "materiali" && (
                 <>
                   {risultato.senzaScomposizione.length > 0 && (
-                    <section aria-label="Voci da scomporre" className="rounded-md border border-violet-200 bg-violet-50/60 text-xs text-violet-950">
+                    <section aria-label={tr("Voci da scomporre")} className="rounded-md border border-violet-200 bg-violet-50/60 text-xs text-violet-950">
                       <div className="flex flex-wrap items-center gap-2 px-3 py-2">
                         <Sparkles className="h-3.5 w-3.5 text-violet-700" aria-hidden />
-                        <span className="font-semibold">{risultato.senzaScomposizione.length} {risultato.senzaScomposizione.length === 1 ? "voce" : "voci"} da scomporre</span>
-                        <span className="text-violet-900/80">le regole non le riconoscono: l'AI propone, tu accendi.</span>
-                        <button type="button" className="text-violet-800 underline underline-offset-2" onClick={() => setVediSenza((v) => !v)}>{vediSenza ? "Nascondi" : "Quali"}</button>
+                        <span className="font-semibold">{tr(risultato.senzaScomposizione.length === 1 ? "{n} voce da scomporre" : "{n} voci da scomporre", { n: risultato.senzaScomposizione.length })}</span>
+                        <span className="text-violet-900/80">{tr("le regole non le riconoscono: l'AI propone, tu accendi.")}</span>
+                        <button type="button" className="text-violet-800 underline underline-offset-2" onClick={() => setVediSenza((v) => !v)}>{vediSenza ? tr("Nascondi") : tr("Quali")}</button>
                         <Button size="sm" className="ml-auto h-7 text-xs" disabled={proponendo} onClick={proponiAI}>
                           {proponendo ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" aria-hidden />}
-                          {proponendo ? "L'AI sta proponendo…" : "Proponi con l'AI"}
+                          {proponendo ? tr("L'AI sta proponendo…") : tr("Proponi con l'AI")}
                         </Button>
                       </div>
-                      {datiDaChiedere.length > 0 && <ul aria-label="Dati necessari per i materiali" className="space-y-1 border-t border-amber-200 bg-amber-50 p-3 text-amber-900">
-                        {datiDaChiedere.map(d => <li key={d.voce_id}><strong>{vociComputo.find(v => v.id === d.voce_id)?.descrizione_breve.slice(0, 100) ?? d.voce_id}</strong>: {Array.isArray(d.dati_mancanti) ? d.dati_mancanti.join("; ") : "Completa le specifiche della voce"}</li>)}
+                      {datiDaChiedere.length > 0 && <ul aria-label={tr("Dati necessari per i materiali")} className="space-y-1 border-t border-amber-200 bg-amber-50 p-3 text-amber-900">
+                        {datiDaChiedere.map(d => <li key={d.voce_id}><strong>{vociComputo.find(v => v.id === d.voce_id)?.descrizione_breve.slice(0, 100) ?? d.voce_id}</strong>: {Array.isArray(d.dati_mancanti) ? d.dati_mancanti.join("; ") : tr("Completa le specifiche della voce")}</li>)}
                       </ul>}
                       {vediSenza && (
                         <ul className="max-h-40 divide-y divide-violet-100 overflow-auto border-t border-violet-100 bg-white">
                           {risultato.senzaScomposizione.map((v) => (
                             <li key={v.id} className="flex justify-between gap-2 px-3 py-1">
                               <span className="min-w-0 truncate" title={v.descrizione_breve}>{v.codice_prezzario || v.codice_voce ? `${v.codice_prezzario || v.codice_voce} · ` : ""}{v.descrizione_breve}</span>
-                              <span className="shrink-0 tabular-nums text-slate-500">{v.quantita != null ? `${Number(v.quantita).toLocaleString("it-IT", { maximumFractionDigits: 2 })} ${v.unita_misura ?? ""}` : ""}</span>
+                              <span className="shrink-0 tabular-nums text-slate-500">{v.quantita != null ? `${Number(v.quantita).toLocaleString(intlCampo(), { maximumFractionDigits: 2 })} ${v.unita_misura ?? ""}` : ""}</span>
                             </li>
                           ))}
                         </ul>
@@ -939,9 +941,9 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
               />
 
                   {avvisiAltri.length > 0 && (
-                    <section aria-label="Avvisi" className="rounded-md border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+                    <section aria-label={tr("Avvisi")} className="rounded-md border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold">Da guardare ({avvisiAltri.length})</span>
+                        <span className="font-semibold">{tr("Da guardare ({n})", { n: avvisiAltri.length })}</span>
                       </div>
                       <ul className="mt-1 max-h-32 list-disc space-y-0.5 overflow-auto pl-5">
                         {avvisiAltri.map((a, i) => <li key={i}>{a.messaggio}</li>)}
@@ -951,9 +953,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
 
                   {letto && letto.voci.length > 0 && (
                     <details className="rounded-md border text-xs">
-                      <summary className="cursor-pointer px-3 py-1.5 font-medium">
-                        Voce per voce: che cosa nasce da ognuna ({risultato.escluse.length} senza materiali)
-                      </summary>
+                      <summary className="cursor-pointer px-3 py-1.5 font-medium">{tr("Voce per voce: che cosa nasce da ognuna ({n} senza materiali)", { n: risultato.escluse.length })}</summary>
                       <ul className="max-h-64 divide-y overflow-auto border-t">
                         {letto.voci.map((v) => (
                           <li key={v.voce_id} className="grid grid-cols-[2.5rem_1fr_auto] items-baseline gap-2 px-3 py-1">
@@ -981,34 +981,34 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
           {risultato && (
             <span className="text-xs tabular-nums text-slate-700">
-              <span className="font-semibold text-slate-900">{materiali.length} proposte · {daSalvare.length} preselezionate</span>
-              {mostraPrezzi && stima.totale > 0 && <> · stima <span className="font-semibold text-slate-900">{stima.totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span></>}
-              {mostraPrezzi && stima.senzaPrezzo > 0 && <span className="text-slate-500"> ({stima.senzaPrezzo} senza prezzo)</span>}
+              <span className="font-semibold text-slate-900">{tr("{proposte} proposte · {preselezionate} preselezionate", { proposte: materiali.length, preselezionate: daSalvare.length })}</span>
+              {mostraPrezzi && stima.totale > 0 && <> · {tr("stima")} <span className="font-semibold text-slate-900">{stima.totale.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" })}</span></>}
+              {mostraPrezzi && stima.senzaPrezzo > 0 && <span className="text-slate-500"> ({tr("{n} senza prezzo", { n: stima.senzaPrezzo })})</span>}
             </span>
           )}
           {risultato && !!scelto && dati.data?.senzaLavorazioni && (
             <label className="flex items-center gap-2 text-xs text-slate-600">
-              <Checkbox checked={conLavorazioni} onCheckedChange={(v) => setConLavorazioni(!!v)} aria-label="Crea anche le lavorazioni dal computo" />
-              <span><span className="font-medium text-slate-800">Crea anche le lavorazioni</span> · fasi, voci e importi del computo</span>
+              <Checkbox checked={conLavorazioni} onCheckedChange={(v) => setConLavorazioni(!!v)} aria-label={tr("Crea anche le lavorazioni dal computo")} />
+              <span><span className="font-medium text-slate-800">{tr("Crea anche le lavorazioni")}</span> · {tr("fasi, voci e importi del computo")}</span>
             </label>
           )}
           {righeRicordi.length > 0 && risultato && (
             <label className="flex min-w-0 max-w-md items-center gap-2 text-xs text-slate-600">
-              <Checkbox checked={ricorda} onCheckedChange={(v) => setRicorda(!!v)} aria-label="Ricorda per i prossimi computi" />
+              <Checkbox checked={ricorda} onCheckedChange={(v) => setRicorda(!!v)} aria-label={tr("Ricorda per i prossimi computi")} />
               <span className="min-w-0 truncate" title={righeRicordi.join("\n")}>
-                <span className="font-medium text-slate-800">Ricorda per i prossimi computi</span> · {righeRicordi.join(" · ")}
+                <span className="font-medium text-slate-800">{tr("Ricorda per i prossimi computi")}</span> · {righeRicordi.join(" · ")}
               </span>
             </label>
           )}
           </div>
-          {bozzaVoce && <button type="button" className="text-xs font-medium text-amber-800 underline" onClick={() => setPasso("voci")}>Modifica della voce da salvare o annullare</button>}
+          {bozzaVoce && <button type="button" className="text-xs font-medium text-amber-800 underline" onClick={() => setPasso("voci")}>{tr("Modifica della voce da salvare o annullare")}</button>}
           <div className="flex shrink-0 gap-2">
-            <Button variant="ghost" size="sm" onClick={() => { if (bozzaVoce) { setPasso("voci"); toast.info("Salva o annulla la modifica della voce."); } else onOpenChange(false); }}>Chiudi</Button>
+            <Button variant="ghost" size="sm" onClick={() => { if (bozzaVoce) { setPasso("voci"); toast.info(tr("Salva o annulla la modifica della voce.")); } else onOpenChange(false); }}>{tr("Chiudi")}</Button>
             {passoDopo && (
-              <Button size="sm" onClick={() => setPasso(passoDopo.id)}>Avanti: {passoDopo.etichetta}</Button>
+              <Button size="sm" onClick={() => setPasso(passoDopo.id)}>{tr("Avanti: {passo}", { passo: passoDopo.etichetta })}</Button>
             )}
             <Button size="sm" variant={passoDopo ? "outline" : "default"} disabled={!materiali.length || salvando || salvaComputo.isPending || bozzaVoce} onClick={salva}>
-              {salvando ? "Salvo…" : "Salva le proposte (" + materiali.length + ")"}
+              {salvando ? tr("Salvo…") : tr("Salva le proposte ({n})", { n: materiali.length })}
             </Button>
           </div>
         </DialogFooter>
@@ -1017,10 +1017,10 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
         <Dialog open={apriComputo} onOpenChange={setApriComputo}>
           <DialogContent className="max-h-[94vh] max-w-6xl overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Computo metrico</DialogTitle>
-              <DialogDescription>Voci, misure, controllo dei totali, lavoro pubblico e contabilità dei lavori.</DialogDescription>
+              <DialogTitle>{tr("Computo metrico")}</DialogTitle>
+              <DialogDescription>{tr("Voci, misure, controllo dei totali, lavoro pubblico e contabilità dei lavori.")}</DialogDescription>
             </DialogHeader>
-            <Suspense fallback={<p className="p-4 text-sm text-slate-600">Carico il computo…</p>}>
+            <Suspense fallback={<p className="p-4 text-sm text-slate-600">{tr("Carico il computo…")}</p>}>
               <OrderComputoTab orderId={orderId} companyId={companyId} canEdit={permessi.canEditOrders && !scelto?.ripartizione_origine_id}
                 canViewAmounts={permessi.canViewOrderAmounts} orderLabel={orderCode} computoInizialeId={scelto?.id} />
             </Suspense>

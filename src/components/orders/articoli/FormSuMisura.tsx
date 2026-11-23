@@ -21,6 +21,7 @@ import { calcolaPrezzoFamiglia, useFamilyGrid } from "@/hooks/useFamilyPricing";
 import { formatCurrency } from "@/lib/formatters";
 import { conAssiVisibili, defaultSelections, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { SupplierSelect } from "../SupplierSelect";
 import { VAT_RATES } from "@/lib/vatUtils";
 import {
@@ -94,6 +95,7 @@ function daRiga(r: OrderItem, indice: number): PosizioneBozza {
 }
 
 export function FormSuMisura(props: Props) {
+  const t = useT();
   const familyId = props.prodotto.familyId ?? null;
   const { data: family, isLoading, isError, refetch } = useQuery({
     queryKey: ["su-misura-prodotto", familyId],
@@ -118,15 +120,16 @@ export function FormSuMisura(props: Props) {
   });
 
   if (familyId && isLoading) {
-    return <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Carico il prodotto…</p>;
+    return <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />{t("Carico il prodotto…")}</p>;
   }
   if (familyId && isError) {
-    return <p role="alert" className="py-6 text-sm text-amber-800">Non riesco a leggere il prodotto dal listino. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></p>;
+    return <p role="alert" className="py-6 text-sm text-amber-800">{t("Non riesco a leggere il prodotto dal listino.")} <button type="button" className="underline" onClick={() => void refetch()}>{t("Riprova")}</button></p>;
   }
   return family ? <ConListino {...props} family={family} /> : <Tabella {...props} family={null} selezioni={null} scelte={[]} calcola={null} />;
 }
 
 function ConListino({ family: completa, ...props }: Props & { family: FamilyWithAxes }) {
+  const t = useT();
   const salvate = props.righeEsistenti?.[0]?.axis_selections ?? null;
   const [selection, setSelection] = useState<AxisSelection>(() =>
     normalizzaSelezione(completa.axes, salvate ?? defaultSelections(completa)).valori,
@@ -166,7 +169,7 @@ function ConListino({ family: completa, ...props }: Props & { family: FamilyWith
           <div key={axis.id} className="min-w-0 space-y-1">
             <Label htmlFor={`asse-${axis.id}`} className="text-xs">{axis.nome}</Label>
             <Select value={selection[axis.codice] ?? ""} onValueChange={(v) => setSelection((p) => normalizzaSelezione(completa.axes, { ...p, [axis.codice]: v }).valori)}>
-              <SelectTrigger id={`asse-${axis.id}`} className="h-9"><SelectValue placeholder="Scegli…" /></SelectTrigger>
+              <SelectTrigger id={`asse-${axis.id}`} className="h-9"><SelectValue placeholder={t("Scegli…")} /></SelectTrigger>
               <SelectContent>{valori.map((v) => <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
@@ -188,6 +191,7 @@ function Tabella({
   calcola: ((l: number | null, h: number | null) => EsitoCosto) | null;
   assi?: ReactNode;
 }) {
+  const tr = useT();
   const inModifica = !!righeEsistenti?.length;
   const [posizioni, setPosizioni] = useState<PosizioneBozza[]>(() => {
     if (!righeEsistenti?.length) return [{ ...posizioneVuota("P1"), costo: prodotto.costoIniziale != null ? String(prodotto.costoIniziale) : "", pezzi: String(prodotto.pezziIniziali ?? 1) }];
@@ -249,7 +253,7 @@ function Tabella({
   const conferma = async () => {
     if (inviato.current) return;
     setErrore(null);
-    if (valide.length === 0) { setErrore("Scrivi almeno una posizione: bastano il riferimento o le misure."); return; }
+    if (valide.length === 0) { setErrore(tr("Scrivi almeno una posizione: bastano il riferimento o le misure.")); return; }
     for (const p of valide) {
       const e = erroreDiPosizione(p);
       if (e) { setErrore(e); return; }
@@ -318,7 +322,7 @@ function Tabella({
     inviato.current = true;
     setSalvando(true);
     try { await onConferma({ nuove, aggiornate, tolte }); }
-    catch (e) { inviato.current = false; setErrore(e instanceof Error ? e.message : "Non riesco ad aggiungere le posizioni. Riprova."); }
+    catch (e) { inviato.current = false; setErrore(e instanceof Error ? e.message : tr("Non riesco ad aggiungere le posizioni. Riprova.")); }
     finally { setSalvando(false); }
   };
 
@@ -330,47 +334,47 @@ function Tabella({
     <div className="space-y-3" ref={contenitore}>
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
         <div className="min-w-0 space-y-1">
-          <Label>Fornitore</Label>
-          {tutteBloccate ? <p className="text-sm text-muted-foreground">Le posizioni già avviate mantengono il proprio fornitore.</p> : <SupplierSelect searchable inlineCreate value={fornitore} onValueChange={id => { if (id !== fornitore) setPosizioni(prima => prima.map(p => p.bloccata ? p : { ...p, costo: "" })); setFornitore(id); }} fallbackCompanyId={companyId} />}
-          <p className="text-xs text-muted-foreground">{fornitore ? "Fornitore proposto dal prodotto, modificabile prima dell’ordine." : "Puoi preparare le posizioni e scegliere il fornitore in seguito."}</p>
+          <Label>{tr("Fornitore")}</Label>
+          {tutteBloccate ? <p className="text-sm text-muted-foreground">{tr("Le posizioni già avviate mantengono il proprio fornitore.")}</p> : <SupplierSelect searchable inlineCreate value={fornitore} onValueChange={id => { if (id !== fornitore) setPosizioni(prima => prima.map(p => p.bloccata ? p : { ...p, costo: "" })); setFornitore(id); }} fallbackCompanyId={companyId} />}
+          <p className="text-xs text-muted-foreground">{fornitore ? tr("Fornitore proposto dal prodotto, modificabile prima dell’ordine.") : tr("Puoi preparare le posizioni e scegliere il fornitore in seguito.")}</p>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="iva-su-misura">IVA acquisto</Label>
+          <Label htmlFor="iva-su-misura">{tr("IVA acquisto")}</Label>
           <Select value={String(iva)} onValueChange={v => setIva(Number(v))} disabled={tutteBloccate}>
             <SelectTrigger id="iva-su-misura"><SelectValue /></SelectTrigger>
             <SelectContent>{VAT_RATES.map(r => <SelectItem key={r.value} value={String(r.value)}>{r.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       </div>
-      {fornitoreDiverso && <p role="status" className="rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">Hai cambiato fornitore: verifica i costi delle posizioni. Il prezzo calcolato dal listino precedente non viene riutilizzato.</p>}
+      {fornitoreDiverso && <p role="status" className="rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">{tr("Hai cambiato fornitore: verifica i costi delle posizioni. Il prezzo calcolato dal listino precedente non viene riutilizzato.")}</p>}
       {assi}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         {calcola && canViewCosts && (
           <label className="flex items-center gap-2 text-sm">
-            <Switch checked={senzaListino} onCheckedChange={setSenzaListino} aria-label="Non ho il listino" />
-            Non ho il listino
+            <Switch checked={senzaListino} onCheckedChange={setSenzaListino} aria-label={tr("Non ho il listino")} />
+            {tr("Non ho il listino")}
           </label>
         )}
         <div className="flex items-center gap-2 text-sm">
-          <Label htmlFor="stato-misure" className="font-normal">Misure</Label>
+          <Label htmlFor="stato-misure" className="font-normal">{tr("Misure")}</Label>
           <Select value={statoMisure} onValueChange={(v) => setStatoMisure(v as StatoMisure)}>
             <SelectTrigger id="stato-misure" className="h-8 w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="da_rilevare">Da rilevare</SelectItem>
-              <SelectItem value="confermato">Definitive</SelectItem>
+              <SelectItem value="da_rilevare">{tr("Da rilevare")}</SelectItem>
+              <SelectItem value="confermato">{tr("Definitive")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
       <label className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Switch checked={profonditaVisibile} onCheckedChange={setProfonditaVisibile} aria-label="Mostra profondità" />
-        Profondità per cassonetti e altri prodotti
+        <Switch checked={profonditaVisibile} onCheckedChange={setProfonditaVisibile} aria-label={tr("Mostra profondità")} />
+        {tr("Profondità per cassonetti e altri prodotti")}
       </label>
       <div className="space-y-2">
         <div className={cn("hidden gap-2 px-0.5 text-xs text-muted-foreground sm:grid", colonne)}>
-          <span>Rif.</span><span>L mm</span><span>H mm</span><span>Pz</span>
-          {canViewCosts && <span className="text-right">Costo cad.</span>}
+          <span>{tr("Rif.")}</span><span>{tr("L mm")}</span><span>{tr("H mm")}</span><span>{tr("Pz")}</span>
+          {canViewCosts && <span className="text-right">{tr("Costo cad.")}</span>}
           <span />
         </div>
         {posizioni.map((p, i) => {
@@ -381,43 +385,43 @@ function Tabella({
           return (
             <div key={p.chiave}>
               <div className={cn("grid grid-cols-[1fr_1fr_3.25rem_2rem] items-center gap-2", colonne)}>
-                <Input aria-label={`Riferimento posizione ${i + 1}`} data-campo={`rif-${p.chiave}`} value={p.riferimento} disabled={p.bloccata}
+                <Input aria-label={tr("Riferimento posizione {n}", { n: i + 1 })} data-campo={`rif-${p.chiave}`} value={p.riferimento} disabled={p.bloccata}
                   onChange={(e) => cambia(p.chiave, { riferimento: e.target.value })} onKeyDown={(e) => invio(e, i)}
-                  placeholder="Cucina" className={cn("h-9", canViewCosts ? "sm:col-span-1" : "col-span-4 sm:col-span-1")} />
-                <div className="order-2 sm:order-none"><label htmlFor={`l-${p.chiave}`} className="mb-1 block text-xs text-muted-foreground sm:hidden">L mm</label><Input id={`l-${p.chiave}`} aria-label={`Larghezza in mm, posizione ${i + 1}`} data-campo={`l-${p.chiave}`} inputMode="numeric" value={p.larghezza} disabled={p.bloccata}
+                  placeholder={tr("Cucina")} className={cn("h-9", canViewCosts ? "sm:col-span-1" : "col-span-4 sm:col-span-1")} />
+                <div className="order-2 sm:order-none"><label htmlFor={`l-${p.chiave}`} className="mb-1 block text-xs text-muted-foreground sm:hidden">{tr("L mm")}</label><Input id={`l-${p.chiave}`} aria-label={tr("Larghezza in mm, posizione {n}", { n: i + 1 })} data-campo={`l-${p.chiave}`} inputMode="numeric" value={p.larghezza} disabled={p.bloccata}
                   onChange={(e) => cambia(p.chiave, { larghezza: e.target.value })} onKeyDown={(e) => invio(e, i)} placeholder="L" className="h-9" /></div>
-                <div className="order-3 sm:order-none"><label htmlFor={`h-${p.chiave}`} className="mb-1 block text-xs text-muted-foreground sm:hidden">H mm</label><Input id={`h-${p.chiave}`} aria-label={`Altezza in mm, posizione ${i + 1}`} inputMode="numeric" value={p.altezza} disabled={p.bloccata}
+                <div className="order-3 sm:order-none"><label htmlFor={`h-${p.chiave}`} className="mb-1 block text-xs text-muted-foreground sm:hidden">{tr("H mm")}</label><Input id={`h-${p.chiave}`} aria-label={tr("Altezza in mm, posizione {n}", { n: i + 1 })} inputMode="numeric" value={p.altezza} disabled={p.bloccata}
                   onChange={(e) => cambia(p.chiave, { altezza: e.target.value })} onKeyDown={(e) => invio(e, i)} placeholder="H" className="h-9" /></div>
-                <div className="order-4 sm:order-none"><label htmlFor={`q-${p.chiave}`} className="mb-1 block text-xs text-muted-foreground sm:hidden">Pz</label><Input id={`q-${p.chiave}`} aria-label={`Pezzi, posizione ${i + 1}`} inputMode="numeric" value={p.pezzi} disabled={p.bloccata}
+                <div className="order-4 sm:order-none"><label htmlFor={`q-${p.chiave}`} className="mb-1 block text-xs text-muted-foreground sm:hidden">{tr("Pz")}</label><Input id={`q-${p.chiave}`} aria-label={tr("Pezzi, posizione {n}", { n: i + 1 })} inputMode="numeric" value={p.pezzi} disabled={p.bloccata}
                   onChange={(e) => cambia(p.chiave, { pezzi: e.target.value })} onKeyDown={(e) => invio(e, i)} className="h-9" /></div>
                 {canViewCosts && (
-                  <Input aria-label={`Costo, posizione ${i + 1}`} inputMode="decimal" value={p.costo} disabled={p.bloccata}
+                  <Input aria-label={tr("Costo, posizione {n}", { n: i + 1 })} inputMode="decimal" value={p.costo} disabled={p.bloccata}
                     onChange={(e) => cambia(p.chiave, { costo: e.target.value })} onKeyDown={(e) => invio(e, i)}
-                    placeholder={esito.costo != null ? formatCurrency(esito.costo) : "da definire"}
+                    placeholder={esito.costo != null ? formatCurrency(esito.costo) : tr("da definire")}
                     className="order-1 col-span-3 h-9 text-right sm:order-none sm:col-span-1" />
                 )}
                 <Button type="button" variant="ghost" size="icon" className="order-5 mt-5 h-9 w-8 sm:order-none sm:mt-0" disabled={!eliminabile}
-                  aria-label={`Togli la posizione ${p.riferimento || i + 1}`}
+                  aria-label={tr("Togli la posizione {rif}", { rif: p.riferimento || i + 1 })}
                   onClick={() => setPosizioni((prima) => prima.filter((x) => x.chiave !== p.chiave))}>
                   <Trash2 className="h-3.5 w-3.5" aria-hidden />
                 </Button>
               </div>
               <div className="mt-1 grid gap-2 sm:grid-cols-[8rem_minmax(0,1fr)]">
-                {profonditaVisibile && <Input aria-label={`Profondità in mm, posizione ${i + 1}`} inputMode="decimal" value={p.profondita ?? ""} disabled={p.bloccata}
-                  onChange={e => cambia(p.chiave, { profondita: e.target.value })} placeholder="P mm" className="h-8 text-xs" />}
-                <Input aria-label={`Dettagli posizione ${i + 1}`} value={p.dettagli ?? ""} disabled={p.bloccata}
-                  onChange={e => cambia(p.chiave, { dettagli: e.target.value })} placeholder="Apertura, colore, avvolgimento, note per il fornitore…" className={cn("h-8 text-xs", !profonditaVisibile && "sm:col-span-2")} />
+                {profonditaVisibile && <Input aria-label={tr("Profondità in mm, posizione {n}", { n: i + 1 })} inputMode="decimal" value={p.profondita ?? ""} disabled={p.bloccata}
+                  onChange={e => cambia(p.chiave, { profondita: e.target.value })} placeholder={tr("P mm")} className="h-8 text-xs" />}
+                <Input aria-label={tr("Dettagli posizione {n}", { n: i + 1 })} value={p.dettagli ?? ""} disabled={p.bloccata}
+                  onChange={e => cambia(p.chiave, { dettagli: e.target.value })} placeholder={tr("Apertura, colore, avvolgimento, note per il fornitore…")} className={cn("h-8 text-xs", !profonditaVisibile && "sm:col-span-2")} />
               </div>
               {(esito.avviso || p.bloccata) && (
                 <p className={cn("mt-0.5 text-[11px]", esito.fuoriListino ? "text-red-700" : "text-muted-foreground")}>
-                  {dalListino ? "Fornitura da preventivo. Gestisci le misure definitive in Controllo misure." : p.bloccata ? "Già avviata: non si cambia da qui." : esito.avviso}
+                  {dalListino ? tr("Fornitura da preventivo. Gestisci le misure definitive in Controllo misure.") : p.bloccata ? tr("Già avviata: non si cambia da qui.") : esito.avviso}
                 </p>
               )}
             </div>
           );
         })}
         <Button type="button" variant="outline" size="sm" className="gap-1" onClick={aggiungiPosizione}>
-          <Plus className="h-3.5 w-3.5" aria-hidden />Posizione
+          <Plus className="h-3.5 w-3.5" aria-hidden />{tr("Posizione")}
         </Button>
       </div>
 
@@ -426,13 +430,13 @@ function Tabella({
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
         <p className="text-sm text-muted-foreground" aria-live="polite">
-          <span className="font-medium text-foreground">{valide.length} {valide.length === 1 ? "posizione" : "posizioni"} · {totali.pezzi} pz</span>
+          <span className="font-medium text-foreground">{tr(valide.length === 1 ? "{n} posizione · {pezzi} pz" : "{n} posizioni · {pezzi} pz", { n: valide.length, pezzi: totali.pezzi })}</span>
           {canViewCosts && totali.costo > 0 && <> · {formatCurrency(totali.costo)}</>}
-          {canViewCosts && totali.mancanti > 0 && <> · {totali.mancanti} da definire</>}
+          {canViewCosts && totali.mancanti > 0 && <> · {tr("{n} da definire", { n: totali.mancanti })}</>}
         </p>
         <div className="flex gap-2 max-sm:w-full">
-          <Button type="button" variant="outline" onClick={onAnnulla} disabled={salvando} className="max-sm:flex-1">Annulla</Button>
-          <Button type="button" onClick={() => void conferma()} disabled={salvando} className="max-sm:flex-1">{salvando ? "Salvataggio…" : inModifica ? "Salva" : "Aggiungi"}</Button>
+          <Button type="button" variant="outline" onClick={onAnnulla} disabled={salvando} className="max-sm:flex-1">{tr("Annulla")}</Button>
+          <Button type="button" onClick={() => void conferma()} disabled={salvando} className="max-sm:flex-1">{salvando ? tr("Salvataggio…") : inModifica ? tr("Salva") : tr("Aggiungi")}</Button>
         </div>
       </div>
     </div>

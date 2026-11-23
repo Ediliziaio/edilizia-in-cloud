@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGovernanceThresholds } from "@/hooks/useGovernanceThresholds";
 import { scostamentoSalCommessa } from "@/lib/governance/thresholds";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   avanzamentoPerc: number | null;
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function AlertScostamentoSal({ avanzamentoPerc, costoPrevisto, costoConsuntivo, className }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { data: cfg } = useGovernanceThresholds(effectiveCompany?.id);
   if (!cfg) return null;
@@ -39,7 +41,7 @@ export function AlertScostamentoSal({ avanzamentoPerc, costoPrevisto, costoConsu
     >
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
       <div>
-        <p className="font-semibold">{critico ? "Scostamento SAL critico" : "Scostamento SAL"}</p>
+        <p className="font-semibold">{critico ? t("Scostamento SAL critico") : t("Scostamento SAL")}</p>
         <p>{esito.messaggio}</p>
       </div>
     </div>

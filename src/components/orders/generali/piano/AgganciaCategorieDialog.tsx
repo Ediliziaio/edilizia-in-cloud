@@ -12,6 +12,7 @@ import { normalizzaCategoria } from "@/lib/controlloGestione/vociCassa";
 import { CATEGORIE_PIANO } from "@/lib/orders/generali/pianoCategorie";
 import type { VocePiano } from "@/lib/orders/generali/pianoConti";
 import type { CategoriaAzienda } from "@/lib/orders/generali/pianoLettura";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** «materiali_edili» → «Materiali edili». */
 const leggibile = (t: string) => {
@@ -25,6 +26,7 @@ export function AgganciaCategorieDialog({ voce, categorie, onClose, onSalva }: {
   onClose: () => void;
   onSalva: (categorie: string[]) => void;
 }) {
+  const t = useT();
   const [scelte, setScelte] = useState<Set<string>>(new Set(voce.categorieCosto));
   const [cerca, setCerca] = useState("");
   // Anche le categorie agganciate che l'azienda non usa più restano visibili, per poterle togliere.
@@ -48,34 +50,34 @@ export function AgganciaCategorieDialog({ voce, categorie, onClose, onSalva }: {
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Categorie di costo per «{voce.descrizione || CATEGORIE_PIANO[voce.categoria].nome}»</DialogTitle>
+          <DialogTitle>{t("Categorie di costo per «{voce}»", { voce: voce.descrizione || t(CATEGORIE_PIANO[voce.categoria].nome) })}</DialogTitle>
           <DialogDescription>
-            Le spese registrate con queste categorie, sulla generale e sulle sue commesse, finiscono in questa voce.
+            {t("Le spese registrate con queste categorie, sulla generale e sulle sue commesse, finiscono in questa voce.")}
           </DialogDescription>
         </DialogHeader>
         {categorie.length === 0 && voce.categorieCosto.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            L'azienda non ha ancora categorie di spesa. Le voci raccolgono comunque il reale per tipo (materiali, manodopera…).
+            {t("L'azienda non ha ancora categorie di spesa. Le voci raccolgono comunque il reale per tipo (materiali, manodopera…).")}
           </p>
         ) : (
           <>
-            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca una categoria" aria-label="Cerca una categoria" />
+            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={t("Cerca una categoria")} aria-label={t("Cerca una categoria")} />
             <ul className="max-h-72 space-y-1 overflow-y-auto pr-1">
               {elenco.map(([chiave, nome]) => (
                 <li key={chiave}>
                   <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50">
                     <Checkbox checked={scelte.has(chiave)} onCheckedChange={(v) => cambia(chiave, v === true)} />
-                    <span>{nome}</span>
+                    <span dir="auto">{nome}</span>
                   </label>
                 </li>
               ))}
-              {elenco.length === 0 && <li className="px-2 py-1.5 text-sm text-muted-foreground">Nessuna categoria con questo nome.</li>}
+              {elenco.length === 0 && <li className="px-2 py-1.5 text-sm text-muted-foreground">{t("Nessuna categoria con questo nome.")}</li>}
             </ul>
           </>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
-          <Button onClick={() => onSalva([...scelte])}>Salva</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
+          <Button onClick={() => onSalva([...scelte])}>{t("Salva")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

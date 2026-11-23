@@ -12,6 +12,7 @@ import { DEFINIZIONI_MODELLI, type RiepilogoGenerale } from "@/lib/orders/commes
 import { valoreContratto } from "@/lib/orders/generali/contratto";
 import { passiPerPartire, perPartireServe, type IdPasso } from "@/lib/orders/generali/perPartire";
 import { datiMancanti } from "@/lib/orders/generali/datiOperazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const chiaveNascosta = (id: string) => `generale-per-partire-nascosta:${id}`;
 const leggiNascosta = (id: string) => {
@@ -29,6 +30,7 @@ export function PerPartire({ riepilogo, nuovaFiglia }: { riepilogo: RiepilogoGen
   const fonti = useFontiGenerale(g.id, !appalto && margini);
   const [parametri, setParametri] = useSearchParams();
   const [nascosta, setNascosta] = useState(() => leggiNascosta(g.id));
+  const t = useT();
 
   // Finché una lettura è in corso non si mostra niente: la lista non deve lampeggiare passi già fatti.
   if (nascosta || contratto.isLoading || versioni.isLoading || voci.isLoading || fonti.isLoading) return null;
@@ -55,14 +57,14 @@ export function PerPartire({ riepilogo, nuovaFiglia }: { riepilogo: RiepilogoGen
     setParametri(dopo, { replace: true });
   };
   const testi: Record<IdPasso, { titolo: string; azione: () => void }> = {
-    dati: { titolo: appalto ? "Completa i dati dell'appalto" : "Completa i dati dell'operazione", azione: () => apriScheda("dati") },
-    contratto: { titolo: "Completa i dati del contratto", azione: () => apriScheda("contratto") },
+    dati: { titolo: appalto ? t("Completa i dati dell'appalto") : t("Completa i dati dell'operazione"), azione: () => apriScheda("dati") },
+    contratto: { titolo: t("Completa i dati del contratto"), azione: () => apriScheda("contratto") },
     figlie: {
-      titolo: appalto ? "Nuovo lavoro collegato" : def.figlia.nuova,
+      titolo: appalto ? t("Nuovo lavoro collegato") : t(def.figlia.nuova),
       azione: appalto ? nuovaFiglia : () => apriScheda("unita"),
     },
-    piano: { titolo: appalto ? "Scrivi il budget" : "Scrivi il business plan", azione: () => apriScheda("piano") },
-    fonti: { titolo: "Indica da dove arrivano i soldi", azione: () => apriScheda("investitori") },
+    piano: { titolo: appalto ? t("Scrivi il budget") : t("Scrivi il business plan"), azione: () => apriScheda("piano") },
+    fonti: { titolo: t("Indica da dove arrivano i soldi"), azione: () => apriScheda("investitori") },
   };
   const nascondi = () => {
     try { localStorage.setItem(chiaveNascosta(g.id), "1"); } catch { /* resta nascosta fino al prossimo caricamento */ }
@@ -73,7 +75,7 @@ export function PerPartire({ riepilogo, nuovaFiglia }: { riepilogo: RiepilogoGen
   return (
     <section aria-labelledby="per-partire-titolo" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-dashed bg-muted/30 px-3 py-2">
       <h2 id="per-partire-titolo" className="text-sm font-semibold">
-        Per partire <span className="font-normal text-muted-foreground">{passi.filter((p) => p.fatto).length} di {passi.length}</span>
+        {t("Per partire")} <span className="font-normal text-muted-foreground">{t("{fatti} di {totale}", { fatti: passi.filter((p) => p.fatto).length, totale: passi.length })}</span>
       </h2>
       <ul className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
         {passi.filter(p => !p.fatto).map(p => (
@@ -85,7 +87,7 @@ export function PerPartire({ riepilogo, nuovaFiglia }: { riepilogo: RiepilogoGen
           </li>
         ))}
       </ul>
-      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={nascondi} aria-label="Nascondi «Per partire»">
+      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={nascondi} aria-label={t("Nascondi «Per partire»")}>
         <X className="h-3.5 w-3.5" />
       </Button>
     </section>

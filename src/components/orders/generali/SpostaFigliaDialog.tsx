@@ -18,6 +18,7 @@ import {
 } from "@/lib/orders/commesseGenerali";
 import { effettoSpostamento } from "@/lib/orders/listaGenerali";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type AzioneFiglia = "togli" | "sposta";
 
@@ -34,6 +35,7 @@ const euro = (n: number | null) => (n === null ? "—" : formattaEuro(n));
 function Effetto({ titolo, etichettaValore, t, importo, verso }: {
   titolo: string; etichettaValore: string; t: TotaliGenerale; importo: number | null; verso: 1 | -1;
 }) {
+  const tr = useT();
   const dopo = effettoSpostamento(t, importo, verso);
   const riga = (etichetta: string, prima: number | null, poi: number | null) => (
     <div className="flex items-baseline justify-between gap-3">
@@ -48,13 +50,14 @@ function Effetto({ titolo, etichettaValore, t, importo, verso }: {
       <p className="font-medium">{titolo}</p>
       <dl className="mt-1 space-y-0.5 text-xs">
         {riga(etichettaValore, t.assegnato, dopo.assegnatoDopo)}
-        {t.daAssegnare !== null && riga("Da assegnare", t.daAssegnare, dopo.daAssegnareDopo)}
+        {t.daAssegnare !== null && riga(tr("Da assegnare"), t.daAssegnare, dopo.daAssegnareDopo)}
       </dl>
     </div>
   );
 }
 
 export function SpostaFigliaDialog({ riepilogo, totali, figlia, azione, onClose }: Props) {
+  const t = useT();
   const g = riepilogo.generale;
   const def = DEFINIZIONI_MODELLI[g.modello];
   const etichetta = figlia.codice ?? figlia.nome;
@@ -75,12 +78,12 @@ export function SpostaFigliaDialog({ riepilogo, totali, figlia, azione, onClose 
     if (sposta) {
       if (!destinazione) return;
       spostaCommessa.mutate({ generaleId: destinazione, commessaId: figlia.id }, {
-        onSuccess: () => { toast.success(`${etichetta} spostata`); onClose(); },
+        onSuccess: () => { toast.success(t("{nome} spostata", { nome: etichetta })); onClose(); },
         onError: (e) => toast.error(messaggioGenerale(e, "lo spostamento")),
       });
     } else {
       scollega.mutate(figlia.id, {
-        onSuccess: () => { toast.success(`${etichetta} ora è una commessa indipendente`); onClose(); },
+        onSuccess: () => { toast.success(t("{nome} ora è una commessa indipendente", { nome: etichetta })); onClose(); },
         onError: (e) => toast.error(messaggioGenerale(e, "la commessa")),
       });
     }
@@ -90,24 +93,24 @@ export function SpostaFigliaDialog({ riepilogo, totali, figlia, azione, onClose 
     <Dialog open onOpenChange={(aperta) => { if (!aperta) onClose(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{sposta ? `Sposta ${etichetta}` : `Togli ${etichetta}`}</DialogTitle>
+          <DialogTitle>{sposta ? t("Sposta {nome}", { nome: etichetta }) : t("Togli {nome}", { nome: etichetta })}</DialogTitle>
           <DialogDescription>
-            {sposta ? "Passa a un'altra commessa generale." : `Esce da «${g.nome}» e torna una commessa indipendente.`} Cantiere, costi e fatture restano sulla commessa.
+            {sposta ? t("Passa a un'altra commessa generale.") : t("Esce da «{nome}» e torna una commessa indipendente.", { nome: g.nome })} {t("Cantiere, costi e fatture restano sulla commessa.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           {sposta && (
             <div className="space-y-1.5">
-              <Label htmlFor="sposta-destinazione">Commessa generale di arrivo</Label>
+              <Label htmlFor="sposta-destinazione">{t("Commessa generale di arrivo")}</Label>
               {altre.data?.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Non ci sono altre commesse generali in questa azienda.</p>
+                <p className="text-sm text-muted-foreground">{t("Non ci sono altre commesse generali in questa azienda.")}</p>
               ) : (
                 <Select value={destinazione} onValueChange={setDestinazione}>
-                  <SelectTrigger id="sposta-destinazione"><SelectValue placeholder={altre.isLoading ? "Carico…" : "Scegli"} /></SelectTrigger>
+                  <SelectTrigger id="sposta-destinazione"><SelectValue placeholder={altre.isLoading ? t("Carico…") : t("Scegli")} /></SelectTrigger>
                   <SelectContent>
                     {(altre.data ?? []).map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{[a.order_code, a.description].filter(Boolean).join(" · ") || "Commessa generale"}</SelectItem>
+                      <SelectItem key={a.id} value={a.id}>{[a.order_code, a.description].filter(Boolean).join(" · ") || t("Commessa generale")}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -117,28 +120,28 @@ export function SpostaFigliaDialog({ riepilogo, totali, figlia, azione, onClose 
 
           {importi && (
             <div className="space-y-2">
-              <Effetto titolo={`«${g.nome}»`} etichettaValore="Assegnato" t={totali} importo={importo} verso={-1} />
+              <Effetto titolo={`«${g.nome}»`} etichettaValore={t("Assegnato")} t={totali} importo={importo} verso={-1} />
               {sposta && arrivo.data && (
-                <Effetto titolo={`«${arrivo.data.generale.nome}»`} etichettaValore="Assegnato" t={totaliGenerale(arrivo.data)} importo={importo} verso={1} />
+                <Effetto titolo={`«${arrivo.data.generale.nome}»`} etichettaValore={t("Assegnato")} t={totaliGenerale(arrivo.data)} importo={importo} verso={1} />
               )}
             </div>
           )}
 
           {nMisure > 0 && (
             <p className="text-xs text-amber-700 dark:text-amber-400">
-              {nMisure === 1 ? "Ha una misura" : `Ha ${nMisure} misure`} nel contratto di «{g.nome}»: {nMisure === 1 ? "resta" : "restano"} lì, con i SAL già fatti.
+              {t(nMisure === 1 ? "Ha una misura nel contratto di «{nome}»: resta lì, con i SAL già fatti." : "Ha {n} misure nel contratto di «{nome}»: restano lì, con i SAL già fatti.", { n: nMisure, nome: g.nome })}
             </p>
           )}
           {g.modello !== "appalto" && (
-            <p className="text-xs text-muted-foreground">I costi comuni di «{g.nome}» si ridividono tra {def.figlia.tante.toLowerCase()} che restano.</p>
+            <p className="text-xs text-muted-foreground">{t("I costi comuni di «{nome}» si ridividono tra {tipo} che restano.", { nome: g.nome, tipo: t(def.figlia.tante).toLowerCase() })}</p>
           )}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="ghost" onClick={onClose}>Annulla</Button>
+          <Button variant="ghost" onClick={onClose}>{t("Annulla")}</Button>
           <Button onClick={conferma} disabled={inCorso || (sposta && !destinazione)}>
             {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {sposta ? "Sposta" : "Togli"}
+            {sposta ? t("Sposta") : t("Togli")}
           </Button>
         </DialogFooter>
       </DialogContent>

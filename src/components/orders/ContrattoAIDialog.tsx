@@ -42,6 +42,7 @@ import {
   CheckCircle2, Loader2, Wand2, ShieldCheck, Lock, Scale,
 } from "lucide-react";
 import { OfficeSelect } from "./OfficeSelect";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   orderId: string;
@@ -88,7 +89,8 @@ const DEFAULT_OPZIONI: ContrattoOpzioni = {
   subappalto_consentito: true,
 };
 
-export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratto" }: Props) {
+export function ContrattoAIDialog({ orderId, companyId, triggerLabel }: Props) {
+  const t = useT();
   const qc = useQueryClient();
   // «Nuovo contratto» dalla scheda del cliente arriva qui con ?contratto=1: si apre da solo.
   const [parametri, setParametri] = useSearchParams();
@@ -135,7 +137,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
         body: { order_id: orderId, company_id: companyId, opzioni, modo },
       });
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error ?? "Generazione fallita");
+      if (!data?.success) throw new Error(data?.error ?? t("Generazione fallita"));
       return data;
     },
     onSuccess: (data) => {
@@ -145,7 +147,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
       setModificaTesto(false);
       setContrattoId(data.contratto.id ?? null);
       qc.invalidateQueries({ queryKey: ["contratti_for_order", orderId] });
-      toast.success(`Contratto ${data.contratto.numero_contratto} pronto`);
+      toast.success(t("Contratto {numero} pronto", { numero: data.contratto.numero_contratto }));
     },
     onError: (err) => {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -175,29 +177,29 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
 
   const reviewMutation = useMutation({
     mutationFn: async () => {
-      if (!contrattoId) throw new Error("Genera prima il contratto");
+      if (!contrattoId) throw new Error(t("Genera prima il contratto"));
       const { data, error } = await supabase.functions.invoke("ai-contratto-review", {
         body: { contratto_id: contrattoId, company_id: companyId },
       });
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error ?? "Review fallita");
+      if (!data?.success) throw new Error(data?.error ?? t("Review fallita"));
       return data;
     },
     onSuccess: (data) => {
       setReviewResult(data.review ?? null);
       const score = data.review?.compliance_score ?? 0;
       const rischio = data.review?.livello_rischio ?? "—";
-      toast.success(`Review completata: score ${score}/100 — rischio ${rischio}`);
+      toast.success(t("Review completata: score {score}/100 — rischio {rischio}", { score, rischio }));
     },
-    onError: (err) => toast.error(`Review: ${err instanceof Error ? err.message : String(err)}`),
+    onError: (err) => toast.error(t("Review: {errore}", { errore: err instanceof Error ? err.message : String(err) })),
   });
 
   // Salva edit manuale
   const updateMutation = useMutation({
     mutationFn: async () => {
-      if (!contrattoId) throw new Error("Nessun contratto attivo");
+      if (!contrattoId) throw new Error(t("Nessun contratto attivo"));
       if (!puoRiscrivere && condizioniDelContratto(previewMd) !== condizioniOriginali) {
-        throw new Error("le condizioni dell'azienda non si cambiano qui senza il permesso «Riscrivere le condizioni su un documento». Puoi modificare il resto del contratto.");
+        throw new Error(t("le condizioni dell'azienda non si cambiano qui senza il permesso «Riscrivere le condizioni su un documento». Puoi modificare il resto del contratto."));
       }
       const { error } = await supabase
         .from("contratti_documents" as never)
@@ -207,11 +209,11 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
     },
     onSuccess: () => {
       setCondizioniOriginali(condizioniDelContratto(previewMd));
-      toast.success("Modifiche salvate");
+      toast.success(t("Modifiche salvate"));
       qc.invalidateQueries({ queryKey: ["contratti_for_order", orderId] });
     },
     onError: (err) => {
-      toast.error(`Errore salvataggio: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(t("Errore salvataggio: {errore}", { errore: err instanceof Error ? err.message : String(err) }));
     },
   });
 
@@ -248,9 +250,9 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     },
     onSuccess: () => {
-      if (contrattoDaCompletare(previewMd)) toast.warning("Nel contratto ci sono ancora campi «[DA COMPLETARE]»: completali prima di mandarlo.");
+      if (contrattoDaCompletare(previewMd)) toast.warning(t("Nel contratto ci sono ancora campi «[DA COMPLETARE]»: completali prima di mandarlo."));
     },
-    onError: (err) => toast.error(`PDF non generato: ${err instanceof Error ? err.message : String(err)}`),
+    onError: (err) => toast.error(t("PDF non generato: {errore}", { errore: err instanceof Error ? err.message : String(err) })),
   });
 
   const loadExisting = (c: ContrattoDoc) => {
@@ -266,13 +268,13 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <FileText className="h-4 w-4" />
-          {triggerLabel}
+          {triggerLabel ?? t("Contratto")}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Contratto col cliente</DialogTitle>
-          <DialogDescription>Dati della commessa, tabella dei lavori e condizioni della tua azienda: esce sempre così.</DialogDescription>
+          <DialogTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />{t("Contratto col cliente")}</DialogTitle>
+          <DialogDescription>{t("Dati della commessa, tabella dei lavori e condizioni della tua azienda: esce sempre così.")}</DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -281,26 +283,26 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
             <Card>
               <CardContent className="space-y-3 p-3 text-sm">
                 <div className="space-y-1">
-                  <Label className="flex items-center gap-1 text-xs"><Scale className="h-3 w-3" />Condizioni dell'azienda</Label>
+                  <Label className="flex items-center gap-1 text-xs"><Scale className="h-3 w-3" />{t("Condizioni dell'azienda")}</Label>
                   {modelliAppalto.length === 0 ? (
                     <p className="text-[11px] text-muted-foreground">
-                      Mancano le condizioni: il contratto non si può fare senza.{" "}
-                      <Link to={PAGINA_CONDIZIONI} className="underline">Scrivile una volta</Link>
+                      {t("Mancano le condizioni: il contratto non si può fare senza.")}{" "}
+                      <Link to={PAGINA_CONDIZIONI} className="underline">{t("Scrivile una volta")}</Link>
                     </p>
                   ) : (
                     <>
-                      <OfficeSelect label="Condizioni per questo contratto" className="h-8 px-2 text-xs"
+                      <OfficeSelect label={t("Condizioni per questo contratto")} className="h-8 px-2 text-xs"
                         value={opzioni.condizioni_modello_id ?? ""} disabled={!puoRiscrivere}
                         onValueChange={(v) => setOpzioni({ ...opzioni, condizioni_modello_id: v || null })}
                         options={[
-                          { value: "", label: predefinitoAppalto ? `Predefinito («${predefinitoAppalto.nome}»)` : "Nessuna" },
+                          { value: "", label: predefinitoAppalto ? t("Predefinito («{nome}»)", { nome: predefinitoAppalto.nome }) : t("Nessuna") },
                           ...modelliAppalto.filter((m) => !m.predefinito).map((m) => ({ value: m.id, label: m.nome })),
                         ]} />
                       <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
                         {!puoRiscrivere && <Lock className="h-3 w-3 shrink-0" />}
                         {puoRiscrivere
-                          ? <>Per questo cliente puoi sceglierne un altro.{condizioniScelte && <> <Link to={paginaDelModello(condizioniScelte.id)} className="underline">Apri</Link></>}</>
-                          : "Altre condizioni: serve il permesso «Riscrivere le condizioni su un documento»."}
+                          ? <>{t("Per questo cliente puoi sceglierne un altro.")}{condizioniScelte && <> <Link to={paginaDelModello(condizioniScelte.id)} className="underline">{t("Apri")}</Link></>}</>
+                          : t("Altre condizioni: serve il permesso «Riscrivere le condizioni su un documento».")}
                       </p>
                     </>
                   )}
@@ -309,13 +311,13 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                 <Button size="sm" className="w-full gap-2" onClick={() => generaMutation.mutate("standard")}
                   disabled={generaMutation.isPending || !predefinitoAppalto && !condizioniScelte}>
                   {generaMutation.isPending && generaMutation.variables === "standard" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                  Crea il contratto
+                  {t("Crea il contratto")}
                 </Button>
                 <details>
-                  <summary className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><Sparkles className="h-3 w-3 text-violet-600" />Scrivilo con l'AI</summary>
+                  <summary className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><Sparkles className="h-3 w-3 text-violet-600" />{t("Scrivilo con l'AI")}</summary>
                   <div className="mt-2 space-y-3">
                 <div>
-                  <Label className="text-xs">Penale ritardo €/giorno</Label>
+                  <Label className="text-xs">{t("Penale ritardo €/giorno")}</Label>
                   <Input
                     type="number"
                     value={opzioni.penale_giorno_eur}
@@ -326,7 +328,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">Garanzia (anni)</Label>
+                  <Label className="text-xs">{t("Garanzia (anni)")}</Label>
                   <Input
                     type="number"
                     min={1} max={10}
@@ -338,16 +340,16 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">Foro competente</Label>
+                  <Label className="text-xs">{t("Foro competente")}</Label>
                   <Input
-                    placeholder="es. Roma"
+                    placeholder={t("es. Roma")}
                     value={opzioni.foro_competente}
                     onChange={(e) => setOpzioni({ ...opzioni, foro_competente: e.target.value })}
                     className="h-8"
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Subappalto consentito</Label>
+                  <Label className="text-xs">{t("Subappalto consentito")}</Label>
                   <Switch
                     checked={opzioni.subappalto_consentito}
                     onCheckedChange={(v) =>
@@ -356,7 +358,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Clausola arbitrale</Label>
+                  <Label className="text-xs">{t("Clausola arbitrale")}</Label>
                   <Switch
                     checked={opzioni.arbitrato}
                     onCheckedChange={(v) => setOpzioni({ ...opzioni, arbitrato: v })}
@@ -365,7 +367,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
 
                     <Button size="sm" variant="outline" className="w-full gap-2" onClick={() => generaMutation.mutate("ai")} disabled={generaMutation.isPending}>
                       {generaMutation.isPending && generaMutation.variables === "ai" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                      Genera con l'AI
+                      {t("Genera con l'AI")}
                     </Button>
                   </div>
                 </details>
@@ -375,9 +377,9 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
             {existing && existing.length > 0 && (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Già fatti</CardTitle>
+                  <CardTitle className="text-sm">{t("Già fatti")}</CardTitle>
                   <CardDescription className="text-xs">
-                    {existing.length === 1 ? "1 contratto già fatto" : `${existing.length} contratti già fatti`}
+                    {existing.length === 1 ? t("1 contratto già fatto") : t("{n} contratti già fatti", { n: existing.length })}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -407,7 +409,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                           {c.status}
                         </Badge>
                         <span className="text-muted-foreground">
-                          {new Date(c.created_at).toLocaleDateString("it-IT")}
+                          {new Date(c.created_at).toLocaleDateString(intlCampo())}
                         </span>
                       </div>
                     </button>
@@ -422,8 +424,8 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
             {!previewMd && !generaMutation.isPending && (
               <div className="flex flex-col items-center justify-center text-muted-foreground space-y-2 p-6 border border-dashed rounded">
                 <FileText className="h-8 w-8" />
-                <p className="text-sm text-center">Scegli le condizioni e clicca <strong>Crea il contratto</strong>.</p>
-                <p className="text-xs text-center max-w-md">Parti, cantiere, importi e tabella dei lavori vengono dalla commessa; le condizioni, parola per parola, dal modello.</p>
+                <p className="text-sm text-center">{t("Scegli le condizioni e clicca")} <strong>{t("Crea il contratto")}</strong>.</p>
+                <p className="text-xs text-center max-w-md">{t("Parti, cantiere, importi e tabella dei lavori vengono dalla commessa; le condizioni, parola per parola, dal modello.")}</p>
               </div>
             )}
 
@@ -431,7 +433,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
               <div className="flex-1 flex flex-col items-center justify-center space-y-3 p-8">
                 <Loader2 className="h-12 w-12 animate-spin text-violet-600" />
                 <p className="text-sm text-muted-foreground">
-                  {generaMutation.variables === "ai" ? "L'AI sta redigendo il contratto... (~30s)" : "Preparo il contratto..."}
+                  {generaMutation.variables === "ai" ? t("L'AI sta redigendo il contratto... (~30s)") : t("Preparo il contratto...")}
                 </p>
               </div>
             )}
@@ -441,7 +443,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                 {aiMeta && aiMeta.warnings.length > 0 && (
                   <Alert>
                     <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle className="text-sm">Avvisi AI</AlertTitle>
+                    <AlertTitle className="text-sm">{t("Avvisi AI")}</AlertTitle>
                     <AlertDescription className="text-xs">
                       <ul className="list-disc pl-4 space-y-0.5">
                         {aiMeta.warnings.map((w, i) => <li key={i}>{w}</li>)}
@@ -455,7 +457,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                       <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                       {aiMeta.model_used}
                     </span>
-                    <span>{aiMeta.tokens} token</span>
+                    <span>{t("{n} token", { n: aiMeta.tokens })}</span>
                     <span>€ {aiMeta.cost_billed_eur.toFixed(4)} (billed)</span>
                   </div>
                 )}
@@ -463,7 +465,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                 {!puoRiscrivere && condizioniOriginali && (
                   <p className="flex items-center gap-1.5 rounded bg-slate-50 px-2 py-1 text-[11px] text-slate-600">
                     <Lock className="h-3 w-3 shrink-0" />
-                    Puoi correggere parti, oggetto e importi. La sezione «Condizioni generali dell'impresa» resta quella dell'azienda.
+                    {t("Puoi correggere parti, oggetto e importi. La sezione «Condizioni generali dell'impresa» resta quella dell'azienda.")}
                   </p>
                 )}
                 {modificaTesto ? (
@@ -471,18 +473,18 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                   value={previewMd}
                   onChange={(e) => setPreviewMd(e.target.value)}
                   className="flex-1 font-mono text-xs leading-relaxed resize-none min-h-[400px]"
-                  placeholder="Contenuto contratto markdown..."
+                  placeholder={t("Contenuto contratto markdown...")}
                 />
                 ) : (
                   <div className="min-h-[420px] flex-1">
-                    <PdfBlobLivePreviewPanel renderBlobUrl={anteprimaPdf} depsKey={`${contrattoId}:${previewMd}`} debounceMs={300} headerLabel="Il contratto" downloadFileName="Contratto.pdf" />
+                    <PdfBlobLivePreviewPanel renderBlobUrl={anteprimaPdf} depsKey={`${contrattoId}:${previewMd}`} debounceMs={300} headerLabel={t("Il contratto")} downloadFileName="Contratto.pdf" />
                   </div>
                 )}
 
                 {aiMeta && aiMeta.suggerimenti.length > 0 && (
                   <Alert>
                     <Sparkles className="h-4 w-4 text-violet-600" />
-                    <AlertTitle className="text-sm">Prossimi passi suggeriti</AlertTitle>
+                    <AlertTitle className="text-sm">{t("Prossimi passi suggeriti")}</AlertTitle>
                     <AlertDescription className="text-xs">
                       <ul className="list-disc pl-4 space-y-0.5">
                         {aiMeta.suggerimenti.map((s, i) => <li key={i}>{s}</li>)}
@@ -496,7 +498,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                   <div className="space-y-2 rounded border-2 border-violet-200 bg-violet-50/30 p-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-semibold flex items-center gap-1">
-                        <ShieldCheck className="h-4 w-4 text-violet-600" /> Compliance Review AI
+                        <ShieldCheck className="h-4 w-4 text-violet-600" /> {t("Compliance Review AI")}
                       </span>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className={
@@ -516,7 +518,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                     )}
                     {(reviewResult.issues_critici?.length ?? 0) > 0 && (
                       <div className="space-y-1">
-                        <span className="text-[11px] uppercase font-semibold text-rose-700">Critici</span>
+                        <span className="text-[11px] uppercase font-semibold text-rose-700">{t("Critici")}</span>
                         {reviewResult.issues_critici!.map((iss, i) => (
                           <div key={i} className="text-[11px] p-1.5 rounded bg-rose-50 border border-rose-200">
                             <strong>{iss.area}:</strong> {iss.issue}
@@ -529,7 +531,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                     )}
                     {(reviewResult.issues_warning?.length ?? 0) > 0 && (
                       <div className="space-y-1">
-                        <span className="text-[11px] uppercase font-semibold text-amber-700">Avvisi</span>
+                        <span className="text-[11px] uppercase font-semibold text-amber-700">{t("Avvisi")}</span>
                         {reviewResult.issues_warning!.map((iss, i) => (
                           <div key={i} className="text-[11px] p-1.5 rounded bg-amber-50 border border-amber-200">
                             <strong>{iss.area}:</strong> {iss.issue}
@@ -539,10 +541,10 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                     )}
                     {(reviewResult.incongruenze_dati?.length ?? 0) > 0 && (
                       <div className="space-y-1">
-                        <span className="text-[11px] uppercase font-semibold text-rose-700">Incongruenze dati</span>
+                        <span className="text-[11px] uppercase font-semibold text-rose-700">{t("Incongruenze dati")}</span>
                         {reviewResult.incongruenze_dati!.map((inc, i) => (
                           <div key={i} className="text-[11px] p-1.5 rounded bg-rose-50 border border-rose-200">
-                            <strong>{inc.campo}:</strong> contratto = "{inc.in_contratto}" vs ordine/computo = "{inc.in_ordine_o_computo}" ({inc.delta})
+                            <strong>{inc.campo}:</strong> {t("contratto = \"{contratto}\" vs ordine/computo = \"{ordine}\" ({delta})", { contratto: inc.in_contratto, ordine: inc.in_ordine_o_computo, delta: inc.delta })}
                           </div>
                         ))}
                       </div>
@@ -550,7 +552,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                     {(reviewResult.punti_forza?.length ?? 0) > 0 && (
                       <details className="text-[11px]">
                         <summary className="cursor-pointer text-emerald-700 font-semibold uppercase">
-                          ✓ Punti forza ({reviewResult.punti_forza!.length})
+                          ✓ {t("Punti forza ({n})", { n: reviewResult.punti_forza!.length })}
                         </summary>
                         <ul className="list-disc pl-4 mt-1 space-y-0.5">
                           {reviewResult.punti_forza!.map((p, i) => <li key={i}>{p}</li>)}
@@ -566,13 +568,13 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
 
         <DialogFooter className="border-t pt-3 gap-2">
           <Button variant="ghost" onClick={() => setOpen(false)}>
-            Chiudi
+            {t("Chiudi")}
           </Button>
           {/* Silvio completa la commessa coi dati del contratto (fase 3): solo con l'interruttore acceso. */}
           {contrattoId && <CommessaDaContratto contrattoId={contrattoId} orderId={orderId} />}
           {previewMd && (
             <>
-              <Button variant="ghost" size="sm" onClick={() => setModificaTesto(!modificaTesto)}>{modificaTesto ? "Vedi il PDF" : "Modifica il testo"}</Button>
+              <Button variant="ghost" size="sm" onClick={() => setModificaTesto(!modificaTesto)}>{modificaTesto ? t("Vedi il PDF") : t("Modifica il testo")}</Button>
               {contrattoId && aiMeta && (
                 <Button
                   variant="outline"
@@ -586,12 +588,12 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                   ) : (
                     <ShieldCheck className="h-4 w-4" />
                   )}
-                  Verifica AI
+                  {t("Verifica AI")}
                 </Button>
               )}
               <Button size="sm" onClick={() => pdfMutation.mutate()} disabled={pdfMutation.isPending} className="gap-1">
                 {pdfMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Scarica PDF
+                {t("Scarica PDF")}
               </Button>
               {contrattoId && (
                 <Button
@@ -605,7 +607,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
                   ) : (
                     <Save className="h-4 w-4" />
                   )}
-                  Salva modifiche
+                  {t("Salva modifiche")}
                 </Button>
               )}
             </>

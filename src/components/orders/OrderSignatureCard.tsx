@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { PenTool, Send, CheckCircle2, Clock, XCircle, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }> = {
   pending: { label: "In attesa", variant: "outline", icon: <Clock className="h-3 w-3" /> },
@@ -39,6 +39,7 @@ interface SignatureRequestRow {
 }
 
 export function OrderSignatureCard({ orderId, customerEmail, customerName }: OrderSignatureCardProps) {
+  const t = useT();
   const { user, profile, effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -70,7 +71,7 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
       return data;
     },
     onSuccess: () => {
-      toast.success("Richiesta di firma creata");
+      toast.success(t("Richiesta di firma creata"));
       qc.invalidateQueries({ queryKey: ["signature-requests", orderId] });
       setDialogOpen(false);
       if (effectiveCompany?.id) {
@@ -92,7 +93,7 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
       qc.invalidateQueries({ queryKey: ["order-events", orderId] });
       qc.invalidateQueries({ queryKey: ["order-diary-audit", orderId] });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore nella creazione"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("Errore nella creazione")),
   });
 
   const getSignUrl = (token: string) => {
@@ -101,7 +102,7 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
 
   const copyLink = (token: string) => {
     navigator.clipboard.writeText(getSignUrl(token));
-    toast.success("Link copiato negli appunti");
+    toast.success(t("Link copiato negli appunti"));
   };
 
   const latestSigned = signatures.find(s => s.status === "signed");
@@ -111,18 +112,18 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
         <CardTitle className="flex items-center gap-2 min-w-0">
           <PenTool className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-          <span className="truncate">Firma Digitale</span>
+          <span className="truncate">{t("Firma Digitale")}</span>
         </CardTitle>
         <Button size="sm" onClick={() => { setEmail(customerEmail || ""); setName(customerName || ""); setDialogOpen(true); }} className="shrink-0">
           <Send className="h-4 w-4" />
-          <span className="hidden sm:inline ml-1">Richiedi firma</span>
+          <span className="hidden sm:inline ml-1">{t("Richiedi firma")}</span>
         </Button>
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Caricamento...</p>
+          <p className="text-sm text-muted-foreground">{t("Caricamento...")}</p>
         ) : signatures.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessuna richiesta di firma inviata</p>
+          <p className="text-sm text-muted-foreground">{t("Nessuna richiesta di firma inviata")}</p>
         ) : (
           <div className="space-y-3">
             {signatures.map((sig) => {
@@ -133,21 +134,21 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium truncate">{sig.signer_name || sig.signer_email}</span>
                       <Badge variant={statusInfo.variant} className="gap-1 shrink-0">
-                        {statusInfo.icon} {statusInfo.label}
+                        {statusInfo.icon} {t(statusInfo.label)}
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground truncate">
-                      {sig.signer_email} · {format(new Date(sig.created_at), "dd/MM/yy HH:mm", { locale: it })}
-                      {sig.signed_at && ` · Firmato: ${format(new Date(sig.signed_at), "dd/MM/yy", { locale: it })}`}
+                      {sig.signer_email} · {format(new Date(sig.created_at), "dd/MM/yy HH:mm", { locale: dateFnsCampo() })}
+                      {sig.signed_at && ` · ${t("Firmato: {data}", { data: format(new Date(sig.signed_at), "dd/MM/yy", { locale: dateFnsCampo() }) })}`}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
                     {sig.status === "pending" && (
                       <>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyLink(sig.token)} title="Copia link">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyLink(sig.token)} title={t("Copia link")}>
                           <Copy className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(getSignUrl(sig.token), "_blank")} title="Apri link">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(getSignUrl(sig.token), "_blank")} title={t("Apri link")}>
                           <ExternalLink className="h-4 w-4" />
                         </Button>
                       </>
@@ -161,8 +162,8 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
 
         {latestSigned?.signature_data && (
           <div className="mt-4 border rounded-lg p-3">
-            <p className="text-xs text-muted-foreground mb-2">Ultima firma:</p>
-            <img loading="lazy" src={latestSigned.signature_data} alt="Firma" className="max-h-24 mx-auto" />
+            <p className="text-xs text-muted-foreground mb-2">{t("Ultima firma:")}</p>
+            <img loading="lazy" src={latestSigned.signature_data} alt={t("Firma")} className="max-h-24 mx-auto" />
           </div>
         )}
       </CardContent>
@@ -170,25 +171,25 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Richiedi firma digitale</DialogTitle>
+            <DialogTitle>{t("Richiedi firma digitale")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Email destinatario</Label>
+              <Label>{t("Email destinatario")}</Label>
               <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@esempio.com" type="email" />
             </div>
             <div>
-              <Label>Nome firmatario (opzionale)</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome e cognome" />
+              <Label>{t("Nome firmatario (opzionale)")}</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Nome e cognome")} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("Annulla")}</Button>
             <Button
               onClick={() => createMutation.mutate()}
               disabled={!email.trim() || createMutation.isPending}
             >
-              {createMutation.isPending ? "Creazione..." : "Crea richiesta"}
+              {createMutation.isPending ? t("Creazione...") : t("Crea richiesta")}
             </Button>
           </DialogFooter>
         </DialogContent>

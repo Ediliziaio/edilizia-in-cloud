@@ -1,6 +1,7 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function OrderWorkspaceNav<T extends string>({
   label,
@@ -17,15 +18,16 @@ export function OrderWorkspaceNav<T extends string>({
   counts?: Partial<Record<T, number | null | undefined>>;
 }) {
   const isMobile = useIsMobile();
+  const t = useT();
   // Telefono: la tendina basta, senza riga sotto né spazio in più (06/10/2026).
-  if (isMobile) return <nav data-order-navigation aria-label={label} className="min-h-0">
-    <UniformSelect aria-label={label} value={value} onChange={event => {
+  if (isMobile) return <nav data-order-navigation aria-label={t(label)} className="min-h-0">
+    <UniformSelect aria-label={t(label)} value={value} onChange={event => {
       const selected = views.find(view => view.value === event.target.value);
       if (selected) onChange(selected.value);
     }} className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base font-medium text-blue-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600">
       {views.map(view => {
         const n = counts?.[view.value];
-        return <option key={view.value} value={view.value}>{view.label}{typeof n === "number" && n > 0 ? ` (${n})` : ""}</option>;
+        return <option key={view.value} value={view.value}>{t(view.label)}{typeof n === "number" && n > 0 ? ` (${n})` : ""}</option>;
       })}
     </UniformSelect>
   </nav>;
@@ -35,7 +37,7 @@ export function OrderWorkspaceNav<T extends string>({
   return (
     <div className="commessa-section-toolbar">
       {/* min-h-0: il CSS globale dà `nav { min-height: 64px }` e allungava le schede. */}
-      <nav data-order-navigation aria-label={label} className="commessa-sub-navigation flex min-h-0 flex-wrap">
+      <nav data-order-navigation aria-label={t(label)} className="commessa-sub-navigation flex min-h-0 flex-wrap">
         {views.map((view) => {
           const n = counts?.[view.value];
           return (
@@ -51,7 +53,7 @@ export function OrderWorkspaceNav<T extends string>({
                   : "border-transparent text-slate-600 hover:border-slate-300 hover:text-blue-950",
               )}
             >
-              {view.label}
+              {t(view.label)}
               {typeof n === "number" && n > 0 && (
                 <span className={cn(
                   "rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums",
@@ -65,7 +67,7 @@ export function OrderWorkspaceNav<T extends string>({
         })}
       </nav>
       <p className="commessa-section-description">
-        {views.find((view) => view.value === value)?.description}
+        {(() => { const d = views.find((view) => view.value === value)?.description; return d ? t(d) : d; })()}
       </p>
     </div>
   );

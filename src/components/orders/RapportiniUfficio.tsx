@@ -31,6 +31,7 @@ import { applicaParti, fasiDelGiorno,
   type GiornoUfficio, type PersonaPresenza, type RapportinoLetto,
 } from "@/lib/campo/rapportiniUfficio";
 import { OfficeSelect } from "./OfficeSelect";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Un file in base64, senza il prefisso «data:…;base64,». */
 const inBase64 = (b: Blob) => new Promise<string>((ok, ko) => {
@@ -74,19 +75,20 @@ export function RapportiniUfficio({ orderId, className, aperta: apertaFuori, onA
   /** Aperto da fuori: il menu «Silvio AI» della commessa porta qui per i rapportini dai documenti. */
   aperta?: boolean; onApertaChange?: (v: boolean) => void;
 }) {
+  const t = useT();
   const [apertaDentro, setApertaDentro] = useState(false);
   const aperta = apertaFuori ?? apertaDentro;
   const setAperta = (v: boolean) => { setApertaDentro(v); onApertaChange?.(v); };
   return (
     <>
       <Button variant="ghost" size="sm" className={cn("h-8", className)} onClick={() => setAperta(true)}>
-        <NotebookPen className="mr-1.5 h-4 w-4" />Scrivi rapportini
+        <NotebookPen className="mr-1.5 h-4 w-4" />{t("Scrivi rapportini")}
       </Button>
       <Dialog open={aperta} onOpenChange={setAperta}>
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Rapportini dall'ufficio</DialogTitle>
-            <DialogDescription>Come quelli del cantiere, anche più giorni insieme. Entrano da approvare: all'approvazione le ore di ognuno diventano costo.</DialogDescription>
+            <DialogTitle>{t("Rapportini dall'ufficio")}</DialogTitle>
+            <DialogDescription>{t("Come quelli del cantiere, anche più giorni insieme. Entrano da approvare: all'approvazione le ore di ognuno diventano costo.")}</DialogDescription>
           </DialogHeader>
           {aperta && <Finestra orderId={orderId} onFatto={() => setAperta(false)} />}
         </DialogContent>
@@ -98,6 +100,7 @@ export function RapportiniUfficio({ orderId, className, aperta: apertaFuori, onA
 const dbx = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }) {
+  const tr = useT();
   const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -185,7 +188,7 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
     }
     setGiorni((gs) => gs.map((x) => (x.chiave === g.chiave ? { ...x, foto: [...(x.foto ?? []), ...nuove] } : x)));
     setCaricando(null);
-    if (falliti) toast.error(falliti === 1 ? "Una foto non è stata caricata" : `${falliti} foto non caricate`);
+    if (falliti) toast.error(falliti === 1 ? tr("Una foto non è stata caricata") : tr("{n} foto non caricate", { n: falliti }));
   };
 
   // Più giorni insieme: lo stesso lavoro dell'ultimo giorno, per ogni giorno del periodo.
@@ -217,7 +220,7 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
         body: { order_id: orderId, company_id: companyId, files: allegati, testo: testi.join("\n\n").slice(0, 60_000) },
       });
       if (error) {
-        let messaggio = "Non sono riuscito a leggere i documenti. Riprova.";
+        let messaggio = tr("Non sono riuscito a leggere i documenti. Riprova.");
         try {
           const corpo = await (error as { context?: Response }).context?.json?.();
           if (typeof corpo?.error === "string") messaggio = corpo.error;
@@ -231,7 +234,7 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
       setLettura({ stato: "letto", n: nuovi.length, avvisi });
     } catch (e) {
       setLettura(null);
-      toast.error(e instanceof Error ? e.message : "Non sono riuscito a leggere i documenti.");
+      toast.error(e instanceof Error ? e.message : tr("Non sono riuscito a leggere i documenti."));
     }
   };
 
@@ -248,10 +251,10 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
       refreshWorkQueries(qc, orderId);
       refreshRapportinoQueries(qc, orderId, companyId);
       void qc.invalidateQueries({ predicate: ({ queryKey }) => typeof queryKey[0] === "string" && queryKey[0].includes("rapportini") });
-      toast.success(n === 1 ? "Rapportino scritto: è da approvare" : `${n} rapportini scritti: sono da approvare`);
+      toast.success(n === 1 ? tr("Rapportino scritto: è da approvare") : tr("{n} rapportini scritti: sono da approvare", { n }));
       onFatto();
     },
-    onError: (e) => toast.error(messaggioErrore(e, "Rapportini non salvati. Riprova.")),
+    onError: (e) => toast.error(messaggioErrore(e, tr("Rapportini non salvati. Riprova."))),
   });
 
   return (
@@ -259,39 +262,39 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" className="h-8" aria-expanded={!!periodo}
           onClick={() => setPeriodo(periodo ? null : { dal: giorni[giorni.length - 1].data, al: oggi, feriali: true })}>
-          <CalendarRange className="mr-1.5 h-4 w-4" />Più giorni insieme
+          <CalendarRange className="mr-1.5 h-4 w-4" />{tr("Più giorni insieme")}
         </Button>
         <label className={cn("inline-flex h-8 cursor-pointer items-center rounded-md border px-3 text-sm hover:bg-slate-50", lettura?.stato === "legge" && "pointer-events-none opacity-60")}>
           {lettura?.stato === "legge" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4 text-violet-600" />}
-          {lettura?.stato === "legge" ? "Leggo i documenti…" : "Leggi da documenti"}
-          <input type="file" multiple className="sr-only" aria-label="Documenti da leggere"
+          {lettura?.stato === "legge" ? tr("Leggo i documenti…") : tr("Leggi da documenti")}
+          <input type="file" multiple className="sr-only" aria-label={tr("Documenti da leggere")}
             accept="image/*,application/pdf,.pdf,.xlsx,.xlsm,.csv,.txt"
             onChange={(e) => { void leggiDocumenti(e.target.files); e.target.value = ""; }} />
         </label>
-        <span className="text-xs text-muted-foreground">Foto di rapportini di carta, fogli presenze, PDF, Excel: fino a 5 file.</span>
+        <span className="text-xs text-muted-foreground">{tr("Foto di rapportini di carta, fogli presenze, PDF, Excel: fino a 5 file.")}</span>
       </div>
       {periodo && (
         <div className="flex flex-wrap items-end gap-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3">
-          <label className="grid gap-1 text-xs text-muted-foreground">Dal
-            <Input type="date" max={oggi} value={periodo.dal} onChange={(e) => setPeriodo({ ...periodo, dal: e.target.value })} className="h-9 w-40" aria-label="Periodo dal" />
+          <label className="grid gap-1 text-xs text-muted-foreground">{tr("Dal")}
+            <Input type="date" max={oggi} value={periodo.dal} onChange={(e) => setPeriodo({ ...periodo, dal: e.target.value })} className="h-9 w-40" aria-label={tr("Periodo dal")} />
           </label>
-          <label className="grid gap-1 text-xs text-muted-foreground">Al
-            <Input type="date" max={oggi} value={periodo.al} onChange={(e) => setPeriodo({ ...periodo, al: e.target.value })} className="h-9 w-40" aria-label="Periodo al" />
+          <label className="grid gap-1 text-xs text-muted-foreground">{tr("Al")}
+            <Input type="date" max={oggi} value={periodo.al} onChange={(e) => setPeriodo({ ...periodo, al: e.target.value })} className="h-9 w-40" aria-label={tr("Periodo al")} />
           </label>
           <label className="flex h-9 items-center gap-2 text-sm">
             <input type="checkbox" checked={periodo.feriali} onChange={(e) => setPeriodo({ ...periodo, feriali: e.target.checked })} />
-            Senza sabato e domenica
+            {tr("Senza sabato e domenica")}
           </label>
           <Button type="button" size="sm" className="h-9" disabled={!daPeriodo.length} onClick={creaPeriodo}>
-            {daPeriodo.length ? `Crea ${daPeriodo.length} ${daPeriodo.length === 1 ? "giorno" : "giorni"}` : "Nessun giorno nel periodo"}
+            {daPeriodo.length ? tr(daPeriodo.length === 1 ? "Crea {n} giorno" : "Crea {n} giorni", { n: daPeriodo.length }) : tr("Nessun giorno nel periodo")}
           </Button>
-          <p className="w-full text-xs text-muted-foreground">Ogni giorno prende lo stesso lavoro, le stesse fasi, persone e mezzi dell'ultimo rapportino qui sotto: poi correggi i giorni diversi.</p>
+          <p className="w-full text-xs text-muted-foreground">{tr("Ogni giorno prende lo stesso lavoro, le stesse fasi, persone e mezzi dell'ultimo rapportino qui sotto: poi correggi i giorni diversi.")}</p>
         </div>
       )}
       {lettura?.stato === "letto" && (
         <div role="status" className="space-y-1 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-950">
           <p className="flex items-center gap-1.5 font-medium"><FileUp className="h-4 w-4" />
-            {lettura.n ? `Letti ${lettura.n} ${lettura.n === 1 ? "rapportino" : "rapportini"} dai documenti: controllali prima di salvare.` : "Nei documenti non ho trovato rapportini da creare."}
+            {lettura.n ? tr(lettura.n === 1 ? "Letti {n} rapportino dai documenti: controllali prima di salvare." : "Letti {n} rapportini dai documenti: controllali prima di salvare.", { n: lettura.n }) : tr("Nei documenti non ho trovato rapportini da creare.")}
           </p>
           {lettura.avvisi.length > 0 && <ul className="list-disc pl-5 text-xs">{lettura.avvisi.map((a, i) => <li key={i}>{a}</li>)}</ul>}
         </div>
@@ -303,35 +306,35 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
         const proposti = persone.filter((p) => p.employee_id && (sulleFasi.size ? sulleFasi.has(p.employee_id) : assegnati.has(p.employee_id)) && !(p.chiave in presenze));
         const oreTotali = Object.values(presenze).reduce((t, v) => t + (Number(v.replace(",", ".")) || 0), 0);
         return (
-          <section key={g.chiave} aria-label={`Rapportino ${i + 1}`} className="space-y-3 rounded-lg border p-3">
+          <section key={g.chiave} aria-label={tr("Rapportino {n}", { n: i + 1 })} className="space-y-3 rounded-lg border p-3">
             <div className="flex flex-wrap items-end gap-2">
-              <label className="grid gap-1 text-xs text-muted-foreground">Giorno
-                <Input type="date" max={oggi} value={g.data} onChange={(e) => cambia(g.chiave, { data: e.target.value })} className="h-9 w-40" aria-label={`Giorno del rapportino ${i + 1}`} />
+              <label className="grid gap-1 text-xs text-muted-foreground">{tr("Giorno")}
+                <Input type="date" max={oggi} value={g.data} onChange={(e) => cambia(g.chiave, { data: e.target.value })} className="h-9 w-40" aria-label={tr("Giorno del rapportino {n}", { n: i + 1 })} />
               </label>
-              <label className="grid min-w-[11rem] flex-1 gap-1 text-xs text-muted-foreground">A nome di
-                <OfficeSelect value={g.autore} onValueChange={(v) => cambia(g.chiave, { autore: v })} label={`A nome di, rapportino ${i + 1}`}
+              <label className="grid min-w-[11rem] flex-1 gap-1 text-xs text-muted-foreground">{tr("A nome di")}
+                <OfficeSelect value={g.autore} onValueChange={(v) => cambia(g.chiave, { autore: v })} label={tr("A nome di, rapportino {n}", { n: i + 1 })}
                   className="h-9 text-foreground"
-                  options={[{ value: "", label: "Ufficio (chi scrive)" }, ...autori.map((a) => ({ value: a.user_id, label: `${nomeAccesso(a)}${a.is_capocantiere ? " · capocantiere" : ""}` }))]} />
+                  options={[{ value: "", label: tr("Ufficio (chi scrive)") }, ...autori.map((a) => ({ value: a.user_id, label: `${nomeAccesso(a)}${a.is_capocantiere ? ` · ${tr("capocantiere")}` : ""}` }))]} />
               </label>
-              <label className="grid gap-1 text-xs text-muted-foreground">Meteo
-                <OfficeSelect value={g.meteo ?? ""} onValueChange={(v) => cambia(g.chiave, { meteo: v })} label={`Meteo, rapportino ${i + 1}`}
+              <label className="grid gap-1 text-xs text-muted-foreground">{tr("Meteo")}
+                <OfficeSelect value={g.meteo ?? ""} onValueChange={(v) => cambia(g.chiave, { meteo: v })} label={tr("Meteo, rapportino {n}", { n: i + 1 })}
                   className="h-9 text-foreground"
-                  options={[{ value: "", label: "—" }, ...METEO.map((m) => ({ value: m.value, label: m.label }))]} />
+                  options={[{ value: "", label: "—" }, ...METEO.map((m) => ({ value: m.value, label: tr(m.label) }))]} />
               </label>
               {giorni.length > 1 && (
-                <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-600" aria-label={`Togli il rapportino ${i + 1}`} onClick={() => setGiorni((gs) => gs.filter((x) => x.chiave !== g.chiave))}>
+                <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-600" aria-label={tr("Togli il rapportino {n}", { n: i + 1 })} onClick={() => setGiorni((gs) => gs.filter((x) => x.chiave !== g.chiave))}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               )}
             </div>
 
-            <label className="grid gap-1 text-xs text-muted-foreground">Cosa si è fatto
+            <label className="grid gap-1 text-xs text-muted-foreground">{tr("Cosa si è fatto")}
               <Textarea rows={2} maxLength={4000} value={g.descrizione} onChange={(e) => cambia(g.chiave, { descrizione: e.target.value })}
-                placeholder="Es. smontaggio manto lato nord, posa guaina" aria-label={`Cosa si è fatto, rapportino ${i + 1}`} />
+                placeholder={tr("Es. smontaggio manto lato nord, posa guaina")} aria-label={tr("Cosa si è fatto, rapportino {n}", { n: i + 1 })} />
             </label>
 
             {parti.fasi && phases.length > 0 && (
-              <Blocco titolo="Fasi lavorate">
+              <Blocco titolo={tr("Fasi lavorate")}>
                 <div className="flex flex-wrap gap-1.5">
                   {phases.map((p) => {
                     const si = g.fasi.includes(p.id);
@@ -351,8 +354,8 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-xs font-medium">{fase?.name}</p>
                         {!sotto.length && (
-                          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">Avanzamento
-                            <Input type="number" min={0} max={100} className="h-8 w-20" aria-label={`Avanzamento di ${fase?.name}`}
+                          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">{tr("Avanzamento")}
+                            <Input type="number" min={0} max={100} className="h-8 w-20" aria-label={tr("Avanzamento di {nome}", { nome: fase?.name ?? "" })}
                               value={g.percentuali?.[id] ?? fase?.percentuale ?? 0}
                               onChange={(e) => cambia(g.chiave, { percentuali: { ...g.percentuali, [id]: Math.max(0, Math.min(100, Number(e.target.value) || 0)) } })} />%
                           </label>
@@ -370,13 +373,13 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
                             return (
                               <li key={s.id} className="flex flex-wrap items-center gap-2 text-xs">
                                 <span className="min-w-0 flex-1">{s.name}</span>
-                                <button type="button" aria-pressed={stato === "lavorata"} aria-label={`${s.name}: lavorata`} onClick={() => imposta("lavorata")}
+                                <button type="button" aria-pressed={stato === "lavorata"} aria-label={tr("{nome}: lavorata", { nome: s.name })} onClick={() => imposta("lavorata")}
                                   className={cn("flex items-center gap-1 rounded-md border px-2 py-1", stato === "lavorata" ? "border-blue-600 bg-blue-50 text-blue-900" : "border-border text-muted-foreground")}>
-                                  <Hammer className="h-3.5 w-3.5" />Lavorata
+                                  <Hammer className="h-3.5 w-3.5" />{tr("Lavorata")}
                                 </button>
-                                <button type="button" aria-pressed={stato === "finita"} aria-label={`${s.name}: finita`} onClick={() => imposta("finita")}
+                                <button type="button" aria-pressed={stato === "finita"} aria-label={tr("{nome}: finita", { nome: s.name })} onClick={() => imposta("finita")}
                                   className={cn("flex items-center gap-1 rounded-md border px-2 py-1", stato === "finita" ? "border-emerald-600 bg-emerald-50 text-emerald-900" : "border-border text-muted-foreground")}>
-                                  <Check className="h-3.5 w-3.5" />Finita
+                                  <Check className="h-3.5 w-3.5" />{tr("Finita")}
                                 </button>
                               </li>
                             );
@@ -389,19 +392,19 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
               </Blocco>
             )}
 
-            <Blocco titolo="Chi ha lavorato" destra={oreTotali > 0 ? `${oreTotali.toLocaleString("it-IT")} ore` : undefined}>
+            <Blocco titolo={tr("Chi ha lavorato")} destra={oreTotali > 0 ? tr("{n} ore", { n: oreTotali.toLocaleString(intlCampo()) }) : undefined}>
               <RigheConValore
-                etichetta="persona"
-                voci={persone.map((p) => ({ id: p.chiave, nome: p.nome, gruppo: p.subappaltatore_id ? "Ditte" : p.employee_id && assegnati.has(p.employee_id) ? "Su questa commessa" : "Altri dipendenti" }))}
+                etichetta={tr("persona")}
+                voci={persone.map((p) => ({ id: p.chiave, nome: p.nome, gruppo: p.subappaltatore_id ? tr("Ditte") : p.employee_id && assegnati.has(p.employee_id) ? tr("Su questa commessa") : tr("Altri dipendenti") }))}
                 valori={presenze}
-                segnaposto="ore"
+                segnaposto={tr("ore")}
                 valoreNuovo="8"
                 onCambia={(v) => cambia(g.chiave, { presenze: v })}
                 extra={proposti.length > 0 && (
                   <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => cambia(g.chiave, {
                     presenze: { ...presenze, ...Object.fromEntries(proposti.map((p) => [p.chiave, "8"])) },
                   })}>
-                    <Users className="mr-1 h-3.5 w-3.5" />{sulleFasi.size ? "Chi lavora sulle fasi scelte" : "Tutti quelli della commessa"} ({proposti.length})
+                    <Users className="mr-1 h-3.5 w-3.5" />{sulleFasi.size ? tr("Chi lavora sulle fasi scelte") : tr("Tutti quelli della commessa")} ({proposti.length})
                   </Button>
                 )}
               />
@@ -413,24 +416,24 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
               caricamento={mezziQuery.isLoading} errore={mezziQuery.isError}
               riprova={() => void mezziQuery.refetch()} />}
 
-            {parti.mezzi && <Blocco titolo="Mezzi e attrezzi usati">
-              <RigheConValore etichetta="mezzo" voci={mezzi.map((m) => ({ id: m.id, nome: m.nome, gruppo: m.qui ? "Su questo cantiere" : "Altri del parco" }))}
-                valori={g.mezzi ?? {}} segnaposto="ore (facolt.)" valoreNuovo="" onCambia={(v) => cambia(g.chiave, { mezzi: v })} />
+            {parti.mezzi && <Blocco titolo={tr("Mezzi e attrezzi usati")}>
+              <RigheConValore etichetta={tr("mezzo")} voci={mezzi.map((m) => ({ id: m.id, nome: m.nome, gruppo: m.qui ? tr("Su questo cantiere") : tr("Altri del parco") }))}
+                valori={g.mezzi ?? {}} segnaposto={tr("ore (facolt.)")} valoreNuovo="" onCambia={(v) => cambia(g.chiave, { mezzi: v })} />
             </Blocco>}
 
             {parti.materiali && (articoli.data?.length ?? 0) > 0 && (
-              <Blocco titolo="Materiali usati">
-                <RigheConValore etichetta="materiale" voci={(articoli.data ?? []).map((a) => ({ id: a.id, nome: a.nome, coda: a.unita ?? undefined }))}
-                  valori={g.materiali ?? {}} segnaposto="quantità" valoreNuovo="1" onCambia={(v) => cambia(g.chiave, { materiali: v })} />
+              <Blocco titolo={tr("Materiali usati")}>
+                <RigheConValore etichetta={tr("materiale")} voci={(articoli.data ?? []).map((a) => ({ id: a.id, nome: a.nome, coda: a.unita ?? undefined }))}
+                  valori={g.materiali ?? {}} segnaposto={tr("quantità")} valoreNuovo="1" onCambia={(v) => cambia(g.chiave, { materiali: v })} />
               </Blocco>
             )}
 
             {canViewCosts && (
-              <Blocco titolo="Voci e costi">
+              <Blocco titolo={tr("Voci e costi")}>
                 <VociRapportinoUfficio companyId={companyId} orderId={orderId} giorno={g.data} voci={g.voci ?? []} onCambia={(voci) => setGiorni((p) => p.map((x) => (x.chiave === g.chiave ? { ...x, voci } : x)))} />
               </Blocco>
             )}
-            {campiModulo.length > 0 && <Blocco titolo="Altre informazioni">
+            {campiModulo.length > 0 && <Blocco titolo={tr("Altre informazioni")}>
               <div className="space-y-3">
                 <CampiModulo campi={campiModulo.filter((c) => c.livello !== "fase" || !parti.fasi || g.fasi.length === 0)} valori={g.campi ?? {}} mostraErrori={tentato}
                   onChange={(k, v) => cambia(g.chiave, { campi: { ...(g.campi ?? {}), [k]: v } })} />
@@ -444,39 +447,39 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
               </div>
             </Blocco>}
 
-            {parti.foto && <Blocco titolo="Foto">
+            {parti.foto && <Blocco titolo={tr("Foto")}>
               <div className="flex flex-wrap items-center gap-2">
                 {(g.foto ?? []).map((u) => (
                   <div key={u} className="relative h-16 w-16 overflow-hidden rounded-md border">
                     <img src={u} alt="" className="h-full w-full object-cover" />
-                    <button type="button" aria-label="Togli la foto" onClick={() => cambia(g.chiave, { foto: (g.foto ?? []).filter((x) => x !== u) })}
+                    <button type="button" aria-label={tr("Togli la foto")} onClick={() => cambia(g.chiave, { foto: (g.foto ?? []).filter((x) => x !== u) })}
                       className="absolute right-0.5 top-0.5 rounded-full bg-white/90 p-0.5 text-slate-700"><X className="h-3 w-3" /></button>
                   </div>
                 ))}
                 <label className={cn("flex h-16 cursor-pointer items-center gap-1.5 rounded-md border border-dashed px-3 text-xs text-muted-foreground hover:bg-slate-50", caricando === g.chiave && "pointer-events-none opacity-60")}>
                   {caricando === g.chiave ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                  {caricando === g.chiave ? "Carico…" : "Aggiungi foto"}
-                  <input type="file" accept="image/*" multiple className="sr-only" aria-label={`Foto, rapportino ${i + 1}`}
+                  {caricando === g.chiave ? tr("Carico…") : tr("Aggiungi foto")}
+                  <input type="file" accept="image/*" multiple className="sr-only" aria-label={tr("Foto, rapportino {n}", { n: i + 1 })}
                     onChange={(e) => { void caricaFoto(g, e.target.files); e.target.value = ""; }} />
                 </label>
               </div>
             </Blocco>}
 
-            <label className="grid gap-1 text-xs text-muted-foreground">Note (facoltative)
-              <Input value={g.note} maxLength={4000} onChange={(e) => cambia(g.chiave, { note: e.target.value })} aria-label={`Note, rapportino ${i + 1}`} />
+            <label className="grid gap-1 text-xs text-muted-foreground">{tr("Note (facoltative)")}
+              <Input value={g.note} maxLength={4000} onChange={(e) => cambia(g.chiave, { note: e.target.value })} aria-label={tr("Note, rapportino {n}", { n: i + 1 })} />
             </label>
           </section>
         );
       })}
       <Button variant="outline" size="sm" disabled={giorni.length >= 31}
         onClick={() => setGiorni((gs) => [...gs, giornoVuoto(oggi, `g${Date.now()}`, gs[gs.length - 1])])}>
-        <Plus className="mr-1 h-4 w-4" />Aggiungi un altro giorno
+        <Plus className="mr-1 h-4 w-4" />{tr("Aggiungi un altro giorno")}
       </Button>
       {tentato && errori.length > 0 && <ul role="alert" className="list-disc pl-5 text-xs text-rose-700">{errori.map((e) => <li key={e}>{e}</li>)}</ul>}
       <DialogFooter>
-        <Button variant="ghost" onClick={onFatto}>Annulla</Button>
+        <Button variant="ghost" onClick={onFatto}>{tr("Annulla")}</Button>
         <Button disabled={salva.isPending || !!caricando} onClick={() => { setTentato(true); if (!errori.length) salva.mutate(); }}>
-          {salva.isPending ? "Salvo…" : giorni.length === 1 ? "Salva il rapportino" : `Salva ${giorni.length} rapportini`}
+          {salva.isPending ? tr("Salvo…") : giorni.length === 1 ? tr("Salva il rapportino") : tr("Salva {n} rapportini", { n: giorni.length })}
         </Button>
       </DialogFooter>
     </div>
@@ -505,6 +508,7 @@ function RigheConValore({ etichetta, voci, valori, segnaposto, valoreNuovo, onCa
   onCambia: (v: Record<string, string>) => void;
   extra?: ReactNode;
 }) {
+  const t = useT();
   const libere = voci.filter((v) => !(v.id in valori));
   const gruppi = [...new Set(libere.map((v) => v.gruppo ?? ""))];
   return (
@@ -519,7 +523,7 @@ function RigheConValore({ etichetta, voci, valori, segnaposto, valoreNuovo, onCa
                 <Input value={v} inputMode="decimal" placeholder={segnaposto} aria-label={`${voce?.nome ?? etichetta}: ${segnaposto}`}
                   onChange={(e) => onCambia({ ...valori, [id]: e.target.value })} className="h-7 w-20 text-right" />
                 {voce?.coda && <span className="w-8 text-xs text-muted-foreground">{voce.coda}</span>}
-                <button type="button" aria-label={`Togli ${voce?.nome ?? etichetta}`} className="text-muted-foreground hover:text-rose-600"
+                <button type="button" aria-label={t("Togli {nome}", { nome: voce?.nome ?? etichetta })} className="text-muted-foreground hover:text-rose-600"
                   onClick={() => { const n = { ...valori }; delete n[id]; onCambia(n); }}><X className="h-4 w-4" /></button>
               </li>
             );
@@ -528,9 +532,9 @@ function RigheConValore({ etichetta, voci, valori, segnaposto, valoreNuovo, onCa
       )}
       <div className="flex flex-wrap items-center gap-2">
         {libere.length > 0 && (
-          <OfficeSelect value="" label={`Aggiungi ${etichetta}`} onValueChange={(v) => { if (v) onCambia({ ...valori, [v]: valoreNuovo }); }}
+          <OfficeSelect value="" label={t("Aggiungi {cosa}", { cosa: etichetta })} onValueChange={(v) => { if (v) onCambia({ ...valori, [v]: valoreNuovo }); }}
             className="h-8 min-w-[12rem] flex-1 text-muted-foreground"
-            placeholder={`+ Aggiungi ${etichetta}…`}
+            placeholder={t("+ Aggiungi {cosa}…", { cosa: etichetta })}
             options={gruppi.flatMap((gr) => gr
               ? libere.filter((v) => v.gruppo === gr).map((v) => ({ value: v.id, label: v.nome, group: gr }))
               : libere.filter((v) => !v.gruppo).map((v) => ({ value: v.id, label: v.nome })))}

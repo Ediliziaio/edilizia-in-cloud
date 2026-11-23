@@ -25,8 +25,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OfficeSelect } from "./OfficeSelect";
 import { AzioniLavorazioni } from "./AzioniLavorazioni";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
-const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
+const eur = { format: (n: number): string => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: true }).format(n) };
 
 interface AddAssignmentDialogProps {
   incorporato?: boolean;
@@ -86,7 +87,7 @@ export function AddAssignmentDialog({
   externalTeams: _externalTeams,
   phases,
   existingAssignments = [],
-  triggerLabel = "Assegna",
+  triggerLabel,
   triggerAriaLabel,
   triggerVariant = "outline",
   triggerClassName,
@@ -94,6 +95,7 @@ export function AddAssignmentDialog({
   onAperto,
   onAdd,
 }: AddAssignmentDialogProps) {
+  const tr = useT();
   const { canViewCosts, canViewMargins, canEditOrders, canEditOperai, canViewPersone, canViewEmployees, canManagePurchasing, solaLettura } = usePermissions();
   const puoPersona = !!canEditOrders && !solaLettura;
   // La ditta su una fase la scrive chi ha anche «Costi» (regola del database su
@@ -227,8 +229,8 @@ export function AddAssignmentDialog({
   // IVA della ditta scelta: 0 in reverse charge (subappalto edile), come nasce una ditta nuova.
   const ivaSel = ivaDitta(selectedCompany?.vat_rate);
   // In reverse charge l'importo è quello e basta: l'IVA si nomina solo se la ditta la mette in fattura (31/10/2026).
-  const piuIva = ivaSel === 0 ? "" : ` + IVA ${ivaSel}%`;
-  const etichettaIva = ivaSel === 0 ? "" : ` · IVA ${ivaSel}% inclusa`;
+  const piuIva = ivaSel === 0 ? "" : ` + ${tr("IVA {n}%", { n: ivaSel })}`;
+  const etichettaIva = ivaSel === 0 ? "" : ` · ${tr("IVA {n}% inclusa", { n: ivaSel })}`;
   const applyTariffa = (t: TariffaManodopera | null, qtyRaw: string, costoUnit?: number | null) => {
     if (!t || listinoBusy || tariffeError || variantiError) return;
     const qty = parseAssignmentAmount(qtyRaw, 6);
@@ -274,14 +276,14 @@ export function AddAssignmentDialog({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tipo, executorId, selectedPhase, vociQuery.isLoading, listinoBusy, daPreventivo.netto, soloDitta]);
 
-  const options = tipo === "squadra" ? (squadreQuery.data ?? []).map(s => ({id: s.id, label: `${s.nome} · ${s.componenti.length} componenti`})) : tipo === "interno" ? employees : ditteQuery.data ?? [];
+  const options = tipo === "squadra" ? (squadreQuery.data ?? []).map(s => ({id: s.id, label: `${s.nome} · ${tr("{n} componenti", { n: s.componenti.length })}`})) : tipo === "interno" ? employees : ditteQuery.data ?? [];
   const companiesUnavailable = tipo === 'esterno' && (ditteQuery.isLoading || ditteQuery.isFetching || ditteQuery.isError);
   const invalidQuantity = !!tariffaSel && (!tariffaQty.trim() || parseAssignmentAmount(tariffaQty, 6) == null);
   const testoDitta = cercaDitta.trim().toLocaleLowerCase("it");
   const ditteVisibili = (ditteQuery.data ?? []).filter(d => d.label.toLocaleLowerCase("it").includes(testoDitta));
   const ditteAssegnate = new Set(existingAssignments
     .filter(a => a.source === "team" && a.phase_id === (selectedPhase || null)).map(a => a.external_team_id));
-  const titoloFaseDitta = selectedPhase ? phases.find(p => p.id === selectedPhase)?.name ?? "Fase non disponibile" : "Intera commessa";
+  const titoloFaseDitta = selectedPhase ? phases.find(p => p.id === selectedPhase)?.name ?? tr("Fase non disponibile") : tr("Intera commessa");
 
   const reset = useCallback(() => {
     setTipo(tipoIniziale);
@@ -329,37 +331,37 @@ export function AddAssignmentDialog({
   const handleSubmit = () => {
     const puoAssegnare = tipo === "squadra" ? puoSquadra : tipo === "esterno" ? puoDitta : puoPersona;
     if (submittingRef.current || submitting || contextChanged || companiesUnavailable || listinoIncompleto || selectedCompany?.unavailableReason || !puoAssegnare) return;
-    if (selectedPhase && !phases.some(p => p.id === selectedPhase)) { toast.error("La lavorazione non è più disponibile. Ricontrolla la selezione."); return; }
+    if (selectedPhase && !phases.some(p => p.id === selectedPhase)) { toast.error(tr("La lavorazione non è più disponibile. Ricontrolla la selezione.")); return; }
     if (!executorId) {
-      toast.error("Seleziona un esecutore");
+      toast.error(tr("Seleziona un esecutore"));
       return;
     }
     if (!options.some(option => option.id === executorId)) {
-      toast.error("Esecutore non più disponibile. Ricontrolla la selezione.");
+      toast.error(tr("Esecutore non più disponibile. Ricontrolla la selezione."));
       return;
     }
     if (tipo === "squadra") {
       if (squadreQuery.isLoading || squadreQuery.isError || squadreAssegnate.isLoading || squadreAssegnate.isError) return;
       if (squadreAssegnate.data?.some(s => s.squadra_id === executorId && s.phase_id === (selectedPhase || null))) {
-        toast.error("Squadra già assegnata qui. Modifica l'assegnazione esistente."); return;
+        toast.error(tr("Squadra già assegnata qui. Modifica l'assegnazione esistente.")); return;
       }
-      if (!selectedPhase && !validCrewDates(dal, al)) { toast.error("Controlla le date della squadra."); return; }
+      if (!selectedPhase && !validCrewDates(dal, al)) { toast.error(tr("Controlla le date della squadra.")); return; }
       submittingRef.current = true; setSubmitting(true);
       mettiSquadra.mutate({orderId, squadraId: executorId, phaseId: selectedPhase || null, dal: selectedPhase ? null : dal || null, al: selectedPhase ? null : al || null, capocantiere: !!squadra?.responsabile && capo}, {
-        onSuccess: () => { toast.success("Squadra assegnata"); reset(); setOpen(false); },
-        onError: err => { submittingRef.current = false; setSubmitting(false); toast.error(messaggioErroreOperai(err, "Assegnazione non riuscita. Riprova.")); },
+        onSuccess: () => { toast.success(tr("Squadra assegnata")); reset(); setOpen(false); },
+        onError: err => { submittingRef.current = false; setSubmitting(false); toast.error(messaggioErroreOperai(err, tr("Assegnazione non riuscita. Riprova."))); },
       });
       return;
     }
     if (existingAssignments.some(a => a.phase_id === (selectedPhase || null) &&
       (tipo === "interno" ? a.employee_id === executorId : a.external_team_id === executorId))) {
-      toast.error("Esecutore già assegnato a questa lavorazione. Modifica la riga esistente.");
+      toast.error(tr("Esecutore già assegnato a questa lavorazione. Modifica la riga esistente."));
       return;
     }
     const budget = !canViewCosts ? 0 : tipo === "interno" ? (plannedHours.trim() ? plannedCost : 0) : parseAssignmentAmount(prev);
     const cost = tipo === "esterno" && canViewCosts ? parseAssignmentAmount(cons) : 0;
     if (budget === null || cost === null || invalidQuantity) {
-      toast.error("Importi e ore devono essere numeri validi, maggiori o uguali a zero.");
+      toast.error(tr("Importi e ore devono essere numeri validi, maggiori o uguali a zero."));
       return;
     }
     const payload: AddAssignmentPayload = {
@@ -381,7 +383,7 @@ export function AddAssignmentDialog({
     submittingRef.current = true; setSubmitting(true);
     try { onAdd(payload, {
       onSuccess: () => {
-        if (soloDitta) toast.success("Ditta assegnata");
+        if (soloDitta) toast.success(tr("Ditta assegnata"));
         reset();
         if (!soloDitta) setOpen(false);
       },
@@ -389,7 +391,7 @@ export function AddAssignmentDialog({
       onError: () => { submittingRef.current = false; setSubmitting(false); },
     }); } catch (error) {
       submittingRef.current = false; setSubmitting(false);
-      toast.error(messaggioErroreOperai(error, 'Assegnazione non riuscita. Riprova.'));
+      toast.error(messaggioErroreOperai(error, tr("Assegnazione non riuscita. Riprova.")));
     }
   };
 
@@ -415,26 +417,26 @@ export function AddAssignmentDialog({
       : [];
     applyTariffa(tariffaSel, tariffaQty, variantiDitta[0]?.costo ?? tariffaSel.prezzo_costo ?? null);
   };
-  const conferma = <Button aria-label={soloDitta ? "Assegna ditta" : "Conferma assegnazione"} onClick={handleSubmit}
+  const conferma = <Button aria-label={soloDitta ? tr("Assegna ditta") : tr("Conferma assegnazione")} onClick={handleSubmit}
     disabled={submitting || contextChanged || companiesUnavailable || listinoIncompleto || !!selectedCompany?.unavailableReason || !executorId ||
       (tipo === "squadra" ? !puoSquadra || squadreQuery.isLoading || squadreQuery.isError || squadreAssegnate.isLoading || squadreAssegnate.isError : tipo === "esterno" ? !puoDitta : !puoPersona)}>
     {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" /> : <Check className="mr-1 h-4 w-4" aria-hidden="true" />}
-    {soloDitta ? "Assegna ditta" : <><span className="sm:hidden">Assegna</span><span className="hidden sm:inline">Conferma assegnazione</span></>}
+    {soloDitta ? tr("Assegna ditta") : <><span className="sm:hidden">{tr("Assegna")}</span><span className="hidden sm:inline">{tr("Conferma assegnazione")}</span></>}
   </Button>;
 
   const contenuto = (
     <>
         {!incorporato && <DialogHeader className="shrink-0">
-          <DialogTitle className="pr-6">Assegna chi lavora</DialogTitle>
-          <DialogDescription>Scegli chi e dove. I dettagli facoltativi restano in fondo.</DialogDescription>
+          <DialogTitle className="pr-6">{tr("Assegna chi lavora")}</DialogTitle>
+          <DialogDescription>{tr("Scegli chi e dove. I dettagli facoltativi restano in fondo.")}</DialogDescription>
         </DialogHeader>}
 
-        <div data-testid="assignment-dialog-scroll" role="region" aria-label="Dati assegnazione" className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pr-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div data-testid="assignment-dialog-scroll" role="region" aria-label={tr("Dati assegnazione")} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pr-1" style={{ WebkitOverflowScrolling: 'touch' }}>
         <fieldset disabled={submitting || contextChanged} className="min-w-0 space-y-4">
-          {contextChanged && <p role="alert" className="text-sm text-rose-700">Azienda o commessa cambiata. Chiudi e riapri questa finestra prima di assegnare.</p>}
+          {contextChanged && <p role="alert" className="text-sm text-rose-700">{tr("Azienda o commessa cambiata. Chiudi e riapri questa finestra prima di assegnare.")}</p>}
           {/* Tipo toggle */}
           {!soloDitta && <div className="space-y-1.5">
-            <Label>Chi assegni</Label>
+            <Label>{tr("Chi assegni")}</Label>
             <div className="grid grid-cols-3 gap-2">
               {([
                 {type: "interno", label: "Persona", icon: User, allowed: puoPersona},
@@ -444,16 +446,16 @@ export function AddAssignmentDialog({
                 key={choice.type} type="button" variant={tipo === choice.type ? "default" : "outline"} aria-pressed={tipo === choice.type}
                 onClick={() => { if (tipo === choice.type) return; setTipo(choice.type); setExecutorId(""); setTariffaId(""); setVarianteId(""); setPrev("0"); setCons("0"); setPlannedHours(""); setNotes(""); setCapo(false); }}
                 className="h-auto min-h-11 whitespace-normal px-2 py-2 text-xs sm:text-sm"
-              ><choice.icon className="mr-1 h-4 w-4 shrink-0" />{choice.label}</Button>)}
+              ><choice.icon className="mr-1 h-4 w-4 shrink-0" />{tr(choice.label)}</Button>)}
             </div>
-            {puoPersona && !puoDitta && <p className="text-xs text-muted-foreground">Le ditte su una fase le assegna chi ha anche il permesso «Costi».</p>}
+            {puoPersona && !puoDitta && <p className="text-xs text-muted-foreground">{tr("Le ditte su una fase le assegna chi ha anche il permesso «Costi».")}</p>}
           </div>}
 
           {/* Executor picker */}
           <div className="space-y-1.5">
             {soloDitta ? <>
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <h4 className="font-semibold">Scegli una ditta</h4>
+                <h4 className="font-semibold">{tr("Scegli una ditta")}</h4>
                 <span className="max-w-full truncate text-xs text-muted-foreground" title={titoloFaseDitta}>
                   {titoloFaseDitta}
                 </span>
@@ -461,35 +463,35 @@ export function AddAssignmentDialog({
               {!companiesUnavailable && !!ditteQuery.data?.length && <>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
-                  <Input className="h-9 pl-9" aria-label="Cerca ditta o subappaltatore" placeholder="Cerca ditta o subappaltatore…" value={cercaDitta}
+                  <Input className="h-9 pl-9" aria-label={tr("Cerca ditta o subappaltatore")} placeholder={tr("Cerca ditta o subappaltatore…")} value={cercaDitta}
                     onChange={e => setCercaDitta(e.target.value)} />
                 </div>
-                <RadioGroup value={executorId} onValueChange={scegliEsecutore} aria-label="Ditte disponibili"
+                <RadioGroup value={executorId} onValueChange={scegliEsecutore} aria-label={tr("Ditte disponibili")}
                   className="max-h-48 gap-0 divide-y overflow-y-auto rounded-lg border bg-background">
                   {ditteVisibili.map(d => <label key={d.id} title={d.unavailableReason}
                     className="flex min-h-10 cursor-pointer items-center gap-2.5 px-3 text-sm hover:bg-muted/50 has-[[data-state=checked]]:bg-primary/5">
                     <RadioGroupItem value={d.id} disabled={!!d.unavailableReason || ditteAssegnate.has(d.id)} />
                     <Building2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                     <span className="min-w-0 break-words">{d.label}</span>
-                    {ditteAssegnate.has(d.id) && <span className="ml-auto shrink-0 text-xs text-muted-foreground">Già assegnata</span>}
-                    {d.unavailableReason && <span className="ml-auto shrink-0 text-xs text-muted-foreground">Disattivata</span>}
+                    {ditteAssegnate.has(d.id) && <span className="ml-auto shrink-0 text-xs text-muted-foreground">{tr("Già assegnata")}</span>}
+                    {d.unavailableReason && <span className="ml-auto shrink-0 text-xs text-muted-foreground">{tr("Disattivata")}</span>}
                   </label>)}
-                  {!ditteVisibili.length && <p className="p-3 text-sm text-muted-foreground">Nessuna ditta corrisponde alla ricerca.</p>}
+                  {!ditteVisibili.length && <p className="p-3 text-sm text-muted-foreground">{tr("Nessuna ditta corrisponde alla ricerca.")}</p>}
                 </RadioGroup>
                 {selectedCompany && !ditteVisibili.some(d => d.id === selectedCompany.id) &&
-                  <p className="text-xs text-muted-foreground">Selezionata: {selectedCompany.label}</p>}
+                  <p className="text-xs text-muted-foreground">{tr("Selezionata: {nome}", { nome: selectedCompany.label })}</p>}
               </>}
             </> : <>
-            <Label>{tipo === "squadra" ? "Squadra interna" : tipo === "interno" ? "Persona" : "Ditta / subappaltatore"}</Label>
+            <Label>{tipo === "squadra" ? tr("Squadra interna") : tipo === "interno" ? tr("Persona") : tr("Ditta / subappaltatore")}</Label>
             <Select value={executorId} disabled={!!companiesUnavailable} onValueChange={scegliEsecutore}>
-              <SelectTrigger aria-label="Scegli chi">
+              <SelectTrigger aria-label={tr("Scegli chi")}>
                 <SelectValue
                   placeholder={
-                    companiesUnavailable ? ditteQuery.isError ? 'Elenco ditte non disponibile' : 'Caricamento ditte…' : options.length === 0
+                    companiesUnavailable ? ditteQuery.isError ? tr("Elenco ditte non disponibile") : tr("Caricamento ditte…") : options.length === 0
                       ? tipo === "interno"
-                        ? "Nessun operaio disponibile"
-                        : tipo === "squadra" ? "Nessuna squadra disponibile" : "Nessuna ditta disponibile"
-                      : "Seleziona…"
+                        ? tr("Nessun operaio disponibile")
+                        : tipo === "squadra" ? tr("Nessuna squadra disponibile") : tr("Nessuna ditta disponibile")
+                      : tr("Seleziona…")
                   }
                 />
               </SelectTrigger>
@@ -502,86 +504,86 @@ export function AddAssignmentDialog({
               </SelectContent>
             </Select>
             </>}
-            {tipo === 'esterno' && (ditteQuery.isError ? <div role="alert" className="text-sm text-rose-700">Non riesco a caricare ditte e subappaltatori. Non è un elenco vuoto. <Button type="button" size="sm" variant="outline" onClick={() => void ditteQuery.refetch()}>Riprova ditte</Button></div>
-              : ditteQuery.isLoading || ditteQuery.isFetching ? <p role="status" className="text-xs text-muted-foreground">Caricamento ditte e subappaltatori…</p>
-              : options.length === 0 ? <p className="text-sm text-muted-foreground">Nessuna ditta attiva. <a href="/azienda/manodopera?tab=subappaltatori" className="font-medium text-primary underline underline-offset-2">Apri l’elenco subappaltatori</a>.</p> : null)}
+            {tipo === 'esterno' && (ditteQuery.isError ? <div role="alert" className="text-sm text-rose-700">{tr("Non riesco a caricare ditte e subappaltatori. Non è un elenco vuoto.")} <Button type="button" size="sm" variant="outline" onClick={() => void ditteQuery.refetch()}>{tr("Riprova ditte")}</Button></div>
+              : ditteQuery.isLoading || ditteQuery.isFetching ? <p role="status" className="text-xs text-muted-foreground">{tr("Caricamento ditte e subappaltatori…")}</p>
+              : options.length === 0 ? <p className="text-sm text-muted-foreground">{tr("Nessuna ditta attiva.")} <a href="/azienda/manodopera?tab=subappaltatori" className="font-medium text-primary underline underline-offset-2">{tr("Apri l’elenco subappaltatori")}</a>.</p> : null)}
             {selectedCompany?.unavailableReason && <p role="alert" className="text-sm text-amber-800">{selectedCompany.unavailableReason}</p>}
           </div>
-          {!soloDitta && <label className="block space-y-1.5 text-sm font-medium">Dove lavora
+          {!soloDitta && <label className="block space-y-1.5 text-sm font-medium">{tr("Dove lavora")}
             <OfficeSelect
-              label="Fase"
+              label={tr("Fase")}
               value={selectedPhase}
               onValueChange={setSelectedPhase}
               options={[
-                { value: "", label: "Tutta la commessa" },
+                { value: "", label: tr("Tutta la commessa") },
                 ...phases.map(p => ({ value: p.id, label: p.name })),
               ]}
             />
           </label>}
           {tipo !== "esterno" && <p className="text-xs text-muted-foreground" aria-live="polite">{selectedPhase
-            ? "Incarico aggiuntivo su questa lavorazione: non rimuove la squadra generale né gli altri assegnati."
-            : "Incarico generale della commessa. Le assegnazioni già presenti nelle singole lavorazioni restano invariate."}</p>}
+            ? tr("Incarico aggiuntivo su questa lavorazione: non rimuove la squadra generale né gli altri assegnati.")
+            : tr("Incarico generale della commessa. Le assegnazioni già presenti nelle singole lavorazioni restano invariate.")}</p>}
           {tipo === "squadra" && <>
-            {squadreQuery.isLoading || squadreAssegnate.isLoading ? <p role="status" className="text-xs text-muted-foreground">Caricamento squadre…</p> : squadreQuery.isError || squadreAssegnate.isError ? <div role="alert" className="text-sm text-rose-700">Squadre non disponibili. <Button variant="outline" size="sm" onClick={() => {void squadreQuery.refetch(); void squadreAssegnate.refetch();}}>Riprova squadre</Button></div> : options.length === 0 && <a className="text-sm underline" href="/azienda/manodopera?tab=operai&vista=squadre">Crea una squadra in Manodopera</a>}
-            {squadra && <div className="rounded-lg border bg-slate-50 p-3 text-sm"><p className="font-medium">Caposquadra: {squadra.responsabile ? `${squadra.responsabile.nome} ${squadra.responsabile.cognome}` : "da impostare nella squadra"}</p><p className="mt-1 text-xs text-muted-foreground">{squadra.componenti.map(p => `${p.nome} ${p.cognome}`).join(", ") || "Squadra senza componenti"}</p></div>}
-            {selectedPhase ? <p className="text-xs text-muted-foreground">La squadra segue le date della lavorazione. Le modifichi nella fase.</p> : <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="assignment-crew-start">Dal</Label><Input id="assignment-crew-start" type="date" value={dal} onChange={e => setDal(e.target.value)} /></div><div><Label htmlFor="assignment-crew-end">Al</Label><Input id="assignment-crew-end" type="date" min={dal || undefined} value={al} onChange={e => setAl(e.target.value)} /><p className="mt-1 text-xs text-muted-foreground">Vuoto: finché non la togli.</p></div></div>}
-            {squadra?.responsabile && <label className="flex items-start gap-2 rounded-lg border p-3 text-sm"><Checkbox checked={capo} onCheckedChange={v => setCapo(v === true)} /><span>Usa il caposquadra come capocantiere<span className="block text-xs text-muted-foreground">Solo se ha l'app e la commessa non ha già un capocantiere.</span></span></label>}
-            <p className="text-xs text-muted-foreground">I componenti con account Campo ricevono l'assegnazione. Il consuntivo arriva dai rapportini approvati: ore di ciascuno × il suo costo orario, senza contare la squadra una seconda volta.</p>
+            {squadreQuery.isLoading || squadreAssegnate.isLoading ? <p role="status" className="text-xs text-muted-foreground">{tr("Caricamento squadre…")}</p> : squadreQuery.isError || squadreAssegnate.isError ? <div role="alert" className="text-sm text-rose-700">{tr("Squadre non disponibili.")} <Button variant="outline" size="sm" onClick={() => {void squadreQuery.refetch(); void squadreAssegnate.refetch();}}>{tr("Riprova squadre")}</Button></div> : options.length === 0 && <a className="text-sm underline" href="/azienda/manodopera?tab=operai&vista=squadre">{tr("Crea una squadra in Manodopera")}</a>}
+            {squadra && <div className="rounded-lg border bg-slate-50 p-3 text-sm"><p className="font-medium">{tr("Caposquadra: {nome}", { nome: squadra.responsabile ? `${squadra.responsabile.nome} ${squadra.responsabile.cognome}` : tr("da impostare nella squadra") })}</p><p className="mt-1 text-xs text-muted-foreground">{squadra.componenti.map(p => `${p.nome} ${p.cognome}`).join(", ") || tr("Squadra senza componenti")}</p></div>}
+            {selectedPhase ? <p className="text-xs text-muted-foreground">{tr("La squadra segue le date della lavorazione. Le modifichi nella fase.")}</p> : <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="assignment-crew-start">{tr("Dal")}</Label><Input id="assignment-crew-start" type="date" value={dal} onChange={e => setDal(e.target.value)} /></div><div><Label htmlFor="assignment-crew-end">{tr("Al")}</Label><Input id="assignment-crew-end" type="date" min={dal || undefined} value={al} onChange={e => setAl(e.target.value)} /><p className="mt-1 text-xs text-muted-foreground">{tr("Vuoto: finché non la togli.")}</p></div></div>}
+            {squadra?.responsabile && <label className="flex items-start gap-2 rounded-lg border p-3 text-sm"><Checkbox checked={capo} onCheckedChange={v => setCapo(v === true)} /><span>{tr("Usa il caposquadra come capocantiere")}<span className="block text-xs text-muted-foreground">{tr("Solo se ha l'app e la commessa non ha già un capocantiere.")}</span></span></label>}
+            <p className="text-xs text-muted-foreground">{tr("I componenti con account Campo ricevono l'assegnazione. Il consuntivo arriva dai rapportini approvati: ore di ciascuno × il suo costo orario, senza contare la squadra una seconda volta.")}</p>
           </>}
 
           {/* Chi lavora vede la commessa nell'app: si dice prima di salvare. */}
           {(() => {
             if (tipo === "squadra") return null;
             const scelto = tipo === "interno" ? employees.find(e => e.id === executorId) : undefined;
-            const quando = selectedPhase ? "nei giorni della fase" : "per tutta la durata dei lavori";
+            const quando = selectedPhase ? tr("nei giorni della fase") : tr("per tutta la durata dei lavori");
             // La ditta: una riga, non un riquadro verde (31/10/2026).
-            if (tipo === "esterno") return <p className="text-xs text-muted-foreground">{`Se la ditta ha l'app, vede la commessa ${quando}.`}</p>;
+            if (tipo === "esterno") return <p className="text-xs text-muted-foreground">{tr("Se la ditta ha l'app, vede la commessa {quando}.", { quando })}</p>;
             if (scelto && !scelto.campoUserId) {
-              return <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{scelto.label} non ha l'app: lavorerà qui ma non vedrà la commessa sul telefono. Puoi dargli l'app dalla sua scheda in Manodopera.</p>;
+              return <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{tr("{nome} non ha l'app: lavorerà qui ma non vedrà la commessa sul telefono. Puoi dargli l'app dalla sua scheda in Manodopera.", { nome: scelto.label })}</p>;
             }
             return <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">{scelto
-              ? `${scelto.label} vedrà la commessa nell'app ${quando}.`
+              ? tr("{nome} vedrà la commessa nell'app {quando}.", { nome: scelto.label, quando })
               : tipo === "interno"
-                ? `Chi metti qui vede la commessa nell'app ${quando}, se ha l'app.`
-                : `Se la ditta ha l'app, vede la commessa ${quando}.`}</p>;
+                ? tr("Chi metti qui vede la commessa nell'app {quando}, se ha l'app.", { quando })
+                : tr("Se la ditta ha l'app, vede la commessa {quando}.", { quando })}</p>;
           })()}
 
           {tipo === "interno" && <div className="space-y-2 rounded-lg border bg-slate-50 p-3 text-sm">
-            <p className="font-medium">Il costo segue le ore lavorate</p>
-            <p className="text-xs text-muted-foreground">Assegnare non registra una spesa. I rapportini approvati aggiornano ore e costo della commessa. La timbratura da sola non è un costo definitivo.</p>
-            {canViewCosts && executorId && (rate.isLoading ? <p role="status">Caricamento costo orario…</p> : rate.isError ? <p role="alert">Costo orario non disponibile. <Button size="sm" variant="outline" onClick={() => void rate.refetch()}>Riprova costo orario</Button></p> : rate.allowed ? <p className="text-xs">Costo orario attuale: <strong>{currentRate == null ? "da impostare" : `${eur.format(currentRate)} / h`}</strong>{currentRate == null ? ". Le ore senza tariffa richiedono verifica." : ". Vale per i prossimi rapportini; lo storico non viene ricalcolato."}</p> : <p className="text-xs text-muted-foreground">La tariffa personale è riservata al tuo ruolo.</p>)}
-            {canViewPersone && <a href="/azienda/personale?tab=profili" className="text-xs underline">Gestisci costi in Personale e HR</a>}
+            <p className="font-medium">{tr("Il costo segue le ore lavorate")}</p>
+            <p className="text-xs text-muted-foreground">{tr("Assegnare non registra una spesa. I rapportini approvati aggiornano ore e costo della commessa. La timbratura da sola non è un costo definitivo.")}</p>
+            {canViewCosts && executorId && (rate.isLoading ? <p role="status">{tr("Caricamento costo orario…")}</p> : rate.isError ? <p role="alert">{tr("Costo orario non disponibile.")} <Button size="sm" variant="outline" onClick={() => void rate.refetch()}>{tr("Riprova costo orario")}</Button></p> : rate.allowed ? <p className="text-xs">{tr("Costo orario attuale:")} <strong>{currentRate == null ? tr("da impostare") : `${eur.format(currentRate)} / h`}</strong>{currentRate == null ? `. ${tr("Le ore senza tariffa richiedono verifica.")}` : `. ${tr("Vale per i prossimi rapportini; lo storico non viene ricalcolato.")}`}</p> : <p className="text-xs text-muted-foreground">{tr("La tariffa personale è riservata al tuo ruolo.")}</p>)}
+            {canViewPersone && <a href="/azienda/personale?tab=profili" className="text-xs underline">{tr("Gestisci costi in Personale e HR")}</a>}
           </div>}
           {tipo === "interno" && canViewCosts && vedePersonale && <details className="rounded-lg border p-3">
-            <summary className="cursor-pointer text-sm font-medium">Prevedi le ore (facoltativo)</summary>
-            <div className="mt-3 space-y-2"><Label htmlFor="assign-planned-hours">Ore previste</Label><Input id="assign-planned-hours" type="text" inputMode="decimal" autoComplete="off" value={plannedHours} disabled={currentRate == null} onChange={e => setPlannedHours(e.target.value)} placeholder="Es. 16 oppure 1,5" />
-              <p className="text-xs text-muted-foreground">{currentRate == null ? "Imposta prima il costo orario. Puoi comunque assegnare senza budget." : `Budget previsto: ${plannedCost == null ? "—" : eur.format(plannedCost)}. Non aggiunge ore al consuntivo.`}</p>
+            <summary className="cursor-pointer text-sm font-medium">{tr("Prevedi le ore (facoltativo)")}</summary>
+            <div className="mt-3 space-y-2"><Label htmlFor="assign-planned-hours">{tr("Ore previste")}</Label><Input id="assign-planned-hours" type="text" inputMode="decimal" autoComplete="off" value={plannedHours} disabled={currentRate == null} onChange={e => setPlannedHours(e.target.value)} placeholder={tr("Es. 16 oppure 1,5")} />
+              <p className="text-xs text-muted-foreground">{currentRate == null ? tr("Imposta prima il costo orario. Puoi comunque assegnare senza budget.") : tr("Budget previsto: {importo}. Non aggiunge ore al consuntivo.", { importo: plannedCost == null ? "—" : eur.format(plannedCost) })}</p>
             </div>
           </details>}
           {soloDitta && !!executorId && <Button type="button" size="sm" variant="ghost" aria-expanded={apriCostoDitta}
-            onClick={() => setApriCostoDitta(v => !v)}>{apriCostoDitta ? "Nascondi costi e listino" : "Costi e listino (facoltativi)"}</Button>}
+            onClick={() => setApriCostoDitta(v => !v)}>{apriCostoDitta ? tr("Nascondi costi e listino") : tr("Costi e listino (facoltativi)")}</Button>}
           {/* Il costo della ditta (31/10/2026): in vista appena scelta la ditta, prima dalle voci della fase,
               poi da una voce di listino, poi a mano. Non più in fondo, chiuso, con l'IVA in ogni etichetta. */}
-          {tipo === "esterno" && canViewCosts && executorId && (!soloDitta || apriCostoDitta) && <section aria-label="Costo della ditta" className="space-y-3 rounded-lg border p-3">
+          {tipo === "esterno" && canViewCosts && executorId && (!soloDitta || apriCostoDitta) && <section aria-label={tr("Costo della ditta")} className="space-y-3 rounded-lg border p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold">Costo della ditta</h3>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">{ivaSel === 0 ? "Reverse charge" : `Fattura con IVA ${ivaSel}%`}</span>
+              <h3 className="text-sm font-semibold">{tr("Costo della ditta")}</h3>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">{ivaSel === 0 ? tr("Reverse charge") : tr("Fattura con IVA {n}%", { n: ivaSel })}</span>
             </div>
             <div className="space-y-3">
-          {(tariffeError || variantiError) && <p role="alert" className="text-xs text-amber-800">Listino non disponibile. Puoi inserire manualmente il costo; non applico tariffe incomplete.</p>}
-          {listinoBusy && <p role="status" className="text-xs text-muted-foreground">Caricamento listino e varianti… Puoi intanto compilare gli importi manuali.</p>}
-          {listinoIncompleto && <p role="alert" className="text-xs text-amber-800">La tariffa selezionata non è verificata o non è più disponibile. Attendi il caricamento, riprova il listino oppure conferma l’uso di importi manuali.</p>}
-          {tariffaAggiornata && !listinoBusy && !tariffeError && !variantiError && <Button type="button" size="sm" variant="outline" onClick={() => applyTariffa(tariffaSel, tariffaQty, costoUnitarioEffettivo)}>Aggiorna da listino</Button>}
-          {(tariffeError || variantiError) && <Button type="button" size="sm" variant="outline" onClick={() => { void refetchTariffe(); void refetchVarianti(); }}>Riprova listino</Button>}
-          {tariffaId && <Button type="button" size="sm" variant="outline" onClick={() => { setTariffaId(""); setVarianteId(""); setNotes(n => /^Listino: /.test(n) ? "" : n); }}>Usa importi manuali</Button>}
+          {(tariffeError || variantiError) && <p role="alert" className="text-xs text-amber-800">{tr("Listino non disponibile. Puoi inserire manualmente il costo; non applico tariffe incomplete.")}</p>}
+          {listinoBusy && <p role="status" className="text-xs text-muted-foreground">{tr("Caricamento listino e varianti… Puoi intanto compilare gli importi manuali.")}</p>}
+          {listinoIncompleto && <p role="alert" className="text-xs text-amber-800">{tr("La tariffa selezionata non è verificata o non è più disponibile. Attendi il caricamento, riprova il listino oppure conferma l’uso di importi manuali.")}</p>}
+          {tariffaAggiornata && !listinoBusy && !tariffeError && !variantiError && <Button type="button" size="sm" variant="outline" onClick={() => applyTariffa(tariffaSel, tariffaQty, costoUnitarioEffettivo)}>{tr("Aggiorna da listino")}</Button>}
+          {(tariffeError || variantiError) && <Button type="button" size="sm" variant="outline" onClick={() => { void refetchTariffe(); void refetchVarianti(); }}>{tr("Riprova listino")}</Button>}
+          {tariffaId && <Button type="button" size="sm" variant="outline" onClick={() => { setTariffaId(""); setVarianteId(""); setNotes(n => /^Listino: /.test(n) ? "" : n); }}>{tr("Usa importi manuali")}</Button>}
           {daPreventivo.netto > 0 && (
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900">
               <span className="min-w-0 flex-1">
-                Dal preventivo: {daPreventivo.voci === 1 ? "1 voce" : `${daPreventivo.voci} voci`} di questa lavorazione,{" "}
+                {tr(daPreventivo.voci === 1 ? "Dal preventivo: 1 voce di questa lavorazione," : "Dal preventivo: {n} voci di questa lavorazione,", { n: daPreventivo.voci })}{" "}
                 <strong>{eur.format(daPreventivo.netto)}</strong>{ivaSel > 0 && <>{piuIva} = {eur.format(conIva(daPreventivo.netto, ivaSel))}</>}
-                {daPreventivo.conVariante > 0 && <> · {daPreventivo.conVariante} al prezzo di questa ditta</>}
+                {daPreventivo.conVariante > 0 && <> · {tr("{n} al prezzo di questa ditta", { n: daPreventivo.conVariante })}</>}
               </span>
-              {origine?.tipo !== "preventivo" && <Button type="button" size="sm" variant="outline" onClick={applyPreventivo}>Usa questo costo</Button>}
+              {origine?.tipo !== "preventivo" && <Button type="button" size="sm" variant="outline" onClick={applyPreventivo}>{tr("Usa questo costo")}</Button>}
             </div>
           )}
           {/* Da listino manodopera: prefill costo sostenuto + ricarico visibile.
@@ -590,7 +592,7 @@ export function AddAssignmentDialog({
           {canViewCosts && !listinoBusy && !tariffeError && !variantiError && tariffeAttive.length > 0 && (
             <div className="space-y-1.5 rounded-lg border bg-muted/20 p-2.5">
               <Label className="text-xs text-muted-foreground">
-                {daPreventivo.netto > 0 ? "Oppure da una voce del listino" : "Da una voce del listino"}
+                {daPreventivo.netto > 0 ? tr("Oppure da una voce del listino") : tr("Da una voce del listino")}
               </Label>
               <div className="flex gap-2">
                 <Select
@@ -611,8 +613,8 @@ export function AddAssignmentDialog({
                     applyTariffa(t, qty, vs[0]?.costo ?? t?.prezzo_costo ?? null);
                   }}
                 >
-                  <SelectTrigger aria-label="Parti dal listino manodopera" className="h-9 flex-1">
-                    <SelectValue placeholder="Cerca una voce di listino…" />
+                  <SelectTrigger aria-label={tr("Parti dal listino manodopera")} className="h-9 flex-1">
+                    <SelectValue placeholder={tr("Cerca una voce di listino…")} />
                   </SelectTrigger>
                   <SelectContent>
                     {tariffeAttive.map((t) => (
@@ -633,11 +635,11 @@ export function AddAssignmentDialog({
                     applyTariffa(tariffaSel, e.target.value, costoUnitarioEffettivo);
                   }}
                   className="h-9 w-20"
-                  aria-label="Quantità"
+                  aria-label={tr("Quantità")}
                   aria-invalid={invalidQuantity}
                 />
               </div>
-              {invalidQuantity && <p role="alert" className="text-xs text-rose-700">Completa la quantità con un numero valido, per esempio 1,5. Il budget precedente non verrà salvato.</p>}
+              {invalidQuantity && <p role="alert" className="text-xs text-rose-700">{tr("Completa la quantità con un numero valido, per esempio 1,5. Il budget precedente non verrà salvato.")}</p>}
               {/* La squadra ha piu' varianti di questa lavorazione (es. su
                   nuovo / con smontaggio): la scelta e' esplicita. Con una sola
                   variante si applica da sola. */}
@@ -651,7 +653,7 @@ export function AddAssignmentDialog({
                   }}
                 >
                   <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Variante della squadra…" />
+                    <SelectValue placeholder={tr("Variante della squadra…")} />
                   </SelectTrigger>
                   <SelectContent>
                     {variantiSquadra.map((v) => (
@@ -665,21 +667,21 @@ export function AddAssignmentDialog({
               {tariffaSel && (
                 <p className="text-[11px] text-muted-foreground">
                   {varianteSel ? (
-                    <>Variante <strong className="text-foreground">{varianteSel.nome}</strong>: </>
+                    <>{tr("Variante")} <strong className="text-foreground">{varianteSel.nome}</strong>: </>
                   ) : null}
-                  Costo {eur.format(Number(costoUnitarioEffettivo) || 0)}
+                  {tr("Costo")} {eur.format(Number(costoUnitarioEffettivo) || 0)}
                   {tariffaSel.unita ? `/${tariffaSel.unita}` : ""} × {tariffaQty || "1"} ={" "}
-                  {eur.format((Number(costoUnitarioEffettivo) || 0) * (parseAssignmentAmount(tariffaQty, 6) ?? 0))}{piuIva} → previsto{" "}
+                  {eur.format((Number(costoUnitarioEffettivo) || 0) * (parseAssignmentAmount(tariffaQty, 6) ?? 0))}{piuIva} → {tr("previsto")}{" "}
                   <strong className="text-foreground">{eur.format(num(prev))}</strong>
                   {canViewMargins && Number(tariffaSel.prezzo_vendita) > 0 && (
                     <>
-                      {" "}· vendita consigliata{" "}
+                      {" "}· {tr("vendita consigliata")}{" "}
                       {eur.format(
                         (Number(tariffaSel.prezzo_vendita) || 0) *
                           (parseAssignmentAmount(tariffaQty, 6) ?? 0),
                       )}{" "}
                       <span className="text-emerald-600">
-                        (ricarico{" "}
+                        ({tr("ricarico")}{" "}
                         {Number(costoUnitarioEffettivo) > 0
                           ? Math.round(
                               ((Number(tariffaSel.prezzo_vendita) -
@@ -700,7 +702,7 @@ export function AddAssignmentDialog({
           {/* Costs */}
           {canViewCosts && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="assign-prev">Costo previsto{etichettaIva} €</Label>
+              <Label htmlFor="assign-prev">{tr("Costo previsto")}{etichettaIva} €</Label>
               <Input
                 id="assign-prev"
                 type="text"
@@ -713,7 +715,7 @@ export function AddAssignmentDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="assign-cons">Già speso{etichettaIva} €</Label>
+              <Label htmlFor="assign-cons">{tr("Già speso")}{etichettaIva} €</Label>
               <Input
                 id="assign-cons"
                 type="text"
@@ -726,21 +728,21 @@ export function AddAssignmentDialog({
               />
             </div>
           </div>}
-          {(parseAssignmentAmount(prev) == null || parseAssignmentAmount(cons) == null) && <p role="alert" className="text-xs text-rose-700">Controlla gli importi: usa per esempio 1.234,56. Importi negativi o testi incompleti non vengono salvati.</p>}
-          <p className="text-xs text-muted-foreground">«Già speso» solo se non è già in una fattura registrata. Contratto, SAL e pagamenti: in «Ditte e contratti».</p>
+          {(parseAssignmentAmount(prev) == null || parseAssignmentAmount(cons) == null) && <p role="alert" className="text-xs text-rose-700">{tr("Controlla gli importi: usa per esempio 1.234,56. Importi negativi o testi incompleti non vengono salvati.")}</p>}
+          <p className="text-xs text-muted-foreground">{tr("«Già speso» solo se non è già in una fattura registrata. Contratto, SAL e pagamenti: in «Ditte e contratti».")}</p>
 
             </div>
           </section>}
 
           {/* Notes */}
-          {tipo === "interno" && !vedePersonale && <p className="text-xs text-muted-foreground">Note e costo previsto della persona li scrive chi ha il permesso «Costi e Personale».</p>}
-          {((tipo === "esterno" && (!soloDitta || !!executorId)) || (tipo === "interno" && vedePersonale)) && <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Note (facoltativo)</summary><div className="mt-3 space-y-1.5">
-            <Label htmlFor="assign-notes">Note (facoltativo)</Label>
+          {tipo === "interno" && !vedePersonale && <p className="text-xs text-muted-foreground">{tr("Note e costo previsto della persona li scrive chi ha il permesso «Costi e Personale».")}</p>}
+          {((tipo === "esterno" && (!soloDitta || !!executorId)) || (tipo === "interno" && vedePersonale)) && <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">{tr("Note (facoltativo)")}</summary><div className="mt-3 space-y-1.5">
+            <Label htmlFor="assign-notes">{tr("Note (facoltativo)")}</Label>
             <Textarea
               id="assign-notes"
               value={notes}
               rows={2}
-              placeholder="Dettagli, accordi, riferimenti…"
+              placeholder={tr("Dettagli, accordi, riferimenti…")}
               onChange={(e) => setNotes(e.target.value)}
             />
           </div></details>}
@@ -749,7 +751,7 @@ export function AddAssignmentDialog({
 
         {soloDitta ? <AzioniLavorazioni>{conferma}</AzioniLavorazioni> : <DialogFooter className="shrink-0 border-t pt-3">
           <Button variant="outline" disabled={submitting} onClick={() => { reset(); setOpen(false); }}>
-            Annulla
+            {tr("Annulla")}
           </Button>
           {conferma}
         </DialogFooter>}
@@ -768,7 +770,7 @@ export function AddAssignmentDialog({
       {!controllato && <DialogTrigger asChild>
         <Button aria-label={triggerAriaLabel} variant={triggerVariant} size="sm" className={triggerClassName} disabled={!puoSquadra && !puoPersona}>
           <Plus className="mr-1 h-4 w-4" />
-          {triggerLabel}
+          {triggerLabel ?? tr("Assegna")}
         </Button>
       </DialogTrigger>}
       <DialogContent className="flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-xl">{contenuto}</DialogContent>

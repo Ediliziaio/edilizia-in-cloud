@@ -13,8 +13,10 @@ import { useDatiContratto } from "@/hooks/useGeneraleContratto";
 import { anticipazione, oggiIso, ritenute, scadenzeContratto, totaliSal, valoreContratto, type DatiContrattoDaiDocumenti } from "@/lib/orders/generali/contratto";
 import { cn } from "@/lib/utils";
 import { dataIt, euro } from "./formato";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function RiquadroContratto({ riepilogo }: PropsScheda) {
+  const tr = useT();
   const { data: dati, isLoading, isError } = useDatiContratto(riepilogo.generale.id, riepilogo.permessi.importi);
   const [parametri, setParametri] = useSearchParams();
   // Da telefono la scheda del contratto non c'è: niente collegamenti, solo i numeri.
@@ -33,10 +35,10 @@ export function RiquadroContratto({ riepilogo }: PropsScheda) {
   if (!valore) {
     if (telefono) return null;
     return (
-      <section aria-label="Contratto" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed bg-muted/30 px-4 py-3">
-        <p className="text-sm text-muted-foreground">Dati del contratto da completare</p>
+      <section aria-label={tr("Contratto")} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed bg-muted/30 px-4 py-3">
+        <p className="text-sm text-muted-foreground">{tr("Dati del contratto da completare")}</p>
         <Link to={link()} className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-          Vai al contratto <ArrowRight className="h-3.5 w-3.5" />
+          {tr("Vai al contratto")} <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </section>
     );
@@ -47,14 +49,14 @@ export function RiquadroContratto({ riepilogo }: PropsScheda) {
   const ant = anticipazione(dati.contratto, dati.sal);
   const scadenze = scadenzeContratto(dati, oggiIso()).slice(0, 3);
   const ultimo = [...dati.sal].filter((s) => s.stato !== "bozza").sort((a, b) => b.numero - a.numero)[0];
-  const etichettaSal = ultimo ? `Ultimo SAL n. ${ultimo.numero}${ultimo.al ? ` al ${dataIt(ultimo.al)}` : ""}` : "Nessun SAL emesso";
+  const etichettaSal = ultimo ? (ultimo.al ? tr("Ultimo SAL n. {numero} al {data}", { numero: ultimo.numero, data: dataIt(ultimo.al) }) : tr("Ultimo SAL n. {numero}", { numero: ultimo.numero })) : tr("Nessun SAL emesso");
   const grafico = composizioneSal(valore.aggiornato, t.aSal);
   const apriGrafico = (id: string) => { const p = new URLSearchParams(parametri); p.set("scheda", "contratto"); if (id === "sal") { p.set("sezione", "sal"); p.set("stato-sal", "emessi"); } else { p.delete("sezione"); p.delete("stato-sal"); } setParametri(p); };
 
   return (
     <section aria-labelledby="riquadro-contratto-titolo" className="generale-panel generale-contract">
       <header className="generale-panel-heading">
-        <div className="generale-panel-title"><span className="generale-section-icon"><FileCheck2 aria-hidden="true" /></span><div><h2 id="riquadro-contratto-titolo">Contratto e SAL</h2><p>Valore contrattuale e somme da svincolare</p></div></div>
+        <div className="generale-panel-title"><span className="generale-section-icon"><FileCheck2 aria-hidden="true" /></span><div><h2 id="riquadro-contratto-titolo">{tr("Contratto e SAL")}</h2><p>{tr("Valore contrattuale e somme da svincolare")}</p></div></div>
         {telefono ? (
           <span className="text-xs text-muted-foreground">{etichettaSal}</span>
         ) : (
@@ -65,38 +67,38 @@ export function RiquadroContratto({ riepilogo }: PropsScheda) {
       </header>
       <div className="generale-chart-body">
       {grafico && !grafico.oltre && <Ciambella dati={[
-        { id: "sal", nome: "SAL emessi", valore: grafico.aSal, colore: "rgb(var(--brand-navy-deep, 23 59 103))" },
-        { id: "residuo", nome: "valore e residuo del contratto", valore: grafico.residuo, colore: "rgb(var(--brand-accent, 249 115 22) / 0.25)" },
-      ]} valore={`${grafico.percentuale}%`} etichetta="contratto a SAL" onSeleziona={telefono ? undefined : apriGrafico} />}
+        { id: "sal", nome: tr("SAL emessi"), valore: grafico.aSal, colore: "rgb(var(--brand-navy-deep, 23 59 103))" },
+        { id: "residuo", nome: tr("valore e residuo del contratto"), valore: grafico.residuo, colore: "rgb(var(--brand-accent, 249 115 22) / 0.25)" },
+      ]} valore={`${grafico.percentuale}%`} etichetta={tr("contratto a SAL")} onSeleziona={telefono ? undefined : apriGrafico} />}
       <dl className="generale-contract-values">
         <div>
-          <dt className="text-xs text-muted-foreground">A SAL</dt>
-          <dd className="tabular-nums">{euro(t.aSal)} <span className="text-xs text-muted-foreground">su {euro(valore.aggiornato)}</span></dd>
+          <dt className="text-xs text-muted-foreground">{tr("A SAL")}</dt>
+          <dd className="tabular-nums">{euro(t.aSal)} <span className="text-xs text-muted-foreground">{tr("su {importo}", { importo: euro(valore.aggiornato) })}</span></dd>
         </div>
-        <div><dt className="text-xs text-muted-foreground">Residuo non a SAL</dt><dd className={cn("tabular-nums", grafico?.oltre && "text-destructive")}>{euro(grafico?.residuo ?? null)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">{tr("Residuo non a SAL")}</dt><dd className={cn("tabular-nums", grafico?.oltre && "text-destructive")}>{euro(grafico?.residuo ?? null)}</dd></div>
         <div>
-          <dt className="text-xs text-muted-foreground">Netto dei SAL</dt>
+          <dt className="text-xs text-muted-foreground">{tr("Netto dei SAL")}</dt>
           <dd className="tabular-nums">{euro(t.netto)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-muted-foreground">Ritenute da svincolare</dt>
+          <dt className="text-xs text-muted-foreground">{tr("Ritenute da svincolare")}</dt>
           <dd className="tabular-nums">
             {euro(r.daSvincolare)}
-            {r.trattenute > 0 && <span className="text-xs text-muted-foreground"> su {euro(r.trattenute)} trattenute</span>}
+            {r.trattenute > 0 && <span className="text-xs text-muted-foreground"> {tr("su {importo} trattenute", { importo: euro(r.trattenute) })}</span>}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted-foreground">Anticipazione da recuperare</dt>
-          <dd className="tabular-nums">{ant.importo > 0 ? euro(ant.daRecuperare) : <span className="text-muted-foreground">nessuna</span>}</dd>
+          <dt className="text-xs text-muted-foreground">{tr("Anticipazione da recuperare")}</dt>
+          <dd className="tabular-nums">{ant.importo > 0 ? euro(ant.daRecuperare) : <span className="text-muted-foreground">{tr("nessuna")}</span>}</dd>
         </div>
       </dl>
       </div>
-      {grafico?.oltre && <p role="status" className="px-5 pb-3 text-sm text-destructive">Il valore a SAL supera il contratto: verifica gli atti aggiuntivi.</p>}
-      {!telefono && <div className="generale-panel-footer"><button type="button" onClick={() => apriGrafico("sal")}>Apri SAL emessi <ArrowRight aria-hidden="true" /></button><button type="button" onClick={() => apriGrafico("residuo")}>Valore e residuo del contratto <ArrowRight aria-hidden="true" /></button></div>}
+      {grafico?.oltre && <p role="status" className="px-5 pb-3 text-sm text-destructive">{tr("Il valore a SAL supera il contratto: verifica gli atti aggiuntivi.")}</p>}
+      {!telefono && <div className="generale-panel-footer"><button type="button" onClick={() => apriGrafico("sal")}>{tr("Apri SAL emessi")} <ArrowRight aria-hidden="true" /></button><button type="button" onClick={() => apriGrafico("residuo")}>{tr("Valore e residuo del contratto")} <ArrowRight aria-hidden="true" /></button></div>}
       {(dati.contratto?.cig || dati.contratto?.cup || dati.contratto?.splitPayment) && <footer className="generale-panel-footer">
         {dati.contratto.cig && <span>CIG <strong className="font-medium text-foreground">{dati.contratto.cig}</strong></span>}
         {dati.contratto.cup && <span>CUP <strong className="font-medium text-foreground">{dati.contratto.cup}</strong></span>}
-        {dati.contratto.splitPayment && <span>Scissione dei pagamenti</span>}
+        {dati.contratto.splitPayment && <span>{tr("Scissione dei pagamenti")}</span>}
       </footer>}
       {dati.contratto?.daiDocumenti && <DaiDocumenti d={dati.contratto.daiDocumenti} />}
       {scadenze.length > 0 && (
@@ -115,20 +117,21 @@ export function RiquadroContratto({ riepilogo }: PropsScheda) {
 
 /** Quello che i documenti dell'appalto dicono e il modulo del contratto non chiede (lotto 5 della lettura dai documenti). */
 function DaiDocumenti({ d }: { d: DatiContrattoDaiDocumenti }) {
+  const t = useT();
   const voci = [
-    d.quotaPct !== null && `Quota nel raggruppamento ${d.quotaPct.toLocaleString("it-IT")}%${d.importoTotaleAppalto !== null ? ` di ${euro(d.importoTotaleAppalto)}` : ""}`,
-    d.tettoAccordo !== null && `Tetto dell'accordo quadro ${euro(d.tettoAccordo)}`,
-    d.durataGiorni !== null && `Durata ${d.durataGiorni} giorni`,
-    d.aCorpoMisura && `A ${d.aCorpoMisura.replace(/^a\s+/i, "")}`,
-    d.costoManodopera !== null && `Manodopera ${euro(d.costoManodopera)}`,
-    d.salSogliaImporto !== null && `SAL ogni ${euro(d.salSogliaImporto)}`,
-    d.salCadenzaGiorni !== null && `SAL ogni ${d.salCadenzaGiorni} giorni`,
-    d.terminiPagamentoGiorni !== null && `Pagamento a ${d.terminiPagamentoGiorni} giorni`,
-    d.revisionePrezzi && `Revisione prezzi: ${d.revisionePrezzi}`,
+    d.quotaPct !== null && (d.importoTotaleAppalto !== null ? t("Quota nel raggruppamento {perc}% di {importo}", { perc: d.quotaPct.toLocaleString(intlCampo()), importo: euro(d.importoTotaleAppalto) }) : t("Quota nel raggruppamento {perc}%", { perc: d.quotaPct.toLocaleString(intlCampo()) })),
+    d.tettoAccordo !== null && t("Tetto dell'accordo quadro {importo}", { importo: euro(d.tettoAccordo) }),
+    d.durataGiorni !== null && t("Durata {n} giorni", { n: d.durataGiorni }),
+    d.aCorpoMisura && t("A {modo}", { modo: d.aCorpoMisura.replace(/^a\s+/i, "") }),
+    d.costoManodopera !== null && t("Manodopera {importo}", { importo: euro(d.costoManodopera) }),
+    d.salSogliaImporto !== null && t("SAL ogni {importo}", { importo: euro(d.salSogliaImporto) }),
+    d.salCadenzaGiorni !== null && t("SAL ogni {n} giorni", { n: d.salCadenzaGiorni }),
+    d.terminiPagamentoGiorni !== null && t("Pagamento a {n} giorni", { n: d.terminiPagamentoGiorni }),
+    d.revisionePrezzi && t("Revisione prezzi: {testo}", { testo: d.revisionePrezzi }),
   ].filter(Boolean) as string[];
   if (voci.length === 0) return null;
   return (
-    <footer className="generale-panel-footer flex-wrap" aria-label="Dati dai documenti">
+    <footer className="generale-panel-footer flex-wrap" aria-label={t("Dati dai documenti")}>
       {voci.map((v) => <span key={v}>{v}</span>)}
     </footer>
   );

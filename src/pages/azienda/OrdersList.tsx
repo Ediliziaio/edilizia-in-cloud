@@ -31,6 +31,7 @@ import { CATALOGO_RIQUADRI, commesseInRitardo, margineDelPeriodo, riquadriVisibi
 import { useCruscottoGenerali } from "@/hooks/useCruscottoGenerali";
 import { Plus, Package, LayoutList, Columns3, Upload, MoreHorizontal, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, History, Receipt, Landmark, Hammer, Building2, Map as MapIcon, FileQuestion, NotebookPen } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
@@ -98,6 +99,7 @@ import {
 const NIENTE_DA_CREARE = "Da telefono una commessa generale si legge soltanto: creala dal computer";
 
 function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNode }) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const orderPerms = usePermissions();
   const { isNative } = useBillingMode();
@@ -207,7 +209,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   const monthYear = /^\d{4}$/.test(yearFilter) ? Number(yearFilter) : new Date().getFullYear();
   const hasMonth = monthFilter !== "all" && Number.isInteger(month) && month >= 0 && month <= 11;
   const selectedMonth = hasMonth ? `${monthYear}-${String(month + 1).padStart(2, "0")}` : null;
-  const selectedMonthLabel = hasMonth ? new Date(monthYear, month, 1).toLocaleDateString("it-IT", { month: "long", year: "numeric" }) : null;
+  const selectedMonthLabel = hasMonth ? new Date(monthYear, month, 1).toLocaleDateString(intlCampo(), { month: "long", year: "numeric" }) : null;
   const contractDateRange: DateRange = {
     from: dateFromURL(urlFilters.contractFrom) ?? (hasMonth ? new Date(monthYear,month,1) : undefined),
     to: dateFromURL(urlFilters.contractTo) ?? (hasMonth ? new Date(monthYear,month+1,0) : undefined),
@@ -670,12 +672,12 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
         map.set(e.order_id, existing);
       }
     }
-    for (const t of externalTeamCosts) {
-      const team = t.external_team;
+    for (const costoSquadra of externalTeamCosts) {
+      const team = costoSquadra.external_team;
       if (team) {
-        const existing = map.get(t.order_id) || [];
+        const existing = map.get(costoSquadra.order_id) || [];
         if (!existing.includes(team.name)) existing.push(team.name);
-        map.set(t.order_id, existing);
+        map.set(costoSquadra.order_id, existing);
       }
     }
     return map;
@@ -817,10 +819,10 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     onSuccess: () => {
       refreshOrderScope();
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      toast({ title: "Stato aggiornato", description: "La commessa è stata spostata al nuovo stato" });
+      toast({ title: t("Stato aggiornato"), description: t("La commessa è stata spostata al nuovo stato") });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile aggiornare lo stato della commessa", variant: "destructive" });
+      toast({ title: t("Errore"), description: t("Impossibile aggiornare lo stato della commessa"), variant: "destructive" });
     },
   });
 
@@ -832,24 +834,24 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   // Creare una commessa scrive su orders: la RLS chiede can_edit_orders, che
   // in DB segue la visibilità salvo «Sola lettura». Il bottone legge lo stesso.
   const canCreateOrders = orderPerms.canEditOrders;
-  const createOrdersBlockedTitle = orderPerms.solaLettura ? "Sei in sola lettura" : "Non hai il permesso di modifica";
+  const createOrdersBlockedTitle = orderPerms.solaLettura ? t("Sei in sola lettura") : t("Non hai il permesso di modifica");
 
   const deleteOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
       const companyId = effectiveCompany?.id;
-      if (!companyId) throw new Error("Nessuna azienda selezionata.");
-      if (!canDeleteOrders) throw new Error("Non hai il permesso di eliminare le commesse (chiedi all'amministratore).");
+      if (!companyId) throw new Error(t("Nessuna azienda selezionata."));
+      if (!canDeleteOrders) throw new Error(t("Non hai il permesso di eliminare le commesse (chiedi all'amministratore)."));
       return deleteOrderCascading(orderId, companyId);
     },
     onSuccess: () => {
       refreshOrderScope();
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      toast({ title: "Commessa nel cestino", description: "Puoi ripristinarla dal cestino dell’elenco commesse" });
+      toast({ title: t("Commessa nel cestino"), description: t("Puoi ripristinarla dal cestino dell’elenco commesse") });
     },
     onError: (error) => {
       toast({
-        title: "Errore",
-        description: error instanceof Error ? error.message : "Impossibile eliminare la commessa",
+        title: t("Errore"),
+        description: error instanceof Error ? error.message : t("Impossibile eliminare la commessa"),
         variant: "destructive",
       });
     },
@@ -877,19 +879,19 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       refreshOrderScope();
       if (failed === 0) {
         toast({
-          title: "Stato aggiornato",
-          description: `${ok} ordin${ok === 1 ? "e aggiornato" : "i aggiornati"}`,
+          title: t("Stato aggiornato"),
+          description: t(ok === 1 ? "{n} ordine aggiornato" : "{n} ordini aggiornati", { n: ok }),
         });
       } else if (ok === 0) {
         toast({
-          title: "Aggiornamento fallito",
-          description: `Nessuna commessa aggiornata (${failed} errori). Riprova o contatta l'assistenza.`,
+          title: t("Aggiornamento fallito"),
+          description: t("Nessuna commessa aggiornata ({n} errori). Riprova o contatta l'assistenza.", { n: failed }),
           variant: "destructive",
         });
       } else {
         toast({
-          title: "Aggiornamento parziale",
-          description: `${ok} aggiornati · ${failed} falliti. Le righe fallite restano col vecchio stato.`,
+          title: t("Aggiornamento parziale"),
+          description: t("{ok} aggiornati · {falliti} falliti. Le righe fallite restano col vecchio stato.", { ok, falliti: failed }),
           variant: "destructive",
         });
       }
@@ -900,14 +902,14 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
 
   const handleBulkDelete = async (orderIds: string[]) => {
     if (!canDeleteOrders) {
-      toast({ title: "Permesso mancante", description: "Non hai il permesso di eliminare le commesse (chiedi all'amministratore).", variant: "destructive" });
+      toast({ title: t("Permesso mancante"), description: t("Non hai il permesso di eliminare le commesse (chiedi all'amministratore)."), variant: "destructive" });
       return;
     }
     setIsBulkUpdating(true);
     try {
       const companyId = effectiveCompany?.id;
       if (!companyId) {
-        toast({ title: "Errore", description: "Nessuna azienda selezionata.", variant: "destructive" });
+        toast({ title: t("Errore"), description: t("Nessuna azienda selezionata."), variant: "destructive" });
         return;
       }
       const results = await Promise.allSettled(
@@ -919,19 +921,19 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       if (failed === 0) {
         toast({
-          title: "Commesse nel cestino",
-          description: `${ok} commess${ok === 1 ? "a spostata" : "e spostate"} nel cestino`,
+          title: t("Commesse nel cestino"),
+          description: t(ok === 1 ? "{n} commessa spostata nel cestino" : "{n} commesse spostate nel cestino", { n: ok }),
         });
       } else if (ok === 0) {
         toast({
-          title: "Eliminazione fallita",
-          description: `Nessuna commessa spostata nel cestino. ${(results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason?.message ?? "Verifica permessi o riprova."}`,
+          title: t("Eliminazione fallita"),
+          description: t("Nessuna commessa spostata nel cestino. {motivo}", { motivo: (results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason?.message ?? t("Verifica permessi o riprova.") }),
           variant: "destructive",
         });
       } else {
         toast({
-          title: "Eliminazione parziale",
-          description: `${ok} nel cestino · ${failed} non spostati (es. ${(results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason?.message ?? "permessi"}). Le righe non spostate sono ancora presenti.`,
+          title: t("Eliminazione parziale"),
+          description: t("{ok} nel cestino · {falliti} non spostati (es. {motivo}). Le righe non spostate sono ancora presenti.", { ok, falliti: failed, motivo: (results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason?.message ?? t("permessi") }),
           variant: "destructive",
         });
       }
@@ -983,7 +985,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
         if (row.customer_id && row.customer && !map.has(row.customer_id)) {
           map.set(row.customer_id, {
             id: row.customer_id,
-            name: `${row.customer.first_name ?? ""} ${row.customer.last_name ?? ""}`.trim() || "Senza nome",
+            name: `${row.customer.first_name ?? ""} ${row.customer.last_name ?? ""}`.trim() || t("Senza nome"),
           });
         }
       });
@@ -1077,7 +1079,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       date.setDate(1);
       date.setHours(0, 0, 0, 0);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const monthLabel = date.toLocaleDateString("it-IT", { month: "short" }).replace(".", "");
+      const monthLabel = date.toLocaleDateString(intlCampo(), { month: "short" }).replace(".", "");
       return {
         key,
         mese: hasSelectedYear ? monthLabel : `${monthLabel} '${String(date.getFullYear()).slice(-2)}`,
@@ -1119,11 +1121,11 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   // M2 — Export CSV con tutti i filtri attivi (non solo i 20 della pagina corrente)
   const prepareExportData = async () => {
     if (!effectiveCompany?.id) return null;
-    toast({ title: "Esportazione in corso..." });
+    toast({ title: t("Esportazione in corso...") });
 
     try {
     const allOrders = (await fetchOrderRows(0, Infinity)).orders;
-    if (!allOrders.length) { toast({title:"Nessuna commessa da esportare"}); return null; }
+    if (!allOrders.length) { toast({title:t("Nessuna commessa da esportare")}); return null; }
 
     const exportCostsMap = new Map<string, {variableCosts:number;grossMargin:number;marginPercent:number;marginReliable:boolean}>();
     if (orderPerms.canViewMargins || orderPerms.canViewCosts) {
@@ -1206,7 +1208,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     });
     return { rows, columns:permittedColumns, count: allOrders.length };
     } catch {
-      toast({title:"Esportazione non riuscita",description:"Non è stato possibile leggere tutte le commesse. Riprova.",variant:"destructive"});
+      toast({title:t("Esportazione non riuscita"),description:t("Non è stato possibile leggere tutte le commesse. Riprova."),variant:"destructive"});
       return null;
     }
   };
@@ -1215,21 +1217,21 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     const result = await prepareExportData();
     if (!result) return;
     exportToCSV(result.rows, result.columns, `commesse-${format(new Date(), "yyyy-MM-dd")}.csv`);
-    toast({ title: `CSV esportato — ${result.count} commesse` });
+    toast({ title: t("CSV esportato — {n} commesse", { n: result.count }) });
   };
 
   const exportOrdersXLSX = async () => {
     const result = await prepareExportData();
     if (!result) return;
     await exportToXLSX(result.rows, result.columns, `commesse-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-    toast({ title: `Excel esportato — ${result.count} commesse` });
+    toast({ title: t("Excel esportato — {n} commesse", { n: result.count }) });
   };
 
   // Export PDF: tabella ordini landscape
   const exportOrdersPDF = async () => {
     const result = await prepareExportData();
     if (!result || result.count === 0) {
-      toast({ title: "Nessuna commessa", description: "Non ci sono commesse da esportare.", variant: "destructive" });
+      toast({ title: t("Nessuna commessa"), description: t("Non ci sono commesse da esportare."), variant: "destructive" });
       return;
     }
     try {
@@ -1293,11 +1295,11 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       });
 
       doc.save(`commesse-${format(new Date(), "yyyy-MM-dd")}.pdf`);
-      toast({ title: `PDF esportato — ${result.count} commesse` });
+      toast({ title: t("PDF esportato — {n} commesse", { n: result.count }) });
     } catch (e) {
       toast({
-        title: "Errore export PDF",
-        description: e instanceof Error ? e.message : "Generazione PDF fallita",
+        title: t("Errore export PDF"),
+        description: e instanceof Error ? e.message : t("Generazione PDF fallita"),
         variant: "destructive",
       });
     }
@@ -1311,13 +1313,13 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   // Import handler
   const importUserId = user?.id ?? null;
   const handleOrdersImport = useCallback(async (rows: Record<string, string>[]) => {
-    if (!effectiveCompany?.id) return { success: 0, errors: ["Azienda non trovata"] };
+    if (!effectiveCompany?.id) return { success: 0, errors: [t("Azienda non trovata")] };
 
     // Solo i clienti: un'email di un dipendente non può intestare la commessa.
     const { data: clienti, error: clientiErr } = await (supabase as unknown as {
       rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: Array<{ id: string; email?: string | null }> | null; error: { message: string } | null }>;
     }).rpc("get_company_customers", { p_company_id: effectiveCompany.id });
-    if (clientiErr) return { success: 0, errors: [`Clienti non leggibili: ${clientiErr.message}`] };
+    if (clientiErr) return { success: 0, errors: [t("Clienti non leggibili: {errore}", { errore: clientiErr.message })] };
     const clientePerEmail = new Map((clienti || []).filter((c) => c.email).map((c) => [c.email!.toLowerCase(), c.id]));
 
     // Get default status
@@ -1348,7 +1350,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
           codiciEsistenti: existingCodeSet,
           statoPredefinito: defaultStatusId,
         });
-        if ("errore" in esito) { errors.push(`Riga ${i + 1}: ${esito.errore}`); continue; }
+        if ("errore" in esito) { errors.push(t("Riga {n}: {errore}", { n: i + 1, errore: esito.errore })); continue; }
 
         // Stessa creazione del modulo Nuova Commessa: stato, storico, rate e autore.
         const { error } = await (supabase as unknown as {
@@ -1364,13 +1366,13 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
         if (esito.codice) existingCodeSet.add(esito.codice.toLowerCase());
         success++;
       } catch (err) {
-        errors.push(`Riga ${i + 1}: ${messaggioErrore(err, "Errore")}`);
+        errors.push(t("Riga {n}: {errore}", { n: i + 1, errore: messaggioErrore(err, t("Errore")) }));
       }
     }
 
     refreshOrderScope();
     return { success, errors };
-  }, [effectiveCompany, importUserId, refreshOrderScope]);
+  }, [effectiveCompany, importUserId, refreshOrderScope, t]);
 
   const hasStatsError = isStatusesError || (isGlobalStatsError && !globalStats);
   const isEconomicStatsLoading = !!effectiveCompany?.id && !hasStatsError && (
@@ -1401,8 +1403,8 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   const quotaIncassata = nettoIncassato != null && nettoResiduo != null && nettoIncassato + nettoResiduo > 0 ? Math.max(0, nettoIncassato) / (Math.max(0, nettoIncassato) + Math.max(0, nettoResiduo)) * 100 : null;
   const incidenzaCosti = !selectedMonth && isYearCorrente && permessiRiepilogo.fatturazione && costiSostenuti != null && kpiFatturazione?.fatturato_ytd && kpiFatturazione.fatturato_ytd > 0 ? costiSostenuti / kpiFatturazione.fatturato_ytd * 100 : null;
   const valoriRiepilogo = useMemo(() => {
-    const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
-    const periodo = selectedMonthLabel ?? (isYearCorrente ? String(currentYear) : "del periodo");
+    const euro = (n: number) => n.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
+    const periodo = selectedMonthLabel ?? (isYearCorrente ? String(currentYear) : t("del periodo"));
     const righe = riepilogoPeriodo?.rows ?? [];
     const ritardo = commesseInRitardo(righe, new Set([lastStatusId, supportStatusId].filter(Boolean)), new Date().toLocaleDateString("en-CA"));
     const margine = scopeMargins && riepilogoPeriodo ? margineDelPeriodo(scopeMargins, new Set(riepilogoPeriodo.ids)) : null;
@@ -1411,84 +1413,86 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     const to = numeriGenerali?.totaleOperazioni;
     const quanteCommesse = riepilogoPeriodo?.gross.count ?? 0;
     const valori: Record<RiquadroRiepilogo, { titolo: string; valore: string; nota: string; icona: typeof Euro }> = {
-      commesse: { titolo: `Commesse ${periodo}`, valore: String(quanteCommesse), icona: ShoppingBag,
-        nota: selectedMonthLabel ? "Per data di creazione" : `media mese ${ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}` },
-      venduto: { titolo: `Venduto · contratti ${periodo}`, valore: soldi(riepilogoPeriodo?.vat.sold), icona: Euro, nota: `Imponibile · ${quanteCommesse} commesse` },
-      incassato: { titolo: `Incassi commesse ${periodo}`, valore: soldi(riepilogoPeriodo?.vat.collected), icona: TrendingUp, nota: "Già incassato · imponibile" },
-      da_incassare: { titolo: `Da incassare ${periodo}`, valore: euro(riepilogoPeriodo?.gross.pending ?? 0), icona: AlertCircle,
-        nota: "residuo sulle commesse" },
-      ticket_medio: { titolo: "Valore medio commessa", valore: euro(quanteCommesse ? (riepilogoPeriodo?.gross.sold ?? 0) / quanteCommesse : 0), icona: Coins, nota: `su ${quanteCommesse} commesse · IVA inclusa` },
-      costi: { titolo: `Costi commesse ${periodo}`, valore: costiSostenuti == null ? "—" : euro(costiSostenuti), icona: Wallet, nota: "Registrati sulle commesse · imponibile" },
-      margine: { titolo: `Margine ${periodo}`, valore: margine ? euro(margine.margine) : "—", icona: Percent,
-        nota: !margine ? "" : `${margine.percentuale == null ? "—" : `${margine.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`} su ${margine.conCosti} con costi${margine.senzaCosti ? ` · ${margine.senzaCosti} senza` : ""}` },
-      aperte: { titolo: "Commesse aperte", valore: String(riepilogoPeriodo?.open ?? 0), icona: FolderOpen, nota: selectedMonthLabel ? "del mese selezionato" : "anche degli anni prima" },
-      in_ritardo: { titolo: "In ritardo", valore: String(ritardo), icona: Clock, nota: "posa prevista già passata" },
-      assistenza: { titolo: "In assistenza", valore: String(riepilogoPeriodo?.support ?? 0), icona: Wrench, nota: "nella fase di assistenza" },
-      completate: { titolo: "Completate", valore: String(riepilogoPeriodo?.completed ?? 0), icona: CheckCircle2, nota: "arrivate all'ultima fase" },
-      pregresso: { titolo: "Pregresso da gestire", valore: String(globalStats?.previous.count ?? 0), icona: History,
-        nota: `${globalStats?.reasons.work ?? 0} lavori · ${globalStats?.reasons.support ?? 0} assistenze · ${globalStats?.reasons.payment ?? 0} saldi` },
-      fatturato: { titolo: `Fatturato · fatture ${currentYear}`, valore: kpiFatturazione?.fatturato_ytd == null ? "—" : euro(kpiFatturazione.fatturato_ytd), icona: Receipt, nota: "Fatture emesse · IVA esclusa · tutta l’azienda" },
-      appalti_valore: { titolo: "Valore appalti in corso", valore: soldi(ta?.valore), icona: Landmark,
-        nota: `${ta?.appalti ?? 0} ${ta?.appalti === 1 ? "appalto" : "appalti"} · eseguito ${soldi(ta?.eseguito)}` },
-      appalti_da_eseguire: { titolo: "Lavori da eseguire", valore: soldi(ta?.daEseguire), icona: Hammer, nota: `su ${soldi(ta?.valore)} di appalti` },
-      appalti_da_incassare: { titolo: "Da incassare sugli appalti", valore: soldi(ta?.daIncassare), icona: AlertCircle, nota: `fatturato ${soldi(ta?.fatturato)}` },
-      appalti_margine: { titolo: "Margine a finire appalti", valore: soldi(ta?.margineAFinire), icona: Percent, nota: `stima su ${ta?.conPiano ?? 0} appalti con il piano` },
-      unita_vendute: { titolo: "Unità vendute", valore: to ? `${to.vendute} su ${to.unita}` : "—", icona: Building2, nota: `${to?.operazioni ?? 0} ${to?.operazioni === 1 ? "operazione" : "operazioni"} in corso` },
-      unita_libere: { titolo: "Unità libere", valore: String(to?.libere ?? 0), icona: Building2, nota: `su ${to?.unita ?? 0} unità` },
-      operazioni_venduto: { titolo: "Venduto unità", valore: soldi(to?.venduto), icona: Euro, nota: `incassato ${soldi(to?.incassato)}` },
-      operazioni_incassato: { titolo: "Incassato unità", valore: soldi(to?.incassato), icona: TrendingUp,
-        nota: to?.venduto && to.incassato != null ? `${Math.round((to.incassato / to.venduto) * 100)}% del venduto` : "caparre, acconti e saldi" },
-      capitale_impegnato: { titolo: "Capitale impegnato", valore: soldi(to?.capitaleImpegnato), icona: Wallet, nota: `costi meno incassi · ${to?.conPiano ?? 0} con il piano` },
-      operazioni_margine: { titolo: "Margine a finire operazioni", valore: soldi(to?.margineAFinire), icona: Percent, nota: `stima su ${to?.conPiano ?? 0} operazioni con il piano` },
+      commesse: { titolo: t("Commesse {anno}", { anno: String(periodo ?? "") }), valore: String(quanteCommesse), icona: ShoppingBag,
+        nota: selectedMonthLabel ? t("Per data di creazione") : t("media mese {n}", { n: ordersPerMonth.toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) }) },
+      venduto: { titolo: t("Venduto · contratti {periodo}", { periodo: String(periodo ?? "") }), valore: soldi(riepilogoPeriodo?.vat.sold), icona: Euro, nota: t("Imponibile · {n} commesse", { n: String(quanteCommesse ?? "") }) },
+      incassato: { titolo: t("Incassi commesse {periodo}", { periodo: String(periodo ?? "") }), valore: soldi(riepilogoPeriodo?.vat.collected), icona: TrendingUp, nota: t("Già incassato · imponibile") },
+      da_incassare: { titolo: t("Da incassare {periodo}", { periodo: String(periodo ?? "") }), valore: euro(riepilogoPeriodo?.gross.pending ?? 0), icona: AlertCircle,
+        nota: t("residuo sulle commesse") },
+      ticket_medio: { titolo: t("Valore medio commessa"), valore: euro(quanteCommesse ? (riepilogoPeriodo?.gross.sold ?? 0) / quanteCommesse : 0), icona: Coins, nota: t("su {n} commesse · IVA inclusa", { n: String(quanteCommesse ?? "") }) },
+      costi: { titolo: t("Costi commesse {periodo}", { periodo: String(periodo ?? "") }), valore: costiSostenuti == null ? "—" : euro(costiSostenuti), icona: Wallet, nota: t("Registrati sulle commesse · imponibile") },
+      margine: { titolo: t("Margine {periodo}", { periodo: String(periodo ?? "") }), valore: margine ? euro(margine.margine) : "—", icona: Percent,
+        nota: !margine ? "" : margine.senzaCosti
+          ? t("{percentuale} su {conCosti} con costi · {senzaCosti} senza", { percentuale: margine.percentuale == null ? "—" : `${margine.percentuale.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`, conCosti: margine.conCosti, senzaCosti: margine.senzaCosti })
+          : t("{percentuale} su {conCosti} con costi", { percentuale: margine.percentuale == null ? "—" : `${margine.percentuale.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`, conCosti: margine.conCosti }) },
+      aperte: { titolo: t("Commesse aperte"), valore: String(riepilogoPeriodo?.open ?? 0), icona: FolderOpen, nota: selectedMonthLabel ? t("del mese selezionato") : t("anche degli anni prima") },
+      in_ritardo: { titolo: t("In ritardo"), valore: String(ritardo), icona: Clock, nota: t("posa prevista già passata") },
+      assistenza: { titolo: t("In assistenza"), valore: String(riepilogoPeriodo?.support ?? 0), icona: Wrench, nota: t("nella fase di assistenza") },
+      completate: { titolo: t("Completate"), valore: String(riepilogoPeriodo?.completed ?? 0), icona: CheckCircle2, nota: t("arrivate all'ultima fase") },
+      pregresso: { titolo: t("Pregresso da gestire"), valore: String(globalStats?.previous.count ?? 0), icona: History,
+        nota: t("{lavori} lavori · {assistenze} assistenze · {saldi} saldi", { lavori: globalStats?.reasons.work ?? 0, assistenze: globalStats?.reasons.support ?? 0, saldi: globalStats?.reasons.payment ?? 0 }) },
+      fatturato: { titolo: t("Fatturato · fatture {anno}", { anno: String(currentYear ?? "") }), valore: kpiFatturazione?.fatturato_ytd == null ? "—" : euro(kpiFatturazione.fatturato_ytd), icona: Receipt, nota: t("Fatture emesse · IVA esclusa · tutta l’azienda") },
+      appalti_valore: { titolo: t("Valore appalti in corso"), valore: soldi(ta?.valore), icona: Landmark,
+        nota: t(ta?.appalti === 1 ? "{n} appalto · eseguito {eseguito}" : "{n} appalti · eseguito {eseguito}", { n: ta?.appalti ?? 0, eseguito: soldi(ta?.eseguito) }) },
+      appalti_da_eseguire: { titolo: t("Lavori da eseguire"), valore: soldi(ta?.daEseguire), icona: Hammer, nota: t("su {valore} di appalti", { valore: String(soldi(ta?.valore) ?? "") }) },
+      appalti_da_incassare: { titolo: t("Da incassare sugli appalti"), valore: soldi(ta?.daIncassare), icona: AlertCircle, nota: t("fatturato {importo}", { importo: String(soldi(ta?.fatturato) ?? "") }) },
+      appalti_margine: { titolo: t("Margine a finire appalti"), valore: soldi(ta?.margineAFinire), icona: Percent, nota: t("stima su {n} appalti con il piano", { n: ta?.conPiano ?? 0 }) },
+      unita_vendute: { titolo: t("Unità vendute"), valore: to ? t("{vendute} su {unita}", { vendute: to.vendute, unita: to.unita }) : "—", icona: Building2, nota: t(to?.operazioni === 1 ? "{n} operazione in corso" : "{n} operazioni in corso", { n: to?.operazioni ?? 0 }) },
+      unita_libere: { titolo: t("Unità libere"), valore: String(to?.libere ?? 0), icona: Building2, nota: t("su {n} unità", { n: to?.unita ?? 0 }) },
+      operazioni_venduto: { titolo: t("Venduto unità"), valore: soldi(to?.venduto), icona: Euro, nota: t("incassato {importo}", { importo: String(soldi(to?.incassato) ?? "") }) },
+      operazioni_incassato: { titolo: t("Incassato unità"), valore: soldi(to?.incassato), icona: TrendingUp,
+        nota: to?.venduto && to.incassato != null ? t("{n}% del venduto", { n: Math.round((to.incassato / to.venduto) * 100) }) : t("caparre, acconti e saldi") },
+      capitale_impegnato: { titolo: t("Capitale impegnato"), valore: soldi(to?.capitaleImpegnato), icona: Wallet, nota: t("costi meno incassi · {n} con il piano", { n: to?.conPiano ?? 0 }) },
+      operazioni_margine: { titolo: t("Margine a finire operazioni"), valore: soldi(to?.margineAFinire), icona: Percent, nota: t("stima su {n} operazioni con il piano", { n: to?.conPiano ?? 0 }) },
     };
     return valori;
   }, [globalStats, riepilogoPeriodo, selectedMonthLabel, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, ordersPerMonth, numeriGenerali, kpiFatturazione]);
 
   const barraBacheca = viewMode === "pipeline" && focusReady && !isStatusesError && !pipelinePending && !pipelineError && !scopeError;
   const opzioniTabella = viewMode === "table" ? (
-    <div role="group" aria-label="Opzioni tabella commesse" className="flex shrink-0 flex-wrap items-center gap-1.5 max-lg:p-3">
+    <div role="group" aria-label={t("Opzioni tabella commesse")} className="flex shrink-0 flex-wrap items-center gap-1.5 max-lg:p-3">
       <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
-        <SelectTrigger aria-label="Ordina commesse per" title="Ordina per" className="h-8 w-[124px] px-2 text-xs max-lg:min-h-11">
+        <SelectTrigger aria-label={t("Ordina commesse per")} title={t("Ordina per")} className="h-8 w-[124px] px-2 text-xs max-lg:min-h-11">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="created_at">Data creazione</SelectItem>
-          <SelectItem value="order_code">Codice commessa</SelectItem>
-          <SelectItem value="description">Descrizione</SelectItem>
-          <SelectItem value="total_amount">Importo imponibile</SelectItem>
-          <SelectItem value="expected_date">Data posa prevista</SelectItem>
-          <SelectItem value="warehouse_arrival_date">Arrivo merce</SelectItem>
-          <SelectItem value="work_start_date">Inizio lavori</SelectItem>
-          <SelectItem value="work_end_date">Fine lavori</SelectItem>
+          <SelectItem value="created_at">{t("Data creazione")}</SelectItem>
+          <SelectItem value="order_code">{t("Codice commessa")}</SelectItem>
+          <SelectItem value="description">{t("Descrizione")}</SelectItem>
+          <SelectItem value="total_amount">{t("Importo imponibile")}</SelectItem>
+          <SelectItem value="expected_date">{t("Data posa prevista")}</SelectItem>
+          <SelectItem value="warehouse_arrival_date">{t("Arrivo merce")}</SelectItem>
+          <SelectItem value="work_start_date">{t("Inizio lavori")}</SelectItem>
+          <SelectItem value="work_end_date">{t("Fine lavori")}</SelectItem>
         </SelectContent>
       </Select>
       <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
-        <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[98px] px-2 text-xs max-lg:min-h-11">
+        <SelectTrigger aria-label={t("Direzione ordinamento")} className="h-8 w-[98px] px-2 text-xs max-lg:min-h-11">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="desc">{
             ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-              ? "↓ Recenti"
-              : "↓ Z → A"
+              ? t("↓ Recenti")
+              : t("↓ Z → A")
           }</SelectItem>
           <SelectItem value="asc">{
             ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-              ? "↑ Vecchi"
-              : "↑ A → Z"
+              ? t("↑ Vecchi")
+              : t("↑ A → Z")
           }</SelectItem>
         </SelectContent>
       </Select>
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 w-8 px-0 text-xs max-lg:size-11" title="Colonne visibili" aria-label="Colonne visibili">
+          <Button variant="outline" size="sm" className="h-8 w-8 px-0 text-xs max-lg:size-11" title={t("Colonne visibili")} aria-label={t("Colonne visibili")}>
             <Columns className="h-3.5 w-3.5" />
           </Button>
         </PopoverTrigger>
         <PopoverContent align="end" className="w-[280px] p-3">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">Colonne visibili</p>
+              <p className="text-sm font-medium">{t("Colonne visibili")}</p>
               <button
                 type="button"
                 onClick={() => {
@@ -1497,7 +1501,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                 }}
                 className="text-xs text-muted-foreground hover:text-foreground underline"
               >
-                Ripristina
+                {t("Ripristina")}
               </button>
             </div>
             <div className="grid grid-cols-2 gap-1 max-h-[320px] overflow-y-auto">
@@ -1511,7 +1515,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                     onCheckedChange={() => toggleColumn(col.key)}
                     className="shrink-0"
                   />
-                  <span className="text-xs truncate">{col.label}</span>
+                  <span className="text-xs truncate">{t(col.label)}</span>
                 </label>
               ))}
             </div>
@@ -1525,7 +1529,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
           className="col-span-2 h-8 text-xs sm:col-span-1"
           onClick={() => { setSortField("created_at"); setSortDir("desc"); setPage(1); }}
         >
-          Ripristina
+          {t("Ripristina")}
         </Button>
       )}
     </div>
@@ -1533,8 +1537,8 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   const filtriCommesse = (<OrdersFilters panel={barraBacheca}
             trailingControls={opzioniTabella}
             summary={
-              <span role="status" aria-live="polite" title="Risultati con i filtri attuali">
-                <strong className="tabular-nums text-slate-900">{conteggioFiltri ?? (conteggioNonDisponibile ? "—" : "…")}</strong> risultati
+              <span role="status" aria-live="polite" title={t("Risultati con i filtri attuali")}>
+                <strong className="tabular-nums text-slate-900">{conteggioFiltri ?? (conteggioNonDisponibile ? "—" : "…")}</strong> {t("risultati")}
               </span>
             }
             searchQuery={searchQuery}
@@ -1573,11 +1577,11 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             <Package className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 max-lg:sr-only">Commesse</h1>
+            <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 max-lg:sr-only">{t("Commesse")}</h1>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 lg:flex-wrap lg:justify-end">
-          {canDeleteOrders && <Button variant="outline" size="sm" className="max-lg:hidden" onClick={() => setTrashOpen(true)}>Cestino</Button>}
+          {canDeleteOrders && <Button variant="outline" size="sm" className="max-lg:hidden" onClick={() => setTrashOpen(true)}>{t("Cestino")}</Button>}
           {/* Qui c'era anche il selettore dell'anno: lo stesso della riga dei
               filtri sotto (dove ora ha anche «{anno} + precedenti da gestire»). */}
           {/* Filtri avanzati */}
@@ -1585,11 +1589,11 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             variant="outline"
             size="sm"
             onClick={() => setSidebarOpen(true)}
-            aria-label="Apri filtri avanzati"
+            aria-label={t("Apri filtri avanzati")}
             className="h-8 px-2.5 text-xs max-lg:hidden"
           >
             <SlidersHorizontal className="h-3.5 w-3.5 sm:mr-1" />
-            <span className="hidden sm:inline">Filtri</span>
+            <span className="hidden sm:inline">{t("Filtri")}</span>
             {countActiveFilters(sidebarFilters) > 0 && (
               <span className="ml-1 bg-primary text-primary-foreground text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
                 {countActiveFilters(sidebarFilters)}
@@ -1603,17 +1607,17 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             onValueChange={(value) => value && setViewMode(value as "table" | "pipeline")}
             className="hidden rounded-md border lg:flex"
           >
-            <ToggleGroupItem value="table" aria-label="Vista tabella" className="h-8 px-2.5">
+            <ToggleGroupItem value="table" aria-label={t("Vista tabella")} className="h-8 px-2.5">
               <LayoutList className="h-3.5 w-3.5" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="pipeline" aria-label="Vista pipeline" className="h-8 px-2.5">
+            <ToggleGroupItem value="pipeline" aria-label={t("Vista pipeline")} className="h-8 px-2.5">
               <Columns3 className="h-3.5 w-3.5" />
             </ToggleGroupItem>
           </ToggleGroup>
           {(!isMobile || !telefonoStretto || canDeleteOrders) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="size-9 rounded-full lg:size-8 lg:rounded-md" aria-label="Altre azioni commesse">
+                <Button variant="outline" size="icon" className="size-9 rounded-full lg:size-8 lg:rounded-md" aria-label={t("Altre azioni commesse")}>
                   <MoreHorizontal aria-hidden="true" className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -1621,11 +1625,11 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                 {!isMobile && <>
                   {!isCommercialistaMode && (
                     <DropdownMenuItem onSelect={() => setImportOpen(true)}>
-                      <Upload className="mr-2 size-4" /> Importa commesse
+                      <Upload className="mr-2 size-4" /> {t("Importa commesse")}
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Esporta commesse filtrate</DropdownMenuLabel>
+                  <DropdownMenuLabel>{t("Esporta commesse filtrate")}</DropdownMenuLabel>
                   <DropdownMenuItem onSelect={exportOrdersCSV}>
                     <FileText className="mr-2 size-4" /> CSV
                   </DropdownMenuItem>
@@ -1636,7 +1640,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                     <FileText className="mr-2 size-4" /> PDF
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={openCustomerSheetsDialog}>
-                    <UsersIcon className="mr-2 size-4" /> PDF schede clienti
+                    <UsersIcon className="mr-2 size-4" /> {t("PDF schede clienti")}
                   </DropdownMenuItem>
                 </>}
                 {vistaCompatta && <>
@@ -1644,17 +1648,17 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onSelect={() => setViewMode(viewMode === "table" ? "pipeline" : "table")}>
-                        <Columns3 className="mr-2 size-4" /> {viewMode === "table" ? "Vista pipeline" : "Vista elenco"}
+                        <Columns3 className="mr-2 size-4" /> {viewMode === "table" ? t("Vista pipeline") : t("Vista elenco")}
                       </DropdownMenuItem>
                     </>
                   )}
                   {viewMode === "table" && (
                     <DropdownMenuItem className="hidden sm:flex" onSelect={() => setTabellaSuTablet(v => !v)}>
-                      <Columns className="mr-2 size-4" /> {tabellaSuTablet ? "Mostra elenco compatto" : "Mostra colonne"}
+                      <Columns className="mr-2 size-4" /> {tabellaSuTablet ? t("Mostra elenco compatto") : t("Mostra colonne")}
                     </DropdownMenuItem>
                   )}
                   {canDeleteOrders && (
-                    <DropdownMenuItem onSelect={() => setTrashOpen(true)}>Cestino</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setTrashOpen(true)}>{t("Cestino")}</DropdownMenuItem>
                   )}
                 </>}
               </DropdownMenuContent>
@@ -1663,32 +1667,32 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
           {isCommercialistaMode ? (
             <Button variant="outline" size="sm" disabled className="h-8 px-2.5 text-xs border-blue-200 bg-blue-50 text-blue-700 disabled:opacity-100">
               <ShieldCheck className="h-3.5 w-3.5 mr-1" />
-              <span className="hidden sm:inline">Sola lettura</span>
-              <span className="sm:hidden">Lettura</span>
+              <span className="hidden sm:inline">{t("Sola lettura")}</span>
+              <span className="sm:hidden">{t("Lettura")}</span>
             </Button>
           ) : !canCreateOrders || nienteDaCreare ? (
             /* Il motivo detto per primo è quello vero: il permesso che manca conta più del telefono. */
             <Button
               size="sm"
               disabled
-              title={!canCreateOrders ? createOrdersBlockedTitle : NIENTE_DA_CREARE}
-              aria-label={`Nuova Commessa — ${!canCreateOrders ? createOrdersBlockedTitle : NIENTE_DA_CREARE}`}
+              title={!canCreateOrders ? createOrdersBlockedTitle : t(NIENTE_DA_CREARE)}
+              aria-label={t("Nuova Commessa — {motivo}", { motivo: !canCreateOrders ? createOrdersBlockedTitle : t(NIENTE_DA_CREARE) })}
               className="h-8 px-3 text-xs font-semibold max-lg:h-9 max-lg:rounded-full max-lg:px-3.5 max-lg:text-sm max-sm:w-9 max-sm:px-0 max-sm:[&_svg]:mr-0"
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
-              <span className="hidden lg:inline">Nuova Commessa</span>
-              <span className="lg:hidden" aria-hidden="true">Nuova</span>
+              <span className="hidden lg:inline">{t("Nuova Commessa")}</span>
+              <span className="lg:hidden" aria-hidden="true">{t("Nuova")}</span>
             </Button>
           ) : conBivio ? (
             <Button
               onClick={() => setShowOrderTypeDialog(true)}
-              aria-label="Nuova commessa"
+              aria-label={t("Nuova commessa")}
               size="sm"
               className="tap-compact h-8 px-3 text-xs font-semibold max-lg:h-9 max-lg:rounded-full max-lg:px-3.5 max-lg:text-sm max-sm:w-9 max-sm:px-0 max-sm:[&_svg]:mr-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-lg:min-h-11"
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
-              <span className="hidden lg:inline">Nuova Commessa</span>
-              <span className="lg:hidden" aria-hidden="true">Nuova</span>
+              <span className="hidden lg:inline">{t("Nuova Commessa")}</span>
+              <span className="lg:hidden" aria-hidden="true">{t("Nuova")}</span>
             </Button>
           ) : (
             <Button
@@ -1696,10 +1700,10 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
               size="sm"
               className="tap-compact h-8 px-3 text-xs font-semibold max-lg:h-9 max-lg:rounded-full max-lg:px-3.5 max-lg:text-sm max-sm:w-9 max-sm:px-0 max-sm:[&_svg]:mr-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-lg:min-h-11"
             >
-              <Link to="/azienda/ordini/nuovo" aria-label="Nuova commessa">
+              <Link to="/azienda/ordini/nuovo" aria-label={t("Nuova commessa")}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden lg:inline">Nuova Commessa</span>
-                <span className="lg:hidden" aria-hidden="true">Nuova</span>
+                <span className="hidden lg:inline">{t("Nuova Commessa")}</span>
+                <span className="lg:hidden" aria-hidden="true">{t("Nuova")}</span>
               </Link>
             </Button>
           )}
@@ -1713,13 +1717,13 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
         <ScopriProgressBanner
           usedOrders={currentPlan.max_orders - remainingOrders}
           maxOrders={currentPlan.max_orders}
-          planName={currentPlan?.name ?? "corrente"}
+          planName={currentPlan?.name ?? t("corrente")}
         />
       )}
 
       <CercaConFiltri
         className="lg:hidden" valore={searchQuery} onCambia={setSearchQuery}
-        segnaposto="Cerca commesse" filtriAttivi={nFiltriCompatti}
+        segnaposto={t("Cerca commesse")} filtriAttivi={nFiltriCompatti}
         onApriFiltri={() => setFiltriCompattiAperti(true)}
       />
       <PannelloFiltri aperto={filtriCompattiAperti} onAperto={setFiltriCompattiAperti}
@@ -1743,11 +1747,11 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       {/* Telefono e tablet: le commesse attive e lo stato a un tocco (per il titolare, 23/11/2026). Al posto
           di «Solo aperte» + «Riepilogo»: «Attive» nasconde le completate, ogni stato filtra solo quello, il
           riepilogo resta sempre aperto. */}
-      {statuses.length > 0 && <div role="group" aria-label="Stato delle commesse" className={cn(RIGA_PILLOLE, "-mx-1 px-1 lg:hidden")}>
+      {statuses.length > 0 && <div role="group" aria-label={t("Stato delle commesse")} className={cn(RIGA_PILLOLE, "-mx-1 px-1 lg:hidden")}>
         <button type="button" aria-pressed={statusFilter === "all" && hideCompleted} onClick={() => setURLParams({ hideCompleted: true, statusFilter: "all" })}
-          className={cn(PILLOLA, statusFilter === "all" && hideCompleted ? PILLOLA_ATTIVA : PILLOLA_SPENTA)}>Attive</button>
+          className={cn(PILLOLA, statusFilter === "all" && hideCompleted ? PILLOLA_ATTIVA : PILLOLA_SPENTA)}>{t("Attive")}</button>
         <button type="button" aria-pressed={statusFilter === "all" && !hideCompleted} onClick={() => setURLParams({ hideCompleted: false, statusFilter: "all" })}
-          className={cn(PILLOLA, statusFilter === "all" && !hideCompleted ? PILLOLA_ATTIVA : PILLOLA_SPENTA)}>Tutte</button>
+          className={cn(PILLOLA, statusFilter === "all" && !hideCompleted ? PILLOLA_ATTIVA : PILLOLA_SPENTA)}>{t("Tutte")}</button>
         {statuses.map((st: { id: string; name: string; color?: string | null }) => (
           <button key={st.id} type="button" aria-pressed={statusFilter === st.id}
             onClick={() => setURLParams(statusFilter === st.id ? { hideCompleted: false, statusFilter: "all" } : { hideCompleted: false, statusFilter: st.id })}
@@ -1766,48 +1770,48 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                 </div>
                 <div className="min-w-0">
                   <h2 id="titolo-riepilogo-commesse" className="text-base font-semibold text-white">
-                    Riepilogo commesse · {selectedMonthLabel ?? (isYearCorrente ? currentYear : selectedYear ?? "Tutti gli anni")}
+                    {t("Riepilogo commesse · {periodo}", { periodo: selectedMonthLabel ?? (isYearCorrente ? currentYear : selectedYear ?? t("Tutti gli anni")) })}
                   </h2>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
               {orderPerms.canEditSettingsOrders && !isMobile && effectiveCompany?.id && <button type="button" onClick={() => setSceltaRiepilogoAperta(true)}
-                title="Scegli i riquadri e il grafico per tutta l'azienda"
+                title={t("Scegli i riquadri e il grafico per tutta l'azienda")}
                 className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/20 px-3 py-2 text-xs text-blue-50 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">
-                <Settings2 className="h-3.5 w-3.5" /><span className={analisiAperta ? "xl:sr-only" : ""}>Personalizza</span>
+                <Settings2 className="h-3.5 w-3.5" /><span className={analisiAperta ? "xl:sr-only" : ""}>{t("Personalizza")}</span>
               </button>}
               {orderPerms.canViewOrderAmounts && !isMobile && <button type="button" onClick={toggleAnalisi}
-                title={analisiAperta ? "Nascondi andamento" : "Mostra andamento"} aria-expanded={analisiAperta} aria-controls="orders-annual-chart"
+                title={analisiAperta ? t("Nascondi andamento") : t("Mostra andamento")} aria-expanded={analisiAperta} aria-controls="orders-annual-chart"
                 className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/20 px-3 py-2 text-xs text-blue-50 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">
-                <PieChart className="h-3.5 w-3.5" /><span className={analisiAperta ? "xl:sr-only" : ""}>{analisiAperta ? "Nascondi andamento" : "Mostra andamento"}</span>
+                <PieChart className="h-3.5 w-3.5" /><span className={analisiAperta ? "xl:sr-only" : ""}>{analisiAperta ? t("Nascondi andamento") : t("Mostra andamento")}</span>
                 <ChevronDown className={`h-3.5 w-3.5 ${analisiAperta ? "rotate-180" : ""}`} />
               </button>}
               </div>
             </div>
             {orderPerms.canViewMargins && <OrdersMarginSummary average={margineMedio} completed={margineConseguito}
               loading={isEconomicStatsLoading || scopeMarginsPending} error={scopeMarginsError || isGlobalStatsError || isStatusesError} />}
-            {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">Riepilogo non disponibile. <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</button></div>}
+            {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">{t("Riepilogo non disponibile.")} <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>{t("Riprova")}</button></div>}
             {!isGlobalStatsError && !isStatusesError && <div className={`mt-1.5 grid grid-cols-1 gap-1.5 min-[380px]:grid-cols-2 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
               {riquadriRiepilogo.map((id) => {
                 const v = valoriRiepilogo[id];
                 const voce = CATALOGO_RIQUADRI.find(c => c.id === id);
                 const inAttesa = voce?.gruppo !== "commesse" ? numeriGeneraliPending : id === "fatturato" ? !elencoInizializzato || billingLoading
                   : isEconomicStatsLoading || ((voce?.permesso === "costi" || voce?.permesso === "margini") && scopeMarginsPending);
-                const ring = id === "incassato" && quotaIncassata != null ? { value: quotaIncassata, label: "Quota incassata", color: "green" as const }
-                  : id === "costi" && incidenzaCosti != null ? { value: incidenzaCosti, label: "Costi commesse sul fatturato aziendale", color: "amber" as const } : undefined;
+                const ring = id === "incassato" && quotaIncassata != null ? { value: quotaIncassata, label: t("Quota incassata"), color: "green" as const }
+                  : id === "costi" && incidenzaCosti != null ? { value: incidenzaCosti, label: t("Costi commesse sul fatturato aziendale"), color: "amber" as const } : undefined;
                 const aliquoteMancanti = riepilogoPeriodo?.vat.missing ?? 0;
                 const ivato = id === "venduto" ? riepilogoPeriodo?.gross.sold
                   : id === "incassato" ? riepilogoPeriodo?.gross.collected
                   : id === "fatturato" ? kpiFatturazione?.fatturato_ytd_ivato : undefined;
                 return <OrdersSummaryCard key={id} id={id} title={v.titolo} value={v.valore}
-                  note={(id === "venduto" || id === "incassato") && aliquoteMancanti ? `Imponibile da verificare · ${aliquoteMancanti} aliquote mancanti` : v.nota}
-                  alternateValue={ivato?.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                  note={(id === "venduto" || id === "incassato") && aliquoteMancanti ? t("Imponibile da verificare · {n} aliquote mancanti", { n: String(aliquoteMancanti ?? "") }) : v.nota}
+                  alternateValue={ivato?.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
                   icon={v.icona} loading={inAttesa} ring={ring}
-                  info={id === "costi" ? `Il totale costi è imponibile. Il totale IVA inclusa non è disponibile nella fonte aggregata: non viene stimato con un’aliquota fissa. I costi registrati sono attribuiti alle commesse: non comprendono i costi fissi aziendali non imputati. I debiti ancora da pagare includono l’IVA se dovuta e non sono costi aggiuntivi da sommare.${incidenzaCosti != null ? " Il cerchio confronta i costi delle commesse con il fatturato aziendale, entrambi senza IVA." : ""}` : id === "incassato" || id === "venduto" ? "Imponibile ricavato scorporando l’IVA registrata su ciascuna commessa, senza usare un’aliquota unica. Il cerchio degli incassi usa imponibile incassato e residuo imponibile. Le aliquote mancanti richiedono verifica." : undefined}>
-                  {id === "incassato" && <div className="text-xs text-blue-100"><div className="flex flex-wrap justify-between gap-x-2 gap-y-1"><span>Da incassare · imponibile</span><strong className="font-semibold tabular-nums text-white">{isEconomicStatsLoading ? "…" : nettoResiduo == null ? "—" : nettoResiduo.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}</strong></div><div className="mt-1 flex flex-wrap justify-between gap-1 text-[10px] text-blue-100/80"><span>IVA inclusa</span><span className="tabular-nums">{isEconomicStatsLoading ? "…" : valoriRiepilogo.da_incassare.valore}</span></div></div>}
+                  info={id === "costi" ? (incidenzaCosti != null ? t("Il totale costi è imponibile. Il totale IVA inclusa non è disponibile nella fonte aggregata: non viene stimato con un’aliquota fissa. I costi registrati sono attribuiti alle commesse: non comprendono i costi fissi aziendali non imputati. I debiti ancora da pagare includono l’IVA se dovuta e non sono costi aggiuntivi da sommare. Il cerchio confronta i costi delle commesse con il fatturato aziendale, entrambi senza IVA.") : t("Il totale costi è imponibile. Il totale IVA inclusa non è disponibile nella fonte aggregata: non viene stimato con un’aliquota fissa. I costi registrati sono attribuiti alle commesse: non comprendono i costi fissi aziendali non imputati. I debiti ancora da pagare includono l’IVA se dovuta e non sono costi aggiuntivi da sommare.")) : id === "incassato" || id === "venduto" ? t("Imponibile ricavato scorporando l’IVA registrata su ciascuna commessa, senza usare un’aliquota unica. Il cerchio degli incassi usa imponibile incassato e residuo imponibile. Le aliquote mancanti richiedono verifica.") : undefined}>
+                  {id === "incassato" && <div className="text-xs text-blue-100"><div className="flex flex-wrap justify-between gap-x-2 gap-y-1"><span>{t("Da incassare · imponibile")}</span><strong className="font-semibold tabular-nums text-white">{isEconomicStatsLoading ? "…" : nettoResiduo == null ? "—" : nettoResiduo.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}</strong></div><div className="mt-1 flex flex-wrap justify-between gap-1 text-[10px] text-blue-100/80"><span>{t("IVA inclusa")}</span><span className="tabular-nums">{isEconomicStatsLoading ? "…" : valoriRiepilogo.da_incassare.valore}</span></div></div>}
                   {id === "costi" && <>
-                    <div className="flex flex-wrap justify-between gap-x-2 gap-y-1 text-xs text-blue-100"><span>Da pagare · IVA se dovuta</span><strong className="font-semibold tabular-nums text-white">{costiDaPagare.isError ? "—" : costiDaPagare.isPending ? "…" : (costiDaPagare.data ?? 0).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}</strong></div>
-                    {costiDaPagare.isError && <button type="button" onClick={() => void costiDaPagare.refetch()} className="mt-1 text-xs text-amber-200 underline">Costi da pagare non disponibili · Riprova</button>}
+                    <div className="flex flex-wrap justify-between gap-x-2 gap-y-1 text-xs text-blue-100"><span>{t("Da pagare · IVA se dovuta")}</span><strong className="font-semibold tabular-nums text-white">{costiDaPagare.isError ? "—" : costiDaPagare.isPending ? "…" : (costiDaPagare.data ?? 0).toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}</strong></div>
+                    {costiDaPagare.isError && <button type="button" onClick={() => void costiDaPagare.refetch()} className="mt-1 text-xs text-amber-200 underline">{t("Costi da pagare non disponibili · Riprova")}</button>}
                   </>}
                 </OrdersSummaryCard>;
               })}
@@ -1819,19 +1823,19 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
 
           {analisiAperta && orderPerms.canViewOrderAmounts && !isMobile && (
           <aside id="orders-annual-chart" className="flex min-w-0 border-t border-slate-200 bg-white px-3 py-2 xl:border-l xl:border-t-0">
-            {isStatusesError || isGlobalStatsError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={() => {
+            {isStatusesError || isGlobalStatsError ? <div role="alert" className="p-4 text-sm text-amber-800">{t("Andamento non disponibile.")} <Button variant="outline" size="sm" onClick={() => {
               if (isStatusesError) void retryStatuses();
               else if (errorePerimetro) void ricaricaPerimetro();
               else void retryGlobalStats();
-            }}>Riprova grafico</Button></div> : !globalStats ? (
-              <div aria-label="Caricamento andamento" className="flex h-[160px] items-end gap-3 px-4 pb-4">
+            }}>{t("Riprova grafico")}</Button></div> : !globalStats ? (
+              <div aria-label={t("Caricamento andamento")} className="flex h-[160px] items-end gap-3 px-4 pb-4">
                 {[60,92,48,130,78,155,105,184].map((height,index)=><Skeleton key={index} className="flex-1 rounded-t-md" style={{height}}/>)}
               </div>
-            ) : <Suspense fallback={<p className="p-4 text-sm text-muted-foreground" role="status">Caricamento grafico…</p>}><OrdersMonthlyChart months={chartWithComparison}
+            ) : <Suspense fallback={<p className="p-4 text-sm text-muted-foreground" role="status">{t("Caricamento grafico…")}</p>}><OrdersMonthlyChart months={chartWithComparison}
               serie={serieVisibili(sceltaRiepilogo.graficoSerie, permessiRiepilogo)}
               vistaIniziale={sceltaRiepilogo.graficoVista === "numero" ? "count" : "money"}
               formaIniziale={sceltaRiepilogo.graficoForma === "barre" ? "bars" : "lines"}
-              comparison={comparisonPeriod ? {year:comparisonPeriod.previousYear, enabled:comparisonEnabled, onToggle:()=>setCompareChart(value=>!value), loading:comparisonPending, error:comparisonError, onRetry:()=>void retryComparison(), label:comparisonPeriod.label} : undefined} period={isYearCorrente ? String(currentYear) : hasSelectedYear ? String(selectedYear) : "Ultimi 12 mesi"}
+              comparison={comparisonPeriod ? {year:comparisonPeriod.previousYear, enabled:comparisonEnabled, onToggle:()=>setCompareChart(value=>!value), loading:comparisonPending, error:comparisonError, onRetry:()=>void retryComparison(), label:comparisonPeriod.label} : undefined} period={isYearCorrente ? String(currentYear) : hasSelectedYear ? String(selectedYear) : t("Ultimi 12 mesi")}
               selectedMonth={selectedMonth}
               onSelectMonth={(key) => {const patch=orderChartMonthFilter(key,yearFilter,currentYear,scopeGroup);if(patch){setURLParams(patch);setPage(1);}}} /></Suspense>}
           </aside>
@@ -1869,8 +1873,8 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
 
           {viewMode === "pipeline" && pipelineRefreshError && !archivioTabella.errore && (
             <div role="alert" className="text-sm text-amber-800">
-              Aggiornamento delle commesse non riuscito. Sono visibili le ultime schede caricate.
-              <Button variant="link" size="sm" disabled={pipelineFetching} onClick={() => void retryPipeline()}>Riprova</Button>
+              {t("Aggiornamento delle commesse non riuscito. Sono visibili le ultime schede caricate.")}
+              <Button variant="link" size="sm" disabled={pipelineFetching} onClick={() => void retryPipeline()}>{t("Riprova")}</Button>
             </div>
           )}
           {viewMode === "table" && isOrdersLoading && !scopeError && <AvvisoAttesaCommesse key={effectiveCompany?.id} onRetry={() => {
@@ -1880,26 +1884,26 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             else void ricaricaPerimetro();
           }}/>}
           {mostraPrimaPagina && (scopeError || isOrdersError
-            ? <div role="alert" className="text-sm text-amber-800">Elenco completo non disponibile. <Button size="sm" variant="link" onClick={() => { if (scopeError) void ricaricaPerimetro(); else void refetchOrders(); }}>Riprova</Button></div>
-            : <p role="status" className="text-sm text-muted-foreground">Calcolo del conteggio e del pregresso…</p>)}
+            ? <div role="alert" className="text-sm text-amber-800">{t("Elenco completo non disponibile.")} <Button size="sm" variant="link" onClick={() => { if (scopeError) void ricaricaPerimetro(); else void refetchOrders(); }}>{t("Riprova")}</Button></div>
+            : <p role="status" className="text-sm text-muted-foreground">{t("Calcolo del conteggio e del pregresso…")}</p>)}
           {/* Content */}
-          {isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare gli stati delle commesse. <Button onClick={() => void retryStatuses()}>Riprova</Button></div>) : scopeError && !mostraPrimaPagina ? (
-            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4">Impossibile verificare i dati necessari per questi filtri. <Button variant="outline" onClick={() => {if (controlFocus !== "all") void retryScopeMargins(); void ricaricaPerimetro();}}>Riprova</Button></div>
+          {isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">{t("Impossibile caricare gli stati delle commesse.")} <Button onClick={() => void retryStatuses()}>{t("Riprova")}</Button></div>) : scopeError && !mostraPrimaPagina ? (
+            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4">{t("Impossibile verificare i dati necessari per questi filtri.")} <Button variant="outline" onClick={() => {if (controlFocus !== "all") void retryScopeMargins(); void ricaricaPerimetro();}}>{t("Riprova")}</Button></div>
           ) : viewMode === "table" && isOrdersError && !mostraPrimaPagina ? (
             <Card className="border-red-200 bg-red-50/70">
               <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
                   <div>
-                    <h3 className="font-semibold text-red-950">Errore nel caricamento commesse</h3>
+                    <h3 className="font-semibold text-red-950">{t("Errore nel caricamento commesse")}</h3>
                     <p className="mt-1 text-sm text-red-800">
-                      La pagina non resta più bloccata in caricamento: puoi riprovare senza ricaricare tutto.
-                      {ordersError instanceof Error && ordersError.message ? ` Dettaglio: ${ordersError.message}` : ""}
+                      {t("La pagina non resta più bloccata in caricamento: puoi riprovare senza ricaricare tutto.")}
+                      {ordersError instanceof Error && ordersError.message ? ` ${t("Dettaglio: {dettaglio}", { dettaglio: ordersError.message })}` : ""}
                     </p>
                   </div>
                 </div>
                 <Button variant="outline" className="border-red-200 bg-white text-red-700 hover:bg-red-100" onClick={() => refetchOrders()}>
-                  Riprova
+                  {t("Riprova")}
                 </Button>
               </CardContent>
             </Card>
@@ -1921,13 +1925,13 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             <Card>
               <CardContent className="p-12 text-center">
                 <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Nessuna commessa trovata</h3>
+                <h3 className="text-lg font-medium mb-2">{t("Nessuna commessa trovata")}</h3>
                 <p className="text-muted-foreground mb-4">
                   {globalStats && scopeOrders.length === 0
-                    ? "Non hai ancora creato nessuna commessa."
+                    ? t("Non hai ancora creato nessuna commessa.")
                     : controlFocus !== "all"
-                      ? "Nessuna commessa corrisponde al focus operativo selezionato in questa pagina."
-                      : "Nessuna commessa corrisponde ai filtri selezionati."}
+                      ? t("Nessuna commessa corrisponde al focus operativo selezionato in questa pagina.")
+                      : t("Nessuna commessa corrisponde ai filtri selezionati.")}
                 </p>
                 {/* 2026-05-26 (audit fix P1): aggiunto bottone "Pulisci filtri"
                     quando ci sono commesse in DB ma i filtri attivi le nascondono.
@@ -1935,33 +1939,33 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                     ma non aveva escape per altri filtri (status/cliente/anno/etc). */}
                 {controlFocus !== "all" ? (
                   <Button variant="outline" onClick={() => setControlFocus("all")}>
-                    Mostra tutte le commesse
+                    {t("Mostra tutte le commesse")}
                   </Button>
                 ) : hasAnyFilter ? (
                   <Button variant="outline" onClick={clearAllFilters} className="gap-2">
-                    Pulisci tutti i filtri
+                    {t("Pulisci tutti i filtri")}
                   </Button>
                 ) : globalStats && scopeOrders.length === 0 && !isCommercialistaMode && canCreateOrders && !nienteDaCreare && (
                   conBivio ? (
                     <Button onClick={() => setShowOrderTypeDialog(true)}>
                       <Plus className="h-4 w-4 mr-2" />
-                      Crea la prima commessa
+                      {t("Crea la prima commessa")}
                     </Button>
                   ) : (
                     <Button asChild>
-                      <Link to="/azienda/ordini/nuovo" aria-label="Nuova commessa">
+                      <Link to="/azienda/ordini/nuovo" aria-label={t("Nuova commessa")}>
                         <Plus className="h-4 w-4 mr-2" />
-                        Crea la prima commessa
+                        {t("Crea la prima commessa")}
                       </Link>
                     </Button>
                   )
                 )}
               </CardContent>
             </Card>
-          ) : viewMode === "pipeline" && archivioTabella.errore ? (<div role="alert">{archivioTabella.errore} <Button variant="outline" onClick={() => void archivioTabella.riprova()}>Riprova</Button></div>) : viewMode === "pipeline" && pipelineError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare la pipeline. <Button onClick={() => void retryPipeline()}>Riprova</Button></div>) : viewMode === "pipeline" && pipelinePending ? (<p role="status">Caricamento pipeline…</p>) : viewMode === "pipeline" ? (
+          ) : viewMode === "pipeline" && archivioTabella.errore ? (<div role="alert">{archivioTabella.errore} <Button variant="outline" onClick={() => void archivioTabella.riprova()}>{t("Riprova")}</Button></div>) : viewMode === "pipeline" && pipelineError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">{t("Impossibile caricare la pipeline.")} <Button onClick={() => void retryPipeline()}>{t("Riprova")}</Button></div>) : viewMode === "pipeline" && pipelinePending ? (<p role="status">{t("Caricamento pipeline…")}</p>) : viewMode === "pipeline" ? (
             <PipelineCommesseBoard azienda={effectiveCompany?.id ?? ""} key={effectiveCompany?.id}
-              filtri={vistaCompatta ? undefined : <><OrderSearch expand value={searchQuery} onChange={setSearchQuery} /><Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="h-8 gap-1.5"><SlidersHorizontal className="size-3.5" />Filtri{hasAnyFilter ? " attivi" : ""}</Button></PopoverTrigger>
-                <PopoverContent align="start" className="w-[min(380px,90vw)] rounded-xl p-4"><h3 className="mb-3 text-sm font-semibold">Filtri commesse</h3>{filtriCommesse}</PopoverContent></Popover></>}
+              filtri={vistaCompatta ? undefined : <><OrderSearch expand value={searchQuery} onChange={setSearchQuery} /><Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="h-8 gap-1.5"><SlidersHorizontal className="size-3.5" />{hasAnyFilter ? t("Filtri attivi") : t("Filtri")}</Button></PopoverTrigger>
+                <PopoverContent align="start" className="w-[min(380px,90vw)] rounded-xl p-4"><h3 className="mb-3 text-sm font-semibold">{t("Filtri commesse")}</h3>{filtriCommesse}</PopoverContent></Popover></>}
               orders={allOrdersForPipeline}
               statuses={statuses}
               showAmounts={orderPerms.canViewOrderAmounts}
@@ -1973,7 +1977,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                 tabellaSuTablet={tabellaSuTablet}
                 mostraImporti={orderPerms.canViewOrderAmounts}
                 riferimentiPipeline={riferimentiPipeline}
-                pipelineFallback={archivioTabella.errore ? "Non disponibile" : archivioTabella.caricamento ? "…" : mostraPipelinePrincipale(effectiveCompany?.id) ? "Principale" : "Senza pipeline"}
+                pipelineFallback={archivioTabella.errore ? t("Non disponibile") : archivioTabella.caricamento ? "…" : mostraPipelinePrincipale(effectiveCompany?.id) ? t("Principale") : t("Senza pipeline")}
                 canDelete={canDeleteOrders}
                 previousReasons={isYearCorrente ? globalStats?.previousReasons : undefined}
                 orders={visibleOrders}
@@ -1996,21 +2000,21 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
               {controlFocus === "all" && totalPages > 1 && (
                 <div className="flex items-center justify-between px-2">
                   <p className="text-sm text-muted-foreground hidden sm:block">
-                    Mostrando {visibleShowingFrom}–{visibleShowingTo} di {visibleTotalCount} commesse
+                    {t("Mostrando {da}–{a} di {totale} commesse", { da: visibleShowingFrom, a: visibleShowingTo, totale: visibleTotalCount })}
                   </p>
                   <p className="text-xs text-muted-foreground sm:hidden">
                     {visibleShowingFrom}–{visibleShowingTo} / {visibleTotalCount}
                   </p>
                   <div className="flex items-center gap-2">
-                    <Button aria-label="Pagina precedente" variant="outline" size="sm" className="max-lg:min-h-11 max-lg:min-w-11" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}>
+                    <Button aria-label={t("Pagina precedente")} variant="outline" size="sm" className="max-lg:min-h-11 max-lg:min-w-11" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}>
                       <ChevronLeft className="h-4 w-4" />
-                      <span className="hidden sm:inline ml-1">Precedente</span>
+                      <span className="hidden sm:inline ml-1">{t("Precedente")}</span>
                     </Button>
                     <span className="text-sm font-medium px-1">
                       {page} / {totalPages}
                     </span>
-                    <Button aria-label="Pagina successiva" variant="outline" size="sm" className="max-lg:min-h-11 max-lg:min-w-11" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>
-                      <span className="hidden sm:inline mr-1">Successivo</span>
+                    <Button aria-label={t("Pagina successiva")} variant="outline" size="sm" className="max-lg:min-h-11 max-lg:min-w-11" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>
+                      <span className="hidden sm:inline mr-1">{t("Successivo")}</span>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
@@ -2023,9 +2027,9 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       <CSVImportDialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        title="Importa Commesse"
+        title={t("Importa Commesse")}
         fields={ORDER_IMPORT_FIELDS}
-        nota="Importo totale senza IVA; acconti e saldo con l'IVA. Numeri all'italiana (12.000,50), date come 31/12/2026."
+        nota={t("Importo totale senza IVA; acconti e saldo con l'IVA. Numeri all'italiana (12.000,50), date come 31/12/2026.")}
         onImport={handleOrdersImport}
       />
 
@@ -2063,6 +2067,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
 }
 
 export default function OrdersList() {
+  const tr = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   // Le analisi di marginalità hanno una vista a schede anche sul telefono.
   const isMobile = useIsMobile();
@@ -2084,19 +2089,19 @@ export default function OrdersList() {
   };
 
   const tabs = [
-    { id: "ordini", label: "Commesse", icon: ClipboardList, show: !soloAcquisti },
+    { id: "ordini", label: tr("Commesse"), icon: ClipboardList, show: !soloAcquisti },
     // Giorno per giorno cosa si è lavorato: l'elenco di tutti i cantieri, con le statistiche del mese.
-    { id: "rapportini", label: "Rapportini", icon: NotebookPen, show: permissions.canViewOrders },
-    { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled },
+    { id: "rapportini", label: tr("Rapportini"), icon: NotebookPen, show: permissions.canViewOrders },
+    { id: "sopralluoghi", label: tr("Sopralluoghi"), icon: MapIcon, show: surveysEnabled },
     // Prima degli ordini perche' e' il passo prima: si chiede il prezzo, poi si ordina.
-    { id: "offerte", label: "Richieste d'offerta", icon: FileQuestion, show: permissions.canViewOrders && !isMobile },
+    { id: "offerte", label: tr("Richieste d'offerta"), icon: FileQuestion, show: permissions.canViewOrders && !isMobile },
     // Il centro degli acquisti (23/10/2026): materiali da ordinare, offerte,
     // ordini e consegne in una pipeline. Ha preso il posto di «Acquisti da fare».
-    { id: "acquisto", label: "Ordini e Acquisti", icon: ShoppingCart, show: permissions.canViewOrders || permissions.canManagePurchasing },
+    { id: "acquisto", label: tr("Ordini e Acquisti"), icon: ShoppingCart, show: permissions.canViewOrders || permissions.canManagePurchasing },
     { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewOrders },
-    { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewCosts && !isMobile },
-    { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewCosts },
-    { id: "provvigioni", label: "Provvigioni", icon: Euro, show: permissions.canViewCosts && !isMobile },
+    { id: "anomalie", label: tr("Anomalie"), icon: AlertTriangle, show: permissions.canViewCosts && !isMobile },
+    { id: "marginalita", label: tr("Marginalità"), icon: PieChart, show: permissions.canViewCosts },
+    { id: "provvigioni", label: tr("Provvigioni"), icon: Euro, show: permissions.canViewCosts && !isMobile },
   ].filter((t) => t.show);
   const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : (soloAcquisti ? "acquisto" : "ordini");
 
@@ -2121,7 +2126,7 @@ export default function OrdersList() {
   }, [activeTab, navigate, requestedTab, setSearchParams]);
 
   const navigazioneCompatta = (
-    <SelettoreSezione nome="Sezioni commesse" valore={activeTab} sezioni={tabs} onScegli={handleTabChange} className="flex-1 lg:hidden"
+    <SelettoreSezione nome={tr("Sezioni commesse")} valore={activeTab} sezioni={tabs} onScegli={handleTabChange} className="flex-1 lg:hidden"
       // Le altre sezioni (rapportini, sopralluoghi, acquisti, DDT) mettono qui «⋯» e «+» (useSlotAzioniSezione).
       azione={activeTab !== "ordini" ? <div id="slot-azioni-sezione" className="flex items-center gap-1.5 empty:hidden" /> : undefined} />
   );
@@ -2134,7 +2139,7 @@ export default function OrdersList() {
         <nav
           className="flex min-h-0 flex-wrap items-center gap-1 px-0.5"
           role="tablist"
-          aria-label="Sezioni commesse"
+          aria-label={tr("Sezioni commesse")}
         >
           {tabs.map((t) => {
             const isActive = activeTab === t.id;
@@ -2158,7 +2163,7 @@ export default function OrdersList() {
                 {t.label}
                 {("beta" in t && t.beta) ? (
                   <span className="ml-1 inline-flex items-center rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-orange-700 ring-1 ring-orange-200">
-                    Beta
+                    {tr("Beta")}
                   </span>
                 ) : null}
               </button>
@@ -2168,38 +2173,38 @@ export default function OrdersList() {
       </div>
 
       {activeTab === "ordini" && (
-        <ErrorBoundary title="Errore nella lista commesse">
+        <ErrorBoundary title={tr("Errore nella lista commesse")}>
           <OrdersListInner navigazioneCompatta={navigazioneCompatta} />
         </ErrorBoundary>
       )}
 
       {activeTab === "rapportini" && (
-        <ErrorBoundary title="Errore in Rapportini">
-          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento rapportini…</div>}>
+        <ErrorBoundary title={tr("Errore in Rapportini")}>
+          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">{tr("Caricamento rapportini…")}</div>}>
             <RapportiniCommesse />
           </Suspense>
         </ErrorBoundary>
       )}
 
       {activeTab === "sopralluoghi" && surveysEnabled && (
-        <ErrorBoundary title="Errore nel modulo Sopralluoghi">
-          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento sopralluoghi…</div>}>
+        <ErrorBoundary title={tr("Errore nel modulo Sopralluoghi")}>
+          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">{tr("Caricamento sopralluoghi…")}</div>}>
             <SopralluoghiList />
           </Suspense>
         </ErrorBoundary>
       )}
 
       {activeTab === "provvigioni" && (
-        <ErrorBoundary title="Errore nel tab Provvigioni">
-          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento provvigioni…</div>}>
+        <ErrorBoundary title={tr("Errore nel tab Provvigioni")}>
+          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">{tr("Caricamento provvigioni…")}</div>}>
             <OrderCommissionsOverview />
           </Suspense>
         </ErrorBoundary>
       )}
 
-      <Suspense fallback={<p className="p-8 text-center text-sm text-muted-foreground" role="status">Caricamento sezione…</p>}>
+      <Suspense fallback={<p className="p-8 text-center text-sm text-muted-foreground" role="status">{tr("Caricamento sezione…")}</p>}>
       {activeTab === "offerte" && (
-        <ErrorBoundary title="Errore nel caricamento richieste d'offerta">
+        <ErrorBoundary title={tr("Errore nel caricamento richieste d'offerta")}>
           <SupplierRfqsList />
         </ErrorBoundary>
       )}
@@ -2213,7 +2218,7 @@ export default function OrdersList() {
       )}
 
       {activeTab === "ddt" && (
-        <ErrorBoundary title="Errore nel caricamento DDT">
+        <ErrorBoundary title={tr("Errore nel caricamento DDT")}>
           <DDTRicezioneList />
         </ErrorBoundary>
       )}

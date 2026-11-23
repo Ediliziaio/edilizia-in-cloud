@@ -22,6 +22,7 @@ import { PendingVariationPdf } from "./PendingVariationPdf";
 import { VariationLifecycleDialog } from "./VariationLifecycleDialog";
 import { VarianteDaDocumento } from "./VarianteDaDocumento";
 import type { WorkflowVariation } from "@/hooks/useVariationWorkflow";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface OdVSectionProps {
   orderId: string;
@@ -43,6 +44,7 @@ const STATUS_CONFIG: Record<string, { label: string; tono: TonoStato }> = {
 };
 
 export function OdVSection({ orderId, companyId, context: contestoCommessa = {}, onOpenDocuments, bozzaIniziale, onBozzaChiusa }: OdVSectionProps) {
+  const t = useT();
   // Senza i dati dell'impresa il riquadro nel PDF restava col solo nome.
   const anagrafica = useCompanyAnagraficaForTemplate();
   const { data: societarie } = useQuery({
@@ -73,8 +75,8 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
 
   const copyFirmaLink = async (token: string) => {
     const url = `${window.location.origin}/firma-odv/${token}`;
-    try { await navigator.clipboard.writeText(url); toast.success("Link di firma copiato!"); }
-    catch { toast.error("Copia non riuscita. Apri il link e copialo dalla barra degli indirizzi."); }
+    try { await navigator.clipboard.writeText(url); toast.success(t("Link di firma copiato!")); }
+    catch { toast.error(t("Copia non riuscita. Apri il link e copialo dalla barra degli indirizzi.")); }
   };
   const approvate = odvList.filter(o => o.status === "approvato");
   // La fase che ogni variante approvata ha creato nelle Lavorazioni (06/11/2026): dalle sue voci, origine «variante».
@@ -96,45 +98,45 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
   const creaFase = useMutation({
     mutationFn: async (id: string) => {
       const { data, error } = await (supabase.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>)("variante_crea_lavori_da_ufficio", { p_variante: id });
-      if (error) throw new Error(/does not exist|schema cache/i.test(error.message) ? "La creazione della fase non è ancora attiva su questo database." : error.message);
-      if (!data) throw new Error("Questa variante non crea lavori (è una riduzione o un importo negativo).");
+      if (error) throw new Error(/does not exist|schema cache/i.test(error.message) ? t("La creazione della fase non è ancora attiva su questo database.") : error.message);
+      if (!data) throw new Error(t("Questa variante non crea lavori (è una riduzione o un importo negativo)."));
     },
     onSuccess: () => {
-      toast.success("Fase creata nelle Lavorazioni");
+      toast.success(t("Fase creata nelle Lavorazioni"));
       void queryClient.invalidateQueries({ queryKey: ["varianti-fasi", orderId] });
       refreshWorkQueries(queryClient, orderId);
     },
     onError: (e: Error) => toast.error(e.message),
   });
   const colonne: ColonnaTabella<WorkflowVariation>[] = [
-    { titolo: "Variante", principale: true, cella: odv => (
+    { titolo: t("Variante"), principale: true, cella: odv => (
       <div className="min-w-0 max-w-xl">
         <p className="font-medium"><span className="mr-1.5 font-mono text-xs font-normal text-muted-foreground">OdV #{odv.numero_odv}</span>{odv.titolo}</p>
         <p className="line-clamp-1 text-xs font-normal text-muted-foreground max-sm:hidden" title={odv.descrizione}>{odv.descrizione}</p>
-        {odv.richiesto_da && <p className="text-xs font-normal text-muted-foreground">Richiesto da: {odv.richiesto_da}</p>}
+        {odv.richiesto_da && <p className="text-xs font-normal text-muted-foreground">{t("Richiesto da: {nome}", { nome: odv.richiesto_da })}</p>}
       </div>
     ) },
-    { titolo: "Importo", destra: true, cella: odv => <span className="font-medium">{formatCurrency(odv.impatto_economico)}</span> },
-    { titolo: "Giorni", destra: true, cella: odv => (odv.impatto_giorni > 0 ? `+${odv.impatto_giorni}` : "—") },
-    { titolo: "Stato", cella: odv => {
+    { titolo: t("Importo"), destra: true, cella: odv => <span className="font-medium">{formatCurrency(odv.impatto_economico)}</span> },
+    { titolo: t("Giorni"), destra: true, cella: odv => (odv.impatto_giorni > 0 ? `+${odv.impatto_giorni}` : "—") },
+    { titolo: t("Stato"), cella: odv => {
       const cfg = STATUS_CONFIG[odv.status] || STATUS_CONFIG.in_attesa;
       const quando = variationEventDate(odv.offline_signed_on ?? odv.firmato_il);
       const fase = fasiDaVarianti.data?.get(odv.id);
       const lavori = odv.status === "approvato" && Number(odv.impatto_economico) >= 0;
-      return <><StatoPill tono={cfg.tono}>{cfg.label}</StatoPill>{quando && <p className="mt-0.5 text-xs text-muted-foreground">{odv.status === "approvato" ? "Approvato" : odv.status === "rifiutato" ? "Rifiutato" : "Elaborato"} {quando}</p>}
-        {lavori && fase && <p className="mt-0.5 text-xs text-emerald-700">Nelle Lavorazioni: {fase.name}</p>}
+      return <><StatoPill tono={cfg.tono}>{t(cfg.label)}</StatoPill>{quando && <p className="mt-0.5 text-xs text-muted-foreground">{odv.status === "approvato" ? t("Approvato") : odv.status === "rifiutato" ? t("Rifiutato") : t("Elaborato")} {quando}</p>}
+        {lavori && fase && <p className="mt-0.5 text-xs text-emerald-700">{t("Nelle Lavorazioni: {fase}", { fase: fase.name })}</p>}
         {lavori && !fase && fasiDaVarianti.isSuccess && permissions.canEditOrders && <Button variant="outline" size="sm" className="mt-1 h-7 text-xs" disabled={creaFase.isPending} onClick={() => creaFase.mutate(odv.id)}>
-          {creaFase.isPending && creaFase.variables === odv.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}Crea la fase nelle Lavorazioni</Button>}
-        {odv.status === "in_attesa" && <p className="mt-0.5 text-xs text-muted-foreground">Quando il cliente accetta diventa una fase delle Lavorazioni</p>}</>;
+          {creaFase.isPending && creaFase.variables === odv.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}{t("Crea la fase nelle Lavorazioni")}</Button>}
+        {odv.status === "in_attesa" && <p className="mt-0.5 text-xs text-muted-foreground">{t("Quando il cliente accetta diventa una fase delle Lavorazioni")}</p>}</>;
     } },
-    { titolo: "Azioni", intestazione: <span className="sr-only">Azioni</span>, destra: true, senzaEtichetta: true, cella: odv => {
+    { titolo: t("Azioni"), intestazione: <span className="sr-only">{t("Azioni")}</span>, destra: true, senzaEtichetta: true, cella: odv => {
       const linkAttivo = odv.status === "in_attesa" && odv.firma_token && !odv.link_revoked_at && (!odv.link_expires_at || new Date(odv.link_expires_at).getTime() > Date.now());
       return (
         <div className="flex flex-wrap items-center justify-end gap-1">
           {permissions.canEditOrders && odv.status === "in_attesa" && !odv.current_document_id && <PendingVariationPdf variation={odv} orderId={orderId} companyId={companyId} context={context} onOpenDocuments={onOpenDocuments} />}
-          {permissions.canEditOrders && <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setEditing({id:odv.id,existing:true})}>{odv.status === "bozza" ? "Riprendi bozza" : "Documento e approvazione"}</Button>}
+          {permissions.canEditOrders && <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setEditing({id:odv.id,existing:true})}>{odv.status === "bozza" ? t("Riprendi bozza") : t("Documento e approvazione")}</Button>}
           {permissions.canEditOrders && linkAttivo && <>
-            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => copyFirmaLink(odv.firma_token as string)}><Copy className="mr-1 h-3 w-3" /> Copia link</Button>
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => copyFirmaLink(odv.firma_token as string)}><Copy className="mr-1 h-3 w-3" /> {t("Copia link")}</Button>
             <Button variant="ghost" size="sm" className="h-8 text-xs text-blue-600 hover:text-blue-700" disabled={invioEmailLoading === odv.id}
               onClick={async () => {
                 if (sending.current.has(odv.id) || !permissions.canEditOrders) return;
@@ -142,22 +144,22 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
                 setInvioEmailLoading(odv.id);
                 try {
                   const { data, error } = await supabase.functions.invoke("invia-odv", { body: { odv_id: odv.id } });
-                  if (error || data?.success !== true) throw error || new Error("Invio non confermato");
-                  toast.success("Email inviata al cliente");
+                  if (error || data?.success !== true) throw error || new Error(t("Invio non confermato"));
+                  toast.success(t("Email inviata al cliente"));
                   queryClient.invalidateQueries({ queryKey: ["ordini-variazione", orderId] });
                 } catch (e: unknown) {
-                  toast.error(e instanceof Error ? e.message : "Errore nell'invio email");
+                  toast.error(e instanceof Error ? e.message : t("Errore nell'invio email"));
                 } finally {
                   sending.current.delete(odv.id);
                   setInvioEmailLoading(null);
                 }
               }}>
               {invioEmailLoading === odv.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Send className="mr-1 h-3 w-3" />}
-              Invia per email
+              {t("Invia per email")}
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => window.open(`/firma-odv/${odv.firma_token}`, "_blank")} aria-label="Apri link firma"><ExternalLink className="h-3 w-3" /></Button>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => window.open(`/firma-odv/${odv.firma_token}`, "_blank")} aria-label={t("Apri link firma")}><ExternalLink className="h-3 w-3" /></Button>
           </>}
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`Campi personalizzati di OdV ${odv.numero_odv}`} title="Campi personalizzati" onClick={() => setCampiDi(odv.id)}><SlidersHorizontal className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={t("Campi personalizzati di OdV {n}", { n: odv.numero_odv })} title={t("Campi personalizzati")} onClick={() => setCampiDi(odv.id)}><SlidersHorizontal className="h-3.5 w-3.5" /></Button>
         </div>
       );
     } },
@@ -165,42 +167,42 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
 
   return (
     <>
-      <RiquadroCommessa icona={<GitBranch className="h-4 w-4 shrink-0 text-primary" aria-hidden />} titolo="Lavori extra e varianti" conteggio={odvList.length}
+      <RiquadroCommessa icona={<GitBranch className="h-4 w-4 shrink-0 text-primary" aria-hidden />} titolo={t("Lavori extra e varianti")} conteggio={odvList.length}
         azioni={permissions.canEditOrders ? <div className="flex gap-2">
           {!isLoading && !isError && <VarianteDaDocumento companyId={companyId} context={context}
             onBozza={(bozza) => { const id = crypto.randomUUID(); setBozzaAi({ id, bozza }); setEditing({ id, existing: false }); }} />}
-          <Button size="sm" disabled={isLoading || isError} onClick={() => setEditing({id:crypto.randomUUID(),existing:false})} aria-label="Nuova variante">
-            <Plus className="h-4 w-4" /><span className="ml-1.5 hidden sm:inline">Nuova variante</span>
+          <Button size="sm" disabled={isLoading || isError} onClick={() => setEditing({id:crypto.randomUUID(),existing:false})} aria-label={t("Nuova variante")}>
+            <Plus className="h-4 w-4" /><span className="ml-1.5 hidden sm:inline">{t("Nuova variante")}</span>
           </Button>
         </div> : undefined}
         numeri={!isLoading && !isError ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Riepilogo varianti">
-            <RiepilogoVoce titolo="Contratto iniziale" valore={contrattoIniziale == null ? "—" : formatCurrency(contrattoIniziale)} />
-            <RiepilogoVoce titolo={`Varianti approvate (${approvate.length})`}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label={t("Riepilogo varianti")}>
+            <RiepilogoVoce titolo={t("Contratto iniziale")} valore={contrattoIniziale == null ? "—" : formatCurrency(contrattoIniziale)} />
+            <RiepilogoVoce titolo={t("Varianti approvate ({n})", { n: approvate.length })}
               valore={`${totaleApprovato > 0 ? "+" : ""}${formatCurrency(totaleApprovato)}`} tono={totaleApprovato < 0 ? "rosso" : totaleApprovato > 0 ? "verde" : undefined}
-              nota={giorniApprovati > 0 ? `+${giorniApprovati} giorni di lavoro` : undefined} />
-            <RiepilogoVoce titolo={`Da approvare (${inAttesa.length})`} valore={formatCurrency(totaleInAttesa)} tono={inAttesa.length > 0 ? "ambra" : undefined}
-              nota={inAttesa.length > 0 ? "non ancora nel contratto" : "niente in sospeso"} />
-            <RiepilogoVoce titolo="Contratto aggiornato" valore={contrattoAggiornato == null ? "—" : formatCurrency(contrattoAggiornato)} forte nota="iniziale + approvate, IVA esclusa" />
+              nota={giorniApprovati > 0 ? t("+{n} giorni di lavoro", { n: giorniApprovati }) : undefined} />
+            <RiepilogoVoce titolo={t("Da approvare ({n})", { n: inAttesa.length })} valore={formatCurrency(totaleInAttesa)} tono={inAttesa.length > 0 ? "ambra" : undefined}
+              nota={inAttesa.length > 0 ? t("non ancora nel contratto") : t("niente in sospeso")} />
+            <RiepilogoVoce titolo={t("Contratto aggiornato")} valore={contrattoAggiornato == null ? "—" : formatCurrency(contrattoAggiornato)} forte nota={t("iniziale + approvate, IVA esclusa")} />
           </div>
         ) : undefined}>
-        {isError ? <div role="alert" className="text-sm text-destructive">Varianti non disponibili. <Button variant="outline" size="sm" onClick={() => refetch()}>Riprova</Button></div> : isLoading ? (
+        {isError ? <div role="alert" className="text-sm text-destructive">{t("Varianti non disponibili.")} <Button variant="outline" size="sm" onClick={() => refetch()}>{t("Riprova")}</Button></div> : isLoading ? (
           <div className="space-y-2">
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-16 w-full" />
           </div>
         ) : odvList.length === 0 ? (
           <p className="py-2 text-sm text-muted-foreground max-sm:text-xs">
-            Nessuna variante registrata.<span className="max-sm:hidden"> Il PDF ha voci, totali, condizioni contrattuali e firme: si stampa da firmare oppure si manda col link di firma online.</span>
+            {t("Nessuna variante registrata.")}<span className="max-sm:hidden"> {t("Il PDF ha voci, totali, condizioni contrattuali e firme: si stampa da firmare oppure si manda col link di firma online.")}</span>
           </p>
         ) : (
-          <TabellaCommessa etichetta="Varianti della commessa" colonne={colonne} righe={odvList as WorkflowVariation[]} chiave={odv => odv.id} />
+          <TabellaCommessa etichetta={t("Varianti della commessa")} colonne={colonne} righe={odvList as WorkflowVariation[]} chiave={odv => odv.id} />
         )}
       </RiquadroCommessa>
 
       <Dialog open={!!campiDi} onOpenChange={aperto => { if (!aperto) setCampiDi(null); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Campi personalizzati</DialogTitle><DialogDescription>I campi che l'azienda ha aggiunto alle varianti.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{t("Campi personalizzati")}</DialogTitle><DialogDescription>{t("I campi che l'azienda ha aggiunto alle varianti.")}</DialogDescription></DialogHeader>
           {campiDi && <EntityCustomFieldsSection entityType="ordini_variazione" entityId={campiDi} />}
         </DialogContent>
       </Dialog>

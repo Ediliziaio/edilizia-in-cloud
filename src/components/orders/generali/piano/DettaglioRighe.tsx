@@ -7,6 +7,7 @@ import { DialogContentOperativo as DialogContent } from "../design/ContestoOpera
 import { dataBreve, euro } from "@/components/orders/generali/piano/formato";
 import { FONTI_REALI } from "@/lib/orders/generali/pianoCategorie";
 import type { RigaReale } from "@/lib/orders/generali/pianoConti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface DettaglioAperto { titolo: string; righe: RigaReale[] }
 
@@ -17,6 +18,7 @@ export function DettaglioRighe({ dettaglio, onClose, commesse, generaleId }: {
   commesse: Map<string, string>;
   generaleId: string;
 }) {
+  const tr = useT();
   const righe = [...(dettaglio?.righe ?? [])].sort((a, b) => (b.data ?? "").localeCompare(a.data ?? ""));
   const totale = righe.reduce((t, r) => t + r.importo, 0);
   return (
@@ -25,18 +27,18 @@ export function DettaglioRighe({ dettaglio, onClose, commesse, generaleId }: {
         <DialogHeader>
           <DialogTitle>{dettaglio?.titolo}</DialogTitle>
           <DialogDescription>
-            {righe.length === 1 ? "1 riga" : `${righe.length} righe`} · {euro(totale)} al netto dell'IVA
+            {tr(righe.length === 1 ? "1 riga · {importo} al netto dell'IVA" : "{n} righe · {importo} al netto dell'IVA", { n: righe.length, importo: euro(totale) })}
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-auto rounded-md border">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-card">
               <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="px-3 py-2 font-medium">Data</th>
-                <th className="px-2 py-2 font-medium">Descrizione</th>
-                <th className="px-2 py-2 font-medium">Commessa</th>
-                <th className="px-2 py-2 font-medium">Da dove</th>
-                <th className="px-3 py-2 text-right font-medium">Importo</th>
+                <th className="px-3 py-2 font-medium">{tr("Data")}</th>
+                <th className="px-2 py-2 font-medium">{tr("Descrizione")}</th>
+                <th className="px-2 py-2 font-medium">{tr("Commessa")}</th>
+                <th className="px-2 py-2 font-medium">{tr("Da dove")}</th>
+                <th className="px-3 py-2 text-right font-medium">{tr("Importo")}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -46,9 +48,9 @@ export function DettaglioRighe({ dettaglio, onClose, commesse, generaleId }: {
                   <td className="px-2 py-1.5">{r.descrizione || "—"}</td>
                   <td className="max-w-[14rem] truncate px-2 py-1.5">
                     {r.orderId === generaleId ? (
-                      <span className="text-muted-foreground">Generale (costo comune)</span>
+                      <span className="text-muted-foreground">{tr("Generale (costo comune)")}</span>
                     ) : (
-                      <Link to={`/azienda/ordini/${r.orderId}`} className="hover:underline">{commesse.get(r.orderId) ?? "Commessa"}</Link>
+                      <Link to={`/azienda/ordini/${r.orderId}`} className="hover:underline">{commesse.get(r.orderId) ?? tr("Commessa")}</Link>
                     )}
                   </td>
                   <td className="whitespace-nowrap px-2 py-1.5 text-xs text-muted-foreground">{FONTI_REALI[r.fonte] ?? r.fonte}</td>

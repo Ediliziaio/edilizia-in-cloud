@@ -1,9 +1,11 @@
 import { CornerDownRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { appartenenza, eGenerale, type RigaGerarchia } from "@/lib/orders/generali/gerarchiaScelta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Etichetta «Generale» accanto al codice, nei selettori di commessa. */
 export function BadgeGenerale({ riga, className }: { riga: RigaGerarchia; className?: string }) {
+  const t = useT();
   if (!eGenerale(riga)) return null;
   return (
     <span
@@ -12,7 +14,7 @@ export function BadgeGenerale({ riga, className }: { riga: RigaGerarchia; classN
         className,
       )}
     >
-      Generale
+      {t("Generale")}
     </span>
   );
 }

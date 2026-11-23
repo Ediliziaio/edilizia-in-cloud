@@ -17,6 +17,7 @@ import {
   type RapportinoRiga,
 } from "@/lib/orders/rapportiniMese";
 import { statoGiornale } from "@/lib/campo/statoGiornale";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STATI: Record<string, { label: string; classe: string }> = {
   inviato: {
@@ -54,6 +55,7 @@ export function TabellaDocumentiCantiere({
   pdfInCorso: string | null;
   giornoLungo: (giorno: string) => string;
 }) {
+  const t = useT();
   const [pagina, setPagina] = useState(0);
   const pagine = Math.max(1, Math.ceil(righe.length / 50));
   const attuale = Math.min(pagina, pagine - 1);
@@ -61,7 +63,7 @@ export function TabellaDocumentiCantiere({
     <>
       <div className="overflow-x-auto">
         <table
-          aria-label="Elenco rapportini"
+          aria-label={t("Elenco rapportini")}
           className="w-full min-w-[1000px] table-fixed border-collapse text-sm"
         >
           <colgroup>
@@ -78,15 +80,15 @@ export function TabellaDocumentiCantiere({
           <thead className="border-b bg-slate-50 text-xs text-slate-500">
             <tr>
               {[
-                "Data",
-                "Stato",
-                "Tipo",
-                "Cantiere",
-                "Lavori eseguiti",
-                "Persone / presenze",
-                "Ore",
-                "Foto",
-                "Azioni",
+                t("Data"),
+                t("Stato"),
+                t("Tipo"),
+                t("Cantiere"),
+                t("Lavori eseguiti"),
+                t("Persone / presenze"),
+                t("Ore"),
+                t("Foto"),
+                t("Azioni"),
               ].map((nome) => (
                 <th
                   key={nome}
@@ -113,12 +115,12 @@ export function TabellaDocumentiCantiere({
                 (d.tipo === "giornale"
                   ? d.riga.lavorazioni_eseguite
                   : d.riga.descrizione_lavori
-                )?.trim() || "Nessuna descrizione";
+                )?.trim() || t("Nessuna descrizione");
               const persone =
                 d.tipo === "giornale"
                   ? d.riga.personale_presente == null
                     ? "—"
-                    : `${d.riga.personale_presente} presenze`
+                    : t("{n} presenze", { n: d.riga.personale_presente })
                   : personeDi(d.riga)
                       .map((p) => p.nome)
                       .join(", ");
@@ -128,7 +130,7 @@ export function TabellaDocumentiCantiere({
                     ? statoGiornale(d.riga)
                     : statoDi(d.riga)
                 ];
-              const etichetta = `Apri ${d.tipo === "giornale" ? "giornale lavori" : "rapportino"}: ${cantiere}, ${d.data}`;
+              const etichetta = t(d.tipo === "giornale" ? "Apri giornale lavori: {cantiere}, {data}" : "Apri rapportino: {cantiere}, {data}", { cantiere, data: d.data });
               return (
                 <tr
                   key={d.chiave}
@@ -147,16 +149,16 @@ export function TabellaDocumentiCantiere({
                       variant="outline"
                       className={`whitespace-nowrap py-0 text-[11px] font-medium ${stato.classe}`}
                     >
-                      {stato.label}
+                      {t(stato.label)}
                     </Badge>
                   </td>
                   <td
                     className="truncate px-3 text-xs"
                     title={
-                      d.tipo === "giornale" ? "Giornale lavori" : "Rapportino"
+                      d.tipo === "giornale" ? t("Giornale lavori") : t("Rapportino")
                     }
                   >
-                    {d.tipo === "giornale" ? "Giornale lavori" : "Rapportino"}
+                    {d.tipo === "giornale" ? t("Giornale lavori") : t("Rapportino")}
                   </td>
                   <td className="min-w-0 px-3">
                     {d.tipo === "giornale" ? (
@@ -199,13 +201,13 @@ export function TabellaDocumentiCantiere({
                     className="px-3 text-right tabular-nums"
                     title={
                       d.tipo === "giornale"
-                        ? "Ore conteggiate nei rapportini, senza duplicarle nel giornale"
+                        ? t("Ore conteggiate nei rapportini, senza duplicarle nel giornale")
                         : undefined
                     }
                   >
                     {d.tipo === "giornale"
                       ? "—"
-                      : `${oreDi(d.riga).toLocaleString("it-IT", { maximumFractionDigits: 1 })} h`}
+                      : `${oreDi(d.riga).toLocaleString(intlCampo(), { maximumFractionDigits: 1 })} h`}
                   </td>
                   <td className="px-3 text-right tabular-nums">
                     {(d.tipo === "giornale"
@@ -222,8 +224,8 @@ export function TabellaDocumentiCantiere({
                       >
                         <Link
                           to={linkGiornale(d.riga)}
-                          aria-label={`Apri il giornale: ${nome}, ${giornoLungo(d.data)}`}
-                          title="Apri il giornale"
+                          aria-label={t("Apri il giornale: {nome}, {data}", { nome, data: giornoLungo(d.data) })}
+                          title={t("Apri il giornale")}
                         >
                           <ArrowUpRight className="h-4 w-4" />
                         </Link>
@@ -235,8 +237,8 @@ export function TabellaDocumentiCantiere({
                         size="icon"
                         className="h-9 w-9"
                         disabled={pdfInCorso === r.id}
-                        aria-label={`Scarica il PDF: ${nome}, ${giornoLungo(d.data)}`}
-                        title="Scarica PDF"
+                        aria-label={t("Scarica il PDF: {nome}, {data}", { nome, data: giornoLungo(d.data) })}
+                        title={t("Scarica PDF")}
                         onClick={(e) => {
                           e.stopPropagation();
                           if (d.tipo === "rapportino") onPdf(d.riga);
@@ -258,8 +260,7 @@ export function TabellaDocumentiCantiere({
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2 text-xs text-slate-500">
         <span>
-          {attuale * 50 + 1}–{Math.min((attuale + 1) * 50, righe.length)} di{" "}
-          {righe.length} documenti
+          {t("{da}–{a} di {totale} documenti", { da: attuale * 50 + 1, a: Math.min((attuale + 1) * 50, righe.length), totale: righe.length })}
         </span>
         {pagine > 1 && (
           <div className="flex items-center gap-2">
@@ -269,10 +270,10 @@ export function TabellaDocumentiCantiere({
               disabled={attuale === 0}
               onClick={() => setPagina(attuale - 1)}
             >
-              Precedenti
+              {t("Precedenti")}
             </Button>
             <span>
-              Pagina {attuale + 1} di {pagine}
+              {t("Pagina {n} di {totale}", { n: attuale + 1, totale: pagine })}
             </span>
             <Button
               size="sm"
@@ -280,7 +281,7 @@ export function TabellaDocumentiCantiere({
               disabled={attuale + 1 === pagine}
               onClick={() => setPagina(attuale + 1)}
             >
-              Successivi
+              {t("Successivi")}
             </Button>
           </div>
         )}

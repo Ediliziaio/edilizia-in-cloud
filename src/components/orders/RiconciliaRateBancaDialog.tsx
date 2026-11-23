@@ -15,7 +15,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO, subMonths } from "date-fns";
-import { it } from "date-fns/locale";
 import { ArrowRight, CheckCircle2, Landmark, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,6 +33,7 @@ import {
   type RataBankMatch,
   type RataDaIncassare,
 } from "@/lib/rateBankMatch";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -49,6 +49,7 @@ interface Props {
 export function RiconciliaRateBancaDialog({
   open, onOpenChange, companyId, orderId, orderCode, clienteNome, rateNonPagate,
 }: Props) {
+  const t = useT();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<string | null>(null); // rata.id in corso
@@ -105,7 +106,7 @@ export function RiconciliaRateBancaDialog({
         .select("id");
       if (claim.error) throw claim.error;
       if (!claim.data?.length) {
-        throw new Error("Questo accredito è già stato abbinato altrove: aggiorna la pagina e ricontrolla.");
+        throw new Error(t("Questo accredito è già stato abbinato altrove: aggiorna la pagina e ricontrolla."));
       }
 
       const liberaMovimento = () => (supabase as any)
@@ -126,7 +127,7 @@ export function RiconciliaRateBancaDialog({
         .select("id");
       if (upRata.error || !upRata.data?.length) {
         await liberaMovimento();
-        throw upRata.error ?? new Error("La rata risulta già incassata: controlla in Prima Nota prima di abbinare questo bonifico.");
+        throw upRata.error ?? new Error(t("La rata risulta già incassata: controlla in Prima Nota prima di abbinare questo bonifico."));
       }
 
       // 3) Registrazione in Prima Nota agganciata a rata E movimento.
@@ -160,16 +161,16 @@ export function RiconciliaRateBancaDialog({
         await (supabase as any).from("order_installments").update({ is_paid: false, paid_date: null }).eq("id", rataId);
         await liberaMovimento();
         if (String(insPn.error.message).includes("uq_prima_nota_installment")) {
-          throw new Error("Esiste già una registrazione in Prima Nota per questa rata: verifica lì prima di riconciliare.");
+          throw new Error(t("Esiste già una registrazione in Prima Nota per questa rata: verifica lì prima di riconciliare."));
         }
         throw insPn.error;
       }
 
       setDone((prev) => new Set(prev).add(rataId));
-      toast.success(`${label} riconciliata`, {
+      toast.success(t("{rata} riconciliata", { rata: label }), {
         description: parlante
-          ? `Incassata per intero il ${format(parseISO(bookingDate), "d MMMM yyyy", { locale: it })}: la banca ha trattenuto la ritenuta del ${parlante.aliquota}% (${formatCurrency(parlante.ritenuta)}). Registrala sulla fattura della rata quando la emetti.`
-          : `Incassata il ${format(parseISO(bookingDate), "d MMMM yyyy", { locale: it })} — registrata in Prima Nota.`,
+          ? t("Incassata per intero il {data}: la banca ha trattenuto la ritenuta del {aliquota}% ({ritenuta}). Registrala sulla fattura della rata quando la emetti.", { data: format(parseISO(bookingDate), "d MMMM yyyy", { locale: dateFnsCampo() }), aliquota: parlante.aliquota, ritenuta: formatCurrency(parlante.ritenuta) })
+          : t("Incassata il {data} — registrata in Prima Nota.", { data: format(parseISO(bookingDate), "d MMMM yyyy", { locale: dateFnsCampo() }) }),
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(orderId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) });
@@ -178,7 +179,7 @@ export function RiconciliaRateBancaDialog({
       queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
       queryClient.invalidateQueries({ queryKey: ["primaNota"] });
     } catch (e) {
-      toast.error("Riconciliazione non riuscita", {
+      toast.error(t("Riconciliazione non riuscita"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -192,12 +193,10 @@ export function RiconciliaRateBancaDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Landmark className="h-4 w-4 text-orange-500" />
-            Riconcilia le rate con la banca
+            {t("Riconcilia le rate con la banca")}
           </DialogTitle>
           <DialogDescription>
-            Accrediti degli ultimi 12 mesi non ancora abbinati, confrontati con le
-            rate da incassare di questa commessa. Confermando, la rata risulta
-            pagata alla data del bonifico e la Prima Nota si aggiorna da sola.
+            {t("Accrediti degli ultimi 12 mesi non ancora abbinati, confrontati con le rate da incassare di questa commessa. Confermando, la rata risulta pagata alla data del bonifico e la Prima Nota si aggiorna da sola.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -208,8 +207,9 @@ export function RiconciliaRateBancaDialog({
           </div>
         ) : matches.length === 0 ? (
           <p className="py-6 text-sm text-slate-500">
-            Nessun accredito combacia con le rate da incassare
-            {transactions.length === 0 && " (nessun movimento bancario in entrata disponibile: collega o sincronizza il conto in Tesoreria)"}.
+            {transactions.length === 0
+              ? t("Nessun accredito combacia con le rate da incassare (nessun movimento bancario in entrata disponibile: collega o sincronizza il conto in Tesoreria).")
+              : t("Nessun accredito combacia con le rate da incassare.")}
           </p>
         ) : (
           <div className="space-y-2 max-h-[50vh] overflow-y-auto">
@@ -222,20 +222,20 @@ export function RiconciliaRateBancaDialog({
                   <p className="font-medium truncate">{m.rata.label}</p>
                   <p className="text-xs text-slate-500">
                     {formatCurrency(m.rata.amount)}
-                    {m.rata.expected_date && <> · previsto {format(parseISO(m.rata.expected_date), "d MMM", { locale: it })}</>}
+                    {m.rata.expected_date && <> · {t("previsto {data}", { data: format(parseISO(m.rata.expected_date), "d MMM", { locale: dateFnsCampo() }) })}</>}
                   </p>
                 </div>
                 <ArrowRight className="h-4 w-4 shrink-0 text-slate-300" />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium tabular-nums">{formatCurrency(Number(m.tx.amount))}</p>
                   <p className="text-xs text-slate-500 truncate">
-                    {format(parseISO(m.tx.booking_date), "d MMM yyyy", { locale: it })}
+                    {format(parseISO(m.tx.booking_date), "d MMM yyyy", { locale: dateFnsCampo() })}
                     {(m.tx.debtor_name || m.tx.description) && <> · {m.tx.debtor_name ?? m.tx.description}</>}
                   </p>
                   {m.parlante && (
                     <p className="text-xs text-sky-700">
-                      Bonifico parlante: ritenuta {m.parlante.aliquota}% {formatCurrency(m.parlante.ritenuta)}
-                      {m.parlante.commissioni > 0 && <> · commissioni {formatCurrency(m.parlante.commissioni)}</>}
+                      {t("Bonifico parlante: ritenuta {aliquota}% {importo}", { aliquota: m.parlante.aliquota, importo: formatCurrency(m.parlante.ritenuta) })}
+                      {m.parlante.commissioni > 0 && <> · {t("commissioni {importo}", { importo: formatCurrency(m.parlante.commissioni) })}</>}
                     </p>
                   )}
                 </div>
@@ -244,7 +244,7 @@ export function RiconciliaRateBancaDialog({
                     ? "bg-emerald-100 text-emerald-700 shrink-0"
                     : "bg-amber-100 text-amber-700 shrink-0"}
                 >
-                  {m.strength}
+                  {t(m.strength)}
                 </Badge>
                 <Button
                   size="sm"
@@ -255,7 +255,7 @@ export function RiconciliaRateBancaDialog({
                   {confirming === m.rata.id
                     ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     : <CheckCircle2 className="h-3.5 w-3.5" />}
-                  <span className="ml-1">Conferma</span>
+                  <span className="ml-1">{t("Conferma")}</span>
                 </Button>
               </div>
             ))}

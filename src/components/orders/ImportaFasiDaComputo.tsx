@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/formatters";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { conAvvisi, type VoceImportata } from "@/lib/computo/importaVoci";
 import type { RiepilogoComputoCloud } from "@/lib/computo/cloudComputo";
 import {
@@ -52,7 +53,7 @@ const STATI: Record<string, string> = {
   draft: "Bozza", bozza: "Bozza", sent: "Inviato", inviato: "Inviato", viewed: "Visto", accepted: "Accettato",
   accettato: "Accettato", signed: "Firmato", firmato: "Firmato", rejected: "Rifiutato", refused: "Rifiutato", expired: "Scaduto",
 };
-const dataBreve = (d: string | null) => (d ? new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : "");
+const dataBreve = (d: string | null) => (d ? new Date(d).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short", year: "numeric" }) : "");
 
 /** Le voci di un documento del gestionale, già pronte per la schermata di scelta. */
 async function vociDelDocumento(companyId: string, d: DocumentoGestionale): Promise<VoceImportata[]> {
@@ -74,6 +75,7 @@ export function DocumentiDelGestionale({ companyId, mostraImporti, onScelto }: {
   mostraImporti: boolean;
   onScelto: (voci: VoceImportata[], fonte: FonteGestionale) => void;
 }) {
+  const tr = useT();
   const [testo, setTesto] = useState("");
   const [tipo, setTipo] = useState<"tutti" | DocumentoGestionale["tipo"]>("tutti");
   const [apro, setApro] = useState<string | null>(null);
@@ -110,27 +112,27 @@ export function DocumentiDelGestionale({ companyId, mostraImporti, onScelto }: {
     setApro(d.id);
     try {
       const voci = await vociDelDocumento(companyId, d);
-      if (!voci.length) { toast.error("Nessuna voce da importare", { description: `«${d.titolo}» non ha righe con una descrizione.` }); return; }
+      if (!voci.length) { toast.error(tr("Nessuna voce da importare"), { description: tr("«{titolo}» non ha righe con una descrizione.", { titolo: d.titolo }) }); return; }
       onScelto(voci, { nome: d.numero ? `Preventivo ${d.numero}` : d.titolo, tipo: d.tipo });
     } catch (e) {
-      toast.error("Documento non aperto", { description: userErrorMessage(e, e instanceof Error ? e.message : "Riprova.") });
+      toast.error(tr("Documento non aperto"), { description: userErrorMessage(e, e instanceof Error ? e.message : tr("Riprova.")) });
     } finally { setApro(null); }
   };
 
   return (
-    <section className="space-y-2" aria-label="Documenti del gestionale">
+    <section className="space-y-2" aria-label={tr("Documenti del gestionale")}>
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-medium">Oppure da un computo o preventivo del gestionale</p>
-        {!!tutti.length && <span className="text-xs text-muted-foreground tabular-nums">{tutti.length} documenti</span>}
+        <p className="text-sm font-medium">{tr("Oppure da un computo o preventivo del gestionale")}</p>
+        {!!tutti.length && <span className="text-xs text-muted-foreground tabular-nums">{tr("{n} documenti", { n: tutti.length })}</span>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[12rem] flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder="Cerca per titolo, cliente o numero"
-            aria-label="Cerca un computo o un preventivo" className="h-9 pl-8" />
+          <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder={tr("Cerca per titolo, cliente o numero")}
+            aria-label={tr("Cerca un computo o un preventivo")} className="h-9 pl-8" />
         </div>
-        <div className="flex gap-1" role="group" aria-label="Tipo di documento">
-          {([["tutti", `Tutti`], ["computo", `Computi ${conta("computo")}`], ["preventivo", `Preventivi ${conta("preventivo")}`]] as const).map(([k, l]) => (
+        <div className="flex gap-1" role="group" aria-label={tr("Tipo di documento")}>
+          {([["tutti", tr("Tutti")], ["computo", tr("Computi {n}", { n: conta("computo") })], ["preventivo", tr("Preventivi {n}", { n: conta("preventivo") })]] as const).map(([k, l]) => (
             <button key={k} type="button" aria-pressed={tipo === k} onClick={() => setTipo(k)}
               className={`h-9 rounded-md border px-2.5 text-xs font-medium transition-colors ${tipo === k ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}>
               {l}
@@ -139,18 +141,18 @@ export function DocumentiDelGestionale({ companyId, mostraImporti, onScelto }: {
         </div>
       </div>
 
-      <ul aria-label="Computi e preventivi" className="max-h-64 divide-y overflow-y-auto rounded-lg border bg-card">
-        {documenti.isLoading && <li className="flex items-center gap-2 p-3 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden />Carico computi e preventivi…</li>}
-        {documenti.isError && <li role="alert" className="p-3 text-sm text-destructive">{userErrorMessage(documenti.error, "Non riesco a leggere computi e preventivi.")}</li>}
+      <ul aria-label={tr("Computi e preventivi")} className="max-h-64 divide-y overflow-y-auto rounded-lg border bg-card">
+        {documenti.isLoading && <li className="flex items-center gap-2 p-3 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden />{tr("Carico computi e preventivi…")}</li>}
+        {documenti.isError && <li role="alert" className="p-3 text-sm text-destructive">{userErrorMessage(documenti.error, tr("Non riesco a leggere computi e preventivi."))}</li>}
         {!documenti.isLoading && !documenti.isError && !mostrati.length && (
-          <li className="p-3 text-sm text-muted-foreground">{tutti.length ? "Nessun documento con questa ricerca." : "Nel gestionale non ci sono ancora computi o preventivi: importa un file qui sopra."}</li>
+          <li className="p-3 text-sm text-muted-foreground">{tutti.length ? tr("Nessun documento con questa ricerca.") : tr("Nel gestionale non ci sono ancora computi o preventivi: importa un file qui sopra.")}</li>
         )}
         {mostrati.map((d) => {
           const Icona = d.tipo === "computo" ? Calculator : FileText;
-          const dettagli = [d.cliente, d.numero && `n. ${d.numero}`, d.stato && (STATI[d.stato] ?? d.stato), d.voci != null && `${d.voci} voci`, dataBreve(d.aggiornato)].filter(Boolean);
+          const dettagli = [d.cliente, d.numero && tr("n. {numero}", { numero: d.numero }), d.stato && (STATI[d.stato] ? tr(STATI[d.stato]) : d.stato), d.voci != null && tr("{n} voci", { n: d.voci }), dataBreve(d.aggiornato)].filter(Boolean);
           return (
             <li key={`${d.tipo}-${d.id}`}>
-              <button type="button" disabled={!!apro} onClick={() => void scegli(d)} aria-label={`Importa da ${d.tipo} ${d.titolo}`}
+              <button type="button" disabled={!!apro} onClick={() => void scegli(d)} aria-label={d.tipo === "computo" ? tr("Importa da computo {titolo}", { titolo: d.titolo }) : tr("Importa da preventivo {titolo}", { titolo: d.titolo })}
                 className="group flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-primary/5 focus-visible:bg-primary/5 focus-visible:outline-none disabled:opacity-60">
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${d.tipo === "computo" ? "bg-sky-100 text-sky-700" : "bg-amber-100 text-amber-700"}`}>
                   <Icona className="h-4 w-4" aria-hidden />
@@ -158,13 +160,13 @@ export function DocumentiDelGestionale({ companyId, mostraImporti, onScelto }: {
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium">{d.titolo}</span>
-                    <span className="shrink-0 rounded-full border px-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">{d.tipo}</span>
+                    <span className="shrink-0 rounded-full border px-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">{d.tipo === "computo" ? tr("computo") : tr("preventivo")}</span>
                   </span>
                   <span className="block truncate text-xs text-muted-foreground">{dettagli.join(" · ")}</span>
                 </span>
                 {mostraImporti && d.totale != null && <span className="shrink-0 text-sm tabular-nums">{formatCurrency(d.totale)}</span>}
                 {apro === d.id
-                  ? <Loader2 className="h-4 w-4 shrink-0 text-primary motion-safe:animate-spin" aria-label="Apro il documento" />
+                  ? <Loader2 className="h-4 w-4 shrink-0 text-primary motion-safe:animate-spin" aria-label={tr("Apro il documento")} />
                   : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />}
               </button>
             </li>

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { linkFileDossier, useStoricoDossier, type DossierInviato } from "@/hooks/useGeneraleRendiconto";
 import { MODELLI_DOSSIER, NOMI_SEZIONE, giornoIt } from "@/lib/orders/generali/rendiconto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STATO: Record<DossierInviato["stato"], { testo: string; variante: "secondary" | "destructive" | "outline" }> = {
   inviato: { testo: "Inviato", variante: "secondary" },
@@ -28,6 +29,7 @@ function nomeFile(d: DossierInviato, estensione: "pdf" | "xlsx"): string {
 }
 
 export function StoricoDossier({ generaleId }: { generaleId: string }) {
+  const t = useT();
   const storico = useStoricoDossier(generaleId);
   const [apro, setApro] = useState<string | null>(null);
   const elenco = Array.isArray(storico.data) ? storico.data : [];
@@ -38,7 +40,7 @@ export function StoricoDossier({ generaleId }: { generaleId: string }) {
       // Il link porta «scarica come»: la pagina resta qui e il browser salva il file col suo nome.
       window.location.assign(await linkFileDossier(path, nome));
     } catch {
-      toast.error("Non riesco a scaricare il file. Riprova tra poco.");
+      toast.error(t("Non riesco a scaricare il file. Riprova tra poco."));
     } finally {
       setApro(null);
     }
@@ -48,36 +50,36 @@ export function StoricoDossier({ generaleId }: { generaleId: string }) {
   if (storico.isError) {
     return (
       <div role="alert" className="space-y-2 rounded-md border p-4 text-sm">
-        <p>Non riesco a leggere lo storico dei rendiconti.</p>
-        <Button size="sm" variant="outline" onClick={() => void storico.refetch()}>Riprova</Button>
+        <p>{t("Non riesco a leggere lo storico dei rendiconti.")}</p>
+        <Button size="sm" variant="outline" onClick={() => void storico.refetch()}>{t("Riprova")}</Button>
       </div>
     );
   }
   if (elenco.length === 0) {
-    return <p className="rounded-md border px-4 py-6 text-center text-sm text-muted-foreground">Nessun rendiconto finora: ogni PDF inviato o scaricato resta qui.</p>;
+    return <p className="rounded-md border px-4 py-6 text-center text-sm text-muted-foreground">{t("Nessun rendiconto finora: ogni PDF inviato o scaricato resta qui.")}</p>;
   }
   return (
-    <ul className="divide-y rounded-md border" aria-label="Storico dei rendiconti">
+    <ul className="divide-y rounded-md border" aria-label={t("Storico dei rendiconti")}>
       {elenco.map((d) => (
         <li key={d.id} className="space-y-1.5 px-4 py-3 text-sm">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="font-medium">
-                {d.modello === "personalizzato" ? "Su misura" : MODELLI_DOSSIER[d.modello].nome} · {giornoIt((d.inviatoIl ?? d.creatoIl).slice(0, 10))}
+                {d.modello === "personalizzato" ? t("Su misura") : t(MODELLI_DOSSIER[d.modello].nome)} · {giornoIt((d.inviatoIl ?? d.creatoIl).slice(0, 10))}
               </p>
-              <p className="break-words text-muted-foreground">
-                {d.stato === "scaricato" ? "Scaricato, non inviato" : `A ${d.destinatari.join(", ")}`}
-                {d.versionePiano ? ` · piano: ${d.versionePiano}` : ""}
+              <p className="break-words text-muted-foreground" dir="auto">
+                {d.stato === "scaricato" ? t("Scaricato, non inviato") : t("A {destinatari}", { destinatari: d.destinatari.join(", ") })}
+                {d.versionePiano ? ` · ${t("piano: {versione}", { versione: d.versionePiano })}` : ""}
               </p>
             </div>
-            <Badge variant={STATO[d.stato].variante} className="shrink-0 font-normal">{STATO[d.stato].testo}</Badge>
+            <Badge variant={STATO[d.stato].variante} className="shrink-0 font-normal">{t(STATO[d.stato].testo)}</Badge>
           </div>
-          <p className="text-xs text-muted-foreground">{d.stato === "scaricato" ? "" : `${d.oggetto} · `}{d.sezioni.map((s) => NOMI_SEZIONE[s]?.nome ?? s).join(", ")}</p>
+          <p className="text-xs text-muted-foreground" dir="auto">{d.stato === "scaricato" ? "" : `${d.oggetto} · `}{d.sezioni.map((s) => (NOMI_SEZIONE[s] ? t(NOMI_SEZIONE[s].nome) : s)).join(", ")}</p>
           {d.stato !== "inviato" && d.stato !== "scaricato" && d.errore && <p className="text-xs text-destructive">{d.errore}</p>}
           <div className="flex flex-wrap gap-2">
             {d.pdfPath && (
               <Button size="sm" variant="outline" disabled={apro === `${d.id}-pdf`} onClick={() => void apri(`${d.id}-pdf`, d.pdfPath!, nomeFile(d, "pdf"))}>
-                {apro === `${d.id}-pdf` ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileText className="mr-1.5 h-3.5 w-3.5" />} Scarica il PDF
+                {apro === `${d.id}-pdf` ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileText className="mr-1.5 h-3.5 w-3.5" />} {t("Scarica il PDF")}
               </Button>
             )}
             {d.xlsxPath && (

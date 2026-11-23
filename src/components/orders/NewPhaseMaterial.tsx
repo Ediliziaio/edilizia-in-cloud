@@ -11,9 +11,11 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { refreshWorkQueries } from '@/lib/orders/refreshWorkQueries';
 import { parseWorkAmount } from '@/lib/orders/workPlanning';
 import { messaggioErrore } from '@/lib/orders/sottofasi';
+import { useT } from '@/lib/campo/lingua/LinguaCampo';
 
 /** A new physical item, already linked to its phase. No contract price or expense is created. */
 export function NewPhaseMaterial({ orderId, phaseId, phaseName }: { orderId: string; phaseId: string; phaseName: string }) {
+  const t = useT();
   const { canEditOrders } = usePermissions();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -25,7 +27,7 @@ export function NewPhaseMaterial({ orderId, phaseId, phaseName }: { orderId: str
   const save = async () => {
     if (saving) return;
     const count = parseWorkAmount(quantity);
-    if (!name.trim() || count == null || !Number.isInteger(count) || count <= 0 || count > 2147483647) { toast.error('Inserisci il nome e una quantità intera di pezzi maggiore di zero.'); return; }
+    if (!name.trim() || count == null || !Number.isInteger(count) || count <= 0 || count > 2147483647) { toast.error(t("Inserisci il nome e una quantità intera di pezzi maggiore di zero.")); return; }
     setSaving(true);
     try {
       const { error } = await supabase.from('order_items').insert({
@@ -38,21 +40,21 @@ export function NewPhaseMaterial({ orderId, phaseId, phaseName }: { orderId: str
       refreshWorkQueries(qc, orderId);
       void qc.invalidateQueries({ queryKey: ['order-items', orderId] });
       setOpen(false); setName(''); setQuantity('1'); setDescription('');
-      toast.success('Materiale aggiunto alla fase');
-    } catch (error) { toast.error(messaggioErrore(error, 'Materiale non salvato. Riprova.')); }
+      toast.success(t("Materiale aggiunto alla fase"));
+    } catch (error) { toast.error(messaggioErrore(error, t("Materiale non salvato. Riprova."))); }
     finally { setSaving(false); }
   };
   return <>
-    <Button variant="outline" size="sm" className="min-h-9" onClick={() => setOpen(true)}>Nuovo materiale</Button>
+    <Button variant="outline" size="sm" className="min-h-9" onClick={() => setOpen(true)}>{t("Nuovo materiale")}</Button>
     <Dialog open={open} onOpenChange={value => { if (!saving) setOpen(value); }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Nuovo materiale per la fase</DialogTitle><DialogDescription>{phaseName}. Il costo resta da valorizzare; non viene registrata una spesa.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Nuovo materiale per la fase")}</DialogTitle><DialogDescription>{t("{fase}. Il costo resta da valorizzare; non viene registrata una spesa.", { fase: phaseName })}</DialogDescription></DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1"><Label htmlFor="phase-material-name">Nome materiale</Label><Input id="phase-material-name" value={name} maxLength={500} onChange={e => setName(e.target.value)} disabled={saving} /></div>
-          <div className="space-y-1"><Label htmlFor="phase-material-quantity">Quantità (pezzi)</Label><Input id="phase-material-quantity" inputMode="numeric" value={quantity} onChange={e => setQuantity(e.target.value)} disabled={saving} /></div>
-          <div className="space-y-1"><Label htmlFor="phase-material-description">Descrizione (facoltativa)</Label><Textarea id="phase-material-description" value={description} onChange={e => setDescription(e.target.value)} disabled={saving} /></div>
+          <div className="space-y-1"><Label htmlFor="phase-material-name">{t("Nome materiale")}</Label><Input id="phase-material-name" value={name} maxLength={500} onChange={e => setName(e.target.value)} disabled={saving} /></div>
+          <div className="space-y-1"><Label htmlFor="phase-material-quantity">{t("Quantità (pezzi)")}</Label><Input id="phase-material-quantity" inputMode="numeric" value={quantity} onChange={e => setQuantity(e.target.value)} disabled={saving} /></div>
+          <div className="space-y-1"><Label htmlFor="phase-material-description">{t("Descrizione (facoltativa)")}</Label><Textarea id="phase-material-description" value={description} onChange={e => setDescription(e.target.value)} disabled={saving} /></div>
         </div>
-        <DialogFooter><Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Annulla</Button><Button onClick={() => void save()} disabled={saving}>{saving ? 'Salvataggio…' : 'Salva materiale'}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>{t("Annulla")}</Button><Button onClick={() => void save()} disabled={saving}>{saving ? t("Salvataggio…") : t("Salva materiale")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>;

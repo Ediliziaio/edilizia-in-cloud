@@ -5,9 +5,9 @@ import { Banknote, ChevronRight, HardHat, Pencil, ClipboardList } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { QuotePrimaryButton } from "@/components/marketing/preventivi/ui/builderUI";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 interface OrdineDetailHeaderProps {
   orderCode: string;
   descrizione: string;
@@ -42,6 +42,7 @@ export function OrdineDetailHeader({
   azioniTelefono,
 }: OrdineDetailHeaderProps) {
   const isMobile = useIsMobile();
+  const t = useT();
   const isAppaltatoreLavoro = orderType === "appaltatore_lavoro";
   const navigate = useNavigate();
   return (
@@ -53,7 +54,7 @@ export function OrdineDetailHeader({
           className="cursor-pointer hover:text-orange-500 font-medium"
           onClick={() => navigate("/azienda/ordini")}
         >
-          Commesse
+          {t("Commesse")}
         </span>
         <ChevronRight className="h-3 w-3" />
         <span className="font-mono bg-slate-100 text-slate-800 font-semibold px-2 py-0.5 rounded text-[11px]">
@@ -62,7 +63,7 @@ export function OrdineDetailHeader({
         {isAppaltatoreLavoro && (
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
             <HardHat className="h-2.5 w-2.5" />
-            Lavoro per appaltatore
+            {t("Lavoro per appaltatore")}
           </span>
         )}
       </div>
@@ -73,19 +74,19 @@ export function OrdineDetailHeader({
             <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="commessa-heading-title">
-              {descrizione || "Commessa senza descrizione"}
+            <h1 dir="auto" className="commessa-heading-title">
+              {descrizione || t("Commessa senza descrizione")}
             </h1>
             {/* Da telefono codice e cliente dividono la riga con le icone: una fila in meno. */}
             <div className="mt-0.5 flex items-center gap-2">
               <p className="min-w-0 flex-1 break-words text-xs text-slate-500 sm:text-sm">
                 <span className="sm:hidden font-mono font-semibold text-slate-600">{orderCode} · </span>
-                <span className="max-sm:hidden">{(() => { try { return format(new Date(dataCreazione), "dd MMM yyyy", { locale: it }); } catch { return "—"; } })()} · </span>
-                <span className="font-medium text-slate-700">{nomeCliente}</span>
+                <span className="max-sm:hidden">{(() => { try { return format(new Date(dataCreazione), "dd MMM yyyy", { locale: dateFnsCampo() }); } catch { return "—"; } })()} · </span>
+                <span dir="auto" className="font-medium text-slate-700">{nomeCliente}</span>
               </p>
               {isMobile && azioniTelefono && <div className="flex shrink-0 items-center gap-1.5">{azioniTelefono}</div>}
             </div>
-            {referente?.trim() && referente.trim() !== nomeCliente.trim() && <p className="mt-1 text-xs text-slate-500">Referente: {referente}</p>}
+            {referente?.trim() && referente.trim() !== nomeCliente.trim() && <p className="mt-1 text-xs text-slate-500">{t("Referente: {nome}", { nome: referente })}</p>}
           </div>
         </div>
         {!isMobile && <div className="commessa-page-actions">
@@ -98,7 +99,7 @@ export function OrdineDetailHeader({
               className="commessa-primary-action tap-compact whitespace-nowrap"
             >
               <Banknote className="h-3.5 w-3.5" />
-              Registra incasso
+              {t("Registra incasso")}
             </QuotePrimaryButton>
           )}
           {/* Modifica — icona sola su mobile (il CTA incasso prende la larghezza),
@@ -109,10 +110,10 @@ export function OrdineDetailHeader({
               size="sm"
               onClick={onModifica}
               className="tap-compact text-xs shrink-0 w-9 px-0 sm:w-auto sm:px-3 max-sm:h-9"
-              aria-label="Modifica commessa"
+              aria-label={t("Modifica commessa")}
             >
               <Pencil className="h-3.5 w-3.5 sm:mr-1" />
-              <span className="hidden sm:inline">Modifica</span>
+              <span className="hidden sm:inline">{t("Modifica")}</span>
             </Button>
           )}
         </div>}

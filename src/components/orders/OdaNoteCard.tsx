@@ -3,6 +3,7 @@ import { Save, StickyNote } from "lucide-react";
 import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function OdaNoteCard({
   notes,
@@ -13,6 +14,7 @@ export function OdaNoteCard({
   onSave: (notes: string) => Promise<unknown>;
   onEditingChange?: (editing: boolean) => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false),
     [draft, setDraft] = useState(""),
     [busy, setBusy] = useState(false),
@@ -26,14 +28,14 @@ export function OdaNoteCard({
       setEditing(false);
       onEditingChange?.(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Note non salvate. Riprova.");
+      setError(e instanceof Error ? e.message : t("Note non salvate. Riprova."));
     } finally {
       setBusy(false);
     }
   };
   return (
     <QuoteCard
-      title="Note"
+      title={t("Note")}
       icon={<StickyNote className="h-4 w-4" />}
       action={
         !editing ? (
@@ -47,7 +49,7 @@ export function OdaNoteCard({
               onEditingChange?.(true);
             }}
           >
-            Modifica
+            {t("Modifica")}
           </button>
         ) : (
           <div className="flex gap-1">
@@ -57,11 +59,11 @@ export function OdaNoteCard({
               disabled={busy}
               onClick={() => {setEditing(false);onEditingChange?.(false);}}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button size="sm" disabled={busy} onClick={() => void save()}>
               <Save className="h-3.5 w-3.5 mr-1" />
-              {busy ? "Salvataggio…" : "Salva"}
+              {busy ? t("Salvataggio…") : t("Salva")}
             </Button>
           </div>
         )
@@ -70,7 +72,7 @@ export function OdaNoteCard({
       {editing ? (
         <>
           <Textarea
-            aria-label="Note dell’ordine"
+            aria-label={t("Note dell’ordine")}
             disabled={busy}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -84,7 +86,7 @@ export function OdaNoteCard({
         </>
       ) : (
         <p className="text-sm text-slate-600 whitespace-pre-wrap">
-          {notes || "Nessuna nota."}
+          {notes || t("Nessuna nota.")}
         </p>
       )}
     </QuoteCard>

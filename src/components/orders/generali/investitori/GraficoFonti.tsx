@@ -6,6 +6,7 @@ import type {
   ContiInvestitori,
   GruppoFonte,
 } from "@/lib/orders/generali/investitoriConti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const COLORI: Record<GruppoFonte, string> = {
   propri: "rgb(var(--brand-navy-deep, 23 59 103))",
@@ -20,6 +21,7 @@ export function GraficoFonti({
   conti: ContiInvestitori;
   onFiltra?: (gruppo: GruppoFonte) => void;
 }) {
+  const t = useT();
   const [base, setBase] = useState<"impegno" | "dentro">("impegno");
   const dati = conti.copertura.map((g) => ({
     id: g.gruppo,
@@ -30,35 +32,35 @@ export function GraficoFonti({
   const totale = Math.round(dati.reduce((s, r) => s + r.valore, 0) * 100) / 100;
   const negativi = dati.some((r) => r.valore < 0);
   return (
-    <section className="generale-panel" aria-label="Composizione delle fonti">
+    <section className="generale-panel" aria-label={t("Composizione delle fonti")}>
       <header className="generale-panel-heading">
         <div className="generale-panel-title">
           <span className="generale-section-icon">
             <Landmark aria-hidden="true" />
           </span>
           <div>
-            <h3>Composizione delle fonti</h3>
-            <p>Impegni e capitale effettivo su basi distinte</p>
+            <h3>{t("Composizione delle fonti")}</h3>
+            <p>{t("Impegni e capitale effettivo su basi distinte")}</p>
           </div>
         </div>
         <div
           className="generale-segmented"
           role="group"
-          aria-label="Base della composizione fonti"
+          aria-label={t("Base della composizione fonti")}
         >
           <button
             type="button"
             aria-pressed={base === "impegno"}
             onClick={() => setBase("impegno")}
           >
-            Impegni
+            {t("Impegni")}
           </button>
           <button
             type="button"
             aria-pressed={base === "dentro"}
             onClick={() => setBase("dentro")}
           >
-            Capitale dentro
+            {t("Capitale dentro")}
           </button>
         </div>
       </header>
@@ -66,7 +68,7 @@ export function GraficoFonti({
         {negativi ? (
           <div className="generale-signed-total">
             <strong>{euro(totale)}</strong>
-            <span>Saldo con rettifiche</span>
+            <span>{t("Saldo con rettifiche")}</span>
           </div>
         ) : (
           <Ciambella
@@ -74,8 +76,8 @@ export function GraficoFonti({
             valore={euro(totale)}
             etichetta={
               base === "impegno"
-                ? "capitale impegnato"
-                : "capitale ancora dentro"
+                ? t("capitale impegnato")
+                : t("capitale ancora dentro")
             }
             onSeleziona={
               onFiltra ? (id) => onFiltra(id as GruppoFonte) : undefined
@@ -95,7 +97,7 @@ export function GraficoFonti({
                   <button
                     className="generale-legend-link"
                     type="button"
-                    aria-label={`Filtra fonti: ${g.nome}`}
+                    aria-label={t("Filtra fonti: {nome}", { nome: g.nome })}
                     onClick={() => onFiltra(g.id)}
                   >
                     {g.nome}
@@ -116,8 +118,8 @@ export function GraficoFonti({
       </div>
       <footer className="generale-panel-footer">
         {base === "impegno"
-          ? "Impegni delle fonti, inclusi eventuali versamenti superiori all'impegno."
-          : "Versamenti effettivi meno rimborsi e accolli. I movimenti previsti restano esclusi."}
+          ? t("Impegni delle fonti, inclusi eventuali versamenti superiori all'impegno.")
+          : t("Versamenti effettivi meno rimborsi e accolli. I movimenti previsti restano esclusi.")}
       </footer>
     </section>
   );

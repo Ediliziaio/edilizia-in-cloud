@@ -14,6 +14,7 @@ import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { pendingMaterials, type ProcurementItem } from "@/lib/orders/materialProcurement";
 import { createMaterialPurchaseOrder, IncompletePurchaseOrderError } from "@/lib/orders/createMaterialPurchaseOrder";
 import { toast } from "sonner";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CreatePurchaseOrderButtonProps {
   orderId: string;
@@ -22,6 +23,7 @@ interface CreatePurchaseOrderButtonProps {
 }
 
 export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreatePurchaseOrderButtonProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [supplierId, setSupplierId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -44,13 +46,13 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
       const { poId } = await createMaterialPurchaseOrder({
         companyId: effectiveCompany.id, orderId, orderCode, supplierId, userId: user?.id, items: selected,
       });
-      toast.success("Bozza d’acquisto creata. Verifica e invia dall’OdA.");
+      toast.success(t("Bozza d’acquisto creata. Verifica e invia dall’OdA."));
       setOpen(false);
       navigate(`/azienda/ordini-acquisto/${poId}`);
     } catch (e) {
-      toast.error("OdA non completato", {
+      toast.error(t("OdA non completato"), {
         description: e instanceof Error ? e.message : String(e),
-        action: e instanceof IncompletePurchaseOrderError ? { label: "Verifica bozza", onClick: () => navigate(`/azienda/ordini-acquisto/${e.poId}`) } : undefined,
+        action: e instanceof IncompletePurchaseOrderError ? { label: t("Verifica bozza"), onClick: () => navigate(`/azienda/ordini-acquisto/${e.poId}`) } : undefined,
       });
     } finally {
       setLoading(false);
@@ -62,27 +64,27 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
   return <>
     <Button variant="outline" size="sm" className="min-h-11 border-slate-300 font-semibold text-blue-950 max-sm:h-8 max-sm:min-h-8" disabled={!verified || available.length === 0}
       onClick={() => { setSupplierId(available.length === 1 ? available[0].id : ""); setOpen(true); }}>
-      <Package className="h-4 w-4 mr-2" />Crea bozza OdA
+      <Package className="h-4 w-4 mr-2" />{t("Crea bozza OdA")}
     </Button>
     <Dialog open={open} onOpenChange={value => { if (!loading) setOpen(value); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Prepara l’ordine d’acquisto</DialogTitle>
-          <DialogDescription>Commessa {orderCode || ""}: solo quantità ancora da acquistare, escluse quelle nelle bozze esistenti. Nessun invio automatico.</DialogDescription>
+          <DialogTitle>{t("Prepara l’ordine d’acquisto")}</DialogTitle>
+          <DialogDescription>{t("Commessa {codice}: solo quantità ancora da acquistare, escluse quelle nelle bozze esistenti. Nessun invio automatico.", { codice: orderCode || "" })}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <Label htmlFor="purchase-supplier">Fornitore</Label>
+          <Label htmlFor="purchase-supplier">{t("Fornitore")}</Label>
           <Select value={supplierId} onValueChange={setSupplierId} disabled={loading}>
-            <SelectTrigger id="purchase-supplier"><SelectValue placeholder="Seleziona fornitore" /></SelectTrigger>
+            <SelectTrigger id="purchase-supplier"><SelectValue placeholder={t("Seleziona fornitore")} /></SelectTrigger>
             <SelectContent>{available.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
           </Select>
-          {!verified ? <p role="alert" className="text-sm text-destructive">Verifica delle quantità non disponibile. Chiudi e aggiorna prima di ordinare.</p> :
-            <ul className="max-h-60 overflow-y-auto divide-y text-sm">{selected.map(i => <li key={i.id} className="py-2 flex justify-between gap-3"><span>{i.name}</span><span className="tabular-nums shrink-0">× {i.quantity.toLocaleString("it-IT")}</span></li>)}</ul>}
-          {verified && selected.length === 0 && <p className="text-sm text-muted-foreground">Nessun articolo residuo per questo fornitore.</p>}
+          {!verified ? <p role="alert" className="text-sm text-destructive">{t("Verifica delle quantità non disponibile. Chiudi e aggiorna prima di ordinare.")}</p> :
+            <ul className="max-h-60 overflow-y-auto divide-y text-sm">{selected.map(i => <li key={i.id} className="py-2 flex justify-between gap-3"><span>{i.name}</span><span className="tabular-nums shrink-0">× {i.quantity.toLocaleString(intlCampo())}</span></li>)}</ul>}
+          {verified && selected.length === 0 && <p className="text-sm text-muted-foreground">{t("Nessun articolo residuo per questo fornitore.")}</p>}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>Annulla</Button>
-          <Button onClick={handleCreate} disabled={!verified || !supplierId || loading || !selected.length}>{loading ? "Creazione…" : "Crea bozza OdA"}</Button>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>{t("Annulla")}</Button>
+          <Button onClick={handleCreate} disabled={!verified || !supplierId || loading || !selected.length}>{loading ? t("Creazione…") : t("Crea bozza OdA")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

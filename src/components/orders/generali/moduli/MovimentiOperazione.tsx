@@ -32,10 +32,11 @@ import {
   categoriaPriorita, paginaRegistro, periodoRegistro, REGISTRI_OPERAZIONE, RIGHE_REGISTRO,
   type CategoriaPriorita, type PagineRegistro, type PeriodoRegistro, type RegistroOperazione,
 } from "@/lib/orders/generali/registroOperazione";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const DettaglioFaseOperazione = lazy(() => import("./DettaglioFaseOperazione"));
 
-const ora = (t: string | null) => (t ? new Date(t).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
+const ora = (t: string | null) => (t ? new Date(t).toLocaleString(intlCampo(), { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
 
 /** 31/12/9999 è la convenzione per «pagamento non noto»: non è una data da mostrare. */
 const ignoto = (d: string | null) => !!d && d.startsWith("9999");
@@ -69,6 +70,7 @@ export function MovimentiOperazione({
   onApriMateriali?: (orderId: string, faseId: string, articolo?: string) => void;
   azioni?: React.ReactNode;
 }) {
+  const t = useT();
   const g = riepilogo.generale;
   const [parametri, setParametri] = useSearchParams();
   const [faseEspansa, setFaseEspansa] = useState<string | null>(null);
@@ -109,10 +111,10 @@ export function MovimentiOperazione({
   const fasiConsegne = useMemo(() => data && forniture.data
     ? consegneFasi(forniture.data.materiali, forniture.data.coperture, data.fasi, oggi) : undefined, [data, forniture.data, oggi]);
   const avvisoMateriali = serveFabbisogno && forniture.isError
-    ? <p role="status" className="border-t px-3 py-2 text-xs text-muted-foreground">Disponibilità dei materiali non verificabile.{" "}
-      <Button size="sm" variant="link" className="h-auto px-1" onClick={() => void forniture.refetch()}>Riprova</Button></p>
+    ? <p role="status" className="border-t px-3 py-2 text-xs text-muted-foreground">{t("Disponibilità dei materiali non verificabile.")}{" "}
+      <Button size="sm" variant="link" className="h-auto px-1" onClick={() => void forniture.refetch()}>{t("Riprova")}</Button></p>
     : serveFabbisogno && forniture.isPending
-      ? <p role="status" className="border-t px-3 py-2 text-xs text-muted-foreground">Controllo consegne e materiali…</p> : null;
+      ? <p role="status" className="border-t px-3 py-2 text-xs text-muted-foreground">{t("Controllo consegne e materiali…")}</p> : null;
   useEffect(() => {
     const id = registroDaRaggiungere.current;
     if (!data || isLoading || isError || !id) return;
@@ -166,30 +168,31 @@ export function MovimentiOperazione({
     setParametri(p);
   };
   const periodoControlli = (registri || daSeguire) && <PeriodoMovimenti key={`${periodo.dal}:${periodo.al}`} periodo={periodo}
-    titolo={vista === "lavorazioni" ? "Periodo previsto" : "Periodo"} applica={cambiaPeriodo} />;
+    titolo={vista === "lavorazioni" ? t("Periodo previsto") : t("Periodo")} applica={cambiaPeriodo} />;
   const strumenti = <>
-    {lavorazioni && nomiEdifici.length > 0 && <UniformSelect aria-label="Edificio delle lavorazioni" className="h-8"
+    {lavorazioni && nomiEdifici.length > 0 && <UniformSelect aria-label={t("Edificio delle lavorazioni")} className="h-8"
       value={edificio?.nome ?? ""} onChange={e => cambiaEdificio(e.target.value)}>
-      <option value="">Tutti gli edifici</option>
+      <option value="">{t("Tutti gli edifici")}</option>
       {nomiEdifici.map(nome => <option value={nome} key={nome}>{nome}</option>)}
     </UniformSelect>}
     {periodoControlli}{azioni}
   </>;
   const pagina = (contenuto: React.ReactNode) => (
-    <section aria-label="Movimenti dell’operazione" className="space-y-2">{contenuto}</section>
+    <section aria-label={t("Movimenti dell’operazione")} className="space-y-2">{contenuto}</section>
   );
   const commesse = new Map<string, { codice: string | null; nome: string | null; generale: boolean }>([
     [g.id, { codice: g.codice, nome: g.nome, generale: true }],
     ...riepilogo.figlie.map((f) => [f.id, { codice: f.codice, nome: f.nome, generale: false }] as const),
   ]);
   const Commessa = ({ id }: { id: string }) => {
+  const t = useT();
     const c = commesse.get(id);
     return (
       <button type="button" onClick={() => onApri(id)} className="flex max-w-56 items-center gap-1.5 whitespace-nowrap text-left hover:underline"
-        title={[c?.codice, c?.nome].filter(Boolean).join(" · ") || "Apri il cantiere di questa commessa"}>
+        title={[c?.codice, c?.nome].filter(Boolean).join(" · ") || t("Apri il cantiere di questa commessa")}>
         <span className="flex shrink-0 items-center gap-1.5 font-mono text-xs">
           {c?.codice ?? "—"}
-          {c?.generale && <span className="rounded bg-sky-50 px-1 text-[10px] font-medium text-sky-800">Generale</span>}
+          {c?.generale && <span className="rounded bg-sky-50 px-1 text-[10px] font-medium text-sky-800">{t("Generale")}</span>}
         </span>
         {!c?.generale && c?.nome && c.nome !== c.codice && <>
           <span aria-hidden="true" className="text-muted-foreground">·</span>
@@ -211,9 +214,9 @@ export function MovimentiOperazione({
   if (isError || !data)
     return pagina(
       <><div className="generale-registro-strumenti">{strumenti}</div><div role="status" className="rounded-lg border p-6 text-sm">
-        Movimenti dell'operazione non disponibili.{" "}
+        {t("Movimenti dell'operazione non disponibili.")}{" "}
         <button type="button" className="font-medium underline" onClick={() => void (attendeEdificio ? edificiQuery.refetch() : refetch())}>
-          Riprova
+          {t("Riprova")}
         </button>
       </div></>
     );
@@ -225,8 +228,8 @@ export function MovimentiOperazione({
     consegne={fasiConsegne} onApriMateriali={onApriMateriali} avvisoMateriali={avvisoMateriali} />;
 
   const fornitore = (id: string | null) => (id ? data.fornitori[id] || "—" : "—");
-  const quante = (n: number, una: string, tante: string) => `${n.toLocaleString("it-IT")} ${n === 1 ? una : tante}`;
-  const colonnaEdificio = edificioPerCommessa.size > 0 && <Th className="w-28">Edificio</Th>;
+  const quante = (n: number, una: string, tante: string) => t(n === 1 ? una : tante, { n: n.toLocaleString(intlCampo()) });
+  const colonnaEdificio = edificioPerCommessa.size > 0 && <Th className="w-28">{t("Edificio")}</Th>;
   const cellaEdificio = (id: string) => edificioPerCommessa.size > 0 && <Td>{edificioPerCommessa.get(id) ?? "—"}</Td>;
   const v = vista;
 
@@ -235,18 +238,18 @@ export function MovimentiOperazione({
       {v === "rapportini" && (
         <Riquadro
           icona={ClipboardList}
-          titolo="Rapportini"
+          titolo={t("Rapportini")}
           strumenti={strumenti}
-          sintesi={`${quante(data.rapportini.length, "rapportino", "rapportini")} · ${data.rapportini.reduce((s, x) => s + (x.ore_lavorate ?? 0), 0).toLocaleString("it-IT", { maximumFractionDigits: 1 })} ore`}
-          vuoto="Nessun rapportino sull'operazione."
+          sintesi={`${quante(data.rapportini.length, "{n} rapportino", "{n} rapportini")} · ${t("{n} ore", { n: data.rapportini.reduce((s, x) => s + (x.ore_lavorate ?? 0), 0).toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })}`}
+          vuoto={t("Nessun rapportino sull'operazione.")}
           righe={data.rapportini.length}
           paginazione={impagina("rapportini")} onCambiaPagina={cambiaPagina}
         >
           <thead>
             <tr>
-              <Th className="w-24">Data</Th><Th className="w-36">Commessa</Th>{colonnaEdificio}
-              <Th>Chi</Th><Th>Lavori</Th><Th className="text-right">Ore</Th><Th className="text-right">Straordinari</Th>
-              <Th className="text-right">Foto</Th><Th>Stato</Th><Th>Approvato il</Th>
+              <Th className="w-24">{t("Data")}</Th><Th className="w-36">{t("Commessa")}</Th>{colonnaEdificio}
+              <Th>{t("Chi")}</Th><Th>{t("Lavori")}</Th><Th className="text-right">{t("Ore")}</Th><Th className="text-right">{t("Straordinari")}</Th>
+              <Th className="text-right">{t("Foto")}</Th><Th>{t("Stato")}</Th><Th>{t("Approvato il")}</Th>
             </tr>
           </thead>
           <tbody>
@@ -259,13 +262,13 @@ export function MovimentiOperazione({
                 <Td className="min-w-40 max-w-[22rem]">
                   <button type="button" className="block max-w-full truncate text-left font-medium text-primary hover:underline"
                     title={x.descrizione_lavori ?? undefined} onClick={() => onApriRapportino(x.order_id, x.id)}>
-                    {x.descrizione_lavori || "Apri rapportino"}
+                    {x.descrizione_lavori || t("Apri rapportino")}
                   </button>
                 </Td>
-                <Td className="text-right tabular-nums">{(x.ore_lavorate ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 1 })}</Td>
-                <Td className="text-right tabular-nums">{x.ore_straordinario?.toLocaleString("it-IT", { maximumFractionDigits: 1 }) ?? "—"}</Td>
+                <Td className="text-right tabular-nums">{(x.ore_lavorate ?? 0).toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}</Td>
+                <Td className="text-right tabular-nums">{x.ore_straordinario?.toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) ?? "—"}</Td>
                 <Td className="text-right tabular-nums">{x.foto_urls?.length ?? 0}</Td>
-                <Td><StatoRegistro tono={x.approvato ? "verde" : x.stato === "inviato" ? "arancio" : undefined}>{x.approvato ? "Approvato" : parola(x.stato)}</StatoRegistro></Td>
+                <Td><StatoRegistro tono={x.approvato ? "verde" : x.stato === "inviato" ? "arancio" : undefined}>{x.approvato ? t("Approvato") : parola(x.stato)}</StatoRegistro></Td>
                 <Td>{dataBreve(x.approvato_at)}</Td>
               </tr>
             ))}
@@ -276,14 +279,14 @@ export function MovimentiOperazione({
       {v === "rapportini" && (
         <Riquadro
           icona={BookOpen}
-          titolo="Giornale dei lavori"
-          sintesi={quante(data.giornale.length, "giornata", "giornate")}
-          vuoto="Nessuna giornata nel giornale dei lavori."
+          titolo={t("Giornale dei lavori")}
+          sintesi={quante(data.giornale.length, "{n} giornata", "{n} giornate")}
+          vuoto={t("Nessuna giornata nel giornale dei lavori.")}
           righe={data.giornale.length}
           paginazione={impagina("giornale")} onCambiaPagina={cambiaPagina}
         >
           <thead>
-            <tr><Th>Data</Th><Th>Commessa</Th><Th>Lavorazioni</Th><Th className="text-right">Persone</Th><Th>Stato</Th></tr>
+            <tr><Th>{t("Data")}</Th><Th>{t("Commessa")}</Th><Th>{t("Lavorazioni")}</Th><Th className="text-right">{t("Persone")}</Th><Th>{t("Stato")}</Th></tr>
           </thead>
           <tbody>
             {data.giornale.map((x) => (
@@ -303,15 +306,15 @@ export function MovimentiOperazione({
         <>
           <Riquadro
             icona={Clock}
-            titolo="Timbrature"
+            titolo={t("Timbrature")}
             strumenti={strumenti}
-            sintesi={quante(data.timbrature.length, "timbratura", "timbrature")}
-            vuoto="Nessuna timbratura sull'operazione."
+            sintesi={quante(data.timbrature.length, "{n} timbratura", "{n} timbrature")}
+            vuoto={t("Nessuna timbratura sull'operazione.")}
             righe={data.timbrature.length}
             paginazione={impagina("timbrature")} onCambiaPagina={cambiaPagina}
           >
             <thead>
-              <tr><Th>Quando</Th><Th>Commessa</Th><Th>Chi</Th><Th>Tipo</Th></tr>
+              <tr><Th>{t("Quando")}</Th><Th>{t("Commessa")}</Th><Th>{t("Chi")}</Th><Th>{t("Tipo")}</Th></tr>
             </thead>
             <tbody>
               {data.timbrature.map((x) => (
@@ -326,14 +329,14 @@ export function MovimentiOperazione({
           </Riquadro>
           <Riquadro
             icona={Truck}
-            titolo="Mezzi in cantiere"
-            sintesi={`${quante(data.mezzi.filter((x) => x.usato !== false).length, "giornata", "giornate")} di lavoro`}
-            vuoto="Nessuna giornata dei mezzi sull'operazione."
+            titolo={t("Mezzi in cantiere")}
+            sintesi={quante(data.mezzi.filter((x) => x.usato !== false).length, "{n} giornata di lavoro", "{n} giornate di lavoro")}
+            vuoto={t("Nessuna giornata dei mezzi sull'operazione.")}
             righe={data.mezzi.length}
             paginazione={impagina("mezzi")} onCambiaPagina={cambiaPagina}
           >
             <thead>
-              <tr><Th>Giorno</Th><Th>Commessa</Th><Th>Mezzo</Th><Th>Usato</Th><Th className="text-right">Contatore</Th></tr>
+              <tr><Th>{t("Giorno")}</Th><Th>{t("Commessa")}</Th><Th>{t("Mezzo")}</Th><Th>{t("Usato")}</Th><Th className="text-right">{t("Contatore")}</Th></tr>
             </thead>
             <tbody>
               {data.mezzi.map((x) => (
@@ -341,17 +344,17 @@ export function MovimentiOperazione({
                   <Td className="whitespace-nowrap">{dataBreve(x.giorno)}</Td>
                   <Td><Commessa id={x.order_id} /></Td>
                   <Td>{[x.mezzo?.nome, x.mezzo?.targa].filter(Boolean).join(" · ") || "—"}</Td>
-                  <Td>{x.usato === false ? "Fermo" : "Sì"}</Td>
+                  <Td>{x.usato === false ? t("Fermo") : t("Sì")}</Td>
                   <Td className="text-right tabular-nums">{x.contatore ?? "—"}</Td>
                 </tr>
               ))}
             </tbody>
           </Riquadro>
           {riepilogo.permessi.costi && <Riquadro
-            icona={Building2} titolo="Ditte e subappalti"
-            sintesi={quante(data.subappalti.length, "contratto", "contratti")}
-            vuoto="Nessun subappalto registrato." righe={data.subappalti.length} paginazione={impagina("subappalti")} onCambiaPagina={cambiaPagina}>
-            <thead><tr><Th>Commessa</Th><Th>Ditta</Th><Th>Contratto</Th><Th>Lavori</Th><Th>Stato</Th></tr></thead>
+            icona={Building2} titolo={t("Ditte e subappalti")}
+            sintesi={quante(data.subappalti.length, "{n} contratto", "{n} contratti")}
+            vuoto={t("Nessun subappalto registrato.")} righe={data.subappalti.length} paginazione={impagina("subappalti")} onCambiaPagina={cambiaPagina}>
+            <thead><tr><Th>{t("Commessa")}</Th><Th>{t("Ditta")}</Th><Th>{t("Contratto")}</Th><Th>{t("Lavori")}</Th><Th>{t("Stato")}</Th></tr></thead>
             <tbody>
               {data.subappalti.map(x => <tr key={x.id} className="border-t">
                 <Td><Commessa id={x.order_id} /></Td>
@@ -366,14 +369,14 @@ export function MovimentiOperazione({
       )}
 
       {v === "lavorazioni" && <Riquadro
-        icona={ListTree} titolo="Fasi e avanzamento"
+        icona={ListTree} titolo={t("Fasi e avanzamento")}
         strumenti={strumenti}
-        sintesi={`${data.fasi.filter(faseCompletata).length}/${data.fasi.length} completate`}
-        vuoto="Nessuna fase nel periodo selezionato. Apri il computo generale o un’unità per aggiungere lavorazioni."
+        sintesi={t("{fatte}/{totale} completate", { fatte: data.fasi.filter(faseCompletata).length, totale: data.fasi.length })}
+        vuoto={t("Nessuna fase nel periodo selezionato. Apri il computo generale o un’unità per aggiungere lavorazioni.")}
         righe={data.fasi.length} paginazione={impagina("fasi")} onCambiaPagina={cambiaPagina}>
         <thead><tr>
-          <Th>Fase</Th><Th>Commessa</Th>{colonnaEdificio}<Th>Esecuzione</Th>
-          <Th>Stato</Th><Th>Avanzamento</Th><Th>Dal</Th><Th>Al</Th><Th>Completata il</Th><Th><span className="sr-only">Apri fase</span></Th>
+          <Th>{t("Fase")}</Th><Th>{t("Commessa")}</Th>{colonnaEdificio}<Th>{t("Esecuzione")}</Th>
+          <Th>{t("Stato")}</Th><Th>{t("Avanzamento")}</Th><Th>{t("Dal")}</Th><Th>{t("Al")}</Th><Th>{t("Completata il")}</Th><Th><span className="sr-only">{t("Apri fase")}</span></Th>
         </tr></thead>
         <tbody>
           {data.fasi.map(fase => {
@@ -391,10 +394,10 @@ export function MovimentiOperazione({
                 </button></Td>
                 <Td><Commessa id={fase.order_id} /></Td>
                 {cellaEdificio(fase.order_id)}
-                <Td>{fase.esecuzione ? ESECUZIONE_FASE[fase.esecuzione] ?? "—" : "—"}</Td>
-                <Td><StatoRegistro tono={completata ? "verde" : fase.status === "in_corso" ? "blu" : undefined}>{completata ? "Completata" : parola(fase.status)}</StatoRegistro></Td>
+                <Td>{fase.esecuzione && ESECUZIONE_FASE[fase.esecuzione] ? t(ESECUZIONE_FASE[fase.esecuzione]) : "—"}</Td>
+                <Td><StatoRegistro tono={completata ? "verde" : fase.status === "in_corso" ? "blu" : undefined}>{completata ? t("Completata") : parola(fase.status)}</StatoRegistro></Td>
                 <Td><div className="flex items-center gap-2">
-                  <Progress className="h-1.5 w-16 bg-muted" aria-label={`Avanzamento ${fase.name}`} value={progresso}
+                  <Progress className="h-1.5 w-16 bg-muted" aria-label={t("Avanzamento {name}", { name: String(fase.name ?? "") })} value={progresso}
                     indicatorClassName={cn("motion-reduce:transition-none", completata && "bg-emerald-600")} />
                   <span className="tabular-nums">{progresso}%</span>
                 </div></Td>
@@ -402,7 +405,7 @@ export function MovimentiOperazione({
                 <Td className="whitespace-nowrap">{dataBreve(fase.end_date)}</Td>
                 <Td>{dataBreve(fase.completata_il)}</Td>
                 <Td><button type="button" className="inline-flex size-6 items-center justify-center rounded text-primary hover:bg-muted"
-                  title="Apri scheda della fase" aria-label={`Apri ${fase.name} · ${commesse.get(fase.order_id)?.codice || "Commessa"}`}
+                  title={t("Apri scheda della fase")} aria-label={t("Apri {fase} · {commessa}", { fase: fase.name, commessa: commesse.get(fase.order_id)?.codice || t("Commessa") })}
                   onClick={() => onApri(fase.order_id, fase.id)}>
                   <ArrowUpRight className="size-3.5" aria-hidden="true" />
                 </button></Td>
@@ -423,18 +426,18 @@ export function MovimentiOperazione({
       {v === "acquisti" && (
           <Riquadro
             icona={PackageCheck}
-            titolo="Ordini ai fornitori"
+            titolo={t("Ordini ai fornitori")}
             strumenti={strumenti}
-            sintesi={`${quante(data.ordini.length, "ordine", "ordini")}`}
-            vuoto="Nessun ordine sull'operazione."
+            sintesi={`${quante(data.ordini.length, "{n} ordine", "{n} ordini")}`}
+            vuoto={t("Nessun ordine sull'operazione.")}
             righe={data.ordini.length}
             paginazione={impagina("ordini")} onCambiaPagina={cambiaPagina}
           >
             <thead>
               <tr>
-                <Th className="w-24">Data</Th><Th className="w-36">Commessa</Th>{colonnaEdificio}
-                <Th>Numero</Th><Th>Fornitore</Th><Th>Rif. fornitore</Th><Th>Consegna prevista</Th><Th>Arrivo effettivo</Th>
-                {riepilogo.permessi.importi && <Th className="text-right">Totale</Th>}<Th>Stato</Th>
+                <Th className="w-24">{t("Data")}</Th><Th className="w-36">{t("Commessa")}</Th>{colonnaEdificio}
+                <Th>{t("Numero")}</Th><Th>{t("Fornitore")}</Th><Th>{t("Rif. fornitore")}</Th><Th>{t("Consegna prevista")}</Th><Th>{t("Arrivo effettivo")}</Th>
+                {riepilogo.permessi.importi && <Th className="text-right">{t("Totale")}</Th>}<Th>{t("Stato")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -444,7 +447,7 @@ export function MovimentiOperazione({
                   <Td><Commessa id={x.order_id} /></Td>
                   {cellaEdificio(x.order_id)}
                   <Td className="font-mono text-xs"><Link className="text-primary hover:underline"
-                    to={`/azienda/ordini-acquisto/${x.id}`}>{x.oda_number ?? "Apri ordine"}</Link></Td>
+                    to={`/azienda/ordini-acquisto/${x.id}`}>{x.oda_number ?? t("Apri ordine")}</Link></Td>
                   <Td>{fornitore(x.supplier_id)}</Td>
                   <Td><TestoRegistro valore={x.supplier_reference} /></Td>
                   <Td className="whitespace-nowrap">{dataBreve(x.expected_delivery_date)}</Td>
@@ -457,12 +460,12 @@ export function MovimentiOperazione({
           </Riquadro>
       )}
       {v === "ddt" && (
-          <Riquadro icona={PackageCheck} titolo="DDT ricevuti" strumenti={strumenti} sintesi={quante(data.ddt.length, "DDT", "DDT")} vuoto="Nessun DDT sull'operazione." righe={data.ddt.length} paginazione={impagina("ddt")} onCambiaPagina={cambiaPagina}>
+          <Riquadro icona={PackageCheck} titolo={t("DDT ricevuti")} strumenti={strumenti} sintesi={quante(data.ddt.length, "{n} DDT", "{n} DDT")} vuoto={t("Nessun DDT sull'operazione.")} righe={data.ddt.length} paginazione={impagina("ddt")} onCambiaPagina={cambiaPagina}>
             <thead>
               <tr>
-                <Th className="w-24">Arrivato il</Th><Th className="w-36">Commessa</Th>{colonnaEdificio}
-                <Th>Numero</Th><Th>Fornitore</Th><Th>Ordine</Th>
-                <Th>Destinazione</Th><Th>Corriere</Th><Th>Ricevuto da</Th><Th>Stato</Th>
+                <Th className="w-24">{t("Arrivato il")}</Th><Th className="w-36">{t("Commessa")}</Th>{colonnaEdificio}
+                <Th>{t("Numero")}</Th><Th>{t("Fornitore")}</Th><Th>{t("Ordine")}</Th>
+                <Th>{t("Destinazione")}</Th><Th>{t("Corriere")}</Th><Th>{t("Ricevuto da")}</Th><Th>{t("Stato")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -472,10 +475,10 @@ export function MovimentiOperazione({
                   <Td><Commessa id={x.order_id} /></Td>
                   {cellaEdificio(x.order_id)}
                   <Td className="font-mono text-xs"><Link className="text-primary hover:underline"
-                    to={`/azienda/ddt/${x.id}`}>{x.numero_ddt ?? "Apri DDT"}</Link></Td>
+                    to={`/azienda/ddt/${x.id}`}>{x.numero_ddt ?? t("Apri DDT")}</Link></Td>
                   <Td>{fornitore(x.supplier_id)}</Td>
                   <Td>{x.purchase_order_id ? <Link className="text-primary hover:underline"
-                    to={`/azienda/ordini-acquisto/${x.purchase_order_id}`}>{x.purchase_orders?.oda_number ?? "Apri OdA"}</Link> : "Senza ordine"}</Td>
+                    to={`/azienda/ordini-acquisto/${x.purchase_order_id}`}>{x.purchase_orders?.oda_number ?? t("Apri OdA")}</Link> : t("Senza ordine")}</Td>
                   <Td>{parola(x.destinazione ?? null)}</Td>
                   <Td><TestoRegistro valore={x.corriere} /></Td>
                   <Td><TestoRegistro valore={x.ricevuto_da_nome} /></Td>
@@ -490,15 +493,15 @@ export function MovimentiOperazione({
       {v === "fatture" && data.costi && (
         <Riquadro
           icona={ReceiptText}
-          titolo="Costi e fatture dei fornitori"
+          titolo={t("Costi e fatture dei fornitori")}
           strumenti={strumenti}
-          sintesi={`${quante(data.costi.length, "costo registrato", "costi registrati")}`}
-          vuoto="Nessun costo sull'operazione."
+          sintesi={`${quante(data.costi.length, "{n} costo registrato", "{n} costi registrati")}`}
+          vuoto={t("Nessun costo sull'operazione.")}
           righe={data.costi.length}
           paginazione={impagina("costi")} onCambiaPagina={cambiaPagina}
         >
           <thead>
-            <tr><Th>Data</Th><Th>Commessa</Th><Th>Fornitore</Th><Th>Descrizione</Th><Th className="text-right">Importo</Th><Th>Pagamento</Th></tr>
+            <tr><Th>{t("Data")}</Th><Th>{t("Commessa")}</Th><Th>{t("Fornitore")}</Th><Th>{t("Descrizione")}</Th><Th className="text-right">{t("Importo")}</Th><Th>{t("Pagamento")}</Th></tr>
           </thead>
           <tbody>
             {data.costi.map((x) => (
@@ -510,12 +513,12 @@ export function MovimentiOperazione({
                 <Td className="whitespace-nowrap text-right tabular-nums">{x.amount != null ? formatCurrency(x.amount) : "—"}</Td>
                 <Td className={cn("whitespace-nowrap", !x.is_paid && "text-amber-700")}>
                   {x.is_paid
-                    ? `Pagato${dataVera(x.paid_date) ? ` il ${dataBreve(x.paid_date)}` : ""}`
+                    ? (dataVera(x.paid_date) ? t("Pagato il {data}", { data: dataBreve(x.paid_date) }) : t("Pagato"))
                     : ignoto(x.due_date)
-                      ? "Da confermare"
+                      ? t("Da confermare")
                       : x.due_date
-                        ? `Scade il ${dataBreve(x.due_date)}`
-                        : "Da pagare"}
+                        ? t("Scade il {data}", { data: dataBreve(x.due_date) })
+                        : t("Da pagare")}
                 </Td>
               </tr>
             ))}
@@ -527,9 +530,10 @@ export function MovimentiOperazione({
 }
 
 function PeriodoMovimenti({ periodo, titolo, applica }: { periodo: PeriodoRegistro; titolo: string; applica: (p: PeriodoRegistro) => void }) {
+  const t = useT();
   const telefono = useIsMobile();
   const filtri = (
-    <form aria-label="Periodo dei movimenti" className="generale-registro-periodo"
+    <form aria-label={t("Periodo dei movimenti")} className="generale-registro-periodo"
       onSubmit={event => {
         event.preventDefault();
         const dati = new FormData(event.currentTarget);
@@ -537,7 +541,7 @@ function PeriodoMovimenti({ periodo, titolo, applica }: { periodo: PeriodoRegist
         const al = String(dati.get("al") ?? "");
         if (dal && al && dal > al) {
           const fine = event.currentTarget.elements.namedItem("al") as HTMLInputElement;
-          fine.setCustomValidity("La data finale deve essere uguale o successiva a quella iniziale.");
+          fine.setCustomValidity(t("La data finale deve essere uguale o successiva a quella iniziale."));
           fine.reportValidity();
           return;
         }
@@ -547,16 +551,16 @@ function PeriodoMovimenti({ periodo, titolo, applica }: { periodo: PeriodoRegist
         <CalendarDays className="size-3.5 text-primary" aria-hidden="true" /> <span>{titolo}</span>
       </span>
       <label>
-        Dal <Input type="date" name="dal" aria-label="Movimenti dal" defaultValue={periodo.dal}
+        {t("Dal")} <Input type="date" name="dal" aria-label={t("Movimenti dal")} defaultValue={periodo.dal}
           onChange={e => (e.currentTarget.form?.elements.namedItem("al") as HTMLInputElement | null)?.setCustomValidity("")} />
       </label>
       <label>
-        Al <Input type="date" name="al" aria-label="Movimenti al" defaultValue={periodo.al}
+        {t("Al")} <Input type="date" name="al" aria-label={t("Movimenti al")} defaultValue={periodo.al}
           onChange={e => e.currentTarget.setCustomValidity("")} />
       </label>
-      <Button size="sm" type="submit" variant="outline" className="h-8">Applica</Button>
+      <Button size="sm" type="submit" variant="outline" className="h-8">{t("Applica")}</Button>
       {(periodo.dal || periodo.al) && <Button size="sm" type="button" variant="ghost" className="h-8"
-        onClick={() => applica({ dal: "", al: "" })}>Tutto il periodo</Button>}
+        onClick={() => applica({ dal: "", al: "" })}>{t("Tutto il periodo")}</Button>}
     </form>
   );
   if (!telefono) return filtri;
@@ -566,7 +570,7 @@ function PeriodoMovimenti({ periodo, titolo, applica }: { periodo: PeriodoRegist
       <span>{titolo}</span>
       {(periodo.dal || periodo.al) && <span className="ml-auto text-xs tabular-nums text-muted-foreground">
         {periodo.dal && periodo.al ? `${dataBreve(periodo.dal)} – ${dataBreve(periodo.al)}`
-          : periodo.dal ? `Dal ${dataBreve(periodo.dal)}` : `Fino al ${dataBreve(periodo.al!)}`}
+          : periodo.dal ? t("Dal {data}", { data: String(dataBreve(periodo.dal) ?? "") }) : t("Fino al {valore}", { valore: String(dataBreve(periodo.al!) ?? "") })}
       </span>}
     </summary>
     {filtri}
@@ -594,6 +598,7 @@ function Riquadro({
   onCambiaPagina: (id: RegistroOperazione, pagina: number) => void;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div id={`registro-operazione-${paginazione.id}`} tabIndex={-1} aria-label={titolo} className="scroll-mt-4 overflow-hidden rounded-xl border bg-card">
       <header className="generale-registro-header">
@@ -602,7 +607,7 @@ function Riquadro({
             <Icona className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             {titolo}
           </h3>
-          <span className="text-xs text-muted-foreground">{sintesi}{paginazione.altre || paginazione.pagina > 1 ? " in questa pagina" : ""}</span>
+          <span className="text-xs text-muted-foreground">{sintesi}{paginazione.altre || paginazione.pagina > 1 ? ` ${t("in questa pagina")}` : ""}</span>
         </div>
         {strumenti && <div className="generale-registro-strumenti">{strumenti}</div>}
       </header>
@@ -614,17 +619,17 @@ function Riquadro({
         </div>
       )}
       {(paginazione.pagina > 1 || paginazione.altre) && (
-        <nav aria-label={`Pagine di ${titolo}`} className="generale-registro-pagine flex flex-wrap items-center justify-between gap-2 border-t px-3 py-1">
+        <nav aria-label={t("Pagine di {titolo}", { titolo: String(titolo ?? "") })} className="generale-registro-pagine flex flex-wrap items-center justify-between gap-2 border-t px-3 py-1">
           <span className="text-xs tabular-nums text-muted-foreground">
-            Pagina {paginazione.pagina}{righe > 0 && ` · Righe ${(paginazione.pagina - 1) * RIGHE_REGISTRO + 1}–${(paginazione.pagina - 1) * RIGHE_REGISTRO + righe}`}
+            {righe > 0 ? t("Pagina {pagina} · Righe {da}–{a}", { pagina: paginazione.pagina, da: (paginazione.pagina - 1) * RIGHE_REGISTRO + 1, a: (paginazione.pagina - 1) * RIGHE_REGISTRO + righe }) : t("Pagina {pagina}", { pagina: paginazione.pagina })}
           </span>
           <div className="flex gap-1">
             {righe === 0 && paginazione.pagina > 1 && <Button type="button" variant="ghost" size="sm" className="h-8"
-              onClick={() => onCambiaPagina(paginazione.id, 1)}>Prima pagina</Button>}
+              onClick={() => onCambiaPagina(paginazione.id, 1)}>{t("Prima pagina")}</Button>}
             <Button type="button" variant="outline" size="sm" className="h-8" disabled={paginazione.pagina <= 1}
-              onClick={() => onCambiaPagina(paginazione.id, paginazione.pagina - 1)}><ChevronLeft className="size-4" aria-hidden="true" /> Indietro</Button>
+              onClick={() => onCambiaPagina(paginazione.id, paginazione.pagina - 1)}><ChevronLeft className="size-4" aria-hidden="true" /> {t("Indietro")}</Button>
             <Button type="button" variant="outline" size="sm" className="h-8" disabled={!paginazione.altre}
-              onClick={() => onCambiaPagina(paginazione.id, paginazione.pagina + 1)}>Avanti <ChevronRight className="size-4" aria-hidden="true" /></Button>
+              onClick={() => onCambiaPagina(paginazione.id, paginazione.pagina + 1)}>{t("Avanti")} <ChevronRight className="size-4" aria-hidden="true" /></Button>
           </div>
         </nav>
       )}

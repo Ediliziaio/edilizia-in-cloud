@@ -1,10 +1,11 @@
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import type { EconomiaFasi } from "@/lib/orders/economiaFasi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 import { CampoVenduto, costoSforato, dettaglioVoci, fontePrevistoTesto, margineDaMostrare } from "./EconomiaFaseRiga";
 
 const eur = { format: formatCurrency };
-const pct = (v: number | null) => (v == null ? "—" : `${v.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`);
+const pct = (v: number | null) => (v == null ? "—" : `${v.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`);
 
 const TH = "px-3 py-1.5 text-right font-medium";
 const TD = "px-3 py-1.5 text-right tabular-nums";
@@ -34,6 +35,7 @@ export function RiepilogoEconomicoFasi({
   vedeMargini: boolean;
   onSalvaVenduto?: (faseId: string, importo: number | null) => void;
 }) {
+  const tr = useT();
   if (!vedeVenduto && !vedeCosti) return null;
   const t = economia.totaleFasi;
   const fuori = economia.senzaFase;
@@ -54,17 +56,17 @@ export function RiepilogoEconomicoFasi({
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-5 gap-y-1 px-3 py-2 text-sm tabular-nums [&::-webkit-details-marker]:hidden">
         <span className="font-medium">
           <span aria-hidden="true" className="mr-1.5 inline-block text-muted-foreground transition-transform group-open:rotate-90">▸</span>
-          Economia delle fasi
+          {tr("Economia delle fasi")}
         </span>
-        {vedeVenduto && <span className="text-muted-foreground">Venduto <b className="font-semibold text-foreground">{vendutoTotale}</b></span>}
-        {vedeCosti && <span className="text-muted-foreground">Costo previsto <b className="font-semibold text-foreground">{eur.format(t.costoPrevisto)}</b></span>}
+        {vedeVenduto && <span className="text-muted-foreground">{tr("Venduto")} <b className="font-semibold text-foreground">{vendutoTotale}</b></span>}
+        {vedeCosti && <span className="text-muted-foreground">{tr("Costo previsto")} <b className="font-semibold text-foreground">{eur.format(t.costoPrevisto)}</b></span>}
         {vedeCosti && (
           <span className="text-muted-foreground">
-            Costo consuntivo <b className={cn("font-semibold", sforato ? "text-rose-700" : "text-foreground")}>{eur.format(t.costoConsuntivo)}</b>
+            {tr("Costo consuntivo")} <b className={cn("font-semibold", sforato ? "text-rose-700" : "text-foreground")}>{eur.format(t.costoConsuntivo)}</b>
           </span>
         )}
         {contratto != null && daRipartire > 0 && (
-          <span className="font-medium text-amber-700">{eur.format(daRipartire)} del contratto da ripartire</span>
+          <span className="font-medium text-amber-700">{tr("{importo} del contratto da ripartire", { importo: eur.format(daRipartire) })}</span>
         )}
       </summary>
 
@@ -72,11 +74,11 @@ export function RiepilogoEconomicoFasi({
         <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-muted/40 text-[11px] text-muted-foreground">
             <tr>
-              <th scope="col" className="px-3 py-1.5 text-left font-medium">Fase</th>
-              {vedeVenduto && <th scope="col" className={TH} title="Quota del venduto attribuita alla fase: scritto qui, o dalle righe del contratto collegate alla fase">Venduto</th>}
-              {vedeCosti && <th scope="col" className={TH} title="Persone, ditte e costo d'acquisto delle righe della fase">Costo previsto</th>}
-              {vedeCosti && <th scope="col" className={TH} title="Il costo sostenuto: ore e ditte registrate, acquisti emessi, scarichi di magazzino">Costo consuntivo</th>}
-              {colMargine && <th scope="col" className={TH} title="Sul consuntivo per le fasi chiuse o già oltre il previsto, altrimenti previsto">Margine</th>}
+              <th scope="col" className="px-3 py-1.5 text-left font-medium">{tr("Fase")}</th>
+              {vedeVenduto && <th scope="col" className={TH} title={tr("Quota del venduto attribuita alla fase: scritto qui, o dalle righe del contratto collegate alla fase")}>{tr("Venduto")}</th>}
+              {vedeCosti && <th scope="col" className={TH} title={tr("Persone, ditte e costo d'acquisto delle righe della fase")}>{tr("Costo previsto")}</th>}
+              {vedeCosti && <th scope="col" className={TH} title={tr("Il costo sostenuto: ore e ditte registrate, acquisti emessi, scarichi di magazzino")}>{tr("Costo consuntivo")}</th>}
+              {colMargine && <th scope="col" className={TH} title={tr("Sul consuntivo per le fasi chiuse o già oltre il previsto, altrimenti previsto")}>{tr("Margine")}</th>}
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -104,7 +106,7 @@ export function RiepilogoEconomicoFasi({
                   )}
                   {colMargine && (
                     <td className={cn(TD, m?.pct != null && m.pct < 0 && "text-rose-700")}>
-                      {m?.pct != null ? <>{pct(m.pct)}{m.su === "previsto" && <span className="ml-1 text-[11px] text-muted-foreground">prev.</span>}</> : <span className="text-muted-foreground">—</span>}
+                      {m?.pct != null ? <>{pct(m.pct)}{m.su === "previsto" && <span className="ml-1 text-[11px] text-muted-foreground">{tr("prev.")}</span>}</> : <span className="text-muted-foreground">—</span>}
                     </td>
                   )}
                 </tr>
@@ -113,19 +115,19 @@ export function RiepilogoEconomicoFasi({
           </tbody>
           <tfoot className="border-t bg-muted/20">
             <tr className="font-semibold">
-              <th scope="row" className="px-3 py-1.5 text-left">Totale fasi</th>
+              <th scope="row" className="px-3 py-1.5 text-left">{tr("Totale fasi")}</th>
               {vedeVenduto && <td className={TD}>{vendutoTotale}</td>}
               {vedeCosti && <td className={TD}>{eur.format(t.costoPrevisto)}</td>}
               {vedeCosti && <td className={cn(TD, sforato && "text-rose-700")}>{eur.format(t.costoConsuntivo)}</td>}
               {colMargine && (
-                <td className={TD} title={economia.fasiSenzaVenduto > 0 ? `${economia.fasiSenzaVenduto} fasi senza venduto` : undefined}>
-                  {margineTotale?.pct != null ? <>{pct(margineTotale.pct)}{margineTotale.su === "previsto" && <span className="ml-1 text-[11px] font-normal text-muted-foreground">prev.</span>}</> : "—"}
+                <td className={TD} title={economia.fasiSenzaVenduto > 0 ? tr("{n} fasi senza venduto", { n: economia.fasiSenzaVenduto }) : undefined}>
+                  {margineTotale?.pct != null ? <>{pct(margineTotale.pct)}{margineTotale.su === "previsto" && <span className="ml-1 text-[11px] font-normal text-muted-foreground">{tr("prev.")}</span>}</> : "—"}
                 </td>
               )}
             </tr>
             {fuoriConta && (
               <tr className="text-muted-foreground">
-                <th scope="row" className="px-3 py-1.5 text-left font-normal">Fuori dalle fasi</th>
+                <th scope="row" className="px-3 py-1.5 text-left font-normal">{tr("Fuori dalle fasi")}</th>
                 {vedeVenduto && <td className={TD}>{fuori.fonteVenduto !== null ? eur.format(fuori.venduto) : "—"}</td>}
                 {vedeCosti && <td className={TD}>{eur.format(fuori.costoPrevisto)}</td>}
                 {vedeCosti && <td className={TD}>{eur.format(fuori.costoConsuntivo)}</td>}
@@ -137,21 +139,19 @@ export function RiepilogoEconomicoFasi({
       </div>
 
       {vedeCosti && <p className="border-t px-3 py-2 text-xs text-muted-foreground">
-        Questo consuntivo comprende manodopera, ditte e materiali. Altri costi, rimborsi,
-        provvigioni ed errori/perdite restano nel conto economico complessivo della commessa,
-        anche se una spesa è collegata a una fase. Il margine qui mostrato riguarda solo le categorie incluse.
+        {tr("Questo consuntivo comprende manodopera, ditte e materiali. Altri costi, rimborsi, provvigioni ed errori/perdite restano nel conto economico complessivo della commessa, anche se una spesa è collegata a una fase. Il margine qui mostrato riguarda solo le categorie incluse.")}
       </p>}
       {contratto != null && (
         <p className="border-t px-3 py-2 text-xs text-muted-foreground tabular-nums">
-          Contratto <b className="font-semibold text-foreground">{eur.format(contratto)}</b>
-          {" · "}nelle fasi {eur.format(t.venduto)}
+          {tr("Contratto")} <b className="font-semibold text-foreground">{eur.format(contratto)}</b>
+          {" · "}{tr("nelle fasi {importo}", { importo: eur.format(t.venduto) })}
           {" · "}
           {daRipartire > 0
-            ? <span className="font-medium text-amber-700">da ripartire {eur.format(daRipartire)}</span>
+            ? <span className="font-medium text-amber-700">{tr("da ripartire {importo}", { importo: eur.format(daRipartire) })}</span>
             : daRipartire < 0
-              ? <span className="font-medium text-rose-700">oltre il contratto di {eur.format(-daRipartire)}</span>
-              : <span className="font-medium text-emerald-700">tutto ripartito</span>}
-          {economia.fasiSenzaVenduto > 0 && <> · {economia.fasiSenzaVenduto === 1 ? "1 fase senza venduto" : `${economia.fasiSenzaVenduto} fasi senza venduto`}</>}
+              ? <span className="font-medium text-rose-700">{tr("oltre il contratto di {importo}", { importo: eur.format(-daRipartire) })}</span>
+              : <span className="font-medium text-emerald-700">{tr("tutto ripartito")}</span>}
+          {economia.fasiSenzaVenduto > 0 && <> · {economia.fasiSenzaVenduto === 1 ? tr("1 fase senza venduto") : tr("{n} fasi senza venduto", { n: economia.fasiSenzaVenduto })}</>}
         </p>
       )}
     </details>

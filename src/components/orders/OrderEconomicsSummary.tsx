@@ -21,6 +21,7 @@ import type { OrderControlCheck } from "@/lib/orders/controlWorkflow";
 import { materialCostVariance } from "@/lib/orders/materialCostVariance";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -95,6 +96,7 @@ export function OrderEconomicsSummary({
   workStartDate = null,
   workEndDate = null,
 }: OrderEconomicsSummaryProps) {
+  const t = useT();
   void vatRate; // tenuto per parità d'interfaccia col conto economico esistente
 
   const {
@@ -166,7 +168,7 @@ export function OrderEconomicsSummary({
       setDocumento({ html, nome: `conto-economico-${dossier.ordine.codice ?? orderId.slice(0, 8)}` });
     } catch (e) {
       console.error("[conto economico] documento non preparato:", e);
-      toast.error("Non riesco a preparare il conto economico. Riprova.");
+      toast.error(t("Non riesco a preparare il conto economico. Riprova."));
     } finally {
       setPreparando(false);
     }
@@ -211,7 +213,7 @@ export function OrderEconomicsSummary({
   const controlChecks = useMemo<OrderControlCheck[]>(() => [
     {
       key: "revenue",
-      label: "Contratto valorizzato",
+      label: t("Contratto valorizzato"),
       taskLabel: "Valorizza il contratto",
       done: actual.revenue > 0,
       priority: "alta",
@@ -219,7 +221,7 @@ export function OrderEconomicsSummary({
     },
     {
       key: "costs",
-      label: "Almeno un costo diretto registrato",
+      label: t("Almeno un costo diretto registrato"),
       taskLabel: "Registra i costi diretti",
       done: actual.costs > 0,
       priority: "alta",
@@ -227,7 +229,7 @@ export function OrderEconomicsSummary({
     },
     {
       key: "materials",
-      label: "Materiali previsti con acquisti o consumi registrati",
+      label: t("Materiali previsti con acquisti o consumi registrati"),
       taskLabel: "Verifica gli acquisti dei materiali previsti",
       done: consuntivo.materialiPianificati <= 0 || actual.purchases + actual.warehouseMaterials > 0,
       priority: "alta",
@@ -235,7 +237,7 @@ export function OrderEconomicsSummary({
     },
     {
       key: "dates",
-      label: "Data di inizio lavori impostata",
+      label: t("Data di inizio lavori impostata"),
       taskLabel: "Imposta la data di inizio lavori",
       done: Boolean(workStartDate),
       priority: "normale",
@@ -243,7 +245,7 @@ export function OrderEconomicsSummary({
     },
     {
       key: "labor-budget",
-      label: "Costi previsti della manodopera definiti",
+      label: t("Costi previsti della manodopera definiti"),
       taskLabel: "Completa i costi previsti della manodopera",
       done: !quality.issues.some(issue => issue.code === "labor_without_budget"),
       priority: "alta",
@@ -251,7 +253,7 @@ export function OrderEconomicsSummary({
     },
     {
       key: "vehicles",
-      label: vehicleCosts.vehiclesUsed > 0 ? "Costi dei mezzi configurati" : "Nessun mezzo da valorizzare",
+      label: vehicleCosts.vehiclesUsed > 0 ? t("Costi dei mezzi configurati") : t("Nessun mezzo da valorizzare"),
       taskLabel: "Completa i costi dei mezzi",
       done: vehicleCosts.vehiclesUsed === 0 || vehicleCosts.vehiclesWithoutCost === 0,
       priority: "normale",
@@ -260,32 +262,32 @@ export function OrderEconomicsSummary({
     {
       key: "mileage",
       label: actual.pendingMileageReimbursementsCount > 0
-        ? `${actual.pendingMileageReimbursementsCount} rimborsi km da approvare`
-        : "Rimborsi km verificati",
+        ? t("{n} rimborsi km da approvare", { n: actual.pendingMileageReimbursementsCount })
+        : t("Rimborsi km verificati"),
       taskLabel: "Verifica i rimborsi chilometrici",
       done: actual.pendingMileageReimbursementsCount === 0,
       priority: "alta",
       fixTo: "/azienda/personale?tab=richieste",
     },
-  ], [actual.costs, actual.purchases, actual.warehouseMaterials, actual.pendingMileageReimbursementsCount, actual.revenue, consuntivo.materialiPianificati, quality.issues, orderId, vehicleCosts, workStartDate]);
+  ], [actual.costs, actual.purchases, actual.warehouseMaterials, actual.pendingMileageReimbursementsCount, actual.revenue, consuntivo.materialiPianificati, quality.issues, orderId, vehicleCosts, workStartDate, t]);
   const controlWorkflow = useOrderControlTasks(orderId, controlChecks);
   const completedControlChecks = controlWorkflow.controls.filter((check) => check.resolved).length;
 
   const composition = useMemo(
     () =>
       [
-        { key: "articoli", label: "Acquisti impegnati", value: actual.purchases, color: CHART.articoli },
-        { key: "magazzino", label: "Materiali da scorta", value: actual.warehouseMaterials, color: CHART.magazzino },
-        { key: "manodopera", label: "Manodopera", value: actual.labor, color: CHART.manodopera },
-        { key: "provvigioni", label: "Provvigioni", value: actual.commissions, color: CHART.provvigioni },
-        { key: "rimborsi-km", label: "Rimborsi km approvati", value: actual.mileageReimbursements, color: CHART.rimborsiKm },
-        { key: "errori", label: "Errori/perdite", value: actual.errors, color: CHART.errori },
-        { key: "diretti", label: "Costi diretti da contabilità", value: actual.directCosts, color: CHART.diretti },
+        { key: "articoli", label: t("Acquisti impegnati"), value: actual.purchases, color: CHART.articoli },
+        { key: "magazzino", label: t("Materiali da scorta"), value: actual.warehouseMaterials, color: CHART.magazzino },
+        { key: "manodopera", label: t("Manodopera"), value: actual.labor, color: CHART.manodopera },
+        { key: "provvigioni", label: t("Provvigioni"), value: actual.commissions, color: CHART.provvigioni },
+        { key: "rimborsi-km", label: t("Rimborsi km approvati"), value: actual.mileageReimbursements, color: CHART.rimborsiKm },
+        { key: "errori", label: t("Errori/perdite"), value: actual.errors, color: CHART.errori },
+        { key: "diretti", label: t("Costi diretti da contabilità"), value: actual.directCosts, color: CHART.diretti },
         ...(quality.canShowMargin && actual.margin > 0
-          ? [{ key: "margine", label: "Margine diretto", value: actual.margin, color: CHART.margine }]
+          ? [{ key: "margine", label: t("Margine diretto"), value: actual.margin, color: CHART.margine }]
           : []),
       ].filter((d) => d.value > 0),
-    [actual, quality.canShowMargin],
+    [actual, quality.canShowMargin, t],
   );
 
   // Donut interattivo: hover su segmento (o sulla legenda) → dettaglio al centro.
@@ -330,14 +332,14 @@ export function OrderEconomicsSummary({
   // margine apparirebbe gonfiato (es. "100%"). Mostriamo uno skeleton: la card
   // di testata non deve MAI lampeggiare numeri sbagliati.
   const costsLoading = itemsLoading || basePending || odaPending || previsto.isLoading || direttiPerTipo.isLoading;
-  if (baseError) return <Card id="section-conto-economico" className="scroll-mt-24"><CardContent className="p-4 text-sm text-muted-foreground">Conto economico non disponibile: impossibile caricare tutti i costi.</CardContent></Card>;
+  if (baseError) return <Card id="section-conto-economico" className="scroll-mt-24"><CardContent className="p-4 text-sm text-muted-foreground">{t("Conto economico non disponibile: impossibile caricare tutti i costi.")}</CardContent></Card>;
   if (costsLoading) {
     return (
       <Card id="section-conto-economico" className="scroll-mt-24 border-l-4 border-l-orange-400">
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            Conto economico
+            {t("Conto economico")}
           </CardTitle>
           <Skeleton className="h-5 w-20 rounded-full" />
         </CardHeader>
@@ -373,20 +375,20 @@ export function OrderEconomicsSummary({
               ? <TrendingDown className="h-4 w-4 text-red-500" />
               : <AlertTriangle className="h-4 w-4 text-amber-500" />
           )}
-          Conto economico
+          {t("Conto economico")}
         </CardTitle>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => void scaricaConto()} disabled={preparando}
             className="inline-flex h-7 items-center gap-1 rounded-md border bg-white px-2 text-xs font-medium hover:bg-muted disabled:opacity-60 max-sm:hidden"
-            title="Conto per voce, fasi, incassi e pagamenti: da stampare o salvare in PDF">
-            {preparando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}Scarica conto economico
+            title={t("Conto per voce, fasi, incassi e pagamenti: da stampare o salvare in PDF")}>
+            {preparando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}{t("Scarica conto economico")}
           </button>
           <Badge variant="outline" className={`text-xs font-semibold ${marginBadge}`}>
-            {quality.canShowMargin ? `Margine diretto ${pct1(actual.marginPct)}%` : quality.label}
+            {quality.canShowMargin ? t("Margine diretto {percentuale}%", { percentuale: pct1(actual.marginPct) }) : quality.label}
           </Badge>
         </div>
         {documento && (
-          <PrintPreviewModal htmlContent={documento.html} fileName={documento.nome} title="Conto economico della commessa"
+          <PrintPreviewModal htmlContent={documento.html} fileName={documento.nome} title={t("Conto economico della commessa")}
             open onOpenChange={(o) => { if (!o) setDocumento(null); }} />
         )}
       </CardHeader>
@@ -403,14 +405,14 @@ export function OrderEconomicsSummary({
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="inline-flex items-center gap-1 font-medium text-foreground">
                   {tuttoOk ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <ListChecks className="h-3.5 w-3.5 text-orange-500" />}
-                  Controllo commessa
+                  {t("Controllo commessa")}
                 </span>
                 <span className={tuttoOk ? "text-emerald-700" : "text-orange-700"}>{completedControlChecks}/{totale}</span>
                 {daFare.slice(0, 3).map((check) => (
                   <Link key={check.key} to={check.state === "scheduled" ? "/azienda/attivita" : check.fixTo}
                     className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] hover:bg-white",
                       check.state === "scheduled" ? "border-blue-200 text-blue-700" : "border-orange-200 text-orange-700")}
-                    title={check.state === "scheduled" ? "In agenda: apri l'attività" : "Da sistemare: apri dove si corregge"}>
+                    title={check.state === "scheduled" ? t("In agenda: apri l'attività") : t("Da sistemare: apri dove si corregge")}>
                     <Circle className="h-2 w-2 fill-current" />{check.label}
                   </Link>
                 ))}
@@ -421,12 +423,12 @@ export function OrderEconomicsSummary({
                       disabled={controlWorkflow.isCreating || controlWorkflow.isLoading}
                       className="inline-flex items-center gap-1 font-semibold text-orange-700 hover:underline disabled:opacity-60">
                       {controlWorkflow.isCreating && <Loader2 className="h-3 w-3 animate-spin" />}
-                      Metti in agenda ({controlWorkflow.controlsToCreate.length})
+                      {t("Metti in agenda ({n})", { n: controlWorkflow.controlsToCreate.length })}
                     </button>
                   )}
                   <button type="button" onClick={() => setControlliAperti((v) => !v)} aria-expanded={controlliAperti}
                     className="text-muted-foreground hover:text-foreground hover:underline">
-                    {controlliAperti ? "Chiudi" : "Dettaglio"}
+                    {controlliAperti ? t("Chiudi") : t("Dettaglio")}
                   </button>
                 </span>
               </div>
@@ -439,11 +441,11 @@ export function OrderEconomicsSummary({
                       <li key={check.key} className="flex min-w-0 items-center gap-1.5">
                         <Icon className={cn("h-3 w-3 shrink-0", state.icon)} />
                         <span className="truncate text-foreground">{check.label}</span>
-                        <span className={cn("shrink-0 text-[10px]", state.text)}>· {state.label}</span>
+                        <span className={cn("shrink-0 text-[10px]", state.text)}>· {t(state.label)}</span>
                         {!check.resolved && (
                           <Link to={check.state === "scheduled" ? "/azienda/attivita" : check.fixTo}
                             className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[11px] font-semibold text-orange-700 hover:underline">
-                            {check.state === "scheduled" ? "Apri" : "Sistema"}<ArrowRight className="h-3 w-3" />
+                            {check.state === "scheduled" ? t("Apri") : t("Sistema")}<ArrowRight className="h-3 w-3" />
                           </Link>
                         )}
                       </li>
@@ -452,7 +454,7 @@ export function OrderEconomicsSummary({
                 </ul>
               )}
               {controlWorkflow.isError && (
-                <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">Le attività non sono disponibili; i controlli automatici restano attivi.</p>
+                <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">{t("Le attività non sono disponibili; i controlli automatici restano attivi.")}</p>
               )}
             </div>
           );
@@ -465,20 +467,20 @@ export function OrderEconomicsSummary({
           {/* KPI + cassa */}
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <Kpi label="Ricavi" value={formatCurrency(actual.revenue)} valueCompact={formatCurrencyCompact(actual.revenue)} hint="contratto + varianti" />
-              <Kpi label="Costi diretti" value={formatCurrency(actual.costs)} valueCompact={formatCurrencyCompact(actual.costs)} hint="registrati" />
+              <Kpi label={t("Ricavi")} value={formatCurrency(actual.revenue)} valueCompact={formatCurrencyCompact(actual.revenue)} hint={t("contratto + varianti")} />
+              <Kpi label={t("Costi diretti")} value={formatCurrency(actual.costs)} valueCompact={formatCurrencyCompact(actual.costs)} hint={t("registrati")} />
               <Kpi
-                label="Margine diretto"
+                label={t("Margine diretto")}
                 value={quality.canShowMargin ? formatCurrency(actual.margin) : "—"}
                 valueCompact={quality.canShowMargin ? formatCurrencyCompact(actual.margin) : "—"}
                 valueClass={marginColor}
-                hint={quality.canShowMargin ? quality.label : "da calcolare"}
+                hint={quality.canShowMargin ? quality.label : t("da calcolare")}
               />
             </div>
 
             {actual.approvedVariations !== 0 && (
               <p className="text-xs text-muted-foreground max-sm:hidden">
-                Varianti approvate incluse nei ricavi:{" "}
+                {t("Varianti approvate incluse nei ricavi:")}{" "}
                 <strong className={actual.approvedVariations >= 0 ? "text-emerald-600" : "text-red-600"}>
                   {actual.approvedVariations > 0 ? "+" : ""}{formatCurrency(actual.approvedVariations)}
                 </strong>
@@ -492,10 +494,10 @@ export function OrderEconomicsSummary({
                   vanno a capo se non entrano. */}
               <div className="mb-1 flex items-center justify-between flex-wrap gap-x-3 gap-y-0.5 text-xs">
                 <span className="text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                  Incassato {formatCurrency(cashColl)}
+                  {t("Incassato {importo}", { importo: formatCurrency(cashColl) })}
                 </span>
                 <span className="text-muted-foreground whitespace-nowrap">
-                  Da incassare {formatCurrency(dueAmount)}
+                  {t("Da incassare {importo}", { importo: formatCurrency(dueAmount) })}
                 </span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -511,20 +513,20 @@ export function OrderEconomicsSummary({
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
                   <strong>{quality.label}</strong>: {quality.issues.map((issue) => issue.label).join(" · ")}.
-                  {!quality.canShowMargin && " Il margine resta nascosto finché non esiste almeno un costo registrato."}
+                  {!quality.canShowMargin && t(" Il margine resta nascosto finché non esiste almeno un costo registrato.")}
                 </span>
               </p>
             )}
             {actual.errors > 0 && (
               <p className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                Errori/perdite registrati: {formatCurrency(actual.errors)} — incidono sul margine.
+                {t("Errori/perdite registrati: {importo} — incidono sul margine.", { importo: formatCurrency(actual.errors) })}
               </p>
             )}
             {quality.canShowMargin && actual.margin < 0 && (
               <p className="flex items-center gap-1.5 text-xs font-medium text-red-600 dark:text-red-400">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                Commessa in perdita: i costi superano i ricavi.
+                {t("Commessa in perdita: i costi superano i ricavi.")}
               </p>
             )}
           </div>
@@ -541,7 +543,7 @@ export function OrderEconomicsSummary({
                 animationDuration={0.9}
                 activeLabel={hoverSeg?.label ?? null}
                 onSegmentHover={handleSegmentHover}
-                aria-label={quality.canShowMargin ? `Margine diretto ${Math.round(actual.marginPct)}%` : quality.label}
+                aria-label={quality.canShowMargin ? t("Margine diretto {percentuale}%", { percentuale: Math.round(actual.marginPct) }) : quality.label}
                 centerContent={
                   hoverSeg ? (
                     <div className="flex flex-col items-center text-center">
@@ -560,13 +562,13 @@ export function OrderEconomicsSummary({
                       <span className={`text-lg font-bold leading-none ${marginColor}`}>
                         {quality.canShowMargin ? `${pct1(actual.marginPct)}%` : "—"}
                       </span>
-                      <span className="text-[10px] text-muted-foreground">margine diretto</span>
+                      <span className="text-[10px] text-muted-foreground">{t("margine diretto")}</span>
                     </div>
                   )
                 }
               />
             ) : (
-              <span className="text-xs text-muted-foreground">Dati costi non ancora disponibili</span>
+              <span className="text-xs text-muted-foreground">{t("Dati costi non ancora disponibili")}</span>
             )}
           </div>
         </div>
@@ -581,42 +583,42 @@ export function OrderEconomicsSummary({
               <div className="flex min-w-0 items-start gap-2">
                 <Truck className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Mezzi nostri su questo cantiere</p>
+                  <p className="text-sm font-semibold text-foreground">{t("Mezzi nostri su questo cantiere")}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {vehicleCosts.vehiclesUsed} {vehicleCosts.vehiclesUsed === 1 ? "mezzo" : "mezzi"} · {vehicleCosts.vehicleDays} giorni-mezzo sul cantiere
+                    {t(vehicleCosts.vehiclesUsed === 1 ? "{n} mezzo · {giorni} giorni-mezzo sul cantiere" : "{n} mezzi · {giorni} giorni-mezzo sul cantiere", { n: vehicleCosts.vehiclesUsed, giorni: vehicleCosts.vehicleDays })}
                   </p>
                 </div>
               </div>
               <Badge variant="outline" className="border-sky-200 bg-white/70 text-sky-700 dark:bg-background/60 dark:text-sky-300">
-                Stima gestionale
+                {t("Stima gestionale")}
               </Badge>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <StructureKpi label="Costo mezzi stimato" value={formatCurrency(vehicleCosts.estimatedCost)} />
+              <StructureKpi label={t("Costo mezzi stimato")} value={formatCurrency(vehicleCosts.estimatedCost)} />
               <StructureKpi
-                label="Margine con i mezzi nostri"
+                label={t("Margine con i mezzi nostri")}
                 value={quality.canShowMargin ? formatCurrency(actual.margin - vehicleCosts.estimatedCost) : "—"}
                 valueClass={quality.canShowMargin && actual.margin - vehicleCosts.estimatedCost < 0 ? "text-red-700 dark:text-red-300" : undefined}
               />
               <StructureKpi
-                label="Copertura dati"
+                label={t("Copertura dati")}
                 value={vehicleCosts.vehiclesWithoutCost > 0
-                  ? `${vehicleCosts.vehiclesWithoutCost} senza costo`
-                  : "Completa"}
+                  ? t("{n} senza costo", { n: vehicleCosts.vehiclesWithoutCost })
+                  : t("Completa")}
                 valueClass={vehicleCosts.vehiclesWithoutCost > 0
                   ? "text-amber-700 dark:text-amber-300"
                   : "text-emerald-700 dark:text-emerald-300"}
               />
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
-              Ore del rapportino per il costo orario del mezzo (gasolio, rate, assicurazione, manutenzioni degli ultimi 12 mesi); dove non ci sono ore, i giorni di utilizzo. I noleggi non sono qui: arrivano dalla fattura. Non modifica il consuntivo contabile e non va duplicato tra i costi diretti.
+              {t("Ore del rapportino per il costo orario del mezzo (gasolio, rate, assicurazione, manutenzioni degli ultimi 12 mesi); dove non ci sono ore, i giorni di utilizzo. I noleggi non sono qui: arrivano dalla fattura. Non modifica il consuntivo contabile e non va duplicato tra i costi diretti.")}
             </p>
           </div>
         )}
 
         {vehicleCostsError && (
           <p className="mt-3 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-            La stima dei mezzi non è disponibile; ricavi, costi diretti e margine restano invariati.
+            {t("La stima dei mezzi non è disponibile; ricavi, costi diretti e margine restano invariati.")}
           </p>
         )}
 
@@ -628,21 +630,21 @@ export function OrderEconomicsSummary({
           {quality.canShowMargin && !structure.isLoading && (structure.isError || !structure.data?.monthlyPerActiveOrder || structureImpact.months === null) && (
             <p className="mt-1.5 text-[11px] text-muted-foreground">
               {structure.isError
-                ? "Costi di struttura non disponibili con i permessi correnti."
+                ? t("Costi di struttura non disponibili con i permessi correnti.")
                 : !structure.data?.monthlyPerActiveOrder
                   ? structure.data?.monthlyStructure
-                    ? "Costi di struttura: nessun cantiere attivo su cui dividerli."
-                    : "Costi di struttura: inserisci i costi fissi e il personale d'ufficio per calcolarne la quota."
+                    ? t("Costi di struttura: nessun cantiere attivo su cui dividerli.")
+                    : t("Costi di struttura: inserisci i costi fissi e il personale d'ufficio per calcolarne la quota.")
                   : !workStartDate
-                    ? "Costi di struttura: imposta la data di inizio lavori per calcolare la quota maturata."
+                    ? t("Costi di struttura: imposta la data di inizio lavori per calcolare la quota maturata.")
                     : Date.parse(workStartDate) > Date.parse(structure.data?.today ?? "")
-                      ? "Costi di struttura: i lavori non sono ancora iniziati; la quota non è ancora maturata."
-                      : "Costi di struttura: verifica le date dei lavori per calcolare la quota maturata."}
+                      ? t("Costi di struttura: i lavori non sono ancora iniziati; la quota non è ancora maturata.")
+                      : t("Costi di struttura: verifica le date dei lavori per calcolare la quota maturata.")}
             </p>
           )}
           {quality.canShowMargin && structure.data?.monthlyPerActiveOrder != null && structureImpact.months != null && (
             <p className="mt-1 text-[11px] text-muted-foreground max-md:hidden">
-              Struttura: {formatCurrency(structure.data.monthlyStructure)}/mese su {structure.data.activeOrders} cantieri attivi = {formatCurrency(structure.data.monthlyPerActiveOrder)}/mese per commessa, {fmtMesi(structureImpact.months)} mesi maturati.
+              {t("Struttura: {mensile}/mese su {cantieri} cantieri attivi = {perCommessa}/mese per commessa, {mesi} mesi maturati.", { mensile: formatCurrency(structure.data.monthlyStructure), cantieri: structure.data.activeOrders, perCommessa: formatCurrency(structure.data.monthlyPerActiveOrder), mesi: fmtMesi(structureImpact.months) })}
             </p>
           )}
         </div>

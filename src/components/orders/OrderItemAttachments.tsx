@@ -12,6 +12,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface OrderItemAttachment {
   id: string;
@@ -105,6 +106,7 @@ export function OrderItemAttachments({
   editable = true,
   onAttachmentsChange,
 }: OrderItemAttachmentsProps) {
+  const t = useT();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -120,8 +122,8 @@ export function OrderItemAttachments({
     // Validate file type
     if (!ALLOWED_TYPES.includes(file.type)) {
       toast({
-        title: "Tipo file non supportato",
-        description: "Formati accettati: JPG, PNG, WEBP, PDF, DOC, DOCX",
+        title: t("Tipo file non supportato"),
+        description: t("Formati accettati: JPG, PNG, WEBP, PDF, DOC, DOCX"),
         variant: "destructive",
       });
       return;
@@ -130,8 +132,8 @@ export function OrderItemAttachments({
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
       toast({
-        title: "File troppo grande",
-        description: "La dimensione massima è 10MB",
+        title: t("File troppo grande"),
+        description: t("La dimensione massima è 10MB"),
         variant: "destructive",
       });
       return;
@@ -142,7 +144,7 @@ export function OrderItemAttachments({
     try {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Non autenticato");
+      if (!user) throw new Error(t("Non autenticato"));
 
       // Generate unique filename
       const fileExt = file.name.split(".").pop();
@@ -171,16 +173,16 @@ export function OrderItemAttachments({
       if (dbError) throw dbError;
 
       toast({
-        title: "File caricato",
-        description: `${file.name} allegato con successo`,
+        title: t("File caricato"),
+        description: t("{file} allegato con successo", { file: file.name }),
       });
 
       onAttachmentsChange();
     } catch (error: any) {
       logger.error("Upload error:", error);
       toast({
-        title: "Errore caricamento",
-        description: error.message || "Impossibile caricare il file",
+        title: t("Errore caricamento"),
+        description: error.message || t("Impossibile caricare il file"),
         variant: "destructive",
       });
     } finally {
@@ -194,9 +196,9 @@ export function OrderItemAttachments({
   const handleDelete = async (attachment: OrderItemAttachment) => {
     if (
       !(await confirm({
-        title: "Eliminare l'allegato?",
-        description: `"${attachment.file_name}" verrà rimosso definitivamente. L'operazione non può essere annullata.`,
-        confirmLabel: "Elimina",
+        title: t("Eliminare l'allegato?"),
+        description: t("\"{file}\" verrà rimosso definitivamente. L'operazione non può essere annullata.", { file: attachment.file_name }),
+        confirmLabel: t("Elimina"),
         variant: "destructive",
       }))
     ) {
@@ -218,16 +220,16 @@ export function OrderItemAttachments({
       if (error) throw error;
 
       toast({
-        title: "File eliminato",
-        description: `${attachment.file_name} rimosso`,
+        title: t("File eliminato"),
+        description: t("{file} rimosso", { file: attachment.file_name }),
       });
 
       onAttachmentsChange();
     } catch (error: any) {
       logger.error("Delete error:", error);
       toast({
-        title: "Errore eliminazione",
-        description: error.message || "Impossibile eliminare il file",
+        title: t("Errore eliminazione"),
+        description: error.message || t("Impossibile eliminare il file"),
         variant: "destructive",
       });
     } finally {
@@ -267,7 +269,7 @@ export function OrderItemAttachments({
           onClick={() => setDialogOpen(true)}
         >
           <Paperclip className="h-3 w-3 mr-1" />
-          {attachments.length > 0 ? attachments.length : "Allega"}
+          {attachments.length > 0 ? attachments.length : t("Allega")}
         </Button>
       </div>
 
@@ -277,12 +279,12 @@ export function OrderItemAttachments({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Paperclip className="h-5 w-5" />
-              Allegati: {itemName}
+              {t("Allegati: {nome}", { nome: itemName })}
             </DialogTitle>
             <DialogDescription>
               {editable
-                ? "Gestisci i documenti e le foto allegati a questo articolo"
-                : "Visualizza gli allegati di questo articolo"}
+                ? t("Gestisci i documenti e le foto allegati a questo articolo")
+                : t("Visualizza gli allegati di questo articolo")}
             </DialogDescription>
           </DialogHeader>
 
@@ -306,12 +308,12 @@ export function OrderItemAttachments({
                   {uploading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Caricamento...
+                      {t("Caricamento...")}
                     </>
                   ) : (
                     <>
                       <Upload className="h-4 w-4 mr-2" />
-                      Carica File
+                      {t("Carica File")}
                     </>
                   )}
                 </Button>
@@ -324,7 +326,7 @@ export function OrderItemAttachments({
             {/* Attachments list */}
             {attachments.length === 0 ? (
               <p className="text-center text-muted-foreground py-4">
-                Nessun allegato
+                {t("Nessun allegato")}
               </p>
             ) : (
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
@@ -356,7 +358,7 @@ export function OrderItemAttachments({
                       <Button
                         variant="ghost"
                         size="icon"
-                        aria-label={`Elimina allegato ${att.file_name}`}
+                        aria-label={t("Elimina allegato {file}", { file: att.file_name })}
                         onClick={() => handleDelete(att)}
                         disabled={deleting === att.id}
                       >

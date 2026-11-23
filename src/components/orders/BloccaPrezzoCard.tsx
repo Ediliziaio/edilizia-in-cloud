@@ -44,6 +44,7 @@ import {
   daRestituire,
   avvisiBloccaPrezzo,
 } from "@/lib/orders/bloccaPrezzo";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Almeno uno dei due: il versamento può nascere sul preventivo o sulla commessa. */
@@ -68,6 +69,7 @@ export function BloccaPrezzoCard({
   readOnly = false,
   compatta = false,
 }: Props) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { bloccaPrezzo: attivo } = useBonusFiscaliFlags();
   const queryClient = useQueryClient();
@@ -100,8 +102,8 @@ export function BloccaPrezzoCard({
   const aggiungi = useMutation({
     mutationFn: async () => {
       const importo = parseDecimalIT(nuovoImporto);
-      if (!(importo > 0)) throw new Error("Inserisci un importo maggiore di zero.");
-      if (!effectiveCompany?.id) throw new Error("Azienda non trovata.");
+      if (!(importo > 0)) throw new Error(t("Inserisci un importo maggiore di zero."));
+      if (!effectiveCompany?.id) throw new Error(t("Azienda non trovata."));
       const payload = serializeBloccaPrezzo({
         companyId: effectiveCompany.id,
         customerId: customerId ?? null,
@@ -119,7 +121,7 @@ export function BloccaPrezzoCard({
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Blocca prezzo registrato");
+      toast.success(t("Blocca prezzo registrato"));
       setApertoForm(false);
       setNuovoImporto("");
       setNuovaNota("");
@@ -128,8 +130,8 @@ export function BloccaPrezzoCard({
       invalida();
     },
     onError: (e) =>
-      toast.error("Registrazione non riuscita", {
-        description: e instanceof Error ? e.message : "Riprova.",
+      toast.error(t("Registrazione non riuscita"), {
+        description: e instanceof Error ? e.message : t("Riprova."),
       }),
   });
 
@@ -148,11 +150,11 @@ export function BloccaPrezzoCard({
     },
     onSuccess: () => {
       invalida();
-      toast.success("Stato aggiornato");
+      toast.success(t("Stato aggiornato"));
     },
     onError: (e) =>
-      toast.error("Aggiornamento non riuscito", {
-        description: e instanceof Error ? e.message : "Riprova.",
+      toast.error(t("Aggiornamento non riuscito"), {
+        description: e instanceof Error ? e.message : t("Riprova."),
       }),
   });
 
@@ -163,7 +165,7 @@ export function BloccaPrezzoCard({
       if (error) throw error;
     },
     onSuccess: () => invalida(),
-    onError: () => toast.error("Modifica non salvata"),
+    onError: () => toast.error(t("Modifica non salvata")),
   });
 
   const elimina = useMutation({
@@ -173,17 +175,17 @@ export function BloccaPrezzoCard({
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Versamento eliminato");
+      toast.success(t("Versamento eliminato"));
       invalida();
     },
-    onError: () => toast.error("Eliminazione non riuscita"),
+    onError: () => toast.error(t("Eliminazione non riuscita")),
   });
 
   const chiediEdElimina = async (riga: BloccaPrezzo) => {
     const ok = await confirm({
-      title: "Eliminare il versamento?",
-      description: `Verrà cancellato il blocca prezzo di ${formatCurrency(riga.importo)}. L'operazione non è reversibile.`,
-      confirmLabel: "Elimina",
+      title: t("Eliminare il versamento?"),
+      description: t("Verrà cancellato il blocca prezzo di {importo}. L'operazione non è reversibile.", { importo: formatCurrency(riga.importo) }),
+      confirmLabel: t("Elimina"),
     });
     if (ok && riga.id) elimina.mutate(riga.id);
   };
@@ -200,16 +202,15 @@ export function BloccaPrezzoCard({
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <Lock className="h-4 w-4 text-sky-600" />
-              Blocca prezzo
+              {t("Blocca prezzo")}
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Somme versate per bloccare il listino. Non fanno parte del contratto: vanno restituite
-              prima dei bonifici parlanti.
+              {t("Somme versate per bloccare il listino. Non fanno parte del contratto: vanno restituite prima dei bonifici parlanti.")}
             </p>
           </div>
           {aperto > 0 && (
             <Badge variant="destructive" className="shrink-0 tabular-nums">
-              Da restituire {formatCurrency(aperto)}
+              {t("Da restituire {importo}", { importo: formatCurrency(aperto) })}
             </Badge>
           )}
         </div>
@@ -237,10 +238,10 @@ export function BloccaPrezzoCard({
         ))}
 
         {compatta && (
-          <p className="text-xs text-muted-foreground">Versamenti per bloccare il listino, da restituire prima dei bonifici parlanti.</p>
+          <p className="text-xs text-muted-foreground">{t("Versamenti per bloccare il listino, da restituire prima dei bonifici parlanti.")}</p>
         )}
         {!compatta && righe.length === 0 && (
-          <p className="text-xs text-muted-foreground">Nessun blocca prezzo registrato.</p>
+          <p className="text-xs text-muted-foreground">{t("Nessun blocca prezzo registrato.")}</p>
         )}
 
         {righe.map((riga) => (
@@ -250,9 +251,9 @@ export function BloccaPrezzoCard({
                 <p className="text-sm font-semibold tabular-nums">{formatCurrency(riga.importo)}</p>
                 <p className="text-[11px] text-muted-foreground">
                   {riga.dataIncasso
-                    ? new Date(riga.dataIncasso).toLocaleDateString("it-IT")
-                    : "data non indicata"}{" "}
-                  · {METODI_BLOCCA_PREZZO.find((m) => m.value === riga.metodo)?.label ?? riga.metodo}
+                    ? new Date(riga.dataIncasso).toLocaleDateString(intlCampo())
+                    : t("data non indicata")}{" "}
+                  · {(() => { const m = METODI_BLOCCA_PREZZO.find((x) => x.value === riga.metodo); return m ? t(m.label) : riga.metodo; })()}
                 </p>
               </div>
               {!readOnly && (
@@ -262,7 +263,7 @@ export function BloccaPrezzoCard({
                   size="icon"
                   className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                   onClick={() => chiediEdElimina(riga)}
-                  aria-label="Elimina versamento"
+                  aria-label={t("Elimina versamento")}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -272,7 +273,7 @@ export function BloccaPrezzoCard({
             {riga.stato === "incassato" && (
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
                 <Label className="text-[11px] text-muted-foreground shrink-0">
-                  Da restituire entro
+                  {t("Da restituire entro")}
                 </Label>
                 <Input
                   type="date"
@@ -288,8 +289,8 @@ export function BloccaPrezzoCard({
                 />
                 <span className="text-[10px] text-muted-foreground">
                   {riga.dataPrevistaRestituzione
-                    ? "l'uscita è già nel previsionale di cassa"
-                    : "senza data resta fuori dalle colonne del piano di cassa"}
+                    ? t("l'uscita è già nel previsionale di cassa")
+                    : t("senza data resta fuori dalle colonne del piano di cassa")}
                 </span>
               </div>
             )}
@@ -306,7 +307,7 @@ export function BloccaPrezzoCard({
                 <SelectContent>
                   {STATI_BLOCCA_PREZZO.map((s) => (
                     <SelectItem key={s.value} value={s.value}>
-                      {s.label}
+                      {t(s.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -337,7 +338,7 @@ export function BloccaPrezzoCard({
                       if (!riga.id || v === (riga.riferimento ?? "")) return;
                       aggiornaCampo.mutate({ id: riga.id, patch: { riferimento: v || null } });
                     }}
-                    placeholder="CRO / riferimento"
+                    placeholder={t("CRO / riferimento")}
                     className="h-8 text-xs flex-1"
                     disabled={readOnly}
                   />
@@ -346,7 +347,7 @@ export function BloccaPrezzoCard({
             </div>
 
             <p className="text-[10px] text-muted-foreground">
-              {STATI_BLOCCA_PREZZO.find((s) => s.value === riga.stato)?.hint}
+              {(() => { const hint = STATI_BLOCCA_PREZZO.find((s) => s.value === riga.stato)?.hint; return hint ? t(hint) : null; })()}
             </p>
             {riga.note && <p className="text-[11px] text-muted-foreground">{riga.note}</p>}
           </div>
@@ -355,7 +356,7 @@ export function BloccaPrezzoCard({
         {!readOnly && !apertoForm && (
           <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => setApertoForm(true)}>
             <Plus className="h-3.5 w-3.5 mr-1" />
-            Registra blocca prezzo
+            {t("Registra blocca prezzo")}
           </Button>
         )}
 
@@ -363,7 +364,7 @@ export function BloccaPrezzoCard({
           <div className="rounded-md border bg-muted/30 p-3 space-y-2">
             <div className="grid gap-2 sm:grid-cols-3">
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Importo</Label>
+                <Label className="text-[11px] text-muted-foreground">{t("Importo")}</Label>
                 <div className="relative">
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
                   <Input
@@ -376,7 +377,7 @@ export function BloccaPrezzoCard({
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Data incasso</Label>
+                <Label className="text-[11px] text-muted-foreground">{t("Data incasso")}</Label>
                 <Input
                   type="date"
                   value={nuovaData}
@@ -385,7 +386,7 @@ export function BloccaPrezzoCard({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Come è arrivato</Label>
+                <Label className="text-[11px] text-muted-foreground">{t("Come è arrivato")}</Label>
                 <Select value={nuovoMetodo} onValueChange={(v) => setNuovoMetodo(v as BloccaPrezzoMetodo)}>
                   <SelectTrigger className="h-9">
                     <SelectValue />
@@ -393,7 +394,7 @@ export function BloccaPrezzoCard({
                   <SelectContent>
                     {METODI_BLOCCA_PREZZO.map((m) => (
                       <SelectItem key={m.value} value={m.value}>
-                        {m.label}
+                        {t(m.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -402,7 +403,7 @@ export function BloccaPrezzoCard({
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] text-muted-foreground">
-                Da restituire entro (facoltativa)
+                {t("Da restituire entro (facoltativa)")}
               </Label>
               <Input
                 type="date"
@@ -411,22 +412,20 @@ export function BloccaPrezzoCard({
                 className="h-9 sm:w-52"
               />
               <p className="text-[10px] text-muted-foreground">
-                Con la data l'uscita compare nel previsionale di cassa nella settimana giusta;
-                senza, resta dichiarata fra i movimenti senza data.
+                {t("Con la data l'uscita compare nel previsionale di cassa nella settimana giusta; senza, resta dichiarata fra i movimenti senza data.")}
               </p>
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground">Note (facoltative)</Label>
+              <Label className="text-[11px] text-muted-foreground">{t("Note (facoltative)")}</Label>
               <Input
                 value={nuovaNota}
                 onChange={(e) => setNuovaNota(e.target.value)}
-                placeholder="Es. blocco listino fino al 31/12"
+                placeholder={t("Es. blocco listino fino al 31/12")}
                 className="h-9 text-xs"
               />
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Il cliente deve versare con bonifico <strong>ordinario</strong>, causale "blocca prezzo":
-              con un parlante la banca tratterrebbe l'11% e l'importo non sarebbe più detraibile.
+              {t("Il cliente deve versare con bonifico ordinario, causale \"blocca prezzo\": con un parlante la banca tratterrebbe l'11% e l'importo non sarebbe più detraibile.")}
             </p>
             <div className="flex gap-2">
               <Button
@@ -436,7 +435,7 @@ export function BloccaPrezzoCard({
                 onClick={() => aggiungi.mutate()}
                 disabled={aggiungi.isPending}
               >
-                {aggiungi.isPending ? "Salvataggio…" : "Registra"}
+                {aggiungi.isPending ? t("Salvataggio…") : t("Registra")}
               </Button>
               <Button
                 type="button"
@@ -445,7 +444,7 @@ export function BloccaPrezzoCard({
                 className="h-8"
                 onClick={() => setApertoForm(false)}
               >
-                Annulla
+                {t("Annulla")}
               </Button>
             </div>
           </div>
@@ -453,16 +452,16 @@ export function BloccaPrezzoCard({
       </CardContent>
     </Card>
   );
-  const corpo = isLoading ? <p role="status" className="text-sm text-muted-foreground">Caricamento versamenti…</p>
+  const corpo = isLoading ? <p role="status" className="text-sm text-muted-foreground">{t("Caricamento versamenti…")}</p>
     : isError ? <p role="alert" className="text-sm text-muted-foreground">
-      Versamenti non disponibili. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button>
+      {t("Versamenti non disponibili.")} <button type="button" className="underline" onClick={() => void refetch()}>{t("Riprova")}</button>
     </p> : contenuto;
   if (!compatta) return corpo;
   return (
-    <SezioneRichiudibile titolo="Blocca prezzo" icona={<Lock className="h-4 w-4" />} aperta={aperto > 0 || avvisi.length > 0}
-      riepilogo={isLoading ? "Caricamento…" : isError ? "Dati non disponibili" : aperto > 0
-        ? <span className="font-semibold text-amber-800 dark:text-amber-200">{formatCurrency(aperto)} da restituire</span>
-        : <span className="text-muted-foreground">{righe.length ? "Nessuna restituzione in sospeso" : "Nessun versamento"}</span>}>
+    <SezioneRichiudibile titolo={t("Blocca prezzo")} icona={<Lock className="h-4 w-4" />} aperta={aperto > 0 || avvisi.length > 0}
+      riepilogo={isLoading ? t("Caricamento…") : isError ? t("Dati non disponibili") : aperto > 0
+        ? <span className="font-semibold text-amber-800 dark:text-amber-200">{t("{importo} da restituire", { importo: formatCurrency(aperto) })}</span>
+        : <span className="text-muted-foreground">{righe.length ? t("Nessuna restituzione in sospeso") : t("Nessun versamento")}</span>}>
       {corpo}
     </SezioneRichiudibile>
   );

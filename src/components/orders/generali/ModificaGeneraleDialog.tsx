@@ -16,6 +16,7 @@ import { useDatiContratto } from "@/hooks/useGeneraleContratto";
 import { leggiImporto } from "@/lib/controlloGestione/formatCG";
 import { DEFINIZIONI_MODELLI, isModelloGenerale, type ModelloGenerale, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const testoImporto = (n: number | null) => (n === null ? "" : new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 }).format(n));
 
@@ -31,6 +32,7 @@ export function ModificaGeneraleDialog({ open, onOpenChange, riepilogo }: { open
 }
 
 function Modulo({ onOpenChange, riepilogo }: { onOpenChange: (o: boolean) => void; riepilogo: RiepilogoGenerale }) {
+  const t = useT();
   const g = riepilogo.generale;
   const aggiorna = useAggiornaGenerale(g.id);
   const { modelli: accesi } = useImpostazioniCommesseGenerali();
@@ -71,7 +73,7 @@ function Modulo({ onOpenChange, riepilogo }: { onOpenChange: (o: boolean) => voi
               return;
             }
           }
-          toast.success("Commessa generale aggiornata");
+          toast.success(t("Commessa generale aggiornata"));
           onOpenChange(false);
         },
         onError: (e) => toast.error(messaggioGenerale(e, "le modifiche")),
@@ -82,68 +84,68 @@ function Modulo({ onOpenChange, riepilogo }: { onOpenChange: (o: boolean) => voi
   return (
     <>
         <DialogHeader>
-          <DialogTitle>Modifica commessa generale</DialogTitle>
-          <DialogDescription>Nome, tipo, valore e come si dividono i costi comuni. Le commesse dentro non cambiano.</DialogDescription>
+          <DialogTitle>{t("Modifica commessa generale")}</DialogTitle>
+          <DialogDescription>{t("Nome, tipo, valore e come si dividono i costi comuni. Le commesse dentro non cambiano.")}</DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); salva(); }}>
           <div className="space-y-1.5">
-            <Label htmlFor="mod-generale-nome">Nome</Label>
+            <Label htmlFor="mod-generale-nome">{t("Nome")}</Label>
             <Input id="mod-generale-nome" value={nome} onChange={(e) => setNome(e.target.value)} />
           </div>
           {scelte.length > 1 && (
             <div className="space-y-1.5">
-              <Label htmlFor="mod-generale-tipo">Tipo</Label>
+              <Label htmlFor="mod-generale-tipo">{t("Tipo")}</Label>
               <Select value={modello} onValueChange={(v) => { if (isModelloGenerale(v)) setModello(v); }}>
                 <SelectTrigger id="mod-generale-tipo"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {scelte.map((m) => <SelectItem key={m} value={m}>{DEFINIZIONI_MODELLI[m].nome}</SelectItem>)}
+                  {scelte.map((m) => <SelectItem key={m} value={m}>{t(DEFINIZIONI_MODELLI[m].nome)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           )}
           {importiVisibili && valoreDalContratto && (
             <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-              Il valore viene dal contratto: si cambia nella scheda «Contratto e SAL» (importo, ribasso, atti aggiuntivi).
+              {t("Il valore viene dal contratto: si cambia nella scheda «Contratto e SAL» (importo, ribasso, atti aggiuntivi).")}
             </p>
           )}
           {importiVisibili && !valoreDalContratto && (
             <div className="space-y-1.5">
               <Label htmlFor="mod-generale-valore">
-                {def.valore.etichetta} <span className="font-normal text-muted-foreground">(al netto dell'IVA)</span>
+                {t(def.valore.etichetta)} <span className="font-normal text-muted-foreground">{t("(al netto dell'IVA)")}</span>
               </Label>
               <Input id="mod-generale-valore" inputMode="decimal" value={valoreTesto} onChange={(e) => setValoreTesto(e.target.value)} aria-invalid={valoreSbagliato || undefined} />
               <p className={cn("text-xs", valoreSbagliato ? "text-destructive" : "text-muted-foreground")}>
-                {valoreSbagliato ? "Scrivi un importo, ad esempio 3.000.000 o 2500,50." : "Lascia vuoto se non lo sai ancora."}
+                {valoreSbagliato ? t("Scrivi un importo, ad esempio 3.000.000 o 2500,50.") : t("Lascia vuoto se non lo sai ancora.")}
               </p>
             </div>
           )}
           {riepilogo.permessi.costi && (
             <div className="space-y-1.5">
-              <Label htmlFor="mod-generale-criterio">Ripartizione dei costi comuni</Label>
+              <Label htmlFor="mod-generale-criterio">{t("Ripartizione dei costi comuni")}</Label>
               {criterioDisponibile ? (
                 <Select value={criterioScelto} onValueChange={(v) => setCriterio(v as CriterioRipartizioneScelto)}>
                   <SelectTrigger id="mod-generale-criterio"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="auto">Automatica (millesimi, poi m², poi importo)</SelectItem>
-                    <SelectItem value="millesimi">Per millesimi</SelectItem>
-                    <SelectItem value="mq">Per m² commerciali</SelectItem>
-                    <SelectItem value="importo">In proporzione all'importo</SelectItem>
-                    <SelectItem value="parti_uguali">In parti uguali</SelectItem>
+                    <SelectItem value="auto">{t("Automatica (millesimi, poi m², poi importo)")}</SelectItem>
+                    <SelectItem value="millesimi">{t("Per millesimi")}</SelectItem>
+                    <SelectItem value="mq">{t("Per m² commerciali")}</SelectItem>
+                    <SelectItem value="importo">{t("In proporzione all'importo")}</SelectItem>
+                    <SelectItem value="parti_uguali">{t("In parti uguali")}</SelectItem>
                   </SelectContent>
                 </Select>
               ) : null}
               <p className="text-xs text-muted-foreground">
                 {criterioDisponibile
-                  ? "I costi registrati sulla generale (terreno, oneri, costi di cantiere) si dividono così sulle commesse dentro: piano economico, unità e margini."
-                  : "Automatica: per millesimi, altrimenti per m², altrimenti in proporzione all'importo. Per sceglierla a mano serve il permesso di vedere i costi."}
+                  ? t("I costi registrati sulla generale (terreno, oneri, costi di cantiere) si dividono così sulle commesse dentro: piano economico, unità e margini.")
+                  : t("Automatica: per millesimi, altrimenti per m², altrimenti in proporzione all'importo. Per sceglierla a mano serve il permesso di vedere i costi.")}
               </p>
             </div>
           )}
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
             <Button type="submit" disabled={!puoSalvare}>
               {(aggiorna.isPending || salvaCriterio.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salva
+              {t("Salva")}
             </Button>
           </DialogFooter>
         </form>

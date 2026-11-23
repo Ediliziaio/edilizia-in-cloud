@@ -11,6 +11,7 @@ import { useOrderDiary } from "@/hooks/useOrderDiary";
 import { descrizioneEvento, etichettaEvento } from "@/lib/orders/eventiCommessa";
 import { RegistroCommessa } from "@/components/orders/RegistroCommessa";
 import { componiRegistro, type AzioneRegistro } from "@/lib/orders/registroCommessa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface OrderDiaryOrder {
   id: string;
@@ -22,6 +23,7 @@ interface OrderDiaryOrder {
 export default function OrderDiaryPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
 
   const { data: order, isLoading } = useQuery({
@@ -98,13 +100,13 @@ export default function OrderDiaryPage() {
             className="flex shrink-0 items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Torna alla commessa</span>
+            <span className="hidden sm:inline">{t("Torna alla commessa")}</span>
           </button>
           <div className="mx-1 h-5 w-px bg-gray-200" />
           <History className="h-4 w-4 shrink-0 text-blue-600" />
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-gray-800">Registro attività</h1>
-            {order && <p className="truncate text-xs text-gray-400">{order.order_code} · {order.description}</p>}
+            <h1 className="text-sm font-semibold text-gray-800">{t("Registro attività")}</h1>
+            {order && <p className="truncate text-xs text-gray-400" dir="auto">{order.order_code} · {order.description}</p>}
           </div>
         </div>
       </div>
@@ -117,13 +119,13 @@ export default function OrderDiaryPage() {
             <Skeleton className="h-24 w-full" />
           </div>
         ) : !order ? (
-          <div className="py-16 text-center text-sm text-gray-400">Commessa non trovata.</div>
+          <div className="py-16 text-center text-sm text-gray-400">{t("Commessa non trovata.")}</div>
         ) : (
           <div className="space-y-3">
             {(diaryError || azioniError) && (
               <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>Una parte del registro non si è caricata: qui sotto potrebbero mancare delle azioni. Aggiorna la pagina.</p>
+                <p>{t("Una parte del registro non si è caricata: qui sotto potrebbero mancare delle azioni. Aggiorna la pagina.")}</p>
               </div>
             )}
             <RegistroCommessa

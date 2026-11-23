@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -52,13 +53,14 @@ interface SupplierSelectProps {
 export function SupplierSelect({
   value,
   onValueChange,
-  placeholder = "Seleziona fornitore",
+  placeholder,
   fallbackCompanyId,
   searchable = false,
   allowCreate = true,
   inlineCreate = false,
   onSupplierNameChange,
 }: SupplierSelectProps) {
+  const t = useT();
   const [dialogOpen, setDialogOpen] = useState(false);
   const { effectiveCompany } = useAuth();
 
@@ -109,15 +111,15 @@ export function SupplierSelect({
       );
       onSupplierNameChange?.(data.name);
       setDialogOpen(false);
-      toast.success("Fornitore creato", {
-        description: `${data.name} è stato aggiunto ai fornitori.`,
+      toast.success(t("Fornitore creato"), {
+        description: t("{nome} è stato aggiunto ai fornitori.", { nome: data.name }),
       });
     },
     onError: (error) =>
-      toast.error("Fornitore non creato", {
+      toast.error(t("Fornitore non creato"), {
         description: userErrorMessage(
           error,
-          "Non sono riuscito a salvare il fornitore. Riprova.",
+          t("Non sono riuscito a salvare il fornitore. Riprova."),
         ),
       }),
   });
@@ -141,13 +143,13 @@ export function SupplierSelect({
       <div className="flex gap-2">
         {searchable ? (
           <ViaggioSelect
-            label="Fornitore"
+            label={t("Fornitore")}
             value={value || "none"}
             onValueChange={handleSelectChange}
             disabled={isLoading || isError}
-            emptyMessage="Fornitore non trovato. Usa + per registrarlo."
+            emptyMessage={t("Fornitore non trovato. Usa + per registrarlo.")}
             options={[
-              { value: "none", label: "Nessun fornitore" },
+              { value: "none", label: t("Nessun fornitore") },
               ...suppliers
                 .filter((s) => s.is_active !== false || s.id === value)
                 .map((s) => ({ value: s.id, label: [s.name, categorieFornitore(s).join(" · ")].filter(Boolean).join(" — ") })),
@@ -159,12 +161,12 @@ export function SupplierSelect({
             value={value || "none"}
             onValueChange={handleSelectChange}
           >
-            <SelectTrigger className="min-w-0 flex-1" aria-label="Fornitore">
-              <SelectValue placeholder={placeholder} />
+            <SelectTrigger className="min-w-0 flex-1" aria-label={t("Fornitore")}>
+              <SelectValue placeholder={placeholder ?? t("Seleziona fornitore")} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">
-                <span className="text-muted-foreground">Nessun fornitore</span>
+                <span className="text-muted-foreground">{t("Nessun fornitore")}</span>
               </SelectItem>
               {suppliers.map((supplier) => (
                 <SelectItem key={supplier.id} value={supplier.id}>
@@ -185,7 +187,7 @@ export function SupplierSelect({
                 variant="outline"
                 size="icon"
                 onClick={() => setDialogOpen(true)}
-                aria-label="Aggiungi nuovo fornitore"
+                aria-label={t("Aggiungi nuovo fornitore")}
                 disabled={
                   !allowCreate ||
                   !companyId ||
@@ -197,20 +199,20 @@ export function SupplierSelect({
                 <Plus className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Aggiungi nuovo fornitore</TooltipContent>
+            <TooltipContent side="top">{t("Aggiungi nuovo fornitore")}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
       {isError && (
         <p role="alert" className="text-xs text-destructive">
-          Elenco fornitori non disponibile.{" "}
+          {t("Elenco fornitori non disponibile.")}{" "}
           <Button
             type="button"
             variant="link"
             size="sm"
             onClick={() => void refetch()}
           >
-            Riprova fornitori
+            {t("Riprova fornitori")}
           </Button>
         </p>
       )}

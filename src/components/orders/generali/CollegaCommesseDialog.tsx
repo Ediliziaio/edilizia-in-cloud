@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { messaggioGenerale, useCollegaCommesse, useCommesseCollegabili } from "@/hooks/useCommesseGenerali";
 import { DEFINIZIONI_MODELLI, formattaEuro, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -39,6 +40,7 @@ function Contenuto({ onOpenChange, riepilogo }: Omit<Props, "open">) {
   const [cerca, setCerca] = useState("");
   const [soloCliente, setSoloCliente] = useState(!!g.clienteId);
   const [scelte, setScelte] = useState<Set<string>>(new Set());
+  const t = useT();
 
   const visibili = useMemo(() => {
     const q = cerca.trim().toLowerCase();
@@ -59,7 +61,7 @@ function Contenuto({ onOpenChange, riepilogo }: Omit<Props, "open">) {
   const conferma = () => {
     collega.mutate([...scelte], {
       onSuccess: (n) => {
-        toast.success(n === 1 ? "1 commessa aggiunta" : `${n} commesse aggiunte`);
+        toast.success(t(n === 1 ? "1 commessa aggiunta" : "{n} commesse aggiunte", { n }));
         onOpenChange(false);
       },
       onError: (e) => toast.error(messaggioGenerale(e, "il collegamento")),
@@ -69,32 +71,32 @@ function Contenuto({ onOpenChange, riepilogo }: Omit<Props, "open">) {
   return (
     <>
         <DialogHeader>
-          <DialogTitle>Collega commesse esistenti</DialogTitle>
+          <DialogTitle>{t("Collega commesse esistenti")}</DialogTitle>
           <DialogDescription>
-            Le commesse scelte diventano {def.figlia.tante.toLowerCase()} di «{g.nome}». Restano commesse normali: cantiere, costi e fatture non cambiano.
+            {t("Le commesse scelte diventano {tipo} di «{nome}». Restano commesse normali: cantiere, costi e fatture non cambiano.", { tipo: def.figlia.tante.toLowerCase(), nome: g.nome })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca per codice, descrizione o cliente" className="pl-8" aria-label="Cerca commesse" />
+            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={t("Cerca per codice, descrizione o cliente")} className="pl-8" aria-label={t("Cerca commesse")} />
           </div>
           {g.clienteId && (
             <div className="flex items-center gap-2">
               <Switch id="solo-cliente" checked={soloCliente} onCheckedChange={setSoloCliente} />
-              <Label htmlFor="solo-cliente" className="text-sm font-normal">Solo commesse di {g.cliente ?? "questo cliente"}</Label>
+              <Label htmlFor="solo-cliente" className="text-sm font-normal">{g.cliente ? t("Solo commesse di {cliente}", { cliente: g.cliente }) : t("Solo commesse di questo cliente")}</Label>
             </div>
           )}
 
           <div className="max-h-[50vh] overflow-y-auto rounded-md border">
             {isLoading ? (
-              <p className="p-4 text-sm text-muted-foreground">Carico le commesse…</p>
+              <p className="p-4 text-sm text-muted-foreground">{t("Carico le commesse…")}</p>
             ) : isError ? (
-              <p className="p-4 text-sm text-destructive">Non riesco a leggere le commesse. Riprova.</p>
+              <p className="p-4 text-sm text-destructive">{t("Non riesco a leggere le commesse. Riprova.")}</p>
             ) : visibili.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">
-                {soloCliente && g.clienteId ? "Nessuna commessa di questo cliente da collegare. Togli il filtro per vederle tutte." : "Nessuna commessa da collegare."}
+                {soloCliente && g.clienteId ? t("Nessuna commessa di questo cliente da collegare. Togli il filtro per vederle tutte.") : t("Nessuna commessa da collegare.")}
               </p>
             ) : (
               <ul className="divide-y">
@@ -107,10 +109,10 @@ function Contenuto({ onOpenChange, riepilogo }: Omit<Props, "open">) {
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm">
                             {c.order_code && <span className="mr-1.5 text-xs text-muted-foreground">{c.order_code}</span>}
-                            {c.description || "Commessa senza descrizione"}
+                            {c.description || t("Commessa senza descrizione")}
                           </span>
                           <span className="block truncate text-xs text-muted-foreground">
-                            {[c.client_name, c.commessa_generale_id ? "già in un'altra commessa generale" : null].filter(Boolean).join(" · ")}
+                            {[c.client_name, c.commessa_generale_id ? t("già in un'altra commessa generale") : null].filter(Boolean).join(" · ")}
                           </span>
                         </span>
                         {c.total_amount != null && riepilogo.permessi.importi && (
@@ -125,16 +127,16 @@ function Contenuto({ onOpenChange, riepilogo }: Omit<Props, "open">) {
           </div>
           {inAltraGenerale > 0 && (
             <p className="text-xs text-amber-700 dark:text-amber-400">
-              {inAltraGenerale === 1 ? "Una delle commesse scelte è in un'altra generale: verrà spostata qui." : `${inAltraGenerale} commesse scelte sono in un'altra generale: verranno spostate qui.`}
+              {inAltraGenerale === 1 ? t("Una delle commesse scelte è in un'altra generale: verrà spostata qui.") : t("{n} commesse scelte sono in un'altra generale: verranno spostate qui.", { n: inAltraGenerale })}
             </p>
           )}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
           <Button onClick={conferma} disabled={scelte.size === 0 || collega.isPending}>
             {collega.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {scelte.size === 0 ? "Collega" : scelte.size === 1 ? "Collega 1 commessa" : `Collega ${scelte.size} commesse`}
+            {scelte.size === 0 ? t("Collega") : scelte.size === 1 ? t("Collega 1 commessa") : t("Collega {n} commesse", { n: scelte.size })}
           </Button>
         </DialogFooter>
     </>

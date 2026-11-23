@@ -5,6 +5,7 @@ import {
   QuoteCard,
   QuotePrimaryButton,
 } from "@/components/marketing/preventivi/ui/builderUI";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface OrdineNoteProps {
   notes: string | null;
@@ -27,9 +28,10 @@ export function OrdineNote({
   onCancel,
   onNotesChange,
 }: OrdineNoteProps) {
+  const t = useT();
   return (
     <QuoteCard
-      title="Note Interne"
+      title={t("Note Interne")}
       icon={<StickyNote className="h-4 w-4" />}
       action={
         !isEditing ? (
@@ -38,7 +40,7 @@ export function OrdineNote({
             onClick={onEdit}
             className="text-xs font-semibold text-orange-600 hover:text-orange-700 hover:underline"
           >
-            Modifica
+            {t("Modifica")}
           </button>
         ) : null
       }
@@ -49,7 +51,7 @@ export function OrdineNote({
             value={editedNotes}
             onChange={(e) => onNotesChange(e.target.value)}
             rows={4}
-            placeholder="Aggiungi note interne..."
+            placeholder={t("Aggiungi note interne...")}
             className="text-sm border-slate-200 focus-visible:ring-orange-500"
           />
           <div className="flex gap-2">
@@ -57,10 +59,10 @@ export function OrdineNote({
               {isSaving ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Salvataggio...
+                  {t("Salvataggio...")}
                 </>
               ) : (
-                "Salva"
+                t("Salva")
               )}
             </QuotePrimaryButton>
             <Button
@@ -69,14 +71,14 @@ export function OrdineNote({
               onClick={onCancel}
               className="text-xs"
             >
-              Annulla
+              {t("Annulla")}
             </Button>
           </div>
         </div>
       ) : (
-        <p className="text-sm text-slate-600 whitespace-pre-wrap">
+        <p dir="auto" className="text-sm text-slate-600 whitespace-pre-wrap">
           {notes || (
-            <span className="text-muted-foreground italic">Nessuna nota interna</span>
+            <span className="text-muted-foreground italic">{t("Nessuna nota interna")}</span>
           )}
         </p>
       )}

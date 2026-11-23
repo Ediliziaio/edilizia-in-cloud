@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Native disclosure: keyboard accessible and compatible with section deep links.
@@ -22,6 +23,7 @@ export function OrderDisclosure({
   description?: string;
   children: ReactNode;
 }) {
+  const t = useT();
   const [montato, setMontato] = useState(false);
   return (
     <details
@@ -39,9 +41,9 @@ export function OrderDisclosure({
           )}
         </span>
         <span className="flex shrink-0 items-center gap-1 text-xs font-semibold">
-          <span className="group-open/order-disclosure:hidden">Apri</span>
+          <span className="group-open/order-disclosure:hidden">{t("Apri")}</span>
           <span className="hidden group-open/order-disclosure:inline">
-            Chiudi
+            {t("Chiudi")}
           </span>
           <ChevronDown
             className="h-4 w-4 transition-transform group-open/order-disclosure:rotate-180"

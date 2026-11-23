@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { leggiMese, leggiNumeroItaliano } from "@/lib/orders/generali/pianoExcel";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { euro, nomeMese, testoMese, testoNumero } from "@/components/orders/generali/piano/formato";
 
 /** 14px anche qui (campi a 14px in tutta l'app). */
@@ -64,6 +65,7 @@ export function CellaImporto({ valore, onSalva, etichetta, vuotoPermesso = false
   suggerito?: number;
   className?: string;
 }) {
+  const tr = useT();
   const [aperta, setAperta] = useState(false);
   const [t, setT] = useState(testoNumero(valore));
   const salva = () => {
@@ -79,7 +81,7 @@ export function CellaImporto({ valore, onSalva, etichetta, vuotoPermesso = false
     }
     const n = leggiNumeroItaliano(pulito);
     if (n === null || n < 0) {
-      toast.error(`«${pulito}» non è un importo valido: scrivi un numero positivo, ad esempio 125.000,00.`);
+      toast.error(tr("«{valore}» non è un importo valido: scrivi un numero positivo, ad esempio 125.000,00.", { valore: pulito }));
       setT(testoNumero(valore));
       return;
     }
@@ -112,6 +114,7 @@ export function CellaMese({ valore, onSalva, etichetta, partenza }: {
   etichetta: string;
   partenza: string;
 }) {
+  const tr = useT();
   const [aperta, setAperta] = useState(false);
   const [t, setT] = useState(testoMese(valore));
   const salva = () => {
@@ -123,7 +126,7 @@ export function CellaMese({ valore, onSalva, etichetta, partenza }: {
     }
     const m = leggiMese(pulito, partenza);
     if (!m) {
-      toast.error(`«${pulito}» non è un mese: scrivi ad esempio 03/2027.`);
+      toast.error(tr("«{valore}» non è un mese: scrivi ad esempio 03/2027.", { valore: pulito }));
       setT(testoMese(valore));
       return;
     }
@@ -133,7 +136,7 @@ export function CellaMese({ valore, onSalva, etichetta, partenza }: {
     <input
       aria-label={etichetta}
       value={aperta ? t : valore ? nomeMese(valore) : ""}
-      placeholder={aperta ? "mm/aaaa" : "manca"}
+      placeholder={aperta ? tr("mm/aaaa") : tr("manca")}
       className={cn(CLASSE_CELLA, !valore && !aperta && "placeholder:text-amber-700 dark:placeholder:text-amber-400")}
       onFocus={(e) => {
         setAperta(true);
@@ -148,6 +151,7 @@ export function CellaMese({ valore, onSalva, etichetta, partenza }: {
 }
 
 export function CellaDurata({ valore, onSalva, etichetta }: { valore: number; onSalva: (v: number) => void; etichetta: string }) {
+  const tr = useT();
   const [aperta, setAperta] = useState(false);
   const [t, setT] = useState(String(valore));
   return (
@@ -166,7 +170,7 @@ export function CellaDurata({ valore, onSalva, etichetta }: { valore: number; on
         setAperta(false);
         const n = Number(t.trim());
         if (!Number.isInteger(n) || n < 1 || n > 120) {
-          toast.error("La durata è un numero di mesi, da 1 a 120.");
+          toast.error(tr("La durata è un numero di mesi, da 1 a 120."));
           setT(String(valore));
           return;
         }

@@ -24,6 +24,7 @@ import {
   type OrdineDiLavoro, type QuotaSubappaltata, type StatoDocumento, type Subappalto,
 } from "@/lib/orders/generali/subappalti";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   generaleId: string;
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export function SubappaltiContratto({ generaleId, dati, puoModificare }: Props) {
+  const tr = useT();
   const { data: s, isLoading, isError, refetch } = useSubappaltiGenerale(generaleId);
   const [soglia, setSoglia] = useState(false);
   const [daLegare, setDaLegare] = useState<string | null>(null);
@@ -40,13 +42,13 @@ export function SubappaltiContratto({ generaleId, dati, puoModificare }: Props) 
   if (isError || !s) {
     return (
       <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 text-sm">
-        Non riesco a leggere i subappalti.
-        <Button size="sm" variant="outline" onClick={() => void refetch()}>Riprova</Button>
+        {tr("Non riesco a leggere i subappalti.")}
+        <Button size="sm" variant="outline" onClick={() => void refetch()}>{tr("Riprova")}</Button>
       </div>
     );
   }
   if (!s.permessi.vede) {
-    return <ProssimoPasso testo="I subappalti sono costi: li vede chi ha il permesso di vedere i costi e l'amministrazione dei subappaltatori." />;
+    return <ProssimoPasso testo={tr("I subappalti sono costi: li vede chi ha il permesso di vedere i costi e l'amministrazione dei subappaltatori.")} />;
   }
 
   const modifica = puoModificare && s.permessi.modifica;
@@ -61,67 +63,67 @@ export function SubappaltiContratto({ generaleId, dati, puoModificare }: Props) 
   return (
     <div className="space-y-4">
       {s.subappalti.length === 0 ? (
-        <ProssimoPasso testo="Nessun subappalto sugli ordini di lavoro. Il contratto con la ditta si prepara dalla commessa dell'ordine (Ditte e contratti) o dalla scheda del subappaltatore: qui compare da solo, con i suoi SAL e il DURC." />
+        <ProssimoPasso testo={tr("Nessun subappalto sugli ordini di lavoro. Il contratto con la ditta si prepara dalla commessa dell'ordine (Ditte e contratti) o dalla scheda del subappaltatore: qui compare da solo, con i suoi SAL e il DURC.")} />
       ) : (
         <>
           <AvvisoQuota quota={quota} />
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             <NumeroCheSiApre
-              etichetta="Subappaltato"
+              etichetta={tr("Subappaltato")}
               valore={euro(quota.importo)}
-              nota={quota.pct !== null ? `${percentoIt(quota.pct)} del contratto` : "manca il valore del contratto"}
-              titolo="I subappalti del contratto"
-              descrizione="Lavori più oneri della sicurezza. I subappalti risolti non contano."
+              nota={quota.pct !== null ? tr("{perc} del contratto", { perc: percentoIt(quota.pct) }) : tr("manca il valore del contratto")}
+              titolo={tr("I subappalti del contratto")}
+              descrizione={tr("Lavori più oneri della sicurezza. I subappalti risolti non contano.")}
               righe={[
                 ...s.subappalti.filter(contaNellaQuota).map((x): RigaOrigine => ({
                   etichetta: x.subappaltatore.nome, valore: euro(valoreSubappalto(x)), nota: x.descrizione || undefined,
                 })),
-                { etichetta: "Subappaltato", valore: euro(quota.importo), tono: "totale" },
-                ...(valore !== null ? [{ etichetta: "Valore aggiornato del contratto", valore: euro(valore) }] : []),
+                { etichetta: tr("Subappaltato"), valore: euro(quota.importo), tono: "totale" },
+                ...(valore !== null ? [{ etichetta: tr("Valore aggiornato del contratto"), valore: euro(valore) }] : []),
               ]}
             />
             <NumeroCheSiApre
-              etichetta="Soglia"
-              valore={quota.sogliaPct !== null ? percentoIt(quota.sogliaPct) : "Nessuna"}
+              etichetta={tr("Soglia")}
+              valore={quota.sogliaPct !== null ? percentoIt(quota.sogliaPct) : tr("Nessuna")}
               tono={quota.stato === "oltre" ? "rosso" : undefined}
-              nota={quota.margineSoglia === null ? (quota.sogliaPct === null ? "nessun limite impostato" : "manca il valore del contratto")
-                : quota.margineSoglia >= 0 ? `ancora ${euro(quota.margineSoglia)} subappaltabili` : `oltre di ${euro(-quota.margineSoglia)}`}
+              nota={quota.margineSoglia === null ? (quota.sogliaPct === null ? tr("nessun limite impostato") : tr("manca il valore del contratto"))
+                : quota.margineSoglia >= 0 ? tr("ancora {importo} subappaltabili", { importo: euro(quota.margineSoglia) }) : tr("oltre di {importo}", { importo: euro(-quota.margineSoglia) })}
             />
             <NumeroCheSiApre
-              etichetta="SAL dei subappaltatori"
+              etichetta={tr("SAL dei subappaltatori")}
               valore={euro(confronto.passivi.lordo)}
-              nota={confronto.quotaPassiviPct !== null ? `${percentoIt(confronto.quotaPassiviPct)} dei SAL del contratto` : "nessun SAL del contratto"}
-              titolo="SAL ricevuti dai subappaltatori"
-              descrizione="Lordo dei SAL non contestati."
-              righe={righeSalPassivi(s.subappalti, confronto.passivi.lordo)}
+              nota={confronto.quotaPassiviPct !== null ? tr("{perc} dei SAL del contratto", { perc: percentoIt(confronto.quotaPassiviPct) }) : tr("nessun SAL del contratto")}
+              titolo={tr("SAL ricevuti dai subappaltatori")}
+              descrizione={tr("Lordo dei SAL non contestati.")}
+              righe={righeSalPassivi(s.subappalti, confronto.passivi.lordo, tr)}
             />
             <NumeroCheSiApre
-              etichetta="Da pagare ai subappaltatori"
+              etichetta={tr("Da pagare ai subappaltatori")}
               valore={euro(confronto.passivi.daPagare)}
-              nota={`pagati ${euro(confronto.passivi.pagato)}`}
+              nota={tr("pagati {importo}", { importo: euro(confronto.passivi.pagato) })}
               righe={[
-                { etichetta: "Netto dei SAL", valore: euro(confronto.passivi.netto) },
-                { etichetta: "Pagato", valore: euro(-confronto.passivi.pagato), tono: "meno" },
-                { etichetta: "Da pagare", valore: euro(confronto.passivi.daPagare), tono: "totale" },
-                ...(confronto.passivi.contestati > 0 ? [{ etichetta: "SAL contestati, esclusi", valore: String(confronto.passivi.contestati) }] : []),
+                { etichetta: tr("Netto dei SAL"), valore: euro(confronto.passivi.netto) },
+                { etichetta: tr("Pagato"), valore: euro(-confronto.passivi.pagato), tono: "meno" },
+                { etichetta: tr("Da pagare"), valore: euro(confronto.passivi.daPagare), tono: "totale" },
+                ...(confronto.passivi.contestati > 0 ? [{ etichetta: tr("SAL contestati, esclusi"), valore: String(confronto.passivi.contestati) }] : []),
               ]}
             />
           </div>
 
           <section aria-labelledby="confronto-sal-titolo" className="rounded-lg border bg-card">
-            <h3 id="confronto-sal-titolo" className="border-b px-4 py-3 text-sm font-semibold">Quanto incasso contro quanto devo ai subappaltatori</h3>
+            <h3 id="confronto-sal-titolo" className="border-b px-4 py-3 text-sm font-semibold">{tr("Quanto incasso contro quanto devo ai subappaltatori")}</h3>
             <dl className="grid grid-cols-1 gap-x-6 gap-y-2 px-4 py-3 text-sm sm:grid-cols-2">
-              <Confronto etichetta="A SAL col committente" valore={confronto.attiviASal} />
-              <Confronto etichetta="Incassato dal committente" valore={confronto.incassato} />
-              <Confronto etichetta="SAL dei subappaltatori" valore={-confronto.passivi.lordo} />
-              <Confronto etichetta="Pagato ai subappaltatori" valore={-confronto.passivi.pagato} />
-              <Confronto etichetta="Resta sui lavori a SAL" valore={confronto.differenzaSal} totale />
-              <Confronto etichetta="Resta in cassa" valore={confronto.differenzaCassa} totale />
+              <Confronto etichetta={tr("A SAL col committente")} valore={confronto.attiviASal} />
+              <Confronto etichetta={tr("Incassato dal committente")} valore={confronto.incassato} />
+              <Confronto etichetta={tr("SAL dei subappaltatori")} valore={-confronto.passivi.lordo} />
+              <Confronto etichetta={tr("Pagato ai subappaltatori")} valore={-confronto.passivi.pagato} />
+              <Confronto etichetta={tr("Resta sui lavori a SAL")} valore={confronto.differenzaSal} totale />
+              <Confronto etichetta={tr("Resta in cassa")} valore={confronto.differenzaCassa} totale />
             </dl>
             {confronto.passivi.daPagare > 0 && confronto.differenzaCassa < confronto.passivi.daPagare && (
               <p className="flex items-start gap-2 border-t px-4 py-2 text-xs text-amber-800 dark:text-amber-300">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Per pagare i SAL dei subappaltatori ({euro(confronto.passivi.daPagare)}) non basta quanto incassato finora.
+                {tr("Per pagare i SAL dei subappaltatori ({importo}) non basta quanto incassato finora.", { importo: euro(confronto.passivi.daPagare) })}
               </p>
             )}
           </section>
@@ -129,10 +131,10 @@ export function SubappaltiContratto({ generaleId, dati, puoModificare }: Props) 
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">{s.subappalti.length > 0 ? `I subappalti · ${s.subappalti.length}` : ""}</h3>
+        <h3 className="text-sm font-semibold">{s.subappalti.length > 0 ? tr("I subappalti · {n}", { n: s.subappalti.length }) : ""}</h3>
         {modifica && (
           <Button size="sm" variant="outline" onClick={() => setSoglia(true)}>
-            <Settings2 className="mr-1.5 h-3.5 w-3.5" /> {s.sogliaPct === null ? "Imposta una soglia" : "Cambia la soglia"}
+            <Settings2 className="mr-1.5 h-3.5 w-3.5" /> {s.sogliaPct === null ? tr("Imposta una soglia") : tr("Cambia la soglia")}
           </Button>
         )}
       </div>
@@ -155,19 +157,20 @@ export function SubappaltiContratto({ generaleId, dati, puoModificare }: Props) 
   );
 }
 
-function righeSalPassivi(subappalti: Subappalto[], totale: number): RigaOrigine[] {
+function righeSalPassivi(subappalti: Subappalto[], totale: number, tr: ReturnType<typeof useT>): RigaOrigine[] {
   return [
     ...subappalti.flatMap((x) => x.sal.map((sal): RigaOrigine => ({
-      etichetta: `${x.subappaltatore.nome} · SAL n. ${sal.numero}`,
+      etichetta: tr("{nome} · SAL n. {numero}", { nome: x.subappaltatore.nome, numero: sal.numero }),
       valore: euro(sal.lordo),
-      nota: `${dataIt(sal.data)} · ${STATI_SAL_PASSIVO[sal.stato] ?? sal.stato}${sal.stato === "contestato" ? ", escluso" : ""}`,
+      nota: `${dataIt(sal.data)} · ${STATI_SAL_PASSIVO[sal.stato] ? tr(STATI_SAL_PASSIVO[sal.stato]) : sal.stato}${sal.stato === "contestato" ? tr(", escluso") : ""}`,
       tono: sal.stato === "contestato" ? "meno" : undefined,
     }))),
-    { etichetta: "Totale", valore: euro(totale), tono: "totale" },
+    { etichetta: tr("Totale"), valore: euro(totale), tono: "totale" },
   ];
 }
 
 function AvvisoQuota({ quota }: { quota: QuotaSubappaltata }) {
+  const t = useT();
   if (quota.stato !== "oltre" && quota.stato !== "vicina") return null;
   const oltre = quota.stato === "oltre";
   return (
@@ -179,8 +182,8 @@ function AvvisoQuota({ quota }: { quota: QuotaSubappaltata }) {
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
       <p>
         {oltre
-          ? <>Subappaltato il {percentoIt(quota.pct ?? 0)} del contratto: oltre la soglia del {percentoIt(quota.sogliaPct ?? 0)} di {euro(-(quota.margineSoglia ?? 0))}. Serve un'autorizzazione o un subappalto in meno.</>
-          : <>Subappaltato il {percentoIt(quota.pct ?? 0)} del contratto, vicino alla soglia del {percentoIt(quota.sogliaPct ?? 0)}: restano {euro(quota.margineSoglia)}.</>}
+          ? t("Subappaltato il {perc} del contratto: oltre la soglia del {soglia} di {importo}. Serve un'autorizzazione o un subappalto in meno.", { perc: percentoIt(quota.pct ?? 0), soglia: percentoIt(quota.sogliaPct ?? 0), importo: euro(-(quota.margineSoglia ?? 0)) })
+          : t("Subappaltato il {perc} del contratto, vicino alla soglia del {soglia}: restano {importo}.", { perc: percentoIt(quota.pct ?? 0), soglia: percentoIt(quota.sogliaPct ?? 0), importo: euro(quota.margineSoglia) })}
       </p>
     </div>
   );
@@ -203,14 +206,15 @@ const STILE_DOCUMENTO: Record<StatoDocumento, string> = {
   mancante: "border-red-300 bg-red-50 text-red-900 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200",
 };
 
-function testoDurc(stato: StatoDocumento, scadenza: string | null) {
-  if (stato === "mancante") return "DURC mancante";
-  if (stato === "senza_scadenza") return "DURC senza scadenza";
-  if (stato === "scaduto") return `DURC scaduto il ${dataIt(scadenza)}`;
-  return `DURC fino al ${dataIt(scadenza)}`;
+function testoDurc(stato: StatoDocumento, scadenza: string | null, tr: ReturnType<typeof useT>) {
+  if (stato === "mancante") return tr("DURC mancante");
+  if (stato === "senza_scadenza") return tr("DURC senza scadenza");
+  if (stato === "scaduto") return tr("DURC scaduto il {data}", { data: dataIt(scadenza) });
+  return tr("DURC fino al {data}", { data: dataIt(scadenza) });
 }
 
 function SchedaSubappalto({ s, ordini, oggi, onLega }: { s: Subappalto; ordini: OrdineDiLavoro[]; oggi: string; onLega?: () => void }) {
+  const tr = useT();
   const durc = durcSubappaltatore(s, oggi);
   const altri = documentiDaGuardare(s, oggi);
   const suoi = ordiniDelSubappalto(s, ordini);
@@ -228,40 +232,40 @@ function SchedaSubappalto({ s, ordini, oggi, onLega }: { s: Subappalto; ordini: 
             {s.subappaltatore.id ? (
               <Link to={`/azienda/subappaltatori/${s.subappaltatore.id}`} className="hover:underline">{s.subappaltatore.nome}</Link>
             ) : s.subappaltatore.nome}
-            {s.numero && <span className="ml-1.5 text-xs font-normal text-muted-foreground">contratto {s.numero}</span>}
+            {s.numero && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{tr("contratto {numero}", { numero: s.numero })}</span>}
           </p>
           {s.descrizione && <p className="text-xs text-muted-foreground">{s.descrizione}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="rounded-full border px-2 py-0.5 text-[11px] font-medium">{STATI_SUBAPPALTO[s.stato] ?? s.stato}</span>
+          <span className="rounded-full border px-2 py-0.5 text-[11px] font-medium">{STATI_SUBAPPALTO[s.stato] ? tr(STATI_SUBAPPALTO[s.stato]) : s.stato}</span>
           <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium", STILE_DOCUMENTO[durc.stato])}>
-            <DurcIcona className="h-3 w-3" /> {testoDurc(durc.stato, durc.scadenza)}
+            <DurcIcona className="h-3 w-3" /> {testoDurc(durc.stato, durc.scadenza, tr)}
           </span>
         </div>
       </div>
 
       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
-        <div><dt className="text-xs text-muted-foreground">Valore</dt><dd className="tabular-nums">{euro(valore)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">{tr("Valore")}</dt><dd className="tabular-nums">{euro(valore)}</dd></div>
         <div>
-          <dt className="text-xs text-muted-foreground">A SAL</dt>
+          <dt className="text-xs text-muted-foreground">{tr("A SAL")}</dt>
           <dd className="tabular-nums">{euro(lordo)}{avanzamento !== null && <span className="ml-1 text-xs text-muted-foreground">{avanzamento}%</span>}</dd>
         </div>
-        <div><dt className="text-xs text-muted-foreground">Pagato</dt><dd className="tabular-nums">{euro(pagato)}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Periodo</dt><dd>{s.dataInizio || s.dataFinePrevista ? `${dataIt(s.dataInizio)} → ${dataIt(s.dataFinePrevista)}` : "—"}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">{tr("Pagato")}</dt><dd className="tabular-nums">{euro(pagato)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">{tr("Periodo")}</dt><dd>{s.dataInizio || s.dataFinePrevista ? `${dataIt(s.dataInizio)} → ${dataIt(s.dataFinePrevista)}` : "—"}</dd></div>
       </dl>
 
       {altri.length > 0 && (
         <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
           {altri.map((d) => (
             <span key={d.tipo} className={cn("rounded-full border px-2 py-0.5", STILE_DOCUMENTO[d.stato])}>
-              {NOMI_DOCUMENTO[d.tipo] ?? d.tipo} {d.stato === "scaduto" ? "scaduto" : "in scadenza"} il {dataIt(d.scadenza)}
+              {tr(d.stato === "scaduto" ? "{documento} scaduto il {data}" : "{documento} in scadenza il {data}", { documento: NOMI_DOCUMENTO[d.tipo] ? tr(NOMI_DOCUMENTO[d.tipo]) : d.tipo, data: dataIt(d.scadenza) })}
             </span>
           ))}
         </p>
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t pt-2">
-        <span className="text-xs text-muted-foreground">Ordini di lavoro:</span>
+        <span className="text-xs text-muted-foreground">{tr("Ordini di lavoro:")}</span>
         {suoi.map((o) => (
           <Link key={o.id} to={`/azienda/ordini/${o.id}`} className="rounded-full border px-2 py-0.5 text-xs hover:bg-muted/50">
             {nomeOrdine(o)}
@@ -269,11 +273,11 @@ function SchedaSubappalto({ s, ordini, oggi, onLega }: { s: Subappalto; ordini: 
         ))}
         <div className="ml-auto flex items-center gap-1">
           {onLega && (
-            <Button size="sm" variant="ghost" className="h-8" onClick={onLega}><Link2 className="mr-1.5 h-3.5 w-3.5" /> Ordini</Button>
+            <Button size="sm" variant="ghost" className="h-8" onClick={onLega}><Link2 className="mr-1.5 h-3.5 w-3.5" /> {tr("Ordini")}</Button>
           )}
           {s.subappaltatore.id && (
             <Button asChild size="sm" variant="ghost" className="h-8">
-              <Link to={`/azienda/subappaltatori/${s.subappaltatore.id}`}><ExternalLink className="mr-1.5 h-3.5 w-3.5" /> SAL e documenti</Link>
+              <Link to={`/azienda/subappaltatori/${s.subappaltatore.id}`}><ExternalLink className="mr-1.5 h-3.5 w-3.5" /> {tr("SAL e documenti")}</Link>
             </Button>
           )}
         </div>
@@ -283,12 +287,13 @@ function SchedaSubappalto({ s, ordini, oggi, onLega }: { s: Subappalto; ordini: 
 }
 
 function SogliaDialog({ open, onOpenChange, generaleId, sogliaPct }: { open: boolean; onOpenChange: (o: boolean) => void; generaleId: string; sogliaPct: number | null }) {
+  const t = useT();
   const salva = useSogliaSubappalti(generaleId);
   const [valore, setValore] = useState<number | null>(sogliaPct);
   const sbagliato = valore !== null && (Number.isNaN(valore) || valore <= 0 || valore > 100);
   const conferma = () => {
     salva.mutate(valore, {
-      onSuccess: () => { toast.success(valore === null ? "Soglia tolta" : `Soglia al ${percentoIt(valore)}`); onOpenChange(false); },
+      onSuccess: () => { toast.success(valore === null ? t("Soglia tolta") : t("Soglia al {perc}", { perc: percentoIt(valore) })); onOpenChange(false); },
       onError: (e) => toast.error(messaggioGenerale(e, "la soglia")),
     });
   };
@@ -296,25 +301,24 @@ function SogliaDialog({ open, onOpenChange, generaleId, sogliaPct }: { open: boo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Soglia dei subappalti</DialogTitle>
+          <DialogTitle>{t("Soglia dei subappalti")}</DialogTitle>
           <DialogDescription>
-            Quanta parte del contratto si può subappaltare. Negli appalti pubblici la indicano il bando o il contratto;
-            in quelli privati di solito non c'è. Lascia vuoto per non avere avvisi.
+            {t("Quanta parte del contratto si può subappaltare. Negli appalti pubblici la indicano il bando o il contratto; in quelli privati di solito non c'è. Lascia vuoto per non avere avvisi.")}
           </DialogDescription>
         </DialogHeader>
         {open && (
           <CampoNumero
-            etichetta="Soglia sul valore aggiornato del contratto"
+            etichetta={t("Soglia sul valore aggiornato del contratto")}
             valore={sogliaPct}
             onChange={setValore}
             suffisso="%"
-            placeholder="Nessuna"
-            errore={sbagliato && !Number.isNaN(valore) ? "Una percentuale tra 0 e 100." : undefined}
+            placeholder={t("Nessuna")}
+            errore={sbagliato && !Number.isNaN(valore) ? t("Una percentuale tra 0 e 100.") : undefined}
           />
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-          <Button onClick={conferma} disabled={sbagliato || salva.isPending}>Salva</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
+          <Button onClick={conferma} disabled={sbagliato || salva.isPending}>{t("Salva")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -322,6 +326,7 @@ function SogliaDialog({ open, onOpenChange, generaleId, sogliaPct }: { open: boo
 }
 
 function LegaOrdiniDialog({ generaleId, s, ordini, onChiudi }: { generaleId: string; s: Subappalto; ordini: OrdineDiLavoro[]; onChiudi: () => void }) {
+  const t = useT();
   const collega = useCollegaSubappalto(generaleId);
   const [scelti, setScelti] = useState<Set<string>>(() => new Set(s.ordiniCollegati));
   const cambia = (id: string, si: boolean) => setScelti((prima) => {
@@ -331,7 +336,7 @@ function LegaOrdiniDialog({ generaleId, s, ordini, onChiudi }: { generaleId: str
   });
   const conferma = () => {
     collega.mutate({ contrattoId: s.id, ordini: [...scelti] }, {
-      onSuccess: () => { toast.success("Ordini di lavoro aggiornati"); onChiudi(); },
+      onSuccess: () => { toast.success(t("Ordini di lavoro aggiornati")); onChiudi(); },
       onError: (e) => toast.error(messaggioGenerale(e, "il subappalto")),
     });
   };
@@ -339,9 +344,9 @@ function LegaOrdiniDialog({ generaleId, s, ordini, onChiudi }: { generaleId: str
     <Dialog open onOpenChange={(o) => !o && onChiudi()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Su quali ordini lavora {s.subappaltatore.nome}</DialogTitle>
+          <DialogTitle>{t("Su quali ordini lavora {nome}", { nome: s.subappaltatore.nome })}</DialogTitle>
           <DialogDescription>
-            Il contratto resta uno, con i suoi SAL: qui dici a quali altri ordini di lavoro dello stesso appalto si riferisce.
+            {t("Il contratto resta uno, con i suoi SAL: qui dici a quali altri ordini di lavoro dello stesso appalto si riferisce.")}
           </DialogDescription>
         </DialogHeader>
         <ul className="max-h-[50dvh] space-y-1 overflow-y-auto">
@@ -356,15 +361,15 @@ function LegaOrdiniDialog({ generaleId, s, ordini, onChiudi }: { generaleId: str
                     onCheckedChange={(v) => cambia(o.id, v === true)}
                   />
                   <span className="min-w-0 flex-1 truncate">{nomeOrdine(o)}</span>
-                  {principale && <span className="text-xs text-muted-foreground">contratto fatto qui</span>}
+                  {principale && <span className="text-xs text-muted-foreground">{t("contratto fatto qui")}</span>}
                 </label>
               </li>
             );
           })}
         </ul>
         <DialogFooter>
-          <Button variant="outline" onClick={onChiudi}>Annulla</Button>
-          <Button onClick={conferma} disabled={collega.isPending}>Salva</Button>
+          <Button variant="outline" onClick={onChiudi}>{t("Annulla")}</Button>
+          <Button onClick={conferma} disabled={collega.isPending}>{t("Salva")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

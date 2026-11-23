@@ -47,7 +47,8 @@ describe("contratto di composizione del dettaglio commessa", () => {
     const overview = named("TabsContent").find(tag => value(tag, "value") === '"panoramica"')!.parent.getText(source);
     const site = named("TabsContent").find(tag => value(tag, "value") === '"cantiere"')!.parent.getText(source);
     expect(overview).not.toContain("figureResponsabilita");
-    expect(site).toContain('aria-label="Organizzazione del contratto"');
+    // L'etichetta può essere tradotta: aria-label="…" oppure aria-label={t("…")}.
+    expect(site).toMatch(/aria-label=(?:"Organizzazione del contratto"|\{t\("Organizzazione del contratto"\)\})/);
     expect(site).toContain("{figureResponsabilita}");
     expect(column(fields[0])).toBe(column(named("OrdineCliente")[0]));
     expect(value(assignments[0], "companyId")).toBe("{companyId}");

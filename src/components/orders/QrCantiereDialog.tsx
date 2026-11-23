@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { TIPI_DOCUMENTO_CANTIERE, URL_DOCUMENTI_CANTIERE, type TipoDocumentoCantiere } from "@/lib/commesse/documentiCantiere";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   orderId: string;
@@ -19,9 +20,10 @@ interface Props {
 
 type AzioneQr = { tipo: "salva" } | { tipo: "revoca"; revisione: string };
 
-function stampaQr(png: string, codice?: string) {
+/** Il cartello stampato resta in italiano (va appeso in cantiere): `t` serve solo ai messaggi a schermo. */
+function stampaQr(png: string, t: ReturnType<typeof useT>, codice?: string) {
   const scheda = window.open("about:blank", "_blank");
-  if (!scheda) return toast.error("Consenti l’apertura delle finestre per stampare il QR");
+  if (!scheda) return toast.error(t("Consenti l’apertura delle finestre per stampare il QR"));
   scheda.opener = null;
   const doc = scheda.document;
   doc.title = "Cartello documenti di cantiere";
@@ -43,10 +45,11 @@ function stampaQr(png: string, codice?: string) {
   stampa.onclick = () => scheda.print();
   main.append(titolo, commessa, immagine, azione);
   doc.body.append(main, stampa);
-  void immagine.decode().then(() => scheda.print()).catch(() => toast.error("Impossibile aprire l’immagine del QR"));
+  void immagine.decode().then(() => scheda.print()).catch(() => toast.error(t("Impossibile aprire l’immagine del QR")));
 }
 
 export function QrCantiereDialog({ orderId, codice, documenti, onClose }: Props) {
+  const t = useT();
   const key = ["commessa-qr-cantiere", orderId];
   const cache = useQueryClient();
   const query = useQuery({ queryKey: key, queryFn: async () => {
@@ -75,7 +78,7 @@ export function QrCantiereDialog({ orderId, codice, documenti, onClose }: Props)
     let attuale = true;
     void import("qrcode").then(qr => qr.toDataURL(url, { width: 768, margin: 4, errorCorrectionLevel: "M" }))
       .then(png => { if (attuale) setPng({ url, immagine: png }); })
-      .catch(() => { if (attuale) toast.error("Impossibile generare l’immagine del QR"); });
+      .catch(() => { if (attuale) toast.error(t("Impossibile generare l’immagine del QR")); });
     return () => { attuale = false; };
   }, [url]);
 
@@ -85,10 +88,10 @@ export function QrCantiereDialog({ orderId, codice, documenti, onClose }: Props)
         const { data, error } = await supabase.from("commessa_qr_cantiere").delete()
           .eq("order_id", orderId).eq("revisione", azione.revisione).select("order_id").maybeSingle();
         if (error) throw error;
-        if (!data) throw new Error("QR modificato da un altro utente");
+        if (!data) throw new Error(t("QR modificato da un altro utente"));
         return null;
       }
-      if (!bozza || cambiatoAltrove) throw new Error("Il QR è stato aggiornato nel frattempo");
+      if (!bozza || cambiatoAltrove) throw new Error(t("Il QR è stato aggiornato nel frattempo"));
       const tabella = supabase.from("commessa_qr_cantiere");
       const comando = bozza.revisione
         ? tabella.update({ documento_ids: selezionati, revisione: crypto.randomUUID() }).eq("order_id", orderId).eq("revisione", bozza.revisione)
@@ -102,15 +105,15 @@ export function QrCantiereDialog({ orderId, codice, documenti, onClose }: Props)
       setBozza(null);
       setConfermaRevoca(null);
       setMostraLink(false);
-      toast.success(azione.tipo === "revoca" ? "QR revocato" : attivo ? "Documenti del QR aggiornati" : "QR attivato");
+      toast.success(azione.tipo === "revoca" ? t("QR revocato") : attivo ? t("Documenti del QR aggiornati") : t("QR attivato"));
     },
-    onError: () => { toast.error("Modifiche al QR non salvate. Verifica i permessi e ricarica lo stato."); void query.refetch(); },
+    onError: () => { toast.error(t("Modifiche al QR non salvate. Verifica i permessi e ricarica lo stato.")); void query.refetch(); },
   });
 
   async function copiaLink() {
     try {
       await navigator.clipboard.writeText(url);
-      toast.success("Link copiato");
+      toast.success(t("Link copiato"));
     } catch {
       setMostraLink(true);
     }
@@ -119,64 +122,64 @@ export function QrCantiereDialog({ orderId, codice, documenti, onClose }: Props)
   return <>
     <Dialog open onOpenChange={open => { if (!open && !mutazione.isPending) onClose(); }}>
       <DialogContent className="flex max-h-[88dvh] max-w-2xl flex-col overflow-y-auto">
-        <DialogHeader><DialogTitle className="flex items-center gap-2"><QrCode className="h-5 w-5 text-primary" /> QR documenti di cantiere</DialogTitle>
-          <DialogDescription>Chiunque abbia il QR può consultare e scaricare i documenti selezionati. Controlla che siano adatti alla condivisione in cantiere.</DialogDescription>
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><QrCode className="h-5 w-5 text-primary" /> {t("QR documenti di cantiere")}</DialogTitle>
+          <DialogDescription>{t("Chiunque abbia il QR può consultare e scaricare i documenti selezionati. Controlla che siano adatti alla condivisione in cantiere.")}</DialogDescription>
         </DialogHeader>
-        {query.isPending ? <p role="status" className="text-sm">Caricamento del QR…</p> : query.isError ? <div role="alert" className="space-y-2 text-sm">
-          <p>Stato del QR non disponibile.</p><Button variant="outline" onClick={() => void query.refetch()}>Riprova</Button>
+        {query.isPending ? <p role="status" className="text-sm">{t("Caricamento del QR…")}</p> : query.isError ? <div role="alert" className="space-y-2 text-sm">
+          <p>{t("Stato del QR non disponibile.")}</p><Button variant="outline" onClick={() => void query.refetch()}>{t("Riprova")}</Button>
         </div> : <>
           {attivo && <div className="flex flex-wrap items-center gap-4 rounded-xl border bg-muted/40 p-3">
-            {immagine && <img src={immagine} alt="QR dei documenti di cantiere" className="h-28 w-28 rounded bg-white" width={112} height={112} />}
-            <div className="flex-1 space-y-2"><p className="text-sm font-medium">QR attivo{!correnti.length && " · Nessun documento condiviso"}</p>
+            {immagine && <img src={immagine} alt={t("QR dei documenti di cantiere")} className="h-28 w-28 rounded bg-white" width={112} height={112} />}
+            <div className="flex-1 space-y-2"><p className="text-sm font-medium">{t("QR attivo")}{!correnti.length && ` · ${t("Nessun documento condiviso")}`}</p>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => stampaQr(immagine, codice)} disabled={!immagine}><Printer className="mr-2 h-4 w-4" /> Stampa QR</Button>
-                <Button size="sm" variant="outline" asChild><a href={url} target="_blank" rel="noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Apri pagina</a></Button>
-                <Button size="sm" variant="ghost" onClick={() => void copiaLink()}><Copy className="mr-2 h-4 w-4" /> Copia link</Button>
+                <Button size="sm" variant="outline" onClick={() => stampaQr(immagine, t, codice)} disabled={!immagine}><Printer className="mr-2 h-4 w-4" /> {t("Stampa QR")}</Button>
+                <Button size="sm" variant="outline" asChild><a href={url} target="_blank" rel="noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> {t("Apri pagina")}</a></Button>
+                <Button size="sm" variant="ghost" onClick={() => void copiaLink()}><Copy className="mr-2 h-4 w-4" /> {t("Copia link")}</Button>
               </div>
-              {mostraLink && <Input aria-label="Link da copiare" value={url} readOnly onFocus={e => e.currentTarget.select()} />}
+              {mostraLink && <Input aria-label={t("Link da copiare")} value={url} readOnly onFocus={e => e.currentTarget.select()} />}
             </div>
           </div>}
           {cambiatoAltrove && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted p-3 text-sm">
-            <span>La selezione del QR è cambiata mentre la stavi modificando.</span>
-            <Button size="sm" variant="outline" onClick={() => setBozza(null)}>Carica le modifiche più recenti</Button>
+            <span>{t("La selezione del QR è cambiata mentre la stavi modificando.")}</span>
+            <Button size="sm" variant="outline" onClick={() => setBozza(null)}>{t("Carica le modifiche più recenti")}</Button>
           </div>}
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium">Documenti da mostrare <span className="font-normal text-muted-foreground">· {selezionati.length} selezionati</span></p>
+              <p className="text-sm font-medium">{t("Documenti da mostrare")} <span className="font-normal text-muted-foreground">· {t("{n} selezionati", { n: selezionati.length })}</span></p>
               {documenti.length > 1 && <Button variant="ghost" size="sm" disabled={mutazione.isPending || cambiatoAltrove}
                 onClick={() => setScelta(tuttiSelezionati ? [] : documenti.map(doc => doc.id))}>
-                {tuttiSelezionati ? "Azzera selezione" : "Seleziona tutti"}
+                {tuttiSelezionati ? t("Azzera selezione") : t("Seleziona tutti")}
               </Button>}
             </div>
-            {estranei > 0 && <p className="text-xs text-amber-700">Alcuni documenti del QR sono stati rimossi o hanno cambiato riservatezza o revisione.</p>}
-            {documenti.length === 0 ? <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">Carica un documento di cantiere con accesso operativo. Le revisioni in lavorazione o superate non sono disponibili per il QR.</p> :
+            {estranei > 0 && <p className="text-xs text-amber-700">{t("Alcuni documenti del QR sono stati rimossi o hanno cambiato riservatezza o revisione.")}</p>}
+            {documenti.length === 0 ? <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">{t("Carica un documento di cantiere con accesso operativo. Le revisioni in lavorazione o superate non sono disponibili per il QR.")}</p> :
               <div className="max-h-64 divide-y overflow-y-auto rounded-lg border">
                 {documenti.map(doc => <label key={doc.id} className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm">
                   <Checkbox checked={selezionati.includes(doc.id)} disabled={mutazione.isPending || cambiatoAltrove}
                     onCheckedChange={valore => setScelta(valore ? [...selezionati, doc.id] : selezionati.filter(id => id !== doc.id))} />
-                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">{doc.file_name}<span className="block text-xs text-muted-foreground">{doc.cantiere_tipo && TIPI_DOCUMENTO_CANTIERE[doc.cantiere_tipo]}</span></span>
+                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">{doc.file_name}<span className="block text-xs text-muted-foreground">{doc.cantiere_tipo && t(TIPI_DOCUMENTO_CANTIERE[doc.cantiere_tipo])}</span></span>
                 </label>)}
               </div>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
-            {attivo && <Button variant="ghost" className="mr-auto text-destructive" disabled={mutazione.isPending} onClick={() => setConfermaRevoca(attivo.revisione)}>Revoca QR</Button>}
-            <Button variant="outline" onClick={onClose} disabled={mutazione.isPending}>Chiudi</Button>
+            {attivo && <Button variant="ghost" className="mr-auto text-destructive" disabled={mutazione.isPending} onClick={() => setConfermaRevoca(attivo.revisione)}>{t("Revoca QR")}</Button>}
+            <Button variant="outline" onClick={onClose} disabled={mutazione.isPending}>{t("Chiudi")}</Button>
             <Button disabled={mutazione.isPending || cambiatoAltrove || !bozza || !modificato || (!attivo && selezionati.length === 0)} onClick={() => mutazione.mutate({ tipo: "salva" })}>
-              {mutazione.isPending ? "Salvataggio…" : attivo ? "Aggiorna documenti" : "Attiva e genera QR"}
+              {mutazione.isPending ? t("Salvataggio…") : attivo ? t("Aggiorna documenti") : t("Attiva e genera QR")}
             </Button>
           </div>
         </>}
       </DialogContent>
     </Dialog>
     <AlertDialog open={confermaRevoca !== null} onOpenChange={open => { if (!open) setConfermaRevoca(null); }}>
-      <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Revocare il QR?</AlertDialogTitle>
+      <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t("Revocare il QR?")}</AlertDialogTitle>
         <AlertDialogDescription>{confermaRevoca !== revisione
-          ? "Il QR è cambiato. Chiudi questa conferma e aprila di nuovo per revocare il QR attuale."
-          : "Il cartello già stampato smetterà di aprire la pagina. Se lo riattivi, dovrai stampare il nuovo QR."}</AlertDialogDescription>
-      </AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Annulla</AlertDialogCancel><AlertDialogAction
+          ? t("Il QR è cambiato. Chiudi questa conferma e aprila di nuovo per revocare il QR attuale.")
+          : t("Il cartello già stampato smetterà di aprire la pagina. Se lo riattivi, dovrai stampare il nuovo QR.")}</AlertDialogDescription>
+      </AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{t("Annulla")}</AlertDialogCancel><AlertDialogAction
         disabled={mutazione.isPending || !confermaRevoca || confermaRevoca !== revisione}
         onClick={() => { if (confermaRevoca) mutazione.mutate({ tipo: "revoca", revisione: confermaRevoca }); }}
-      >Revoca QR</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+      >{t("Revoca QR")}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
     </AlertDialog>
   </>;
 }

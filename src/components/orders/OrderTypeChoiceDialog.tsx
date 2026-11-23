@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { DEFINIZIONI_MODELLI, type ModelloGenerale } from "@/lib/orders/commesseGenerali";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface OrderTypeChoiceDialogProps {
   open: boolean;
@@ -64,6 +65,7 @@ function Scheda({ icona: Icona, titolo, testo, tono = "primary" }: { icona: Luci
 }
 
 export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false, commessaCliente = true, modelliGenerali = [], onScegliGenerale }: OrderTypeChoiceDialogProps) {
+  const t = useT();
   const permissions = usePermissions();
   const simulatore = (permissions.isAdmin || permissions.canViewMargins)
     && modelliGenerali.some((m) => m === "sviluppo" || m === "compravendita");
@@ -71,9 +73,9 @@ export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false,
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Che tipo di commessa vuoi creare?</DialogTitle>
+          <DialogTitle>{t("Che tipo di commessa vuoi creare?")}</DialogTitle>
           <DialogDescription>
-            Scegli il flusso più adatto al lavoro che stai gestendo.
+            {t("Scegli il flusso più adatto al lavoro che stai gestendo.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -81,7 +83,7 @@ export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false,
           {/* Commessa cliente standard — flusso esistente, spegnibile in Impostazioni */}
           {commessaCliente && (
             <Link to="/azienda/ordini/nuovo" onClick={() => onOpenChange(false)} className={SCHEDA}>
-              <Scheda icona={ShoppingCart} titolo="Commessa cliente" testo="Un lavoro per un cliente: un cantiere, i suoi costi e le sue fatture. La scelta giusta quasi sempre." />
+              <Scheda icona={ShoppingCart} titolo={t("Commessa cliente")} testo={t("Un lavoro per un cliente: un cantiere, i suoi costi e le sue fatture. La scelta giusta quasi sempre.")} />
             </Link>
           )}
 
@@ -91,8 +93,8 @@ export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false,
               <Scheda
                 icona={HardHat}
                 tono="amber"
-                titolo="Lavoro per appaltatore"
-                testo="Sola manodopera commissionata da un'impresa committente: cantiere, descrizione, materiali e date."
+                titolo={t("Lavoro per appaltatore")}
+                testo={t("Sola manodopera commissionata da un'impresa committente: cantiere, descrizione, materiali e date.")}
               />
             </Link>
           )}
@@ -100,8 +102,8 @@ export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false,
           {/* Commesse generali — una per modello acceso */}
           {modelliGenerali.length > 0 && (
             <p className="text-xs text-muted-foreground sm:col-span-2">
-              <span className="font-medium text-foreground">Commessa generale</span>: tiene insieme più lavori o più unità sotto un solo contratto o una sola operazione.
-              Per un lavoro singolo scegli «Commessa cliente»: più commesse si possono raggruppare anche dopo, dalla lista.
+              <span className="font-medium text-foreground">{t("Commessa generale")}</span>: {t("tiene insieme più lavori o più unità sotto un solo contratto o una sola operazione.")}
+              {" "}{t("Per un lavoro singolo scegli «Commessa cliente»: più commesse si possono raggruppare anche dopo, dalla lista.")}
             </p>
           )}
           {modelliGenerali.map((m) => (
@@ -111,14 +113,14 @@ export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false,
               className={SCHEDA}
               onClick={() => { onOpenChange(false); onScegliGenerale?.(m); }}
             >
-              <Scheda icona={ICONE_GENERALE[m]} titolo={`Commessa generale · ${DEFINIZIONI_MODELLI[m].nome}`} testo={DEFINIZIONI_MODELLI[m].perChi} />
+              <Scheda icona={ICONE_GENERALE[m]} titolo={t("Commessa generale · {nome}", { nome: t(DEFINIZIONI_MODELLI[m].nome) })} testo={t(DEFINIZIONI_MODELLI[m].perChi)} />
             </button>
           ))}
 
           {/* Prima di comprare: il simulatore, senza creare ancora la commessa */}
           {simulatore && (
             <Link to="/azienda/ordini/simulatore" onClick={() => onOpenChange(false)} className={SCHEDA}>
-              <Scheda icona={Calculator} titolo="Valuta un'operazione" testo="Prima di comprare: acquisto, costi, prezzi, tempi e mutuo. Vedi subito se conviene, poi la trasformi in commessa." />
+              <Scheda icona={Calculator} titolo={t("Valuta un'operazione")} testo={t("Prima di comprare: acquisto, costi, prezzi, tempi e mutuo. Vedi subito se conviene, poi la trasformi in commessa.")} />
             </Link>
           )}
         </div>

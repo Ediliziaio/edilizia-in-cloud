@@ -10,6 +10,7 @@ import {
 } from "@/lib/orders/pipelineCreazione";
 import type { PipelineLocale } from "@/lib/orders/pipelineLocali";
 import type { OrderStatus } from "@/lib/orderUtils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   pipeline: ReadonlyArray<PipelineLocale>;
@@ -31,6 +32,7 @@ export function StatoPipelineIniziale({
   statiPrincipaliInCaricamento, erroreStatiPrincipali, disabled, onRiprova,
   onRiprovaStati, principale = true,
 }: Props) {
+  const t = useT();
   const id = useId();
   const usaPrincipale = value.pipelineId === PIPELINE_PRINCIPALE;
   const disponibile = usaPrincipale ? principale : pipeline.some((p) => p.id === value.pipelineId);
@@ -43,7 +45,7 @@ export function StatoPipelineIniziale({
     <div className="space-y-2">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="min-w-0 space-y-2">
-          <Label htmlFor={`${id}-pipeline`}>Pipeline commessa</Label>
+          <Label htmlFor={`${id}-pipeline`}>{t("Pipeline commessa")}</Label>
           <Select
             value={usaPrincipale && !principale ? "" : value.pipelineId}
             disabled={disabled || caricamento}
@@ -53,24 +55,24 @@ export function StatoPipelineIniziale({
             })}
           >
             <SelectTrigger id={`${id}-pipeline`}>
-              <SelectValue placeholder="Scegli la pipeline" />
+              <SelectValue placeholder={t("Scegli la pipeline")} />
             </SelectTrigger>
             <SelectContent>
-              {principale && <SelectItem value={PIPELINE_PRINCIPALE}>Principale</SelectItem>}
-              {!usaPrincipale && !disponibile && <SelectItem disabled value={value.pipelineId}>Pipeline non disponibile</SelectItem>}
+              {principale && <SelectItem value={PIPELINE_PRINCIPALE}>{t("Principale")}</SelectItem>}
+              {!usaPrincipale && !disponibile && <SelectItem disabled value={value.pipelineId}>{t("Pipeline non disponibile")}</SelectItem>}
               {pipeline.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
         <div className="min-w-0 space-y-2">
-          <Label htmlFor={`${id}-stato`}>Stato iniziale</Label>
+          <Label htmlFor={`${id}-stato`}>{t("Stato iniziale")}</Label>
           <Select
             value={disponibile && statoValido ? value.faseId : ""}
             disabled={disabled || statiInCaricamento || !disponibile || stati.length === 0}
             onValueChange={(faseId) => onChange({ ...value, faseId })}
           >
             <SelectTrigger id={`${id}-stato`}>
-              <SelectValue placeholder="Seleziona stato" />
+              <SelectValue placeholder={t("Seleziona stato")} />
             </SelectTrigger>
             <SelectContent>
               {stati.map((stato) => <SelectItem key={stato.id} value={stato.id}>{stato.name}</SelectItem>)}
@@ -78,29 +80,29 @@ export function StatoPipelineIniziale({
           </Select>
         </div>
       </div>
-      {statiInCaricamento && <p role="status" className="text-xs text-muted-foreground">Caricamento pipeline e stati…</p>}
+      {statiInCaricamento && <p role="status" className="text-xs text-muted-foreground">{t("Caricamento pipeline e stati…")}</p>}
       {!caricamento && !errore && !disponibile && (
         <p role="alert" className="text-xs text-destructive">
-          {usaPrincipale ? "Scegli la pipeline della commessa." : "La pipeline della bozza non è più disponibile. Scegline un’altra."}
+          {usaPrincipale ? t("Scegli la pipeline della commessa.") : t("La pipeline della bozza non è più disponibile. Scegline un’altra.")}
         </p>
       )}
       {!statiInCaricamento && !statiNonCaricati && disponibile && (
         stati.length === 0
-          ? <p role="alert" className="text-xs text-destructive">Questa pipeline non ha stati disponibili. Verifica la configurazione o scegli un’altra pipeline.</p>
+          ? <p role="alert" className="text-xs text-destructive">{t("Questa pipeline non ha stati disponibili. Verifica la configurazione o scegli un’altra pipeline.")}</p>
           : value.faseId && !statoValido
-            ? <p role="alert" className="text-xs text-destructive">Lo stato precedente non è più disponibile. Scegline uno dall’elenco.</p>
+            ? <p role="alert" className="text-xs text-destructive">{t("Lo stato precedente non è più disponibile. Scegline uno dall’elenco.")}</p>
             : null
       )}
       {errore && (
         <div role="alert" className="text-xs text-destructive">
-          Non riesco a caricare le pipeline aggiuntive.
-          {onRiprova && <Button type="button" variant="link" size="sm" onClick={onRiprova}>Riprova pipeline</Button>}
+          {t("Non riesco a caricare le pipeline aggiuntive.")}
+          {onRiprova && <Button type="button" variant="link" size="sm" onClick={onRiprova}>{t("Riprova pipeline")}</Button>}
         </div>
       )}
       {usaPrincipale && erroreStatiPrincipali && (
         <div role="alert" className="text-xs text-destructive">
-          Non riesco a caricare gli stati della pipeline.
-          {onRiprovaStati && <Button type="button" variant="link" size="sm" onClick={onRiprovaStati}>Riprova stati</Button>}
+          {t("Non riesco a caricare gli stati della pipeline.")}
+          {onRiprovaStati && <Button type="button" variant="link" size="sm" onClick={onRiprovaStati}>{t("Riprova stati")}</Button>}
         </div>
       )}
     </div>

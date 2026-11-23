@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { OfficeSelect } from "./OfficeSelect";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export interface LegacyWorkRow {
   id: string;
   name: string;
@@ -28,6 +29,7 @@ export function LegacyWorkReviewForm({
   showAmounts?: boolean;
   onSave: (ids: string[], kind: string) => Promise<void>;
 }) {
+  const t = useT();
   const [selected, setSelected] = useState<string[]>([]),
     [kind, setKind] = useState("lavorazione"),
     [busy, setBusy] = useState(false),
@@ -46,13 +48,10 @@ export function LegacyWorkReviewForm({
   return (
     <details className="rounded-xl border border-amber-200 bg-background p-4">
       <summary className="cursor-pointer font-medium">
-        Rivedi le righe storiche: lavorazioni o materiali
+        {t("Rivedi le righe storiche: lavorazioni o materiali")}
       </summary>
       <p className="my-3 text-sm text-muted-foreground">
-        Le vecchie righe possono contenere una lavorazione completa, anche con
-        fornitura e posa. Seleziona solo quelle da riclassificare. Descrizioni,
-        quantità e prezzi restano originali: il testo non viene usato per
-        ricalcolare gli importi.
+        {t("Le vecchie righe possono contenere una lavorazione completa, anche con fornitura e posa. Seleziona solo quelle da riclassificare. Descrizioni, quantità e prezzi restano originali: il testo non viene usato per ricalcolare gli importi.")}
       </p>
       <Button
         variant="outline"
@@ -65,8 +64,8 @@ export function LegacyWorkReviewForm({
         }
       >
         {selected.length === rows.length
-          ? "Deseleziona tutte"
-          : "Seleziona tutte le righe da verificare"}
+          ? t("Deseleziona tutte")
+          : t("Seleziona tutte le righe da verificare")}
       </Button>
       <div className="space-y-2">
         {rows.map((i, n) => (
@@ -75,7 +74,7 @@ export function LegacyWorkReviewForm({
               <input
                 className="mt-1"
                 type="checkbox"
-                aria-label={`Seleziona riga ${n + 1}`}
+                aria-label={t("Seleziona riga {n}", { n: n + 1 })}
                 checked={selected.includes(i.id)}
                 disabled={busy}
                 onChange={(e) =>
@@ -89,7 +88,7 @@ export function LegacyWorkReviewForm({
               <span className="min-w-0 break-words text-sm font-medium">
                 {i.name.split(/\s{2,}/)[0]}
                 <span className="block font-normal text-muted-foreground">
-                  {i.natura_riga ?? "materiale"}
+                  {t(i.natura_riga ?? "materiale")}
                   {showAmounts && (
                     <>
                       {" "}
@@ -99,7 +98,7 @@ export function LegacyWorkReviewForm({
                           Number(i.unit_price ?? 0) *
                           (1 - Number(i.discount_percent ?? 0) / 100),
                       )}{" "}
-                      · valore originale
+                      · {t("valore originale")}
                     </>
                   )}
                 </span>
@@ -107,7 +106,7 @@ export function LegacyWorkReviewForm({
             </label>
             <details className="mt-2 text-sm">
               <summary className="cursor-pointer text-muted-foreground">
-                Descrizione originale
+                {t("Descrizione originale")}
               </summary>
               <p className="mt-2 whitespace-pre-wrap break-words">{i.name}</p>
             </details>
@@ -115,24 +114,22 @@ export function LegacyWorkReviewForm({
         ))}
       </div>
       <label className="mt-3 block text-sm">
-        Classifica le righe selezionate
+        {t("Classifica le righe selezionate")}
         <OfficeSelect
           className="mt-1 min-h-11"
-          label="Natura delle righe"
+          label={t("Natura delle righe")}
           value={kind}
           disabled={busy}
           onValueChange={setKind}
           options={[
-            { value: "lavorazione", label: "Lavorazioni → fasi del cantiere" },
-            { value: "descrizione", label: "Descrizioni → nessun acquisto" },
-            { value: "materiale", label: "Materiali → acquisti" },
+            { value: "lavorazione", label: t("Lavorazioni → fasi del cantiere") },
+            { value: "descrizione", label: t("Descrizioni → nessun acquisto") },
+            { value: "materiale", label: t("Materiali → acquisti") },
           ]}
         />
       </label>
       <p className="my-3 text-sm">
-        Le righe diventate lavorazioni compaiono nelle fasi, non tra gli
-        articoli da ordinare. Righe con acquisti, pagamenti o magazzino
-        collegati richiedono una verifica e vengono protette.
+        {t("Le righe diventate lavorazioni compaiono nelle fasi, non tra gli articoli da ordinare. Righe con acquisti, pagamenti o magazzino collegati richiedono una verifica e vengono protette.")}
       </p>
       {error && (
         <p role="alert" className="text-sm text-destructive">
@@ -150,7 +147,7 @@ export function LegacyWorkReviewForm({
             setSelected([]);
           } catch (e) {
             setError(
-              e instanceof Error ? e.message : "Operazione non riuscita.",
+              e instanceof Error ? e.message : t("Operazione non riuscita."),
             );
           } finally {
             setBusy(false);
@@ -158,8 +155,8 @@ export function LegacyWorkReviewForm({
         }}
       >
         {busy
-          ? "Aggiornamento…"
-          : `Conferma classificazione (${selected.length})`}
+          ? t("Aggiornamento…")
+          : t("Conferma classificazione ({n})", { n: selected.length })}
       </Button>
     </details>
   );
@@ -176,14 +173,13 @@ export function LegacyWorkReview({
   showAmounts: boolean;
 }) {
   const qc = useQueryClient();
+  const t = useT();
   if (items.length && items.every((item) => item.natura_riga === undefined)) {
     return (
       <section className="rounded-xl border bg-background p-4" role="status">
-        <h3 className="font-semibold">Righe storiche di commessa</h3>
+        <h3 className="font-semibold">{t("Righe storiche di commessa")}</h3>
         <p className="text-sm text-muted-foreground">
-          La riclassificazione in lavorazioni richiede l’aggiornamento del
-          database. Le righe originali restano visibili e non sono state
-          modificate.
+          {t("La riclassificazione in lavorazioni richiede l’aggiornamento del database. Le righe originali restano visibili e non sono state modificate.")}
         </p>
       </section>
     );
@@ -218,8 +214,8 @@ export function LegacyWorkReview({
         refreshWorkQueries(qc, orderId, companyId);
         toast.success(
           Number(data) > 0
-            ? `${data} righe riclassificate. Importi originali conservati.`
-            : "La classificazione era già aggiornata.",
+            ? t("{n} righe riclassificate. Importi originali conservati.", { n: data })
+            : t("La classificazione era già aggiornata."),
         );
       }}
     />

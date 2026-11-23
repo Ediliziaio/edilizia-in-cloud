@@ -11,8 +11,10 @@ import { caricaPlanimetria, caricaVersione } from "@/lib/planimetrie/archivio";
 import { percorsoVariantePlanimetria } from "@/lib/planimetrie/render/percorsi";
 import { fonteStudioDaArea, idComputoStudio } from "@/lib/planimetrie/studioImmobiliare";
 import { ComputoStudioInCommessa } from "@/components/planimetrie/ComputoStudioInCommessa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ProgettoOperazioneImmobiliare({ dati, generaleId, puoDocumenti }: { dati?: DatiSezioni; generaleId: string; puoDocumenti: boolean }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const permessi = usePermissions();
   const companyId = effectiveCompany?.id;
@@ -37,24 +39,24 @@ export function ProgettoOperazioneImmobiliare({ dati, generaleId, puoDocumenti }
   const ipotesiId = puoIpotesi ? origine.data : null;
   if (!(fonte && puoPianta) && !ipotesiId) return null;
   const torna = `/azienda/ordini/${generaleId}`;
-  return <section aria-label="Progetto della commessa" className="space-y-2.5 rounded-xl border bg-card p-4">
-    <h3 className="flex items-center gap-2 text-sm font-semibold"><LayoutPanelTop className="h-4 w-4 text-primary"/>Progetto e verifiche</h3>
-    {fonte && puoPianta && <p className="text-sm text-muted-foreground">{info.data?.titolo ?? "Planimetria della variante"} · Versione {fonte.versione}</p>}
+  return <section aria-label={t("Progetto della commessa")} className="space-y-2.5 rounded-xl border bg-card p-4">
+    <h3 className="flex items-center gap-2 text-sm font-semibold"><LayoutPanelTop className="h-4 w-4 text-primary"/>{t("Progetto e verifiche")}</h3>
+    {fonte && puoPianta && <p className="text-sm text-muted-foreground">{info.data?.titolo ?? t("Planimetria della variante")} · {t("Versione {n}", { n: fonte.versione })}</p>}
     {puoPianta && info.isError && <div className="flex flex-wrap items-center gap-2 text-sm" role="status">
-      <span>La revisione collegata della planimetria non è disponibile.</span>
-      <Button size="sm" variant="ghost" onClick={()=>void info.refetch()}>Riprova</Button>
+      <span>{t("La revisione collegata della planimetria non è disponibile.")}</span>
+      <Button size="sm" variant="ghost" onClick={()=>void info.refetch()}>{t("Riprova")}</Button>
     </div>}
     <div className="flex flex-wrap items-center gap-2">
       {fonte && progetto && <>
-        <Button asChild size="sm" variant="outline"><Link to={percorsoVariantePlanimetria(fonte,{torna})}>Apri la variante</Link></Button>
-        <Button asChild size="sm" variant="outline"><Link to={percorsoVariantePlanimetria(fonte,{torna,fascicolo:"urbanistica"})}>Fascicolo urbanistico</Link></Button>
-        <Button asChild size="sm" variant="outline"><Link to={percorsoVariantePlanimetria(fonte,{torna,fascicolo:"pratiche"})}>Pratiche della variante</Link></Button>
+        <Button asChild size="sm" variant="outline"><Link to={percorsoVariantePlanimetria(fonte,{torna})}>{t("Apri la variante")}</Link></Button>
+        <Button asChild size="sm" variant="outline"><Link to={percorsoVariantePlanimetria(fonte,{torna,fascicolo:"urbanistica"})}>{t("Fascicolo urbanistico")}</Link></Button>
+        <Button asChild size="sm" variant="outline"><Link to={percorsoVariantePlanimetria(fonte,{torna,fascicolo:"pratiche"})}>{t("Pratiche della variante")}</Link></Button>
       </>}
-      {ipotesiId && <Button asChild size="sm" variant="outline"><Link to={`/azienda/ordini/simulatore?ipotesi=${encodeURIComponent(ipotesiId)}`}>Business plan collegato</Link></Button>}
-      {progetto?.bozzaId && <Button asChild size="sm" variant="outline"><Link to={`/azienda/marketing/preventivi/computo?bozza=${progetto.bozzaId}&esistente=1&fase=3`}>Apri il computo</Link></Button>}
+      {ipotesiId && <Button asChild size="sm" variant="outline"><Link to={`/azienda/ordini/simulatore?ipotesi=${encodeURIComponent(ipotesiId)}`}>{t("Business plan collegato")}</Link></Button>}
+      {progetto?.bozzaId && <Button asChild size="sm" variant="outline"><Link to={`/azienda/marketing/preventivi/computo?bozza=${progetto.bozzaId}&esistente=1&fase=3`}>{t("Apri il computo")}</Link></Button>}
       {progetto?.bozzaId && companyId && <ComputoStudioInCommessa companyId={companyId} orderId={generaleId} bozzaId={progetto.bozzaId}
         generale puoSalvare={permessi.canEditOrders && !permessi.solaLettura} />}
-      {puoDocumenti && <Button asChild size="sm" variant="outline"><Link to={`/azienda/ordini/${generaleId}?scheda=documenti`}>Documenti di commessa</Link></Button>}
+      {puoDocumenti && <Button asChild size="sm" variant="outline"><Link to={`/azienda/ordini/${generaleId}?scheda=documenti`}>{t("Documenti di commessa")}</Link></Button>}
     </div>
   </section>;
 }

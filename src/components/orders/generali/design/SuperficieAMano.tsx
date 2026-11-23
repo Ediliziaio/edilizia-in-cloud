@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSalvaDatiGenerale } from "@/hooks/useCommesseGenerali";
 import { useToast } from "@/hooks/use-toast";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type ValoriArea = Record<string, string | number | boolean | null>;
 
@@ -33,7 +34,8 @@ export function leggiMq(testo: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-export function SuperficieAMano({ generaleId, area, etichetta = "metti la superficie" }: Props) {
+export function SuperficieAMano({ generaleId, area, etichetta }: Props) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [testo, setTesto] = useState(() => String(area?.mq_vendibili ?? ""));
   const salva = useSalvaDatiGenerale(generaleId);
@@ -42,7 +44,7 @@ export function SuperficieAMano({ generaleId, area, etichetta = "metti la superf
   if (!aperto) {
     return (
       <button type="button" className="quadro-prev-mq-azione" onClick={() => { setTesto(String(area?.mq_vendibili ?? "")); setAperto(true); }}>
-        <Pencil aria-hidden="true" /> {etichetta}
+        <Pencil aria-hidden="true" /> {etichetta ?? t("metti la superficie")}
       </button>
     );
   }
@@ -50,12 +52,12 @@ export function SuperficieAMano({ generaleId, area, etichetta = "metti la superf
   const conferma = () => {
     const mq = leggiMq(testo);
     if (mq === null) {
-      toast({ title: "Superficie non valida", description: "Scrivi i metri quadri, per esempio 1250.", variant: "destructive" });
+      toast({ title: t("Superficie non valida"), description: t("Scrivi i metri quadri, per esempio 1250."), variant: "destructive" });
       return;
     }
     salva.mutate({ area: { ...(area ?? {}), mq_vendibili: mq } }, {
-      onSuccess: () => { setAperto(false); toast({ title: "Superficie salvata" }); },
-      onError: (e) => toast({ title: "Non riesco a salvare", description: e instanceof Error ? e.message : undefined, variant: "destructive" }),
+      onSuccess: () => { setAperto(false); toast({ title: t("Superficie salvata") }); },
+      onError: (e) => toast({ title: t("Non riesco a salvare"), description: e instanceof Error ? e.message : undefined, variant: "destructive" }),
     });
   };
 
@@ -64,7 +66,7 @@ export function SuperficieAMano({ generaleId, area, etichetta = "metti la superf
       <Input
         autoFocus
         inputMode="decimal"
-        aria-label="Superficie vendibile in metri quadri"
+        aria-label={t("Superficie vendibile in metri quadri")}
         value={testo}
         disabled={salva.isPending}
         onChange={(e) => setTesto(e.target.value)}
@@ -75,10 +77,10 @@ export function SuperficieAMano({ generaleId, area, etichetta = "metti la superf
         className="h-7 w-24 text-xs"
       />
       <span className="text-xs text-muted-foreground">m²</span>
-      <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={conferma} disabled={salva.isPending} aria-label="Salva la superficie">
+      <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={conferma} disabled={salva.isPending} aria-label={t("Salva la superficie")}>
         <Check className="h-3.5 w-3.5" />
       </Button>
-      <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperto(false)} disabled={salva.isPending} aria-label="Annulla">
+      <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAperto(false)} disabled={salva.isPending} aria-label={t("Annulla")}>
         <X className="h-3.5 w-3.5" />
       </Button>
     </span>

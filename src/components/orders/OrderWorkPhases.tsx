@@ -82,6 +82,7 @@ import { useCalendarioCantiere, type CalendarioCantiere } from "@/hooks/useCalen
 import { avanzamentoFase, fasiCronoprogramma, giornoLocale, lavoroRealeFasi, type FaseCrono } from "@/lib/orders/cronoprogramma";
 import { TempiFase, testoTempi, ritardoBreve } from "./TempiFase";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { CercaConFiltri, GruppoFiltri, PannelloFiltri, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 
 import {
@@ -151,7 +152,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
+const eur = { format: (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: true }).format(n) };
 
 const STATUS_OPTIONS: { value: PhaseStatus; label: string; dot: string; badge: string }[] = [
   {
@@ -200,6 +201,7 @@ interface OrderWorkPhasesProps {
 }
 
 export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContratto, organizationContent, onApriCronoprogramma, lavoriExtra, logisticaIntegrata, propostaMappa, faseIniziale }: OrderWorkPhasesProps) {
+  const tr = useT();
   const paginaLavorazioni = view === "lavorazioni" && logisticaIntegrata;
   const showWork = true;
   const showTeam = showWork;
@@ -331,15 +333,15 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   const assegnaFaseCosti = useAssegnaFaseCosti();
   const costiDaSistemare = useMemo(() => {
     const senza = new Set(quoteCosti.filter((q) => q.phase_id === null).map((q) => q.costoId));
-    return (costiDiretti?.costi ?? []).filter((c) => senza.has(c.id) && !c.ripartito).map((c) => ({ id: c.id, importo: c.importo, nome: c.nome ?? "Costo", data: c.data ?? null, fornitore: c.fornitore ?? null }));
-  }, [costiDiretti, quoteCosti]);
+    return (costiDiretti?.costi ?? []).filter((c) => senza.has(c.id) && !c.ripartito).map((c) => ({ id: c.id, importo: c.importo, nome: c.nome ?? tr("Costo"), data: c.data ?? null, fornitore: c.fornitore ?? null }));
+  }, [costiDiretti, quoteCosti, tr]);
   const albero = useMemo<AmbitoLavoro[]>(() => [
-    { id: INTERA_COMMESSA, nome: "Intera commessa", faseId: null },
+    { id: INTERA_COMMESSA, nome: tr("Intera commessa"), faseId: null },
     ...phases.map((p) => ({ id: p.id, nome: p.name, faseId: p.id, dal: p.start_date, al: p.end_date })),
     ...righeDistinta(phases, sottofasiDi, vociPreviste ?? []).map((r) => ({
       id: r.key, nome: r.descrizione, faseId: r.faseId, sottofaseId: r.sottofaseId, voceId: r.voceId, dal: r.inizio, al: r.fine,
     })),
-  ], [phases, sottofasiDi, vociPreviste]);
+  ], [phases, sottofasiDi, vociPreviste, tr]);
 
   const previsioneSalvata = useMemo(() => {
     const destinazioni = albero.flatMap((ambito) => {
@@ -454,12 +456,12 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     const nomeDitta = new Map(externalTeams.map((t) => [t.id, t.label]));
     return new Map(phases.map((p) => [p.id, {
       squadre: (squadrePerFase.get(p.id) ?? []).map((s) => s.nome),
-      persone: p.assignments.filter((a) => a.employee_id).map((a) => nomePersona.get(a.employee_id!) ?? "Persona non attiva"),
-      ditte: p.assignments.filter((a) => a.external_team_id).map((a) => nomeDitta.get(a.external_team_id!) ?? "Ditta non attiva"),
+      persone: p.assignments.filter((a) => a.employee_id).map((a) => nomePersona.get(a.employee_id!) ?? tr("Persona non attiva")),
+      ditte: p.assignments.filter((a) => a.external_team_id).map((a) => nomeDitta.get(a.external_team_id!) ?? tr("Ditta non attiva")),
       mezzi: (mezziPerFase.get(p.id) ?? []).map((m) => m.nome),
       articoli: (materialsByPhase.get(p.id) ?? []).length,
     }]));
-  }, [modoFasi, phases, employees, externalTeams, squadrePerFase, mezziPerFase, materialsByPhase]);
+  }, [modoFasi, phases, employees, externalTeams, squadrePerFase, mezziPerFase, materialsByPhase, tr]);
   const [newPhaseOpen, setNewPhaseOpen] = useState(false);
   const [phaseCreationMode, setPhaseCreationMode] = useState<"manuale" | "modello">("manuale");
   // «Importa» accanto ad «Aggiungi fasi» (14/11/2026): una finestra sua per computo e preventivo.
@@ -509,7 +511,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     if (!canEditOrders || addPhase.isPending || applyTemplate.isPending) return;
     const name = newPhaseName.trim();
     if (!name) {
-      toast.error("Inserisci il nome della fase");
+      toast.error(tr("Inserisci il nome della fase"));
       return;
     }
     addPhase.mutate(name, {
@@ -518,7 +520,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
         setNewPhaseName("");
         setFasiAggiunte((prima) => [...prima, name]);
         document.getElementById("new-phase-name")?.focus();
-        toast.success("Fase aggiunta");
+        toast.success(tr("Fase aggiunta"));
       },
     });
   };
@@ -527,7 +529,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     const all = [...unassigned, ...phases.flatMap(p => p.assignments)];
     const current = all.find(a => a.id === id && a.source === source);
     if (current && patch.phase_id !== undefined && wouldDuplicateAssignment(all, current, patch.phase_id)) {
-      const message = "Questa persona o squadra è già assegnata alla lavorazione scelta. Gestisci la riga esistente.";
+      const message = tr("Questa persona o squadra è già assegnata alla lavorazione scelta. Gestisci la riga esistente.");
       toast.error(message);
       throw new Error(message);
     }
@@ -538,7 +540,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     <Button size="sm" variant={paginaLavorazioni ? "ghost" : "outline"}
       className={cn("font-medium", telefono || paginaLavorazioni ? "h-9 px-2.5" : "min-h-9")}
       onClick={() => setImportaAperto(true)}>
-      <FileUp className="h-4 w-4" aria-hidden="true" />{paginaLavorazioni ? "Importa fasi" : "Importa"}
+      <FileUp className="h-4 w-4" aria-hidden="true" />{paginaLavorazioni ? tr("Importa fasi") : tr("Importa")}
     </Button>
   );
 
@@ -548,7 +550,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               // Da telefono, con le fasi già fatte, si viene a controllare e aggiornare:
               // l'arancione pieno resta per la commessa ancora vuota (collaudo 23/11/2026).
               <Button size="sm" variant={telefono && phases.length > 0 ? "outline" : "default"} className={cn(telefono && phases.length > 0 ? "px-3 font-semibold max-sm:flex-1" : "bg-orange-700 px-3 font-semibold text-white hover:bg-orange-800 max-sm:flex-1", paginaLavorazioni ? "min-h-10" : telefono ? "tap-compact h-9" : "max-sm:min-h-11")} onClick={() => setNewPhaseOpen(true)}>
-                <ListPlus className="h-4 w-4" aria-hidden="true" />Aggiungi fasi
+                <ListPlus className="h-4 w-4" aria-hidden="true" />{tr("Aggiungi fasi")}
               </Button>
             )}
             {!paginaLavorazioni && azioneImporta}
@@ -558,17 +560,17 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 onOpenChange={setImportaAperto}
                 consentiAi
                 vociPresenti={0}
-                titolo="Importa le fasi"
-                descrizione="Un computo o un preventivo che hai già: ogni capitolo diventa una fase, ogni voce una lavorazione con quantità e importo, pronte per i SAL. Le rivedi prima di importarle; le fasi già presenti si saltano."
-                notaDestinazione="Ogni capitolo diventa una fase, ogni voce una lavorazione. Le fasi che ci sono già si saltano."
-                etichettaConferma={(n) => `Importa ${n} ${n === 1 ? "voce" : "voci"} nelle fasi`}
+                titolo={tr("Importa le fasi")}
+                descrizione={tr("Un computo o un preventivo che hai già: ogni capitolo diventa una fase, ogni voce una lavorazione con quantità e importo, pronte per i SAL. Le rivedi prima di importarle; le fasi già presenti si saltano.")}
+                notaDestinazione={tr("Ogni capitolo diventa una fase, ogni voce una lavorazione. Le fasi che ci sono già si saltano.")}
+                etichettaConferma={(n) => tr(n === 1 ? "Importa {n} voce nelle fasi" : "Importa {n} voci nelle fasi", { n })}
                 onAggiungi={(voci, esito, _letti, fonte) => {
                   const fasi = fasiDaRighe(righeDaVociComputo(voci), phases.map((p) => p.name));
                   const daMandare = fasiPerIlDatabase(fasi, new Set(fasi.map((f) => f.nome)));
                   importaFasiNelDatabase(orderId, daMandare, fonte?.tipo === "preventivo" ? "preventivo" : "computo",
                     fonte?.nome ?? esito?.intestazione?.titolo ?? voci[0]?.origine ?? null)
                     .then((r) => { avvisaEsitoImport(r); void refetch(); })
-                    .catch((e: unknown) => toast.error("Fasi non importate", { description: userErrorMessage(e, e instanceof Error ? e.message : "Riprova.") }));
+                    .catch((e: unknown) => toast.error(tr("Fasi non importate"), { description: userErrorMessage(e, e instanceof Error ? e.message : tr("Riprova.")) }));
                 }}
                 altreFonti={(carica) => (
                   <DocumentiDelGestionale companyId={effectiveCompany.id} mostraImporti={canViewOrderAmounts} onScelto={carica} />
@@ -576,26 +578,26 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               />
             )}
             {showTeam && (canEditOrders || puoSquadre) && <>
-              <Button size="sm" variant="outline" className={cn("font-semibold", paginaLavorazioni ? "min-h-10" : "min-h-9")} onClick={setAssegnaPersona}><UsersRound className="h-4 w-4" aria-hidden="true" />Assegna</Button>
+              <Button size="sm" variant="outline" className={cn("font-semibold", paginaLavorazioni ? "min-h-10" : "min-h-9")} onClick={setAssegnaPersona}><UsersRound className="h-4 w-4" aria-hidden="true" />{tr("Assegna")}</Button>
             </>}
             {!paginaLavorazioni && !telefono && lavoriExtra}
             {canEditOrders && <>
             <Dialog open={newPhaseOpen} onOpenChange={(o) => (o ? setNewPhaseOpen(true) : closePhaseDialog())}>
               <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Aggiungi una fase</DialogTitle>
-                  <DialogDescription>Scrivi una fase oppure usa un modello con più fasi.</DialogDescription>
+                  <DialogTitle>{tr("Aggiungi una fase")}</DialogTitle>
+                  <DialogDescription>{tr("Scrivi una fase oppure usa un modello con più fasi.")}</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2" aria-label="Come aggiungere le fasi"><Button variant={phaseCreationMode === "manuale" ? "default" : "outline"} aria-pressed={phaseCreationMode === "manuale"} onClick={() => setPhaseCreationMode("manuale")}>Scrivi una fase</Button><Button variant={phaseCreationMode === "modello" ? "default" : "outline"} aria-pressed={phaseCreationMode === "modello"} onClick={() => setPhaseCreationMode("modello")}>Usa un modello</Button></div>
+                  <div className="grid grid-cols-2 gap-2" aria-label={tr("Come aggiungere le fasi")}><Button variant={phaseCreationMode === "manuale" ? "default" : "outline"} aria-pressed={phaseCreationMode === "manuale"} onClick={() => setPhaseCreationMode("manuale")}>{tr("Scrivi una fase")}</Button><Button variant={phaseCreationMode === "modello" ? "default" : "outline"} aria-pressed={phaseCreationMode === "modello"} onClick={() => setPhaseCreationMode("modello")}>{tr("Usa un modello")}</Button></div>
                   {/* Modelli di fasi: quelli dell'azienda (con le sottofasi); finché non sono suoi, gli stessi di sempre */}
                   {phaseCreationMode === "modello" && <ModelliFasiPicker
                     inCorso={applyTemplate.isPending}
                     onApplica={(fasi) =>
                       applyTemplate.mutate(fasi, {
                         onSuccess: (aggiunte) => {
-                          toast.success(aggiunte ? `${aggiunte} fasi aggiunte; le fasi già presenti sono state mantenute` : "Le fasi del modello sono già presenti. Eventuali sottofasi mancanti sono state aggiunte.");
+                          toast.success(aggiunte ? tr("{n} fasi aggiunte; le fasi già presenti sono state mantenute", { n: aggiunte }) : tr("Le fasi del modello sono già presenti. Eventuali sottofasi mancanti sono state aggiunte."));
                           closePhaseDialog();
                         },
                       })
@@ -608,14 +610,14 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                       htmlFor="new-phase-name"
                       className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
                     >
-                      Aggiungi una singola fase
+                      {tr("Aggiungi una singola fase")}
                     </Label>
                     <div className="flex gap-2">
                       <Input
                         autoFocus
                         id="new-phase-name"
                         value={newPhaseName}
-                        placeholder="Es. Opere murarie"
+                        placeholder={tr("Es. Opere murarie")}
                         onChange={(e) => setNewPhaseName(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
@@ -625,7 +627,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                         }}
                       />
                       <Button
-                        aria-label="Aggiungi fase"
+                        aria-label={tr("Aggiungi fase")}
                         onClick={handleAddPhase}
                         disabled={addPhase.isPending || !newPhaseName.trim()}
                       >
@@ -634,17 +636,17 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                         ) : (
                           <Plus className="h-4 w-4" />
                         )}
-                        <span className="ml-1">Aggiungi</span>
+                        <span className="ml-1">{tr("Aggiungi")}</span>
                       </Button>
                     </div>
                     {fasiAggiunte.length > 0 && (
-                      <p role="status" className="text-xs text-muted-foreground">Aggiunte: {fasiAggiunte.join(", ")}</p>
+                      <p role="status" className="text-xs text-muted-foreground">{tr("Aggiunte: {fasi}", { fasi: fasiAggiunte.join(", ") })}</p>
                     )}
                   </div>}
 
                   {/* Un modello dalle fasi di questa commessa: solo da computer e solo a chi gestisce le impostazioni */}
                   {puoModelli && phases.length > 0 && !isMobile && (
-                    <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Salva le fasi attuali come modello</summary><div className="mt-3">
+                    <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">{tr("Salva le fasi attuali come modello")}</summary><div className="mt-3">
                       <SalvaFasiComeModello orderId={orderId} numeroFasi={phases.length} />
                     </div></details>
                   )}
@@ -748,29 +750,29 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     const passaggi: PassaggioPiano[] = [];
     const fasiSquadre: string[] = [];
     const faseOCommessa = ambiti.filter((a) => !a.sottofaseId && !a.voceId);
-    if (faseOCommessa.length && selezionate.length && !squadreQuery.isSuccess) throw new Error("Attendi il caricamento delle squadre già assegnate.");
+    if (faseOCommessa.length && selezionate.length && !squadreQuery.isSuccess) throw new Error(tr("Attendi il caricamento delle squadre già assegnate."));
     const dateVoci: Array<{ id: string; data_inizio: string; data_fine: string; giorni: null }> = [];
     ambiti.forEach((ambito, indice) => {
       const fase = ambito.faseId;
       const sottofase = ambito.sottofaseId;
       if (periodo && (ambito.dal !== periodo.dal || ambito.al !== periodo.al)) {
         if (sottofase && canEditOrders) dateVoci.push({ id: sottofase, data_inizio: periodo.dal, data_fine: periodo.al, giorni: null });
-        else if (fase && canEditOrders) passaggi.push({ nome: `date di ${ambito.nome}`,
+        else if (fase && canEditOrders) passaggi.push({ nome: tr("date di {nome}", { nome: ambito.nome }),
           esegui: () => updatePhase.mutateAsync({ id: fase, start_date: periodo.dal, end_date: periodo.al }) });
       }
       if (sottofase) {
         const attuali = chiSottofasi.dati.perSottofase.get(sottofase) ?? [];
         for (const persona of persone.filter((id) => !attuali.some((r) => r.employee_id === id))) {
-          passaggi.push({ nome: `operaio su ${ambito.nome}`, esegui: () => chiSottofasi.aggiungi.mutateAsync({ sottofaseIds: [sottofase], persona }) });
+          passaggi.push({ nome: tr("operaio su {nome}", { nome: ambito.nome }), esegui: () => chiSottofasi.aggiungi.mutateAsync({ sottofaseIds: [sottofase], persona }) });
         }
         for (const ditta of selezionate.filter((id) => !attuali.some((r) => r.external_team_id === id))) {
-          passaggi.push({ nome: `squadra su ${ambito.nome}`, esegui: () => chiSottofasi.aggiungi.mutateAsync({ sottofaseIds: [sottofase], ditta }) });
+          passaggi.push({ nome: tr("squadra su {nome}", { nome: ambito.nome }), esegui: () => chiSottofasi.aggiungi.mutateAsync({ sottofaseIds: [sottofase], ditta }) });
         }
         return;
       }
       for (const persona of persone) {
         if (assegnatoSu(persona, "persona", ambito)) continue;
-        passaggi.push({ nome: `${employees.find((p) => p.id === persona)?.label ?? "Operaio"} su ${ambito.nome}`, esegui: () => addAssignment.mutateAsync({
+        passaggi.push({ nome: tr("{persona} su {nome}", { persona: employees.find((p) => p.id === persona)?.label ?? tr("Operaio"), nome: ambito.nome }), esegui: () => addAssignment.mutateAsync({
           phase_id: fase, executor_type: "interno", employee_id: persona, external_team_id: null,
           planned_hours: personeConTariffa.has(persona) ? ore[indice] : null, cost_preventivo: 0, cost_consuntivo: 0, hours: null, is_paid: false, paid_date: null, notes: null,
         }) });
@@ -778,14 +780,14 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
       if (fase) { fasiSquadre.push(fase); return; }
       for (const squadraId of selezionate) {
         if (squadre.some((s) => s.squadra_id === squadraId && s.phase_id === null)) continue;
-        passaggi.push({ nome: "periodo della squadra sulla commessa", esegui: () => squadraSuCommessa.mutateAsync({
+        passaggi.push({ nome: tr("periodo della squadra sulla commessa"), esegui: () => squadraSuCommessa.mutateAsync({
           orderId, squadraId, dal: periodo?.dal ?? null, al: periodo?.al ?? null, capocantiere: false,
         }) });
       }
     });
-    if (dateVoci.length) passaggi.unshift({ nome: "periodi delle sottofasi", esegui: () => pianificaSottofasi.mutateAsync(dateVoci) });
+    if (dateVoci.length) passaggi.unshift({ nome: tr("periodi delle sottofasi"), esegui: () => pianificaSottofasi.mutateAsync(dateVoci) });
     if (fasiSquadre.length && selezionate.length && fasiSquadre.some((fase) => selezionate.some((id) => !squadre.some((s) => s.squadra_id === id && s.phase_id === fase)))) {
-      passaggi.push({ nome: "squadre sulle fasi selezionate", esegui: () => assegnaSquadre.mutateAsync({ fasi: fasiSquadre, squadre: selezionate, persone: [], ditte: [] }) });
+      passaggi.push({ nome: tr("squadre sulle fasi selezionate"), esegui: () => assegnaSquadre.mutateAsync({ fasi: fasiSquadre, squadre: selezionate, persone: [], ditte: [] }) });
     }
     return passaggi;
   };
@@ -803,11 +805,11 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     const puoSubappaltare = puoAssegnareDitta && canViewSubappaltatoriAmministrazione;
     const assegnaDitta = puoAssegnareDitta && tipoAssegnazione === "ditte";
     const sezioni: Array<[SezioneLavoro, string]> = [
-      ["sottofasi", "Riepilogo"], ["chi", "Chi lavora"],
-      ...(fase && !voce ? SCHEDE_FASE.filter(([id]) => id !== "sottofasi" && id !== "chi" && (id !== "economia" || canViewCosts || canViewOrderAmounts || canViewMargins)) : []),
-      ...(voce && fase && (canViewMezzi || isAdmin) ? [["mezzi", "Mezzi"] as const] : []),
-      ...(previsionale.disponibile && fase ? [["previsionale", "Previsionale"] as const] : []),
-      ...(puoSubappaltare ? [["subappalto", "Subappalto"] as const] : []),
+      ["sottofasi", tr("Riepilogo")], ["chi", tr("Chi lavora")],
+      ...(fase && !voce ? SCHEDE_FASE.filter(([id]) => id !== "sottofasi" && id !== "chi" && (id !== "economia" || canViewCosts || canViewOrderAmounts || canViewMargins)).map(([id, nome]) => [id, tr(nome)] as const) : []),
+      ...(voce && fase && (canViewMezzi || isAdmin) ? [["mezzi", tr("Mezzi")] as const] : []),
+      ...(previsionale.disponibile && fase ? [["previsionale", tr("Previsionale")] as const] : []),
+      ...(puoSubappaltare ? [["subappalto", tr("Subappalto")] as const] : []),
     ].map(([id, nome]) => [id, nome] as [SezioneLavoro, string]);
     const sezione = sezioni.some(([id]) => id === organizza.sezione) ? organizza.sezione : "sottofasi";
     const destinazione = attiva ? destinazionePrevisto(attiva) : null;
@@ -842,27 +844,27 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     const montaggi = mezziLavoro?.montati ?? [];
     const vaiA = (sezione: SezioneLavoro, subappalto?: AperturaSubappalto) => setOrganizza({ ...organizza, sezione, subappalto });
     const collegamenti = fase && (
-      <section className="space-y-2 rounded-lg border bg-slate-50/70 p-3" aria-label="Collegamenti della lavorazione">
-        <h4 className="text-sm font-semibold">Risorse collegate</h4>
+      <section className="space-y-2 rounded-lg border bg-slate-50/70 p-3" aria-label={tr("Collegamenti della lavorazione")}>
+        <h4 className="text-sm font-semibold">{tr("Risorse collegate")}</h4>
         {(canViewMezzi || isAdmin) && <div className="space-y-1.5">
           <MezziPrevistiSintesi orderId={orderId} faseId={fase.id} oggi={oggi} />
           {risorseFase.map((m) => <div key={m.id} className="flex gap-2 text-sm">
             <Truck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <div><p className="font-medium">{m.nome}{m.targa ? ` · ${m.targa}` : ""}</p>
-              <p className="text-xs text-muted-foreground">{m.persona}{m.a_bordo.length ? ` · ${m.a_bordo.join(", ")}` : ""}{m.altrove ? ` · risulta su ${m.altrove}` : ""}</p></div>
+              <p className="text-xs text-muted-foreground">{m.persona}{m.a_bordo.length ? ` · ${m.a_bordo.join(", ")}` : ""}{m.altrove ? ` · ${tr("risulta su {luogo}", { luogo: m.altrove })}` : ""}</p></div>
           </div>)}
           <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => vaiA("mezzi")}>
-            <Truck className="h-3.5 w-3.5" />Mezzi e attrezzature
+            <Truck className="h-3.5 w-3.5" />{tr("Mezzi e attrezzature")}
           </Button>
         </div>}
         <div className="flex flex-wrap gap-1.5">
           {!voce && <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => vaiA("materiali")}>
-            Materiali · {materialsByPhase.get(fase.id)?.length ?? 0}
+            {tr("Materiali · {n}", { n: materialsByPhase.get(fase.id)?.length ?? 0 })}
           </Button>}
           {!voce && <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => vaiA("note")}>
-            Note · {notePerFase.get(fase.id)?.length ?? 0}
+            {tr("Note · {n}", { n: notePerFase.get(fase.id)?.length ?? 0 })}
           </Button>}
-          {onApriCronoprogramma && <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => { chiudiOrganizza(); onApriCronoprogramma(); }}>Cronoprogramma</Button>}
+          {onApriCronoprogramma && <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => { chiudiOrganizza(); onApriCronoprogramma(); }}>{tr("Cronoprogramma")}</Button>}
         </div>
       </section>
     );
@@ -881,62 +883,62 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             ambiti={bersagli} albero={albero} apertura={organizza.subappalto} onOccupato={setOccupato} />
         )}
         {sezione === "previsionale" && fase && <div className="space-y-4">
-          {previsioneSalvata.fasi.has(fase.id) && <div className="rounded-lg border bg-background px-4 py-3 text-sm" aria-label="Costo previsto della fase">
-            Costo previsto fase <strong className="ml-2 tabular-nums">{formatCurrency(economia.perFase.get(fase.id)?.costoPrevisto ?? 0)}</strong>
+          {previsioneSalvata.fasi.has(fase.id) && <div className="rounded-lg border bg-background px-4 py-3 text-sm" aria-label={tr("Costo previsto della fase")}>
+            {tr("Costo previsto fase")} <strong className="ml-2 tabular-nums">{formatCurrency(economia.perFase.get(fase.id)?.costoPrevisto ?? 0)}</strong>
           </div>}
           {previsioniVisibili}
-          {previsionale.carica && <p role="status" className="text-sm text-muted-foreground">Caricamento previsionale…</p>}
-          {previsionale.errore && <p role="alert" className="text-sm text-destructive">{previsionale.errore.message} <Button size="sm" variant="outline" onClick={() => void previsionale.riprova()}>Riprova</Button></p>}
+          {previsionale.carica && <p role="status" className="text-sm text-muted-foreground">{tr("Caricamento previsionale…")}</p>}
+          {previsionale.errore && <p role="alert" className="text-sm text-destructive">{previsionale.errore.message} <Button size="sm" variant="outline" onClick={() => void previsionale.riprova()}>{tr("Riprova")}</Button></p>}
           {puoModificare && !previsionale.carica && !previsionale.errore && <>
             <p className="text-xs text-muted-foreground">{bersagli.length > 1
-              ? "Il salvataggio aggiorna una previsione per ciascuna lavorazione selezionata."
-              : "Seleziona più lavorazioni nell’elenco per ripartire le ore."}</p>
+              ? tr("Il salvataggio aggiorna una previsione per ciascuna lavorazione selezionata.")
+              : tr("Seleziona più lavorazioni nell’elenco per ripartire le ore.")}</p>
             <PianificaAssegnazione key={organizza.ids.join("|")} ambiti={bersagli}
               persone={employees} squadre={squadreDisponibili.data ?? []} calendario={calendario}
               puoPersone puoSquadre={puoSquadre} puoDate puoVoci onOccupato={setOccupato}
               previsionale={{ salvato: pianoSalvato, quoteSalvate, disponibilita: previsionale.disponibilita, chiaveDisponibilita: previsionale.chiaveDisponibilita, salva: async (dati, operazione) => {
                 const ambiti = dati.ambiti.map(destinazionePrevisto).filter((a): a is DestinazionePrevisto => a !== null);
-                if (ambiti.length !== dati.ambiti.length) throw new Error("Seleziona una fase o una voce.");
+                if (ambiti.length !== dati.ambiti.length) throw new Error(tr("Seleziona una fase o una voce."));
                 await previsionale.salva({ ...dati, ambiti, sabato: calendario.sabato }, operazione);
                 setOccupato(false);
               } }} />
           </>}
         </div>}
         {sezione === "chi" && <div className="space-y-3">
-          {fase && <h4 className="text-sm font-semibold">Assegnazioni attuali</h4>}
+          {fase && <h4 className="text-sm font-semibold">{tr("Assegnazioni attuali")}</h4>}
           {voce && renderVoce && <details className="rounded-lg border p-3">
-            <summary className="cursor-pointer text-sm font-semibold">Dettaglio della voce</summary>
+            <summary className="cursor-pointer text-sm font-semibold">{tr("Dettaglio della voce")}</summary>
             <div className="mt-3">{renderVoce(organizza.attiva, chiudiOrganizza)}</div>
           </details>}
           {fase && !voce && schedaDi(fase, true, "chi")}
           {previsioniVisibili}
           {puoAssegnareDitta && <div className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/40 p-1 sm:inline-grid"
-            role="group" aria-label="Tipo di assegnazione">
+            role="group" aria-label={tr("Tipo di assegnazione")}>
             <Button type="button" size="sm" variant="ghost" aria-pressed={!assegnaDitta}
               className={cn("h-auto min-h-9 whitespace-normal px-2 text-left", !assegnaDitta && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary")}
               disabled={occupato} onClick={() => { setTipoAssegnazione("interni"); setAvanzate(false); }}>
-              <UsersRound className="size-4 shrink-0" aria-hidden="true" />Operai e squadre
+              <UsersRound className="size-4 shrink-0" aria-hidden="true" />{tr("Operai e squadre")}
             </Button>
             <Button type="button" size="sm" variant="ghost" aria-pressed={assegnaDitta}
               className={cn("h-auto min-h-9 whitespace-normal px-2 text-left", assegnaDitta && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary")}
               disabled={occupato} onClick={() => { setTipoAssegnazione("ditte"); setAvanzate(false); }}>
-              <Building2 className="size-4 shrink-0" aria-hidden="true" />Ditte e subappaltatori
+              <Building2 className="size-4 shrink-0" aria-hidden="true" />{tr("Ditte e subappaltatori")}
             </Button>
           </div>}
           {assegnaDitta && puoSubappaltare && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3">
-            <p className="text-sm">{bersagli.length ? "La richiesta riprende le lavorazioni selezionate." : "Seleziona almeno una lavorazione per chiedere un preventivo."}</p>
+            <p className="text-sm">{bersagli.length ? tr("La richiesta riprende le lavorazioni selezionate.") : tr("Seleziona almeno una lavorazione per chiedere un preventivo.")}</p>
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="ghost" disabled={occupato} onClick={() => vaiA("subappalto")}>Vedi richieste</Button>
-              <Button size="sm" disabled={occupato || !bersagli.length} onClick={() => vaiA("subappalto", "nuova-richiesta")}>Richiedi preventivo</Button>
+              <Button size="sm" variant="ghost" disabled={occupato} onClick={() => vaiA("subappalto")}>{tr("Vedi richieste")}</Button>
+              <Button size="sm" disabled={occupato || !bersagli.length} onClick={() => vaiA("subappalto", "nuova-richiesta")}>{tr("Richiedi preventivo")}</Button>
             </div>
           </div>}
-          {assegnaDitta && <section className="space-y-3 rounded-xl border bg-background p-3" aria-label="Assegna una ditta">
-            <h4 className="text-sm font-semibold">Assegna una ditta già scelta</h4>
+          {assegnaDitta && <section className="space-y-3 rounded-xl border bg-background p-3" aria-label={tr("Assegna una ditta")}>
+            <h4 className="text-sm font-semibold">{tr("Assegna una ditta già scelta")}</h4>
             {voce ? <>
-              <p className="text-sm text-muted-foreground">Indica le quantità da affidare nel subappalto della voce.</p>
-              {puoSubappaltare && <Button size="sm" variant="outline" disabled={occupato} onClick={() => vaiA("subappalto", "lavorazioni")}>Apri affidamento della voce</Button>}
+              <p className="text-sm text-muted-foreground">{tr("Indica le quantità da affidare nel subappalto della voce.")}</p>
+              {puoSubappaltare && <Button size="sm" variant="outline" disabled={occupato} onClick={() => vaiA("subappalto", "lavorazioni")}>{tr("Apri affidamento della voce")}</Button>}
             </> : bersagli.length !== 1 || bersagli[0].id !== attiva?.id ? (
-              <p className="text-sm text-muted-foreground">Scegli una fase o l’intera commessa dall’elenco per assegnarle una ditta.</p>
+              <p className="text-sm text-muted-foreground">{tr("Scegli una fase o l’intera commessa dall’elenco per assegnarle una ditta.")}</p>
             ) : <AddAssignmentDialog key={`ditta:${organizza.attiva}`} orderId={orderId} phaseId={fase?.id ?? null} incorporato soloDitta aperto
               employees={employees} externalTeams={externalTeams} phases={phaseOptions}
               existingAssignments={[...unassigned, ...phases.flatMap(p => p.assignments)]}
@@ -944,7 +946,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
           </section>}
           {!assegnaDitta && (puoModificare || puoSquadre) && (!advanced
             ? proposta && (isLoading || (proposta.tipo === "squadre" && squadreDisponibili.isLoading))
-              ? <p role="status" className="text-sm text-muted-foreground">Caricamento risorse…</p>
+              ? <p role="status" className="text-sm text-muted-foreground">{tr("Caricamento risorse…")}</p>
               : <PianificaAssegnazione key={`assegnazione:${organizza.attiva}`} ambiti={bersagli} persone={employees} squadre={squadreDisponibili.data ?? []}
               proposta={proposta?.company === effectiveCompany?.id ? proposta : undefined}
               calendario={calendario} puoPersone={puoModificare} puoSquadre={puoSquadre && (!voce || puoModificare)} puoDate={puoModificare}
@@ -953,17 +955,17 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             : <AddAssignmentDialog key={`assegnazione-avanzata:${organizza.attiva}`} orderId={orderId} phaseId={fase?.id ?? null} incorporato aperto={true}
               employees={employees} externalTeams={externalTeams} phases={phaseOptions} existingAssignments={[...unassigned, ...phases.flatMap((p) => p.assignments)]}
               onOccupato={setOccupato} onAperto={() => setAvanzate(false)} onAdd={(payload, opts) => addAssignment.mutate(payload, opts)} />)}
-          {!assegnaDitta && !advanced && !voce && !occupato && (puoModificare || puoSquadre) && bersagli.length === 1 && <Button variant="ghost" size="sm" onClick={() => setAvanzate(true)}>Dettagli avanzati di assegnazione</Button>}
+          {!assegnaDitta && !advanced && !voce && !occupato && (puoModificare || puoSquadre) && bersagli.length === 1 && <Button variant="ghost" size="sm" onClick={() => setAvanzate(true)}>{tr("Dettagli avanzati di assegnazione")}</Button>}
         </div>}
         {sezione === "mezzi" && fase && <div className="space-y-3">
-          {voce && <p className="text-sm text-muted-foreground">Risorse della fase {fase.name}, condivise con le sue voci.</p>}
+          {voce && <p className="text-sm text-muted-foreground">{tr("Risorse della fase {fase}, condivise con le sue voci.", { fase: fase.name })}</p>}
           {(canViewMezzi || isAdmin) && <PianoMezziCantiere orderId={orderId} faseId={fase.id} />}
-          {risorseFase.length > 0 && <section className="rounded-lg border p-3" aria-label="Mezzi delle persone">
-            <h4 className="mb-2 text-sm font-semibold">In carico alle persone della fase</h4>
-            <ul className="space-y-1 text-sm">{risorseFase.map((m) => <li key={m.id}>{m.nome} · {m.persona}{m.a_bordo.length ? ` · ${m.a_bordo.join(", ")}` : ""}{m.altrove ? ` · risulta su ${m.altrove}` : ""}</li>)}</ul>
+          {risorseFase.length > 0 && <section className="rounded-lg border p-3" aria-label={tr("Mezzi delle persone")}>
+            <h4 className="mb-2 text-sm font-semibold">{tr("In carico alle persone della fase")}</h4>
+            <ul className="space-y-1 text-sm">{risorseFase.map((m) => <li key={m.id}>{m.nome} · {m.persona}{m.a_bordo.length ? ` · ${m.a_bordo.join(", ")}` : ""}{m.altrove ? ` · ${tr("risulta su {luogo}", { luogo: m.altrove })}` : ""}</li>)}</ul>
           </section>}
-          {(canViewMezzi || isAdmin) && (mezziSulCantiere.length > 0 || montaggi.length > 0) && <section className="rounded-lg border p-3" aria-label="Mezzi condivisi sulla commessa">
-            <h4 className="mb-2 text-sm font-semibold">Presenti sul cantiere</h4>
+          {(canViewMezzi || isAdmin) && (mezziSulCantiere.length > 0 || montaggi.length > 0) && <section className="rounded-lg border p-3" aria-label={tr("Mezzi condivisi sulla commessa")}>
+            <h4 className="mb-2 text-sm font-semibold">{tr("Presenti sul cantiere")}</h4>
             <ul className="space-y-1 text-sm">
               {mezziSulCantiere.map((m) => <li key={m.id}>{m.nome}{m.targa ? ` · ${m.targa}` : ""}</li>)}
               {montaggi.map((m) => <li key={m.id}>{m.nome} · {m.quantita} {m.unita}</li>)}
@@ -985,9 +987,9 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             </div>
             : <div className="space-y-2 text-sm">
               {riepilogoSubappalto}
-              {squadreGenerali.length > 0 && <p>Squadre della commessa · {squadreGenerali.map((s) => s.nome).join(", ")}</p>}
-              {unassigned.length > 0 && <p>{unassigned.length} assegnazioni generali</p>}
-              <Button size="sm" variant="outline" onClick={() => { chiudiOrganizza(); setResponsabiliAperti(true); setOrganizzazioneOrdine(orderId); organizationRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Gestisci assegnazioni generali</Button>
+              {squadreGenerali.length > 0 && <p>{tr("Squadre della commessa · {squadre}", { squadre: squadreGenerali.map((s) => s.nome).join(", ") })}</p>}
+              {unassigned.length > 0 && <p>{tr("{n} assegnazioni generali", { n: unassigned.length })}</p>}
+              <Button size="sm" variant="outline" onClick={() => { chiudiOrganizza(); setResponsabiliAperti(true); setOrganizzazioneOrdine(orderId); organizationRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>{tr("Gestisci assegnazioni generali")}</Button>
             </div>
         )}
       </OrganizzaLavoroDialog>
@@ -1052,8 +1054,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
 
   const aiutoFasi = !telefono && canEditOrders && (
     <SilvioAiuto
-      titolo="Silvio · le fasi della commessa"
-      descrizione="Cosa manca perché le fasi siano pronte: date, chi le fa, costi. Ogni punto ha la sua azione."
+      titolo={tr("Silvio · le fasi della commessa")}
+      descrizione={tr("Cosa manca perché le fasi siano pronte: date, chi le fa, costi. Ogni punto ha la sua azione.")}
       punti={puntiFasi}
       onAzione={azioneSilvio}
       intestazioneChat={`Commessa ${orderCode ?? ""}: fasi ${phases.map((p) => `«${p.name}» (${p.start_date ?? "senza inizio"} → ${p.end_date ?? "senza fine"}, ${p.percentuale}%)`).join(", ")}.`}
@@ -1066,7 +1068,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     <Button variant="ghost" size="sm"
       className={cn("h-8 text-amber-800", paginaLavorazioni && "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60")}
       onClick={() => setFaseAperta(phases.find((p) => matchesFilter(p, "attention"))?.id ?? null)}>
-      <AlertTriangle className="h-4 w-4" aria-hidden="true" />Verifica {attentionCount} {attentionCount === 1 ? "lavorazione" : "lavorazioni"}
+      <AlertTriangle className="h-4 w-4" aria-hidden="true" />{tr(attentionCount === 1 ? "Verifica {n} lavorazione" : "Verifica {n} lavorazioni", { n: attentionCount })}
     </Button>
   );
 
@@ -1082,11 +1084,11 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 <HardHat className="size-5" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <h2 className="text-xl font-semibold leading-tight tracking-tight">Lavorazioni</h2>
+                <h2 className="text-xl font-semibold leading-tight tracking-tight">{tr("Lavorazioni")}</h2>
                 {!isLoading && !isError && phases.length > 0 && <p className="mt-0.5 text-xs tabular-nums text-muted-foreground sm:text-sm">
-                  {phases.length} {phases.length === 1 ? "fase" : "fasi"}
-                  {summary.active > 0 && ` · ${summary.active} in corso`}
-                  {completedCount > 0 && ` · ${completedCount} ${completedCount === 1 ? "completata" : "completate"}`}
+                  {tr(phases.length === 1 ? "{n} fase" : "{n} fasi", { n: phases.length })}
+                  {summary.active > 0 && ` · ${tr("{n} in corso", { n: summary.active })}`}
+                  {completedCount > 0 && ` · ${tr(completedCount === 1 ? "{n} completata" : "{n} completate", { n: completedCount })}`}
                 </p>}
               </div>
             </div>
@@ -1097,40 +1099,40 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               {telefono && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button type="button" size="sm" variant="outline" className="min-h-10 px-3" aria-label="Altro sulle lavorazioni">
+                    <Button type="button" size="sm" variant="outline" className="min-h-10 px-3" aria-label={tr("Altro sulle lavorazioni")}>
                       <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
-                    {canEditOrders && showWork && <DropdownMenuItem onSelect={() => setImportaAperto(true)}><FileUp className="mr-2 h-4 w-4" aria-hidden="true" />Importa fasi</DropdownMenuItem>}
+                    {canEditOrders && showWork && <DropdownMenuItem onSelect={() => setImportaAperto(true)}><FileUp className="mr-2 h-4 w-4" aria-hidden="true" />{tr("Importa fasi")}</DropdownMenuItem>}
                     <DropdownMenuItem onSelect={() => {
                       const apri = !responsabiliAperti;
                       setResponsabiliAperti(apri);
                       if (apri) window.setTimeout(() => document.getElementById("section-squadra")?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 50);
-                    }}><ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />{responsabiliAperti ? "Nascondi squadra e sicurezza" : "Squadra e sicurezza"}</DropdownMenuItem>
+                    }}><ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />{responsabiliAperti ? tr("Nascondi squadra e sicurezza") : tr("Squadra e sicurezza")}</DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => document.getElementById("section-mezzi")?.scrollIntoView({ block: "start", behavior: "smooth" })}>
-                      <Truck className="mr-2 h-4 w-4" aria-hidden="true" />{canViewMezzi || isAdmin ? "Mezzi e viaggi" : "Indirizzo cantiere"}
+                      <Truck className="mr-2 h-4 w-4" aria-hidden="true" />{canViewMezzi || isAdmin ? tr("Mezzi e viaggi") : tr("Indirizzo cantiere")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
             </div>}
           </div>
-          {!telefono && <div role="group" aria-label="Strumenti delle lavorazioni" className="flex flex-wrap items-center gap-1 border-t pt-2 text-muted-foreground">
+          {!telefono && <div role="group" aria-label={tr("Strumenti delle lavorazioni")} className="flex flex-wrap items-center gap-1 border-t pt-2 text-muted-foreground">
             {azioneImporta}
             {ditteContratti}
             {!telefono && lavoriExtra}
             {onApriCronoprogramma && <Button type="button" variant="ghost" size="sm" className="h-9 px-2.5" onClick={onApriCronoprogramma}>
-              <CalendarDays className="size-4" aria-hidden="true" />Cronoprogramma
+              <CalendarDays className="size-4" aria-hidden="true" />{tr("Cronoprogramma")}
             </Button>}
             <Button type="button" variant="ghost" size="sm" aria-expanded={responsabiliAperti} aria-controls="section-squadra"
               className={cn("h-9 px-2.5", responsabiliAperti && "bg-muted text-foreground")} onClick={() => setResponsabiliAperti(open => !open)}>
-              <ShieldCheck className="size-4" aria-hidden="true" />Squadra e sicurezza
+              <ShieldCheck className="size-4" aria-hidden="true" />{tr("Squadra e sicurezza")}
               <ChevronDown className={cn("size-3 transition-transform motion-reduce:transition-none", responsabiliAperti && "rotate-180")} aria-hidden="true" />
             </Button>
             <Button asChild variant="ghost" size="sm" className="h-9 px-2.5">
               <a href="#section-mezzi">
-                <Truck className="size-4" aria-hidden="true" />{canViewMezzi || isAdmin ? "Mezzi e viaggi" : "Indirizzo cantiere"}
+                <Truck className="size-4" aria-hidden="true" />{canViewMezzi || isAdmin ? tr("Mezzi e viaggi") : tr("Indirizzo cantiere")}
               </a>
             </Button>
             {(aiutoFasi || azioneVerifica) && <div className="flex flex-wrap items-center gap-1 sm:ml-auto">{azioneVerifica}{aiutoFasi}</div>}
@@ -1142,9 +1144,9 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
           <div className={cn("space-y-1", view && "sr-only")}>
           <CardTitle className="flex items-center gap-2 text-lg">
             <HardHat className="h-5 w-5 text-primary" />
-            {view ? "Lavorazioni" : "Lavori e squadre"}
+            {view ? tr("Lavorazioni") : tr("Lavori e squadre")}
           </CardTitle>
-          <p className="text-sm text-muted-foreground max-sm:hidden">Segui le fasi del lavoro. Apri una fase per gestirne i dettagli.</p>
+          <p className="text-sm text-muted-foreground max-sm:hidden">{tr("Segui le fasi del lavoro. Apri una fase per gestirne i dettagli.")}</p>
           </div>
 
           {!view && (canEditOrders || puoSquadre) && <div className="flex flex-wrap items-center gap-2">
@@ -1157,16 +1159,16 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
         {(view || (!isLoading && !isError)) && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
             {telefono ? (!isLoading && !isError && <span className="min-w-0 shrink-0 tabular-nums">
-              <b className="font-semibold text-slate-900">{phases.length}</b> {phases.length === 1 ? "fase" : "fasi"}
-              {summary.active > 0 && <> · {summary.active} in corso</>}
+              <b className="font-semibold text-slate-900">{phases.length}</b> {phases.length === 1 ? tr("fase") : tr("fasi")}
+              {summary.active > 0 && <> · {tr("{n} in corso", { n: summary.active })}</>}
             </span>) : !isLoading && !isError && <span className="tabular-nums">
-              <b className="font-semibold text-slate-900">{phases.length}</b> {phases.length === 1 ? "fase" : "fasi"}
-              {summary.active > 0 && <> ({summary.active} in corso)</>}
-              {(!view || squadreAttive.length > 0) && <>{" · "}<b className="font-semibold text-slate-900">{squadreAttive.length}</b> {squadreAttive.length === 1 ? "squadra" : "squadre"}</>}
-              {operaiInSquadra > 0 && <>{" · "}<b className="font-semibold text-slate-900">{operaiInSquadra}</b> {operaiInSquadra === 1 ? "operaio in squadra" : "operai in squadra"}</>}
-              {summary.employees > 0 && <>{" · "}<b className="font-semibold text-slate-900">{summary.employees}</b> {summary.employees === 1 ? "operaio assegnato individualmente" : "operai assegnati individualmente"}</>}
-              {summary.teams > 0 && <> · <b className="font-semibold text-slate-900">{summary.teams}</b> {summary.teams === 1 ? "ditta" : "ditte"}</>}
-              {(!view || note.length > 0) && <>{" · "}<b className="font-semibold text-slate-900">{note.length}</b> {note.length === 1 ? "nota" : "note"}</>}
+              <b className="font-semibold text-slate-900">{phases.length}</b> {phases.length === 1 ? tr("fase") : tr("fasi")}
+              {summary.active > 0 && <> ({tr("{n} in corso", { n: summary.active })})</>}
+              {(!view || squadreAttive.length > 0) && <>{" · "}<b className="font-semibold text-slate-900">{squadreAttive.length}</b> {squadreAttive.length === 1 ? tr("squadra") : tr("squadre")}</>}
+              {operaiInSquadra > 0 && <>{" · "}<b className="font-semibold text-slate-900">{operaiInSquadra}</b> {operaiInSquadra === 1 ? tr("operaio in squadra") : tr("operai in squadra")}</>}
+              {summary.employees > 0 && <>{" · "}<b className="font-semibold text-slate-900">{summary.employees}</b> {summary.employees === 1 ? tr("operaio assegnato individualmente") : tr("operai assegnati individualmente")}</>}
+              {summary.teams > 0 && <> · <b className="font-semibold text-slate-900">{summary.teams}</b> {summary.teams === 1 ? tr("ditta") : tr("ditte")}</>}
+              {(!view || note.length > 0) && <>{" · "}<b className="font-semibold text-slate-900">{note.length}</b> {note.length === 1 ? tr("nota") : tr("note")}</>}
             </span>}
             <span className={cn("flex flex-wrap items-center gap-1.5 sm:ml-auto", telefono ? "min-w-0 flex-1 justify-end" : "max-sm:w-full")}>
               {/* Mobile: due azioni compatte, le assegnazioni in un unico menu. */}
@@ -1184,22 +1186,22 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
           <button type="button" aria-expanded={responsabiliAperti} onClick={() => setResponsabiliAperti((v) => !v)}
             className="flex w-full items-center gap-1 rounded-lg border px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {responsabiliAperti ? <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
-            Capocantiere, squadre e figure di sicurezza
+            {tr("Capocantiere, squadre e figure di sicurezza")}
           </button>
         )}
-        {showTeam && <section hidden={(paginaLavorazioni || telefono || modoFasi === "tabella") && !responsabiliAperti} ref={organizationRef} id="section-squadra" aria-label="Responsabili e assegnazioni generali" className={cn("space-y-3 scroll-mt-24", paginaLavorazioni && "rounded-xl border bg-muted/25 p-2.5 sm:p-3")}>
+        {showTeam && <section hidden={(paginaLavorazioni || telefono || modoFasi === "tabella") && !responsabiliAperti} ref={organizationRef} id="section-squadra" aria-label={tr("Responsabili e assegnazioni generali")} className={cn("space-y-3 scroll-mt-24", paginaLavorazioni && "rounded-xl border bg-muted/25 p-2.5 sm:p-3")}>
           {!isLoading && !isError && <>
           <AppCantiere orderId={orderId} modificabile={puoSquadre} nomiSquadre={nomiSquadre} compact gestione
             gestisciAccessiTecnici={canEditOrders && !solaLettura} organizzazione={{
             aperta: organizzazioneAperta,
-            riepilogo: squadreQuery.isError ? "squadre non disponibili" : squadreQuery.isLoading ? "caricamento squadre…" : `${squadreGenerali.length ? `Squadra commessa: ${squadreGenerali.slice(0, 2).map(s => `${s.nome}${!s.attiva || s.finita ? " (storico)" : ""}`).join(", ")}${squadreGenerali.length > 2 ? ` +${squadreGenerali.length - 2}` : ""}` : "nessuna squadra generale"}${unassigned.length ? ` · ${unassigned.length} persone / ditte generali` : ""}`,
+            riepilogo: squadreQuery.isError ? tr("squadre non disponibili") : squadreQuery.isLoading ? tr("caricamento squadre…") : `${squadreGenerali.length ? tr("Squadra commessa: {squadre}", { squadre: `${squadreGenerali.slice(0, 2).map(s => `${s.nome}${!s.attiva || s.finita ? ` ${tr("(storico)")}` : ""}`).join(", ")}${squadreGenerali.length > 2 ? ` +${squadreGenerali.length - 2}` : ""}` }) : tr("nessuna squadra generale")}${unassigned.length ? ` · ${tr("{n} persone / ditte generali", { n: unassigned.length })}` : ""}`,
             onGestione: () => setOrganizzazioneOrdine(organizzazioneAperta ? null : orderId),
             onTurni: canEditOrders && internalTeamShiftsEnabled ? () => setTurniOrdine(orderId) : undefined,
           }} />
           <div id={`organization-body-${orderId}`} hidden={!organizzazioneAperta} className="space-y-3">
-          {squadreQuery.isError ? <div role="alert" className="rounded-lg border border-rose-200 p-3 text-sm">Squadre non disponibili. <Button variant="outline" size="sm" onClick={() => void squadreQuery.refetch()}>Riprova squadre</Button></div> : squadreQuery.isLoading ? <p role="status" className="text-xs text-muted-foreground">Caricamento squadre…</p> : squadreCoinvolte.length > 0 && <div className="flex flex-wrap gap-2" aria-label="Capisquadra della commessa">{squadreCoinvolte.map(s => <span key={s.squadra_id} className="rounded-lg border bg-white px-3 py-2 text-sm"><b>{s.nome}</b><span className="ml-2 text-muted-foreground">Caposquadra: {s.responsabile ? `${s.responsabile.nome} ${s.responsabile.cognome}` : "da impostare"}{!s.attiva || s.finita ? " · storico" : ""}</span></span>)}{puoSquadre && <a className="self-center text-xs font-medium underline" href="/azienda/manodopera?tab=operai&vista=squadre">Gestisci capisquadra</a>}</div>}
-          {organizzazioneAperta && (squadreGenerali.length > 0 || unassigned.length > 0) && <section aria-label="Assegnazioni per tutta la commessa" className="rounded-lg border px-3 py-2 text-sm">
-            <h3 className="font-medium">Assegnazioni per tutta la commessa · {unassigned.length} persone / ditte · {squadreGenerali.length} squadre</h3>
+          {squadreQuery.isError ? <div role="alert" className="rounded-lg border border-rose-200 p-3 text-sm">{tr("Squadre non disponibili.")} <Button variant="outline" size="sm" onClick={() => void squadreQuery.refetch()}>{tr("Riprova squadre")}</Button></div> : squadreQuery.isLoading ? <p role="status" className="text-xs text-muted-foreground">{tr("Caricamento squadre…")}</p> : squadreCoinvolte.length > 0 && <div className="flex flex-wrap gap-2" aria-label={tr("Capisquadra della commessa")}>{squadreCoinvolte.map(s => <span key={s.squadra_id} className="rounded-lg border bg-white px-3 py-2 text-sm"><b>{s.nome}</b><span className="ml-2 text-muted-foreground">{tr("Caposquadra: {nome}", { nome: s.responsabile ? `${s.responsabile.nome} ${s.responsabile.cognome}` : tr("da impostare") })}{!s.attiva || s.finita ? ` · ${tr("storico")}` : ""}</span></span>)}{puoSquadre && <a className="self-center text-xs font-medium underline" href="/azienda/manodopera?tab=operai&vista=squadre">{tr("Gestisci capisquadra")}</a>}</div>}
+          {organizzazioneAperta && (squadreGenerali.length > 0 || unassigned.length > 0) && <section aria-label={tr("Assegnazioni per tutta la commessa")} className="rounded-lg border px-3 py-2 text-sm">
+            <h3 className="font-medium">{tr("Assegnazioni per tutta la commessa · {persone} persone / ditte · {squadre} squadre", { persone: unassigned.length, squadre: squadreGenerali.length })}</h3>
             <div className="mt-3 space-y-3">
               {squadreGenerali.length > 0 && <SquadreCommessa orderId={orderId} modificabile={puoSquadre} aggiungiAperto={aggiungiSquadra} onAggiungiAperto={setAggiungiSquadra} />}
               {unassigned.length > 0 && <UnassignedCard hasPhases={phases.length > 0} assignments={unassigned} employees={employees} externalTeams={externalTeams} phases={phaseOptions} onUpdateAssignment={saveAssignment} onDeleteAssignment={(id, source) => deleteAssignment.mutateAsync({ id, source })} />}
@@ -1209,7 +1211,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
           </>}
           {organizationContent}
         </section>}
-        <Dialog open={turniOrdine === orderId} onOpenChange={open => setTurniOrdine(open ? orderId : null)}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>{canEditOrders ? "Pianifica turni di lavoro" : "Turni di lavoro"}</DialogTitle><DialogDescription>Organizza i giorni di presenza. Le ore lavorate arrivano dai rapportini.</DialogDescription></DialogHeader>{turniOrdine === orderId && <InternalTeamShifts key={orderId} orderId={orderId} teams={externalTeams} phases={phaseOptions} canPlan={canEditOrders} />}</DialogContent></Dialog>
+        <Dialog open={turniOrdine === orderId} onOpenChange={open => setTurniOrdine(open ? orderId : null)}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>{canEditOrders ? tr("Pianifica turni di lavoro") : tr("Turni di lavoro")}</DialogTitle><DialogDescription>{tr("Organizza i giorni di presenza. Le ore lavorate arrivano dai rapportini.")}</DialogDescription></DialogHeader>{turniOrdine === orderId && <InternalTeamShifts key={orderId} orderId={orderId} teams={externalTeams} phases={phaseOptions} canPlan={canEditOrders} />}</DialogContent></Dialog>
 
         {/* Economia delle lavorazioni (06/10/2026): venduto, costo previsto e
             consuntivo fase per fase, al posto del riepilogo della sola
@@ -1239,7 +1241,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
 
       <CardContent className={cn(telefono ? "space-y-2 px-0 pb-0" : "px-3 pb-3", !telefono && (view ? "space-y-3 sm:px-4 sm:pb-4" : "space-y-5 sm:px-6 sm:pb-6"))}>
         {showWork && (!logisticaIntegrata || !(canViewMezzi || isAdmin)) && effectiveCompany?.id && <StrumentiComputo key={orderId} companyId={effectiveCompany.id} orderId={orderId}
-          iniziale="servizi" etichetta="Noleggi e servizi" nomeFase={id => phases.find(p => p.id === id)?.name ?? "Senza fase"} />}
+          iniziale="servizi" etichetta={tr("Noleggi e servizi")} nomeFase={id => phases.find(p => p.id === id)?.name ?? tr("Senza fase")} />}
         {/* I tempi del cronoprogramma del preventivo firmato diventano le date delle fasi (31/10/2026). */}
         {canEditOrders && !isLoading && !isError && <PianoDalPreventivo orderId={orderId} fasi={phases} />}
         {/* Dove si trova, quanta strada dalla sede, mezzi e attrezzi */}
@@ -1259,15 +1261,15 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
-            Caricamento lavorazioni…
+            {tr("Caricamento lavorazioni…")}
           </div>
         ) : isError ? (
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-rose-200 bg-rose-50/40 py-10 text-center">
             <p className="max-w-md text-sm text-rose-700">
-              Impossibile caricare le lavorazioni. Controlla la connessione e riprova.
+              {tr("Impossibile caricare le lavorazioni. Controlla la connessione e riprova.")}
             </p>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <Loader2 className="mr-1 h-4 w-4" /> Riprova
+              <Loader2 className="mr-1 h-4 w-4" /> {tr("Riprova")}
             </Button>
           </div>
         ) : phases.length === 0 && unassigned.length === 0 ? (
@@ -1292,24 +1294,24 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             {andamentoTelefono && <div className="rounded-lg border bg-card px-3 py-2"><BarraAndamento a={andamentoTelefono} /></div>}
             {/* Una riga sola (06/10/2026): titolo, filtri, ricerca e completate
                 stavano su quattro righe, con tanto spazio vuoto. */}
-            {canEditOrders && nomiRipetuti > 0 && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">{nomiRipetuti} nomi di fase compaiono più volte. Controlla le copie e usa «Altre azioni» (⋯) → «Elimina fase» sulla riga da rimuovere. Le lavorazioni già registrate vanno verificate prima della rimozione.</p>}
+            {canEditOrders && nomiRipetuti > 0 && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">{tr("{n} nomi di fase compaiono più volte. Controlla le copie e usa «Altre azioni» (⋯) → «Elimina fase» sulla riga da rimuovere. Le lavorazioni già registrate vanno verificate prima della rimozione.", { n: nomiRipetuti })}</p>}
             {filtriCompatti ? mostraFiltri && (
               <CercaConFiltri
                 valore={search}
                 onCambia={setSearch}
-                segnaposto="Cerca una lavorazione"
+                segnaposto={tr("Cerca una lavorazione")}
                 filtriAttivi={filter !== "all" ? 1 : 0}
                 onApriFiltri={() => setFiltriAperti(true)}
               />
             ) : <div className="flex flex-wrap items-center gap-2">
-              <h3 className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Fasi di lavoro</h3>
-              {canEditOrders && phases.length > 0 && <p className="basis-full text-xs font-normal normal-case tracking-normal text-muted-foreground">Per rimuovere una fase, apri «Altre azioni» (⋯) sulla sua riga e scegli «Elimina fase». Le fasi collegate a documenti richiedono prima la gestione dei collegamenti.</p>}
-              {mostraFiltri && <div className="flex flex-wrap gap-1" aria-label="Filtra lavorazioni">
+              <h3 className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{tr("Fasi di lavoro")}</h3>
+              {canEditOrders && phases.length > 0 && <p className="basis-full text-xs font-normal normal-case tracking-normal text-muted-foreground">{tr("Per rimuovere una fase, apri «Altre azioni» (⋯) sulla sua riga e scegli «Elimina fase». Le fasi collegate a documenti richiedono prima la gestione dei collegamenti.")}</p>}
+              {mostraFiltri && <div className="flex flex-wrap gap-1" aria-label={tr("Filtra lavorazioni")}>
                 {([["all", "Tutte"], ["in_corso", "In corso"], ["da_iniziare", "Da iniziare"], ["attention", "Da organizzare"], ["completata", "Completate"]] as const).map(([value, label]) =>
-                  <Button key={value} size="sm" className="h-8" variant={filter === value ? "secondary" : "ghost"} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</Button>)}
+                  <Button key={value} size="sm" className="h-8" variant={filter === value ? "secondary" : "ghost"} aria-pressed={filter === value} onClick={() => setFilter(value)}>{tr(label)}</Button>)}
               </div>}
-              {mostraFiltri && <div className="relative min-w-[12rem] flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="h-9 pl-9" aria-label="Cerca lavorazione" placeholder="Cerca una lavorazione…" value={search} onChange={e => setSearch(e.target.value)} /></div>}
-              {view && groupCompleted && completedCount > 0 && <Button variant="outline" size="sm" className={cn("h-8", !mostraFiltri && "ml-auto")} aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>{showCompleted ? "Nascondi" : "Mostra"} {completedCount} {completedCount === 1 ? "fase completata" : "fasi completate"}</Button>}
+              {mostraFiltri && <div className="relative min-w-[12rem] flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="h-9 pl-9" aria-label={tr("Cerca lavorazione")} placeholder={tr("Cerca una lavorazione…")} value={search} onChange={e => setSearch(e.target.value)} /></div>}
+              {view && groupCompleted && completedCount > 0 && <Button variant="outline" size="sm" className={cn("h-8", !mostraFiltri && "ml-auto")} aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>{showCompleted ? tr("Nascondi") : tr("Mostra")} {tr(completedCount === 1 ? "{n} fase completata" : "{n} fasi completate", { n: completedCount })}</Button>}
             </div>}
             {filtriCompatti && (
               <PannelloFiltri
@@ -1318,24 +1320,24 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 attivi={filter !== "all" ? 1 : 0}
                 onAzzera={() => setFilter("all")}
                 risultati={visiblePhases.length}
-                titolo="Lavorazioni"
+                titolo={tr("Lavorazioni")}
               >
                 <GruppoFiltri>
                   <SceltaFiltro<WorkFilter>
-                    titolo="Stato" valore={filter} onScegli={setFilter}
+                    titolo={tr("Stato")} valore={filter} onScegli={setFilter}
                     scelte={([["all", "Tutte"], ["in_corso", "In corso"], ["da_iniziare", "Da iniziare"], ["attention", "Da organizzare"], ["completata", "Completate"]] as const)
-                      .map(([value, label]) => ({ value, label }))}
+                      .map(([value, label]) => ({ value, label: tr(label) }))}
                   />
                 </GruppoFiltri>
               </PannelloFiltri>
             )}
-            {phases.length > 0 && visiblePhases.length === 0 && <p role="status" className="py-3 text-sm text-muted-foreground">{view && groupCompleted && completedCount > 0 && !showCompleted ? "Le lavorazioni sono completate. Verifica eventuali attività aperte e il collaudo prima della consegna." : "Nessuna lavorazione corrisponde ai filtri."}</p>}
-            {view === "lavorazioni" && phases.length > 0 && completedCount === phases.length && visiblePhases.length > 0 && <p role="status" className="text-xs text-muted-foreground">Le lavorazioni sono completate. Verifica eventuali attività aperte e il collaudo prima della consegna.</p>}
+            {phases.length > 0 && visiblePhases.length === 0 && <p role="status" className="py-3 text-sm text-muted-foreground">{view && groupCompleted && completedCount > 0 && !showCompleted ? tr("Le lavorazioni sono completate. Verifica eventuali attività aperte e il collaudo prima della consegna.") : tr("Nessuna lavorazione corrisponde ai filtri.")}</p>}
+            {view === "lavorazioni" && phases.length > 0 && completedCount === phases.length && visiblePhases.length > 0 && <p role="status" className="text-xs text-muted-foreground">{tr("Le lavorazioni sono completate. Verifica eventuali attività aperte e il collaudo prima della consegna.")}</p>}
             {visiblePhases.map((phase) => schedaDi(phase))}
             {/* Da telefono le completate si aprono in fondo, dopo quelle da fare */}
             {filtriCompatti && view && groupCompleted && completedCount > 0 && (
               <Button variant="ghost" size="sm" className="tap-compact h-9 w-full text-slate-600" aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>
-                {showCompleted ? "Nascondi le completate" : `Mostra ${completedCount} ${completedCount === 1 ? "fase completata" : "fasi completate"}`}
+                {showCompleted ? tr("Nascondi le completate") : tr(completedCount === 1 ? "Mostra {n} fase completata" : "Mostra {n} fasi completate", { n: completedCount })}
               </Button>
             )}
             </>}
@@ -1349,9 +1351,9 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
         {/* Le ditte in subappalto (DURC e contratto), solo se ce ne sono. */}
         {showTeam && <>
           {effectiveCompany?.id && <PeriodiInCommessa companyId={effectiveCompany.id} orderId={orderId} />}
-          <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Istruzioni per il cantiere{note.length > 0 ? ` (${note.length})` : ""}</summary><div className="mt-3"><NoteCantiere orderId={orderId} fasi={phaseOptions} modificabile={puoSquadre} /></div></details>
+          <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">{tr("Istruzioni per il cantiere")}{note.length > 0 ? ` (${note.length})` : ""}</summary><div className="mt-3"><NoteCantiere orderId={orderId} fasi={phaseOptions} modificabile={puoSquadre} /></div></details>
           <OrderLaborCosts orderId={orderId} editable={canEditOrders} embedded parte="ditte" compact />
-          {!logisticaIntegrata && <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Indirizzo e viaggio</summary><div className="mt-3"><CantiereLogistica orderId={orderId} showSiteEquipment={false} /></div></details>}
+          {!logisticaIntegrata && <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">{tr("Indirizzo e viaggio")}</summary><div className="mt-3"><CantiereLogistica orderId={orderId} showSiteEquipment={false} /></div></details>}
         </>}
       </CardContent>
     </Card>
@@ -1368,14 +1370,15 @@ function GuidaCantiere({ puoFasi, puoSquadre, onFasi, onSquadra }: {
   onFasi: () => void;
   onSquadra: () => void;
 }) {
+  const tr = useT();
   const passi = [
-    { n: 1, titolo: "Dividi il lavoro in fasi", testo: "Demolizioni, impianti, posa… da un modello o una alla volta, con le date." },
-    { n: 2, titolo: "In ogni fase, scegli chi la fa", testo: "Una squadra, una persona o una ditta. Chi ha l'app si trova il cantiere sul telefono." },
-    { n: 3, titolo: "Lascia le istruzioni", testo: "Note per tutti, per una squadra o per una persona: le leggono nell'app e sai chi le ha lette." },
+    { n: 1, titolo: tr("Dividi il lavoro in fasi"), testo: tr("Demolizioni, impianti, posa… da un modello o una alla volta, con le date.") },
+    { n: 2, titolo: tr("In ogni fase, scegli chi la fa"), testo: tr("Una squadra, una persona o una ditta. Chi ha l'app si trova il cantiere sul telefono.") },
+    { n: 3, titolo: tr("Lascia le istruzioni"), testo: tr("Note per tutti, per una squadra o per una persona: le leggono nell'app e sai chi le ha lette.") },
   ];
   return (
     <div className="rounded-2xl border border-orange-200 bg-orange-50/50 p-4">
-      <p className="text-sm font-semibold text-slate-900">Come si organizza questo cantiere</p>
+      <p className="text-sm font-semibold text-slate-900">{tr("Come si organizza questo cantiere")}</p>
       <ol className="mt-3 grid gap-3 sm:grid-cols-3">
         {passi.map((p) => (
           <li key={p.n} className="flex gap-2.5">
@@ -1390,13 +1393,13 @@ function GuidaCantiere({ puoFasi, puoSquadre, onFasi, onSquadra }: {
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
         {puoFasi && (
           <Button size="sm" onClick={onFasi} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
-            <ListPlus className="mr-1 h-4 w-4" />Scegli le fasi
+            <ListPlus className="mr-1 h-4 w-4" />{tr("Scegli le fasi")}
           </Button>
         )}
         {puoSquadre && (
           <span className="text-sm text-slate-600">
-            Lavoro semplice, senza fasi?{" "}
-            <button type="button" onClick={onSquadra} className="font-medium text-orange-700 hover:underline">Assegna chi lavora a tutta la commessa</button>
+            {tr("Lavoro semplice, senza fasi?")}{" "}
+            <button type="button" onClick={onSquadra} className="font-medium text-orange-700 hover:underline">{tr("Assegna chi lavora a tutta la commessa")}</button>
           </span>
         )}
       </div>
@@ -1499,14 +1502,15 @@ function NumeriFase({ economia, vedeVenduto, vedeCosti, vedeMargini, oreSenzaCos
   vedeCosti: boolean;
   vedeMargini: boolean;
 }) {
+  const tr = useT();
   const sforato = !!economia && economia.costoPrevisto > 0 && economia.costoConsuntivo > economia.costoPrevisto;
   const numeri: Array<{ etichetta: string; valore: string; nota?: string; rosso?: boolean }> = [];
-  if (vedeVenduto) numeri.push({ etichetta: "Venduto", valore: economia?.venduto ? formatCurrency(economia.venduto) : "—", nota: "imponibile" });
+  if (vedeVenduto) numeri.push({ etichetta: tr("Venduto"), valore: economia?.venduto ? formatCurrency(economia.venduto) : "—", nota: tr("imponibile") });
   if (vedeCosti) {
-    numeri.push({ etichetta: "Costo previsto", valore: economia?.costoPrevisto ? formatCurrency(economia.costoPrevisto) : "—" });
-    numeri.push({ etichetta: "Speso finora", valore: economia?.costoConsuntivo ? formatCurrency(economia.costoConsuntivo) : "—", rosso: sforato, nota: sforato ? "oltre il previsto" : undefined });
+    numeri.push({ etichetta: tr("Costo previsto"), valore: economia?.costoPrevisto ? formatCurrency(economia.costoPrevisto) : "—" });
+    numeri.push({ etichetta: tr("Speso finora"), valore: economia?.costoConsuntivo ? formatCurrency(economia.costoConsuntivo) : "—", rosso: sforato, nota: sforato ? tr("oltre il previsto") : undefined });
   }
-  if (vedeVenduto && vedeCosti && vedeMargini) numeri.push({ etichetta: "Margine previsto", valore: economia?.marginePrevistoPct != null ? `${economia.marginePrevistoPct.toLocaleString("it-IT")}%` : "—" });
+  if (vedeVenduto && vedeCosti && vedeMargini) numeri.push({ etichetta: tr("Margine previsto"), valore: economia?.marginePrevistoPct != null ? `${economia.marginePrevistoPct.toLocaleString(intlCampo())}%` : "—" });
   return (
     <div className="space-y-2 pr-8">
       <div className="flex flex-wrap items-start gap-2">
@@ -1524,7 +1528,7 @@ function NumeriFase({ economia, vedeVenduto, vedeCosti, vedeMargini, oreSenzaCos
       </div>
       {vedeCosti && oreSenzaCosto > 0 && (
         <p role="status" className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">
-          {oreSenzaCosto.toLocaleString("it-IT")} ore di persone senza costo orario: nello «Speso finora» valgono 0 €. Il costo orario si mette nella scheda della persona.
+          {tr("{ore} ore di persone senza costo orario: nello «Speso finora» valgono 0 €. Il costo orario si mette nella scheda della persona.", { ore: oreSenzaCosto.toLocaleString(intlCampo()) })}
         </p>
       )}
     </div>
@@ -1567,6 +1571,7 @@ function PhaseCard({
   apertaSubito = false,
   sezione,
 }: PhaseCardProps) {
+  const tr = useT();
   const { canEditOrders, canViewCosts, canViewOrderAmounts, canViewMargins, canViewMezzi } = usePermissions();
   const [eliminaAperto, setEliminaAperto] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -1603,6 +1608,9 @@ function PhaseCard({
   // "Pronti" = coperti da giacenza o da un OdA
   const prontiCount = materials.length - missingMaterials.length;
   const planningIssues = phasePlanningIssues(phase, squadreFase.length > 0 || squadreGenerali.length > 0, missingMaterials.length);
+  const etichettaAvviso = (issue: { section: PlanningSection; label: string }) => issue.section === "materials"
+    ? tr(missingMaterials.length === 1 ? "{n} materiale da ordinare" : "{n} materiali da ordinare", { n: missingMaterials.length })
+    : tr(issue.label);
   const avvisi = apertaSubito ? planningIssues.filter((issue) => sezione === "sottofasi" && issue.section === "dates") : planningIssues;
 
   // Avviso: fase non completata in partenza entro 7 giorni con materiali da ordinare
@@ -1633,10 +1641,10 @@ function PhaseCard({
     }));
     for (const a of phase.assignments) {
       const nome = assignmentName(a, employees, externalTeams);
-      out.push({ chiave: `${a.source}-${a.id}`, nome: `${nome}${a.executor_inactive ? " (storico)" : ""}`, colore: null });
+      out.push({ chiave: `${a.source}-${a.id}`, nome: `${nome}${a.executor_inactive ? ` ${tr("(storico)")}` : ""}`, colore: null });
     }
     return out;
-  }, [squadreFase, phase.assignments, employees, externalTeams]);
+  }, [squadreFase, phase.assignments, employees, externalTeams, tr]);
 
   const commitName = () => {
     const name = nameDraft.trim();
@@ -1652,7 +1660,7 @@ function PhaseCard({
     <Input
       autoFocus
       value={nameDraft}
-      aria-label={`Nome della fase ${phase.name}`}
+      aria-label={tr("Nome della fase {fase}", { fase: phase.name })}
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => setNameDraft(e.target.value)}
       onBlur={commitName}
@@ -1670,13 +1678,13 @@ function PhaseCard({
   );
   const tendinaStato = (classe: string) => (
     <Select value={phase.status} disabled={derivata} onValueChange={(v) => onUpdatePhase({ status: v as PhaseStatus })}>
-      <SelectTrigger className={classe} aria-label={`Stato di ${phase.name}`}>
+      <SelectTrigger className={classe} aria-label={tr("Stato di {fase}", { fase: phase.name })}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {STATUS_OPTIONS.map((s) => (
           <SelectItem key={s.value} value={s.value}>
-            {s.label}
+            {tr(s.label)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -1685,27 +1693,27 @@ function PhaseCard({
   const menuFase = (classe: string) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className={classe} aria-label={`Altre azioni per ${phase.name}`}>
+        <Button variant="ghost" size="icon" className={classe} aria-label={tr("Altre azioni per {fase}", { fase: phase.name })}>
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={() => { setNameDraft(phase.name); setEditingName(true); }}>
-          <Pencil className="mr-2 h-4 w-4" />Rinomina
+          <Pencil className="mr-2 h-4 w-4" />{tr("Rinomina")}
         </DropdownMenuItem>
         {onSposta && (
           <>
             <DropdownMenuItem disabled={primaFase} onSelect={() => onSposta(-1)}>
-              <ArrowUp className="mr-2 h-4 w-4" />Sposta su
+              <ArrowUp className="mr-2 h-4 w-4" />{tr("Sposta su")}
             </DropdownMenuItem>
             <DropdownMenuItem disabled={ultimaFase} onSelect={() => onSposta(1)}>
-              <ArrowDown className="mr-2 h-4 w-4" />Sposta giù
+              <ArrowDown className="mr-2 h-4 w-4" />{tr("Sposta giù")}
             </DropdownMenuItem>
           </>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-rose-600 focus:text-rose-700" onSelect={() => setEliminaAperto(true)}>
-          <Trash2 className="mr-2 h-4 w-4" />Elimina fase
+          <Trash2 className="mr-2 h-4 w-4" />{tr("Elimina fase")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -1730,18 +1738,18 @@ function PhaseCard({
     >
       {apertaSubito && sezione === "sottofasi" && (
         <div className="flex flex-wrap items-center gap-2 border-b bg-slate-50 px-3 py-2">
-          <span className="text-sm font-semibold">Avanzamento</span>
+          <span className="text-sm font-semibold">{tr("Avanzamento")}</span>
           <div className="h-1.5 min-w-12 flex-1 overflow-hidden rounded-full bg-slate-200">
             <div className={cn("h-full rounded-full", actualPct === 100 ? "bg-emerald-500" : "bg-blue-600")} style={{ width: `${actualPct}%` }} />
           </div>
           {canEditOrders && !derivata
             ? <Button type="button" variant="ghost" size="sm" className="h-8 font-semibold tabular-nums"
-                aria-label={`Avanzamento ${phase.name}: ${actualPct}%`} onClick={() => { setProgressDraft(String(actualPct)); setProgressOpen(true); }}>{actualPct}%</Button>
+                aria-label={tr("Avanzamento {fase}: {pct}%", { fase: phase.name, pct: actualPct })} onClick={() => { setProgressDraft(String(actualPct)); setProgressOpen(true); }}>{actualPct}%</Button>
             : <span className="text-xs font-semibold tabular-nums">{actualPct}%</span>}
           {canEditOrders ? <>
             {editingName ? campoNome("h-8 min-w-36 max-w-56") : tendinaStato("h-8 w-[9.5rem]")}
             {menuFase("h-8 w-8 text-muted-foreground")}
-          </> : <Badge variant="outline" className={meta.badge}>{meta.label}</Badge>}
+          </> : <Badge variant="outline" className={meta.badge}>{tr(meta.label)}</Badge>}
         </div>
       )}
       {!apertaSubito && isMobile && (
@@ -1762,10 +1770,10 @@ function PhaseCard({
               <span className="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground tabular-nums">
                 {plannedDates.start && plannedDates.end
                   ? `${plannedDates.start}–${plannedDates.end}`
-                  : plannedDates.start ? `dal ${plannedDates.start}` : plannedDates.end ? `entro ${plannedDates.end}` : "senza date"}
+                  : plannedDates.start ? tr("dal {data}", { data: plannedDates.start }) : plannedDates.end ? tr("entro {data}", { data: plannedDates.end }) : tr("senza date")}
                 {" · "}
                 {chiLaFa.length === 0
-                  ? squadreGenerali.length > 0 ? "Squadra della commessa" : <span className={phase.status !== "completata" ? "text-amber-700" : undefined}>nessuno</span>
+                  ? squadreGenerali.length > 0 ? tr("Squadra della commessa") : <span className={phase.status !== "completata" ? "text-amber-700" : undefined}>{tr("nessuno")}</span>
                   : chiLaFa.length === 1 ? chiLaFa[0].nome : `${chiLaFa[0].nome} +${chiLaFa.length - 1}`}
               </span>
             </span>
@@ -1794,7 +1802,7 @@ function PhaseCard({
           {/* Zona cliccabile: apre/chiude la fase (accordion fatto a mano:
               i controlli interattivi restano fuori, a destra) */}
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Dettagli ${phase.name}`} aria-expanded={open} aria-controls={`phase-body-${phase.id}`} onClick={() => setOpen(o => !o)}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={tr("Dettagli {fase}", { fase: phase.name })} aria-expanded={open} aria-controls={`phase-body-${phase.id}`} onClick={() => setOpen(o => !o)}>
             <motion.span
               animate={{ rotate: open ? 0 : -90 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
@@ -1821,7 +1829,7 @@ function PhaseCard({
             {/* Aperta, lo stato si legge (e si cambia) nella tendina a destra */}
             {!(open && canEditOrders) && (
               <Badge variant="outline" className={`gap-1 ${meta.badge}`}>
-                {meta.label}
+                {tr(meta.label)}
               </Badge>
             )}
 
@@ -1846,9 +1854,9 @@ function PhaseCard({
                   <button
                     type="button"
                     disabled={!canEditOrders || derivata}
-                    aria-label={`Avanzamento ${phase.name}: ${actualPct}%`}
+                    aria-label={tr("Avanzamento {fase}: {pct}%", { fase: phase.name, pct: actualPct })}
                     className="rounded px-0.5 text-[11px] tabular-nums text-muted-foreground underline-offset-2 hover:underline"
-                    title={derivata ? "Si calcola dalle sottofasi" : "Correggi l'avanzamento della fase"}
+                    title={derivata ? tr("Si calcola dalle sottofasi") : tr("Correggi l'avanzamento della fase")}
                     onClick={(e) => {
                       e.stopPropagation();
                       setProgressDraft(String(actualPct));
@@ -1859,7 +1867,7 @@ function PhaseCard({
                   </button>
                   {inRitardo && (
                     <span className="text-[11px] font-medium text-rose-600">
-                      atteso {Math.round(Number(health.expected_pct))}%
+                      {tr("atteso {pct}%", { pct: Math.round(Number(health.expected_pct)) })}
                     </span>
                   )}
                 </span>
@@ -1872,13 +1880,13 @@ function PhaseCard({
               <span className="inline-flex items-center gap-1 tabular-nums">
                 <CalendarDays className="h-3 w-3" aria-hidden="true" />
                 {plannedDates.start || plannedDates.end
-                  ? `${plannedDates.start ? `dal ${plannedDates.start}` : ""}${plannedDates.end ? ` al ${plannedDates.end}` : ""}`.trim()
-                  : "senza date"}
+                  ? (plannedDates.start && plannedDates.end ? tr("dal {inizio} al {fine}", { inizio: plannedDates.start, fine: plannedDates.end }) : plannedDates.start ? tr("dal {data}", { data: plannedDates.start }) : tr("al {data}", { data: plannedDates.end ?? "" }))
+                  : tr("senza date")}
               </span>
               <span className="inline-flex min-w-0 flex-wrap items-center gap-1">
                 <UsersRound className="h-3 w-3" aria-hidden="true" />
                 {chiLaFa.length === 0
-                  ? squadreGenerali.length > 0 ? <span title={squadreGenerali.map(s => s.nome).join(", ")}>Squadra della commessa · nel periodo assegnato</span> : <span className={phase.status !== "completata" ? "text-amber-700" : undefined}>nessuno la fa ancora</span>
+                  ? squadreGenerali.length > 0 ? <span title={squadreGenerali.map(s => s.nome).join(", ")}>{tr("Squadra della commessa · nel periodo assegnato")}</span> : <span className={phase.status !== "completata" ? "text-amber-700" : undefined}>{tr("nessuno la fa ancora")}</span>
                   : chiLaFa.map((c, i) => (
                     <span key={c.chiave} className="inline-flex items-center gap-1 text-slate-700">
                       {i > 0 && <span className="text-muted-foreground">·</span>}
@@ -1886,12 +1894,12 @@ function PhaseCard({
                       {c.nome}
                     </span>
                   ))}
-                {chiLaFa.length > 0 && squadreGenerali.length > 0 && <span className="text-muted-foreground" title={squadreGenerali.map(s => s.nome).join(", ")}>· anche squadra della commessa</span>}
+                {chiLaFa.length > 0 && squadreGenerali.length > 0 && <span className="text-muted-foreground" title={squadreGenerali.map(s => s.nome).join(", ")}>· {tr("anche squadra della commessa")}</span>}
               </span>
               {noteFase > 0 && (
-                <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" aria-hidden="true" />{noteFase === 1 ? "1 nota" : `${noteFase} note`}</span>
+                <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" aria-hidden="true" />{noteFase === 1 ? tr("1 nota") : tr("{n} note", { n: noteFase })}</span>
               )}
-              {materials.length > 0 && <span>{materials.length === 1 ? "1 materiale" : `${materials.length} materiali`}</span>}
+              {materials.length > 0 && <span>{materials.length === 1 ? tr("1 materiale") : tr("{n} materiali", { n: materials.length })}</span>}
               {/* Il ritardo detto con i giorni: «62 giorni di ritardo», «finita con 6 giorni di ritardo» */}
               {(() => {
                 const t = tempi ? testoTempi(tempi, oggi) : null;
@@ -1900,7 +1908,7 @@ function PhaseCard({
                   : null;
               })()}
               {canViewCosts && economia && costoSforato(economia) && (
-                <span className="text-rose-600 max-sm:hidden">costo oltre il previsto</span>
+                <span className="text-rose-600 max-sm:hidden">{tr("costo oltre il previsto")}</span>
               )}
             </div>}
           </div>
@@ -1917,15 +1925,15 @@ function PhaseCard({
             <AlertDialog open={eliminaAperto} onOpenChange={setEliminaAperto}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Eliminare la fase?</AlertDialogTitle>
+                  <AlertDialogTitle>{tr("Eliminare la fase?")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Eliminare la fase «{phase.name}»? Persone, ditte e materiali restano nella commessa, senza fase. Con la fase se ne vanno anche le sue sottofasi, le voci previste (e con loro il previsto della ditta calcolato dalle voci), la validazione dei materiali, le squadre e le note.
+                    {tr("Eliminare la fase «{fase}»? Persone, ditte e materiali restano nella commessa, senza fase. Con la fase se ne vanno anche le sue sottofasi, le voci previste (e con loro il previsto della ditta calcolato dalle voci), la validazione dei materiali, le squadre e le note.", { fase: phase.name })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
                   <AlertDialogAction className="bg-rose-600 hover:bg-rose-700" onClick={onDeletePhase}>
-                    Elimina
+                    {tr("Elimina")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -1939,23 +1947,23 @@ function PhaseCard({
         <AlertDialog open={eliminaAperto} onOpenChange={setEliminaAperto}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Eliminare «{phase.name}»?</AlertDialogTitle>
+              <AlertDialogTitle>{tr("Eliminare «{fase}»?", { fase: phase.name })}</AlertDialogTitle>
               <AlertDialogDescription>
-                Persone, ditte e materiali restano nella commessa, senza fase; le squadre e le note di questa fase se ne vanno con lei.
+                {tr("Persone, ditte e materiali restano nella commessa, senza fase; le squadre e le note di questa fase se ne vanno con lei.")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
               <AlertDialogAction className="bg-rose-600 hover:bg-rose-700" onClick={onDeletePhase}>
-                Elimina
+                {tr("Elimina")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
       )}
 
-      {avvisi.length > 0 && <div className="flex flex-wrap items-center gap-1 px-3 pb-2 sm:px-4" aria-label={`Da organizzare: ${phase.name}`}>
-        {avvisi.map(issue => <Button key={issue.section} variant="ghost" size="sm" className="h-auto min-h-8 whitespace-normal px-2 text-xs text-amber-800 hover:bg-amber-50" aria-label={`${issue.label}: ${phase.name}`} onClick={() => { setOpen(true); setDettagli(true); setTargetSection({section: issue.section}); }}>{isMobile && issue.section === "people" ? "+ Assegna chi la fa" : <><AlertTriangle className="mr-1 h-3 w-3 shrink-0" aria-hidden="true" />{issue.label}</>}</Button>)}
+      {avvisi.length > 0 && <div className="flex flex-wrap items-center gap-1 px-3 pb-2 sm:px-4" aria-label={tr("Da organizzare: {fase}", { fase: phase.name })}>
+        {avvisi.map(issue => <Button key={issue.section} variant="ghost" size="sm" className="h-auto min-h-8 whitespace-normal px-2 text-xs text-amber-800 hover:bg-amber-50" aria-label={`${etichettaAvviso(issue)}: ${phase.name}`} onClick={() => { setOpen(true); setDettagli(true); setTargetSection({section: issue.section}); }}>{isMobile && issue.section === "people" ? tr("+ Assegna chi la fa") : <><AlertTriangle className="mr-1 h-3 w-3 shrink-0" aria-hidden="true" />{etichettaAvviso(issue)}</>}</Button>)}
       </div>}
 
       {/* Corpo collassabile: esecutori + materiali */}
@@ -1971,17 +1979,17 @@ function PhaseCard({
           >
             <CardContent id={`phase-body-${phase.id}`} className={cn("px-3", apertaSubito ? "space-y-3 py-3" : isMobile ? "space-y-3 pb-3 pt-2" : "space-y-4 pb-4 pt-0 sm:px-4")}>
               {phase.notes && !compatta && (!apertaSubito || sezione === "sottofasi") && <details className="text-sm text-muted-foreground">
-                <summary className="cursor-pointer">Descrizione</summary>
+                <summary className="cursor-pointer">{tr("Descrizione")}</summary>
                 <p className="mt-2 whitespace-pre-wrap leading-relaxed">{phase.notes}</p>
               </details>}
               {vedi("sottofasi") && <>
               {/* ── Quando ── */}
-              {!compatta && <div ref={datesRef} tabIndex={-1} aria-label={`Date di ${phase.name}`} className="flex flex-wrap items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+              {!compatta && <div ref={datesRef} tabIndex={-1} aria-label={tr("Date di {fase}", { fase: phase.name })} className="flex flex-wrap items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 <span className="w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
-                  Date fase
+                  {tr("Date fase")}
                 </span>
                 <label className="flex items-center gap-1 text-xs text-muted-foreground max-sm:min-w-0 max-sm:flex-1">
-                  <span className="max-sm:hidden">dal</span>
+                  <span className="max-sm:hidden">{tr("dal")}</span>
                   <Input
                     type="date"
                     disabled={!canEditOrders}
@@ -1989,16 +1997,16 @@ function PhaseCard({
                     defaultValue={phase.start_date ?? ""}
                     onChange={(e) => {
                       const value = e.target.value || null;
-                      if (!validWorkDates(value, phase.end_date)) { toast.error("Controlla le date: devono essere valide e la fine non può precedere l'inizio."); e.target.value = phase.start_date ?? ""; return; }
+                      if (!validWorkDates(value, phase.end_date)) { toast.error(tr("Controlla le date: devono essere valide e la fine non può precedere l'inizio.")); e.target.value = phase.start_date ?? ""; return; }
                       onUpdatePhase({ start_date: value });
                     }}
                     className="h-8 w-auto text-xs max-sm:h-9 max-sm:w-full max-sm:min-w-0 max-sm:px-2"
-                    aria-label="Data inizio prevista"
+                    aria-label={tr("Data inizio prevista")}
                   />
                 </label>
                 <span aria-hidden="true" className="text-xs text-muted-foreground sm:hidden">→</span>
                 <label className="flex items-center gap-1 text-xs text-muted-foreground max-sm:min-w-0 max-sm:flex-1">
-                  <span className="max-sm:hidden">al</span>
+                  <span className="max-sm:hidden">{tr("al")}</span>
                   <Input
                     type="date"
                     disabled={!canEditOrders}
@@ -2006,17 +2014,17 @@ function PhaseCard({
                     defaultValue={phase.end_date ?? ""}
                     onChange={(e) => {
                       const value = e.target.value || null;
-                      if (!validWorkDates(phase.start_date, value)) { toast.error("Controlla le date: devono essere valide e la fine non può precedere l'inizio."); e.target.value = phase.end_date ?? ""; return; }
+                      if (!validWorkDates(phase.start_date, value)) { toast.error(tr("Controlla le date: devono essere valide e la fine non può precedere l'inizio.")); e.target.value = phase.end_date ?? ""; return; }
                       onUpdatePhase({ end_date: value });
                     }}
                     className="h-8 w-auto text-xs max-sm:h-9 max-sm:w-full max-sm:min-w-0 max-sm:px-2"
-                    aria-label="Data fine prevista"
+                    aria-label={tr("Data fine prevista")}
                   />
                 </label>
                 {/* Di lato alle date: previsti contro reali, fine vera e ritardo */}
                 {tempi && <TempiFase fase={tempi} oggi={oggi} className="max-sm:basis-full sm:ml-1 sm:border-l sm:pl-3" />}
                 {squadreFase.length > 0 && (
-                  <span className="text-[11px] text-muted-foreground max-sm:hidden">Le squadre della fase seguono queste date.</span>
+                  <span className="text-[11px] text-muted-foreground max-sm:hidden">{tr("Le squadre della fase seguono queste date.")}</span>
                 )}
               </div>}
 
@@ -2048,19 +2056,19 @@ function PhaseCard({
 
               </>}{vedi("chi") && !compatta && <>
               {/* ── Chi la fa: squadre, poi persone e ditte ── */}
-              <div ref={peopleRef} tabIndex={-1} aria-label={`Assegnazioni di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+              <div ref={peopleRef} tabIndex={-1} aria-label={tr("Assegnazioni di {fase}", { fase: phase.name })} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 {sezione !== "chi" && <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
-                  Chi la fa
+                  {tr("Chi la fa")}
                 </span>}
                 <div className="min-w-0 flex-1 space-y-2">
-                  {sezione === "chi" && !chiLaFa.length && !squadreGenerali.length && <p className="text-sm text-muted-foreground">Nessuna persona, squadra o ditta assegnata.</p>}
-                  {squadreGenerali.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-slate-50 px-2.5 py-2 text-xs"><span>Squadra della commessa: <strong>{squadreGenerali.map(s => s.nome).join(", ")}</strong> · nel periodo assegnato</span><Button variant="ghost" size="sm" className="h-7 px-2 text-xs" aria-label={`Vedi squadra generale per ${phase.name}`} onClick={onManageGeneral}>Vedi assegnazione generale</Button></div>}
+                  {sezione === "chi" && !chiLaFa.length && !squadreGenerali.length && <p className="text-sm text-muted-foreground">{tr("Nessuna persona, squadra o ditta assegnata.")}</p>}
+                  {squadreGenerali.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-slate-50 px-2.5 py-2 text-xs"><span>{tr("Squadra della commessa:")} <strong>{squadreGenerali.map(s => s.nome).join(", ")}</strong> · {tr("nel periodo assegnato")}</span><Button variant="ghost" size="sm" className="h-7 px-2 text-xs" aria-label={tr("Vedi squadra generale per {fase}", { fase: phase.name })} onClick={onManageGeneral}>{tr("Vedi assegnazione generale")}</Button></div>}
                   <div className="flex flex-wrap items-center gap-1.5">
                     <SquadreFase orderId={orderId} fase={{ id: phase.id, name: phase.name }} modificabile={puoSquadre} mostraAggiungi={false} />
                     {(canEditOrders || puoSquadre) && sezione !== "chi" && (
                       <Button variant="outline" size="sm" className={cn("tap-compact h-8 rounded-full px-3", AZIONE_TENUE.persona)}
-                        aria-label={`Assegna a ${phase.name}`} onClick={onApriAssegnazione}>
-                        <Plus className="mr-1 h-4 w-4" /> Assegna
+                        aria-label={tr("Assegna a {fase}", { fase: phase.name })} onClick={onApriAssegnazione}>
+                        <Plus className="mr-1 h-4 w-4" /> {tr("Assegna")}
                       </Button>
                     )}
                   </div>
@@ -2089,14 +2097,14 @@ function PhaseCard({
               {(mezziFase.length > 0 || canEditOrders || canViewMezzi) && (
                 <div className="flex flex-wrap items-start gap-2">
                   <span className="w-24 shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
-                    Mezzi
+                    {tr("Mezzi")}
                   </span>
                   <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
                     <MezziFaseCantiere orderId={orderId} faseId={phase.id} />
                     {mezziFase.map((m) => (
                       <span key={m.id} className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs", AZIONE_TENUE.mezzo)}>
                         <b className="font-semibold">{m.nome}</b>
-                        <span className="opacity-80">· {m.persona}{m.a_bordo.length > 0 ? `, con ${m.a_bordo.join(", ")}` : ""}{m.altrove ? ` · risulta su ${m.altrove}` : " · al seguito della persona"}</span>
+                        <span className="opacity-80">· {m.persona}{m.a_bordo.length > 0 ? `, ${tr("con {persone}", { persone: m.a_bordo.join(", ") })}` : ""}{m.altrove ? ` · ${tr("risulta su {luogo}", { luogo: m.altrove })}` : ` · ${tr("al seguito della persona")}`}</span>
                       </span>
                     ))}
                   </div>
@@ -2107,7 +2115,7 @@ function PhaseCard({
               {/* ── Note per gli operai di questa fase ── */}
               <div className="flex flex-wrap items-start gap-2">
                 <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
-                  Note
+                  {tr("Note")}
                 </span>
                 <div className="min-w-0 flex-1">
                   <NoteCantiere orderId={orderId} phaseId={phase.id} fasi={fasiOpzioni} modificabile={puoSquadre} compatta />
@@ -2118,12 +2126,12 @@ function PhaseCard({
               </>}{vedi("materiali") && !compatta && (!isMobile || apertaSubito || planningIssues.some((i) => i.section === "materials")) && <>
               {/* ── Materiali della fase (order_items.phase_id) ── */}
               {(sezione === "materiali" || canEditOrders || materials.length > 0 || unassignedMaterials.length > 0) && (
-                <div ref={materialsRef} tabIndex={-1} aria-label={`Materiali di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                <div ref={materialsRef} tabIndex={-1} aria-label={tr("Materiali di {fase}", { fase: phase.name })} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                   {sezione !== "materiali" && <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
-                    Materiali
+                    {tr("Materiali")}
                   </span>}
                   <div className="min-w-0 flex-1 space-y-2">
-                  {sezione === "materiali" && materials.length === 0 && <p className="text-sm text-muted-foreground">Nessun materiale collegato alla fase.</p>}
+                  {sezione === "materiali" && materials.length === 0 && <p className="text-sm text-muted-foreground">{tr("Nessun materiale collegato alla fase.")}</p>}
                   {materials.length > 0 && <div className="divide-y rounded-lg border">
                   {materials.map((m) => (
                     <div key={m.id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1.5">
@@ -2138,7 +2146,7 @@ function PhaseCard({
                             className="gap-1 border-emerald-300 bg-emerald-50 text-emerald-700"
                           >
                             <Check className="h-3 w-3" />
-                            In magazzino
+                            {tr("In magazzino")}
                           </Badge>
                         ) : m.readiness === "ordinato" ? (
                           <Badge
@@ -2154,7 +2162,7 @@ function PhaseCard({
                             className="gap-1 border-amber-300 bg-amber-50 text-amber-700"
                           >
                             <AlertTriangle className="h-3 w-3" />
-                            Da ordinare
+                            {tr("Da ordinare")}
                           </Badge>
                         )}
                         {/* Dividi su più fasi: solo con quantità > 1 e non ancora coperto
@@ -2173,7 +2181,7 @@ function PhaseCard({
                           size="icon"
                           className="h-6 w-6 text-muted-foreground hover:text-rose-600"
                           onClick={() => onAssignMaterial(m.id, null)}
-                          aria-label="Togli dalla fase"
+                          aria-label={tr("Togli dalla fase")}
                         >
                           <X className="h-3.5 w-3.5" />
                         </Button>}
@@ -2187,14 +2195,14 @@ function PhaseCard({
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm" className="tap-compact h-8">
                           <Plus className="mr-1 h-4 w-4" />
-                          <span className="max-sm:hidden">Collega materiale esistente</span>
-                          <span className="sm:hidden">Materiale</span>
+                          <span className="max-sm:hidden">{tr("Collega materiale esistente")}</span>
+                          <span className="sm:hidden">{tr("Materiale")}</span>
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent align="start" className="w-72 p-1">
                         {unassignedMaterials.length === 0 ? (
                           <p className="p-2 text-xs text-muted-foreground">
-                            Nessun materiale da collegare. Puoi crearne uno con «Nuovo materiale».
+                            {tr("Nessun materiale da collegare. Puoi crearne uno con «Nuovo materiale».")}
                           </p>
                         ) : (
                           unassignedMaterials.map((m) => (
@@ -2233,7 +2241,7 @@ function PhaseCard({
                           prontiCount === materials.length ? "text-emerald-600" : "text-amber-600"
                         )}
                       >
-                        {prontiCount}/{materials.length} coperti da giacenza o OdA
+                        {tr("{pronti}/{totale} coperti da giacenza o OdA", { pronti: prontiCount, totale: materials.length })}
                       </span>
                     )}
                   </div>
@@ -2241,27 +2249,27 @@ function PhaseCard({
                   {startWarning && (
                     <p className="flex items-center gap-1 text-xs text-amber-600">
                       <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                      Fase in partenza il {startWarning}: {missingMaterials.length} materiali da ordinare
+                      {tr("Fase in partenza il {data}: {n} materiali da ordinare", { data: startWarning, n: missingMaterials.length })}
                     </p>
                   )}
                   </div>
                 </div>
               )}
               </>}
-              {!apertaSubito && isMobile && canEditOrders && <button type="button" aria-expanded={dettagli} onClick={() => setDettagli((d) => !d)} className="tap-compact min-h-9 text-xs font-medium text-primary">{dettagli ? "Nascondi i dettagli" : "Stato, date, squadra e note"}</button>}
+              {!apertaSubito && isMobile && canEditOrders && <button type="button" aria-expanded={dettagli} onClick={() => setDettagli((d) => !d)} className="tap-compact min-h-9 text-xs font-medium text-primary">{dettagli ? tr("Nascondi i dettagli") : tr("Stato, date, squadra e note")}</button>}
             </CardContent>
           </motion.div>
         )}
       </AnimatePresence>
       <Dialog open={progressOpen} onOpenChange={setProgressOpen}>
-        <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Rettifica avanzamento</DialogTitle><DialogDescription>{phase.name}. Correzione manuale dell'ufficio; non modifica i rapportini già registrati.</DialogDescription></DialogHeader>
-          <Label htmlFor={`progress-${phase.id}`}>Avanzamento %</Label>
+        <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>{tr("Rettifica avanzamento")}</DialogTitle><DialogDescription>{tr("{fase}. Correzione manuale dell'ufficio; non modifica i rapportini già registrati.", { fase: phase.name })}</DialogDescription></DialogHeader>
+          <Label htmlFor={`progress-${phase.id}`}>{tr("Avanzamento %")}</Label>
           <Input id={`progress-${phase.id}`} type="number" min="0" max="100" step="1" value={progressDraft} onChange={e => setProgressDraft(e.target.value)} />
-          <DialogFooter><Button variant="outline" onClick={() => setProgressOpen(false)}>Annulla</Button><Button disabled={!canEditOrders || !progressDraft.trim() || parseWorkAmount(progressDraft) === null || Number(progressDraft) > 100} onClick={() => {
+          <DialogFooter><Button variant="outline" onClick={() => setProgressOpen(false)}>{tr("Annulla")}</Button><Button disabled={!canEditOrders || !progressDraft.trim() || parseWorkAmount(progressDraft) === null || Number(progressDraft) > 100} onClick={() => {
             const value = Math.round(parseWorkAmount(progressDraft)!);
             onUpdatePhase({ percentuale: value, status: value >= 100 ? "completata" : value > 0 ? "in_corso" : "da_iniziare" });
             setProgressOpen(false);
-          }}>Salva avanzamento</Button></DialogFooter>
+          }}>{tr("Salva avanzamento")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>
@@ -2296,6 +2304,7 @@ function UnassignedCard({
   onUpdateAssignment,
   onDeleteAssignment,
 }: UnassignedCardProps) {
+  const tr = useT();
   const { canViewCosts } = usePermissions();
   const subtotals = useMemo(() => {
     return assignments.reduce(
@@ -2314,19 +2323,19 @@ function UnassignedCard({
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-semibold text-muted-foreground">
-              {hasPhases ? "Assegnazioni all'intera commessa" : "Squadra della commessa"}
+              {hasPhases ? tr("Assegnazioni all'intera commessa") : tr("Squadra della commessa")}
             </span>
             {hasPhases && (
               <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
-                Senza fase
+                {tr("Senza fase")}
               </Badge>
             )}
           </div>
           {canViewCosts && <span className="text-xs text-muted-foreground tabular-nums max-sm:hidden">
-            Costo previsto {eur.format(subtotals.prev)} · consuntivo {eur.format(subtotals.cons)}
+            {tr("Costo previsto {previsto} · consuntivo {consuntivo}", { previsto: eur.format(subtotals.prev), consuntivo: eur.format(subtotals.cons) })}
           </span>}
         </div>
-        <p className="text-xs text-muted-foreground max-sm:hidden">{hasPhases ? "Assegnazioni generali, non legate a una singola fase. Modifica una riga per collegarla a una lavorazione." : "Dipendenti e squadre esterne assegnati al lavoro, anche senza suddivisione in fasi."}</p>
+        <p className="text-xs text-muted-foreground max-sm:hidden">{hasPhases ? tr("Assegnazioni generali, non legate a una singola fase. Modifica una riga per collegarla a una lavorazione.") : tr("Dipendenti e squadre esterne assegnati al lavoro, anche senza suddivisione in fasi.")}</p>
       </CardHeader>
 
       <CardContent className="space-y-2 px-3 pb-3 pt-0 sm:px-6 sm:pb-6">
@@ -2377,7 +2386,7 @@ interface SplitMaterialDialogProps {
   ) => void;
 }
 
-const numeroIT = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 4 });
+const numeroIT = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 4 });
 
 function SplitMaterialDialog({
   material,
@@ -2385,6 +2394,7 @@ function SplitMaterialDialog({
   currentPhaseId,
   onSplit,
 }: SplitMaterialDialogProps) {
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<SplitRowDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -2396,7 +2406,7 @@ function SplitMaterialDialog({
   ];
   // Un articolo di magazzino si divide a pezzi interi; kg, m², m³ anche coi decimali.
   const aPezzi = !!material.stock_item_id;
-  const unita = material.unita_misura?.trim() || "pz";
+  const unita = material.unita_misura?.trim() || tr("pz");
 
   const maxRows = phases.length + 1; // tutte le fasi + "Senza fase"
 
@@ -2442,16 +2452,16 @@ function SplitMaterialDialog({
           variant="ghost"
           size="icon"
           className="h-6 w-6 text-muted-foreground"
-          aria-label="Dividi su più fasi"
+          aria-label={tr("Dividi su più fasi")}
         >
           <Split className="h-3.5 w-3.5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Dividi materiale</DialogTitle>
+          <DialogTitle>{tr("Dividi materiale")}</DialogTitle>
           <DialogDescription>
-            «{material.name}» — {numeroIT(Number(material.quantity))} {unita} da ripartire
+            {tr("«{nome}» — {quantita} {unita} da ripartire", { nome: material.name, quantita: numeroIT(Number(material.quantity)), unita })}
           </DialogDescription>
         </DialogHeader>
 
@@ -2460,7 +2470,7 @@ function SplitMaterialDialog({
             <div key={i} className="flex items-center gap-2">
               <Select value={row.phaseId} onValueChange={(v) => updateRow(i, { phaseId: v })}>
                 <SelectTrigger className="h-9 flex-1">
-                  <SelectValue placeholder="Fase…" />
+                  <SelectValue placeholder={tr("Fase…")} />
                 </SelectTrigger>
                 <SelectContent>
                   {phases.map((p) => (
@@ -2468,7 +2478,7 @@ function SplitMaterialDialog({
                       {p.name}
                     </SelectItem>
                   ))}
-                  <SelectItem value="none">Senza fase</SelectItem>
+                  <SelectItem value="none">{tr("Senza fase")}</SelectItem>
                 </SelectContent>
               </Select>
               <Input
@@ -2476,7 +2486,7 @@ function SplitMaterialDialog({
                 value={row.quantity}
                 onChange={(e) => updateRow(i, { quantity: e.target.value })}
                 className="h-9 w-20 tabular-nums"
-                aria-label={`Quantità riga ${i + 1}`}
+                aria-label={tr("Quantità riga {n}", { n: i + 1 })}
               />
               {rows.length > 2 && (
                 <Button
@@ -2484,7 +2494,7 @@ function SplitMaterialDialog({
                   size="icon"
                   className="h-6 w-6 shrink-0 text-muted-foreground hover:text-rose-600"
                   onClick={() => setRows((rs) => rs.filter((_, idx) => idx !== i))}
-                  aria-label="Rimuovi riga"
+                  aria-label={tr("Rimuovi riga")}
                 >
                   <X className="h-3.5 w-3.5" />
                 </Button>
@@ -2499,7 +2509,7 @@ function SplitMaterialDialog({
             onClick={() => setRows((rs) => [...rs, { phaseId: "none", quantity: "0" }])}
           >
             <Plus className="mr-1 h-4 w-4" />
-            Aggiungi riga
+            {tr("Aggiungi riga")}
           </Button>
 
           {/* Contatore live: verde solo quando la ripartizione torna */}
@@ -2509,7 +2519,7 @@ function SplitMaterialDialog({
               sumOk ? "text-emerald-600" : "text-rose-600",
             )}
           >
-            Assegnate {numeroIT(assigned)} / {numeroIT(Number(material.quantity))} {unita}
+            {tr("Assegnate {assegnate} / {totale} {unita}", { assegnate: numeroIT(assigned), totale: numeroIT(Number(material.quantity)), unita })}
           </p>
           {/* La somma sbagliata la dice già il contatore; la riga a zero appena aperta la
               finestra non è un errore. Qui solo i pezzi interi di un articolo di magazzino. */}
@@ -2518,7 +2528,7 @@ function SplitMaterialDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button onClick={handleSubmit} disabled={!valid || submitting}>
             {submitting ? (
@@ -2526,7 +2536,7 @@ function SplitMaterialDialog({
             ) : (
               <Split className="mr-1 h-4 w-4" />
             )}
-            Dividi
+            {tr("Dividi")}
           </Button>
         </DialogFooter>
       </DialogContent>

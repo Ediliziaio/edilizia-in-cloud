@@ -21,10 +21,11 @@ import { AffidaContrattoDaCommessa, type ComputoDaLavorazioni } from "./AffidaCo
 import { useAffidamentiCommessa } from "./AffidaVociDialog";
 import { ComputoSubappaltoAnteprima } from "./ComputoSubappaltoAnteprima";
 import { ContrattiSubappaltoCommessa } from "./ContrattiSubappaltoCommessa";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const EmailComposeDialog = lazy(() => import("@/pages/azienda/email/components/EmailComposeDialog")
   .then((modulo) => ({ default: modulo.EmailComposeDialog })));
-const misura = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
+const misura = { format: (n: number) => new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 3 }).format(n) };
 const oggi = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
 const dataIt = (data: string) => data.slice(0, 10).split("-").reverse().join("/");
 const colori: Record<string, string> = {
@@ -43,6 +44,7 @@ function RegistraOfferta({ richiesta, onSalva, onAnnulla, salvaInCorso }: {
   salvaInCorso: boolean;
   onAnnulla: () => void;
 }) {
+  const t = useT();
   const [data, setData] = useState(richiesta.offerta?.data ?? oggi());
   const [riferimento, setRiferimento] = useState(richiesta.offerta?.riferimento ?? "");
   const [prezzi, setPrezzi] = useState<Record<string, string>>(() => Object.fromEntries(
@@ -53,30 +55,30 @@ function RegistraOfferta({ richiesta, onSalva, onAnnulla, salvaInCorso }: {
   const totale = richiesta.righe.reduce((importo, r) => importo + Math.round(r.quantita * (prezziValidi[r.id] ?? 0) * 100) / 100, 0);
   const valida = !!data && data <= oggi() && righePrezzo.length > 0 && righePrezzo.every(([, prezzo]) => prezzo != null && prezzo > 0);
   return <fieldset disabled={salvaInCorso} className="min-w-0 space-y-3 rounded-lg border bg-muted/25 p-3">
-    <legend className="px-1 text-sm font-semibold">{richiesta.offerta ? "Modifica offerta" : "Registra offerta"}</legend>
+    <legend className="px-1 text-sm font-semibold">{richiesta.offerta ? t("Modifica offerta") : t("Registra offerta")}</legend>
     <div className="grid gap-2 sm:grid-cols-[11rem_1fr]">
-      <label className="space-y-1 text-sm">Ricevuta il<Input type="date" value={data} max={oggi()} onChange={(e) => setData(e.target.value)} /></label>
-      <label className="space-y-1 text-sm">Riferimento dell’offerta<Input value={riferimento} maxLength={250} onChange={(e) => setRiferimento(e.target.value)} placeholder="Numero o riferimento della ditta" /></label>
+      <label className="space-y-1 text-sm">{t("Ricevuta il")}<Input type="date" value={data} max={oggi()} onChange={(e) => setData(e.target.value)} /></label>
+      <label className="space-y-1 text-sm">{t("Riferimento dell’offerta")}<Input value={riferimento} maxLength={250} onChange={(e) => setRiferimento(e.target.value)} placeholder={t("Numero o riferimento della ditta")} /></label>
     </div>
-    <p className="text-xs text-muted-foreground">Inserisci il prezzo unitario IVA esclusa delle voci quotate. Lascia vuote le altre.</p>
+    <p className="text-xs text-muted-foreground">{t("Inserisci il prezzo unitario IVA esclusa delle voci quotate. Lascia vuote le altre.")}</p>
     <div className="divide-y rounded-md border bg-white">
       {richiesta.righe.map((r) => <label key={r.id} className="flex flex-wrap items-center justify-between gap-2 bg-background p-2.5 text-sm">
         <span className="min-w-0 flex-1 basis-40">
           <span className="line-clamp-2 break-words" title={r.descrizione}>{r.descrizione}</span>
           <span className="block text-xs text-muted-foreground">{misura.format(r.quantita)} {r.unita}</span>
         </span>
-        <Input className="w-28 text-right tabular-nums" aria-label={`Prezzo offerto per ${r.descrizione}`} inputMode="decimal" value={prezzi[r.id] ?? ""}
-          onChange={(e) => setPrezzi((p) => ({ ...p, [r.id]: e.target.value }))} placeholder={`€ / ${r.unita || "unità"}`} />
+        <Input className="w-28 text-right tabular-nums" aria-label={t("Prezzo offerto per {voce}", { voce: r.descrizione })} inputMode="decimal" value={prezzi[r.id] ?? ""}
+          onChange={(e) => setPrezzi((p) => ({ ...p, [r.id]: e.target.value }))} placeholder={`€ / ${r.unita || t("unità")}`} />
       </label>)}
     </div>
     <div className="flex flex-wrap items-center justify-end gap-2">
       {valida && <p className="mr-auto text-sm text-muted-foreground">
-        {righePrezzo.length} di {richiesta.righe.length} voci quotate · <strong className="tabular-nums text-foreground">{formatCurrency(totale)}</strong> IVA esclusa
+        {t("{n} di {totale} voci quotate", { n: righePrezzo.length, totale: richiesta.righe.length })} · <strong className="tabular-nums text-foreground">{formatCurrency(totale)}</strong> {t("IVA esclusa")}
       </p>}
-      <Button size="sm" variant="outline" onClick={onAnnulla}>Annulla</Button>
+      <Button size="sm" variant="outline" onClick={onAnnulla}>{t("Annulla")}</Button>
       <Button size="sm" disabled={!valida || salvaInCorso} onClick={() => onSalva({
         data, riferimento: riferimento.trim(), prezzi: Object.fromEntries(righePrezzo) as Record<string, number>,
-      })}>Salva offerta</Button>
+      })}>{t("Salva offerta")}</Button>
     </div>
   </fieldset>;
 }
@@ -87,6 +89,7 @@ export function SubappaltoLavorazioni({ orderId, companyId, ambiti, albero, aper
   onOccupato?: (si: boolean) => void;
   apri?: () => void;
 }) {
+  const t = useT();
   const { user, effectiveCompany: azienda } = useAuth();
   const { registro, aggiorna, disponibile, carica, errore, riprova, salvaInCorso } = useRegistroSubappaltoLocale(companyId, orderId, user?.id);
   const misurate = useVociPrevisteFasi(orderId, true);
@@ -134,10 +137,10 @@ export function SubappaltoLavorazioni({ orderId, companyId, ambiti, albero, aper
       aCorpoInBozza: collegati.filter((r) => r.bozza).reduce((tot, r) => tot + Number(r.quantita), 0),
     });
     const importi = [
-      situazione.contrattata > 0 && `${misura.format(situazione.contrattata)} ${unita} a contratto`,
-      situazione.inContrattoBozza > 0 && `${misura.format(situazione.inContrattoBozza)} ${unita} in bozza di contratto`,
-      situazione.inAffidamentoBozza > 0 && `${misura.format(situazione.inAffidamentoBozza)} ${unita} assegnati in bozza`,
-      situazione.residua > 0 && (unita === "a corpo" ? "A corpo" : `${misura.format(situazione.residua)} ${unita} ${situazione.interna ? "interni" : "da affidare"}`),
+      situazione.contrattata > 0 && t("{q} {unita} a contratto", { q: misura.format(situazione.contrattata), unita }),
+      situazione.inContrattoBozza > 0 && t("{q} {unita} in bozza di contratto", { q: misura.format(situazione.inContrattoBozza), unita }),
+      situazione.inAffidamentoBozza > 0 && t("{q} {unita} assegnati in bozza", { q: misura.format(situazione.inAffidamentoBozza), unita }),
+      situazione.residua > 0 && (unita === "a corpo" ? t("A corpo") : t(situazione.interna ? "{q} {unita} interni" : "{q} {unita} da affidare", { q: misura.format(situazione.residua), unita })),
     ].filter(Boolean).join(" · ");
     return { ambito, ...situazione, dettaglio: importi };
   });
@@ -188,15 +191,15 @@ export function SubappaltoLavorazioni({ orderId, companyId, ambiti, albero, aper
         initialBodyHtml: corpoDocumento(documento, azienda, true),
         documentoDaAllegare: allegato,
       } });
-    } catch { toast.error("Non riesco a preparare l’email. Riprova."); }
+    } catch { toast.error(t("Non riesco a preparare l’email. Riprova.")); }
     finally { setCaricaEmail(false); }
   };
 
   if (editor) return <div className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h3 className="text-base font-semibold">{editor.soloRichiesta ? "Nuova richiesta di preventivo" : "Prepara contratto di subappalto"}</h3>
+      <h3 className="text-base font-semibold">{editor.soloRichiesta ? t("Nuova richiesta di preventivo") : t("Prepara contratto di subappalto")}</h3>
       <Button variant="ghost" size="sm" disabled={salvataggio} onClick={() => setEditor(undefined)}>
-        <ArrowLeft className="size-4" aria-hidden="true" />{scheda === "offerte" ? "Torna alle richieste" : "Torna al subappalto"}
+        <ArrowLeft className="size-4" aria-hidden="true" />{scheda === "offerte" ? t("Torna alle richieste") : t("Torna al subappalto")}
       </Button>
     </div>
     <AffidaContrattoDaCommessa key={computoOrigine ? `${editor.offerta ? "offerta" : "richiesta"}:${computoOrigine.id}` : "nuovo"} orderId={orderId} companyId={companyId} incorporato partenza={editor}
@@ -210,22 +213,22 @@ export function SubappaltoLavorazioni({ orderId, companyId, ambiti, albero, aper
         setUltimaBozza(r.id);
         setAnteprima(undefined);
         setEditor(undefined);
-        toast.success("Richiesta salvata in bozza.");
+        toast.success(t("Richiesta salvata in bozza."));
       } : undefined}
       onChiudi={() => setEditor(undefined)}
       onContrattoSalvato={(contrattoId) => {
         apriContratto(contrattoId);
         if (computoOrigine) void aggiorna({ tipo: "contratto", id: computoOrigine.id, contrattoId, daOfferta: !!editor.offerta })
-          .catch(() => toast.warning("Contratto salvato. Aggiornamento del computo da riprovare."));
+          .catch(() => toast.warning(t("Contratto salvato. Aggiornamento del computo da riprovare.")));
       }} />
   </div>;
   if (erroreLettura) return <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
-    <span>{errore?.message ?? "Non riesco a leggere lo stato del subappalto."}</span>
-    <Button size="sm" variant="outline" onClick={() => { void misurate.refetch(); void affidamenti.refetch(); void datiContratti.refetch(); void riprova(); }}>Riprova</Button>
+    <span>{errore?.message ?? t("Non riesco a leggere lo stato del subappalto.")}</span>
+    <Button size="sm" variant="outline" onClick={() => { void misurate.refetch(); void affidamenti.refetch(); void datiContratti.refetch(); void riprova(); }}>{t("Riprova")}</Button>
   </div>;
-  if (!misurate.data || !affidamenti.data || !datiContratti.data || carica || composizione === "dalla-selezione") return <p role="status" className="text-sm text-muted-foreground">Carico il subappalto…</p>;
+  if (!misurate.data || !affidamenti.data || !datiContratti.data || carica || composizione === "dalla-selezione") return <p role="status" className="text-sm text-muted-foreground">{t("Carico il subappalto…")}</p>;
 
-  const elenco = righe.length > 0 && <ul aria-label="Lavorazioni del subappalto" className="divide-y overflow-hidden rounded-lg border bg-background">
+  const elenco = righe.length > 0 && <ul aria-label={t("Lavorazioni del subappalto")} className="divide-y overflow-hidden rounded-lg border bg-background">
     {(apri ? righe.slice(0, 4) : righe).map((r) => {
       const { nome } = r.ambito;
       const breve = nome.length > 85 ? nomeBreve(nome).titolo : nome;
@@ -235,66 +238,66 @@ export function SubappaltoLavorazioni({ orderId, companyId, ambiti, albero, aper
           {r.dettaglio && <p className="mt-0.5 text-xs text-muted-foreground">{r.dettaglio}</p>}
           {!apri && breve !== nome && <details className="group mt-1 text-xs text-muted-foreground">
             <summary className="inline-flex cursor-pointer list-none items-center gap-1 hover:text-foreground [&::-webkit-details-marker]:hidden">
-              <ChevronDown className="size-3.5 group-open:rotate-180" aria-hidden="true" />Descrizione
+              <ChevronDown className="size-3.5 group-open:rotate-180" aria-hidden="true" />{t("Descrizione")}
             </summary>
             <p className="mt-1.5 break-words leading-relaxed">{nome}</p>
           </details>}
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-          <Badge variant="outline" className={colori[r.stato]}>{r.stato}</Badge>
+          <Badge variant="outline" className={colori[r.stato]}>{t(r.stato)}</Badge>
           {!apri && disponibile && r.residua > 0 && <Button size="sm" variant="ghost" className="h-7" disabled={salvaInCorso} onClick={() => {
             void aggiorna({ tipo: "interno", interno: !r.interna, ambito: r.ambito.id }).catch((e: Error) => toast.error(e.message));
-          }}>{r.interna ? "Rimetti da quotare" : "Lavoro interno"}</Button>}
-          {!apri && disponibile && !r.interna && r.residua > 0 && <Button size="sm" variant="outline" className="h-7" onClick={() => prepara(true, [r])}>Chiedi preventivo</Button>}
+          }}>{r.interna ? t("Rimetti da quotare") : t("Lavoro interno")}</Button>}
+          {!apri && disponibile && !r.interna && r.residua > 0 && <Button size="sm" variant="outline" className="h-7" onClick={() => prepara(true, [r])}>{t("Chiedi preventivo")}</Button>}
         </div>
       </li>;
     })}
-    {apri && righe.length > 4 && <li className="px-3 py-2 text-xs text-muted-foreground">Altre {righe.length - 4} lavorazioni in Subappalto</li>}
+    {apri && righe.length > 4 && <li className="px-3 py-2 text-xs text-muted-foreground">{t("Altre {n} lavorazioni in Subappalto", { n: righe.length - 4 })}</li>}
   </ul>;
 
-  if (apri) return <section className="space-y-3" aria-label="Riepilogo subappalto">
+  if (apri) return <section className="space-y-3" aria-label={t("Riepilogo subappalto")}>
     <header className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3">
       <div>
-        <h3 className="flex items-center gap-2 text-sm font-semibold"><Handshake className="size-4 text-primary" aria-hidden="true" />Subappalto</h3>
-        <p className="mt-1 text-xs text-muted-foreground">{righe.length === 0 ? "Nessuna lavorazione nella selezione"
-          : quotabili.length === 0 ? "Nessuna lavorazione da quotare"
-          : `${quotabili.length} ${quotabili.length === 1 ? "voce da affidare" : "voci da affidare"}`}</p>
+        <h3 className="flex items-center gap-2 text-sm font-semibold"><Handshake className="size-4 text-primary" aria-hidden="true" />{t("Subappalto")}</h3>
+        <p className="mt-1 text-xs text-muted-foreground">{righe.length === 0 ? t("Nessuna lavorazione nella selezione")
+          : quotabili.length === 0 ? t("Nessuna lavorazione da quotare")
+          : t(quotabili.length === 1 ? "{n} voce da affidare" : "{n} voci da affidare", { n: quotabili.length })}</p>
       </div>
-      <Button size="sm" variant="outline" onClick={apri}>Gestisci subappalto</Button>
+      <Button size="sm" variant="outline" onClick={apri}>{t("Gestisci subappalto")}</Button>
     </header>
     {elenco}
   </section>;
 
   const segnaInviata = async (id: string) => {
     await aggiorna({ tipo: "invia", id });
-    toast.success("Richiesta segnata come inviata.");
+    toast.success(t("Richiesta segnata come inviata."));
   };
 
-  return <section className="space-y-3" aria-label="Subappalto">
+  return <section className="space-y-3" aria-label={t("Subappalto")}>
     <Tabs value={disponibile ? scheda : scheda === "offerte" ? "lavorazioni" : scheda}
       onValueChange={(valore) => { setUltimaBozza(undefined); setScheda(valore as SchedaSubappalto); }} activationMode="manual">
-      <TabsList aria-label="Sezioni del subappalto" className="h-auto w-full flex-wrap justify-start gap-1">
-        {disponibile && <TabsTrigger value="offerte" className="gap-1.5"><Mail className="size-4 shrink-0" aria-hidden="true" />Richieste d’offerta
+      <TabsList aria-label={t("Sezioni del subappalto")} className="h-auto w-full flex-wrap justify-start gap-1">
+        {disponibile && <TabsTrigger value="offerte" className="gap-1.5"><Mail className="size-4 shrink-0" aria-hidden="true" />{t("Richieste d’offerta")}
           {registro.richieste.length > 0 && <span className="text-xs text-muted-foreground">{registro.richieste.length}</span>}</TabsTrigger>}
-        <TabsTrigger value="lavorazioni" className="gap-1.5"><ClipboardList className="size-4 shrink-0" aria-hidden="true" />Lavorazioni</TabsTrigger>
-        <TabsTrigger value="contratti" className="gap-1.5"><FileText className="size-4 shrink-0" aria-hidden="true" />Contratti</TabsTrigger>
+        <TabsTrigger value="lavorazioni" className="gap-1.5"><ClipboardList className="size-4 shrink-0" aria-hidden="true" />{t("Lavorazioni")}</TabsTrigger>
+        <TabsTrigger value="contratti" className="gap-1.5"><FileText className="size-4 shrink-0" aria-hidden="true" />{t("Contratti")}</TabsTrigger>
       </TabsList>
-      <TabsContent value="lavorazioni">{elenco || <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Seleziona una fase o una voce per vedere cosa affidare.</p>}</TabsContent>
+      <TabsContent value="lavorazioni">{elenco || <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{t("Seleziona una fase o una voce per vedere cosa affidare.")}</p>}</TabsContent>
       {disponibile && <TabsContent value="offerte" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3">
           <p className="text-sm text-muted-foreground">{quotabili.length > 0
-            ? `${quotabili.length} ${quotabili.length === 1 ? "voce selezionata da quotare" : "voci selezionate da quotare"}`
-            : "Seleziona lavorazioni con quantità disponibili per chiedere un preventivo."}</p>
+            ? t(quotabili.length === 1 ? "{n} voce selezionata da quotare" : "{n} voci selezionate da quotare", { n: quotabili.length })
+            : t("Seleziona lavorazioni con quantità disponibili per chiedere un preventivo.")}</p>
           <Button size="sm" variant={registro.richieste.length ? "outline" : "default"} disabled={!quotabili.length || salvaInCorso} onClick={() => prepara(true, quotabili)}>
-            <Plus className="size-4" aria-hidden="true" />Nuova richiesta
+            <Plus className="size-4" aria-hidden="true" />{t("Nuova richiesta")}
           </Button>
         </div>
         {!intera && (filtroSelezione || richiesteSelezionate.length < registro.richieste.length) && <label className="inline-flex items-center gap-2 px-1 text-sm text-muted-foreground">
           <input type="checkbox" className="accent-primary" checked={filtroSelezione} onChange={(e) => setFiltroSelezione(e.target.checked)} />
-          Solo le lavorazioni selezionate
+          {t("Solo le lavorazioni selezionate")}
         </label>}
         {!richieste.length && <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-          {filtroSelezione ? "Nessuna richiesta per le lavorazioni selezionate." : "Nessuna richiesta in questa commessa."}
+          {filtroSelezione ? t("Nessuna richiesta per le lavorazioni selezionate.") : t("Nessuna richiesta in questa commessa.")}
         </p>}
         {richieste.map((r) => {
           const contrattoId = r.offerta?.contrattoId ?? r.contrattoId;
@@ -304,55 +307,55 @@ export function SubappaltoLavorazioni({ orderId, companyId, ambiti, albero, aper
           const quotate = r.offerta ? Object.keys(r.offerta.prezzi).length : 0;
           const inModifica = offerta?.id === r.id;
           const dettagli = anteprima === r.id;
-          return <article key={r.id} className="space-y-3 rounded-lg border bg-background p-3 sm:p-4" aria-label={`Richiesta per ${r.ditta}`}>
+          return <article key={r.id} className="space-y-3 rounded-lg border bg-background p-3 sm:p-4" aria-label={t("Richiesta per {ditta}", { ditta: r.ditta })}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 flex-1 basis-56 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h4 className="break-words text-sm font-semibold" tabIndex={r.id === ultimaBozza ? -1 : undefined}
                     ref={r.id === ultimaBozza ? titoloBozza : undefined}>{r.ditta}</h4>
-                  <Badge variant="outline" className={colori[stato]}>{stato}</Badge>
+                  <Badge variant="outline" className={colori[stato]}>{t(stato)}</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {r.righe.length} {r.righe.length === 1 ? "voce" : "voci"}
+                  {t(r.righe.length === 1 ? "{n} voce" : "{n} voci", { n: r.righe.length })}
                   {fasi.length > 0 && ` · ${fasi.slice(0, 2).join(" · ")}${fasi.length > 2 ? ` +${fasi.length - 2}` : ""}`}
                 </p>
                 {r.offerta
                   ? <p className="text-sm"><strong className="tabular-nums">{formatCurrency(r.righe.reduce((tot, v) => tot + Math.round(v.quantita * (r.offerta?.prezzi[v.id] ?? 0) * 100) / 100, 0))}</strong>
-                    <span className="text-xs text-muted-foreground"> IVA esclusa · {quotate} di {r.righe.length} voci quotate</span></p>
+                    <span className="text-xs text-muted-foreground"> {t("IVA esclusa")} · {t("{n} di {totale} voci quotate", { n: quotate, totale: r.righe.length })}</span></p>
                   : <p className="text-xs text-muted-foreground">
-                    {r.inviataIl ? `Inviata il ${dataIt(r.inviataIl)}` : `Salvata il ${dataIt(r.creataIl)}`}
-                    {r.scadenza && ` · Risposta entro ${dataIt(r.scadenza)}`}
+                    {r.inviataIl ? t("Inviata il {data}", { data: dataIt(r.inviataIl) }) : t("Salvata il {data}", { data: dataIt(r.creataIl) })}
+                    {r.scadenza && ` · ${t("Risposta entro {data}", { data: dataIt(r.scadenza) })}`}
                   </p>}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm" variant="outline" onClick={() => setAnteprima(dettagli ? undefined : r.id)} aria-expanded={dettagli}>
-                  {dettagli ? "Chiudi dettagli" : "Dettagli"}
+                  {dettagli ? t("Chiudi dettagli") : t("Dettagli")}
                 </Button>
                 {!inModifica && (contrattoId
-                  ? <Button size="sm" onClick={() => apriContratto(contrattoId)}>Apri contratto</Button>
-                  : r.offerta ? <Button size="sm" disabled={salvaInCorso} onClick={() => usaComputo(r, true)}>Prepara contratto</Button>
+                  ? <Button size="sm" onClick={() => apriContratto(contrattoId)}>{t("Apri contratto")}</Button>
+                  : r.offerta ? <Button size="sm" disabled={salvaInCorso} onClick={() => usaComputo(r, true)}>{t("Prepara contratto")}</Button>
                   : bozza ? <Button size="sm" disabled={caricaEmail || !!email || salvaInCorso} onClick={() => void apriEmail(r)}>
-                    <Mail className="size-4" aria-hidden="true" />Prepara email
+                    <Mail className="size-4" aria-hidden="true" />{t("Prepara email")}
                   </Button>
-                  : <Button size="sm" disabled={salvaInCorso} onClick={() => setOfferta(r)}>Registra offerta</Button>)}
+                  : <Button size="sm" disabled={salvaInCorso} onClick={() => setOfferta(r)}>{t("Registra offerta")}</Button>)}
               </div>
             </div>
             {dettagli && <div className="space-y-3 border-t pt-3">
-              {r.offerta && <p className="text-sm text-muted-foreground">Offerta del {dataIt(r.offerta.data)}{r.offerta.riferimento && ` · ${r.offerta.riferimento}`}</p>}
+              {r.offerta && <p className="text-sm text-muted-foreground">{t("Offerta del {data}", { data: dataIt(r.offerta.data) })}{r.offerta.riferimento && ` · ${r.offerta.riferimento}`}</p>}
               <div className="flex flex-wrap gap-2">
                 {azienda?.id === companyId && <Button size="sm" variant="outline" onClick={() => void import("@/lib/subappaltatori/richiestaOffertaPdf")
-                  .then((m) => m.scaricaComputoRichiesta(r, azienda)).catch(() => toast.error("Non riesco a scaricare il PDF."))}>Scarica PDF</Button>}
+                  .then((m) => m.scaricaComputoRichiesta(r, azienda)).catch(() => toast.error(t("Non riesco a scaricare il PDF.")))}>{t("Scarica PDF")}</Button>}
                 {bozza && <Button size="sm" variant="outline" disabled={salvaInCorso || caricaEmail || !!email}
-                  onClick={() => void segnaInviata(r.id).catch((e: Error) => toast.error(e.message))}>Segna come inviata</Button>}
+                  onClick={() => void segnaInviata(r.id).catch((e: Error) => toast.error(e.message))}>{t("Segna come inviata")}</Button>}
                 {!contrattoId && !inModifica && (bozza || r.offerta) && <Button size="sm" variant="outline" disabled={salvaInCorso}
-                  onClick={() => setOfferta(r)}>{r.offerta ? "Modifica offerta" : "Registra offerta"}</Button>}
-                {!r.offerta && !contrattoId && <Button size="sm" variant="ghost" disabled={salvaInCorso} onClick={() => usaComputo(r, false)}>Prepara contratto dal computo</Button>}
+                  onClick={() => setOfferta(r)}>{r.offerta ? t("Modifica offerta") : t("Registra offerta")}</Button>}
+                {!r.offerta && !contrattoId && <Button size="sm" variant="ghost" disabled={salvaInCorso} onClick={() => usaComputo(r, false)}>{t("Prepara contratto dal computo")}</Button>}
               </div>
               <ComputoSubappaltoAnteprima dati={r} richiesta={r} />
             </div>}
             {inModifica && offerta && <RegistraOfferta key={r.id} richiesta={offerta} salvaInCorso={salvaInCorso} onAnnulla={() => setOfferta(undefined)} onSalva={(d) => {
               void aggiorna({ tipo: "offerta", id: r.id, offerta: d, precedente: offerta.offerta ?? null })
-                .then(() => { setOfferta(undefined); toast.success("Offerta registrata."); })
+                .then(() => { setOfferta(undefined); toast.success(t("Offerta registrata.")); })
                 .catch((e: Error) => toast.error(e.message));
             }} />}
           </article>;
@@ -363,15 +366,15 @@ export function SubappaltoLavorazioni({ orderId, companyId, ambiti, albero, aper
           voci={misurate.data} affidamenti={affidamenti.data} inRicarica={datiContratti.isFetching || affidamenti.isFetching} />
       </TabsContent>
       {(scheda !== "offerte" || !disponibile) && <div className="mt-3 flex justify-end border-t pt-3">
-        <Button size="sm" disabled={!ambiti.length} onClick={() => prepara(false, quotabili)}>Prepara contratto</Button>
+        <Button size="sm" disabled={!ambiti.length} onClick={() => prepara(false, quotabili)}>{t("Prepara contratto")}</Button>
       </div>}
     </Tabs>
-    {email && <Suspense fallback={<p role="status">Apro l’email…</p>}>
+    {email && <Suspense fallback={<p role="status">{t("Apro l’email…")}</p>}>
       <EmailComposeDialog open context={email.context} companyIdOverride={companyId} onOpenChange={(open) => !open && setEmail(undefined)}
-        documentSummary={{ title: "Computo per la ditta", mode: "pdf", rows: email.richiesta.righe.length }}
+        documentSummary={{ title: t("Computo per la ditta"), mode: "pdf", rows: email.richiesta.righe.length }}
         onSent={() => {
           void segnaInviata(email.richiesta.id)
-            .catch(() => toast.warning("Email inviata. Non riesco ad aggiornare lo stato della richiesta."));
+            .catch(() => toast.warning(t("Email inviata. Non riesco ad aggiornare lo stato della richiesta.")));
         }} />
     </Suspense>}
   </section>;

@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   parseBonusLines,
   lordoRiga,
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export function BonusRipartizioneCard({ orderId, vatRate, hasBuildingBonus, datiCausale }: Props) {
+  const t = useT();
   const { bonusMultipli } = useBonusFiscaliFlags();
 
   const { data: lines = [] } = useQuery({
@@ -56,9 +58,9 @@ export function BonusRipartizioneCard({ orderId, vatRate, hasBuildingBonus, dati
   const copia = async (testo: string) => {
     try {
       await navigator.clipboard.writeText(testo);
-      toast.success("Causale copiata", { description: "Incollala nel bonifico del cliente." });
+      toast.success(t("Causale copiata"), { description: t("Incollala nel bonifico del cliente.") });
     } catch {
-      toast.error("Copia non riuscita", { description: "Seleziona il testo e copialo a mano." });
+      toast.error(t("Copia non riuscita"), { description: t("Seleziona il testo e copialo a mano.") });
     }
   };
 
@@ -67,11 +69,10 @@ export function BonusRipartizioneCard({ orderId, vatRate, hasBuildingBonus, dati
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Percent className="h-4 w-4 text-amber-600" />
-          Bonus edilizi — {lines.length} pratiche
+          {t("Bonus edilizi — {n} pratiche", { n: lines.length })}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Ogni riga è un bonifico parlante a sé: se il cliente ne fa uno solo, una delle detrazioni
-          salta.
+          {t("Ogni riga è un bonifico parlante a sé: se il cliente ne fa uno solo, una delle detrazioni salta.")}
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -82,20 +83,20 @@ export function BonusRipartizioneCard({ orderId, vatRate, hasBuildingBonus, dati
           return (
             <div key={line.position} className="rounded-md border p-2.5 space-y-1.5">
               <div className="flex items-start justify-between gap-3">
-                <span className="text-sm font-medium">{line.label || "Agevolazione"}</span>
+                <span className="text-sm font-medium">{line.label || t("Agevolazione")}</span>
                 <span className="text-sm font-semibold tabular-nums shrink-0">
                   {formatCurrency(lordo)}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] sm:grid-cols-3">
                 <span className="text-muted-foreground">
-                  Imponibile <span className="text-foreground tabular-nums">{formatCurrency(line.imponibile)}</span>
+                  {t("Imponibile")} <span className="text-foreground tabular-nums">{formatCurrency(line.imponibile)}</span>
                 </span>
                 <span className="text-muted-foreground">
-                  Ritenuta 11% <span className="text-amber-700 tabular-nums">−{formatCurrency(ritenuta)}</span>
+                  {t("Ritenuta 11%")} <span className="text-amber-700 tabular-nums">−{formatCurrency(ritenuta)}</span>
                 </span>
                 <span className="text-muted-foreground">
-                  Detrazione cliente{" "}
+                  {t("Detrazione cliente")}{" "}
                   <span className="text-emerald-700 tabular-nums">
                     {formatCurrency(detrazioneRiga(line, vatRate))}
                   </span>
@@ -111,7 +112,7 @@ export function BonusRipartizioneCard({ orderId, vatRate, hasBuildingBonus, dati
                   onClick={() => copia(causale)}
                 >
                   <Copy className="h-3 w-3 mr-1" />
-                  Copia
+                  {t("Copia")}
                 </Button>
               </div>
             </div>
@@ -120,15 +121,15 @@ export function BonusRipartizioneCard({ orderId, vatRate, hasBuildingBonus, dati
 
         <div className="rounded-md bg-muted/50 p-2.5 space-y-1 text-xs">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Totale bonifici (IVA inclusa)</span>
+            <span className="text-muted-foreground">{t("Totale bonifici (IVA inclusa)")}</span>
             <span className="tabular-nums">{formatCurrency(totali.lordo)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Ritenuta 11% trattenuta dalla banca</span>
+            <span className="text-muted-foreground">{t("Ritenuta 11% trattenuta dalla banca")}</span>
             <span className="tabular-nums text-amber-700">−{formatCurrency(totali.ritenuta)}</span>
           </div>
           <div className="flex justify-between font-semibold border-t pt-1">
-            <span>Incasso netto</span>
+            <span>{t("Incasso netto")}</span>
             <span className="tabular-nums">{formatCurrency(totali.netto)}</span>
           </div>
         </div>

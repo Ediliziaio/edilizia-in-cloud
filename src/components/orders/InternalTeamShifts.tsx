@@ -13,6 +13,7 @@ import { loadCrewShifts, saveCrewShift } from "@/lib/orders/internalTeamShiftApi
 import { validShiftDate, type CrewShift } from "@/lib/orders/internalTeamShift";
 import { InternalTeamShiftEditor } from "./InternalTeamShiftEditor";
 import { OfficeSelect } from "./OfficeSelect";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const config = { url: import.meta.env.VITE_SUPABASE_URL, optIn: import.meta.env.VITE_INTERNAL_TEAM_ROSTERS_LOCAL };
 const enabled = isLocalCrewBackend(config.url, config.optIn);
@@ -25,6 +26,7 @@ export function InternalTeamShifts(props: Props) {
   return enabled ? <LocalTeamShifts {...props} /> : null;
 }
 function LocalTeamShifts({ orderId, teams, phases, canPlan }: Props) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
@@ -54,46 +56,46 @@ function LocalTeamShifts({ orderId, teams, phases, canPlan }: Props) {
     try {
       await saveCrewShift(client, config, { ...cancel, companyId, orderId, teamId: cancel.teamId,
         expectedVersion: cancel.version, operationId: cancelRequest.current.operationId, status: "cancelled" });
-      invalidate(); setCancel(null); toast.success("Turno annullato. Lo storico è conservato.");
-    } catch (e) { setCancelError(e instanceof Error ? e.message : "Annullamento non riuscito."); }
+      invalidate(); setCancel(null); toast.success(tr("Turno annullato. Lo storico è conservato."));
+    } catch (e) { setCancelError(e instanceof Error ? e.message : tr("Annullamento non riuscito.")); }
     finally { cancelBusy.current = false; setBusy(false); }
   };
   if (!canPlan) return null;
-  return <section aria-label="Turni squadre interne" className="space-y-3 rounded-xl border bg-background p-3 sm:p-4">
+  return <section aria-label={tr("Turni squadre interne")} className="space-y-3 rounded-xl border bg-background p-3 sm:p-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h3 className="text-sm font-semibold">Turni delle squadre interne</h3><p className="mt-1 text-xs text-muted-foreground">Collaudo locale · turni nell'agenda personale Campo. Ore, costi e incarichi operativi restano separati.</p></div>
-      <Button size="sm" variant="outline" disabled={!internalTeams.length || !companyId || shifts.isPending || shifts.isError} onClick={() => { setTeamId(internalTeams[0]?.id ?? ""); setOpen(true); }}>Pianifica squadra</Button>
+      <div><h3 className="text-sm font-semibold">{tr("Turni delle squadre interne")}</h3><p className="mt-1 text-xs text-muted-foreground">{tr("Collaudo locale · turni nell'agenda personale Campo. Ore, costi e incarichi operativi restano separati.")}</p></div>
+      <Button size="sm" variant="outline" disabled={!internalTeams.length || !companyId || shifts.isPending || shifts.isError} onClick={() => { setTeamId(internalTeams[0]?.id ?? ""); setOpen(true); }}>{tr("Pianifica squadra")}</Button>
     </div>
-    <label className="flex flex-wrap items-center gap-2 text-sm">Giorno<Input aria-label="Giorno dei turni" className="w-full min-w-0 sm:w-44" type="date" min="2000-01-01" max="2100-12-31" value={day} onChange={e => setDay(e.target.value)} /></label>
-    {!validShiftDate(day) ? <p role="status" className="text-sm">Scegli un giorno valido.</p> : shifts.isPending ? <p role="status" className="text-sm">Caricamento turni…</p> : shifts.isError ? <div role="alert" className="space-y-2 text-sm"><p>Non è possibile caricare i turni. Il calendario non viene mostrato vuoto al posto di un errore.</p><Button variant="outline" size="sm" onClick={() => void shifts.refetch()}>Riprova caricamento turni</Button></div> : <>
-      {!shifts.data?.length && <p className="text-sm text-muted-foreground">Nessun turno pianificato per questo giorno.</p>}
+    <label className="flex flex-wrap items-center gap-2 text-sm">{tr("Giorno")}<Input aria-label={tr("Giorno dei turni")} className="w-full min-w-0 sm:w-44" type="date" min="2000-01-01" max="2100-12-31" value={day} onChange={e => setDay(e.target.value)} /></label>
+    {!validShiftDate(day) ? <p role="status" className="text-sm">{tr("Scegli un giorno valido.")}</p> : shifts.isPending ? <p role="status" className="text-sm">{tr("Caricamento turni…")}</p> : shifts.isError ? <div role="alert" className="space-y-2 text-sm"><p>{tr("Non è possibile caricare i turni. Il calendario non viene mostrato vuoto al posto di un errore.")}</p><Button variant="outline" size="sm" onClick={() => void shifts.refetch()}>{tr("Riprova caricamento turni")}</Button></div> : <>
+      {!shifts.data?.length && <p className="text-sm text-muted-foreground">{tr("Nessun turno pianificato per questo giorno.")}</p>}
       {shifts.data?.map(s => <div key={s.shiftId} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3">
-        <div className="min-w-0 flex-1 text-sm"><p className="break-words font-medium">{s.startTime}–{s.endTime} · {s.teamName}{s.status === "cancelled" ? " · Annullato" : ""}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{s.phaseId ? phases.find(p => p.id === s.phaseId)?.name ?? "Lavorazione non disponibile" : "Intera commessa"}</p>
-          <p className="mt-1 break-words">{s.participants.filter(p => p.kind !== "excluded").map(p => `${p.name}${p.kind === "replacement" ? " (rinforzo)" : ""}${p.id === s.leaderEmployeeId ? " · referente" : ""}`).join(", ")}</p>
+        <div className="min-w-0 flex-1 text-sm"><p className="break-words font-medium">{s.startTime}–{s.endTime} · {s.teamName}{s.status === "cancelled" ? tr(" · Annullato") : ""}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{s.phaseId ? phases.find(p => p.id === s.phaseId)?.name ?? tr("Lavorazione non disponibile") : tr("Intera commessa")}</p>
+          <p className="mt-1 break-words">{s.participants.filter(p => p.kind !== "excluded").map(p => `${p.name}${p.kind === "replacement" ? tr(" (rinforzo)") : ""}${p.id === s.leaderEmployeeId ? tr(" · referente") : ""}`).join(", ")}</p>
           {!!s.notes && <p className="mt-1 whitespace-pre-wrap break-words text-xs text-muted-foreground">{s.notes}</p>}
         </div>
-        {s.status === "planned" && <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setCancel(s); setCancelError(null); }}>Annulla turno</Button>}
+        {s.status === "planned" && <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setCancel(s); setCancelError(null); }}>{tr("Annulla turno")}</Button>}
       </div>)}
     </>}
-    {!internalTeams.length && <p className="text-sm text-muted-foreground">Crea prima una squadra interna e la sua composizione in Impostazioni → Calendari lavori → Squadre.</p>}
+    {!internalTeams.length && <p className="text-sm text-muted-foreground">{tr("Crea prima una squadra interna e la sua composizione in Impostazioni → Calendari lavori → Squadre.")}</p>}
     <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value); }}><DialogContent className="flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-2xl">
-      <DialogHeader className="pr-6 text-left"><DialogTitle>Pianifica una squadra</DialogTitle><DialogDescription>Parti dalle persone abituali e adatta il turno alla giornata.</DialogDescription></DialogHeader>
-      <label className="space-y-1 text-sm font-medium">Squadra interna<OfficeSelect label="Squadra interna" className="min-w-0 font-normal" disabled={busy} value={teamId} onValueChange={setTeamId} options={internalTeams.map(t => ({ value: t.id, label: t.label }))} /></label>
-      {roster.isPending ? <p role="status">Caricamento composizione…</p> : roster.isError ? <div role="alert" className="space-y-2"><p>Composizione non disponibile.</p><Button variant="outline" onClick={() => void roster.refetch()}>Riprova composizione</Button></div> : roster.data && <InternalTeamShiftEditor key={`${companyId}:${orderId}:${teamId}:${generation}`} snapshot={roster.data} phases={phases} workDate={day} shifts={shifts.data ?? []} canPlan={canPlan}
+      <DialogHeader className="pr-6 text-left"><DialogTitle>{tr("Pianifica una squadra")}</DialogTitle><DialogDescription>{tr("Parti dalle persone abituali e adatta il turno alla giornata.")}</DialogDescription></DialogHeader>
+      <label className="space-y-1 text-sm font-medium">{tr("Squadra interna")}<OfficeSelect label={tr("Squadra interna")} className="min-w-0 font-normal" disabled={busy} value={teamId} onValueChange={setTeamId} options={internalTeams.map(t => ({ value: t.id, label: t.label }))} /></label>
+      {roster.isPending ? <p role="status">{tr("Caricamento composizione…")}</p> : roster.isError ? <div role="alert" className="space-y-2"><p>{tr("Composizione non disponibile.")}</p><Button variant="outline" onClick={() => void roster.refetch()}>{tr("Riprova composizione")}</Button></div> : roster.data && <InternalTeamShiftEditor key={`${companyId}:${orderId}:${teamId}:${generation}`} snapshot={roster.data} phases={phases} workDate={day} shifts={shifts.data ?? []} canPlan={canPlan}
         onReload={() => { void roster.refetch().then(r => { if (!r.isError) setGeneration(n => n + 1); }); }}
         onSave={async draft => {
           setBusy(true);
           try {
             await saveCrewShift(client, config, { ...draft, companyId: companyId!, orderId, teamId });
             setDay(draft.workDate); invalidate(); setOpen(false);
-            toast.success("Turno pianificato", { description: "Costi, ore consuntive e accessi Campo invariati." });
+            toast.success(tr("Turno pianificato"), { description: tr("Costi, ore consuntive e accessi Campo invariati.") });
           } finally { setBusy(false); }
         }} />}
     </DialogContent></Dialog>
-    <Dialog open={!!cancel} onOpenChange={value => { if (!value && !busy) setCancel(null); }}><DialogContent><DialogHeader className="pr-6 text-left"><DialogTitle>Annullare il turno?</DialogTitle><DialogDescription>Lo storico resta disponibile. Non vengono cancellati rapportini, costi o accessi Campo già esistenti.</DialogDescription></DialogHeader>
+    <Dialog open={!!cancel} onOpenChange={value => { if (!value && !busy) setCancel(null); }}><DialogContent><DialogHeader className="pr-6 text-left"><DialogTitle>{tr("Annullare il turno?")}</DialogTitle><DialogDescription>{tr("Lo storico resta disponibile. Non vengono cancellati rapportini, costi o accessi Campo già esistenti.")}</DialogDescription></DialogHeader>
       {cancelError && <p role="alert" className="text-sm text-destructive">{cancelError}</p>}
-      <div className="flex flex-wrap justify-end gap-2"><Button variant="outline" disabled={busy} onClick={() => setCancel(null)}>Mantieni turno</Button><Button variant="destructive" disabled={busy} onClick={() => void confirmCancel()}>{busy ? "Annullamento…" : "Conferma annullamento"}</Button></div>
+      <div className="flex flex-wrap justify-end gap-2"><Button variant="outline" disabled={busy} onClick={() => setCancel(null)}>{tr("Mantieni turno")}</Button><Button variant="destructive" disabled={busy} onClick={() => void confirmCancel()}>{busy ? tr("Annullamento…") : tr("Conferma annullamento")}</Button></div>
     </DialogContent></Dialog>
   </section>;
 }

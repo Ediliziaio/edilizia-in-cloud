@@ -3,7 +3,6 @@
 // lo stesso registro di «Ore e persone»: controlla doppioni e 24 ore, e riprovare non duplica.
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
@@ -20,12 +19,13 @@ import { campoWorkDay } from "@/lib/campo/workDay";
 import { controlloGiornata, giornatePersona, orarioNormale, oreScritte } from "@/lib/orders/giornataPersona";
 import type { RapportinoRiga } from "@/lib/orders/rapportiniMese";
 import { cn } from "@/lib/utils";
+import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-const oreIt = (n: number): string => `${n.toLocaleString("it-IT", { maximumFractionDigits: 2 })} h`;
+const oreIt = (n: number): string => `${n.toLocaleString(intlCampo(), { maximumFractionDigits: 2 })} h`;
 const giornoIt = (d: string): string => {
-  const s = format(parseISO(d), "EEE d MMM", { locale: it });
+  const s = format(parseISO(d), "EEE d MMM", { locale: dateFnsCampo() });
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
@@ -39,6 +39,7 @@ export function GiornatePersonaPopup({ persona, righe, puoScrivere, onChiudi, on
   onVediRapportini: () => void;
   onSegna: (employeeId: string) => void;
 }): ReactElement {
+  const t = useT();
   const giorni = useMemo(() => giornatePersona(righe, persona.chiave), [righe, persona.chiave]);
   const employeeId = persona.chiave.startsWith("e:") ? persona.chiave.slice(2) : null;
   return (
@@ -46,7 +47,7 @@ export function GiornatePersonaPopup({ persona, righe, puoScrivere, onChiudi, on
       <DialogContent className="flex max-h-[90dvh] w-[calc(100vw-1.5rem)] max-w-3xl flex-col gap-3">
         <DialogHeader>
           <DialogTitle>{persona.nome}</DialogTitle>
-          <DialogDescription>Dove ha lavorato ogni giorno del mese.</DialogDescription>
+          <DialogDescription>{t("Dove ha lavorato ogni giorno del mese.")}</DialogDescription>
         </DialogHeader>
         <ul className="min-h-0 flex-1 divide-y overflow-y-auto rounded-lg border">
           {giorni.map((g) => (
@@ -63,11 +64,11 @@ export function GiornatePersonaPopup({ persona, righe, puoScrivere, onChiudi, on
               {!persona.ditta && <span className="shrink-0 pt-0.5 text-sm font-semibold tabular-nums">{oreIt(g.totale)}</span>}
             </li>
           ))}
-          {giorni.length === 0 && <li className="px-3 py-6 text-center text-sm text-muted-foreground">Nessuna giornata in questo mese.</li>}
+          {giorni.length === 0 && <li className="px-3 py-6 text-center text-sm text-muted-foreground">{t("Nessuna giornata in questo mese.")}</li>}
         </ul>
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={onVediRapportini}>Vedi i suoi rapportini</Button>
-          {puoScrivere && employeeId && <Button size="sm" onClick={() => onSegna(employeeId)}>Segna una giornata</Button>}
+          <Button variant="outline" size="sm" onClick={onVediRapportini}>{t("Vedi i suoi rapportini")}</Button>
+          {puoScrivere && employeeId && <Button size="sm" onClick={() => onSegna(employeeId)}>{t("Segna una giornata")}</Button>}
         </div>
       </DialogContent>
     </Dialog>
@@ -103,6 +104,7 @@ function useTimbrateDelGiorno(userId: string | null | undefined, giorno: string)
 
 /** Una persona, un giorno, più cantieri: una riga per cantiere. */
 export function SegnaGiornataPersona({ employeeId, onChiudi }: { employeeId?: string; onChiudi: () => void }): ReactElement {
+  const tr = useT();
   const qc = useQueryClient();
   const registro = useDailyHours();
   const { setMonth } = registro;
@@ -116,7 +118,7 @@ export function SegnaGiornataPersona({ employeeId, onChiudi }: { employeeId?: st
 
   const dati = registro.data;
   const scelta = dati?.people.find((p) => p.id === persona);
-  const nomeCantiere = (id: string): string => dati?.orders.find((o) => o.id === id)?.name ?? "Cantiere";
+  const nomeCantiere = (id: string): string => dati?.orders.find((o) => o.id === id)?.name ?? tr("Cantiere");
   const linee = useMemo(() => (dati?.lines ?? []).filter((l) => l.employeeId === persona), [dati?.lines, persona]);
   const giaQuelGiorno = useMemo(() => {
     const m = new Map<string, number>();
@@ -139,8 +141,8 @@ export function SegnaGiornataPersona({ employeeId, onChiudi }: { employeeId?: st
   const contate = new Map<string, number>();
   for (const r of piene) if (r.orderId) contate.set(r.orderId, (contate.get(r.orderId) ?? 0) + 1);
   const problemaDi = (r: Riga): string | null => {
-    if (r.orderId && giaQuelGiorno.has(r.orderId)) return `Ha già ${oreIt(giaQuelGiorno.get(r.orderId)!)} su questo cantiere: correggi quelle.`;
-    if (r.orderId && (contate.get(r.orderId) ?? 0) > 1) return "Questo cantiere è già in un’altra riga.";
+    if (r.orderId && giaQuelGiorno.has(r.orderId)) return tr("Ha già {ore} su questo cantiere: correggi quelle.", { ore: oreIt(giaQuelGiorno.get(r.orderId)!) });
+    if (r.orderId && (contate.get(r.orderId) ?? 0) > 1) return tr("Questo cantiere è già in un’altra riga.");
     return null;
   };
   const pronte = !!persona && !!giorno && giorno <= oggi && piene.length > 0 && !controllo.oltre24
@@ -160,14 +162,14 @@ export function SegnaGiornataPersona({ employeeId, onChiudi }: { employeeId?: st
           if (esito.da_valorizzare) daValorizzare += 1;
           setRighe((p) => p.filter((x) => x.chiave !== r.chiave));
         } catch (e) {
-          const motivo = e instanceof Error ? e.message : "Non salvato.";
-          toast.error(`${nomeCantiere(r.orderId)}: ${motivo}${fatte ? ` Gli altri ${fatte} sono salvati.` : ""}`);
+          const motivo = e instanceof Error ? e.message : tr("Non salvato.");
+          toast.error(`${nomeCantiere(r.orderId)}: ${motivo}${fatte ? ` ${tr("Gli altri {n} sono salvati.", { n: fatte })}` : ""}`);
           return;
         }
       }
       toast.success(daValorizzare
-        ? `Ore segnate. Su ${daValorizzare} ${daValorizzare === 1 ? "cantiere restano" : "cantieri restano"} da approvare: manca il costo orario.`
-        : `Ore segnate su ${fatte} ${fatte === 1 ? "cantiere" : "cantieri"}.`);
+        ? tr(daValorizzare === 1 ? "Ore segnate. Su {n} cantiere restano da approvare: manca il costo orario." : "Ore segnate. Su {n} cantieri restano da approvare: manca il costo orario.", { n: daValorizzare })
+        : tr(fatte === 1 ? "Ore segnate su {n} cantiere." : "Ore segnate su {n} cantieri.", { n: fatte }));
       onChiudi();
     } finally {
       setInCorso(false);
@@ -180,17 +182,17 @@ export function SegnaGiornataPersona({ employeeId, onChiudi }: { employeeId?: st
     <Dialog open onOpenChange={(o) => { if (!o && !inCorso) onChiudi(); }}>
       <DialogContent className="flex max-h-[90dvh] w-[calc(100vw-1.5rem)] max-w-3xl flex-col gap-3 overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Segna la giornata di una persona</DialogTitle>
-          <DialogDescription>Una riga per ogni cantiere in cui ha lavorato.</DialogDescription>
+          <DialogTitle>{tr("Segna la giornata di una persona")}</DialogTitle>
+          <DialogDescription>{tr("Una riga per ogni cantiere in cui ha lavorato.")}</DialogDescription>
         </DialogHeader>
-        {registro.error ? <p role="alert" className="text-sm text-destructive">{registro.error}</p> : registro.loading ? <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" aria-label="Caricamento" /> : (
+        {registro.error ? <p role="alert" className="text-sm text-destructive">{registro.error}</p> : registro.loading ? <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" aria-label={tr("Caricamento")} /> : (
           <>
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem]">
-              <OfficeSelect label="Persona" value={persona} onValueChange={setPersona} placeholder="Scegli la persona" options={persone} />
-              <Input type="date" className="h-9" aria-label="Giorno" max={oggi} value={giorno} onChange={(e) => setGiorno(e.target.value)} />
+              <OfficeSelect label={tr("Persona")} value={persona} onValueChange={setPersona} placeholder={tr("Scegli la persona")} options={persone} />
+              <Input type="date" className="h-9" aria-label={tr("Giorno")} max={oggi} value={giorno} onChange={(e) => setGiorno(e.target.value)} />
             </div>
             {giaQuelGiorno.size > 0 && (
-              <p className="text-xs text-muted-foreground">Già segnate quel giorno: {[...giaQuelGiorno.entries()].map(([id, n]) => `${nomeCantiere(id)} ${oreIt(n)}`).join(" · ")}</p>
+              <p className="text-xs text-muted-foreground">{tr("Già segnate quel giorno: {elenco}", { elenco: [...giaQuelGiorno.entries()].map(([id, n]) => `${nomeCantiere(id)} ${oreIt(n)}`).join(" · ") })}</p>
             )}
             <div className="space-y-2">
               {righe.map((r, i) => {
@@ -198,26 +200,26 @@ export function SegnaGiornataPersona({ employeeId, onChiudi }: { employeeId?: st
                 return (
                   <div key={r.chiave} className="space-y-1">
                     <div className="grid items-start gap-2 sm:grid-cols-[minmax(0,1.3fr)_5rem_minmax(0,1fr)_2rem]">
-                      <ScegliInElenco valore={r.orderId} opzioni={dati?.orders ?? []} recenti={recenti} etichetta="Cerca il cantiere" onScegli={(id) => cambia(r.chiave, { orderId: id })} />
-                      <Input className="h-9" inputMode="decimal" placeholder="Ore" aria-label={`Ore della riga ${i + 1}`} value={r.ore} onChange={(e) => cambia(r.chiave, { ore: e.target.value })} />
-                      <Input className="h-9" placeholder="Cosa ha fatto (facoltativo)" aria-label={`Cosa ha fatto, riga ${i + 1}`} value={r.nota} onChange={(e) => cambia(r.chiave, { nota: e.target.value })} />
-                      <Button type="button" variant="ghost" size="icon" className="h-9 w-9 max-sm:justify-self-end" aria-label={`Togli la riga ${i + 1}`} disabled={righe.length === 1} onClick={() => setRighe((p) => p.filter((x) => x.chiave !== r.chiave))}><X className="h-4 w-4" /></Button>
+                      <ScegliInElenco valore={r.orderId} opzioni={dati?.orders ?? []} recenti={recenti} etichetta={tr("Cerca il cantiere")} onScegli={(id) => cambia(r.chiave, { orderId: id })} />
+                      <Input className="h-9" inputMode="decimal" placeholder={tr("Ore")} aria-label={tr("Ore della riga {n}", { n: i + 1 })} value={r.ore} onChange={(e) => cambia(r.chiave, { ore: e.target.value })} />
+                      <Input className="h-9" placeholder={tr("Cosa ha fatto (facoltativo)")} aria-label={tr("Cosa ha fatto, riga {n}", { n: i + 1 })} value={r.nota} onChange={(e) => cambia(r.chiave, { nota: e.target.value })} />
+                      <Button type="button" variant="ghost" size="icon" className="h-9 w-9 max-sm:justify-self-end" aria-label={tr("Togli la riga {n}", { n: i + 1 })} disabled={righe.length === 1} onClick={() => setRighe((p) => p.filter((x) => x.chiave !== r.chiave))}><X className="h-4 w-4" /></Button>
                     </div>
                     {problema && <p role="alert" className="text-xs text-destructive">{problema}</p>}
                   </div>
                 );
               })}
-              <Button type="button" variant="outline" size="sm" onClick={() => setRighe((p) => [...p, nuovaRiga()])}><Plus className="mr-1.5 h-4 w-4" />Aggiungi cantiere</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setRighe((p) => [...p, nuovaRiga()])}><Plus className="mr-1.5 h-4 w-4" />{tr("Aggiungi cantiere")}</Button>
             </div>
             <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
               <div className="min-w-0">
-                <p className="text-sm font-semibold tabular-nums">Totale della giornata: {oreIt(totale)}</p>
+                <p className="text-sm font-semibold tabular-nums">{tr("Totale della giornata: {ore}", { ore: oreIt(totale) })}</p>
                 {controllo.avvisi.map((a) => (
                   <p key={a} className={cn("mt-0.5 flex items-start gap-1 text-xs", controllo.oltre24 ? "text-destructive" : "text-amber-700")}><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />{a}</p>
                 ))}
               </div>
               <Button size="sm" disabled={!pronte || inCorso || !registro.canEdit} onClick={() => void salva()}>
-                {inCorso && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Salva
+                {inCorso && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}{tr("Salva")}
               </Button>
             </div>
           </>

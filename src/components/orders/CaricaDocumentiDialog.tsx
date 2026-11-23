@@ -34,6 +34,7 @@ import {
   type CartellaDocumenti,
 } from "@/lib/commesse/documentiCommessa";
 import { ATTACHMENTS_BUCKET, fmtBytes } from "./filePreviewUtils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const IN_PARALLELO = 3;
 const SENZA_CARTELLA = "senza";
@@ -95,15 +96,16 @@ function cambiaDestinazione(valore: string): Pick<Voce, "tipoCantiere" | "cartel
 }
 
 function Destinazioni({ cartelle }: { cartelle: CartellaDocumenti[] }) {
+  const t = useT();
   return <SelectContent>
     <SelectGroup>
-      <SelectLabel>Documenti commessa</SelectLabel>
-      <SelectItem value={SENZA_CARTELLA}>Senza categoria</SelectItem>
+      <SelectLabel>{t("Documenti commessa")}</SelectLabel>
+      <SelectItem value={SENZA_CARTELLA}>{t("Senza categoria")}</SelectItem>
       {cartelle.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
     </SelectGroup>
     <SelectGroup>
-      <SelectLabel>Documenti di cantiere</SelectLabel>
-      {Object.entries(TIPI_DOCUMENTO_CANTIERE).map(([tipo, nome]) => <SelectItem key={tipo} value={`${PREFISSO_CANTIERE}${tipo}`}>{nome}</SelectItem>)}
+      <SelectLabel>{t("Documenti di cantiere")}</SelectLabel>
+      {Object.entries(TIPI_DOCUMENTO_CANTIERE).map(([tipo, nome]) => <SelectItem key={tipo} value={`${PREFISSO_CANTIERE}${tipo}`}>{t(nome)}</SelectItem>)}
     </SelectGroup>
   </SelectContent>;
 }
@@ -129,6 +131,7 @@ export function CaricaDocumentiDialog({
   cantierePredefinito?: TipoDocumentoCantiere | true | null;
   onMostraCantiere?: () => void;
 }) {
+  const t = useT();
   const { user, profile, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -152,7 +155,7 @@ export function CaricaDocumentiDialog({
     if (avviato.current) return;
     for (const f of file) {
       const problema = problemaFile(f);
-      if (problema) toast.error("File escluso", { description: problema });
+      if (problema) toast.error(t("File escluso"), { description: problema });
     }
     const nuovi = vociDaFile(file, cartelle, cartellaPredefinita, cantierePredefinito);
     setVoci((prev) => [...prev, ...nuovi]);
@@ -163,7 +166,7 @@ export function CaricaDocumentiDialog({
   const caricaUno = async (v: Voce): Promise<boolean> => {
     aggiorna(v.chiave, { stato: "caricamento", progresso: undefined, errore: undefined });
     try {
-      if (!user) throw new Error("Accedi di nuovo per caricare i documenti");
+      if (!user) throw new Error(t("Accedi di nuovo per caricare i documenti"));
       let caricamento = daRegistrare.current.get(v.chiave);
       if (!caricamento) {
         const { file, ridotta, byteOriginali } = riduci ? await riduciFile(v.file) : { file: v.file, ridotta: false, byteOriginali: v.file.size };
@@ -251,12 +254,12 @@ export function CaricaDocumentiDialog({
       const err = e as { code?: string; message?: string; statusCode?: string };
       const msg =
         err?.code === "42501" || Number(err?.statusCode) === 403 || /row-level security|violates/i.test(err?.message ?? "")
-          ? "Non hai il permesso di caricare documenti su questa commessa"
+          ? t("Non hai il permesso di caricare documenti su questa commessa")
           : /too large|exceeded the maximum|413/i.test(`${err?.message} ${err?.statusCode}`)
-            ? "File oltre i 50 MB: dividilo o riducilo e riprova"
+            ? t("File oltre i 50 MB: dividilo o riducilo e riprova")
             : /fetch|network|timeout/i.test(err?.message ?? "")
-              ? "Connessione interrotta: premi Riprova"
-              : err?.message || "Caricamento non riuscito";
+              ? t("Connessione interrotta: premi Riprova")
+              : err?.message || t("Caricamento non riuscito");
       aggiorna(v.chiave, { stato: "errore", errore: msg, registrazioneIncerta: daRegistrare.current.get(v.chiave)?.inviato });
       return false;
     }
@@ -266,14 +269,14 @@ export function CaricaDocumentiDialog({
     const daFare = voci.filter((v) => v.stato === "attesa" || v.stato === "errore");
     if (avviato.current || daFare.length === 0) return;
     // Stima prudente: le foto ridotte peseranno meno, qui si conta il peso pieno dei documenti.
-    const stima = daFare.reduce((t, v) => {
+    const stima = daFare.reduce((somma, v) => {
       const giaInviato = daRegistrare.current.get(v.chiave);
-      if (giaInviato?.inviato || giaInviato?.invioIncerto) return t;
-      return t + (riduci && fotoDaRidurre(v.file) ? v.file.size * 0.3 : v.file.size);
+      if (giaInviato?.inviato || giaInviato?.invioIncerto) return somma;
+      return somma + (riduci && fotoDaRidurre(v.file) ? v.file.size * 0.3 : v.file.size);
     }, 0);
     if (stima > 0 && liberi != null && stima > liberi) {
-      toast.error("Spazio di archiviazione esaurito", {
-        description: `Servono circa ${fmtBytes(stima)}, ne restano ${fmtBytes(liberi) || "0 MB"}. Libera spazio o passa a un piano superiore (Impostazioni → Piano abbonamento).`,
+      toast.error(t("Spazio di archiviazione esaurito"), {
+        description: t("Servono circa {stima}, ne restano {liberi}. Libera spazio o passa a un piano superiore (Impostazioni → Piano abbonamento).", { stima: fmtBytes(stima), liberi: fmtBytes(liberi) || "0 MB" }),
       });
       return;
     }
@@ -305,10 +308,10 @@ export function CaricaDocumentiDialog({
 
     const falliti = daFare.length - ok;
     if (falliti === 0) {
-      toast.success(ok === 1 ? "Documento caricato" : `${ok} documenti caricati`);
+      toast.success(ok === 1 ? t("Documento caricato") : t("{n} documenti caricati", { n: ok }));
     } else {
-      toast.error(`${falliti} file non caricati`, {
-        description: ok > 0 ? `${ok} caricati. Controlla quelli in rosso e riprova.` : "Controlla il motivo accanto al file e riprova.",
+      toast.error(t("{n} file non caricati", { n: falliti }), {
+        description: ok > 0 ? t("{n} caricati. Controlla quelli in rosso e riprova.", { n: ok }) : t("Controlla il motivo accanto al file e riprova."),
       });
     }
   };
@@ -326,9 +329,9 @@ export function CaricaDocumentiDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!inCorso) onOpenChange(o); }}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Carica documenti</DialogTitle>
+          <DialogTitle>{t("Carica documenti")}</DialogTitle>
           <DialogDescription>
-            Scegli dove archiviare i file. Puoi aggiungerne altri fino a 50 MB ciascuno.
+            {t("Scegli dove archiviare i file. Puoi aggiungerne altri fino a 50 MB ciascuno.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -352,13 +355,13 @@ export function CaricaDocumentiDialog({
         >
           <Button type="button" variant="outline" disabled={inCorso} onClick={() => inputRef.current?.click()}
             className={`w-full justify-center gap-2 border-dashed ${trascina ? "border-primary bg-primary/10" : "bg-muted/30"}`}>
-            <Upload className="h-4 w-4" aria-hidden="true" /> Aggiungi file <span className="hidden font-normal text-muted-foreground sm:inline">o trascinali qui</span>
+            <Upload className="h-4 w-4" aria-hidden="true" /> {t("Aggiungi file")} <span className="hidden font-normal text-muted-foreground sm:inline">{t("o trascinali qui")}</span>
           </Button>
         </div>
 
         {daCaricare > 1 && (
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Metti tutti in</span>
+            <span className="text-muted-foreground">{t("Metti tutti in")}</span>
             <Select
               value={valoreComune}
               disabled={inCorso || registrazioneIncerta}
@@ -367,7 +370,7 @@ export function CaricaDocumentiDialog({
               }
             >
               <SelectTrigger className="h-8 w-auto min-w-[200px] max-w-full">
-                <SelectValue placeholder="Cartelle diverse" />
+                <SelectValue placeholder={t("Cartelle diverse")} />
               </SelectTrigger>
               <Destinazioni cartelle={cartelle} />
             </Select>
@@ -378,23 +381,23 @@ export function CaricaDocumentiDialog({
           {voci.some((v) => fotoDaRidurre(v.file) || pdfDaValutare(v.file)) ? (
             <label htmlFor="riduci-foto-commessa" className="flex items-center gap-2 cursor-pointer">
               <Checkbox id="riduci-foto-commessa" checked={riduci} disabled={inCorso} onCheckedChange={(c) => setRiduci(c === true)} />
-              Riduci foto e PDF scansionati (restano leggibili, pesano molto meno)
+              {t("Riduci foto e PDF scansionati (restano leggibili, pesano molto meno)")}
             </label>
           ) : <span />}
           {liberi != null && (
-            <span className="tabular-nums">Spazio libero: {fmtBytes(liberi) || "0 MB"}</span>
+            <span className="tabular-nums">{t("Spazio libero: {spazio}", { spazio: fmtBytes(liberi) || "0 MB" })}</span>
           )}
         </div>
 
         {voci.length > 0 && (inCorso || completati > 0 || errori > 0) && <div className="space-y-1.5 rounded-lg border bg-muted/30 p-3">
-          <p role="status" className="text-sm font-medium">{completati === voci.length ? "Caricamento completato" : `${completati} di ${voci.length} file caricati${errori ? ` · ${errori} da riprovare` : ""}`}</p>
-          <Progress className="h-2" value={completati / voci.length * 100} aria-label="Avanzamento complessivo" />
+          <p role="status" className="text-sm font-medium">{completati === voci.length ? t("Caricamento completato") : `${t("{n} di {totale} file caricati", { n: completati, totale: voci.length })}${errori ? ` · ${t("{n} da riprovare", { n: errori })}` : ""}`}</p>
+          <Progress className="h-2" value={completati / voci.length * 100} aria-label={t("Avanzamento complessivo")} />
           {!inCorso && completati === voci.length && onMostraCantiere && voci.some(v => v.tipoCantiere) &&
-            <Button type="button" variant="link" className="h-auto p-0" onClick={onMostraCantiere}>Vai ai documenti di cantiere</Button>}
+            <Button type="button" variant="link" className="h-auto p-0" onClick={onMostraCantiere}>{t("Vai ai documenti di cantiere")}</Button>}
         </div>}
         <div className="min-h-16 flex-1 overflow-y-auto -mx-1 px-1 divide-y border rounded-md">
           {voci.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Nessun file da caricare.</p>
+            <p className="text-sm text-muted-foreground text-center py-8">{t("Nessun file da caricare.")}</p>
           ) : (
             voci.map((v) => (
               <div key={v.chiave} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5">
@@ -410,13 +413,13 @@ export function CaricaDocumentiDialog({
                       {v.stato === "errore"
                         ? v.errore
                         : v.byteOriginali
-                          ? `Ridotto da ${fmtBytes(v.byteOriginali)} a ${fmtBytes(v.byteRidotti)}`
+                          ? t("Ridotto da {prima} a {dopo}", { prima: fmtBytes(v.byteOriginali), dopo: fmtBytes(v.byteRidotti) })
                           : fmtBytes(v.file.size)}
                     </p>
                   </div>
                   {v.stato === "caricamento" && <div className="min-w-24 flex-1 pl-2">
-                    <p className="mb-1 text-xs text-muted-foreground">{v.progresso === undefined ? "Preparazione…" : v.progresso === 100 ? "Salvataggio…" : `${v.progresso}%`}</p>
-                    <Progress className="h-1.5" value={v.progresso == null ? null : Math.min(v.progresso, 99)} aria-label={`Caricamento ${v.file.name}`} />
+                    <p className="mb-1 text-xs text-muted-foreground">{v.progresso === undefined ? t("Preparazione…") : v.progresso === 100 ? t("Salvataggio…") : `${v.progresso}%`}</p>
+                    <Progress className="h-1.5" value={v.progresso == null ? null : Math.min(v.progresso, 99)} aria-label={t("Caricamento {nome}", { nome: v.file.name })} />
                   </div>}
                 </div>
                 <div className="flex items-center gap-1 pl-7 sm:pl-0">
@@ -426,7 +429,7 @@ export function CaricaDocumentiDialog({
                     onValueChange={(val) => aggiorna(v.chiave, cambiaDestinazione(val))}
                   >
                     <SelectTrigger className={`h-8 w-full sm:w-[240px] text-xs ${v.cartellaId || v.tipoCantiere ? "" : "text-muted-foreground"}`}>
-                      <SelectValue placeholder="Scegli la cartella" />
+                      <SelectValue placeholder={t("Scegli la cartella")} />
                     </SelectTrigger>
                     <Destinazioni cartelle={cartelle} />
                   </Select>
@@ -437,7 +440,7 @@ export function CaricaDocumentiDialog({
                     className="h-8 w-8 shrink-0"
                     disabled={inCorso || v.stato === "fatto"}
                     onClick={() => setVoci((prev) => prev.filter((x) => x.chiave !== v.chiave))}
-                    aria-label={`Togli ${v.file.name}`}
+                    aria-label={t("Togli {nome}", { nome: v.file.name })}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -447,10 +450,10 @@ export function CaricaDocumentiDialog({
           )}
         </div>
 
-        <div className="rounded-md border p-3"><label htmlFor="document-access" className="text-sm font-medium">Chi può leggere questi file</label><UniformSelect id="document-access" className="mt-2 block w-full rounded-md border p-2 text-sm" value={accessScope} disabled={inCorso || registrazioneIncerta} onChange={e=>setAccessScope(e.target.value)}><option value="operativo">Uffici con accesso alla commessa</option>{permissions.canViewOrderAmounts && <option value="vendita">Solo chi vede gli importi di vendita</option>}{permissions.canViewCosts && <option value="costi">Solo chi vede i costi</option>}{permissions.canViewCosts && (permissions.canViewEmployees || permissions.canViewPersone) && <option value="personale">Solo personale autorizzato ai dati HR</option>}{permissions.isAdmin && <option value="riservato">Solo amministratori</option>}</UniformSelect><p className="mt-1 text-xs text-muted-foreground">Contratti, fatture e documenti del personale devono avere il livello di riservatezza adatto al contenuto. La cartella non cambia i permessi.</p>{!inCorso && registrazioneIncerta && <p className="mt-1 text-xs text-muted-foreground">Riprova il salvataggio per confermare le impostazioni del primo invio.</p>}</div>
+        <div className="rounded-md border p-3"><label htmlFor="document-access" className="text-sm font-medium">{t("Chi può leggere questi file")}</label><UniformSelect id="document-access" className="mt-2 block w-full rounded-md border p-2 text-sm" value={accessScope} disabled={inCorso || registrazioneIncerta} onChange={e=>setAccessScope(e.target.value)}><option value="operativo">{t("Uffici con accesso alla commessa")}</option>{permissions.canViewOrderAmounts && <option value="vendita">{t("Solo chi vede gli importi di vendita")}</option>}{permissions.canViewCosts && <option value="costi">{t("Solo chi vede i costi")}</option>}{permissions.canViewCosts && (permissions.canViewEmployees || permissions.canViewPersone) && <option value="personale">{t("Solo personale autorizzato ai dati HR")}</option>}{permissions.isAdmin && <option value="riservato">{t("Solo amministratori")}</option>}</UniformSelect><p className="mt-1 text-xs text-muted-foreground">{t("Contratti, fatture e documenti del personale devono avere il livello di riservatezza adatto al contenuto. La cartella non cambia i permessi.")}</p>{!inCorso && registrazioneIncerta && <p className="mt-1 text-xs text-muted-foreground">{t("Riprova il salvataggio per confermare le impostazioni del primo invio.")}</p>}</div>
         <DialogFooter>
             <Button type="button" variant={daCaricare ? "outline" : "default"} disabled={inCorso} onClick={() => onOpenChange(false)}>
-              {completati === voci.length && completati > 0 ? "Fine" : completati ? "Chiudi" : "Annulla"}
+              {completati === voci.length && completati > 0 ? t("Fine") : completati ? t("Chiudi") : t("Annulla")}
             </Button>
             {daCaricare > 0 && <Button type="button" disabled={inCorso || daCaricare === 0} onClick={() => void caricaTutti()} className="max-sm:flex-1">
               {inCorso ? (
@@ -459,10 +462,10 @@ export function CaricaDocumentiDialog({
                 <RotateCcw className="h-4 w-4 mr-2" />
               ) : null}
               {inCorso
-                ? "Caricamento…"
+                ? t("Caricamento…")
                 : errori > 0 && errori === daCaricare
-                  ? `Riprova ${errori} file`
-                  : `Carica ${daCaricare} file`}
+                  ? t("Riprova {n} file", { n: errori })
+                  : t("Carica {n} file", { n: daCaricare })}
             </Button>}
         </DialogFooter>
       </DialogContent>

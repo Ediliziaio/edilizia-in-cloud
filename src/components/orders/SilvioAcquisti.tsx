@@ -12,6 +12,7 @@ import { giornoLocale } from "@/lib/orders/cronoprogramma";
 import { controlliAcquisti, type AzioneSilvio } from "@/lib/orders/silvioControlli";
 import { caricaAllegatoFasi, chiediSilvioAcquisti } from "@/lib/orders/silvioFasi";
 import type { ConversazioneSilvio } from "@/components/silvio/SilvioConversazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SilvioAcquisti({ orderId, orderCode, onAzione, className }: {
   orderId: string;
@@ -19,6 +20,7 @@ export function SilvioAcquisti({ orderId, orderCode, onAzione, className }: {
   onAzione: (a: AzioneSilvio) => void;
   className?: string;
 }) {
+  const t = useT();
   const { phases, materials } = useOrderWorkPhases(orderId);
   const oggi = giornoLocale(new Date().toISOString());
   const punti = useMemo(() => controlliAcquisti(materials, phases, oggi), [materials, phases, oggi]);
@@ -50,12 +52,12 @@ export function SilvioAcquisti({ orderId, orderCode, onAzione, className }: {
   return (
     <SilvioAiuto
       className={className}
-      titolo="Silvio · cosa comprare"
-      descrizione="Materiali da ordinare, quelli che servono presto in cantiere, fornitori e prezzi che mancano."
+      titolo={t("Silvio · cosa comprare")}
+      descrizione={t("Materiali da ordinare, quelli che servono presto in cantiere, fornitori e prezzi che mancano.")}
       punti={punti}
       onAzione={onAzione}
       intestazioneChat={`Commessa ${orderCode ?? ""}: ${materials.length} materiali, ${daOrdinare.length} da ordinare (${daOrdinare.slice(0, 15).map((m) => `${m.name} × ${m.quantity}`).join(", ")}).`}
-      domande={["Cosa devo ordinare questa settimana?", "Raggruppa gli ordini per fornitore", "Mancano materiali per qualche fase?", "Dove posso risparmiare?"]}
+      domande={[t("Cosa devo ordinare questa settimana?"), t("Raggruppa gli ordini per fornitore"), t("Mancano materiali per qualche fase?"), t("Dove posso risparmiare?")]}
       conversazione={conversazione}
     />
   );

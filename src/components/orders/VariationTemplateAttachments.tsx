@@ -6,8 +6,10 @@ import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewP
 import { archiveVariationFile, downloadVariationFile, listVariationFiles, uploadVariationFile, variationPackageName, VARIATION_FILES_MAX, type VariationTemplateFile } from "@/lib/orders/variationTemplateFiles";
 import { variationTemplateExamplePdf, variationTemplateVisualKey } from "@/lib/orders/variationTemplateExample";
 import type { VariationTemplateContent } from "@/lib/orders/variationTemplates";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function VariationTemplateAttachments({ company, template, content, canEdit, disabled, onBusyChange }: { company: string; template: string; content: VariationTemplateContent; canEdit: boolean; disabled: boolean; onBusyChange: (busy: boolean) => void }) {
+  const t = useT();
   const client = useQueryClient();
   const queryKey = ["variation-template-files", company, template];
   const files = useQuery({ queryKey, queryFn: () => listVariationFiles(company, template), staleTime: 60_000, retry: false });
@@ -28,8 +30,8 @@ export function VariationTemplateAttachments({ company, template, content, canEd
     // Small files use the same data-URL download as the existing example PDF;
     // some embedded browsers do not hand off Blob URLs to their download manager.
     const dataUrl = blob.size <= 10 * 1024 * 1024 ? await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader(); reader.onerror = () => reject(new Error("Preparazione download non riuscita."));
-      reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Download non disponibile."));
+      const reader = new FileReader(); reader.onerror = () => reject(new Error(t("Preparazione download non riuscita.")));
+      reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error(t("Download non disponibile.")));
       reader.readAsDataURL(blob);
     }) : null;
     if (!alive.current) return;
@@ -39,41 +41,41 @@ export function VariationTemplateAttachments({ company, template, content, canEd
   const run = async (work: () => Promise<void>) => {
     if (lock.current || disabled) return;
     lock.current = true; setBusy(true); onBusyChange(true); setError(""); setMessage(""); setReady(null);
-    try { await work(); } catch (e) { if (alive.current) setError(e instanceof Error ? e.message : "Operazione non riuscita."); }
+    try { await work(); } catch (e) { if (alive.current) setError(e instanceof Error ? e.message : t("Operazione non riuscita.")); }
     finally { lock.current = false; if (alive.current) { setBusy(false); onBusyChange(false); } }
   };
-  return <section className="space-y-3 rounded-lg border p-3" aria-label="Allegati del modello">
-    <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-medium">Allegati PDF</h4>{canEdit && <Button size="sm" variant="outline" disabled={busy || disabled || files.isLoading || files.isError} onClick={() => input.current?.click()}>Aggiungi PDF</Button>}</div>
-    <p className="text-xs text-muted-foreground">Schede tecniche e condizioni, separati dalla variante. Fino a 10 PDF da 10 MB. Un file caricato non vale come firma o approvazione.</p>
-    <input ref={input} type="file" accept="application/pdf,.pdf" className="sr-only" aria-label="Carica allegato PDF" disabled={!canEdit || busy || disabled} onChange={e => {
+  return <section className="space-y-3 rounded-lg border p-3" aria-label={t("Allegati del modello")}>
+    <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-medium">{t("Allegati PDF")}</h4>{canEdit && <Button size="sm" variant="outline" disabled={busy || disabled || files.isLoading || files.isError} onClick={() => input.current?.click()}>{t("Aggiungi PDF")}</Button>}</div>
+    <p className="text-xs text-muted-foreground">{t("Schede tecniche e condizioni, separati dalla variante. Fino a 10 PDF da 10 MB. Un file caricato non vale come firma o approvazione.")}</p>
+    <input ref={input} type="file" accept="application/pdf,.pdf" className="sr-only" aria-label={t("Carica allegato PDF")} disabled={!canEdit || busy || disabled} onChange={e => {
       const file = e.currentTarget.files?.[0]; e.currentTarget.value = "";
-      if (file && canEdit) void run(async () => { await uploadVariationFile(company, template, file); await client.invalidateQueries({ queryKey }); if (alive.current) setMessage("Allegato aggiunto al modello."); });
+      if (file && canEdit) void run(async () => { await uploadVariationFile(company, template, file); await client.invalidateQueries({ queryKey }); if (alive.current) setMessage(t("Allegato aggiunto al modello.")); });
     }} />
-    {files.isLoading && <p role="status" className="text-sm">Caricamento allegati…</p>}
-    {files.isError && <p role="alert" className="text-sm text-destructive">Allegati non disponibili. <Button size="sm" variant="outline" onClick={() => void files.refetch()}>Riprova</Button></p>}
+    {files.isLoading && <p role="status" className="text-sm">{t("Caricamento allegati…")}</p>}
+    {files.isError && <p role="alert" className="text-sm text-destructive">{t("Allegati non disponibili.")} <Button size="sm" variant="outline" onClick={() => void files.refetch()}>{t("Riprova")}</Button></p>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {message && <p role="status" className="text-sm text-green-700">{message}</p>}
-    {!files.isLoading && !files.isError && !files.data?.length && <p className="text-sm text-muted-foreground">Nessun allegato. Il PDF della variante si può scaricare anche da solo.</p>}
-    <ul className="space-y-2">{(files.data ?? []).map(file => <li key={file.id} className="rounded border p-2"><p className="break-words text-sm font-medium">{file.file_name}</p><p className="text-xs text-muted-foreground">{(file.file_size / 1024).toFixed(0)} KB · PDF privato</p><div className="mt-1 flex flex-wrap gap-1">
-      <Button size="sm" variant="ghost" disabled={busy || disabled} onClick={() => setSelected(file)}>Mostra PDF</Button>
-      <Button size="sm" variant="ghost" disabled={busy || disabled} onClick={() => void run(async () => { const blob = await downloadVariationFile(file, company, template); await prepareDownload(blob, variationPackageName(file.file_name, 1), snapshot); })}>Scarica</Button>
+    {!files.isLoading && !files.isError && !files.data?.length && <p className="text-sm text-muted-foreground">{t("Nessun allegato. Il PDF della variante si può scaricare anche da solo.")}</p>}
+    <ul className="space-y-2">{(files.data ?? []).map(file => <li key={file.id} className="rounded border p-2"><p className="break-words text-sm font-medium">{file.file_name}</p><p className="text-xs text-muted-foreground">{(file.file_size / 1024).toFixed(0)} KB · {t("PDF privato")}</p><div className="mt-1 flex flex-wrap gap-1">
+      <Button size="sm" variant="ghost" disabled={busy || disabled} onClick={() => setSelected(file)}>{t("Mostra PDF")}</Button>
+      <Button size="sm" variant="ghost" disabled={busy || disabled} onClick={() => void run(async () => { const blob = await downloadVariationFile(file, company, template); await prepareDownload(blob, variationPackageName(file.file_name, 1), snapshot); })}>{t("Scarica")}</Button>
       {canEdit && <Button size="sm" variant="ghost" disabled={busy || disabled} onClick={() => {
-        if (window.confirm("Rimuovere l'allegato dal modello? Il file viene conservato nell'archivio, non modifica documenti già creati.")) void run(async () => { await archiveVariationFile(file, company, template); if (alive.current) setSelected(null); await client.invalidateQueries({ queryKey }); });
-      }}>Rimuovi dal modello</Button>}
+        if (window.confirm(t("Rimuovere l'allegato dal modello? Il file viene conservato nell'archivio, non modifica documenti già creati."))) void run(async () => { await archiveVariationFile(file, company, template); if (alive.current) setSelected(null); await client.invalidateQueries({ queryKey }); });
+      }}>{t("Rimuovi dal modello")}</Button>}
     </div></li>)}</ul>
     {!!files.data?.length && <Button variant="outline" disabled={busy || disabled || files.isError} onClick={() => void run(async () => {
       // Re-read once on explicit download, never on a keystroke. Do not deliver partial ZIPs.
       const currentFiles = await listVariationFiles(company, template);
       client.setQueryData(queryKey, currentFiles);
-      if (currentFiles.length > VARIATION_FILES_MAX) throw new Error("Ci sono più di 10 allegati. Rimuovi quelli in più prima di preparare il pacchetto.");
+      if (currentFiles.length > VARIATION_FILES_MAX) throw new Error(t("Ci sono più di 10 allegati. Rimuovi quelli in più prima di preparare il pacchetto."));
       const [{ default: JSZip }, doc] = await Promise.all([import("jszip"), variationTemplateExamplePdf(content)]);
       const zip = new JSZip(); zip.file("00-esempio-variante.pdf", doc.output("arraybuffer"));
       for (const [index, file] of currentFiles.entries()) zip.file(variationPackageName(file.file_name, index + 1), await (await downloadVariationFile(file, company, template)).arrayBuffer());
       const blob = await zip.generateAsync({ type: "blob" });
       await prepareDownload(blob, "esempio-variante-e-allegati.zip", snapshotFor(currentFiles));
-    })}>{busy ? "Operazione in corso…" : "Scarica esempio e allegati (ZIP)"}</Button>}
-    {ready?.snapshot === snapshot && !busy && !files.isError && <div className="rounded border bg-muted/30 p-3"><p role="status" className="text-sm">{ready.name.endsWith(".zip") ? "Pacchetto pronto: PDF e allegati separati, non una variante firmata." : "Allegato pronto per il download."}</p><a className="inline-flex min-h-11 items-center text-sm font-medium underline" href={ready.url} download={ready.name}>Scarica {ready.name.endsWith(".zip") ? "ZIP pronto" : "allegato pronto"}</a></div>}
-    {selected && <div className="space-y-2"><div className="flex flex-wrap justify-between gap-2"><p className="break-words text-sm">Anteprima: {selected.file_name}</p><Button size="sm" variant="ghost" onClick={() => setSelected(null)}>Chiudi allegato</Button></div><div className="h-[65dvh] min-h-[400px]"><AttachmentPreview key={selected.id} row={selected} company={company} template={template} /></div></div>}
+    })}>{busy ? t("Operazione in corso…") : t("Scarica esempio e allegati (ZIP)")}</Button>}
+    {ready?.snapshot === snapshot && !busy && !files.isError && <div className="rounded border bg-muted/30 p-3"><p role="status" className="text-sm">{ready.name.endsWith(".zip") ? t("Pacchetto pronto: PDF e allegati separati, non una variante firmata.") : t("Allegato pronto per il download.")}</p><a className="inline-flex min-h-11 items-center text-sm font-medium underline" href={ready.url} download={ready.name}>{ready.name.endsWith(".zip") ? t("Scarica ZIP pronto") : t("Scarica allegato pronto")}</a></div>}
+    {selected && <div className="space-y-2"><div className="flex flex-wrap justify-between gap-2"><p className="break-words text-sm">{t("Anteprima: {nome}", { nome: selected.file_name })}</p><Button size="sm" variant="ghost" onClick={() => setSelected(null)}>{t("Chiudi allegato")}</Button></div><div className="h-[65dvh] min-h-[400px]"><AttachmentPreview key={selected.id} row={selected} company={company} template={template} /></div></div>}
   </section>;
 }
 

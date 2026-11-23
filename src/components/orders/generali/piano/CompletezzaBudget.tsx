@@ -12,6 +12,7 @@ import { euro } from "./formato";
 import { controllaBudget } from "@/lib/orders/generali/budgetCompletezza";
 import type { VocePiano } from "@/lib/orders/generali/pianoConti";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CompletezzaBudget({
   generaleId,
@@ -33,6 +34,7 @@ export function CompletezzaBudget({
   /** Voci di costo senza previsto su cui ci sono già spese registrate. */
   spesoSenzaPrevisto?: { voce: VocePiano; reale: number }[];
 }) {
+  const t = useT();
   const modifica = useModificaVoce(generaleId, versioneId);
   const elimina = useEliminaVoce(generaleId, versioneId);
   const [stimeAperte, setStimeAperte] = useState(stimeAperteAllInizio);
@@ -42,13 +44,13 @@ export function CompletezzaBudget({
     spesoSenzaPrevisto.forEach(({ voce, reale }) =>
       modifica.mutate(
         { id: voce.id, modifica: { importo: Math.round(reale * 100) / 100 } },
-        { onError: (e) => toast.error(e instanceof Error ? e.message : "Previsto non salvato") },
+        { onError: (e) => toast.error(e instanceof Error ? e.message : t("Previsto non salvato")) },
       ),
     );
   if (c.completo && spesoSenzaPrevisto.length === 0)
     return (
       <p className="generale-budget-complete text-xs text-emerald-700" role="status">
-        Non risultano stime o scadenze mancanti nel budget.
+        {t("Non risultano stime o scadenze mancanti nel budget.")}
       </p>
     );
   const riga = "flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2";
@@ -59,8 +61,8 @@ export function CompletezzaBudget({
     >
       <header className="flex flex-wrap items-baseline gap-x-2 border-b border-amber-200 px-4 py-2 dark:border-amber-500/30">
         <AlertTriangle className="h-4 w-4 shrink-0 self-center" aria-hidden="true" />
-        <h3 id="budget-da-completare" className="font-semibold">{c.completo ? "Budget da controllare" : "Budget da completare"}</h3>
-        {!c.completo && <span className="text-xs text-amber-800 dark:text-amber-200/80">L'approvazione si sblocca quando non manca niente.</span>}
+        <h3 id="budget-da-completare" className="font-semibold">{c.completo ? t("Budget da controllare") : t("Budget da completare")}</h3>
+        {!c.completo && <span className="text-xs text-amber-800 dark:text-amber-200/80">{t("L'approvazione si sblocca quando non manca niente.")}</span>}
       </header>
       <ul className="divide-y divide-amber-200 dark:divide-amber-500/30">
         {spesoSenzaPrevisto.length > 0 && (
@@ -68,14 +70,16 @@ export function CompletezzaBudget({
             <ReceiptText className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="min-w-0 flex-1">
               <span className="font-medium">
-                {spesoSenzaPrevisto.length === 1 ? "1 voce ha" : `${spesoSenzaPrevisto.length} voci hanno`} già spese per {euro(speso)}
+                {spesoSenzaPrevisto.length === 1
+                  ? t("1 voce ha già spese per {importo}", { importo: euro(speso) })
+                  : t("{n} voci hanno già spese per {importo}", { n: spesoSenzaPrevisto.length, importo: euro(speso) })}
               </span>{" "}
-              ma nessun previsto: {spesoSenzaPrevisto.slice(0, 3).map((x) => x.voce.descrizione).join(", ")}
+              <span dir="auto">{t("ma nessun previsto: {elenco}", { elenco: spesoSenzaPrevisto.slice(0, 3).map((x) => x.voce.descrizione).join(", ") })}</span>
               {spesoSenzaPrevisto.length > 3 ? "…" : "."}
             </span>
             {modificabile && (
               <Button variant="brand" size="sm" className="h-8" disabled={modifica.isPending} onClick={usaLoSpeso}>
-                Usa lo speso come previsto
+                {t("Usa lo speso come previsto")}
               </Button>
             )}
           </li>
@@ -84,12 +88,14 @@ export function CompletezzaBudget({
           <li className={riga}>
             <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="min-w-0 flex-1">
-              <span className="font-medium">{c.calendario.length === 1 ? "1 voce" : `${c.calendario.length} voci`}</span> con un importo
-              {c.calendario.length === 1 ? " non ha il mese" : " non hanno il mese"}: non entrano nella cassa né nel capitale impegnato.
+              <span className="font-medium">{c.calendario.length === 1 ? t("1 voce") : t("{n} voci", { n: c.calendario.length })}</span>{" "}
+              {c.calendario.length === 1
+                ? t("con un importo non ha il mese: non entrano nella cassa né nel capitale impegnato.")
+                : t("con un importo non hanno il mese: non entrano nella cassa né nel capitale impegnato.")}
             </span>
             {modificabile && onCalendario && (
               <Button variant="brand" size="sm" className="h-8" onClick={onCalendario}>
-                <CalendarDays className="mr-1.5 h-3.5 w-3.5" /> Metti i mesi
+                <CalendarDays className="mr-1.5 h-3.5 w-3.5" /> {t("Metti i mesi")}
               </Button>
             )}
           </li>
@@ -99,8 +105,10 @@ export function CompletezzaBudget({
             <div className={riga}>
               <PencilLine className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1">
-                <span className="font-medium">{c.mancanti.length === 1 ? "1 voce" : `${c.mancanti.length} voci`}</span>
-                {c.mancanti.length === 1 ? " non ha" : " non hanno"} ancora una stima: scrivi il previsto, oppure togli quelle che non servono.
+                <span className="font-medium">{c.mancanti.length === 1 ? t("1 voce") : t("{n} voci", { n: c.mancanti.length })}</span>{" "}
+                {c.mancanti.length === 1
+                  ? t("non ha ancora una stima: scrivi il previsto, oppure togli quelle che non servono.")
+                  : t("non hanno ancora una stima: scrivi il previsto, oppure togli quelle che non servono.")}
               </span>
               <Button
                 size="sm"
@@ -110,17 +118,17 @@ export function CompletezzaBudget({
                 aria-controls="voci-senza-stima"
                 onClick={() => setStimeAperte((x) => !x)}
               >
-                {stimeAperte ? "Nascondi" : "Vedi le voci"}
+                {stimeAperte ? t("Nascondi") : t("Vedi le voci")}
                 <ChevronDown className={cn("ml-1 h-3.5 w-3.5 transition-transform", stimeAperte && "rotate-180")} aria-hidden="true" />
               </Button>
             </div>
             {stimeAperte && (
               <div id="voci-senza-stima" className="border-t border-amber-200 px-4 pb-2 pt-1 dark:border-amber-500/30">
-                <p className="py-1 text-xs">Il previsto si scrive nella tabella, nel gruppo della voce. Una voce che per questa operazione non serve si toglie dal piano.</p>
+                <p className="py-1 text-xs">{t("Il previsto si scrive nella tabella, nel gruppo della voce. Una voce che per questa operazione non serve si toglie dal piano.")}</p>
                 <ul className="grid gap-x-6 sm:grid-cols-2">
                   {c.mancanti.map((v) => (
                     <li key={v.descrizione + v.id} className="flex items-center justify-between gap-2 border-t border-amber-200/70 py-1 dark:border-amber-500/20">
-                      <span className="min-w-0 truncate" title={v.descrizione}>{v.descrizione}</span>
+                      <span className="min-w-0 truncate" dir="auto" title={v.descrizione}>{v.descrizione}</span>
                       {modificabile && (
                         <Button
                           variant="ghost"
@@ -129,11 +137,11 @@ export function CompletezzaBudget({
                           disabled={elimina.isPending}
                           onClick={() =>
                             elimina.mutate(v.id, {
-                              onError: (e) => toast.error(e instanceof Error ? e.message : "Voce non tolta"),
+                              onError: (e) => toast.error(e instanceof Error ? e.message : t("Voce non tolta")),
                             })
                           }
                         >
-                          Non serve, togli
+                          {t("Non serve, togli")}
                         </Button>
                       )}
                     </li>

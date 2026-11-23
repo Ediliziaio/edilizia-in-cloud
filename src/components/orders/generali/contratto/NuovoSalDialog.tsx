@@ -19,6 +19,7 @@ import { leggiNumero } from "@/lib/orders/generali/contrattoElenco";
 import { cn } from "@/lib/utils";
 import { Campo } from "./campi";
 import { dataIt, euro, numeroIt, percentoIt } from "./formato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PASSI = ["Periodo", "Lavori", "Riepilogo"] as const;
 
@@ -38,6 +39,7 @@ export function NuovoSalDialog({ open, onOpenChange, generaleId, contratto, figl
 function Procedura({ chiudi, generaleId, contratto, figlie, ultimoAl }: {
   chiudi: () => void; generaleId: string; contratto: ContrattoGenerale; figlie: FigliaGenerale[]; ultimoAl: string | null;
 }) {
+  const tr = useT();
   const oggi = oggiIso();
   const [passo, setPasso] = useState(0);
   const [dal, setDal] = useState(ultimoAl === oggi ? oggi : ultimoAl ? aggiungiGiorni(ultimoAl, 1) : contratto.dataConsegnaLavori ?? "");
@@ -60,7 +62,7 @@ function Procedura({ chiudi, generaleId, contratto, figlie, ultimoAl }: {
   const conferma = () => {
     // La data del documento la fissa l'emissione, come nei SAL di commessa.
     crea.mutate({ dal: dal || null, al, data: oggi, avanzamenti: inviati, note: note.trim() || null }, {
-      onSuccess: () => { toast.success(`Bozza del SAL n. ${a?.numero ?? ""} pronta: controllala ed emettila.`); chiudi(); },
+      onSuccess: () => { toast.success(tr("Bozza del SAL n. {numero} pronta: controllala ed emettila.", { numero: a?.numero ?? "" })); chiudi(); },
       onError: (e) => toast.error(messaggioContratto(e, "il SAL")),
     });
   };
@@ -68,11 +70,11 @@ function Procedura({ chiudi, generaleId, contratto, figlie, ultimoAl }: {
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Nuovo SAL di contratto{a ? ` n. ${a.numero}` : ""}</DialogTitle>
+        <DialogTitle>{a ? tr("Nuovo SAL di contratto n. {numero}", { numero: a.numero }) : tr("Nuovo SAL di contratto")}</DialogTitle>
         <DialogDescription>
           <span className="flex flex-wrap gap-x-3">
             {PASSI.map((p, i) => (
-              <span key={p} className={cn(i === passo ? "font-medium text-foreground" : "text-muted-foreground")}>{i + 1}. {p}</span>
+              <span key={p} className={cn(i === passo ? "font-medium text-foreground" : "text-muted-foreground")}>{i + 1}. {tr(p)}</span>
             ))}
           </span>
         </DialogDescription>
@@ -81,16 +83,16 @@ function Procedura({ chiudi, generaleId, contratto, figlie, ultimoAl }: {
       {passo === 0 && (
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Campo etichetta="Lavori dal">{(id) => <Input id={id} type="date" value={dal} onChange={(e) => setDal(e.target.value)} />}</Campo>
+            <Campo etichetta={tr("Lavori dal")}>{(id) => <Input id={id} type="date" value={dal} onChange={(e) => setDal(e.target.value)} />}</Campo>
             <Campo
-              etichetta="Lavori fino al"
-              errore={ultimoAl && al && al < ultimoAl ? `Il SAL precedente arriva al ${dataIt(ultimoAl)}.` : dal && al && dal > al ? "Viene prima dell'inizio." : undefined}
-              aiuto="Entrano le misure fino a questo giorno."
+              etichetta={tr("Lavori fino al")}
+              errore={ultimoAl && al && al < ultimoAl ? tr("Il SAL precedente arriva al {data}.", { data: dataIt(ultimoAl) }) : dal && al && dal > al ? tr("Viene prima dell'inizio.") : undefined}
+              aiuto={tr("Entrano le misure fino a questo giorno.")}
             >
               {(id) => <Input id={id} type="date" value={al} onChange={(e) => setAl(e.target.value)} />}
             </Campo>
           </div>
-          <Campo etichetta="Note per il committente">{(id) => <Textarea id={id} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />}</Campo>
+          <Campo etichetta={tr("Note per il committente")}>{(id) => <Textarea id={id} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />}</Campo>
         </div>
       )}
 
@@ -108,16 +110,16 @@ function Procedura({ chiudi, generaleId, contratto, figlie, ultimoAl }: {
 
       <DialogFooter className="gap-2 sm:justify-between sm:gap-0">
         <Button type="button" variant="ghost" onClick={() => (passo === 0 ? chiudi() : setPasso(passo - 1))}>
-          {passo === 0 ? "Annulla" : <><ArrowLeft className="mr-1.5 h-4 w-4" /> Indietro</>}
+          {passo === 0 ? tr("Annulla") : <><ArrowLeft className="mr-1.5 h-4 w-4" /> {tr("Indietro")}</>}
         </Button>
         {passo < 2 ? (
           <Button type="button" disabled={!periodoOk || (passo === 1 && (!a || a.voci.length === 0))} onClick={() => setPasso(passo + 1)}>
-            Avanti <ArrowRight className="ml-1.5 h-4 w-4" />
+            {tr("Avanti")} <ArrowRight className="ml-1.5 h-4 w-4" />
           </Button>
         ) : (
           <Button type="button" onClick={conferma} disabled={crea.isPending || inAttesa || !a || a.lordo <= 0}>
             {crea.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Crea la bozza
+            {tr("Crea la bozza")}
           </Button>
         )}
       </DialogFooter>
@@ -129,28 +131,29 @@ function VociSal({ anteprima, figlie, avanzamenti, setAvanzamenti }: {
   anteprima: AnteprimaSal; figlie: FigliaGenerale[]; avanzamenti: Record<string, number>;
   setAvanzamenti: (f: (x: Record<string, number>) => Record<string, number>) => void;
 }) {
+  const t = useT();
   const perFiglia = useMemo(() => new Map(figlie.map((f) => [f.id, f])), [figlie]);
   if (anteprima.voci.length === 0) {
     return (
       <p className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-        Non c'è ancora lavoro da mettere a SAL: dai un importo agli ordini di lavoro o scrivi le misure.
+        {t("Non c'è ancora lavoro da mettere a SAL: dai un importo agli ordini di lavoro o scrivi le misure.")}
       </p>
     );
   }
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        Le voci sono cumulative, dall'inizio dei lavori. Gli ordini ad avanzamento propongono la loro percentuale: correggila se serve.
-        {anteprima.misureNuove > 0 && ` Entrano ${anteprima.misureNuove === 1 ? "1 misura nuova" : `${anteprima.misureNuove} misure nuove`}.`}
+        {t("Le voci sono cumulative, dall'inizio dei lavori. Gli ordini ad avanzamento propongono la loro percentuale: correggila se serve.")}
+        {anteprima.misureNuove > 0 && ` ${t(anteprima.misureNuove === 1 ? "Entrano 1 misura nuova." : "Entrano {n} misure nuove.", { n: anteprima.misureNuove })}`}
       </p>
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
-              <th className="px-3 py-2 font-medium">Voce</th>
-              <th className="px-2 py-2 text-right font-medium">Contrattuale</th>
-              <th className="px-2 py-2 text-right font-medium">Avanzamento</th>
-              <th className="px-3 py-2 text-right font-medium">Importo</th>
+              <th className="px-3 py-2 font-medium">{t("Voce")}</th>
+              <th className="px-2 py-2 text-right font-medium">{t("Contrattuale")}</th>
+              <th className="px-2 py-2 text-right font-medium">{t("Avanzamento")}</th>
+              <th className="px-3 py-2 text-right font-medium">{t("Importo")}</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -162,7 +165,7 @@ function VociSal({ anteprima, figlie, avanzamenti, setAvanzamenti }: {
                     <span className="block">{v.descrizione}</span>
                     {f && (
                       <Link to={`/azienda/ordini/${f.id}`} target="_blank" className="text-xs text-muted-foreground hover:underline">
-                        da {f.codice ?? f.nome}{v.tipo === "misure" ? " · misure" : ""}
+                        {t(v.tipo === "misure" ? "da {nome} · misure" : "da {nome}", { nome: f.codice ?? f.nome })}
                       </Link>
                     )}
                   </td>
@@ -170,7 +173,7 @@ function VociSal({ anteprima, figlie, avanzamenti, setAvanzamenti }: {
                   <td className="px-2 py-1.5 text-right">
                     {v.tipo === "avanzamento" && v.figliaId ? (
                       <CampoPercentuale
-                        etichetta={`Avanzamento di ${f?.codice ?? f?.nome ?? "questo ordine"}`}
+                        etichetta={t("Avanzamento di {nome}", { nome: f?.codice ?? f?.nome ?? t("questo ordine") })}
                         valore={avanzamenti[v.figliaId] ?? v.percentuale}
                         onChange={(p) => setAvanzamenti((x) => ({ ...x, [v.figliaId!]: p }))}
                       />
@@ -187,7 +190,7 @@ function VociSal({ anteprima, figlie, avanzamenti, setAvanzamenti }: {
           </tbody>
           <tfoot>
             <tr className="border-t bg-muted/30 font-medium">
-              <td className="px-3 py-2" colSpan={3}>Lavori eseguiti dall'inizio</td>
+              <td className="px-3 py-2" colSpan={3}>{t("Lavori eseguiti dall'inizio")}</td>
               <td className="px-3 py-2 text-right tabular-nums">{euro(anteprima.cumulativo)}</td>
             </tr>
           </tfoot>
@@ -221,21 +224,22 @@ function CampoPercentuale({ etichetta, valore, onChange }: { etichetta: string; 
 }
 
 function Riepilogo({ anteprima: a, contratto, inAttesa }: { anteprima: AnteprimaSal; contratto: ContrattoGenerale; inAttesa: boolean }) {
+  const t = useT();
   const righe: { etichetta: string; valore: number; tono?: "meno" | "totale"; nota?: string }[] = [
-    { etichetta: "Lavori eseguiti dall'inizio", valore: a.cumulativo },
-    { etichetta: "Meno: già messi a SAL", valore: -a.precedente, tono: "meno" },
-    { etichetta: `Lavori di questo SAL`, valore: a.lordo, tono: "totale" },
-    { etichetta: `Ritenuta di garanzia ${percentoIt(a.ritenutaPct)}`, valore: -a.ritenuta, tono: "meno", nota: "Si svincola a fine lavori." },
+    { etichetta: t("Lavori eseguiti dall'inizio"), valore: a.cumulativo },
+    { etichetta: t("Meno: già messi a SAL"), valore: -a.precedente, tono: "meno" },
+    { etichetta: t("Lavori di questo SAL"), valore: a.lordo, tono: "totale" },
+    { etichetta: t("Ritenuta di garanzia {perc}", { perc: percentoIt(a.ritenutaPct) }), valore: -a.ritenuta, tono: "meno", nota: t("Si svincola a fine lavori.") },
     ...(a.recupero > 0 || a.recuperoPct > 0
-      ? [{ etichetta: `Recupero dell'anticipazione ${percentoIt(a.recuperoPct)}`, valore: -a.recupero, tono: "meno" as const, nota: `Resta da recuperare ${euro(Math.max(0, a.anticipazioneResidua - a.recupero))}.` }]
+      ? [{ etichetta: t("Recupero dell'anticipazione {perc}", { perc: percentoIt(a.recuperoPct) }), valore: -a.recupero, tono: "meno" as const, nota: t("Resta da recuperare {importo}.", { importo: euro(Math.max(0, a.anticipazioneResidua - a.recupero)) }) }]
       : []),
-    { etichetta: "Netto da liquidare", valore: a.netto, tono: "totale" },
+    { etichetta: t("Netto da liquidare"), valore: a.netto, tono: "totale" },
   ];
   return (
     <div className={cn("space-y-3", inAttesa && "opacity-60")} aria-busy={inAttesa}>
       {a.lordo <= 0 && (
         <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-          Rispetto all'ultimo SAL non c'è lavoro nuovo: aggiorna avanzamenti o misure.
+          {t("Rispetto all'ultimo SAL non c'è lavoro nuovo: aggiorna avanzamenti o misure.")}
         </p>
       )}
       <dl className="divide-y rounded-md border text-sm">
@@ -250,10 +254,10 @@ function Riepilogo({ anteprima: a, contratto, inAttesa }: { anteprima: Anteprima
         ))}
       </dl>
       <p className="text-xs text-muted-foreground">
-        Importi IVA esclusa.
-        {contratto.splitPayment && " La fattura andrà in scissione dei pagamenti: l'IVA la versa il committente."}
-        {contratto.reverseCharge && " La fattura andrà in inversione contabile, senza IVA."}
-        {" "}La bozza non si manda a nessuno: la controlli, poi la emetti e prepari il documento.
+        {t("Importi IVA esclusa.")}
+        {contratto.splitPayment && ` ${t("La fattura andrà in scissione dei pagamenti: l'IVA la versa il committente.")}`}
+        {contratto.reverseCharge && ` ${t("La fattura andrà in inversione contabile, senza IVA.")}`}
+        {" "}{t("La bozza non si manda a nessuno: la controlli, poi la emetti e prepari il documento.")}
       </p>
     </div>
   );

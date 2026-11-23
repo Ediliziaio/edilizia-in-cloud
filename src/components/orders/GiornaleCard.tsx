@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { MapPin, Camera, CloudRain, Sun, Cloud, Snowflake, Wind } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const METEO_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   soleggiato: { label: "Soleggiato", icon: Sun, color: "text-yellow-500" },
@@ -39,6 +39,7 @@ interface GiornaleCardProps {
 }
 
 export const GiornaleCard = memo(function GiornaleCard({ entry, onClick, compact = false }: GiornaleCardProps) {
+  const t = useT();
   const meteo = METEO_CONFIG[entry.condizioni_meteo] || METEO_CONFIG.soleggiato;
   const MeteoIcon = meteo.icon;
   const fotoCount = entry.giornale_foto?.length || 0;
@@ -57,10 +58,10 @@ export const GiornaleCard = memo(function GiornaleCard({ entry, onClick, compact
             <div>
               <p className="font-semibold text-sm">
                 {entry.data_lavori && !Number.isNaN(parseISO(entry.data_lavori).getTime())
-                  ? format(parseISO(entry.data_lavori), "EEEE d MMMM", { locale: it })
+                  ? format(parseISO(entry.data_lavori), "EEEE d MMMM", { locale: dateFnsCampo() })
                   : "—"}
               </p>
-              <p className="text-xs text-muted-foreground">{entry.condizioni_meteo ? meteo.label : "Meteo non indicato"} · {entry.personale_presente ?? 0} operai</p>
+              <p className="text-xs text-muted-foreground">{entry.condizioni_meteo ? t(meteo.label) : t("Meteo non indicato")} · {t("{n} operai", { n: entry.personale_presente ?? 0 })}</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -71,11 +72,11 @@ export const GiornaleCard = memo(function GiornaleCard({ entry, onClick, compact
             )}
             {firmata ? (
               <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
-                ✓ Firmata
+                ✓ {t("Firmata")}
               </Badge>
             ) : (
               <Badge variant="outline" className="text-xs text-muted-foreground">
-                Bozza
+                {t("Bozza")}
               </Badge>
             )}
           </div>
@@ -90,7 +91,7 @@ export const GiornaleCard = memo(function GiornaleCard({ entry, onClick, compact
         {entry.avanzamento_percentuale !== undefined && entry.avanzamento_percentuale !== null && (
           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Avanzamento</span>
+              <span className="text-muted-foreground">{t("Avanzamento")}</span>
               <span className="font-medium">{entry.avanzamento_percentuale}%</span>
             </div>
             <Progress value={entry.avanzamento_percentuale} className="h-1.5" />

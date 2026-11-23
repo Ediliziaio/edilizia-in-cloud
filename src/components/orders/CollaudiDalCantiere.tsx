@@ -5,12 +5,12 @@
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { ClipboardSignature, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { openRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Collaudo {
   id: string;
@@ -25,6 +25,7 @@ interface Collaudo {
 const STATO: Record<string, string> = { inviato: "Da approvare", approvato: "Approvato", rifiutato: "Rimandato indietro", bozza: "Bozza" };
 
 export function CollaudiDalCantiere({ orderId, companyId }: { orderId: string; companyId: string }) {
+  const t = useT();
   const qc = useQueryClient();
   const { data = [], isError } = useQuery({
     queryKey: ["campo-rapportini-ordine", orderId, "collaudi-ufficio"],
@@ -48,7 +49,7 @@ export function CollaudiDalCantiere({ orderId, companyId }: { orderId: string; c
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <ClipboardSignature className="h-5 w-5 text-primary" aria-hidden="true" />Collaudi firmati in cantiere
+          <ClipboardSignature className="h-5 w-5 text-primary" aria-hidden="true" />{t("Collaudi firmati in cantiere")}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -57,15 +58,15 @@ export function CollaudiDalCantiere({ orderId, companyId }: { orderId: string; c
             <li key={c.id} className="flex flex-wrap items-start justify-between gap-2 py-3">
               <div className="min-w-0">
                 <p className="text-sm font-semibold">
-                  {format(parseISO(c.data_lavoro), "d MMMM yyyy", { locale: it })} · firmato da {c.firma_cliente_nome?.trim() || "cliente"}
+                  {t("{data} · firmato da {nome}", { data: format(parseISO(c.data_lavoro), "d MMMM yyyy", { locale: dateFnsCampo() }), nome: c.firma_cliente_nome?.trim() || t("cliente") })}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {[c.autore?.first_name, c.autore?.last_name].filter(Boolean).join(" ") || "Cantiere"} · {STATO[c.stato ?? ""] ?? "Inviato"}
+                  {[c.autore?.first_name, c.autore?.last_name].filter(Boolean).join(" ") || t("Cantiere")} · {STATO[c.stato ?? ""] ? t(STATO[c.stato ?? ""]) : t("Inviato")}
                 </p>
                 {c.descrizione_lavori && <p className="mt-1 line-clamp-2 text-sm">{c.descrizione_lavori}</p>}
               </div>
               <Button size="sm" variant="outline" className="gap-1.5" onClick={() => void openRapportinoPdf(c, orderId, qc)}>
-                <Download className="h-4 w-4" aria-hidden="true" />{c.pdf_url ? "Apri PDF" : "Genera PDF"}
+                <Download className="h-4 w-4" aria-hidden="true" />{c.pdf_url ? t("Apri PDF") : t("Genera PDF")}
               </Button>
             </li>
           ))}

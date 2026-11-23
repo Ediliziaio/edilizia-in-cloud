@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Riga = Pick<PreventivoCommittente, "id" | "quote_number" | "title" | "total" | "status" | "variante_id" | "revision_number" | "signed_at" | "created_at">;
 
@@ -26,6 +27,7 @@ export function ImportaDaPreventivoCommessa({ orderId, companyId, customerId, on
   customerId: string | null;
   onScelto: (quoteId: string) => void;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [scelto, setScelto] = useState<string | null>(null);
 
@@ -57,25 +59,24 @@ export function ImportaDaPreventivoCommessa({ orderId, companyId, customerId, on
   return (
     <>
       <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { setScelto(null); setAperto(true); }}>
-        <FileInput className="h-4 w-4" /> Importa da preventivo
+        <FileInput className="h-4 w-4" /> {t("Importa da preventivo")}
       </Button>
       <Dialog open={aperto} onOpenChange={setAperto}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Importa da preventivo</DialogTitle>
+            <DialogTitle>{t("Importa da preventivo")}</DialogTitle>
             <DialogDescription>
-              I preventivi accettati di questo cliente non ancora usati. Il prescelto diventa un lavoro extra con le sue voci e il suo importo;
-              all'approvazione nasce la fase nelle lavorazioni.
+              {t("I preventivi accettati di questo cliente non ancora usati. Il prescelto diventa un lavoro extra con le sue voci e il suo importo; all'approvazione nasce la fase nelle lavorazioni.")}
             </DialogDescription>
           </DialogHeader>
           {elenco.isLoading ? (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cerco i preventivi…</p>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t("Cerco i preventivi…")}</p>
           ) : elenco.isError ? (
-            <p className="text-sm text-destructive">Non riesco a leggere i preventivi: riprova tra poco.</p>
+            <p className="text-sm text-destructive">{t("Non riesco a leggere i preventivi: riprova tra poco.")}</p>
           ) : righe.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nessun preventivo accettato da importare: quelli già diventati una commessa o un lavoro extra non si usano una seconda volta.</p>
+            <p className="text-sm text-muted-foreground">{t("Nessun preventivo accettato da importare: quelli già diventati una commessa o un lavoro extra non si usano una seconda volta.")}</p>
           ) : (
-            <ul className="max-h-80 divide-y overflow-y-auto rounded-md border" role="radiogroup" aria-label="Preventivi accettati">
+            <ul className="max-h-80 divide-y overflow-y-auto rounded-md border" role="radiogroup" aria-label={t("Preventivi accettati")}>
               {righe.map((q) => (
                 <li key={q.id}>
                   <label className="flex cursor-pointer items-start gap-3 p-2.5 hover:bg-muted/50">
@@ -86,7 +87,7 @@ export function ImportaDaPreventivoCommessa({ orderId, companyId, customerId, on
                         {q.total != null && <span className="shrink-0 text-sm tabular-nums">{euro(q.total, true)}</span>}
                       </span>
                       {q.title && <span className="line-clamp-1 block text-xs text-muted-foreground">{q.title}</span>}
-                      <span className="block text-xs text-muted-foreground">accettato {giornoIT(q.signed_at ?? q.created_at)}</span>
+                      <span className="block text-xs text-muted-foreground">{t("accettato {data}", { data: giornoIT(q.signed_at ?? q.created_at) })}</span>
                     </span>
                   </label>
                 </li>
@@ -94,8 +95,8 @@ export function ImportaDaPreventivoCommessa({ orderId, companyId, customerId, on
             </ul>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAperto(false)}>Annulla</Button>
-            <Button disabled={!scelto} onClick={() => { if (scelto) { setAperto(false); onScelto(scelto); } }}>Apri il lavoro extra</Button>
+            <Button variant="outline" onClick={() => setAperto(false)}>{t("Annulla")}</Button>
+            <Button disabled={!scelto} onClick={() => { if (scelto) { setAperto(false); onScelto(scelto); } }}>{t("Apri il lavoro extra")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

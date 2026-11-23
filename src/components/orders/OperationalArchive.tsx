@@ -1,5 +1,6 @@
 import type { OperationalScope } from "@/hooks/useOperationalArchive";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function OperationalArchive({
   scope,
   onChange,
@@ -13,11 +14,12 @@ export function OperationalArchive({
   history: number;
   label: string;
 }) {
+  const t = useT();
   return (
     <div
       className="flex flex-wrap items-center gap-1"
       role="group"
-      aria-label={`Ambito ${label}`}
+      aria-label={t("Ambito {label}", { label })}
     >
       {(
         [
@@ -29,7 +31,7 @@ export function OperationalArchive({
         <button
           key={value}
           type="button"
-          aria-label={`${title} ${count}`}
+          aria-label={`${t(title)} ${count}`}
           aria-pressed={scope === value}
           onClick={() => onChange(value)}
           className={cn(
@@ -39,7 +41,7 @@ export function OperationalArchive({
               : "text-muted-foreground hover:bg-muted",
           )}
         >
-          {title}
+          {t(title)}
           <span
             className={cn(
               "rounded-full px-1.5 text-[10px] tabular-nums",

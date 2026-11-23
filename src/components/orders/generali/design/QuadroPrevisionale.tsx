@@ -13,14 +13,15 @@
 import { cn } from "@/lib/utils";
 import { noteSuperficie, type NumeriOperazione } from "@/lib/orders/generali/numeriOperazione";
 import { SuperficieAMano } from "@/components/orders/generali/design/SuperficieAMano";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const euro = (v: number | null) =>
-  v === null ? "—" : v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+  v === null ? "—" : v.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
 const euroMq = (v: number | null) =>
-  v === null ? null : `${v.toLocaleString("it-IT", { maximumFractionDigits: 0 })} €/m²`;
+  v === null ? null : `${v.toLocaleString(intlCampo(), { maximumFractionDigits: 0 })} €/m²`;
 
-const pct = (v: number | null) => (v === null ? null : `${v.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`);
+const pct = (v: number | null) => (v === null ? null : `${v.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`);
 
 function Cella({ valore, nota, tono }: { valore: string; nota?: string | null; tono?: "verde" | "rosso" }) {
   return (
@@ -50,6 +51,7 @@ interface Props {
 }
 
 export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParziale, budgetInBozza, notaCostiPrevisti, superficieAMano, appalto = false }: Props) {
+  const t = useT();
   const { previsionale: p, reale: r } = n;
   const mq = n.superficie;
   const tonoMargine = (m: number | null) => (m === null ? undefined : m < 0 ? "rosso" : "verde");
@@ -59,62 +61,62 @@ export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParzi
   return (
     <div className="quadro-prev">
       <div className="quadro-prev-testata">
-        <span className="quadro-prev-titolo">Previsionale e reale</span>
+        <span className="quadro-prev-titolo">{t("Previsionale e reale")}</span>
         {mq ? (
           <span className="quadro-prev-mq">
-            {mq.mq.toLocaleString("it-IT", { maximumFractionDigits: 0 })} m²
+            {mq.mq.toLocaleString(intlCampo(), { maximumFractionDigits: 0 })} m²
             <span className="quadro-prev-mq-fonte"> · {noteSuperficie(mq)}</span>
             {superficieAMano && mq.fonte !== "unita" && (
-              <SuperficieAMano {...superficieAMano} etichetta="correggi" />
+              <SuperficieAMano {...superficieAMano} etichetta={t("correggi")} />
             )}
           </span>
         ) : !appalto && (
           <span className="quadro-prev-mq-fonte">
-            Per i €/m² serve la superficie vendibile:{" "}
+            {t("Per i €/m² serve la superficie vendibile:")}{" "}
             {superficieAMano
               ? <SuperficieAMano {...superficieAMano} />
-              : "scrivila nella scheda Dati, o metti i metri quadri delle unità"}
+              : t("scrivila nella scheda Dati, o metti i metri quadri delle unità")}
           </span>
         )}
       </div>
 
-      <div role="table" aria-label="Previsionale e reale" className="quadro-prev-griglia">
+      <div role="table" aria-label={t("Previsionale e reale")} className="quadro-prev-griglia">
         <div role="row" className="contents">
           <span role="columnheader" className="quadro-prev-angolo" />
           <span role="columnheader" className="quadro-prev-intestazione">{etichettaVendita}</span>
-          <span role="columnheader" className="quadro-prev-intestazione">Costi</span>
-          <span role="columnheader" className="quadro-prev-intestazione">Margine</span>
+          <span role="columnheader" className="quadro-prev-intestazione">{t("Costi")}</span>
+          <span role="columnheader" className="quadro-prev-intestazione">{t("Margine")}</span>
         </div>
 
         <div role="row" className="contents">
           <span role="rowheader" className="quadro-prev-riga-nome">
-            Previsionale<span className="quadro-prev-riga-sotto">{budgetInBozza ? "piano in bozza" : "dal piano"}</span>
+            {t("Previsionale")}<span className="quadro-prev-riga-sotto">{budgetInBozza ? t("piano in bozza") : t("dal piano")}</span>
           </span>
           <Cella valore={euro(p.vendita)} nota={euroMq(p.venditaMq)} />
           <Cella
             valore={euro(p.costi)}
-            nota={euroMq(p.costiMq) ?? (p.costi === null ? notaCostiPrevisti : null) ?? (budgetParziale ? "stime da completare" : null)}
+            nota={euroMq(p.costiMq) ?? (p.costi === null ? notaCostiPrevisti : null) ?? (budgetParziale ? t("stime da completare") : null)}
           />
           <Cella valore={euro(p.margine)} nota={pct(p.marginePct)} tono={tonoMargine(p.margine)} />
         </div>
 
         <div role="row" className="contents">
           <span role="rowheader" className="quadro-prev-riga-nome">
-            Reale<span className="quadro-prev-riga-sotto">a oggi</span>
+            {t("Reale")}<span className="quadro-prev-riga-sotto">{t("a oggi")}</span>
           </span>
           <Cella
             valore={r.vendita === null ? "—" : euro(r.vendita)}
             nota={r.vendita === null
-              ? (appalto ? "nessuna fattura emessa finora" : "niente venduto finora")
-              : [euroMq(r.venditaMq), incassato !== null ? `incassato ${euro(incassato)}` : null].filter(Boolean).join(" · ")}
+              ? (appalto ? t("nessuna fattura emessa finora") : t("niente venduto finora"))
+              : [euroMq(r.venditaMq), incassato !== null ? t("incassato {importo}", { importo: euro(incassato) }) : null].filter(Boolean).join(" · ")}
           />
           <Cella
             valore={euro(r.costi)}
-            nota={[euroMq(r.costiMq), n.spesoPct !== null ? `${pct(n.spesoPct)} ${budgetInBozza ? "dei costi in bozza" : "del budget"}` : null].filter(Boolean).join(" · ") || null}
+            nota={[euroMq(r.costiMq), n.spesoPct !== null ? (budgetInBozza ? t("{perc} dei costi in bozza", { perc: pct(n.spesoPct) }) : t("{perc} del budget", { perc: pct(n.spesoPct) })) : null].filter(Boolean).join(" · ") || null}
           />
           <Cella
             valore={r.margine === null ? "—" : euro(r.margine)}
-            nota={r.margine === null ? (appalto ? "si calcola con ricavi e costi registrati" : "si calcola quando si vende") : pct(r.marginePct)}
+            nota={r.margine === null ? (appalto ? t("si calcola con ricavi e costi registrati") : t("si calcola quando si vende")) : pct(r.marginePct)}
             tono={tonoMargine(r.margine)}
           />
         </div>
@@ -125,16 +127,16 @@ export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParzi
           {n.scartoCosti !== null && (
             <span className={cn(tonoScarto === "rosso" && "generale-negative", tonoScarto === "verde" && "generale-positive")}>
               {n.scartoCosti > 0
-                ? `Oltre il budget di ${euro(n.scartoCosti)}`
-                : `Restano ${euro(-n.scartoCosti)} di budget`}
+                ? t("Oltre il budget di {importo}", { importo: euro(n.scartoCosti) })
+                : t("Restano {importo} di budget", { importo: euro(-n.scartoCosti) })}
             </span>
           )}
           {n.scartoCostoMq !== null && (
             <span>
               {" · "}
               {n.scartoCostoMq > 0
-                ? `${euroMq(n.scartoCostoMq)} in più al metro quadro`
-                : `${euroMq(-n.scartoCostoMq)} al metro quadro sotto il previsto`}
+                ? t("{valore} in più al metro quadro", { valore: euroMq(n.scartoCostoMq) })
+                : t("{valore} al metro quadro sotto il previsto", { valore: euroMq(-n.scartoCostoMq) })}
             </span>
           )}
         </p>

@@ -17,6 +17,7 @@ import { bozzaLavoroExtra, type RigaPerVariante, type TestataPerVariante } from 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { OdVSection } from "./OdVSection";
 import type { VariationContext } from "./VariationEditor";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function LavoroExtraDaPreventivo({ quoteId, orderId, companyId, context, onChiudi }: {
   quoteId: string;
@@ -25,6 +26,7 @@ export function LavoroExtraDaPreventivo({ quoteId, orderId, companyId, context, 
   context: VariationContext;
   onChiudi: () => void;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [idVariante] = useState(() => crypto.randomUUID());
   const preventivo = useQuery({
@@ -44,9 +46,9 @@ export function LavoroExtraDaPreventivo({ quoteId, orderId, companyId, context, 
         db.from("orders").select("id").eq("quote_id", quoteId).eq("company_id", companyId).is("deleted_at", null).limit(1),
       ]);
       if (e1 || e2 || e3) throw e1 ?? e2 ?? e3;
-      if (!q) throw new Error("Preventivo non trovato.");
+      if (!q) throw new Error(t("Preventivo non trovato."));
       if (q.status !== "accettata" || q.variante_id || (giaCommessa ?? []).length > 0) {
-        throw new Error("Questo preventivo non è accettato, oppure è già diventato una commessa o un lavoro extra.");
+        throw new Error(t("Questo preventivo non è accettato, oppure è già diventato una commessa o un lavoro extra."));
       }
       return { q: q as TestataPerVariante, righe: (righe ?? []) as RigaPerVariante[] };
     },
@@ -66,14 +68,14 @@ export function LavoroExtraDaPreventivo({ quoteId, orderId, companyId, context, 
         // per chi non ha il permesso sui preventivi, toccava 0 righe in silenzio e il preventivo restava riusabile.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any).rpc("preventivo_diventa_lavoro_extra", { p_quote: quoteId, p_variante: idVariante });
-        if (error) throw new Error(error.message ?? "Collegamento non riuscito.");
-        toast.success("Lavoro extra creato dal preventivo", { description: "Mandalo da firmare o carica la copia firmata: all'approvazione diventa una fase." });
+        if (error) throw new Error(error.message ?? t("Collegamento non riuscito."));
+        toast.success(t("Lavoro extra creato dal preventivo"), { description: t("Mandalo da firmare o carica la copia firmata: all'approvazione diventa una fase.") });
         queryClient.invalidateQueries({ queryKey: ["preventivi-committente"] });
         queryClient.invalidateQueries({ queryKey: ["preventivi-cliente"] });
         queryClient.invalidateQueries({ queryKey: ["preventivi-per-commessa"] });
       }
     } catch (e) {
-      toast.error("Il lavoro extra c'è, ma il preventivo non risulta collegato", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Il lavoro extra c'è, ma il preventivo non risulta collegato"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       onChiudi();
     }
@@ -84,8 +86,8 @@ export function LavoroExtraDaPreventivo({ quoteId, orderId, companyId, context, 
       <Dialog open onOpenChange={(o) => !o && onChiudi()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Lavoro extra dal preventivo</DialogTitle>
-            <DialogDescription>{preventivo.error instanceof Error ? preventivo.error.message : "Preventivo non leggibile."}</DialogDescription>
+            <DialogTitle>{t("Lavoro extra dal preventivo")}</DialogTitle>
+            <DialogDescription>{preventivo.error instanceof Error ? preventivo.error.message : t("Preventivo non leggibile.")}</DialogDescription>
           </DialogHeader>
         </DialogContent>
       </Dialog>
@@ -96,8 +98,8 @@ export function LavoroExtraDaPreventivo({ quoteId, orderId, companyId, context, 
     <Dialog open onOpenChange={(o) => !o && onChiudi()}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
-          <DialogTitle>Lavoro extra dal preventivo {preventivo.data?.q.quote_number ?? ""}</DialogTitle>
-          <DialogDescription>Voci e importo vengono dal preventivo accettato. Controlla e salva.</DialogDescription>
+          <DialogTitle>{t("Lavoro extra dal preventivo {numero}", { numero: preventivo.data?.q.quote_number ?? "" })}</DialogTitle>
+          <DialogDescription>{t("Voci e importo vengono dal preventivo accettato. Controlla e salva.")}</DialogDescription>
         </DialogHeader>
         <OdVSection orderId={orderId} companyId={companyId} context={context} bozzaIniziale={{ id: idVariante, bozza }} onBozzaChiusa={() => void chiusa()} />
       </DialogContent>

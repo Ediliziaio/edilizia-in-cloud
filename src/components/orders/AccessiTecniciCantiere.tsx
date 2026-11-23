@@ -5,8 +5,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { UniformSelect } from "@/components/ui/uniform-select";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function AccessiTecniciCantiere({ orderId, capo }: { orderId: string; capo?: string }) {
+  const t = useT();
   const { user, effectiveCompany, profile } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id;
   const chiave = ["commessa-accessi-tecnici", orderId, companyId, user?.id];
@@ -41,47 +43,47 @@ export function AccessiTecniciCantiere({ orderId, capo }: { orderId: string; cap
         qc.invalidateQueries({ queryKey: ["campo-rilievi-scheda", orderId, companyId] }),
       ]);
       toast.success(rilievi
-        ? consenti ? "Registrazione rilievi attivata" : "Registrazione rilievi disattivata"
-        : consenti ? "Accesso alla scheda attivato" : "Accesso alla scheda rimosso");
+        ? consenti ? t("Registrazione rilievi attivata") : t("Registrazione rilievi disattivata")
+        : consenti ? t("Accesso alla scheda attivato") : t("Accesso alla scheda rimosso"));
     },
     onError: (error: { code?: string; message?: string }) => {
-      toast.error(error.code === "22023" ? error.message || "Persona non disponibile." : "Non riesco ad aggiornare l’accesso. Riprova.");
+      toast.error(error.code === "22023" ? error.message || t("Persona non disponibile.") : t("Non riesco ad aggiornare l’accesso. Riprova."));
     },
   });
 
-  return <section aria-label="Accessi a piano e documenti" className="space-y-2 rounded-lg border bg-background p-3">
+  return <section aria-label={t("Accessi a piano e documenti")} className="space-y-2 rounded-lg border bg-background p-3">
     <div>
-      <h3 className="text-sm font-semibold">Accessi a piano e documenti</h3>
-      <p className="text-xs text-muted-foreground">Il capocantiere può aggiornare le lavorazioni. Agli altri puoi dare accesso alla scheda e il permesso di registrare rilievi.</p>
+      <h3 className="text-sm font-semibold">{t("Accessi a piano e documenti")}</h3>
+      <p className="text-xs text-muted-foreground">{t("Il capocantiere può aggiornare le lavorazioni. Agli altri puoi dare accesso alla scheda e il permesso di registrare rilievi.")}</p>
     </div>
-    {accessi.isError ? <p role="alert" className="text-sm">Accessi non disponibili.{" "}
-      <button type="button" className="min-h-11 font-medium underline" onClick={() => void accessi.refetch()}>Riprova</button></p>
-      : accessi.isPending ? <p role="status" className="text-xs text-muted-foreground">Carico gli accessi…</p> : <>
-        {!!abilitati.length && <ul className="divide-y text-sm" aria-label="Persone abilitate">
+    {accessi.isError ? <p role="alert" className="text-sm">{t("Accessi non disponibili.")}{" "}
+      <button type="button" className="min-h-11 font-medium underline" onClick={() => void accessi.refetch()}>{t("Riprova")}</button></p>
+      : accessi.isPending ? <p role="status" className="text-xs text-muted-foreground">{t("Carico gli accessi…")}</p> : <>
+        {!!abilitati.length && <ul className="divide-y text-sm" aria-label={t("Persone abilitate")}>
           {abilitati.map(p => <li key={p.id} className="flex min-h-11 flex-wrap items-center justify-between gap-x-2">
-            <span className="min-w-0 break-words">{p.nome}{p.id === capo && " · Capocantiere"}</span>
+            <span className="min-w-0 break-words">{p.nome}{p.id === capo && ` · ${t("Capocantiere")}`}</span>
             <div className="flex flex-wrap items-center gap-1">
               <Button size="sm" variant="outline" type="button" className="min-h-11 px-2 aria-pressed:border-primary aria-pressed:text-primary"
-                aria-pressed={p.registra_rilievi === true} aria-label={`Registrazione rilievi per ${p.nome}`}
+                aria-pressed={p.registra_rilievi === true} aria-label={t("Registrazione rilievi per {nome}", { nome: p.nome })}
                 disabled={salva.isPending || (!p.ammissibile && !p.registra_rilievi)}
                 onClick={() => salva.mutate({ id: p.id, consenti: !p.registra_rilievi, rilievi: true })}>
-                {p.registra_rilievi ? "Rilievi abilitati" : "Abilita rilievi"}
+                {p.registra_rilievi ? t("Rilievi abilitati") : t("Abilita rilievi")}
               </Button>
               <Button size="sm" variant="ghost" type="button" className="min-h-11 shrink-0 px-2"
-                aria-label={`Revoca accesso di ${p.nome}`}
-                disabled={salva.isPending} onClick={() => salva.mutate({ id: p.id, consenti: false })}>Revoca</Button>
+                aria-label={t("Revoca accesso di {nome}", { nome: p.nome })}
+                disabled={salva.isPending} onClick={() => salva.mutate({ id: p.id, consenti: false })}>{t("Revoca")}</Button>
             </div>
           </li>)}
         </ul>}
-        {candidati.length === 0 ? <p className="text-xs text-muted-foreground">Nessuna persona da aggiungere.</p>
+        {candidati.length === 0 ? <p className="text-xs text-muted-foreground">{t("Nessuna persona da aggiungere.")}</p>
           : <div className="flex flex-col gap-2 sm:flex-row">
-            <UniformSelect aria-label="Persona da abilitare" className="min-h-11 flex-1" value={persona}
+            <UniformSelect aria-label={t("Persona da abilitare")} className="min-h-11 flex-1" value={persona}
               onChange={event => setPersona(event.target.value)} disabled={salva.isPending}>
-              <option value="">Scegli una persona</option>
+              <option value="">{t("Scegli una persona")}</option>
               {candidati.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
             </UniformSelect>
             <Button type="button" className="min-h-11 shrink-0" disabled={!persona || salva.isPending || !candidati.some(u => u.id === persona)}
-              onClick={() => salva.mutate({ id: persona, consenti: true })}>Abilita consultazione</Button>
+              onClick={() => salva.mutate({ id: persona, consenti: true })}>{t("Abilita consultazione")}</Button>
           </div>}
       </>}
   </section>;

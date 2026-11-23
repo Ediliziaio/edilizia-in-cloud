@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   STATI_REVISIONE, TIPI_DOCUMENTO, etichettaStato, haRevisione, linkDopoApprovazione, proponiDopoApprovazione, testoRevisione,
   type DatiRevisione,
@@ -29,13 +30,14 @@ const COLORE_STATO: Record<string, string> = {
 };
 
 export function EtichettaRevisione({ doc }: { doc: DatiRevisione }) {
+  const t = useT();
   if (!haRevisione(doc)) return null;
   const testo = testoRevisione(doc);
   const stato = etichettaStato(doc.stato_revisione);
   return (
     <span className="inline-flex flex-wrap items-center gap-1 text-[11px]">
       {testo && <span className="text-foreground/80">{testo}</span>}
-      {stato && <span className={cn("rounded px-1.5 py-0.5 font-medium", COLORE_STATO[doc.stato_revisione ?? ""])}>{stato}</span>}
+      {stato && <span className={cn("rounded px-1.5 py-0.5 font-medium", COLORE_STATO[doc.stato_revisione ?? ""])}>{t(stato)}</span>}
     </span>
   );
 }
@@ -47,6 +49,7 @@ export function RevisioneDocumentoDialog({ open, onOpenChange, doc }: {
   onOpenChange: (open: boolean) => void;
   doc: DatiRevisione & { id: string; order_id: string; file_name: string };
 }) {
+  const tr = useT();
   const qc = useQueryClient();
   const [tipo, setTipo] = useState(doc.tipo_documento ?? NESSUNO);
   const [codice, setCodice] = useState(doc.codice_elaborato ?? "");
@@ -71,8 +74,8 @@ export function RevisioneDocumentoDialog({ open, onOpenChange, doc }: {
     },
     onSuccess: () => {
       toast.success(stato === "approvato" && codice.trim()
-        ? "Revisione approvata: quella di prima con lo stesso codice è ora superata"
-        : "Revisione salvata");
+        ? tr("Revisione approvata: quella di prima con lo stesso codice è ora superata")
+        : tr("Revisione salvata"));
       qc.invalidateQueries({ queryKey: ["order-attachments", doc.order_id] });
       qc.invalidateQueries({ queryKey: ["campo-scheda-cantiere", doc.order_id] });
       if (proponiDopoApprovazione(tipo === NESSUNO ? null : tipo, stato === NESSUNO ? null : stato, doc.stato_revisione ?? null)) {
@@ -81,7 +84,7 @@ export function RevisioneDocumentoDialog({ open, onOpenChange, doc }: {
       }
       onOpenChange(false);
     },
-    onError: (e: unknown) => toast.error("Non riesco a salvare la revisione", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error(tr("Non riesco a salvare la revisione"), { description: e instanceof Error ? e.message : String(e) }),
   });
 
   return (
@@ -90,62 +93,62 @@ export function RevisioneDocumentoDialog({ open, onOpenChange, doc }: {
         {approvata ? (
           <>
             <DialogHeader>
-              <DialogTitle>{tipo === "computo" ? "Computo approvato" : "Tavola approvata"}: e la commessa?</DialogTitle>
+              <DialogTitle>{tipo === "computo" ? tr("Computo approvato: e la commessa?") : tr("Tavola approvata: e la commessa?")}</DialogTitle>
               <DialogDescription>
-                Lavorazioni e materiali della commessa vengono dalla revisione di prima e non si aggiornano da soli.
-                Se cambiano le quantità o le lavorazioni, apri una variante; poi ricontrolla i materiali da ordinare.
+                {tr("Lavorazioni e materiali della commessa vengono dalla revisione di prima e non si aggiornano da soli.")}{" "}
+                {tr("Se cambiano le quantità o le lavorazioni, apri una variante; poi ricontrolla i materiali da ordinare.")}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="ghost" onClick={() => chiudi(false)}>Non cambia niente</Button>
-              <Button variant="outline" onClick={() => { chiudi(false); navigate(link.materiali); }}>Vedi i materiali</Button>
-              <Button onClick={() => { chiudi(false); navigate(link.varianti); }}>Apri una variante</Button>
+              <Button variant="ghost" onClick={() => chiudi(false)}>{tr("Non cambia niente")}</Button>
+              <Button variant="outline" onClick={() => { chiudi(false); navigate(link.materiali); }}>{tr("Vedi i materiali")}</Button>
+              <Button onClick={() => { chiudi(false); navigate(link.varianti); }}>{tr("Apri una variante")}</Button>
             </DialogFooter>
           </>
         ) : (<>
         <DialogHeader>
-          <DialogTitle>Revisione del documento</DialogTitle>
+          <DialogTitle>{tr("Revisione del documento")}</DialogTitle>
           <DialogDescription className="break-words">
-            «{doc.file_name}». Approvando una revisione, quella approvata prima con lo stesso codice diventa superata: resta consultabile, ma si vede quale vale.
+            {tr("«{nome}». Approvando una revisione, quella approvata prima con lo stesso codice diventa superata: resta consultabile, ma si vede quale vale.", { nome: doc.file_name })}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="revisione-tipo">Tipo</Label>
+            <Label htmlFor="revisione-tipo">{tr("Tipo")}</Label>
             <Select value={tipo} onValueChange={setTipo}>
               <SelectTrigger id="revisione-tipo"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={NESSUNO}>—</SelectItem>
-                {TIPI_DOCUMENTO.map((t) => <SelectItem key={t.valore} value={t.valore}>{t.etichetta}</SelectItem>)}
+                {TIPI_DOCUMENTO.map((t) => <SelectItem key={t.valore} value={t.valore}>{tr(t.etichetta)}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="revisione-codice">Codice elaborato</Label>
-            <Input id="revisione-codice" value={codice} onChange={(e) => setCodice(e.target.value)} placeholder="Es. A-01" />
+            <Label htmlFor="revisione-codice">{tr("Codice elaborato")}</Label>
+            <Input id="revisione-codice" value={codice} onChange={(e) => setCodice(e.target.value)} placeholder={tr("Es. A-01")} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="revisione-numero">Revisione</Label>
-            <Input id="revisione-numero" value={revisione} onChange={(e) => setRevisione(e.target.value)} placeholder="Es. B o 02" />
+            <Label htmlFor="revisione-numero">{tr("Revisione")}</Label>
+            <Input id="revisione-numero" value={revisione} onChange={(e) => setRevisione(e.target.value)} placeholder={tr("Es. B o 02")} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="revisione-stato">Stato</Label>
+            <Label htmlFor="revisione-stato">{tr("Stato")}</Label>
             <Select value={stato} onValueChange={setStato}>
               <SelectTrigger id="revisione-stato"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={NESSUNO}>—</SelectItem>
-                {STATI_REVISIONE.map((s) => <SelectItem key={s.valore} value={s.valore}>{s.etichetta}</SelectItem>)}
+                {STATI_REVISIONE.map((s) => <SelectItem key={s.valore} value={s.valore}>{tr(s.etichetta)}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
         </div>
         {stato === "approvato" && !codice.trim() && (
-          <p className="text-xs text-muted-foreground">Senza codice elaborato le altre revisioni non diventano superate da sole.</p>
+          <p className="text-xs text-muted-foreground">{tr("Senza codice elaborato le altre revisioni non diventano superate da sole.")}</p>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={() => chiudi(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => chiudi(false)}>{tr("Annulla")}</Button>
           <Button onClick={() => salva.mutate()} disabled={salva.isPending}>
-            {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden />}Salva
+            {salva.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden />}{tr("Salva")}
           </Button>
         </DialogFooter>
         </>)}

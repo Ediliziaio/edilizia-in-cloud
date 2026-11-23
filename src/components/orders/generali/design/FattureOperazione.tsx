@@ -17,6 +17,7 @@ import { leggiCostiOperazione } from "@/lib/orders/generali/costiOperazione";
 import { allPaymentRows } from "@/hooks/useSupplierPayments";
 import { quoteDelCosto } from "@/lib/fatturazione/ripartizioneFattura";
 import { dataBreve, euro } from "../piano/formato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // I join fra costo e fattura superano la profondità dei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -79,6 +80,7 @@ async function leggi(companyId: string, ids: string[]): Promise<DatiFattureOpera
 }
 
 export function FattureOperazione({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
+  const tr = useT();
   const generaleId = riepilogo.generale.id;
   const companyId = useEffectiveCompanyId();
   const ids = [generaleId, ...riepilogo.figlie.map((f) => f.id)];
@@ -107,7 +109,7 @@ export function FattureOperazione({ riepilogo }: { riepilogo: RiepilogoGenerale 
       <header className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
         <h2 id="fatture-operazione" className="flex items-center gap-2 text-sm font-semibold">
           <span className="generale-section-icon"><ReceiptText aria-hidden="true" /></span>
-          Fatture dei fornitori
+          {tr("Fatture dei fornitori")}
           {d.fatture.length > 0 && <span className="generale-count">{d.fatture.length}</span>}
         </h2>
         {d.fatture.length > 0 && (
@@ -131,7 +133,7 @@ export function FattureOperazione({ riepilogo }: { riepilogo: RiepilogoGenerale 
           ))}
           {d.fatture.length > 6 && (
             <li className="px-4 py-2 text-xs text-muted-foreground">
-              e altre {d.fatture.length - 6}, per {euro(d.totale - d.fatture.slice(0, 6).reduce((t, f) => t + f.imponibile, 0))}.
+              {tr("e altre {n}, per {importo}.", { n: d.fatture.length - 6, importo: euro(d.totale - d.fatture.slice(0, 6).reduce((t, f) => t + f.imponibile, 0)) })}
             </li>
           )}
         </ul>
@@ -140,15 +142,15 @@ export function FattureOperazione({ riepilogo }: { riepilogo: RiepilogoGenerale 
       {d.senzaCommessa.quante > 0 && (
         <details className="border-t bg-amber-50/60 px-4 py-2.5 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
           <summary className="w-fit cursor-pointer font-medium">
-            {d.senzaCommessa.quante === 1 ? "1 costo aziendale da attribuire" : `${d.senzaCommessa.quante} costi aziendali da attribuire`}
+            {d.senzaCommessa.quante === 1 ? tr("1 costo aziendale da attribuire") : tr("{quante} costi aziendali da attribuire", { quante: String(d.senzaCommessa.quante ?? "") })}
           </summary>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <p className="min-w-0 flex-1">
-              {euro(d.senzaCommessa.totale)} complessivi da ripartire tra le commesse dell’azienda.
-              {d.fatture.length === 0 && " 0 fatture collegate a questa operazione."}
+              {tr("{importo} complessivi da ripartire tra le commesse dell’azienda.", { importo: euro(d.senzaCommessa.totale) })}
+              {d.fatture.length === 0 && ` ${tr("0 fatture collegate a questa operazione.")}`}
             </p>
             <Link to="/azienda/documenti/fatture-ricevute" className="generale-text-link shrink-0">
-              Apri fatture ricevute <ArrowUpRight aria-hidden="true" />
+              {tr("Apri fatture ricevute")} <ArrowUpRight aria-hidden="true" />
             </Link>
           </div>
         </details>

@@ -16,8 +16,8 @@
  */
 import { HardHat, MapPin, Package, FileText, CalendarDays, Wallet, FileSignature, Hash } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
+import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface OrdineAppaltatoreLavoroCardProps {
   workAddress: string | null;
@@ -36,12 +36,12 @@ interface OrdineAppaltatoreLavoroCardProps {
 }
 
 const euroIT = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
+  new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
 
 const fmtDate = (iso: string | null) => {
   if (!iso) return null;
   try {
-    return format(new Date(iso), "d MMM yyyy", { locale: it });
+    return format(new Date(iso), "d MMM yyyy", { locale: dateFnsCampo() });
   } catch {
     return iso;
   }
@@ -55,21 +55,24 @@ const Field = ({
   icon: React.ReactNode;
   label: string;
   value: React.ReactNode;
-}) => (
+}) => {
+  const t = useT();
+  return (
   <div className="flex items-start gap-3">
     <div className="h-8 w-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
       {icon}
     </div>
     <div className="min-w-0 flex-1">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-        {label}
+        {t(label)}
       </p>
-      <div className="text-sm text-slate-900 mt-0.5 whitespace-pre-line break-words">
-        {value || <span className="text-slate-400">Non specificato</span>}
+      <div dir="auto" className="text-sm text-slate-900 mt-0.5 whitespace-pre-line break-words">
+        {value || <span className="text-slate-400">{t("Non specificato")}</span>}
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export function OrdineAppaltatoreLavoroCard({
   workAddress,
@@ -84,28 +87,29 @@ export function OrdineAppaltatoreLavoroCard({
   mostraImporti = true,
   onApriRendiconto,
 }: OrdineAppaltatoreLavoroCardProps) {
+  const t = useT();
   const start = fmtDate(workStartDate);
   const end = fmtDate(workEndDate);
   const dateRange =
     start && end
       ? `${start} → ${end}`
       : start
-        ? `Inizio: ${start}`
+        ? t("Inizio: {data}", { data: start })
         : end
-          ? `Fine: ${end}`
+          ? t("Fine: {data}", { data: end })
           : null;
 
   const aMisura = valorizzazione === "a_misura";
 
   return (
     <QuoteCard
-      title="Lavoro in appalto"
+      title={t("Lavoro in appalto")}
       icon={<HardHat className="h-4 w-4" />}
-      subtitle="Il lavoro che un'impresa committente ti ha passato."
+      subtitle={t("Il lavoro che un'impresa committente ti ha passato.")}
       action={onApriRendiconto ? (
         <button type="button" onClick={onApriRendiconto}
           className="text-sm font-medium text-orange-600 underline-offset-2 hover:underline">
-          Rendiconto
+          {t("Rendiconto")}
         </button>
       ) : undefined}
     >
@@ -116,15 +120,15 @@ export function OrdineAppaltatoreLavoroCard({
             label="Come viene pagato"
             value={
               <span>
-                {aMisura ? "A misura" : "A corpo"}
+                {aMisura ? t("A misura") : t("A corpo")}
                 <span className="block text-xs text-slate-500">
                   {aMisura
-                    ? "L'importo esce dalla rendicontazione: quello sulla commessa è una stima."
-                    : "Importo concordato prima."}
+                    ? t("L'importo esce dalla rendicontazione: quello sulla commessa è una stima.")
+                    : t("Importo concordato prima.")}
                 </span>
                 {aMisura && mostraImporti && typeof tettoImporto === "number" && tettoImporto > 0 && (
                   <span className="block text-xs text-slate-600">
-                    Tetto concordato: {euroIT(tettoImporto)}
+                    {t("Tetto concordato: {importo}", { importo: euroIT(tettoImporto) })}
                   </span>
                 )}
               </span>

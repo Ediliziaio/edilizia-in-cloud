@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { CalendarDays, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { calcolaFineLavori, dataValida, type SettimanaLavorativa } from "@/lib/orders/pianificazioneAvvio";
 import { OfficeSelect } from "./OfficeSelect";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export type CampoDataPiano = "work_start_date" | "work_end_date" | "expected_date" | "warehouse_arrival_date";
 interface Props {
@@ -20,6 +20,7 @@ interface Props {
 }
 
 export function PianificazioneCommessa({ date, onData, durata, onDurata, settimana, onSettimana, erroreFine }: Props) {
+  const t = useT();
   const [dettagli, setDettagli] = useState(!!(date.expected_date || date.warehouse_arrival_date));
   const fineCalcolata = calcolaFineLavori(date.work_start_date, Number(durata), settimana);
   const finePrima = dataValida(date.work_end_date) && dataValida(date.work_start_date) && date.work_end_date < date.work_start_date;
@@ -42,40 +43,40 @@ export function PianificazioneCommessa({ date, onData, durata, onDurata, settima
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">
-        {campo("work_start_date", "Inizio lavori")}
-        {campo("work_end_date", "Fine lavori prevista")}
+        {campo("work_start_date", t("Inizio lavori"))}
+        {campo("work_end_date", t("Fine lavori prevista"))}
       </div>
-      {(finePrima || erroreFine) && <p id="errore-fine-piano" role="alert" className="text-xs text-red-600">{erroreFine || "La fine lavori non può precedere l’inizio."}</p>}
+      {(finePrima || erroreFine) && <p id="errore-fine-piano" role="alert" className="text-xs text-red-600">{erroreFine || t("La fine lavori non può precedere l’inizio.")}</p>}
       <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3">
         <div className="grid grid-cols-2 items-end gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="piano-durata" className="text-xs">Durata stimata · giorni lavorativi</Label>
-            <Input id="piano-durata" type="number" min={1} max={3660} step={1} inputMode="numeric" className="h-10 bg-white" placeholder="Es. 40" value={durata} onChange={(e) => onDurata(e.target.value)} />
+            <Label htmlFor="piano-durata" className="text-xs">{t("Durata stimata · giorni lavorativi")}</Label>
+            <Input id="piano-durata" type="number" min={1} max={3660} step={1} inputMode="numeric" className="h-10 bg-white" placeholder={t("Es. 40")} value={durata} onChange={(e) => onDurata(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="piano-settimana" className="text-xs">Settimana di lavoro</Label>
-            <OfficeSelect id="piano-settimana" label="Settimana lavorativa" value={String(settimana)} onValueChange={(v) => onSettimana(Number(v) as SettimanaLavorativa)}
-              options={[{ value: "5", label: "Lun – ven" }, { value: "6", label: "Lun – sab" }]} />
+            <Label htmlFor="piano-settimana" className="text-xs">{t("Settimana di lavoro")}</Label>
+            <OfficeSelect id="piano-settimana" label={t("Settimana lavorativa")} value={String(settimana)} onValueChange={(v) => onSettimana(Number(v) as SettimanaLavorativa)}
+              options={[{ value: "5", label: t("Lun – ven") }, { value: "6", label: t("Lun – sab") }]} />
           </div>
           <Button type="button" variant="outline" className="col-span-2 h-10 border-blue-200 bg-white text-blue-900" disabled={!fineCalcolata} onClick={() => onData("work_end_date", fineCalcolata)}>
-            <CalendarDays className="mr-2 h-4 w-4" />Calcola fine
+            <CalendarDays className="mr-2 h-4 w-4" />{t("Calcola fine")}
           </Button>
         </div>
         <p className="mt-2 text-xs text-slate-600" aria-live="polite">
-          {fineCalcolata ? `Fine stimata: ${format(fineCalcolata, "d MMM yyyy", { locale: it })}, festività escluse.` : "Inizio e durata: «Calcola fine» stima la data."}
+          {fineCalcolata ? t("Fine stimata: {data}, festività escluse.", { data: format(fineCalcolata, "d MMM yyyy", { locale: dateFnsCampo() }) }) : t("Inizio e durata: «Calcola fine» stima la data.")}
         </p>
       </div>
       <div className="border-t border-slate-100 pt-3">
         <Button type="button" variant="ghost" className="h-9 w-full justify-between px-0 text-sm text-slate-600 hover:bg-transparent" aria-expanded={dettagli} aria-controls="date-secondarie-piano" onClick={() => setDettagli(!dettagli)}>
-          Date cliente e materiali <ChevronDown className={`h-4 w-4 transition-transform ${dettagli ? "rotate-180" : ""}`} />
+          {t("Date cliente e materiali")} <ChevronDown className={`h-4 w-4 transition-transform ${dettagli ? "rotate-180" : ""}`} />
         </Button>
-        {!dettagli && (date.expected_date || date.warehouse_arrival_date) && <p className="text-xs text-slate-500">Date aggiuntive impostate</p>}
+        {!dettagli && (date.expected_date || date.warehouse_arrival_date) && <p className="text-xs text-slate-500">{t("Date aggiuntive impostate")}</p>}
         {dettagli && <div id="date-secondarie-piano" className="mt-2 grid gap-3 sm:grid-cols-2">
-          <div>{campo("expected_date", "Data prevista per il cliente")}<p className="mt-1 text-[11px] text-slate-500">Riferimento cliente, distinto dalle date di lavoro.</p></div>
-          <div>{campo("warehouse_arrival_date", "Arrivo merce in magazzino")}<p className="mt-1 text-[11px] text-slate-500">Facoltativa: non tutti i lavori prevedono un passaggio in magazzino.</p></div>
+          <div>{campo("expected_date", t("Data prevista per il cliente"))}<p className="mt-1 text-[11px] text-slate-500">{t("Riferimento cliente, distinto dalle date di lavoro.")}</p></div>
+          <div>{campo("warehouse_arrival_date", t("Arrivo merce in magazzino"))}<p className="mt-1 text-[11px] text-slate-500">{t("Facoltativa: non tutti i lavori prevedono un passaggio in magazzino.")}</p></div>
         </div>}
       </div>
-      {materialiTardi && <p role="status" className="rounded-lg bg-orange-50 p-2.5 text-xs text-orange-800">La merce arriva dopo l’inizio lavori: verifica quali fasi possono partire senza quei materiali.</p>}
+      {materialiTardi && <p role="status" className="rounded-lg bg-orange-50 p-2.5 text-xs text-orange-800">{t("La merce arriva dopo l’inizio lavori: verifica quali fasi possono partire senza quei materiali.")}</p>}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOrderScheduleHealth } from "@/hooks/useOrderScheduleHealth";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Badge semaforo tempi della commessa (Fase C rapportini):
@@ -17,6 +18,7 @@ interface OrderScheduleBadgeProps {
 }
 
 export function OrderScheduleBadge({ orderId, className }: OrderScheduleBadgeProps) {
+  const t = useT();
   const { data: health } = useOrderScheduleHealth(orderId);
 
   if (!health || health.stato === "non_configurato") return null;
@@ -26,13 +28,13 @@ export function OrderScheduleBadge({ orderId, className }: OrderScheduleBadgePro
   let label: string;
   let tone: string;
   if (health.stato === "in_ritardo") {
-    label = `Sotto il previsto${health.fase_critica ? ` — ${health.fase_critica}` : ""}`;
+    label = health.fase_critica ? t("Sotto il previsto — {fase}", { fase: health.fase_critica }) : t("Sotto il previsto");
     tone = "border-red-300 bg-red-50 text-red-700";
   } else if (health.stato === "in_anticipo") {
-    label = `In anticipo (+${giorni}gg)`;
+    label = t("In anticipo (+{giorni}gg)", { giorni });
     tone = "border-sky-300 bg-sky-50 text-sky-700";
   } else {
-    label = "In linea";
+    label = t("In linea");
     tone = "border-emerald-300 bg-emerald-50 text-emerald-700";
   }
 
@@ -51,13 +53,12 @@ export function OrderScheduleBadge({ orderId, className }: OrderScheduleBadgePro
     <Tooltip>
       <TooltipTrigger asChild>{badge}</TooltipTrigger>
       <TooltipContent className="max-w-xs">
-        <p className="mb-1 font-semibold">Fasi indietro rispetto al previsto</p>
-        <p className="mb-1 text-xs">Scostamento equivalente a {giorni} giorni di lavoro previsto. Il ritardo di calendario è mostrato nel cronoprogramma.</p>
+        <p className="mb-1 font-semibold">{t("Fasi indietro rispetto al previsto")}</p>
+        <p className="mb-1 text-xs">{t("Scostamento equivalente a {giorni} giorni di lavoro previsto. Il ritardo di calendario è mostrato nel cronoprogramma.", { giorni })}</p>
         <ul className="space-y-0.5">
           {problematiche.map((f) => (
             <li key={f.id} className="text-xs">
-              {f.name}: reale {Math.round(Number(f.actual_pct))}% vs atteso{" "}
-              {Math.round(Number(f.expected_pct))}%
+              {t("{fase}: reale {reale}% vs atteso {atteso}%", { fase: f.name, reale: Math.round(Number(f.actual_pct)), atteso: Math.round(Number(f.expected_pct)) })}
             </li>
           ))}
         </ul>

@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import type { Installment } from "@/lib/orderUtils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const chiaveIncassi = (orderId: string | undefined) => ["incassi-registrati", orderId];
 
@@ -57,6 +58,7 @@ interface Props {
 }
 
 export function RegistraIncassoPrimaNota({ inst, amount, orderId, orderCode, entryId }: Props) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -86,8 +88,8 @@ export function RegistraIncassoPrimaNota({ inst, amount, orderId, orderCode, ent
       // Il grafico 6 mesi della Prima Nota usa un prefisso diverso dalle liste.
       queryClient.invalidateQueries({ queryKey: ["primaNota"] });
       refreshFinancialQueries(queryClient);
-      toast.success("Incasso registrato in Prima Nota", {
-        description: `${inst.label} — la trovi tra le entrate della commessa.`,
+      toast.success(t("Incasso registrato in Prima Nota"), {
+        description: t("{rata} — la trovi tra le entrate della commessa.", { rata: inst.label }),
       });
     },
     onError: (e) => {
@@ -98,9 +100,9 @@ export function RegistraIncassoPrimaNota({ inst, amount, orderId, orderCode, ent
       if (dbError?.code === "23505" || msg.includes("uq_prima_nota_installment") || msg.includes("23505")) {
         queryClient.invalidateQueries({ queryKey: chiaveIncassi(orderId) });
         refreshFinancialQueries(queryClient);
-        toast.info("Questa rata era gia' registrata in Prima Nota");
+        toast.info(t("Questa rata era gia' registrata in Prima Nota"));
       } else {
-        toast.error("Registrazione non riuscita", { description: msg });
+        toast.error(t("Registrazione non riuscita"), { description: msg });
       }
     },
   });
@@ -110,10 +112,10 @@ export function RegistraIncassoPrimaNota({ inst, amount, orderId, orderCode, ent
       <Link
         to="/azienda/prima-nota"
         className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
-        title="Registrata in Prima Nota: apri la contabilità"
+        title={t("Registrata in Prima Nota: apri la contabilità")}
       >
         <BookCheck className="h-3 w-3" />
-        In Prima Nota
+        {t("In Prima Nota")}
       </Link>
     );
   }
@@ -124,10 +126,10 @@ export function RegistraIncassoPrimaNota({ inst, amount, orderId, orderCode, ent
       disabled={registra.isPending}
       onClick={() => registra.mutate()}
       className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50"
-      title="Crea la registrazione d'incasso in Prima Nota con importo e data di questa rata"
+      title={t("Crea la registrazione d'incasso in Prima Nota con importo e data di questa rata")}
     >
       {registra.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <BookPlus className="h-3 w-3" />}
-      Registra in Prima Nota
+      {t("Registra in Prima Nota")}
     </button>
   );
 }

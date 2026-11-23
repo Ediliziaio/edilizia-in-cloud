@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactElement } from "react";
 import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Ricerca nell'elenco, senza menu a comparsa: dentro un popup quelli danno problemi di scorrimento. */
 export function ScegliInElenco({ valore, opzioni, recenti = [], etichetta, onScegli }: {
@@ -10,6 +11,7 @@ export function ScegliInElenco({ valore, opzioni, recenti = [], etichetta, onSce
   etichetta: string;
   onScegli: (id: string) => void;
 }): ReactElement {
+  const t = useT();
   const [testo, setTesto] = useState("");
   const [aperto, setAperto] = useState(false);
   const scelto = opzioni.find((o) => o.id === valore);
@@ -23,7 +25,7 @@ export function ScegliInElenco({ valore, opzioni, recenti = [], etichetta, onSce
     return (
       <div className="flex h-9 min-w-0 items-center justify-between gap-2 rounded-md border bg-muted/30 pl-3 pr-1">
         <span className="truncate text-sm">{scelto.name}</span>
-        <button type="button" aria-label="Cambia scelta" className="tap-compact rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => { onScegli(""); setTesto(""); }}><X className="h-3.5 w-3.5" /></button>
+        <button type="button" aria-label={t("Cambia scelta")} className="tap-compact rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => { onScegli(""); setTesto(""); }}><X className="h-3.5 w-3.5" /></button>
       </div>
     );
   }
@@ -39,7 +41,7 @@ export function ScegliInElenco({ valore, opzioni, recenti = [], etichetta, onSce
                 onMouseDown={(e) => e.preventDefault()} onClick={() => { onScegli(o.id); setAperto(false); }}>{o.name}</button>
             </li>
           ))}
-          {risultati.length === 0 && <li className="px-3 py-2 text-muted-foreground">Nessun risultato</li>}
+          {risultati.length === 0 && <li className="px-3 py-2 text-muted-foreground">{t("Nessun risultato")}</li>}
         </ul>
       )}
     </div>

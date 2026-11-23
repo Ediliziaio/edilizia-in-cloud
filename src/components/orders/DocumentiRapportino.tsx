@@ -15,6 +15,7 @@ import type { DocumentoOperativo } from "@/lib/documentiOperativi/modello";
 import {
   documentoPerCommittente, generaPdfInterno, type InfoRapportino, type QuadroDocumento, type VarianteInterna,
 } from "@/lib/campo/rapportinoDocumenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 async function leggiInfo(rapportinoId: string, companyId: string): Promise<InfoRapportino & { orderId: string }> {
   const db = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -32,6 +33,7 @@ async function leggiInfo(rapportinoId: string, companyId: string): Promise<InfoR
 export function DocumentiRapportino({ rapportinoId, quadro, vedeImporti, vedeMargini }: {
   rapportinoId: string; quadro: QuadroDocumento; vedeImporti: boolean; vedeMargini: boolean;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const [inCorso, setInCorso] = useState<string | null>(null);
   const [doc, setDoc] = useState<{ documento: DocumentoOperativo; orderId: string } | null>(null);
@@ -51,7 +53,7 @@ export function DocumentiRapportino({ rapportinoId, quadro, vedeImporti, vedeMar
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "PDF non creato");
+      toast.error(e instanceof Error ? e.message : t("PDF non creato"));
     } finally { setInCorso(null); }
   };
 
@@ -62,25 +64,25 @@ export function DocumentiRapportino({ rapportinoId, quadro, vedeImporti, vedeMar
       const destinatario = await leggiDestinatarioRapporto(companyId, info.orderId);
       setDoc({ documento: documentoPerCommittente(quadro, info, destinatario), orderId: info.orderId });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Documento non preparato");
+      toast.error(e instanceof Error ? e.message : t("Documento non preparato"));
     } finally { setInCorso(null); }
   };
 
   const icona = (k: string) => (inCorso === k ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <FileDown className="mr-1 h-3.5 w-3.5" />);
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-t px-3 py-1.5">
-      <span className="mr-1 text-[11px] text-muted-foreground">Documenti</span>
+      <span className="mr-1 text-[11px] text-muted-foreground">{t("Documenti")}</span>
       {vedeImporti && (
         <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={!!inCorso} onClick={() => void committente()}>
-          {inCorso === "committente" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 h-3.5 w-3.5" />}Per il committente
+          {inCorso === "committente" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 h-3.5 w-3.5" />}{t("Per il committente")}
         </Button>
       )}
       <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={!!inCorso} onClick={() => void interno("costi")}>
-        {icona("costi")}Costi sostenuti
+        {icona("costi")}{t("Costi sostenuti")}
       </Button>
       {vedeImporti && vedeMargini && (
         <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={!!inCorso} onClick={() => void interno("margine")}>
-          {icona("margine")}Con margine
+          {icona("margine")}{t("Con margine")}
         </Button>
       )}
       {doc && (

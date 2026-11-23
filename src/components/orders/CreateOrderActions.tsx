@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QuotePrimaryButton } from "@/components/marketing/preventivi/ui/builderUI";
 import { CreateOrderChecklist } from "./CreateOrderChecklist";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   pending: boolean;
@@ -20,6 +21,7 @@ interface Props {
  * ferma mai. Dal telefono resta nel flusso: non copre campi, tastiera e menu dell'app.
  */
 export function CreateOrderActions({ pending, created, onCancel, onOpenCreated, totale, checks }: Props) {
+  const t = useT();
   return (
     <div
       data-testid="create-order-actions"
@@ -31,7 +33,7 @@ export function CreateOrderActions({ pending, created, onCancel, onOpenCreated, 
           {checks?.length ? <CreateOrderChecklist checks={checks} /> : null}
           {totale && (
             <p className="min-w-0 text-sm text-muted-foreground max-md:hidden">
-              Totale con IVA <span className="font-semibold tabular-nums text-foreground">{totale}</span>
+              {t("Totale con IVA")} <span className="font-semibold tabular-nums text-foreground">{totale}</span>
             </p>
           )}
         </div>
@@ -44,7 +46,7 @@ export function CreateOrderActions({ pending, created, onCancel, onOpenCreated, 
           className="h-11 shrink-0 border-slate-200 px-3 text-sm text-slate-600 shadow-none md:h-10"
           onClick={onCancel}
         >
-          Annulla
+          {t("Annulla")}
         </Button>
       )}
       <QuotePrimaryButton
@@ -55,7 +57,7 @@ export function CreateOrderActions({ pending, created, onCancel, onOpenCreated, 
       >
         {pending && <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin" />}
         <span role={pending ? "status" : undefined}>
-          {pending ? (created ? "Completo la commessa…" : "Creazione…") : (created ? "Vai alla commessa" : "Crea commessa")}
+          {pending ? (created ? t("Completo la commessa…") : t("Creazione…")) : (created ? t("Vai alla commessa") : t("Crea commessa"))}
         </span>
       </QuotePrimaryButton>
     </div>

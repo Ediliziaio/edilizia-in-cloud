@@ -7,8 +7,10 @@
  */
 import { useState } from "react";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { dateFnsCampo, sostituisci, useT } from "@/lib/campo/lingua/LinguaCampo";
+
+type Traduci = (testo: string, valori?: Readonly<Record<string, string | number>>) => string;
 import { Button } from "@/components/ui/button";
 import { AccessiTecniciCantiere } from "@/components/orders/AccessiTecniciCantiere";
 import { Badge } from "@/components/ui/badge";
@@ -24,25 +26,25 @@ import {
   type AccessoCommessa,
 } from "@/hooks/useAccessiCommessa";
 
-const giorno = (d: string) => format(parseISO(d), "d MMM", { locale: it });
+const giorno = (d: string) => format(parseISO(d), "d MMM", { locale: dateFnsCampo() });
 
 /** «dal 15 ott al 30 ott», «dal 15 ott», «fino al 30 ott», «tutta la commessa». */
-export function periodoAccesso(a: Pick<AccessoCommessa, "data_inizio" | "data_fine_prevista">): string {
+export function periodoAccesso(a: Pick<AccessoCommessa, "data_inizio" | "data_fine_prevista">, t: Traduci = sostituisci): string {
   const { data_inizio: dal, data_fine_prevista: al } = a;
-  if (dal && al) return dal === al ? `il ${giorno(dal)}` : `dal ${giorno(dal)} al ${giorno(al)}`;
-  if (dal) return `dal ${giorno(dal)}`;
-  if (al) return `fino al ${giorno(al)}`;
-  return "per tutta la commessa";
+  if (dal && al) return dal === al ? t("il {giorno}", { giorno: giorno(dal) }) : t("dal {dal} al {al}", { dal: giorno(dal), al: giorno(al) });
+  if (dal) return t("dal {dal}", { dal: giorno(dal) });
+  if (al) return t("fino al {al}", { al: giorno(al) });
+  return t("per tutta la commessa");
 }
 
-function descriviFonte(a: AccessoCommessa, nomiSquadre: Map<string, string>): string {
+function descriviFonte(a: AccessoCommessa, nomiSquadre: Map<string, string>, t: Traduci): string {
   switch (fonteAccesso(a)) {
     case "squadra":
-      return `con ${nomiSquadre.get(a.da_squadra_id!) ?? "la sua squadra"}`;
+      return t("con {squadra}", { squadra: nomiSquadre.get(a.da_squadra_id!) ?? t("la sua squadra") });
     case "fasi":
-      return a.role_type === "subcontractor" ? "ditta sulle fasi" : "sulle fasi";
+      return a.role_type === "subcontractor" ? t("ditta sulle fasi") : t("sulle fasi");
     default:
-      return "aggiunto a mano";
+      return t("aggiunto a mano");
   }
 }
 
@@ -64,6 +66,7 @@ export function AppCantiere({
   /** Same access read, a compact overview instead of an always-visible editor. */
   organizzazione?: { aperta: boolean; riepilogo: string; onGestione: () => void; onTurni?: () => void };
 }) {
+  const t = useT();
   const { data: accessi = [], isLoading, isError, refetch } = useAccessiCommessa(orderId);
   const scegli = useScegliCapocantiere(orderId);
   const togli = useTogliAccessoAMano(orderId);
@@ -74,8 +77,8 @@ export function AppCantiere({
   if (isError && !organizzazione) {
     return (
       <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-        Non riesco a leggere chi vede il cantiere nell'app.
-        <Button size="sm" variant="outline" className="h-7" onClick={() => refetch()}>Riprova</Button>
+        {t("Non riesco a leggere chi vede il cantiere nell'app.")}
+        <Button size="sm" variant="outline" className="h-7" onClick={() => refetch()}>{t("Riprova")}</Button>
       </div>
     );
   }
@@ -106,19 +109,19 @@ export function AppCantiere({
             id={`app-cantiere-${orderId}`}
             className={cn("text-sm font-semibold", n === 0 ? "text-slate-800 dark:text-slate-100" : "text-emerald-900 dark:text-emerald-100")}
           >
-            {gestione ? "Responsabile del cantiere" : compact ? `Accesso all'app · ${n === 0 ? "nessuno abilitato" : `${n} ${n === 1 ? "persona abilitata" : "persone abilitate"}`}` : n === 0 ? "Nell'app non la vede ancora nessuno" : `Nell'app la ${n === 1 ? "vede 1 persona" : `vedono ${n} persone`}`}
+            {gestione ? t("Responsabile del cantiere") : compact ? (n === 0 ? t("Accesso all'app · nessuno abilitato") : t(n === 1 ? "Accesso all'app · {n} persona abilitata" : "Accesso all'app · {n} persone abilitate", { n })) : n === 0 ? t("Nell'app non la vede ancora nessuno") : t(n === 1 ? "Nell'app la vede 1 persona" : "Nell'app la vedono {n} persone", { n })}
           </h3>
           <p className={cn("text-xs", n === 0 ? "text-slate-600 dark:text-slate-300/80" : "text-emerald-800/90 dark:text-emerald-200/80")}>
-            {gestione ? n === 0 ? "Assegna una persona con account Campo per scegliere il capocantiere. I capisquadra sono indicati nelle squadre." : `${n} accessi Campo · Il capocantiere coordina la commessa; ogni squadra mantiene il proprio caposquadra.` : compact ? n === 0 ? "Verifica account Campo e periodi di assegnazione." : "Controlla chi è abilitato e per quali giorni." : n === 0
-              ? "Chi metti al lavoro su una fase la trova da solo sul telefono, nei giorni della fase."
-              : "Ognuno nei giorni del suo lavoro. Cambi una fase o una squadra e si aggiorna da solo."}
+            {gestione ? n === 0 ? t("Assegna una persona con account Campo per scegliere il capocantiere. I capisquadra sono indicati nelle squadre.") : t("{n} accessi Campo · Il capocantiere coordina la commessa; ogni squadra mantiene il proprio caposquadra.", { n }) : compact ? n === 0 ? t("Verifica account Campo e periodi di assegnazione.") : t("Controlla chi è abilitato e per quali giorni.") : n === 0
+              ? t("Chi metti al lavoro su una fase la trova da solo sul telefono, nei giorni della fase.")
+              : t("Ognuno nei giorni del suo lavoro. Cambi una fase o una squadra e si aggiorna da solo.")}
           </p>
         </div>
 
         {(gestione || candidati.length > 0) && (
           <div className="flex items-center gap-2 max-sm:w-full">
             <Label htmlFor={`capocantiere-${orderId}`} className="shrink-0 text-xs font-semibold text-emerald-900 dark:text-emerald-100">
-              Capocantiere
+              {t("Capocantiere")}
             </Label>
             <Select
               value={capo?.user_id ?? "nessuno"}
@@ -129,7 +132,7 @@ export function AppCantiere({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="nessuno">Nessuno</SelectItem>
+                <SelectItem value="nessuno">{t("Nessuno")}</SelectItem>
                 {candidati.map((a) => (
                   <SelectItem key={a.user_id} value={a.user_id}>{nomeAccesso(a)}</SelectItem>
                 ))}
@@ -146,12 +149,12 @@ export function AppCantiere({
             className="h-8 border-emerald-300 bg-background text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 max-sm:w-full"
             onClick={() => setAperto((v) => !v)}
           >
-            {aperto ? "Nascondi" : "Chi e quando"}
+            {aperto ? t("Nascondi") : t("Chi e quando")}
           </Button>
         )}
       </div>
 
-      {gestione && <p className="mt-3 text-xs text-muted-foreground">Il ruolo operativo nell’app è distinto dagli incarichi di sicurezza. Per datore di lavoro, preposto e altre figure verifica le nomine nella sezione Sicurezza della commessa.</p>}
+      {gestione && <p className="mt-3 text-xs text-muted-foreground">{t("Il ruolo operativo nell’app è distinto dagli incarichi di sicurezza. Per datore di lavoro, preposto e altre figure verifica le nomine nella sezione Sicurezza della commessa.")}</p>}
       {aperto && n > 0 && (
         <ul className="mt-3 divide-y divide-emerald-100 overflow-hidden rounded-lg border border-emerald-100 bg-background dark:divide-emerald-900 dark:border-emerald-900">
           {ordinati.map((a) => (
@@ -159,14 +162,14 @@ export function AppCantiere({
               <span className="min-w-0 flex-1 font-medium">
                 {nomeAccesso(a)}
                 {a.is_capocantiere && (
-                  <Badge variant="outline" className="ml-2 border-amber-300 bg-amber-50 px-1.5 py-0 text-[10px] text-amber-800">Capocantiere</Badge>
+                  <Badge variant="outline" className="ml-2 border-amber-300 bg-amber-50 px-1.5 py-0 text-[10px] text-amber-800">{t("Capocantiere")}</Badge>
                 )}
               </span>
-              <span className="text-xs tabular-nums text-foreground/80">{periodoAccesso(a)}</span>
-              <span className="text-xs text-muted-foreground">{descriviFonte(a, nomiSquadre)}</span>
+              <span className="text-xs tabular-nums text-foreground/80">{periodoAccesso(a, t)}</span>
+              <span className="text-xs text-muted-foreground">{descriviFonte(a, nomiSquadre, t)}</span>
               {modificabile && fonteAccesso(a) === "a_mano" && (
                 <Button size="sm" variant="ghost" className="tap-compact h-7 px-2 text-rose-700 hover:bg-rose-50 hover:text-rose-800" onClick={() => setDaTogliere(a)}>
-                  Togli
+                  {t("Togli")}
                 </Button>
               )}
             </li>
@@ -179,13 +182,13 @@ export function AppCantiere({
       <AlertDialog open={!!daTogliere} onOpenChange={(o) => { if (!o && !togli.isPending) setDaTogliere(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Rimuovere l’accesso manuale di {daTogliere ? nomeAccesso(daTogliere) : ""}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Rimuovere l’accesso manuale di {nome}?", { nome: daTogliere ? nomeAccesso(daTogliere) : "" })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Le abilitazioni da lavorazioni o squadre restano attive. I rapportini già registrati restano disponibili.
+              {t("Le abilitazioni da lavorazioni o squadre restano attive. I rapportini già registrati restano disponibili.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={togli.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={togli.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={togli.isPending}
               className="bg-rose-600 text-white hover:bg-rose-700"
@@ -194,7 +197,7 @@ export function AppCantiere({
                 if (daTogliere) togli.mutate(daTogliere.id, { onSuccess: () => setDaTogliere(null) });
               }}
             >
-              Rimuovi accesso manuale
+              {t("Rimuovi accesso manuale")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -203,29 +206,29 @@ export function AppCantiere({
   );
   if (!organizzazione) return contenuto;
   return <>
-    <section aria-label="Organizzazione del cantiere" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-slate-50/60 px-3 py-2.5">
+    <section aria-label={t("Organizzazione del cantiere")} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-slate-50/60 px-3 py-2.5">
       <div className="min-w-0 flex-1">
-        <h3 className="text-sm font-semibold">Organizzazione</h3>
+        <h3 className="text-sm font-semibold">{t("Organizzazione")}</h3>
         {/* Il capocantiere si sceglie qui, senza aprire «Gestisci» (31/10/2026). */}
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <label htmlFor={`capocantiere-rapido-${orderId}`}>Capocantiere:</label>
+          <label htmlFor={`capocantiere-rapido-${orderId}`}>{t("Capocantiere:")}</label>
           {modificabile && !organizzazione.aperta && !isLoading && !isError && candidati.length > 0 ? (
             <Select value={capo?.user_id ?? "nessuno"} onValueChange={(v) => scegli.mutate(v === "nessuno" ? null : v)} disabled={scegli.isPending}>
-              <SelectTrigger id={`capocantiere-rapido-${orderId}`} aria-label="Capocantiere" className="h-7 w-48 bg-background text-xs text-foreground"><SelectValue /></SelectTrigger>
+              <SelectTrigger id={`capocantiere-rapido-${orderId}`} aria-label={t("Capocantiere")} className="h-7 w-48 bg-background text-xs text-foreground"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="nessuno">Da assegnare</SelectItem>
+                <SelectItem value="nessuno">{t("Da assegnare")}</SelectItem>
                 {candidati.map((a) => <SelectItem key={a.user_id} value={a.user_id}>{nomeAccesso(a)}</SelectItem>)}
               </SelectContent>
             </Select>
           ) : (
-            <span className="text-foreground">{isLoading ? "caricamento…" : isError ? "dato non disponibile" : capo ? nomeAccesso(capo) : candidati.length === 0 ? "da assegnare (serve chi lavora qui con l'app)" : "da assegnare"}</span>
+            <span className="text-foreground">{isLoading ? t("caricamento…") : isError ? t("dato non disponibile") : capo ? nomeAccesso(capo) : candidati.length === 0 ? t("da assegnare (serve chi lavora qui con l'app)") : t("da assegnare")}</span>
           )}
           <span>· {organizzazione.riepilogo}</span>
         </div>
       </div>
-      <div className="flex flex-wrap gap-1.5"><Button size="sm" variant="outline" aria-expanded={organizzazione.aperta} aria-controls={`app-cantiere-panel-${orderId} organization-body-${orderId}`} onClick={organizzazione.onGestione}>{organizzazione.aperta ? "Chiudi organizzazione" : modificabile ? "Gestisci" : "Dettagli"}</Button>{organizzazione.onTurni && <Button size="sm" variant="ghost" onClick={organizzazione.onTurni}>Pianifica turni</Button>}</div>
+      <div className="flex flex-wrap gap-1.5"><Button size="sm" variant="outline" aria-expanded={organizzazione.aperta} aria-controls={`app-cantiere-panel-${orderId} organization-body-${orderId}`} onClick={organizzazione.onGestione}>{organizzazione.aperta ? t("Chiudi organizzazione") : modificabile ? t("Gestisci") : t("Dettagli")}</Button>{organizzazione.onTurni && <Button size="sm" variant="ghost" onClick={organizzazione.onTurni}>{t("Pianifica turni")}</Button>}</div>
     </section>
-    {isError && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-rose-700">Accessi Campo non disponibili. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova accessi</Button></div>}
+    {isError && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-rose-700">{t("Accessi Campo non disponibili.")} <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova accessi")}</Button></div>}
     {organizzazione.aperta && !isError && (isLoading ? <Skeleton className="h-14 w-full rounded-xl" /> : contenuto)}
   </>;
 }

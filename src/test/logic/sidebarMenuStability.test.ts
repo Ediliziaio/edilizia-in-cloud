@@ -41,5 +41,5 @@ describe("Assistenza sparisce quando il modulo tickets non è incluso", () => {
 it("Sopralluoghi resta nella scheda Commesse senza una voce Marketing duplicata", () => {
   expect(macroAreas.find(area => area.id === "area_marketing")?.items.some(item => item.url === "/azienda/sopralluoghi")).toBe(false);
   expect(macroAreas.flatMap(area => area.items).filter(item => item.title === "Sopralluoghi")).toHaveLength(0);
-  expect(readFileSync("src/pages/azienda/OrdersList.tsx", "utf8")).toContain('id: "sopralluoghi", label: "Sopralluoghi"');
+  expect(readFileSync("src/pages/azienda/OrdersList.tsx", "utf8")).toMatch(/id: "sopralluoghi", label: (?:"Sopralluoghi"|tr?\("Sopralluoghi"\))/);
 });

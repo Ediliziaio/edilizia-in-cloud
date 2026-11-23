@@ -8,6 +8,7 @@ import { DialogContentOperativo as DialogContent } from "@/components/orders/gen
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { ContestoDocumentoPopup, chiudeIlPopup, documentoDaPercorso, type DocumentoPopup } from "@/lib/orders/documentoPopup";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const DDTRicezioneDetail = lazy(() => import("@/pages/azienda/DDTRicezioneDetail"));
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
@@ -17,6 +18,7 @@ const DocumentoDetail = lazy(() => import("@/pages/azienda/fatturazione/Document
 const TITOLI: Record<DocumentoPopup["tipo"], string> = { ddt: "Bolla", oda: "Ordine d’acquisto", rdo: "Richiesta d’offerta", documento: "Documento" };
 
 export function DocumentiInPopup({ orderId, children }: { orderId: string; children: ReactNode }) {
+  const t = useT();
   const aspetto = useAspettoOperativo();
   const queryClient = useQueryClient();
   const [documento, setDocumento] = useState<DocumentoPopup | null>(null);
@@ -55,16 +57,16 @@ export function DocumentiInPopup({ orderId, children }: { orderId: string; child
             onOpenAutoFocus={(e) => e.preventDefault()}>
             {/* La barra resta ferma: la X non finisce più sopra i bottoni del documento. */}
             <div className="commessa-document-bar flex shrink-0 items-center gap-3 border-b px-4 py-2.5 pr-12">
-              <DialogTitle className="text-sm font-semibold">{TITOLI[documento.tipo]}</DialogTitle>
-              <DialogDescription className="sr-only">Si apre senza lasciare la commessa.</DialogDescription>
+              <DialogTitle className="text-sm font-semibold">{t(TITOLI[documento.tipo])}</DialogTitle>
+              <DialogDescription className="sr-only">{t("Si apre senza lasciare la commessa.")}</DialogDescription>
               <a href={percorsoDocumentoGenerale(documento.percorso + (documento.ricerca ?? ""), aspetto?.generaleId)} data-pagina-intera target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline">
-                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /><span className="max-sm:hidden">Apri in una scheda</span>
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /><span className="max-sm:hidden">{t("Apri in una scheda")}</span>
               </a>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-4 max-sm:p-3">
               <ContestoDocumentoPopup value={dentro}>
-                <ErrorBoundary title="Documento non disponibile">
-                  <Suspense fallback={<div role="status" className="flex justify-center p-10"><Loader2 className="h-6 w-6 animate-spin" aria-label="Caricamento" /></div>}>
+                <ErrorBoundary title={t("Documento non disponibile")}>
+                  <Suspense fallback={<div role="status" className="flex justify-center p-10"><Loader2 className="h-6 w-6 animate-spin" aria-label={t("Caricamento")} /></div>}>
                     {documento.tipo === "ddt" && <DDTRicezioneDetail key={documento.id} />}
                     {documento.tipo === "oda" && <PurchaseOrderDetail key={documento.id} />}
                     {documento.tipo === "rdo" && <SupplierRfqDetail key={documento.id} />}

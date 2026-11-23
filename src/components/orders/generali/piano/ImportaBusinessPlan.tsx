@@ -21,6 +21,7 @@ import { euro } from "./formato";
 import { DA_STIMARE, riferimentoImportazione } from "@/lib/orders/generali/budgetCompletezza";
 import { leggiBusinessPlanAi } from "@/lib/orders/documentImportAi";
 import { scenariBusinessPlanAi } from "@/lib/orders/generali/businessPlanAi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type VoceImportata = VoceNuova & { nota: string; aggiungiGiaPresente?: true };
 export interface OrigineBusinessPlan {
@@ -46,6 +47,7 @@ export function ImportaBusinessPlan({
   companyId?: string | null;
   destinazione?: "piano" | "simulatore";
 }) {
+  const t = useT();
   const input = useRef<HTMLInputElement>(null);
   const lettura = useRef(0);
   const [file, setFile] = useState("");
@@ -106,11 +108,11 @@ export function ImportaBusinessPlan({
     setMesi({});
     try {
       const excel = /\.xlsx$/i.test(f.name);
-      if (!/\.(xlsx|pdf|png|jpe?g|webp)$/i.test(f.name)) throw new Error("Scegli Excel .xlsx, PDF o immagine. I formati .xls e .xlsm non sono supportati.");
-      if (!f.size) throw new Error("Il file è vuoto.");
-      if (f.size > (excel ? 15 : 18) * 1024 * 1024) throw new Error(`Il file supera ${excel ? 15 : 18} MB.`);
+      if (!/\.(xlsx|pdf|png|jpe?g|webp)$/i.test(f.name)) throw new Error(t("Scegli Excel .xlsx, PDF o immagine. I formati .xls e .xlsm non sono supportati."));
+      if (!f.size) throw new Error(t("Il file è vuoto."));
+      if (f.size > (excel ? 15 : 18) * 1024 * 1024) throw new Error(t("Il file supera {mb} MB.", { mb: excel ? 15 : 18 }));
       const bytes = await f.arrayBuffer();
-      if (!excel && !companyId) throw new Error("Seleziona l’azienda per usare la lettura AI del PDF.");
+      if (!excel && !companyId) throw new Error(t("Seleziona l’azienda per usare la lettura AI del PDF."));
       const nuovi = excel ? await leggiFileBusinessPlan(bytes) : scenariBusinessPlanAi((await leggiBusinessPlanAi(f, companyId!)).raw);
       const impronta = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)))
         .map((b) => b.toString(16).padStart(2, "0"))
@@ -128,7 +130,7 @@ export function ImportaBusinessPlan({
       );
     } catch (e) {
       if (richiesta === lettura.current)
-        setErrore(e instanceof Error ? e.message : "Non riesco a leggere il file Excel.");
+        setErrore(e instanceof Error ? e.message : t("Non riesco a leggere il file Excel."));
     } finally {
       if (richiesta === lettura.current) setCaricamento(false);
     }
@@ -139,9 +141,9 @@ export function ImportaBusinessPlan({
         <div className="flex items-center gap-3">
           <FileSpreadsheet className="h-8 w-8 text-primary" aria-hidden="true" />
           <div>
-            <p className="text-sm font-medium">{file || "Carica il piano della tua operazione"}</p>
+            <p className="text-sm font-medium">{file || t("Carica il piano della tua operazione")}</p>
             <p className="text-xs text-muted-foreground">
-              Excel .xlsx fino a 15 MB, letto nel browser. PDF e immagini fino a 18 MB, letti con l’AI.
+              {t("Excel .xlsx fino a 15 MB, letto nel browser. PDF e immagini fino a 18 MB, letti con l’AI.")}
             </p>
           </div>
         </div>
@@ -150,7 +152,7 @@ export function ImportaBusinessPlan({
           type="file"
           accept=".xlsx,.pdf,.png,.jpg,.jpeg,.webp"
           className="sr-only"
-          aria-label="File business plan"
+          aria-label={t("File business plan")}
           disabled={occupato || caricamento}
           onChange={(e) => {
             void carica(e.target.files?.[0]);
@@ -163,7 +165,7 @@ export function ImportaBusinessPlan({
           ) : (
             <Upload className="mr-2 h-4 w-4" />
           )}
-          Scegli file
+          {t("Scegli file")}
         </Button>
       </div>
       {errore && (
@@ -171,14 +173,14 @@ export function ImportaBusinessPlan({
           {errore}
         </p>
       )}
-      {caricamento && <p role="status" className="text-sm text-muted-foreground">Lettura del file in corso. Per PDF e immagini l’AI può impiegare qualche istante.</p>}
-      {destinazione === "piano" && fogli[indice]?.ai && Object.keys(fogli[indice].ai!.simulazione).length > 0 && <p className="rounded-lg border bg-muted/30 p-3 text-sm">Qui importi le voci del budget. Per preparare anche le unità e le fonti previste dal documento, usa lo stesso import dal simulatore «Valuta un’operazione».</p>}
-      {destinazione === "simulatore" && analisi && daImportare.some(r => r.importo === null || r.importo < 0 || !r.mese) && <p role="alert" className="rounded-lg border border-amber-300 p-3 text-sm">Per trasferire il piano al simulatore completa gli importi e il mese di ogni voce selezionata. Non vengono inventate scadenze o stime.</p>}
+      {caricamento && <p role="status" className="text-sm text-muted-foreground">{t("Lettura del file in corso. Per PDF e immagini l’AI può impiegare qualche istante.")}</p>}
+      {destinazione === "piano" && fogli[indice]?.ai && Object.keys(fogli[indice].ai!.simulazione).length > 0 && <p className="rounded-lg border bg-muted/30 p-3 text-sm">{t("Qui importi le voci del budget. Per preparare anche le unità e le fonti previste dal documento, usa lo stesso import dal simulatore «Valuta un’operazione».")}</p>}
+      {destinazione === "simulatore" && analisi && daImportare.some(r => r.importo === null || r.importo < 0 || !r.mese) && <p role="alert" className="rounded-lg border border-amber-300 p-3 text-sm">{t("Per trasferire il piano al simulatore completa gli importi e il mese di ogni voce selezionata. Non vengono inventate scadenze o stime.")}</p>}
       {analisi && (
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1 text-sm font-medium">
-              Scenario da importare
+              {t("Scenario da importare")}
               <UniformSelect
                 className="block h-10 w-full rounded-md border bg-background px-3 font-normal"
                 value={indice}
@@ -200,26 +202,26 @@ export function ImportaBusinessPlan({
               </UniformSelect>
             </label>
             <div className="self-end rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              Colonna prevista:{" "}
-              <strong>{analisi.intestazioni[analisi.colonnaImporto] || "non riconosciuta"}</strong>. Ogni
-              scenario resta separato.
+              {t("Colonna prevista:")}{" "}
+              <strong dir="auto">{analisi.intestazioni[analisi.colonnaImporto] || t("non riconosciuta")}</strong>.{" "}
+              {t("Ogni scenario resta separato.")}
             </div>
           </div>
           {analisi.titolo && (
             <p className="text-xs text-muted-foreground">
-              Titolo nel foglio: <strong>{analisi.titolo}</strong>. Verifica che appartenga a questa
-              operazione.
+              {t("Titolo nel foglio:")} <strong dir="auto">{analisi.titolo}</strong>.{" "}
+              {t("Verifica che appartenga a questa operazione.")}
             </p>
           )}
           <div className="grid gap-3 sm:grid-cols-3">
-            <Indicatore nome="Costi valorizzati selezionati" valore={euro(totale("costo"))} />
-            <Indicatore nome="Ricavi selezionati, IVA esclusa" valore={euro(totale("ricavo"))} />
-            <Indicatore nome="Voci ancora da completare" valore={String(mancanti)} />
+            <Indicatore nome={t("Costi valorizzati selezionati")} valore={euro(totale("costo"))} />
+            <Indicatore nome={t("Ricavi selezionati, IVA esclusa")} valore={euro(totale("ricavo"))} />
+            <Indicatore nome={t("Voci ancora da completare")} valore={String(mancanti)} />
           </div>
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
             <p className="mb-1 flex items-center gap-2 font-semibold">
               <AlertTriangle className="h-4 w-4" />
-              Controlli prima dell'importazione
+              {t("Controlli prima dell'importazione")}
             </p>
             <ul className="list-disc space-y-1 pl-5">
               {analisi.avvisi
@@ -229,8 +231,10 @@ export function ImportaBusinessPlan({
                 ))}
               {giaPresenti > 0 && (
                 <li>
-                  {giaPresenti} {giaPresenti === 1 ? "riga già presente" : "righe già presenti"} nella bozza.
-                  Puoi confrontare gli importi qui. Se vuoi aggiungere una seconda voce, selezionala.
+                  {giaPresenti === 1
+                    ? t("{n} riga già presente nella bozza.", { n: giaPresenti })
+                    : t("{n} righe già presenti nella bozza.", { n: giaPresenti })}{" "}
+                  {t("Puoi confrontare gli importi qui. Se vuoi aggiungere una seconda voce, selezionala.")}
                 </li>
               )}
             </ul>
@@ -239,12 +243,12 @@ export function ImportaBusinessPlan({
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-muted">
                 <tr className="text-left text-xs text-muted-foreground">
-                  <th className="p-2">Importa</th>
-                  <th className="p-2">Riga</th>
-                  <th className="p-2">Voce</th>
-                  <th className="p-2">Categoria</th>
-                  <th className="p-2 text-right">Previsto</th>
-                  <th className="p-2">Mese previsto</th>
+                  <th className="p-2">{t("Importa")}</th>
+                  <th className="p-2">{t("Riga")}</th>
+                  <th className="p-2">{t("Voce")}</th>
+                  <th className="p-2">{t("Categoria")}</th>
+                  <th className="p-2 text-right">{t("Previsto")}</th>
+                  <th className="p-2">{t("Mese previsto")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -256,7 +260,7 @@ export function ImportaBusinessPlan({
                     <td className="p-2">
                       <input
                         type="checkbox"
-                        aria-label={`Importa riga ${r.riga}`}
+                        aria-label={t("Importa riga {riga}", { riga: r.riga })}
                         disabled={occupato || r.importo === null || r.importo < 0}
                         checked={r.selezionata}
                         onChange={(e) => {
@@ -266,20 +270,20 @@ export function ImportaBusinessPlan({
                       />
                     </td>
                     <td className="p-2 tabular-nums text-muted-foreground">{r.riga}</td>
-                    <td className="min-w-44 p-2">
+                    <td className="min-w-44 p-2" dir="auto">
                       {r.descrizione}
                       {r.giaPresenti.length > 0 && (
                         <span className="block text-xs text-amber-800 dark:text-amber-300">
-                          {r.giaPresenti.length === 1 ? `Già in bozza · ${euro(r.giaPresenti[0].importo)}` : `Già in bozza · ${r.giaPresenti.length} voci con lo stesso nome`}
+                          {r.giaPresenti.length === 1 ? t("Già in bozza · {importo}", { importo: euro(r.giaPresenti[0].importo) }) : t("Già in bozza · {n} voci con lo stesso nome", { n: r.giaPresenti.length })}
                         </span>
                       )}
                       {r.problema && (
-                        <span className="block text-xs text-amber-800 dark:text-amber-300">{r.problema}</span>
+                        <span className="block text-xs text-amber-800 dark:text-amber-300">{t(r.problema)}</span>
                       )}
                     </td>
                     <td className="p-2">
                       <UniformSelect
-                        aria-label={`Categoria riga ${r.riga}`}
+                        aria-label={t("Categoria riga {riga}", { riga: r.riga })}
                         value={categorie[r.riga] ?? r.categoria}
                         disabled={occupato}
                         className="max-w-48 rounded border bg-background p-1 text-xs"
@@ -290,7 +294,7 @@ export function ImportaBusinessPlan({
                       >
                         {categorieDelTipo(r.tipo).map((c) => (
                           <option key={c.id} value={c.id}>
-                            {CATEGORIE_PIANO[c.id].nome}
+                            {t(CATEGORIE_PIANO[c.id].nome)}
                           </option>
                         ))}
                       </UniformSelect>
@@ -298,9 +302,9 @@ export function ImportaBusinessPlan({
                     <td className="p-2">
                       <Input
                         className="ml-auto h-8 w-32 text-right tabular-nums"
-                        aria-label={`Importo previsto riga ${r.riga}`}
+                        aria-label={t("Importo previsto riga {riga}", { riga: r.riga })}
                         inputMode="decimal"
-                        placeholder="Da stimare"
+                        placeholder={t("Da stimare")}
                         disabled={occupato}
                         value={
                           importi[r.riga] ??
@@ -318,7 +322,7 @@ export function ImportaBusinessPlan({
                         }}
                       />
                     </td>
-                    <td className="p-2"><input type="month" aria-label={`Mese previsto riga ${r.riga}`} value={r.mese ?? ""} disabled={occupato} className="h-9 rounded border bg-background px-2 text-sm" onChange={e => { setMesi(s => ({ ...s, [r.riga]: e.target.value })); setConferma(false); }}/></td>
+                    <td className="p-2"><input type="month" aria-label={t("Mese previsto riga {riga}", { riga: r.riga })} value={r.mese ?? ""} disabled={occupato} className="h-9 rounded border bg-background px-2 text-sm" onChange={e => { setMesi(s => ({ ...s, [r.riga]: e.target.value })); setConferma(false); }}/></td>
                   </tr>
                 ))}
               </tbody>
@@ -333,16 +337,16 @@ export function ImportaBusinessPlan({
               onChange={(e) => setConferma(e.target.checked)}
             />
             <span>
-              Ho verificato scenario, importi al netto dell'IVA e voci già presenti. Le {mancanti} voci ancora
-              da correggere entrano come «Da stimare» e bloccano l'approvazione. Il file originale verrà
-              conservato {destinazione === "simulatore" ? "con l’ipotesi" : "nella commessa"}.
+              {destinazione === "simulatore"
+                ? t("Ho verificato scenario, importi al netto dell'IVA e voci già presenti. Le {n} voci ancora da correggere entrano come «Da stimare» e bloccano l'approvazione. Il file originale verrà conservato con l’ipotesi.", { n: mancanti })
+                : t("Ho verificato scenario, importi al netto dell'IVA e voci già presenti. Le {n} voci ancora da correggere entrano come «Da stimare» e bloccano l'approvazione. Il file originale verrà conservato nella commessa.", { n: mancanti })}
             </span>
           </label>
         </>
       )}
       <div className="flex justify-end gap-2 border-t pt-3">
         <Button variant="outline" disabled={occupato} onClick={onAnnulla}>
-          Annulla
+          {t("Annulla")}
         </Button>
         <Button
           disabled={
@@ -370,12 +374,12 @@ export function ImportaBusinessPlan({
             )
           }
         >
-          {occupato && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{destinazione === "simulatore" ? `Usa ${daImportare.length} voci nell’ipotesi` : `Aggiungi ${daImportare.length} voci alla bozza`}
+          {occupato && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{destinazione === "simulatore" ? t("Usa {n} voci nell’ipotesi", { n: daImportare.length }) : t("Aggiungi {n} voci alla bozza", { n: daImportare.length })}
         </Button>
       </div>
       {valide.length > 300 && (
         <p role="alert" className="text-xs text-destructive">
-          Seleziona al massimo 300 voci per importazione.
+          {t("Seleziona al massimo 300 voci per importazione.")}
         </p>
       )}
     </div>

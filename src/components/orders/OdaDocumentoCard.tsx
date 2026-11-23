@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { ACCEPT_DOCUMENTI_DDT, erroreDocumento } from "@/lib/ddt/preparaDocumento";
 import { BUCKET_DOCUMENTO_ODA as BUCKET, caricaDocumentoOda, eliminaDocumentoOda, registraDocumentoOda } from "@/lib/orders/documentoOda";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   odaId: string;
@@ -38,6 +39,8 @@ export function OdaDocumentoCard({
   riferimentoLabel,
   onChange,
 }: Props) {
+  const t = useT();
+  const nomeDoc = t(label);
   const inputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
@@ -53,11 +56,11 @@ export function OdaDocumentoCard({
         .createSignedUrl(attachmentUrl, 3600);
       if (error || !data?.signedUrl)
         throw new Error(
-          error?.message || "Collegamento al documento non disponibile",
+          error?.message || t("Collegamento al documento non disponibile"),
         );
       window.open(data.signedUrl, "_blank", "noopener,noreferrer");
     } catch (e) {
-      toast.error("Documento non apribile", {
+      toast.error(t("Documento non apribile"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -70,7 +73,7 @@ export function OdaDocumentoCard({
     if (inputRef.current) inputRef.current.value = "";
     const problema = erroreDocumento(file);
     if (problema) {
-      toast.error(problema);
+      toast.error(t(problema));
       return;
     }
     if (!commessaId || !user?.id) return;
@@ -83,11 +86,11 @@ export function OdaDocumentoCard({
       if (errRiga) throw new Error(errRiga);
       await onChange(caricato);
       caricato = null;
-      toast.success(`${label} caricato`);
+      toast.success(t("{nome} caricato", { nome: nomeDoc }));
     } catch (e) {
       // Se il riferimento non è salvato, si toglie soltanto il nuovo upload.
       if (caricato) await eliminaDocumentoOda(caricato);
-      toast.error("Caricamento non riuscito", {
+      toast.error(t("Caricamento non riuscito"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -105,11 +108,11 @@ export function OdaDocumentoCard({
       await onChange(null);
       const errore = await eliminaDocumentoOda(attachmentUrl);
       if (errore)
-        toast.error("Riferimento rimosso; eliminazione del file non riuscita", {
+        toast.error(t("Riferimento rimosso; eliminazione del file non riuscita"), {
           description: errore,
         });
     } catch (e) {
-      toast.error("Il documento non è stato rimosso", {
+      toast.error(t("Il documento non è stato rimosso"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -118,11 +121,11 @@ export function OdaDocumentoCard({
   };
 
   return (
-    <QuoteCard title={label} icon={<FileText className="h-4 w-4" />}>
+    <QuoteCard title={nomeDoc} icon={<FileText className="h-4 w-4" />}>
       <div className="space-y-2">
         {riferimento && riferimentoLabel && (
           <div className="flex justify-between text-sm">
-            <span className="text-slate-500">{riferimentoLabel}</span>
+            <span className="text-slate-500">{t(riferimentoLabel)}</span>
             <span className="font-medium text-slate-900 font-mono text-xs">
               {riferimento}
             </span>
@@ -134,7 +137,7 @@ export function OdaDocumentoCard({
               type="button"
               onClick={apri}
               disabled={busy}
-              aria-label={`Apri ${label.toLowerCase()}`}
+              aria-label={t("Apri {nome}", { nome: nomeDoc.toLowerCase() })}
               className="flex-1 min-w-0 flex items-center gap-1.5 rounded-md bg-slate-50 hover:bg-slate-100 px-2.5 py-2 text-xs text-left transition-colors"
             >
               <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -142,7 +145,7 @@ export function OdaDocumentoCard({
               <ExternalLink className="h-3 w-3 shrink-0 text-slate-400" />
             </button>
             <Button
-              aria-label={`Rimuovi ${label.toLowerCase()}`}
+              aria-label={t("Rimuovi {nome}", { nome: nomeDoc.toLowerCase() })}
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0"
@@ -160,11 +163,7 @@ export function OdaDocumentoCard({
         ) : (
           <>
             <p className="text-xs text-slate-500">
-              Allega la conferma originale ricevuta dal fornitore, con prezzi e
-              condizioni. Il file resta collegato a questo ordine. Il
-              caricamento non aggiorna automaticamente i prezzi: verifica e
-              riporta gli importi concordati nelle righe prima di confermare
-              l’ordine.
+              {t("Allega la conferma originale ricevuta dal fornitore, con prezzi e condizioni. Il file resta collegato a questo ordine. Il caricamento non aggiorna automaticamente i prezzi: verifica e riporta gli importi concordati nelle righe prima di confermare l’ordine.")}
             </p>
             <Button
               variant="outline"
@@ -178,7 +177,7 @@ export function OdaDocumentoCard({
               ) : (
                 <Upload className="h-3.5 w-3.5 mr-1.5" />
               )}
-              Carica {label.toLowerCase()}
+              {t("Carica {nome}", { nome: nomeDoc.toLowerCase() })}
             </Button>
           </>
         )}

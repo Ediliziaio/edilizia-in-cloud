@@ -16,25 +16,28 @@ import { useEliminaGaranzia, useSalvaGaranzia, type GaranziaDaSalvare } from "@/
 import { TIPI_GARANZIA, giorniTra, messaggioContratto, oggiIso, type Garanzia, type TipoGaranzia } from "@/lib/orders/generali/contratto";
 import { Campo, CampoNumero } from "./campi";
 import { dataIt, euro, haNumeriSbagliati } from "./formato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function StatoGaranzia({ g, oggi }: { g: Garanzia; oggi: string }) {
-  if (g.svincolataIl) return <Badge variant="secondary" className="font-normal">Svincolata il {dataIt(g.svincolataIl)}</Badge>;
-  if (!g.scadenza) return <Badge variant="outline" className="font-normal">Senza scadenza</Badge>;
+  const t = useT();
+  if (g.svincolataIl) return <Badge variant="secondary" className="font-normal">{t("Svincolata il {data}", { data: dataIt(g.svincolataIl) })}</Badge>;
+  if (!g.scadenza) return <Badge variant="outline" className="font-normal">{t("Senza scadenza")}</Badge>;
   const mancano = giorniTra(oggi, g.scadenza);
-  if (mancano < 0) return <Badge variant="destructive" className="font-normal">Scaduta il {dataIt(g.scadenza)}</Badge>;
-  if (mancano <= 30) return <Badge className="bg-amber-500 font-normal text-white hover:bg-amber-500">Scade il {dataIt(g.scadenza)}</Badge>;
-  return <Badge variant="outline" className="font-normal">Scade il {dataIt(g.scadenza)}</Badge>;
+  if (mancano < 0) return <Badge variant="destructive" className="font-normal">{t("Scaduta il {data}", { data: dataIt(g.scadenza) })}</Badge>;
+  if (mancano <= 30) return <Badge className="bg-amber-500 font-normal text-white hover:bg-amber-500">{t("Scade il {data}", { data: dataIt(g.scadenza) })}</Badge>;
+  return <Badge variant="outline" className="font-normal">{t("Scade il {data}", { data: dataIt(g.scadenza) })}</Badge>;
 }
 
 export function Garanzie({ generaleId, garanzie, puoModificare }: { generaleId: string; garanzie: Garanzia[]; puoModificare: boolean }) {
+  const t = useT();
   const [inModifica, setInModifica] = useState<Garanzia | "nuova" | null>(null);
   const elimina = useEliminaGaranzia(generaleId);
   const confirm = useConfirm();
   const oggi = oggiIso();
   const togli = async (g: Garanzia) => {
-    if (!(await confirm({ title: `Togliere ${TIPI_GARANZIA[g.tipo].toLowerCase()}?`, description: "Se è stata restituita, segna invece la data di svincolo. Il documento resta nell'archivio.", confirmLabel: "Togli", variant: "destructive" }))) return;
+    if (!(await confirm({ title: t("Togliere {nome}?", { nome: t(TIPI_GARANZIA[g.tipo]).toLowerCase() }), description: t("Se è stata restituita, segna invece la data di svincolo. Il documento resta nell'archivio."), confirmLabel: t("Togli"), variant: "destructive" }))) return;
     elimina.mutate(g.id, {
-      onSuccess: () => toast.success("Garanzia tolta"),
+      onSuccess: () => toast.success(t("Garanzia tolta")),
       onError: (e) => toast.error(messaggioContratto(e, "la garanzia")),
     });
   };
@@ -42,21 +45,21 @@ export function Garanzie({ generaleId, garanzie, puoModificare }: { generaleId: 
   return (
     <section aria-labelledby="garanzie-titolo" className="rounded-lg border bg-card">
       <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
-        <h3 id="garanzie-titolo" className="text-sm font-semibold">Garanzie date al committente</h3>
+        <h3 id="garanzie-titolo" className="text-sm font-semibold">{t("Garanzie date al committente")}</h3>
         {puoModificare && (
-          <Button size="sm" variant="outline" onClick={() => setInModifica("nuova")}><Plus className="mr-1.5 h-3.5 w-3.5" /> Aggiungi</Button>
+          <Button size="sm" variant="outline" onClick={() => setInModifica("nuova")}><Plus className="mr-1.5 h-3.5 w-3.5" /> {t("Aggiungi")}</Button>
         )}
       </header>
       {garanzie.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-muted-foreground">Aggiungi la cauzione definitiva e le polizze: ti avvisiamo prima che scadano.</p>
+        <p className="px-4 py-4 text-sm text-muted-foreground">{t("Aggiungi la cauzione definitiva e le polizze: ti avvisiamo prima che scadano.")}</p>
       ) : (
         <ul className="divide-y">
           {garanzie.map((g) => (
             <li key={g.id} className="flex items-start gap-3 px-4 py-2.5 text-sm">
               <div className="min-w-0 flex-1">
-                <p className="font-medium">{TIPI_GARANZIA[g.tipo]}</p>
+                <p className="font-medium">{t(TIPI_GARANZIA[g.tipo])}</p>
                 <p className="text-xs text-muted-foreground">
-                  {[g.garante, g.numero && `n. ${g.numero}`, g.dataEmissione && `emessa il ${dataIt(g.dataEmissione)}`].filter(Boolean).join(" · ") || "Garante non indicato"}
+                  {[g.garante, g.numero && `n. ${g.numero}`, g.dataEmissione && t("emessa il {data}", { data: dataIt(g.dataEmissione) })].filter(Boolean).join(" · ") || t("Garante non indicato")}
                 </p>
                 {g.allegato && (
                   <button type="button" onClick={() => void openAttachmentInTab(g.allegato!.percorso)} className="mt-0.5 inline-flex items-center gap-1 text-xs text-primary hover:underline">
@@ -70,8 +73,8 @@ export function Garanzie({ generaleId, garanzie, puoModificare }: { generaleId: 
               </div>
               {puoModificare && (
                 <div className="flex shrink-0 gap-1">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Modifica ${TIPI_GARANZIA[g.tipo]}`} onClick={() => setInModifica(g)}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" aria-label={`Togli ${TIPI_GARANZIA[g.tipo]}`} onClick={() => void togli(g)} disabled={elimina.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={t("Modifica {nome}", { nome: t(TIPI_GARANZIA[g.tipo]) })} onClick={() => setInModifica(g)}><Pencil className="h-3.5 w-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" aria-label={t("Togli {nome}", { nome: t(TIPI_GARANZIA[g.tipo]) })} onClick={() => void togli(g)} disabled={elimina.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               )}
             </li>
@@ -90,6 +93,7 @@ export function Garanzie({ generaleId, garanzie, puoModificare }: { generaleId: 
 }
 
 function ModuloGaranzia({ generaleId, garanzia, chiudi }: { generaleId: string; garanzia: Garanzia | null; chiudi: () => void }) {
+  const tr = useT();
   const salva = useSalvaGaranzia(generaleId);
   const [g, setG] = useState<GaranziaDaSalvare>(() => garanzia
     ? { id: garanzia.id, tipo: garanzia.tipo, garante: garanzia.garante, numero: garanzia.numero, importo: garanzia.importo, dataEmissione: garanzia.dataEmissione, scadenza: garanzia.scadenza, svincolataIl: garanzia.svincolataIl, note: garanzia.note }
@@ -101,7 +105,7 @@ function ModuloGaranzia({ generaleId, garanzia, chiudi }: { generaleId: string; 
   const conferma = () => {
     if (!puoSalvare) return;
     salva.mutate({ ...g, file }, {
-      onSuccess: () => { toast.success(garanzia ? "Garanzia aggiornata" : "Garanzia aggiunta"); chiudi(); },
+      onSuccess: () => { toast.success(garanzia ? tr("Garanzia aggiornata") : tr("Garanzia aggiunta")); chiudi(); },
       onError: (e) => toast.error(messaggioContratto(e, "la garanzia")),
     });
   };
@@ -109,38 +113,38 @@ function ModuloGaranzia({ generaleId, garanzia, chiudi }: { generaleId: string; 
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{garanzia ? "Modifica la garanzia" : "Nuova garanzia"}</DialogTitle>
-        <DialogDescription>Con la scadenza ti avvisiamo in Panoramica 60 giorni prima.</DialogDescription>
+        <DialogTitle>{garanzia ? tr("Modifica la garanzia") : tr("Nuova garanzia")}</DialogTitle>
+        <DialogDescription>{tr("Con la scadenza ti avvisiamo in Panoramica 60 giorni prima.")}</DialogDescription>
       </DialogHeader>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); conferma(); }}>
-        <Campo etichetta="Tipo">
+        <Campo etichetta={tr("Tipo")}>
           {(id) => (
             <Select value={g.tipo} onValueChange={(v) => setG((x) => ({ ...x, tipo: v as TipoGaranzia }))}>
               <SelectTrigger id={id}><SelectValue /></SelectTrigger>
               <SelectContent>
-                {(Object.keys(TIPI_GARANZIA) as TipoGaranzia[]).map((t) => <SelectItem key={t} value={t}>{TIPI_GARANZIA[t]}</SelectItem>)}
+                {(Object.keys(TIPI_GARANZIA) as TipoGaranzia[]).map((t) => <SelectItem key={t} value={t}>{tr(TIPI_GARANZIA[t])}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
         </Campo>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Campo etichetta="Banca o assicurazione">{(id) => <Input id={id} value={g.garante ?? ""} onChange={(e) => setG((x) => ({ ...x, garante: e.target.value.trim() ? e.target.value : null }))} />}</Campo>
-          <Campo etichetta="Numero della polizza">{(id) => <Input id={id} value={g.numero ?? ""} onChange={(e) => setG((x) => ({ ...x, numero: e.target.value.trim() || null }))} />}</Campo>
-          <CampoNumero etichetta="Importo garantito" valore={g.importo} onChange={(v) => setG((x) => ({ ...x, importo: v }))} suffisso="€" />
-          <Campo etichetta="Emessa il">{(id) => <Input id={id} type="date" value={g.dataEmissione ?? ""} onChange={(e) => setG((x) => ({ ...x, dataEmissione: data(e.target.value) }))} />}</Campo>
-          <Campo etichetta="Scade il">{(id) => <Input id={id} type="date" value={g.scadenza ?? ""} onChange={(e) => setG((x) => ({ ...x, scadenza: data(e.target.value) }))} />}</Campo>
-          <Campo etichetta="Svincolata il" aiuto="Quando il committente la restituisce.">
+          <Campo etichetta={tr("Banca o assicurazione")}>{(id) => <Input id={id} value={g.garante ?? ""} onChange={(e) => setG((x) => ({ ...x, garante: e.target.value.trim() ? e.target.value : null }))} />}</Campo>
+          <Campo etichetta={tr("Numero della polizza")}>{(id) => <Input id={id} value={g.numero ?? ""} onChange={(e) => setG((x) => ({ ...x, numero: e.target.value.trim() || null }))} />}</Campo>
+          <CampoNumero etichetta={tr("Importo garantito")} valore={g.importo} onChange={(v) => setG((x) => ({ ...x, importo: v }))} suffisso="€" />
+          <Campo etichetta={tr("Emessa il")}>{(id) => <Input id={id} type="date" value={g.dataEmissione ?? ""} onChange={(e) => setG((x) => ({ ...x, dataEmissione: data(e.target.value) }))} />}</Campo>
+          <Campo etichetta={tr("Scade il")}>{(id) => <Input id={id} type="date" value={g.scadenza ?? ""} onChange={(e) => setG((x) => ({ ...x, scadenza: data(e.target.value) }))} />}</Campo>
+          <Campo etichetta={tr("Svincolata il")} aiuto={tr("Quando il committente la restituisce.")}>
             {(id) => <Input id={id} type="date" value={g.svincolataIl ?? ""} onChange={(e) => setG((x) => ({ ...x, svincolataIl: data(e.target.value) }))} />}
           </Campo>
         </div>
-        <Campo etichetta={garanzia?.allegato ? `Documento (ora: ${garanzia.allegato.nome})` : "Documento"} aiuto="Va nell'archivio della commessa generale.">
+        <Campo etichetta={garanzia?.allegato ? tr("Documento (ora: {nome})", { nome: garanzia.allegato.nome }) : tr("Documento")} aiuto={tr("Va nell'archivio della commessa generale.")}>
           {(id) => <Input id={id} type="file" accept="application/pdf,image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />}
         </Campo>
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button type="button" variant="ghost" onClick={chiudi}>Annulla</Button>
+          <Button type="button" variant="ghost" onClick={chiudi}>{tr("Annulla")}</Button>
           <Button type="submit" disabled={!puoSalvare}>
             {salva.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Salva
+            {tr("Salva")}
           </Button>
         </DialogFooter>
       </form>

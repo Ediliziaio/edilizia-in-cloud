@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { AlertTriangle, CalendarRange, Check, ChevronDown, ChevronRight, Download, FileSignature, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
@@ -46,6 +45,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { costoSforato, fontePrevistoTesto } from "./EconomiaFaseRiga";
 import { OfficeSelect } from "./OfficeSelect";
+import { useT, dateFnsCampo, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface CommessaCronoprogramma {
   quote_id?: string | null;
@@ -61,9 +61,13 @@ export interface CommessaCronoprogramma {
   indirizzo_lavori?: string | null;
 }
 
-const breve = (d: string) => planningDay(d) ? format(parseISO(d), "dd/MM", { locale: it }) : "Da verificare";
-const lunga = (d: string) => planningDay(d) ? format(parseISO(d), "dd/MM/yyyy", { locale: it }) : "Da verificare";
-const giorni = (n: number) => (n === 1 ? "1 giorno" : `${n} giorni`);
+type Traduttore = ReturnType<typeof useT>;
+/** Date brevi e lunghe e «N giorni» nella lingua di chi guarda. */
+const formatiCrono = (tr: Traduttore) => ({
+  breve: (d: string) => planningDay(d) ? format(parseISO(d), "dd/MM", { locale: dateFnsCampo() }) : tr("Da verificare"),
+  lunga: (d: string) => planningDay(d) ? format(parseISO(d), "dd/MM/yyyy", { locale: dateFnsCampo() }) : tr("Da verificare"),
+  giorni: (n: number) => tr(n === 1 ? "{n} giorno" : "{n} giorni", { n }),
+});
 
 const ETICHETTA_STATO: Record<FaseCrono["stato"], string> = {
   da_iniziare: "Da iniziare",
@@ -92,43 +96,45 @@ function Dettaglio({
   vedeVenduto: boolean;
   vedeCosti: boolean;
 }) {
+  const tr = useT();
+  const { lunga, giorni } = formatiCrono(tr);
   const r = reale(fase, oggi);
   return (
     <div className="space-y-2 text-sm">
       <p className="break-words font-semibold">{fase.nome}</p>
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs [&_dd]:break-words">
-        <dt className="text-muted-foreground">Stato</dt>
-        <dd>{ETICHETTA_STATO[fase.stato]} · {fase.avanzamento}%</dd>
-        <dt className="text-muted-foreground">Previsto</dt>
-        <dd>{fase.dateIncoerenti ? "Date da verificare" : fase.previstoInizio && fase.previstoFine ? `dal ${lunga(fase.previstoInizio)} al ${lunga(fase.previstoFine)} (${giorni(giorniTra(fase.previstoInizio, fase.previstoFine) + 1)})` : fase.previstoInizio ? `Inizio ${lunga(fase.previstoInizio)} · fine da definire` : fase.previstoFine ? `Fine ${lunga(fase.previstoFine)} · inizio da definire` : "Da pianificare"}</dd>
-        <dt className="text-muted-foreground">Reale</dt>
+        <dt className="text-muted-foreground">{tr("Stato")}</dt>
+        <dd>{tr(ETICHETTA_STATO[fase.stato])} · {fase.avanzamento}%</dd>
+        <dt className="text-muted-foreground">{tr("Previsto")}</dt>
+        <dd>{fase.dateIncoerenti ? tr("Date da verificare") : fase.previstoInizio && fase.previstoFine ? tr("dal {da} al {a} ({durata})", { da: lunga(fase.previstoInizio), a: lunga(fase.previstoFine), durata: giorni(giorniTra(fase.previstoInizio, fase.previstoFine) + 1) }) : fase.previstoInizio ? tr("Inizio {data} · fine da definire", { data: lunga(fase.previstoInizio) }) : fase.previstoFine ? tr("Fine {data} · inizio da definire", { data: lunga(fase.previstoFine) }) : tr("Da pianificare")}</dd>
+        <dt className="text-muted-foreground">{tr("Reale")}</dt>
         <dd>
-          {fase.dateIncoerenti ? "Date da verificare" : fase.realeFine && !fase.realeInizio
-            ? `${fase.chiusuraRegistrata ? "Chiusura registrata" : "Ultimo rapportino"} ${lunga(fase.realeFine)} · inizio non rilevato`
+          {fase.dateIncoerenti ? tr("Date da verificare") : fase.realeFine && !fase.realeInizio
+            ? tr(fase.chiusuraRegistrata ? "Chiusura registrata {data} · inizio non rilevato" : "Ultimo rapportino {data} · inizio non rilevato", { data: lunga(fase.realeFine) })
             : r
             ? fase.realeFine
-              ? `dal ${lunga(r[0])} al ${lunga(fase.realeFine)}${!fase.chiusuraRegistrata ? " (ultimo rapportino, chiusura non datata)" : ""}`
-              : `dal ${lunga(r[0])}, ${fase.stato === "in_corso" ? "in corso" : "senza chiusura registrata"}`
-            : fase.stato === "da_iniziare" ? "Non ancora rilevato" : fase.stato === "completata" ? "Completata · data di chiusura non disponibile" : "Nessun rapportino sulla fase"}
+              ? tr(fase.chiusuraRegistrata ? "dal {da} al {a}" : "dal {da} al {a} (ultimo rapportino, chiusura non datata)", { da: lunga(r[0]), a: lunga(fase.realeFine) })
+              : tr(fase.stato === "in_corso" ? "dal {da}, in corso" : "dal {da}, senza chiusura registrata", { da: lunga(r[0]) })
+            : fase.stato === "da_iniziare" ? tr("Non ancora rilevato") : fase.stato === "completata" ? tr("Completata · data di chiusura non disponibile") : tr("Nessun rapportino sulla fase")}
         </dd>
         {(fase.ritardoInizio > 0 || fase.ritardoFine > 0) && <>
-          <dt className="text-muted-foreground">{fase.stato === "completata" ? "Scostamento storico" : "Ritardo"}</dt>
+          <dt className="text-muted-foreground">{fase.stato === "completata" ? tr("Scostamento storico") : tr("Ritardo")}</dt>
           <dd className={cn("font-medium", fase.stato === "completata" ? "text-amber-800" : "text-rose-700")}>
-            {[fase.ritardoInizio > 0 ? `inizio +${giorni(fase.ritardoInizio)}` : null, fase.ritardoFine > 0 ? `fine +${giorni(fase.ritardoFine)}` : null].filter(Boolean).join(" · ")}
+            {[fase.ritardoInizio > 0 ? tr("inizio +{durata}", { durata: giorni(fase.ritardoInizio) }) : null, fase.ritardoFine > 0 ? tr("fine +{durata}", { durata: giorni(fase.ritardoFine) }) : null].filter(Boolean).join(" · ")}
           </dd>
         </>}
         {fase.ore > 0 && <>
-          <dt className="text-muted-foreground">Ore</dt>
-          <dd>{fase.ore.toLocaleString("it-IT")} h dichiarate nei rapportini inviati/approvati</dd>
+          <dt className="text-muted-foreground">{tr("Ore")}</dt>
+          <dd>{tr("{ore} h dichiarate nei rapportini inviati/approvati", { ore: fase.ore.toLocaleString(intlCampo()) })}</dd>
         </>}
         {economia && vedeVenduto && <>
-          <dt className="text-muted-foreground">Venduto</dt>
+          <dt className="text-muted-foreground">{tr("Venduto")}</dt>
           <dd className="tabular-nums">{economia.fonteVenduto !== null ? formatCurrency(economia.venduto) : "—"}</dd>
         </>}
         {economia && vedeCosti && <>
-          <dt className="text-muted-foreground">Costo previsto</dt>
+          <dt className="text-muted-foreground">{tr("Costo previsto")}</dt>
           <dd className="tabular-nums">{formatCurrency(economia.costoPrevisto)}{fontePrevistoTesto(economia) && <span className="ml-1 text-xs text-muted-foreground">({fontePrevistoTesto(economia)})</span>}</dd>
-          <dt className="text-muted-foreground">Costo consuntivo</dt>
+          <dt className="text-muted-foreground">{tr("Costo consuntivo")}</dt>
           <dd className={cn("tabular-nums", costoSforato(economia) && "font-medium text-rose-700")}>
             {formatCurrency(economia.costoConsuntivo)}
             {costoSforato(economia) && ` (+${formatCurrency(economia.scostamento)})`}
@@ -210,6 +216,8 @@ function dentro(b: { left: number; width: number } | null): { left: number; widt
  * sotto) solo in «Previsto e reale». Una data fuori dal grafico non lo allarga.
  */
 function RigaSottofase({ s, numero, asse, segni, oggi, conReale }: { s: RigaSotto; numero: string; asse: Asse; segni: ReturnType<typeof tacche>; oggi: string; conReale: boolean }) {
+  const tr = useT();
+  const { lunga, giorni } = formatiCrono(tr);
   const stato: Stato = s.fatta ? "fatta" : s.realeInizio ? "in_corso" : "da_fare";
   const previsto = dentro(s.previstoInizio && s.previstoFine ? barra(s.previstoInizio, s.previstoFine, asse) : null);
   // Il lavoro vero: dal primo giorno alla fine (o a oggi, se è ancora aperta).
@@ -223,22 +231,22 @@ function RigaSottofase({ s, numero, asse, segni, oggi, conReale }: { s: RigaSott
     : null;
   const coda = gOltre > 0 ? dentro(barra(inizioReale && conReale && inizioReale > s.previstoFine! ? inizioReale : aggiungiGiorni(s.previstoFine!, 1), fineOltre!, asse)) : null;
   const principale = reale ?? previsto;
-  const esito = s.realeFine ? ` · finita il ${lunga(s.realeFine)}${s.scarto > 0 ? `, ${giorni(s.scarto)} dopo` : s.scarto < 0 ? `, ${giorni(-s.scarto)} prima` : ", in tempo"}` : "";
+  const esito = s.realeFine ? ` · ${s.scarto > 0 ? tr("finita il {data}, {durata} dopo", { data: lunga(s.realeFine), durata: giorni(s.scarto) }) : s.scarto < 0 ? tr("finita il {data}, {durata} prima", { data: lunga(s.realeFine), durata: giorni(-s.scarto) }) : tr("finita il {data}, in tempo", { data: lunga(s.realeFine) })}` : "";
   const quando = s.previstoInizio && s.previstoFine
-    ? `${lunga(s.previstoInizio)}${s.previstoFine !== s.previstoInizio ? ` → ${lunga(s.previstoFine)}` : ""}${s.giorni ? ` · ${giorni(s.giorni)} necessari` : ""}`
-    : "senza date";
-  const titolo = `${s.nome}: previsto ${quando}${s.realeInizio ? ` · lavorata dal ${lunga(s.realeInizio)}, ${giorni(s.giorniLavorati)} di lavoro` : ""}${s.fatta ? esito || " · fatta" : ""}${gOltre ? ` · +${giorni(gOltre)} oltre la fine prevista` : ""}${s.stimata ? " · stimata: date non salvate" : ""}${s.fuoriDallaFase ? " · fuori dalle date della fase" : ""}`;
+    ? `${lunga(s.previstoInizio)}${s.previstoFine !== s.previstoInizio ? ` → ${lunga(s.previstoFine)}` : ""}${s.giorni ? ` · ${tr("{durata} necessari", { durata: giorni(s.giorni) })}` : ""}`
+    : tr("senza date");
+  const titolo = `${tr("{nome}: previsto {quando}", { nome: s.nome, quando })}${s.realeInizio ? ` · ${tr("lavorata dal {data}, {durata} di lavoro", { data: lunga(s.realeInizio), durata: giorni(s.giorniLavorati) })}` : ""}${s.fatta ? esito || ` · ${tr("fatta")}` : ""}${gOltre ? ` · ${tr("+{durata} oltre la fine prevista", { durata: giorni(gOltre) })}` : ""}${s.stimata ? ` · ${tr("stimata: date non salvate")}` : ""}${s.fuoriDallaFase ? ` · ${tr("fuori dalle date della fase")}` : ""}`;
   return (
     <div data-testid={`sottofase-${s.id}`} className="flex border-b last:border-b-0">
       <div className="sticky left-0 z-10 flex w-28 shrink-0 sm:w-56 items-center gap-1.5 border-r bg-white py-0.5 pl-6 pr-2 text-[11px] max-md:pl-2">
         <span className="w-7 shrink-0 tabular-nums text-muted-foreground max-md:hidden">{numero}</span>
         <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", gOltre > 0 && !s.fatta ? "bg-red-600" : COLORE[stato].punto)} />
         <span className="min-w-0 flex-1 truncate text-slate-700" title={s.nome}>{s.nome}</span>
-        {s.fatta && <Check aria-label="fatta" className="h-3.5 w-3.5 shrink-0 text-emerald-600" />}
+        {s.fatta && <Check aria-label={tr("fatta")} className="h-3.5 w-3.5 shrink-0 text-emerald-600" />}
       </div>
       <div className="relative h-7 flex-1" title={titolo}>
         <Griglia asse={asse} segni={segni} oggi={oggi} />
-        {!principale && !coda && <span className="absolute left-2 top-1.5 text-[10px] italic text-muted-foreground">senza date{s.fatta ? " · fatta" : ""}</span>}
+        {!principale && !coda && <span className="absolute left-2 top-1.5 text-[10px] italic text-muted-foreground">{tr("senza date")}{s.fatta ? ` · ${tr("fatta")}` : ""}</span>}
         {principale && (
           <span
             data-testid={reale ? `sottofase-lavoro-${s.id}` : `sottofase-barra-${s.id}`}
@@ -301,6 +309,8 @@ export function CronoprogrammaCommessa({
   onOpenLavorazioni?: () => void;
   onOpenDate?: () => void;
 }) {
+  const tr = useT();
+  const { breve, lunga, giorni } = formatiCrono(tr);
   const { canViewOrderAmounts, canViewCosts } = usePermissions();
   const { phases, materials = [], allAssignments = [], isLoading, isError, refetch } = useOrderWorkPhases(orderId);
   const crono = useCronoprogramma(orderId, order.quote_id ?? null);
@@ -434,149 +444,149 @@ export function CronoprogrammaCommessa({
   if (isLoading || crono.isLoading) {
     return (
       <div className="flex items-center justify-center gap-2 rounded-lg border bg-white py-12 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin" />Preparo il cronoprogramma…
+        <Loader2 className="h-5 w-5 animate-spin" />{tr("Preparo il cronoprogramma…")}
       </div>
     );
   }
   if (isError || crono.isError) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-rose-200 bg-rose-50/40 py-10 text-center">
-        <p className="text-sm text-rose-700">Il cronoprogramma non si è caricato. Controlla la connessione e riprova.</p>
-        <Button variant="outline" size="sm" onClick={() => { void refetch(); void crono.refetch(); }}>Riprova</Button>
+        <p className="text-sm text-rose-700">{tr("Il cronoprogramma non si è caricato. Controlla la connessione e riprova.")}</p>
+        <Button variant="outline" size="sm" onClick={() => { void refetch(); void crono.refetch(); }}>{tr("Riprova")}</Button>
       </div>
     );
   }
   if (fasi.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-10 text-center">
-        <p className="max-w-md text-sm text-muted-foreground">Per vedere il cronoprogramma servono le fasi di lavoro con le loro date.</p>
-        {onOpenLavorazioni && <Button size="sm" variant="outline" onClick={onOpenLavorazioni}>Vai alle lavorazioni</Button>}
+        <p className="max-w-md text-sm text-muted-foreground">{tr("Per vedere il cronoprogramma servono le fasi di lavoro con le loro date.")}</p>
+        {onOpenLavorazioni && <Button size="sm" variant="outline" onClick={onOpenLavorazioni}>{tr("Vai alle lavorazioni")}</Button>}
       </div>
     );
   }
 
   return (
-    <section aria-label="Cronoprogramma della commessa" className="space-y-3 rounded-lg border bg-white p-3 sm:p-4">
+    <section aria-label={tr("Cronoprogramma della commessa")} className="space-y-3 rounded-lg border bg-white p-3 sm:p-4">
       {/* Riepilogo in una riga: contratto, lavori previsti, avanzamento, ritardi */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
         {contratto && !isMobile && <span className="inline-flex items-center gap-1.5">
           <FileSignature className="h-4 w-4 text-blue-800" aria-hidden="true" />
-          <span className="text-muted-foreground">{contratto.etichetta}</span>
+          <span className="text-muted-foreground">{tr(contratto.etichetta)}</span>
           <b className="font-semibold tabular-nums">{lunga(contratto.data)}</b>
         </span>}
         <span className="inline-flex items-center gap-1.5">
           <CalendarRange className="h-4 w-4 text-slate-500" aria-hidden="true" />
-          <span className="text-muted-foreground">Lavori previsti</span>
-          <b className="font-semibold tabular-nums">{lavoriDa && lavoriA ? `${lunga(lavoriDa)} → ${lunga(lavoriA)}` : "Da pianificare"}</b>
+          <span className="text-muted-foreground">{tr("Lavori previsti")}</span>
+          <b className="font-semibold tabular-nums">{lavoriDa && lavoriA ? `${lunga(lavoriDa)} → ${lunga(lavoriA)}` : tr("Da pianificare")}</b>
         </span>
         <span className="inline-flex min-w-[14rem] flex-1 items-center gap-2">
-          <span className="text-muted-foreground">Avanzamento</span>
+          <span className="text-muted-foreground">{tr("Avanzamento")}</span>
           <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
             <span className={cn("block h-full rounded-full", riepilogo.aperteInRitardo.length ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${avanzamento}%` }} />
           </span>
-          <b className="font-semibold tabular-nums" aria-label={`Avanzamento ${avanzamento}%`}>{avanzamento}%</b>
+          <b className="font-semibold tabular-nums" aria-label={tr("Avanzamento {perc}%", { perc: avanzamento })}>{avanzamento}%</b>
         </span>
         {sullaFine.length > 0 && (
           <span className="inline-flex items-center gap-1.5 font-medium text-rose-700">
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-            {`${sullaFine.length === 1 ? "1 fase in ritardo" : `${sullaFine.length} fasi in ritardo`}, fino a ${giorni(ritardoMassimo)}`}
+            {tr(sullaFine.length === 1 ? "{n} fase in ritardo, fino a {durata}" : "{n} fasi in ritardo, fino a {durata}", { n: sullaFine.length, durata: giorni(ritardoMassimo) })}
           </span>
         )}
         {sullInizio.length > 0 && (
           <span className="font-medium text-amber-700">
-            {sullInizio.length === 1 ? "1 fase con l'inizio in ritardo" : `${sullInizio.length} fasi con l'inizio in ritardo`}
+            {tr(sullInizio.length === 1 ? "{n} fase con l'inizio in ritardo" : "{n} fasi con l'inizio in ritardo", { n: sullInizio.length })}
           </span>
         )}
-        {riepilogo.tutteChiuse && <span className="font-medium text-emerald-700">Lavori completati · {riepilogo.completate}/{fasi.length} fasi</span>}
+        {riepilogo.tutteChiuse && <span className="font-medium text-emerald-700">{tr("Lavori completati · {fatte}/{totale} fasi", { fatte: riepilogo.completate, totale: fasi.length })}</span>}
         {!riepilogo.tutteChiuse && sullaFine.length === 0 && sullInizio.length === 0 && (
-          <span className="font-medium text-emerald-700">Nessun ritardo aperto rilevato</span>
+          <span className="font-medium text-emerald-700">{tr("Nessun ritardo aperto rilevato")}</span>
         )}
       </div>
 
       {(riepilogo.chiuseOltre.length > 0 || riepilogo.senzaFineReale.length > 0 || riepilogo.incoerenti.length > 0 || riepilogo.senzaPiano.length > 0) && !isMobile && <details className="rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 text-xs">
-        <summary className="cursor-pointer font-medium text-amber-900">Storico e dati da verificare · {[
-          riepilogo.chiuseOltre.length ? `${riepilogo.chiuseOltre.length} ${riepilogo.chiuseOltre.length === 1 ? "fase chiusa" : "fasi chiuse"} oltre la fine prevista` : null,
-          riepilogo.senzaFineReale.length ? `${riepilogo.senzaFineReale.length} chiusure senza data` : null,
-          riepilogo.senzaPiano.length ? `${riepilogo.senzaPiano.length} fasi da pianificare` : null,
-          riepilogo.incoerenti.length ? `${riepilogo.incoerenti.length} fasi con date incoerenti` : null,
+        <summary className="cursor-pointer font-medium text-amber-900">{tr("Storico e dati da verificare")} · {[
+          riepilogo.chiuseOltre.length ? tr(riepilogo.chiuseOltre.length === 1 ? "{n} fase chiusa oltre la fine prevista" : "{n} fasi chiuse oltre la fine prevista", { n: riepilogo.chiuseOltre.length }) : null,
+          riepilogo.senzaFineReale.length ? tr("{n} chiusure senza data", { n: riepilogo.senzaFineReale.length }) : null,
+          riepilogo.senzaPiano.length ? tr("{n} fasi da pianificare", { n: riepilogo.senzaPiano.length }) : null,
+          riepilogo.incoerenti.length ? tr("{n} fasi con date incoerenti", { n: riepilogo.incoerenti.length }) : null,
         ].filter(Boolean).join(" · ")}</summary>
-        <p className="mt-2 text-muted-foreground">Gli scostamenti delle fasi completate sono storici, non ritardi ancora aperti. Una data di chiusura non prova da sola la durata del lavoro. Verifica le date in Lavorazioni, senza ricostruirle automaticamente.</p>
-        {riepilogo.incoerenti.length > 0 && <p className="mt-1 text-amber-900">Date incoerenti: {riepilogo.incoerenti.map(f => f.nome).join(", ")}.</p>}
+        <p className="mt-2 text-muted-foreground">{tr("Gli scostamenti delle fasi completate sono storici, non ritardi ancora aperti. Una data di chiusura non prova da sola la durata del lavoro. Verifica le date in Lavorazioni, senza ricostruirle automaticamente.")}</p>
+        {riepilogo.incoerenti.length > 0 && <p className="mt-1 text-amber-900">{tr("Date incoerenti: {fasi}.", { fasi: riepilogo.incoerenti.map(f => f.nome).join(", ") })}</p>}
       </details>}
 
       {/* Da telefono solo il Gantt: PDF, scale e filtri sono da scrivania. */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3 max-md:hidden">
         {!isMobile && <div className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label="Periodo del grafico" className="flex rounded-md border p-0.5">
-            <Button size="sm" variant={periodo === "previsto" ? "secondary" : "ghost"} aria-pressed={periodo === "previsto"} onClick={() => setPeriodo("previsto")}>Periodo previsto</Button>
-            <Button size="sm" variant={periodo === "confronto" ? "secondary" : "ghost"} aria-pressed={periodo === "confronto"} onClick={() => setPeriodo("confronto")}>Previsto e reale</Button>
+          <div role="group" aria-label={tr("Periodo del grafico")} className="flex rounded-md border p-0.5">
+            <Button size="sm" variant={periodo === "previsto" ? "secondary" : "ghost"} aria-pressed={periodo === "previsto"} onClick={() => setPeriodo("previsto")}>{tr("Periodo previsto")}</Button>
+            <Button size="sm" variant={periodo === "confronto" ? "secondary" : "ghost"} aria-pressed={periodo === "confronto"} onClick={() => setPeriodo("confronto")}>{tr("Previsto e reale")}</Button>
           </div>
-          {vista === "grafico" && <label className="flex items-center gap-2 text-xs text-muted-foreground">Scala
+          {vista === "grafico" && <label className="flex items-center gap-2 text-xs text-muted-foreground">{tr("Scala")}
             <OfficeSelect
-              label="Scala del cronoprogramma"
+              label={tr("Scala del cronoprogramma")}
               value={scala}
               onValueChange={v => setScala(v as typeof scala)}
               className="inline-flex h-9 w-auto min-w-[11rem]"
               options={[
-                { value: "adatta", label: "Adatta al riquadro" },
-                { value: "mesi", label: "Mesi" },
-                { value: "settimane", label: "Settimane" },
+                { value: "adatta", label: tr("Adatta al riquadro") },
+                { value: "mesi", label: tr("Mesi") },
+                { value: "settimane", label: tr("Settimane") },
               ]}
             />
           </label>}
-          <Button size="sm" variant="outline" onClick={() => setVista(vista === "tabella" ? "grafico" : "tabella")}>{vista === "tabella" ? "Grafico" : "Tabella"}</Button>
+          <Button size="sm" variant="outline" onClick={() => setVista(vista === "tabella" ? "grafico" : "tabella")}>{vista === "tabella" ? tr("Grafico") : tr("Tabella")}</Button>
         </div>}
         <div className="flex flex-wrap gap-2">
           {!isMobile && vista === "grafico" && !riepilogo.tutteChiuse && oggi >= asse.da && oggi <= asse.a && <Button size="sm" variant="ghost" onClick={() => {
             const el = grafico.current;
             if (el) el.scrollLeft = Math.max(0, (giorniTra(asse.da, oggi) / asse.giorni) * (el.scrollWidth - COLONNA_PX) - (el.clientWidth - COLONNA_PX) / 2);
-          }}>Vai a oggi</Button>}
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="Responsabile, capocantiere, chi lavora in ogni fase e le ditte esterne">
-            <input type="checkbox" checked={conPersone} onChange={(e) => setConPersone(e.target.checked)} className="h-4 w-4 accent-orange-600" />con chi lavora
+          }}>{tr("Vai a oggi")}</Button>}
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title={tr("Responsabile, capocantiere, chi lavora in ogni fase e le ditte esterne")}>
+            <input type="checkbox" checked={conPersone} onChange={(e) => setConPersone(e.target.checked)} className="h-4 w-4 accent-orange-600" />{tr("con chi lavora")}
           </label>
           <Button size="sm" variant="outline" disabled={stampa === "in_corso"} onClick={scaricaPdf}
-            title={periodo === "previsto" ? "Il piano da dare al cliente: un colore per fase, senza stati né ritardi" : "Lo stato dei lavori: fatte, in corso, da fare e ritardi"}>
-            {stampa === "in_corso" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}{periodo === "previsto" ? "PDF previsionale" : "PDF avanzamento"}
+            title={periodo === "previsto" ? tr("Il piano da dare al cliente: un colore per fase, senza stati né ritardi") : tr("Lo stato dei lavori: fatte, in corso, da fare e ritardi")}>
+            {stampa === "in_corso" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}{periodo === "previsto" ? tr("PDF previsionale") : tr("PDF avanzamento")}
           </Button>
-          {onOpenDate && <Button size="sm" variant="outline" onClick={onOpenDate}><CalendarRange className="mr-1.5 h-4 w-4" aria-hidden="true" />Date della commessa</Button>}
-          {onOpenLavorazioni && <Button size="sm" variant="outline" onClick={onOpenLavorazioni}>Gestisci fasi e date</Button>}
+          {onOpenDate && <Button size="sm" variant="outline" onClick={onOpenDate}><CalendarRange className="mr-1.5 h-4 w-4" aria-hidden="true" />{tr("Date della commessa")}</Button>}
+          {onOpenLavorazioni && <Button size="sm" variant="outline" onClick={onOpenLavorazioni}>{tr("Gestisci fasi e date")}</Button>}
         </div>
       </div>
 
       {vista === "grafico" && <>
-      <p className="text-xs text-muted-foreground max-md:hidden">Periodo visualizzato: {lunga(asse.da)} → {lunga(asse.a)} · giorni di calendario</p>
+      <p className="text-xs text-muted-foreground max-md:hidden">{tr("Periodo visualizzato: {da} → {a} · giorni di calendario", { da: lunga(asse.da), a: lunga(asse.a) })}</p>
       {fuoriPeriodo.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-900">
-        <span>{fuoriPeriodo.length} fasi hanno date reali fuori dal periodo visualizzato. Le date restano disponibili nei dettagli.</span>
-        <Button size="sm" variant="outline" onClick={() => setPeriodo("confronto")}>Mostra tutto il confronto</Button>
+        <span>{tr("{n} fasi hanno date reali fuori dal periodo visualizzato. Le date restano disponibili nei dettagli.", { n: fuoriPeriodo.length })}</span>
+        <Button size="sm" variant="outline" onClick={() => setPeriodo("confronto")}>{tr("Mostra tutto il confronto")}</Button>
       </div>}
 
       {/* Il grafico scorre in orizzontale nel suo riquadro, non la pagina; i nomi delle fasi restano fermi */}
-      <div ref={grafico} role="region" aria-label="Grafico delle fasi, scorrimento orizzontale" tabIndex={0} className="overflow-x-auto rounded-md border max-md:overflow-x-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600">
+      <div ref={grafico} role="region" aria-label={tr("Grafico delle fasi, scorrimento orizzontale")} tabIndex={0} className="overflow-x-auto rounded-md border max-md:overflow-x-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600">
         <div style={{ minWidth: largo }}>
           {/* Asse: le tacche */}
           <div className="flex border-b bg-slate-50 text-[11px] text-slate-500">
-            <div className="sticky left-0 z-10 w-28 shrink-0 sm:w-56 border-r bg-slate-50 px-3 py-1.5 font-semibold uppercase tracking-wide">Fase</div>
+            <div className="sticky left-0 z-10 w-28 shrink-0 sm:w-56 border-r bg-slate-50 px-3 py-1.5 font-semibold uppercase tracking-wide">{tr("Fase")}</div>
             <div className="relative h-7 flex-1">
               {segni.map((t) => (
                 <span key={t.data} className="absolute top-1.5 -translate-x-1/2 whitespace-nowrap tabular-nums" style={{ left: `${t.left}%` }}>
-                  {t.mese ? format(parseISO(t.data), isMobile ? "MMM" : "MMM yy", { locale: it }) : breve(t.data)}
+                  {t.mese ? format(parseISO(t.data), isMobile ? "MMM" : "MMM yy", { locale: dateFnsCampo() }) : breve(t.data)}
                 </span>
               ))}
               {oggi >= asse.da && oggi <= asse.a && (() => { const o = barra(oggi, oggi, asse); return (
-                <span className="absolute top-0.5 -translate-x-1/2 rounded bg-orange-500 px-1 text-[10px] font-semibold text-white" style={{ left: `${o.left + o.width / 2}%` }}>oggi</span>
+                <span className="absolute top-0.5 -translate-x-1/2 rounded bg-orange-500 px-1 text-[10px] font-semibold text-white" style={{ left: `${o.left + o.width / 2}%` }}>{tr("oggi")}</span>
               ); })()}
             </div>
           </div>
 
           {/* Traguardi: contratto, inizio e fine lavori, consegna */}
           <div className="flex border-b max-md:hidden">
-            <div className="sticky left-0 z-10 w-28 shrink-0 sm:w-56 border-r bg-white px-3 py-2 text-xs font-medium text-slate-600">Traguardi</div>
+            <div className="sticky left-0 z-10 w-28 shrink-0 sm:w-56 border-r bg-white px-3 py-2 text-xs font-medium text-slate-600">{tr("Traguardi")}</div>
             <div className={cn("relative flex-1", etichetteTraguardi.some((x) => x.riga === 1) ? "h-12" : "h-10")}>
               <Griglia asse={asse} segni={segni} oggi={oggi} />
               {etichetteTraguardi.map(({ t, centro, riga, lato }) => (
                 <span
                   key={`${t.tipo}-${t.data}`}
-                  title={`${t.etichetta}: ${lunga(t.data)}`}
+                  title={`${tr(t.etichetta)}: ${lunga(t.data)}`}
                   className={cn("absolute top-1.5 flex flex-col", lato === "centro" ? "items-center" : lato === "sinistra" ? "items-start" : "items-end")}
                   style={{
                     left: `${centro}%`,
@@ -585,7 +595,7 @@ export function CronoprogrammaCommessa({
                   }}
                 >
                   <span aria-hidden="true" className={cn("h-2.5 w-2.5 rotate-45", t.tipo === "contratto" || t.tipo === "apertura" ? "bg-blue-800" : "bg-slate-500")} />
-                  <span className={cn("whitespace-nowrap text-[10px] text-slate-600", riga === 1 ? "mt-3" : "mt-0.5")}>{TRAGUARDO_BREVE[t.tipo]} {breve(t.data)}</span>
+                  <span className={cn("whitespace-nowrap text-[10px] text-slate-600", riga === 1 ? "mt-3" : "mt-0.5")}>{tr(TRAGUARDO_BREVE[t.tipo])} {breve(t.data)}</span>
                 </span>
               ))}
             </div>
@@ -611,7 +621,7 @@ export function CronoprogrammaCommessa({
             const sottofasiFase = sottofasiDi.get(f.id) ?? [];
             const aperte = sottofasiFase.length > 0 && sottofasiAperte(f);
             const numero = String(indice + 1);
-            const etichettaRitardo = rit ? `${rit.su === "inizio" ? "inizio " : ""}+${rit.giorni} gg` : null;
+            const etichettaRitardo = rit ? tr(rit.su === "inizio" ? "inizio +{n} gg" : "+{n} gg", { n: rit.giorni }) : null;
             const fineEtichetta = oltre && oltre.width > 0 ? oltre.left + oltre.width : pb ? pb.left + pb.width : null;
             return (
               <Fragment key={f.id}>
@@ -619,8 +629,8 @@ export function CronoprogrammaCommessa({
                 <div className="sticky left-0 z-10 flex w-28 shrink-0 sm:w-56 items-center border-r bg-white px-1.5 py-1">
                   {sottofasiFase.length > 0 ? (
                     <button type="button" onClick={() => apriChiudi(f)} aria-expanded={aperte}
-                      aria-label={`${aperte ? "Nascondi" : "Mostra"} le sottofasi di ${f.nome}`}
-                      title={`${sottofasiFase.length} sottofasi`}
+                      aria-label={tr(aperte ? "Nascondi le sottofasi di {nome}" : "Mostra le sottofasi di {nome}", { nome: f.nome })}
+                      title={tr("{n} sottofasi", { n: sottofasiFase.length })}
                       className="tap-compact flex h-6 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-slate-100">
                       {aperte ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                     </button>
@@ -630,7 +640,7 @@ export function CronoprogrammaCommessa({
                       <button
                         type="button"
                         className="tap-compact flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600"
-                        aria-label={`${f.nome}: ${ETICHETTA_STATO[f.stato]}, ${f.avanzamento}%${rit ? `, ${!aperta ? "scostamento storico" : rit.su === "fine" ? "in ritardo" : "inizio in ritardo"} di ${giorni(rit.giorni)}` : ""}`}
+                        aria-label={`${f.nome}: ${tr(ETICHETTA_STATO[f.stato])}, ${f.avanzamento}%${rit ? `, ${tr(!aperta ? "scostamento storico di {durata}" : rit.su === "fine" ? "in ritardo di {durata}" : "inizio in ritardo di {durata}", { durata: giorni(rit.giorni) })}` : ""}`}
                       >
                         <span className="w-4 shrink-0 text-[11px] tabular-nums text-muted-foreground max-md:hidden">{numero}</span>
                         <span aria-hidden="true" className={cn("h-2 w-2 shrink-0 rounded-full", rit && aperta && rit.su === "fine" ? "bg-red-600" : COLORE[stato].punto)} />
@@ -639,7 +649,7 @@ export function CronoprogrammaCommessa({
                       </button>
                     </PopoverTrigger>
                     <PopoverContent align="start" className="w-80">
-                      {canViewCosts && eco && costoSforato(eco) && <p className="mb-2 rounded bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700">costo +{formatCurrency(eco.scostamento)}</p>}
+                      {canViewCosts && eco && costoSforato(eco) && <p className="mb-2 rounded bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700">{tr("costo +{importo}", { importo: formatCurrency(eco.scostamento) })}</p>}
                       <Dettaglio fase={f} oggi={oggi} economia={eco} vedeVenduto={canViewOrderAmounts} vedeCosti={canViewCosts} />
                     </PopoverContent>
                   </Popover>
@@ -653,7 +663,7 @@ export function CronoprogrammaCommessa({
                     const principale = conReale ? entro : pb;
                     const testid = conReale ? `reale-${f.id}` : `previsto-${f.id}`;
                     const tinta = COLORE[stato].linea;
-                    const titolo = conReale ? `Reale: dal ${lunga(r![0])}${f.realeFine ? ` al ${lunga(f.realeFine)}` : ""}` : p ? `Previsto: ${lunga(p[0])} → ${lunga(p[1])} · ${f.avanzamento}%` : "Date da verificare"; // con date incoerenti p è null
+                    const titolo = conReale ? (f.realeFine ? tr("Reale: dal {da} al {a}", { da: lunga(r![0]), a: lunga(f.realeFine) }) : tr("Reale: dal {da}", { da: lunga(r![0]) })) : p ? tr("Previsto: {da} → {a} · {perc}%", { da: lunga(p[0]), a: lunga(p[1]), perc: f.avanzamento }) : tr("Date da verificare"); // con date incoerenti p è null
                     return <>
                       {principale && principale.width > 0 && (aperte ? (
                         // Fase aperta: una parentesi che abbraccia le sue sottofasi.
@@ -679,14 +689,14 @@ export function CronoprogrammaCommessa({
                       data-testid={`oltre-${f.id}`}
                       className={cn("absolute rounded-r", aperte ? "top-[22px] h-[3px]" : "top-2 h-4", aperta ? "bg-red-600" : "bg-red-400")}
                       style={{ left: `${oltre.left}%`, width: `${oltre.width}%` }}
-                      title={`Oltre la fine prevista: +${giorni(f.ritardoFine)}${aperta ? ", ancora aperta" : ""}`}
+                      title={tr(aperta ? "Oltre la fine prevista: +{durata}, ancora aperta" : "Oltre la fine prevista: +{durata}", { durata: giorni(f.ritardoFine) })}
                     />
                   )}
                   {etichettaRitardo && fineEtichetta != null && (
                     <span className={cn("absolute whitespace-nowrap pl-1.5 text-[11px] font-bold tabular-nums text-red-600 max-md:hidden", aperte ? "top-3" : "top-2")}
-                      style={{ left: `${Math.min(94, fineEtichetta)}%` }} title={!aperta ? "Scostamento storico" : "Ritardo aperto"}>{etichettaRitardo}</span>
+                      style={{ left: `${Math.min(94, fineEtichetta)}%` }} title={!aperta ? tr("Scostamento storico") : tr("Ritardo aperto")}>{etichettaRitardo}</span>
                   )}
-                  {f.realeFine && !f.realeInizio && <span data-testid={`chiusura-${f.id}`} title={`Chiusura registrata ${lunga(f.realeFine)} · inizio non rilevato`} className="absolute top-[22px] flex items-center gap-1 text-[10px] text-emerald-800" style={{ left: `${Math.min(98, barra(f.realeFine, f.realeFine, asse).left)}%`, transform: f.realeFine > asse.a ? "translateX(-100%)" : undefined }}>
+                  {f.realeFine && !f.realeInizio && <span data-testid={`chiusura-${f.id}`} title={tr("Chiusura registrata {data} · inizio non rilevato", { data: lunga(f.realeFine) })} className="absolute top-[22px] flex items-center gap-1 text-[10px] text-emerald-800" style={{ left: `${Math.min(98, barra(f.realeFine, f.realeFine, asse).left)}%`, transform: f.realeFine > asse.a ? "translateX(-100%)" : undefined }}>
                     <span aria-hidden="true" className="h-2 w-2 shrink-0 rotate-45 bg-emerald-700" />
                     {(f.realeFine < asse.da || f.realeFine > asse.a) && <span className="whitespace-nowrap">{f.realeFine > asse.a ? "→" : "←"} {lunga(f.realeFine)}</span>}
                   </span>}
@@ -703,13 +713,13 @@ export function CronoprogrammaCommessa({
 
       {/* Legenda: un colore, un significato */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground max-md:hidden">
-        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded border border-slate-400 bg-white" />Da fare</span>
-        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 overflow-hidden rounded border border-blue-600 bg-blue-100"><span className="block h-full w-1/2 bg-blue-600" /></span>In corso</span>
-        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded bg-emerald-500" />Fatta</span>
-        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded bg-red-600" />Ritardo (chiaro se già chiusa)</span>
-        {periodo === "confronto" && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-0.5 w-6 rounded-full bg-slate-400" />Previsto (la barra è il reale)</span>}
-        {[...sotto.values()].some(r => r.some(s => s.stimata)) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded border border-dashed border-slate-400 bg-white" />Stimata</span>}
-        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-0.5 bg-orange-500" />Oggi</span>
+        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded border border-slate-400 bg-white" />{tr("Da fare")}</span>
+        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 overflow-hidden rounded border border-blue-600 bg-blue-100"><span className="block h-full w-1/2 bg-blue-600" /></span>{tr("In corso")}</span>
+        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded bg-emerald-500" />{tr("Fatta")}</span>
+        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded bg-red-600" />{tr("Ritardo (chiaro se già chiusa)")}</span>
+        {periodo === "confronto" && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-0.5 w-6 rounded-full bg-slate-400" />{tr("Previsto (la barra è il reale)")}</span>}
+        {[...sotto.values()].some(r => r.some(s => s.stimata)) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-6 rounded border border-dashed border-slate-400 bg-white" />{tr("Stimata")}</span>}
+        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-0.5 bg-orange-500" />{tr("Oggi")}</span>
       </div>
       </>}
 
@@ -721,14 +731,14 @@ export function CronoprogrammaCommessa({
           const a = document.createElement("a"); a.href = url; a.download = "cronoprogramma.xlsx"; a.click();
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         }} />}
-      <details className="rounded-md border px-3 py-2 text-xs max-md:hidden"><summary className="cursor-pointer text-muted-foreground">Traguardi della commessa ({traguardi.length})</summary><dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2">{traguardi.map(t => <div key={`${t.tipo}-${t.data}`} className="contents"><dt>{t.etichetta}</dt><dd className="tabular-nums">{lunga(t.data)}</dd></div>)}</dl></details>
+      <details className="rounded-md border px-3 py-2 text-xs max-md:hidden"><summary className="cursor-pointer text-muted-foreground">{tr("Traguardi della commessa ({n})", { n: traguardi.length })}</summary><dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2">{traguardi.map(t => <div key={`${t.tipo}-${t.data}`} className="contents"><dt>{tr(t.etichetta)}</dt><dd className="tabular-nums">{lunga(t.data)}</dd></div>)}</dl></details>
 
       {senzaDate.length > 0 && (
         <p className="flex flex-wrap items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
           <span>
-            Senza date previste: <b className="font-semibold">{senzaDate.map((f) => f.nome).join(", ")}</b>. Aggiungile in Lavorazioni per vederle qui.
+            {tr("Senza date previste:")} <b className="font-semibold">{senzaDate.map((f) => f.nome).join(", ")}</b>. {tr("Aggiungile in Lavorazioni per vederle qui.")}
           </span>
-          {onOpenLavorazioni && <Button size="sm" variant="outline" className="h-7" onClick={onOpenLavorazioni}>Vai alle lavorazioni</Button>}
+          {onOpenLavorazioni && <Button size="sm" variant="outline" className="h-7" onClick={onOpenLavorazioni}>{tr("Vai alle lavorazioni")}</Button>}
         </p>
       )}
     </section>

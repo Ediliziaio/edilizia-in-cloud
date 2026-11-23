@@ -6,6 +6,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Mancanze {
   persone: { employee_id: string | null; nome: string; ore: number; rapportini: number; motivo: string }[];
@@ -14,6 +15,7 @@ interface Mancanze {
 }
 
 export function CostiDaCompletareCommessa({ orderId }: { orderId: string }) {
+  const t = useT();
   const { data } = useQuery({
     queryKey: ["commessa-costi-da-completare", orderId],
     enabled: !!orderId,
@@ -28,16 +30,16 @@ export function CostiDaCompletareCommessa({ orderId }: { orderId: string }) {
   });
   if (!data || data.completo) return null;
   const voci = [
-    ...data.persone.map((p) => `${p.nome} (${p.motivo}, ${p.ore.toLocaleString("it-IT", { maximumFractionDigits: 1 })} h)`),
-    ...data.mezzi.map((m) => `${m.nome} (mezzo senza costo orario)`),
+    ...data.persone.map((p) => `${p.nome} (${p.motivo}, ${p.ore.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })} h)`),
+    ...data.mezzi.map((m) => t("{nome} (mezzo senza costo orario)", { nome: m.nome })),
   ];
   return (
-    <div role="status" aria-label="Costi da completare" className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+    <div role="status" aria-label={t("Costi da completare")} className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       <p>
-        <strong>Costo da completare</strong> per {voci.length === 1 ? "una voce" : `${voci.length} voci`}: {voci.join(", ")}.
-        {" "}Finché manca il costo orario, manodopera e mezzi della commessa sono parziali e la marginalità è incompleta.
-        {data.persone.some((p) => p.employee_id) ? " Il costo si completa nella scheda del dipendente." : ""}
+        <strong>{t("Costo da completare")}</strong> {t(voci.length === 1 ? "per una voce: {voci}." : "per {n} voci: {voci}.", { n: voci.length, voci: voci.join(", ") })}
+        {" "}{t("Finché manca il costo orario, manodopera e mezzi della commessa sono parziali e la marginalità è incompleta.")}
+        {data.persone.some((p) => p.employee_id) ? ` ${t("Il costo si completa nella scheda del dipendente.")}` : ""}
       </p>
     </div>
   );

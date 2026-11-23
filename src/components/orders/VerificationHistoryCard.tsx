@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { VerificationResultCard, type VerificationData, type Discrepancy } from "./VerificationResultCard";
 import type { JSX } from "react";
 
@@ -71,6 +71,7 @@ const RESULT_LABELS: Record<string, string> = {
 // ── Component ─────────────────────────────────────────────────────────────
 
 export function VerificationHistoryCard({ purchaseOrderId }: VerificationHistoryCardProps): JSX.Element {
+  const t = useT();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const { data: verifications = [], isLoading } = useQuery({
@@ -115,13 +116,13 @@ export function VerificationHistoryCard({ purchaseOrderId }: VerificationHistory
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <ShieldCheck className="h-4 w-4 shrink-0" />
-          Storico Verifiche AI
+          {t("Storico Verifiche AI")}
           <Badge variant="outline">{verifications.length}</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
         {isLoading && (
-          <p className="text-sm text-muted-foreground text-center py-3">Caricamento...</p>
+          <p className="text-sm text-muted-foreground text-center py-3">{t("Caricamento...")}</p>
         )}
         {verifications.map((v) => {
           const isExpanded = expandedId === v.id;
@@ -145,7 +146,7 @@ export function VerificationHistoryCard({ purchaseOrderId }: VerificationHistory
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">
-                        {RESULT_LABELS[v.result || ""] || v.status}
+                        {RESULT_LABELS[v.result || ""] ? t(RESULT_LABELS[v.result || ""]) : v.status}
                       </span>
                       {v.confidence_score != null && (
                         <span className="text-xs text-muted-foreground">
@@ -154,13 +155,13 @@ export function VerificationHistoryCard({ purchaseOrderId }: VerificationHistory
                       )}
                       {allResolved && (
                         <Badge className="text-xs bg-emerald-100 text-emerald-700 border-0">
-                          Tutto risolto
+                          {t("Tutto risolto")}
                         </Badge>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {format(parseISO(v.created_at), "dd MMM yyyy HH:mm", { locale: it })}
-                      {v.items_mismatched ? ` · ${v.items_mismatched} discrepanz${v.items_mismatched === 1 ? "a" : "e"}` : ""}
+                      {format(parseISO(v.created_at), "dd MMM yyyy HH:mm", { locale: dateFnsCampo() })}
+                      {v.items_mismatched ? ` · ${t(v.items_mismatched === 1 ? "{n} discrepanza" : "{n} discrepanze", { n: v.items_mismatched })}` : ""}
                     </p>
                   </div>
                 </div>

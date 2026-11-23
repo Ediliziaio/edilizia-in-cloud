@@ -40,6 +40,7 @@ import { valoriArticoloAcquisto } from "@/lib/orders/articoloAcquisto";
 import { leggiDocumentoOda, propostaDaLettura } from "@/lib/orders/letturaOdaDocumento";
 import { ACCEPT_DOCUMENTI_DDT, erroreDocumento } from "@/lib/ddt/preparaDocumento";
 import { caricaDocumentoOda, eliminaDocumentoOda, registraDocumentoOda } from "@/lib/orders/documentoOda";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -53,6 +54,7 @@ interface Props {
 const numeroTesto = (v: number) => (Number.isFinite(v) ? String(v).replace(".", ",") : "");
 
 export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode, items }: Props) {
+  const tr = useT();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { user, effectiveCompany } = useAuth();
@@ -175,7 +177,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
     if (inputDocumento.current) inputDocumento.current.value = "";
     if (!file) return;
     const problema = erroreDocumento(file);
-    if (problema) { toast.error("Documento non caricato", { description: problema }); return; }
+    if (problema) { toast.error(tr("Documento non caricato"), { description: problema }); return; }
     setDocumento(file);
     void leggi(file);
   };
@@ -193,7 +195,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
       if (documento) {
         // Un file che non sale non ferma l'ordine: si dice, e si allega poi dalla pagina dell'ordine.
         try { caricato = await caricaDocumentoOda(orderId, documento); }
-        catch (e) { toast.warning("Il documento non è stato caricato: l'ordine nasce senza allegato", { description: e instanceof Error ? e.message : String(e) }); }
+        catch (e) { toast.warning(tr("Il documento non è stato caricato: l'ordine nasce senza allegato"), { description: e instanceof Error ? e.message : String(e) }); }
       }
       const datiFornitore = suppliers.find(s => s.id === fornitore);
       const condizioni = condizioniPagamentoFornitore(datiFornitore || {});
@@ -222,20 +224,20 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
         .insert(righePerDatabase(righe, companyId, nuovo.id) as never);
       if (errRighe) {
         // Mai cancellare un ordine forse salvato: si apre e si controlla.
-        toast.error("Ordine creato, ma le righe non sono confermate", {
-          description: "Apri la bozza e controlla le righe prima di inviarla.",
-          action: { label: "Apri", onClick: () => navigate(`/azienda/ordini-acquisto/${nuovo.id}`) },
+        toast.error(tr("Ordine creato, ma le righe non sono confermate"), {
+          description: tr("Apri la bozza e controlla le righe prima di inviarla."),
+          action: { label: tr("Apri"), onClick: () => navigate(`/azienda/ordini-acquisto/${nuovo.id}`) },
         });
       } else {
-        toast.success(`Bozza ${nuovo.oda_number || "d'ordine"} creata`, {
-          description: `${quante} ${quante === 1 ? "riga" : "righe"} · ${formatCurrency(totali.imponibile)} + IVA. Inviala dalla pagina dell'ordine.`,
-          action: { label: "Apri", onClick: () => navigate(`/azienda/ordini-acquisto/${nuovo.id}`) },
+        toast.success(nuovo.oda_number ? tr("Bozza {numero} creata", { numero: nuovo.oda_number }) : tr("Bozza d'ordine creata"), {
+          description: tr(quante === 1 ? "{n} riga · {importo} + IVA. Inviala dalla pagina dell'ordine." : "{n} righe · {importo} + IVA. Inviala dalla pagina dell'ordine.", { n: quante, importo: formatCurrency(totali.imponibile) }),
+          action: { label: tr("Apri"), onClick: () => navigate(`/azienda/ordini-acquisto/${nuovo.id}`) },
         });
       }
       if (caricato && documento && user?.id) {
         // Tra i documenti della commessa, visibile a chi vede i costi: ha i prezzi d'acquisto.
         const errAllegato = await registraDocumentoOda({ commessaId: orderId, percorso: caricato, file: documento, userId: user.id });
-        if (errAllegato) toast.warning("Ordine creato, ma il documento non è registrato tra quelli della commessa", { description: errAllegato });
+        if (errAllegato) toast.warning(tr("Ordine creato, ma il documento non è registrato tra quelli della commessa"), { description: errAllegato });
       }
       try {
         const { error: diario } = await supabase.from("order_events" as never).insert({
@@ -250,7 +252,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
       setSalvando(false);
       chiudi(false);
     } catch (e) {
-      toast.error("Ordine non creato", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Ordine non creato"), { description: e instanceof Error ? e.message : String(e) });
       setSalvando(false);
     }
   };
@@ -261,15 +263,15 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="h-4 w-4 text-orange-500" />
-            Nuovo ordine d'acquisto
+            {tr("Nuovo ordine d'acquisto")}
           </DialogTitle>
           <DialogDescription>
-            Per la commessa {orderCode || ""}. Nasce in bozza: lo invii al fornitore dalla pagina dell'ordine.
+            {tr("Per la commessa {codice}. Nasce in bozza: lo invii al fornitore dalla pagina dell'ordine.", { codice: orderCode || "" })}
           </DialogDescription>
         </DialogHeader>
 
         <section className="space-y-2">
-          <Label>Come lo ordini</Label>
+          <Label>{tr("Come lo ordini")}</Label>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {ODA_ORIGINI.map((o) => {
               const info = ODA_ORIGINE_INFO[o];
@@ -284,34 +286,34 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
                   className={`flex flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${scelto ? "border-orange-400 bg-orange-50" : "border-slate-200 hover:bg-slate-50"}`}
                 >
                   <Icona className="h-4 w-4 text-slate-500" />
-                  <span className="font-medium">{info.titoloBreve}</span>
+                  <span className="font-medium">{tr(info.titoloBreve)}</span>
                 </button>
               );
             })}
           </div>
-          {origine && <p className="text-xs text-muted-foreground">{ODA_ORIGINE_INFO[origine].descrizione}</p>}
+          {origine && <p className="text-xs text-muted-foreground">{tr(ODA_ORIGINE_INFO[origine].descrizione)}</p>}
         </section>
 
         {origine && ODA_ORIGINE_INFO[origine].vuoleDocumento && (
-          <section className="space-y-2 rounded-md border border-dashed p-3" aria-label="Documento dell'ordine">
+          <section className="space-y-2 rounded-md border border-dashed p-3" aria-label={tr("Documento dell'ordine")}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label>{ODA_ORIGINE_INFO[origine].documentoLabel ?? "Documento"}</Label>
+              <Label>{tr(ODA_ORIGINE_INFO[origine].documentoLabel ?? "Documento")}</Label>
               <div className="flex gap-2">
                 {documento && lettura !== "leggo" && (
                   <Button type="button" size="sm" variant="ghost" onClick={() => void leggi(documento)}>
-                    <ScanText className="h-3.5 w-3.5 mr-1" /> Rileggi
+                    <ScanText className="h-3.5 w-3.5 mr-1" /> {tr("Rileggi")}
                   </Button>
                 )}
                 <Button type="button" size="sm" variant="outline" disabled={lettura === "leggo" || salvando} onClick={() => inputDocumento.current?.click()}>
-                  <Upload className="h-3.5 w-3.5 mr-1" /> {documento ? "Cambia file" : "Carica PDF o foto"}
+                  <Upload className="h-3.5 w-3.5 mr-1" /> {documento ? tr("Cambia file") : tr("Carica PDF o foto")}
                 </Button>
               </div>
             </div>
-            <input ref={inputDocumento} type="file" accept={ACCEPT_DOCUMENTI_DDT} className="hidden" aria-label="File del documento d'ordine"
+            <input ref={inputDocumento} type="file" accept={ACCEPT_DOCUMENTI_DDT} className="hidden" aria-label={tr("File del documento d'ordine")}
               onChange={(e) => scegliDocumento(e.target.files?.[0])} />
             {!documento ? (
               <p className="text-xs text-muted-foreground">
-                Carica l'ordine firmato o il modulo del fornitore: lo leggiamo e compiliamo fornitore, righe, prezzi, IVA e consegna. Controlli tutto prima di creare la bozza; il file resta allegato all'ordine.
+                {tr("Carica l'ordine firmato o il modulo del fornitore: lo leggiamo e compiliamo fornitore, righe, prezzi, IVA e consegna. Controlli tutto prima di creare la bozza; il file resta allegato all'ordine.")}
               </p>
             ) : (
               <div className="space-y-1 text-sm">
@@ -319,20 +321,20 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
                   <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                   <span className="truncate">{documento.name}</span>
                   <button type="button" className="ml-auto text-xs text-muted-foreground underline" disabled={lettura === "leggo"}
-                    onClick={() => { setDocumento(null); setLettura("no"); setEsitoLettura(null); letturaInCorso.current++; }}>Togli</button>
+                    onClick={() => { setDocumento(null); setLettura("no"); setEsitoLettura(null); letturaInCorso.current++; }}>{tr("Togli")}</button>
                 </p>
-                {lettura === "leggo" && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Leggo il documento…</p>}
+                {lettura === "leggo" && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {tr("Leggo il documento…")}</p>}
                 {lettura === "errore" && esitoLettura?.errore && (
-                  <p role="alert" className="text-xs text-red-600">Lettura non riuscita: {esitoLettura.errore} Il file resta allegato: compila i campi a mano.</p>
+                  <p role="alert" className="text-xs text-red-600">{tr("Lettura non riuscita: {errore} Il file resta allegato: compila i campi a mano.", { errore: esitoLettura.errore })}</p>
                 )}
                 {lettura === "letto" && esitoLettura && (
                   <div className="text-xs text-muted-foreground space-y-0.5" role="status">
                     <p>
-                      Letto: {esitoLettura.righe} {esitoLettura.righe === 1 ? "riga" : "righe"}
-                      {esitoLettura.abbinate > 0 ? `, ${esitoLettura.abbinate} abbinate agli articoli della commessa` : ""}. Controlla i campi qui sotto.
+                      {tr(esitoLettura.righe === 1 ? "Letto: {n} riga" : "Letto: {n} righe", { n: esitoLettura.righe })}
+                      {esitoLettura.abbinate > 0 ? tr(", {n} abbinate agli articoli della commessa", { n: esitoLettura.abbinate }) : ""}{tr(". Controlla i campi qui sotto.")}
                     </p>
                     {esitoLettura.fornitoreLetto && !esitoLettura.fornitoreTrovato && (
-                      <p className="text-amber-700">Fornitore sul documento: {esitoLettura.fornitoreLetto}. Non l'ho trovato con certezza in rubrica: sceglilo dall'elenco.</p>
+                      <p className="text-amber-700">{tr("Fornitore sul documento: {nome}. Non l'ho trovato con certezza in rubrica: sceglilo dall'elenco.", { nome: esitoLettura.fornitoreLetto })}</p>
                     )}
                     {esitoLettura.avvisi.map((a) => <p key={a} className="text-amber-700">{a}</p>)}
                   </div>
@@ -344,28 +346,28 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
 
         <section className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="nuovo-oda-fornitore">Fornitore</Label>
+            <Label htmlFor="nuovo-oda-fornitore">{tr("Fornitore")}</Label>
             <Select value={fornitore ?? undefined} onValueChange={setFornitore}>
-              <SelectTrigger id="nuovo-oda-fornitore"><SelectValue placeholder="Scegli il fornitore" /></SelectTrigger>
+              <SelectTrigger id="nuovo-oda-fornitore"><SelectValue placeholder={tr("Scegli il fornitore")} /></SelectTrigger>
               <SelectContent>{attivi.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="nuovo-oda-consegna">Consegna prevista</Label>
+            <Label htmlFor="nuovo-oda-consegna">{tr("Consegna prevista")}</Label>
             <Input id="nuovo-oda-consegna" type="date" value={consegna} onChange={(e) => setConsegna(e.target.value)} />
           </div>
         </section>
 
         <section className="space-y-2">
           <div className="flex items-baseline justify-between gap-2">
-            <Label>Articoli della commessa da comprare</Label>
+            <Label>{tr("Articoli della commessa da comprare")}</Label>
             <span className="text-xs text-muted-foreground">
-              {coverage.isPending ? "Controllo cosa è già ordinato…" : `${articoli.length} da comprare`}
+              {coverage.isPending ? tr("Controllo cosa è già ordinato…") : tr("{n} da comprare", { n: articoli.length })}
             </span>
           </div>
           {articoli.length === 0 ? (
             <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
-              {coverage.isPending ? "…" : "Nessun articolo della commessa resta da comprare. Aggiungi le righe qui sotto."}
+              {coverage.isPending ? "…" : tr("Nessun articolo della commessa resta da comprare. Aggiungi le righe qui sotto.")}
             </p>
           ) : (
             <div className="divide-y rounded-md border">
@@ -374,7 +376,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
                   key={`${r.key}:${versione}`}
                   riga={r}
                   conSpunta
-                  nota={r.fornitore_articolo && r.fornitore_articolo !== fornitore ? `di solito da ${nomeFornitore.get(r.fornitore_articolo) ?? "un altro fornitore"}` : null}
+                  nota={r.fornitore_articolo && r.fornitore_articolo !== fornitore ? tr("di solito da {fornitore}", { fornitore: nomeFornitore.get(r.fornitore_articolo) ?? tr("un altro fornitore") }) : null}
                   onCambia={(p) => cambia(r.key, p)}
                 />
               ))}
@@ -384,30 +386,29 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
 
         <section className="space-y-2">
           <div className="flex items-baseline justify-between gap-2">
-            <Label>Altre righe</Label>
+            <Label>{tr("Altre righe")}</Label>
             <div className="flex gap-2">
               <Button type="button" size="sm" variant="outline" onClick={() => setElencoAperto((v) => !v)} aria-expanded={elencoAperto}>
-                <ClipboardList className="h-3.5 w-3.5 mr-1" /> Incolla un elenco
+                <ClipboardList className="h-3.5 w-3.5 mr-1" /> {tr("Incolla un elenco")}
               </Button>
               <Button type="button" size="sm" variant="outline" onClick={() => { setLibere((rr) => [...rr, rigaLibera(`libera:${contatore}`)]); setContatore((c) => c + 1); }}>
-                <Plus className="h-3.5 w-3.5 mr-1" /> Aggiungi riga
+                <Plus className="h-3.5 w-3.5 mr-1" /> {tr("Aggiungi riga")}
               </Button>
             </div>
           </div>
           {elencoAperto && (
             <div className="space-y-2 rounded-md border bg-slate-50 p-3">
               <Label htmlFor="nuovo-oda-elenco" className="text-xs text-muted-foreground">
-                Una cosa per riga, con la quantità davanti o in fondo: «10 sacchi cemento», «tubo 32 x 5», «2,5 mq rete».
-                Le voci con lo stesso nome di un prodotto del listino prendono unità e prezzo da lì.
+                {tr("Una cosa per riga, con la quantità davanti o in fondo: «10 sacchi cemento», «tubo 32 x 5», «2,5 mq rete». Le voci con lo stesso nome di un prodotto del listino prendono unità e prezzo da lì.")}
               </Label>
               <Textarea id="nuovo-oda-elenco" rows={5} value={elenco} onChange={(e) => setElenco(e.target.value)}
                 placeholder={"10 sacchi cemento 32,5\n5 pz tubo pvc 32\nsilicone trasparente x 6"} />
               <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span>{daElenco.length} {daElenco.length === 1 ? "riga" : "righe"}{daElenco.length > 0 ? ` · ${daElenco.filter((r) => perNome.has(chiaveVoce(r.description))).length} dal listino` : ""}</span>
+                <span>{tr(daElenco.length === 1 ? "{n} riga" : "{n} righe", { n: daElenco.length })}{daElenco.length > 0 ? ` · ${tr("{n} dal listino", { n: daElenco.filter((r) => perNome.has(chiaveVoce(r.description))).length })}` : ""}</span>
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" variant="ghost" onClick={() => { setElenco(""); setElencoAperto(false); }}>Annulla</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => { setElenco(""); setElencoAperto(false); }}>{tr("Annulla")}</Button>
                   <Button type="button" size="sm" onClick={aggiungiElenco} disabled={daElenco.length === 0}>
-                    Aggiungi {daElenco.length || ""} {daElenco.length === 1 ? "riga" : "righe"}
+                    {daElenco.length ? tr(daElenco.length === 1 ? "Aggiungi {n} riga" : "Aggiungi {n} righe", { n: daElenco.length }) : tr("Aggiungi righe")}
                   </Button>
                 </div>
               </div>
@@ -430,28 +431,28 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
 
         <section className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="nuovo-oda-rif">Riferimento del fornitore</Label>
-            <Input id="nuovo-oda-rif" placeholder="N. ordine sul sito, preventivo, scontrino…" value={riferimento} onChange={(e) => setRiferimento(e.target.value)} />
+            <Label htmlFor="nuovo-oda-rif">{tr("Riferimento del fornitore")}</Label>
+            <Input id="nuovo-oda-rif" placeholder={tr("N. ordine sul sito, preventivo, scontrino…")} value={riferimento} onChange={(e) => setRiferimento(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="nuovo-oda-note">Note</Label>
+            <Label htmlFor="nuovo-oda-note">{tr("Note")}</Label>
             <Textarea id="nuovo-oda-note" rows={1} value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
         </section>
 
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
-          <span>{quante} {quante === 1 ? "riga" : "righe"}</span>
-          <span className="tabular-nums">{righeInOrdine(righe).some(r => r.price_pending && r.unit_price === 0) && <span className="mr-2 text-amber-700">Totale parziale · prezzi da confermare</span>}
-            {formatCurrency(totali.imponibile)} + IVA {formatCurrency(totali.iva)} = <strong>{formatCurrency(totali.totale)}</strong>
+          <span>{tr(quante === 1 ? "{n} riga" : "{n} righe", { n: quante })}</span>
+          <span className="tabular-nums">{righeInOrdine(righe).some(r => r.price_pending && r.unit_price === 0) && <span className="mr-2 text-amber-700">{tr("Totale parziale · prezzi da confermare")}</span>}
+            {tr("{imponibile} + IVA {iva} =", { imponibile: formatCurrency(totali.imponibile), iva: formatCurrency(totali.iva) })} <strong>{formatCurrency(totali.totale)}</strong>
           </span>
         </div>
         {errore && (fornitore || origine || quante > 0) && <p role="alert" className="text-sm text-red-600">{errore}</p>}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => chiudi(false)} disabled={salvando}>Annulla</Button>
+          <Button variant="outline" onClick={() => chiudi(false)} disabled={salvando}>{tr("Annulla")}</Button>
           <Button onClick={() => void crea()} disabled={!!errore || salvando || lettura === "leggo"}>
             {salvando && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
-            Crea la bozza
+            {tr("Crea la bozza")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -470,6 +471,7 @@ function RigaModificabile({
   onCambia: (p: Partial<RigaNuovoOda>) => void;
   onTogli?: () => void;
 }) {
+  const tr = useT();
   const [qta, setQta] = useState(numeroTesto(riga.quantity));
   const [prezzo, setPrezzo] = useState(riga.price_pending ? "" : numeroTesto(riga.unit_price));
   const spenta = conSpunta && !riga.scelta;
@@ -484,30 +486,30 @@ function RigaModificabile({
   const campi = (
     <>
       <Input
-        aria-label={`Quantità di ${riga.description || "riga"}`}
+        aria-label={tr("Quantità di {voce}", { voce: riga.description || tr("riga") })}
         inputMode="decimal"
         className="h-8 w-20 text-right tabular-nums"
         value={qta}
         onChange={(e) => { setQta(e.target.value); onCambia({ quantity: leggiImporto(e.target.value) }); }}
       />
       <Input
-        aria-label={`Unità di ${riga.description || "riga"}`}
+        aria-label={tr("Unità di {voce}", { voce: riga.description || tr("riga") })}
         className="h-8 w-16"
         value={riga.unit_of_measure}
         onChange={(e) => onCambia({ unit_of_measure: e.target.value })}
       />
       <span className="text-xs text-muted-foreground">×</span>
       <Input
-        aria-label={`Prezzo di ${riga.description || "riga"}`}
+        aria-label={tr("Prezzo di {voce}", { voce: riga.description || tr("riga") })}
         inputMode="decimal"
         className="h-8 w-28 text-right tabular-nums"
         value={prezzo}
-        placeholder="Da confermare"
+        placeholder={tr("Da confermare")}
         onChange={(e) => { setPrezzo(e.target.value); onCambia({ unit_price: leggiImporto(e.target.value), price_pending: e.target.value.trim() === "" }); }}
       />
       <span className="text-xs text-muted-foreground">€</span>
       {onTogli && (
-        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label="Togli la riga" onClick={onTogli}>
+        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label={tr("Togli la riga")} onClick={onTogli}>
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       )}
@@ -524,7 +526,7 @@ function RigaModificabile({
           salvaNuoviNelCatalogo={false}
           preferredSupplierId={fornitore ?? undefined}
           onValueChange={scegli}
-          placeholder="Cerca nel listino prodotti o scrivi cosa ordini…"
+          placeholder={tr("Cerca nel listino prodotti o scrivi cosa ordini…")}
         />
         {nota && <p className="text-xs text-amber-700">{nota}</p>}
         <div className="flex flex-wrap items-center justify-end gap-2">{campi}</div>
@@ -535,7 +537,7 @@ function RigaModificabile({
     <div className={`flex flex-wrap items-center gap-2 px-3 py-2 text-sm ${spenta ? "opacity-60" : ""}`}>
       <Checkbox
         checked={riga.scelta}
-        aria-label={`Ordina ${riga.description}`}
+        aria-label={tr("Ordina {voce}", { voce: riga.description })}
         onCheckedChange={(v) => onCambia({ scelta: v === true })}
       />
       <div className="min-w-[10rem] flex-1">

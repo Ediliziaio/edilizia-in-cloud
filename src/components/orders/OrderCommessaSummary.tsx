@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { CalendarDays, ChevronRight, HardHat, ListChecks } from "lucide-react";
 import { format, isBefore, parseISO, startOfDay } from "date-fns";
-import { it } from "date-fns/locale";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   statusName?: string;
@@ -31,7 +31,7 @@ interface Props {
 function dateLabel(value?: string | null) {
   if (!value) return null;
   const date = parseISO(value);
-  return Number.isNaN(date.getTime()) ? null : format(date, "d MMM yyyy", { locale: it });
+  return Number.isNaN(date.getTime()) ? null : format(date, "d MMM yyyy", { locale: dateFnsCampo() });
 }
 
 const cellClass = "min-w-0 p-3 text-left sm:p-4";
@@ -45,6 +45,7 @@ export function OrderCommessaSummary({
   workStartDate, workEndDate, expectedDate, nextTask, taskLoading, taskError,
   onOpenWork, onOpenPlanning, onOpenTasks, statoControllo, tempi,
 }: Props) {
+  const t = useT();
   const hasPhases = !!progress?.total;
   const percent = Math.round(Math.min(100, Math.max(0, progress?.avgPct ?? 0)));
   const start = dateLabel(workStartDate);
@@ -55,48 +56,48 @@ export function OrderCommessaSummary({
   const assignee = [nextTask?.assigned?.first_name, nextTask?.assigned?.last_name].filter(Boolean).join(" ");
 
   return (
-    <section aria-label="Riepilogo commessa" className="overflow-hidden rounded-xl border border-slate-200 border-t-2 border-t-orange-400 bg-white shadow-sm">
+    <section aria-label={t("Riepilogo commessa")} className="overflow-hidden rounded-xl border border-slate-200 border-t-2 border-t-orange-400 bg-white shadow-sm">
       <div className="grid grid-cols-2 divide-x divide-slate-100 lg:grid-cols-4">
         <div id="section-stato" className={`${cellClass} scroll-mt-24`}>
-          <p className={labelClass}>Stato commessa</p>
+          <p className={labelClass}>{t("Stato commessa")}</p>
           {statoControllo ?? (
             <p className="mt-2 flex items-start gap-2 text-sm font-semibold text-slate-900 sm:text-base">
               <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: statusColor || "#64748b" }} />
-              <span className="min-w-0 break-words">{statusName || "Stato non impostato"}</span>
+              <span className="min-w-0 break-words">{statusName || t("Stato non impostato")}</span>
             </p>
           )}
         </div>
-        <button type="button" onClick={onOpenWork} className={linkClass} aria-label="Apri lavorazioni e squadra">
-          <span className={labelClass}><HardHat className="h-3.5 w-3.5 shrink-0" /> Lavorazioni <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" /></span>
+        <button type="button" onClick={onOpenWork} className={linkClass} aria-label={t("Apri lavorazioni e squadra")}>
+          <span className={labelClass}><HardHat className="h-3.5 w-3.5 shrink-0" /> {t("Lavorazioni")} <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" /></span>
           <span className="mt-2 block text-sm font-semibold text-slate-900 sm:text-base">
-            {progressError ? "Dati non disponibili" : progressLoading ? "Caricamento…" : hasPhases ? `${percent}% avanzamento` : "Senza fasi"}
+            {progressError ? t("Dati non disponibili") : progressLoading ? t("Caricamento…") : hasPhases ? t("{n}% avanzamento", { n: percent }) : t("Senza fasi")}
           </span>
           {!progressError && !progressLoading && hasPhases ? <>
-            <span className="mt-1 block text-xs text-muted-foreground">{progress!.done}/{progress!.total} completate{progress!.inCorso > 0 ? ` · ${progress!.inCorso} in corso` : ""}</span>
-            <span role="progressbar" aria-label="Avanzamento medio lavorazioni" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} className="mt-2 block h-1 overflow-hidden rounded-full bg-slate-100">
+            <span className="mt-1 block text-xs text-muted-foreground">{t("{fatte}/{totale} completate", { fatte: progress!.done, totale: progress!.total })}{progress!.inCorso > 0 ? ` · ${t("{n} in corso", { n: progress!.inCorso })}` : ""}</span>
+            <span role="progressbar" aria-label={t("Avanzamento medio lavorazioni")} aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} className="mt-2 block h-1 overflow-hidden rounded-full bg-slate-100">
               <span className="block h-full rounded-full bg-orange-500" style={{ width: `${percent}%` }} />
             </span>
-          </> : <span className="mt-1 hidden text-xs text-muted-foreground sm:block">Squadra e lavoro diretto</span>}
+          </> : <span className="mt-1 hidden text-xs text-muted-foreground sm:block">{t("Squadra e lavoro diretto")}</span>}
         </button>
         <div className="flex min-w-0 flex-col border-t border-slate-100 lg:border-t-0">
-        <button type="button" onClick={onOpenPlanning} className={`${linkClass} flex-1`} aria-label="Apri date e pianificazione">
-          <span className={labelClass}><CalendarDays className="h-3.5 w-3.5 shrink-0" /> Date lavori <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" /></span>
+        <button type="button" onClick={onOpenPlanning} className={`${linkClass} flex-1`} aria-label={t("Apri date e pianificazione")}>
+          <span className={labelClass}><CalendarDays className="h-3.5 w-3.5 shrink-0" /> {t("Date lavori")} <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" /></span>
           <span className="mt-2 block text-sm font-semibold text-slate-900 sm:text-base">
-            {end ? `Fine ${end}` : installation ? `Posa ${installation}` : start ? `Inizio ${start}` : "Da pianificare"}
+            {end ? t("Fine {data}", { data: end }) : installation ? t("Posa {data}", { data: installation }) : start ? t("Inizio {data}", { data: start }) : t("Da pianificare")}
           </span>
           <span className="mt-1 block text-xs text-muted-foreground">
-            {end || installation ? (start ? `Inizio ${start}` : "Inizio non impostato") : start ? "Fine non impostata" : "Nessuna data impostata"}
+            {end || installation ? (start ? t("Inizio {data}", { data: start }) : t("Inizio non impostato")) : start ? t("Fine non impostata") : t("Nessuna data impostata")}
           </span>
         </button>
         {tempi && <div className="px-3 pb-3 sm:px-4">{tempi}</div>}
         </div>
-        <button type="button" onClick={onOpenTasks} className={`${linkClass} border-t border-slate-100 lg:border-t-0`} aria-label="Apri attività della commessa">
-          <span className={labelClass}><ListChecks className="h-3.5 w-3.5 shrink-0" /> Prossima attività <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" /></span>
+        <button type="button" onClick={onOpenTasks} className={`${linkClass} border-t border-slate-100 lg:border-t-0`} aria-label={t("Apri attività della commessa")}>
+          <span className={labelClass}><ListChecks className="h-3.5 w-3.5 shrink-0" /> {t("Prossima attività")} <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" /></span>
           <span className="mt-2 line-clamp-2 break-words text-sm font-semibold text-slate-900 sm:text-base">
-            {taskError ? "Dati non disponibili" : taskLoading ? "Caricamento…" : nextTask?.title || "Nessuna attività aperta"}
+            {taskError ? t("Dati non disponibili") : taskLoading ? t("Caricamento…") : nextTask?.title || t("Nessuna attività aperta")}
           </span>
           <span className={`mt-1 text-xs ${!nextTask && !taskError && !taskLoading ? "hidden sm:block" : "block"} ${overdue && !taskError && !taskLoading ? "font-medium text-red-700" : "text-muted-foreground"}`}>
-            {taskError || taskLoading ? "Apri l’elenco attività" : nextTask ? [due ? `${overdue ? "Scaduta il" : "Entro il"} ${due}` : "Senza scadenza", assignee].filter(Boolean).join(" · ") : "Pianifica dalle azioni rapide"}
+            {taskError || taskLoading ? t("Apri l’elenco attività") : nextTask ? [due ? (overdue ? t("Scaduta il {data}", { data: due }) : t("Entro il {data}", { data: due })) : t("Senza scadenza"), assignee].filter(Boolean).join(" · ") : t("Pianifica dalle azioni rapide")}
           </span>
         </button>
       </div>

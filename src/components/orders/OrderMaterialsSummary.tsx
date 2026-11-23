@@ -3,15 +3,17 @@ import { Link } from "react-router-dom";
 import { useMaterialProcurement, useUnmappedPurchaseOrders } from "@/hooks/useMaterialProcurement";
 import { planMaterial, type ProcurementItem } from "@/lib/orders/materialProcurement";
 import { ContatoriFiltro } from "./ContatoriFiltro";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function OrderMaterialsSummary({ items, orderId, inRiquadro = false }: { items: ProcurementItem[]; orderId: string; /** Dentro il riquadro degli ordini: senza un bordo suo. */ inRiquadro?: boolean }) {
+  const t = useT();
   const coverage = useMaterialProcurement(items);
   const unmapped = useUnmappedPurchaseOrders(orderId);
   const [aperta, setAperta] = useState<string | null>(null);
   if (!items.length) return (
-    <section aria-label="Flusso materiali" className="rounded-lg border bg-muted/20 p-4 space-y-1">
-      <h3 className="font-medium">Organizza i materiali della commessa</h3>
-      <p className="text-sm text-muted-foreground">Aggiungi gli articoli e scegli il fornitore oppure la giacenza. Poi prepara l’ordine, registra le ricezioni e collega le uscite verso il cantiere.</p>
+    <section aria-label={t("Flusso materiali")} className="rounded-lg border bg-muted/20 p-4 space-y-1">
+      <h3 className="font-medium">{t("Organizza i materiali della commessa")}</h3>
+      <p className="text-sm text-muted-foreground">{t("Aggiungi gli articoli e scegli il fornitore oppure la giacenza. Poi prepara l’ordine, registra le ricezioni e collega le uscite verso il cantiere.")}</p>
     </section>
   );
   if (coverage.isPending || coverage.isError || unmapped.isPending || unmapped.isError) return null; // The actionable panel owns loading/errors.
@@ -26,11 +28,11 @@ export function OrderMaterialsSummary({ items, orderId, inRiquadro = false }: { 
   ] as const;
   const elenco = counts.find(([label]) => label === aperta)?.[1] ?? [];
   return (
-    <section aria-label="Riepilogo materiali" className={inRiquadro ? undefined : "rounded-lg border bg-background p-4 max-sm:p-3"}>
-      <ContatoriFiltro etichetta="Materiali per stato" attivo={aperta} onScegli={setAperta}
-        voci={counts.map(([label, righe]) => ({ chiave: label, etichetta: label, valore: righe.length, avviso: label === "Da verificare" }))} />
+    <section aria-label={t("Riepilogo materiali")} className={inRiquadro ? undefined : "rounded-lg border bg-background p-4 max-sm:p-3"}>
+      <ContatoriFiltro etichetta={t("Materiali per stato")} attivo={aperta} onScegli={setAperta}
+        voci={counts.map(([label, righe]) => ({ chiave: label, etichetta: t(label), valore: righe.length, avviso: label === "Da verificare" }))} />
       {elenco.length > 0 && (
-        <ul aria-label={`Articoli: ${aperta}`} className="mt-2 divide-y rounded-md border text-sm">
+        <ul aria-label={t("Articoli: {stato}", { stato: t(aperta ?? "") })} className="mt-2 divide-y rounded-md border text-sm">
           {elenco.map(p => (
             <li key={p.item.id ?? p.item.name} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-3 py-2">
               <span className="min-w-0 font-medium">{p.item.name}</span>
@@ -38,12 +40,12 @@ export function OrderMaterialsSummary({ items, orderId, inRiquadro = false }: { 
                 <span className="tabular-nums">{p.item.quantity} {p.item.unita_misura || "pz"}</span>
                 {p.ordini.map(o => <Link key={o.id} to={`/azienda/ordini-acquisto/${o.id}`} className="font-mono underline underline-offset-2">{o.oda_number}</Link>)}
               </span>
-              {aperta === "Da verificare" && <span className="w-full text-xs text-muted-foreground">{p.review ?? (p.overOrdered ? "Quantità ordinata superiore al previsto" : "Il fornitore ha un ordine da riconciliare")}</span>}
+              {aperta === "Da verificare" && <span className="w-full text-xs text-muted-foreground">{p.review ?? (p.overOrdered ? t("Quantità ordinata superiore al previsto") : t("Il fornitore ha un ordine da riconciliare"))}</span>}
             </li>
           ))}
         </ul>
       )}
-      <p className="mt-2 text-xs text-muted-foreground max-sm:hidden">Conteggio per articolo: una riga può essere acquistata o ricevuta in più parti. La bozza non è un ordine inviato; la ricezione non è il consumo in cantiere.</p>
+      <p className="mt-2 text-xs text-muted-foreground max-sm:hidden">{t("Conteggio per articolo: una riga può essere acquistata o ricevuta in più parti. La bozza non è un ordine inviato; la ricezione non è il consumo in cantiere.")}</p>
     </section>
   );
 }

@@ -30,6 +30,7 @@ import {
   etichettaPrezzo, prezzoModificatoAMano, totaliQuadro,
   type FontePrezzo, type MancanzaCosto, type VoceListino,
 } from "@/lib/campo/prezzoVoceRapportino";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Riga {
   emp: string | null; nome: string; ditta: boolean; ore: number; costo_orario: number | null; costo: number | null;
@@ -52,6 +53,7 @@ interface Mezzo {
 
 /** Collega un mezzo o una ditta alla sua voce del listino generale: per id, scelta da una persona. */
 function CollegaVoce({ tipo, id, orderId, onFatto }: { tipo: "mezzo" | "ditta"; id: string; orderId: string; onFatto: () => void }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const collega = useMutation({
     mutationFn: async (tariffaId: string) => {
@@ -59,20 +61,20 @@ function CollegaVoce({ tipo, id, orderId, onFatto }: { tipo: "mezzo" | "ditta"; 
       if (error) throw error;
     },
     onSuccess: () => { setAperto(false); onFatto(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Collegamento non salvato"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("Collegamento non salvato")),
   });
   if (!aperto) {
     return (
       <button type="button" className="tap-compact text-xs text-blue-700 underline" onClick={() => setAperto(true)}>
-        {tipo === "mezzo" ? "Collega il mezzo al suo nolo del listino" : "Collega la ditta alla sua voce del listino"}
+        {tipo === "mezzo" ? t("Collega il mezzo al suo nolo del listino") : t("Collega la ditta alla sua voce del listino")}
       </button>
     );
   }
   return (
     <div className="col-span-2 space-y-1">
-      <CercaNelListino dove={{ orderId, data: null }} segnaposto={tipo === "mezzo" ? "Nolo del listino (es. escavatore 40 qli)" : "Voce delle ore della ditta"}
+      <CercaNelListino dove={{ orderId, data: null }} segnaposto={tipo === "mezzo" ? t("Nolo del listino (es. escavatore 40 qli)") : t("Voce delle ore della ditta")}
         onScegli={(v) => collega.mutate(v.tariffa_id)} />
-      <p className="text-[11px] text-muted-foreground">Vale per i rapportini che non hanno già un prezzo fissato all’approvazione. <button type="button" className="underline" onClick={() => setAperto(false)}>Annulla</button></p>
+      <p className="text-[11px] text-muted-foreground">{t("Vale per i rapportini che non hanno già un prezzo fissato all’approvazione.")} <button type="button" className="underline" onClick={() => setAperto(false)}>{t("Annulla")}</button></p>
     </div>
   );
 }
@@ -82,7 +84,7 @@ interface Quadro {
   appalto: boolean; a_corpo: boolean; registrato: boolean;
 }
 
-const ore = (n: number) => `${n.toLocaleString("it-IT", { maximumFractionDigits: 2 })} h`;
+const ore = (n: number) => `${n.toLocaleString(intlCampo(), { maximumFractionDigits: 2 })} h`;
 const euro = (n: number | null | undefined) => (n == null ? "—" : formatCurrency(Number(n)));
 const UNITA: Record<string, string> = { ora: "/h", h: "/h", giornata: "/giorno", uomo_giorno: "/giorno" };
 const DOVE_PREZZO: Record<FontePrezzo, string> = { cantiere: "eccezione di cantiere", committente: "listino committente", generale: "listino generale", mancante: "prezzo da definire" };
@@ -97,6 +99,7 @@ const VUOTA: Bozza = { descrizione: "", quantita: "1", unita: "cad", costo: "", 
 const rpc = (supabase as unknown as { rpc: (f: string, a: object) => Promise<{ data: unknown; error: Error | null }> }).rpc.bind(supabase);
 
 export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false }: { rapportinoId: string; puoModificare?: boolean }) {
+  const t = useT();
   const qc = useQueryClient();
   const permissions = usePermissions();
   const [nuova, setNuova] = useState<Bozza | null>(null);
@@ -109,7 +112,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
   };
   const aggiungi = useMutation({
     mutationFn: async (v: Bozza) => {
-      if (misuraRapportino(v.quantita, "Quantità") <= 0) throw new Error("La quantità deve essere maggiore di zero.");
+      if (misuraRapportino(v.quantita, "Quantità") <= 0) throw new Error(t("La quantità deve essere maggiore di zero."));
       // Dal listino: il prezzo proposto lo rifà il database; mandiamo solo quello scritto, se c'è.
       const { error } = await db.from("rapportino_voci_libere").insert({
         rapportino_id: rapportinoId, descrizione: v.descrizione.trim(), quantita: misuraRapportino(v.quantita, "Quantità"), unita: v.unita.trim() || "cad",
@@ -121,7 +124,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
       if (error) throw error;
     },
     onSuccess: () => { setNuova(null); aggiorna(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Voce non salvata"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("Voce non salvata")),
   });
   const togli = useMutation({
     mutationFn: async (id: string) => {
@@ -129,7 +132,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
       if (error) throw error;
     },
     onSuccess: aggiorna,
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Voce non tolta"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("Voce non tolta")),
   });
   const [scegliOre, setScegliOre] = useState(false);
   const impostaOre = useMutation({
@@ -138,7 +141,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
       if (error) throw error;
     },
     onSuccess: () => { setScegliOre(false); void qc.invalidateQueries({ queryKey: ["rapportino-quadro-economico"] }); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Impostazione non salvata"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("Impostazione non salvata")),
   });
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -157,7 +160,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
     retry: false,
   });
   const { data } = quadro;
-  if (quadro.isError) return <p role="alert" className="rounded border p-3 text-sm">Quadro economico non disponibile. <Button variant="outline" size="sm" onClick={() => void quadro.refetch()}>Riprova</Button></p>;
+  if (quadro.isError) return <p role="alert" className="rounded border p-3 text-sm">{t("Quadro economico non disponibile.")} <Button variant="outline" size="sm" onClick={() => void quadro.refetch()}>{t("Riprova")}</Button></p>;
   if (!data || !Array.isArray(data.persone) || (!data.persone.length && !data.voci?.length && !data.personale_aggregato && !puoModificare)) return null;
 
   const voci = (data.voci ?? []).map((voce) => ({ ...voce, viaggio: voce.viaggio ? leggiDettagliViaggio(voce.viaggio) : null }));
@@ -189,69 +192,69 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
   const aManoNuova = !!nuova?.voce && "prezzo" in nuova.voce && venditaScritta != null && prezzoModificatoAMano(venditaScritta, nuova.voce.prezzo ?? null);
 
   return (
-    <section aria-label="Costi del rapportino" className="rounded-lg border text-[13px]">
+    <section aria-label={t("Costi del rapportino")} className="rounded-lg border text-[13px]">
       <h3 className="border-b px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-        {data.registrato ? "Costi registrati" : "Costi stimati"}
+        {data.registrato ? t("Costi registrati") : t("Costi stimati")}
       </h3>
       {mancanze.length > 0 && (
         <div role="status" className="flex gap-2 border-b bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <p><strong>Costo da completare</strong>: {mancanze.map((m) => `${m.nome} (${m.motivo})`).join(", ")}. Il costo del giorno è parziale e il margine non si calcola.</p>
+          <p><strong>{t("Costo da completare")}</strong>: {t("{elenco}. Il costo del giorno è parziale e il margine non si calcola.", { elenco: mancanze.map((m) => `${m.nome} (${m.motivo})`).join(", ") })}</p>
         </div>
       )}
       {vedeImporti && economia && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-1.5 text-xs text-muted-foreground">
           <span>
-            {economia.modo === "voce" ? <>Ore vendute in economia: <strong className="font-medium text-slate-800">{economia.codice ? `${economia.codice} · ` : ""}{economia.descrizione}</strong></>
-              : economia.modo === "contratto" ? "Ore prezzate dal contratto del committente, per qualifica"
-              : "Le ore non si vendono a parte: il prezzo è quello del contratto o del preventivo"}
+            {economia.modo === "voce" ? <>{t("Ore vendute in economia:")} <strong className="font-medium text-slate-800">{economia.codice ? `${economia.codice} · ` : ""}{economia.descrizione}</strong></>
+              : economia.modo === "contratto" ? t("Ore prezzate dal contratto del committente, per qualifica")
+              : t("Le ore non si vendono a parte: il prezzo è quello del contratto o del preventivo")}
           </span>
           {puoModificare && data.order_id && !scegliOre && (
             <>
               <button type="button" className="tap-compact text-blue-700 underline" onClick={() => setScegliOre(true)}>
-                {economia.modo === "voce" ? "cambia" : "Vendi le ore in economia"}
+                {economia.modo === "voce" ? t("cambia") : t("Vendi le ore in economia")}
               </button>
               {economia.modo === "voce" && (
                 <button type="button" className="tap-compact text-blue-700 underline" disabled={impostaOre.isPending}
-                  onClick={() => impostaOre.mutate({ orderId: data.order_id!, tariffaId: null })}>non venderle a parte</button>
+                  onClick={() => impostaOre.mutate({ orderId: data.order_id!, tariffaId: null })}>{t("non venderle a parte")}</button>
               )}
             </>
           )}
           {puoModificare && data.order_id && scegliOre && (
             <div className="basis-full space-y-1">
-              <CercaNelListino dove={{ orderId: data.order_id, data: null }} segnaposto="Voce di manodopera del listino (es. ore operaio)"
+              <CercaNelListino dove={{ orderId: data.order_id, data: null }} segnaposto={t("Voce di manodopera del listino (es. ore operaio)")}
                 onScegli={(v) => impostaOre.mutate({ orderId: data.order_id!, tariffaId: v.tariffa_id })} />
-              <p>Vale per tutti i rapportini della commessa: il prezzo segue il listino del committente se ha la voce, altrimenti il generale. <button type="button" className="underline" onClick={() => setScegliOre(false)}>Annulla</button></p>
+              <p>{t("Vale per tutti i rapportini della commessa: il prezzo segue il listino del committente se ha la voce, altrimenti il generale.")} <button type="button" className="underline" onClick={() => setScegliOre(false)}>{t("Annulla")}</button></p>
             </div>
           )}
         </div>
       )}
-      {data.personale_aggregato && <p className="flex justify-between border-b px-3 py-2"><span>Personale interno · costo aggregato</span><strong>{euro(data.personale_aggregato.costo)}</strong></p>}
-      {mezzi.length > 0 && <p className="border-b px-3 py-2 text-xs text-muted-foreground">Costo interno: ore del rapportino × costo orario della scheda mezzo. Per i noleggi il costo effettivo arriva dalle fatture. Il nolo collegato al listino è invece il prezzo al cliente.</p>}
+      {data.personale_aggregato && <p className="flex justify-between border-b px-3 py-2"><span>{t("Personale interno · costo aggregato")}</span><strong>{euro(data.personale_aggregato.costo)}</strong></p>}
+      {mezzi.length > 0 && <p className="border-b px-3 py-2 text-xs text-muted-foreground">{t("Costo interno: ore del rapportino × costo orario della scheda mezzo. Per i noleggi il costo effettivo arriva dalle fatture. Il nolo collegato al listino è invece il prezzo al cliente.")}</p>}
       <ul className="divide-y">
         {data.persone.map((r, i) => (
           <li key={`${r.emp ?? r.nome}-${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-1.5">
             <span className="min-w-0 truncate font-medium text-slate-900">{r.nome}</span>
             <span className={`text-right tabular-nums font-semibold ${!r.ditta && r.costo == null ? "text-amber-700" : ""}`}>
-              {r.ditta ? "Da contratto" : r.costo == null ? "Costo da completare" : euro(r.costo)}
+              {r.ditta ? t("Da contratto") : r.costo == null ? t("Costo da completare") : euro(r.costo)}
             </span>
             <span className="text-xs text-muted-foreground">
-              {ore(Number(r.ore))}{r.costo_orario ? ` × ${euro(r.costo_orario)}/h` : r.ditta ? "" : r.emp ? " · costo orario mancante" : " · senza scheda dipendente"}
+              {ore(Number(r.ore))}{r.costo_orario ? ` × ${euro(r.costo_orario)}/h` : r.ditta ? "" : r.emp ? ` · ${t("costo orario mancante")}` : ` · ${t("senza scheda dipendente")}`}
             </span>
-            <span className="text-right text-xs text-muted-foreground">costo</span>
+            <span className="text-right text-xs text-muted-foreground">{t("costo")}</span>
             {conVendita && (
               <>
                 <span className="text-xs text-blue-800">
                   {r.prezzo != null
-                    ? `Vendita ${euro(r.prezzo)}${UNITA[r.unita ?? ""] ?? ""} · ricavo ${euro(r.ricavo)}${r.prezzo_fonte ? ` · ${DOVE_PREZZO[r.prezzo_fonte]}` : ""}`
-                    : r.ditta ? (r.voce_ditta ? "Prezzo della ditta da definire" : "")
-                    : r.prezzo_fonte === "mancante" ? "Prezzo delle ore da definire" : economia?.modo === "no" ? "Ore non vendute a parte" : "Vendita da impostare"}
+                    ? `${t("Vendita {prezzo} · ricavo {ricavo}", { prezzo: `${euro(r.prezzo)}${UNITA[r.unita ?? ""] ?? ""}`, ricavo: euro(r.ricavo) })}${r.prezzo_fonte ? ` · ${t(DOVE_PREZZO[r.prezzo_fonte])}` : ""}`
+                    : r.ditta ? (r.voce_ditta ? t("Prezzo della ditta da definire") : "")
+                    : r.prezzo_fonte === "mancante" ? t("Prezzo delle ore da definire") : economia?.modo === "no" ? t("Ore non vendute a parte") : t("Vendita da impostare")}
                   {r.ditta && !r.voce_ditta && r.sub && puoModificare && data.order_id && (
                     <CollegaVoce tipo="ditta" id={r.sub} orderId={data.order_id} onFatto={aggiornaQuadro} />
                   )}
                 </span>
                 <span className={`text-right text-xs font-semibold tabular-nums ${(margine(r) ?? 0) < 0 ? "text-red-700" : "text-emerald-700"}`}>
-                  {!permissions.canViewMargins || margine(r) == null ? "" : `margine ${euro(margine(r))}`}
+                  {!permissions.canViewMargins || margine(r) == null ? "" : t("margine {importo}", { importo: euro(margine(r)) })}
                 </span>
               </>
             )}
@@ -259,26 +262,26 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
         ))}
         {mezzi.map((m) => (
           <li key={m.mezzo_id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-1.5">
-            <span className="min-w-0 truncate font-medium text-slate-900">{m.nome ?? "Mezzo"}</span>
+            <span className="min-w-0 truncate font-medium text-slate-900">{m.nome ?? t("Mezzo")}</span>
             <span className={`text-right tabular-nums font-semibold ${!m.noleggio && m.importo == null ? "text-amber-700" : ""}`}>
-              {m.noleggio ? "Da fattura" : m.importo == null ? "Costo da completare" : euro(m.importo)}
+              {m.noleggio ? t("Da fattura") : m.importo == null ? t("Costo da completare") : euro(m.importo)}
             </span>
             <span className="text-xs text-muted-foreground">
-              {ore(Number(m.ore))}{m.ore_stimate ? " stimate" : ""}{m.noleggio ? " · noleggio" : m.costo_orario != null ? ` × ${euro(m.costo_orario)}/h` : " · costo orario mancante"}
+              {ore(Number(m.ore))}{m.ore_stimate ? ` ${t("stimate")}` : ""}{m.noleggio ? ` · ${t("noleggio")}` : m.costo_orario != null ? ` × ${euro(m.costo_orario)}/h` : ` · ${t("costo orario mancante")}`}
             </span>
-            <span className="text-right text-xs text-muted-foreground">{m.noleggio ? "" : "quota interna"}</span>
+            <span className="text-right text-xs text-muted-foreground">{m.noleggio ? "" : t("quota interna")}</span>
             {vedeImporti && (
               <>
                 <span className="text-xs text-blue-800">
                   {m.prezzo != null
-                    ? `Nolo ${euro(m.prezzo)}${UNITA[m.unita ?? ""] ?? ""} · ricavo ${euro(m.ricavo)}${m.prezzo_fonte ? ` · ${DOVE_PREZZO[m.prezzo_fonte]}` : ""}`
-                    : m.voce_mezzo ? "Prezzo del nolo da definire" : ""}
+                    ? `${t("Nolo {prezzo} · ricavo {ricavo}", { prezzo: `${euro(m.prezzo)}${UNITA[m.unita ?? ""] ?? ""}`, ricavo: euro(m.ricavo) })}${m.prezzo_fonte ? ` · ${t(DOVE_PREZZO[m.prezzo_fonte])}` : ""}`
+                    : m.voce_mezzo ? t("Prezzo del nolo da definire") : ""}
                   {!m.voce_mezzo && puoModificare && data.order_id && (
                     <CollegaVoce tipo="mezzo" id={m.mezzo_id} orderId={data.order_id} onFatto={aggiornaQuadro} />
                   )}
                 </span>
                 <span className={`text-right text-xs font-semibold tabular-nums ${m.ricavo != null && m.importo != null && m.ricavo - m.importo < 0 ? "text-red-700" : "text-emerald-700"}`}>
-                  {permissions.canViewMargins && m.ricavo != null && m.importo != null ? `margine ${euro(Number(m.ricavo) - Number(m.importo))}` : ""}
+                  {permissions.canViewMargins && m.ricavo != null && m.importo != null ? t("margine {importo}", { importo: euro(Number(m.ricavo) - Number(m.importo)) }) : ""}
                 </span>
               </>
             )}
@@ -290,15 +293,15 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
               {v.codice ? <span className="mr-1 font-mono text-xs text-muted-foreground">{v.codice}</span> : null}{v.descrizione}
             </span>
             <span className="flex items-center justify-end gap-1 tabular-nums font-semibold">
-              {costoVoce(v) == null ? <span className="font-normal text-muted-foreground">costo —</span> : euro(costoVoce(v))}
+              {costoVoce(v) == null ? <span className="font-normal text-muted-foreground">{t("costo")} —</span> : euro(costoVoce(v))}
               {puoModificare && <ModificaVoceRapportino id={v.id} rapportinoId={rapportinoId} nome={v.descrizione} />}
               {puoModificare && (
-                <button type="button" aria-label={`Togli ${v.descrizione}`} disabled={togli.isPending} onClick={() => togli.mutate(v.id)}
+                <button type="button" aria-label={t("Togli {nome}", { nome: v.descrizione })} disabled={togli.isPending} onClick={() => togli.mutate(v.id)}
                   className="tap-compact rounded p-0.5 text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
               )}
             </span>
-            <span className="text-xs text-muted-foreground">{Number(v.quantita).toLocaleString("it-IT")} {v.unita}{v.costo_unitario != null ? ` × ${euro(v.costo_unitario)}` : ""}</span>
-            <span className="text-right text-xs text-blue-800">{ricavoVoce(v) != null && vedeImporti ? `ricavo ${euro(ricavoVoce(v))}` : ""}</span>
+            <span className="text-xs text-muted-foreground">{Number(v.quantita).toLocaleString(intlCampo())} {v.unita}{v.costo_unitario != null ? ` × ${euro(v.costo_unitario)}` : ""}</span>
+            <span className="text-right text-xs text-blue-800">{ricavoVoce(v) != null && vedeImporti ? t("ricavo {importo}", { importo: euro(ricavoVoce(v)) }) : ""}</span>
             {v.viaggio && (
               <span className="col-span-2 text-xs text-muted-foreground">
                 {[[v.viaggio.carico, v.viaggio.scarico].filter(Boolean).join(" → "), v.viaggio.mezzo, v.viaggio.km != null && `${v.viaggio.km} km`, v.viaggio.ddt && `DDT ${v.viaggio.ddt}`].filter(Boolean).join(" · ")}
@@ -306,8 +309,8 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
             )}
             {vedeImporti && v.prezzo_fonte !== undefined && (
               <span className={`col-span-2 text-[11px] ${v.prezzo_fonte ? COLORE_FONTE[v.prezzo_fonte] : "text-muted-foreground"}`}>
-                {v.prezzo_fonte === "mancante" && v.vendita_unitaria == null ? "Prezzo da definire" : etichettaPrezzo(v.prezzo_fonte)}
-                {v.prezzo_a_mano && v.prezzo_fonte ? ` · modificato a mano${v.vendita_proposta != null ? ` (listino ${euro(v.vendita_proposta)})` : ""}` : ""}
+                {v.prezzo_fonte === "mancante" && v.vendita_unitaria == null ? t("Prezzo da definire") : etichettaPrezzo(v.prezzo_fonte)}
+                {v.prezzo_a_mano && v.prezzo_fonte ? ` · ${t("modificato a mano")}${v.vendita_proposta != null ? ` (${t("listino {importo}", { importo: euro(v.vendita_proposta) })})` : ""}` : ""}
               </span>
             )}
           </li>
@@ -320,59 +323,59 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
             <p className="col-span-6 flex flex-wrap items-center gap-x-2 text-xs">
               <span className="font-medium">{nuova.voce.codice ? `${nuova.voce.codice} · ` : ""}{nuova.voce.descrizione}</span>
               {vedeImporti && <span className={COLORE_FONTE[nuova.voce.fonte]}>{etichettaPrezzo(nuova.voce.fonte)}{nuova.voce.prezzo != null ? ` ${euro(nuova.voce.prezzo)}` : ""}</span>}
-              {aManoNuova && <span className="text-amber-700">· prezzo modificato a mano</span>}
+              {aManoNuova && <span className="text-amber-700">· {t("prezzo modificato a mano")}</span>}
               {avvisoUnita(nuova.voce) && <span className="basis-full text-amber-700">{avvisoUnita(nuova.voce)}</span>}
-              <button type="button" className="text-muted-foreground underline" onClick={() => setNuova({ ...VUOTA })}>cambia</button>
+              <button type="button" className="text-muted-foreground underline" onClick={() => setNuova({ ...VUOTA })}>{t("cambia")}</button>
             </p>
           )}
           {!nuova.voce && vociPronte.length > 0 && (
-            <UniformSelect aria-label="Scegli la voce" className="col-span-6 h-8 rounded-md border bg-background px-2 text-[13px]" value={vociPronte.find((v) => v.nome === nuova.descrizione)?.id ?? ""}
+            <UniformSelect aria-label={t("Scegli la voce")} className="col-span-6 h-8 rounded-md border bg-background px-2 text-[13px]" value={vociPronte.find((v) => v.nome === nuova.descrizione)?.id ?? ""}
               onChange={(e) => { const v = vociPronte.find((x) => x.id === e.target.value); setNuova(v ? { ...nuova, descrizione: v.nome, unita: v.unita, quantita: unitaChilometro(v.unita) ? "" : "1", costo: v.costo_unitario?.toString() ?? "", vendita: v.vendita_unitaria?.toString() ?? "", viaggio: undefined } : { ...nuova, descrizione: "", viaggio: undefined }); }}>
-              <option value="">{aMano ? "Voci del rapportino, o scrivila sotto" : "Voci del rapportino"}</option>
+              <option value="">{aMano ? t("Voci del rapportino, o scrivila sotto") : t("Voci del rapportino")}</option>
               {vociPronte.map((v) => <option key={v.id} value={v.id}>{v.nome}</option>)}
             </UniformSelect>
           )}
-          {!nuova.voce && aMano && <Input aria-label="Descrizione voce" placeholder="Oppure scrivi la voce (es. trasporto, nolo)" className="col-span-6 h-8 text-[13px]" value={nuova.descrizione} onChange={(e) => setNuova({ ...nuova, descrizione: e.target.value })} />}
-          <Input aria-label={unitaChilometro(nuova.unita) ? "Km percorsi" : "Quantità"} inputMode="decimal" placeholder={unitaChilometro(nuova.unita) ? "Km" : "Q.tà"} className="col-span-1 h-8 px-1.5 text-[13px]" value={nuova.quantita} onChange={(e) => setNuova({ ...nuova, quantita: e.target.value })} />
-          <Input aria-label="Unità" placeholder="Unità" className="col-span-1 h-8 px-1.5 text-[13px]" value={nuova.unita} onChange={(e) => setNuova({ ...nuova, unita: e.target.value })} />
-          <Input aria-label="Costo unitario" inputMode="decimal" placeholder="Costo €" className="col-span-2 h-8 text-[13px]" value={nuova.costo} onChange={(e) => setNuova({ ...nuova, costo: e.target.value })} />
+          {!nuova.voce && aMano && <Input aria-label={t("Descrizione voce")} placeholder={t("Oppure scrivi la voce (es. trasporto, nolo)")} className="col-span-6 h-8 text-[13px]" value={nuova.descrizione} onChange={(e) => setNuova({ ...nuova, descrizione: e.target.value })} />}
+          <Input aria-label={unitaChilometro(nuova.unita) ? t("Km percorsi") : t("Quantità")} inputMode="decimal" placeholder={unitaChilometro(nuova.unita) ? "Km" : t("Q.tà")} className="col-span-1 h-8 px-1.5 text-[13px]" value={nuova.quantita} onChange={(e) => setNuova({ ...nuova, quantita: e.target.value })} />
+          <Input aria-label={t("Unità")} placeholder={t("Unità")} className="col-span-1 h-8 px-1.5 text-[13px]" value={nuova.unita} onChange={(e) => setNuova({ ...nuova, unita: e.target.value })} />
+          <Input aria-label={t("Costo unitario")} inputMode="decimal" placeholder={t("Costo €")} className="col-span-2 h-8 text-[13px]" value={nuova.costo} onChange={(e) => setNuova({ ...nuova, costo: e.target.value })} />
           {vedeImporti ? (
-            <Input aria-label="Vendita unitaria" inputMode="decimal" placeholder={nuova.voce?.fonte === "mancante" ? "Prezzo da definire" : "Vendita €"} className="col-span-2 h-8 text-[13px]" value={nuova.vendita} onChange={(e) => setNuova({ ...nuova, vendita: e.target.value })} />
-          ) : <span className="col-span-2 self-center text-[11px] text-muted-foreground">{nuova.voce ? "Prezzo dal listino" : ""}</span>}
+            <Input aria-label={t("Vendita unitaria")} inputMode="decimal" placeholder={nuova.voce?.fonte === "mancante" ? t("Prezzo da definire") : t("Vendita €")} className="col-span-2 h-8 text-[13px]" value={nuova.vendita} onChange={(e) => setNuova({ ...nuova, vendita: e.target.value })} />
+          ) : <span className="col-span-2 self-center text-[11px] text-muted-foreground">{nuova.voce ? t("Prezzo dal listino") : ""}</span>}
           {(nuova.viaggio || voceTrasporto(nuova.descrizione, nuova.unita)) && (
             <div className="col-span-6">
               <CampiViaggioRapportino valore={nuova.viaggio ?? {}} quantitaInKm={unitaChilometro(nuova.unita)} onChange={(viaggio) => setNuova({ ...nuova, viaggio })} />
-              {!datiViaggioValidi && <p className="mt-1 text-xs text-destructive">Controlla quantità, chilometri e ore del viaggio.</p>}
+              {!datiViaggioValidi && <p className="mt-1 text-xs text-destructive">{t("Controlla quantità, chilometri e ore del viaggio.")}</p>}
             </div>
           )}
           <div className="col-span-6 flex justify-end gap-1.5">
-            <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => setNuova(null)}>Annulla</Button>
-            <Button type="submit" size="sm" className="h-7" disabled={aggiungi.isPending || !nuova.descrizione.trim() || !datiViaggioValidi || (!nuova.voce && !aMano && !vociPronte.some((v) => v.nome === nuova.descrizione))}>Aggiungi</Button>
+            <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => setNuova(null)}>{t("Annulla")}</Button>
+            <Button type="submit" size="sm" className="h-7" disabled={aggiungi.isPending || !nuova.descrizione.trim() || !datiViaggioValidi || (!nuova.voce && !aMano && !vociPronte.some((v) => v.nome === nuova.descrizione))}>{t("Aggiungi")}</Button>
           </div>
         </form>
       ) : (
         <button type="button" onClick={() => setNuova({ ...VUOTA })} className="tap-compact flex w-full items-center gap-1 border-t px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-muted/40">
-          <Plus className="h-3.5 w-3.5" /> Aggiungi voce
+          <Plus className="h-3.5 w-3.5" /> {t("Aggiungi voce")}
         </button>
       ))}
       <dl className={`grid gap-2 border-t bg-muted/40 px-3 py-1.5 tabular-nums ${conVendita ? "grid-cols-4" : "grid-cols-2"}`}>
-        <div><dt className="text-[11px] text-muted-foreground">Ore</dt><dd className="font-semibold">{ore(totOre)}</dd></div>
+        <div><dt className="text-[11px] text-muted-foreground">{t("Ore")}</dt><dd className="font-semibold">{ore(totOre)}</dd></div>
         <div>
-          <dt className="text-[11px] text-muted-foreground">Costo{tot.completo ? "" : " (parziale)"}</dt>
+          <dt className="text-[11px] text-muted-foreground">{t("Costo")}{tot.completo ? "" : ` (${t("parziale")})`}</dt>
           <dd className={`font-semibold ${tot.completo ? "" : "text-amber-700"}`}>{euro(tot.costo)}</dd>
         </div>
         {conVendita && (
           <div>
-            <dt className="text-[11px] text-muted-foreground">Ricavo{tot.prezziDaDefinire ? " (parziale)" : ""}</dt>
+            <dt className="text-[11px] text-muted-foreground">{t("Ricavo")}{tot.prezziDaDefinire ? ` (${t("parziale")})` : ""}</dt>
             <dd className={`font-semibold ${tot.prezziDaDefinire ? "text-amber-700" : ""}`}>{euro(tot.ricavo)}</dd>
           </div>
         )}
         {conVendita && permissions.canViewMargins && (
           <div>
-            <dt className="text-[11px] text-muted-foreground">Margine</dt>
+            <dt className="text-[11px] text-muted-foreground">{t("Margine")}</dt>
             {tot.margine == null
-              ? <dd className="text-xs font-semibold text-amber-700">Incompleto: {[tot.mancano ? `${tot.mancano} ${tot.mancano === 1 ? "costo" : "costi"} da completare` : "", tot.prezziDaDefinire ? `${tot.prezziDaDefinire} ${tot.prezziDaDefinire === 1 ? "prezzo" : "prezzi"} da definire` : ""].filter(Boolean).join(", ")}</dd>
-              : <dd className={`font-semibold ${tot.margine < 0 ? "text-red-700" : "text-emerald-700"}`}>{euro(tot.margine)}{tot.marginePct != null ? <span className="ml-1 text-xs font-normal">({tot.marginePct.toLocaleString("it-IT")}%)</span> : null}</dd>}
+              ? <dd className="text-xs font-semibold text-amber-700">{t("Incompleto: {elenco}", { elenco: [tot.mancano ? t(tot.mancano === 1 ? "{n} costo da completare" : "{n} costi da completare", { n: tot.mancano }) : "", tot.prezziDaDefinire ? t(tot.prezziDaDefinire === 1 ? "{n} prezzo da definire" : "{n} prezzi da definire", { n: tot.prezziDaDefinire }) : ""].filter(Boolean).join(", ") })}</dd>
+              : <dd className={`font-semibold ${tot.margine < 0 ? "text-red-700" : "text-emerald-700"}`}>{euro(tot.margine)}{tot.marginePct != null ? <span className="ml-1 text-xs font-normal">({tot.marginePct.toLocaleString(intlCampo())}%)</span> : null}</dd>}
           </div>
         )}
       </dl>

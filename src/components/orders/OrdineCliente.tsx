@@ -2,6 +2,7 @@ import { emailDaMostrare, nomeCliente } from "@/lib/orders/nuovaCommessaProposte
 import { Link } from "react-router-dom";
 import { User, Mail, Phone, MapPin, HardHat, ExternalLink } from "lucide-react";
 import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Cliente {
   id: string;
@@ -25,23 +26,24 @@ interface OrdineClienteProps {
 /** Blocco "Cantiere": indirizzo dei lavori + navigazione. Chi parte col
  *  furgone cerca questo, non la residenza del cliente. */
 function BloccoCantiere({ indirizzo }: { indirizzo?: string | null }) {
+  const t = useT();
   const pulito = indirizzo?.trim();
   if (!pulito) return null;
   return (
     <div className="mt-3 border-t border-slate-100 pt-3">
       <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
         <HardHat className="h-3.5 w-3.5 text-orange-500" />
-        Cantiere
+        {t("Cantiere")}
       </p>
       <div className="flex items-start justify-between gap-2 text-sm">
-        <span className="text-slate-600">{pulito}</span>
+        <span dir="auto" className="text-slate-600">{pulito}</span>
         <a
           href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pulito)}`}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-orange-600 hover:underline"
         >
-          Naviga
+          {t("Naviga")}
           <ExternalLink className="h-3 w-3" />
         </a>
       </div>
@@ -53,11 +55,12 @@ const normalizzaIndirizzo = (v?: string | null) => (v ?? "").toLocaleLowerCase("
 const stessoIndirizzo = (a?: string | null, b?: string | null) => !!normalizzaIndirizzo(a) && normalizzaIndirizzo(a) === normalizzaIndirizzo(b);
 
 export function OrdineCliente({ customer, snapshot, indirizzoLavori, ruolo = "cliente" }: OrdineClienteProps) {
+  const t = useT();
   if (!customer) {
     return (
-      <QuoteCard title={ruolo === "committente" ? "Committente" : "Cliente"} icon={<User className="h-4 w-4" />}>
-        <p className="text-sm font-medium text-slate-700">{snapshot?.name || "Cliente non disponibile"}</p>
-        {snapshot?.name && <p className="mt-1 text-xs text-slate-500">Dati salvati nella commessa · anagrafica non collegata</p>}
+      <QuoteCard title={ruolo === "committente" ? t("Committente") : t("Cliente")} icon={<User className="h-4 w-4" />}>
+        <p className="text-sm font-medium text-slate-700">{snapshot?.name || t("Cliente non disponibile")}</p>
+        {snapshot?.name && <p className="mt-1 text-xs text-slate-500">{t("Dati salvati nella commessa · anagrafica non collegata")}</p>}
         {emailDaMostrare(snapshot?.email) && <p className="mt-2 break-all text-sm text-slate-500">{emailDaMostrare(snapshot?.email)}</p>}
         {snapshot?.phone && <p className="text-sm text-slate-500">{snapshot.phone}</p>}
         <BloccoCantiere indirizzo={indirizzoLavori} />
@@ -70,7 +73,7 @@ export function OrdineCliente({ customer, snapshot, indirizzoLavori, ruolo = "cl
   const referente = [customer.first_name, customer.last_name].filter(Boolean).join(" ");
 
   return (
-    <QuoteCard title={ruolo === "committente" ? "Committente" : "Cliente"} icon={<User className="h-4 w-4" />}>
+    <QuoteCard title={ruolo === "committente" ? t("Committente") : t("Cliente")} icon={<User className="h-4 w-4" />}>
       <div className="flex items-center gap-3 mb-3">
         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-100 to-amber-100 text-orange-700 flex items-center justify-center text-sm font-semibold shrink-0 ring-1 ring-orange-200">
           {initials}
@@ -82,11 +85,11 @@ export function OrdineCliente({ customer, snapshot, indirizzoLavori, ruolo = "cl
           {fullName}
         </Link>
       </div>
-      {customer.business_name?.trim() && referente && referente !== fullName && <p className="mb-3 text-sm text-slate-500">Referente: {referente}</p>}
+      {customer.business_name?.trim() && referente && referente !== fullName && <p className="mb-3 text-sm text-slate-500">{t("Referente: {nome}", { nome: referente })}</p>}
       <div className="space-y-1.5 text-sm">
         <div className="flex items-center gap-2 text-slate-500">
           <Mail className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{emailDaMostrare(customer.email) || "Email non indicata"}</span>
+          <span className="truncate">{emailDaMostrare(customer.email) || t("Email non indicata")}</span>
         </div>
         {customer.phone && (
           <div className="flex items-center gap-2 text-slate-500">
@@ -98,7 +101,7 @@ export function OrdineCliente({ customer, snapshot, indirizzoLavori, ruolo = "cl
         {customer.address && !stessoIndirizzo(customer.address, indirizzoLavori) && (
           <div className="flex items-start gap-2 text-slate-500">
             <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <span>{customer.address}</span>
+            <span dir="auto">{customer.address}</span>
           </div>
         )}
       </div>

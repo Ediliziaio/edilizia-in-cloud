@@ -1,5 +1,6 @@
 import { CheckCircle2, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   checks: ReadonlyArray<{ label: string; done: boolean }>;
@@ -11,17 +12,18 @@ interface Props {
  * ora si legge solo quello che manca.
  */
 export function CreateOrderChecklist({ checks }: Props) {
-  const mancanti = checks.filter((check) => !check.done).map((check) => check.label);
+  const t = useT();
+  const mancanti = checks.filter((check) => !check.done).map((check) => t(check.label));
   const pronto = mancanti.length === 0;
   return (
     <p
-      aria-label={pronto ? "Controlli commessa: tutto pronto" : `Controlli commessa: manca ${mancanti.join(", ")}`}
+      aria-label={pronto ? t("Controlli commessa: tutto pronto") : t("Controlli commessa: manca {voci}", { voci: mancanti.join(", ") })}
       className={cn("flex min-w-0 items-center gap-1.5 text-xs", pronto ? "text-emerald-700" : "text-amber-800")}
     >
       {pronto
         ? <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
         : <Circle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />}
-      <span className="min-w-0 truncate">{pronto ? "Tutto pronto" : `Manca: ${mancanti.join(" · ")}`}</span>
+      <span className="min-w-0 truncate">{pronto ? t("Tutto pronto") : t("Manca: {voci}", { voci: mancanti.join(" · ") })}</span>
     </p>
   );
 }

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import type { FaseModello, ModelloFasi } from "@/lib/orders/modelliFasi";
 import type { FasePianificata, PianoFasi } from "@/lib/orders/pianoFasiNuovaCommessa";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   modello: ModelloFasi | null;
@@ -26,15 +27,17 @@ const ORIGINE: Record<NonNullable<FasePianificata["origine"]>, string> = {
 };
 
 function DateFase({ r }: { r: FasePianificata | undefined }) {
+  const t = useT();
   if (!r?.giorni) return <span className="shrink-0 text-[11px] text-slate-400">—</span>;
   return (
-    <span className="shrink-0 whitespace-nowrap text-right text-[11px] tabular-nums text-slate-600" title={r.origine ? ORIGINE[r.origine] : undefined}>
-      {r.giorni} gg{r.dal && r.al ? <> · {breve(r.dal)} → {breve(r.al)}</> : null}
+    <span className="shrink-0 whitespace-nowrap text-right text-[11px] tabular-nums text-slate-600" title={r.origine ? t(ORIGINE[r.origine]) : undefined}>
+      {t("{n} gg", { n: r.giorni })}{r.dal && r.al ? <> · {breve(r.dal)} → {breve(r.al)}</> : null}
     </span>
   );
 }
 
 export function AnteprimaFasiCommessa({ modello, fasi, personalizzate, onChange, onRipristina, piano, dalContratto = false }: Props) {
+  const t = useT();
   const [modifica, setModifica] = useState(false);
   const [tutte, setTutte] = useState(false);
   const sottofasi = fasi.reduce((n, f) => n + f.sottofasi.length, 0);
@@ -51,47 +54,47 @@ export function AnteprimaFasiCommessa({ modello, fasi, personalizzate, onChange,
     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60">
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium text-slate-800">
-          <ListOrdered className="h-4 w-4 text-orange-500" />{fasi.length} {fasi.length === 1 ? "fase" : "fasi"}{sottofasi > 0 ? ` · ${sottofasi} ${sottofasi === 1 ? "sottofase" : "sottofasi"}` : ""}
-          {dalContratto && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-normal text-amber-900">dal contratto, da controllare</span>}
-          {primo && ultimo && <span className="inline-flex items-center gap-1 text-xs font-normal text-slate-600"><CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />dal {breve(primo)} al {breve(ultimo)}</span>}
+          <ListOrdered className="h-4 w-4 text-orange-500" />{fasi.length === 1 ? t("{n} fase", { n: fasi.length }) : t("{n} fasi", { n: fasi.length })}{sottofasi > 0 ? ` · ${sottofasi === 1 ? t("{n} sottofase", { n: sottofasi }) : t("{n} sottofasi", { n: sottofasi })}` : ""}
+          {dalContratto && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-normal text-amber-900">{t("dal contratto, da controllare")}</span>}
+          {primo && ultimo && <span className="inline-flex items-center gap-1 text-xs font-normal text-slate-600"><CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />{t("dal {dal} al {al}", { dal: breve(primo), al: breve(ultimo) })}</span>}
         </span>
-        <Button type="button" variant="outline" size="sm" className="h-8 bg-white text-xs" aria-expanded={modifica} onClick={() => setModifica(!modifica)}>{modifica ? "Fine modifica" : "Adatta alla commessa"}</Button>
+        <Button type="button" variant="outline" size="sm" className="h-8 bg-white text-xs" aria-expanded={modifica} onClick={() => setModifica(!modifica)}>{modifica ? t("Fine modifica") : t("Adatta alla commessa")}</Button>
       </div>
       {fasi.length > 0 ? <ol className="divide-y divide-slate-100 border-t border-slate-200">
         {visibili.map((fase, i) => <li key={i} className="px-3 py-2.5">
           <div className="flex items-center gap-2">
             <span className="w-5 shrink-0 text-xs font-medium text-slate-400">{String(i + 1).padStart(2, "0")}</span>
-            {modifica ? <Input aria-label={`Nome fase ${i + 1}`} maxLength={160} value={fase.nome} className="h-9 min-w-0 flex-1 bg-white text-sm" onChange={(e) => onChange(fasi.map((f, j) => j === i ? { ...f, nome: e.target.value } : f))} /> : <span className="min-w-0 flex-1 break-words text-sm text-slate-700">{fase.nome || "Fase senza nome"}</span>}
+            {modifica ? <Input aria-label={t("Nome fase {n}", { n: i + 1 })} maxLength={160} value={fase.nome} className="h-9 min-w-0 flex-1 bg-white text-sm" onChange={(e) => onChange(fasi.map((f, j) => j === i ? { ...f, nome: e.target.value } : f))} /> : <span className="min-w-0 flex-1 break-words text-sm text-slate-700">{fase.nome || t("Fase senza nome")}</span>}
             {modifica && piano ? (
               <label className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500">
-                <Input aria-label={`Giorni di lavoro fase ${i + 1}`} inputMode="numeric" className="h-9 w-14 bg-white px-2 text-right text-sm tabular-nums"
-                  placeholder={piano.righe[i]?.giorni ? String(piano.righe[i].giorni) : "gg"}
+                <Input aria-label={t("Giorni di lavoro fase {n}", { n: i + 1 })} inputMode="numeric" className="h-9 w-14 bg-white px-2 text-right text-sm tabular-nums"
+                  placeholder={piano.righe[i]?.giorni ? String(piano.righe[i].giorni) : t("gg")}
                   value={fase.giorni ? String(fase.giorni) : ""} onChange={(e) => cambiaGiorni(i, e.target.value.replace(/\D/g, ""))} />
-                gg
+                {t("gg")}
               </label>
             ) : piano ? <DateFase r={piano.righe[i]} /> : null}
-            {modifica && <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-slate-500 hover:text-red-600" aria-label={`Rimuovi fase ${i + 1}`} onClick={() => onChange(fasi.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>}
+            {modifica && <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-slate-500 hover:text-red-600" aria-label={t("Rimuovi fase {n}", { n: i + 1 })} onClick={() => onChange(fasi.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>}
           </div>
           {modifica && piano?.righe[i]?.dal && piano.righe[i].al && (
-            <p className="ml-7 mt-1 text-[11px] tabular-nums text-slate-500">{breve(piano.righe[i].dal!)} → {breve(piano.righe[i].al!)}{!fase.giorni && piano.righe[i].origine ? ` · ${ORIGINE[piano.righe[i].origine!]}` : ""}</p>
+            <p className="ml-7 mt-1 text-[11px] tabular-nums text-slate-500">{breve(piano.righe[i].dal!)} → {breve(piano.righe[i].al!)}{!fase.giorni && piano.righe[i].origine ? ` · ${t(ORIGINE[piano.righe[i].origine!])}` : ""}</p>
           )}
           {fase.sottofasi.length > 0 && <details className="ml-7 mt-1 text-xs text-slate-500">
-            <summary className="cursor-pointer py-1">{fase.sottofasi.length} {fase.sottofasi.length === 1 ? "sottofase" : "sottofasi"}</summary>
-            <ul className="mt-1 space-y-1 border-l border-slate-200 pl-3">{fase.sottofasi.map((s, j) => <li key={j} className="break-words">{s.nome}{s.quantita != null && <span className="ml-2 tabular-nums">· {s.quantita.toLocaleString("it-IT")} {s.unita}</span>}</li>)}</ul>
+            <summary className="cursor-pointer py-1">{fase.sottofasi.length === 1 ? t("{n} sottofase", { n: 1 }) : t("{n} sottofasi", { n: fase.sottofasi.length })}</summary>
+            <ul className="mt-1 space-y-1 border-l border-slate-200 pl-3">{fase.sottofasi.map((s, j) => <li key={j} className="break-words">{s.nome}{s.quantita != null && <span className="ml-2 tabular-nums">· {s.quantita.toLocaleString(intlCampo())} {s.unita}</span>}</li>)}</ul>
           </details>}
         </li>)}
-      </ol> : <p className="px-3 pb-3 text-xs text-slate-500">Nessuna fase.</p>}
-      {!modifica && fasi.length > 4 && <Button type="button" variant="ghost" size="sm" className="mx-3 mb-2 h-9 text-xs text-blue-800" aria-expanded={tutte} onClick={() => setTutte(!tutte)}>{tutte ? "Mostra meno" : `Mostra tutte le ${fasi.length} fasi`}</Button>}
-      {fasi.some((fase) => !fase.nome.trim()) && <p role="alert" className="px-3 pb-2 text-xs text-red-600">Assegna un nome alle fasi vuote o rimuovile prima di creare la commessa.</p>}
-      {piano?.oltreFine && ultimo && <p role="status" className="px-3 pb-2 text-xs text-amber-800">Le fasi finiscono il {breve(ultimo)}, dopo la fine dei lavori: accorcia qualche fase o sposta la fine.</p>}
+      </ol> : <p className="px-3 pb-3 text-xs text-slate-500">{t("Nessuna fase.")}</p>}
+      {!modifica && fasi.length > 4 && <Button type="button" variant="ghost" size="sm" className="mx-3 mb-2 h-9 text-xs text-blue-800" aria-expanded={tutte} onClick={() => setTutte(!tutte)}>{tutte ? t("Mostra meno") : t("Mostra tutte le {n} fasi", { n: fasi.length })}</Button>}
+      {fasi.some((fase) => !fase.nome.trim()) && <p role="alert" className="px-3 pb-2 text-xs text-red-600">{t("Assegna un nome alle fasi vuote o rimuovile prima di creare la commessa.")}</p>}
+      {piano?.oltreFine && ultimo && <p role="status" className="px-3 pb-2 text-xs text-amber-800">{t("Le fasi finiscono il {data}, dopo la fine dei lavori: accorcia qualche fase o sposta la fine.", { data: breve(ultimo) })}</p>}
       {modifica && <div className="flex flex-wrap gap-2 border-t border-slate-200 px-3 py-2">
-        <Button type="button" variant="outline" size="sm" className="h-9 bg-white text-xs" disabled={fasi.length >= 60} onClick={() => onChange([...fasi, { nome: "", sottofasi: [] }])}><Plus className="mr-1 h-3.5 w-3.5" />Aggiungi fase</Button>
-        {modello && personalizzate && <Button type="button" variant="ghost" size="sm" className="h-9 text-xs" onClick={onRipristina}>Ripristina modello</Button>}
+        <Button type="button" variant="outline" size="sm" className="h-9 bg-white text-xs" disabled={fasi.length >= 60} onClick={() => onChange([...fasi, { nome: "", sottofasi: [] }])}><Plus className="mr-1 h-3.5 w-3.5" />{t("Aggiungi fase")}</Button>
+        {modello && personalizzate && <Button type="button" variant="ghost" size="sm" className="h-9 text-xs" onClick={onRipristina}>{t("Ripristina modello")}</Button>}
       </div>}
       {/* Una riga sola, e solo con delle fasi: senza fasi non c'è niente da spiegare (14/11/2026). */}
       {fasi.length > 0 && (personalizzate || piano) && <p className={cn("border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500")}>
-        {dalContratto ? "Lette dal contratto: controllale con «Adatta alla commessa» o scegli un modello. " : personalizzate ? "Modifiche solo per questa commessa. " : ""}
-        {piano && !primo ? "Con l'inizio dei lavori le fasi prendono le date, una dopo l'altra." : piano ? "Le fasi partono una dopo l'altra sui giorni di lavoro." : ""}
+        {dalContratto ? `${t("Lette dal contratto: controllale con «Adatta alla commessa» o scegli un modello.")} ` : personalizzate ? `${t("Modifiche solo per questa commessa.")} ` : ""}
+        {piano && !primo ? t("Con l'inizio dei lavori le fasi prendono le date, una dopo l'altra.") : piano ? t("Le fasi partono una dopo l'altra sui giorni di lavoro.") : ""}
       </p>}
     </div>
   );

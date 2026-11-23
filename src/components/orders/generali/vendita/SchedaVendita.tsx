@@ -22,6 +22,7 @@ import type { UnitaGenerale } from "@/lib/orders/generali/unita";
 import {
   MAX_FOTO_SCHEDA, aziendaVendita, componiSchedaVendita, nomeFileScheda,
 } from "@/lib/orders/generali/vendita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const AnteprimaPDF = lazy(() => import("@/components/shared/PdfBlobLivePreviewPanel").then(
   ({ PdfBlobLivePreviewPanel }) => ({ default: PdfBlobLivePreviewPanel }),
@@ -52,6 +53,7 @@ function salvaCapitolato(generaleId: string, testo: string) {
 }
 
 export function SchedaVendita({ generaleId, modello, operazione, unita: u, vedeImporti }: Props) {
+  const t = useT();
   const azienda = useAziendaDossier();
   const { file, isLoading } = useFileVenditaUnita({ generaleId, modello, orderId: u.orderId });
   const conListino = vedeImporti && u.listino !== null && u.listino > 0;
@@ -84,7 +86,7 @@ export function SchedaVendita({ generaleId, modello, operazione, unita: u, vedeI
   const chiavePDF = JSON.stringify([base, planimetriaPDF, fotoPDF]);
 
   const genera = async () => {
-    if (!base) throw new Error("I dati dell’azienda non sono disponibili. Riprova.");
+    if (!base) throw new Error(t("I dati dell’azienda non sono disponibili. Riprova."));
     salvaCapitolato(generaleId, capitolato);
     const [immagini, { pdf }, { SchedaVenditaPDF }] = await Promise.all([
       Promise.all([
@@ -99,41 +101,41 @@ export function SchedaVendita({ generaleId, modello, operazione, unita: u, vedeI
     const blob = await pdf(<SchedaVenditaPDF d={{ ...base, planimetria: immPlanimetria, foto: fotoBuone }} />).toBlob();
     const persi = (planimetriaPDF && !immPlanimetria ? 1 : 0) + fotoPDF.length - fotoBuone.length;
     if (persi > 0) toast.warning(persi === 1
-      ? "Un’immagine non si è caricata ed è rimasta fuori dal PDF."
-      : `${persi} immagini non si sono caricate e sono rimaste fuori dal PDF.`);
+      ? t("Un’immagine non si è caricata ed è rimasta fuori dal PDF.")
+      : t("{persi} immagini non si sono caricate e sono rimaste fuori dal PDF.", { persi: String(persi ?? "") }));
     return createPdfPreviewUrl(blob);
   };
 
   return (
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
       <div className="space-y-3">
-        <section aria-label="Contenuto del PDF" className="min-w-0 rounded-lg border bg-card">
+        <section aria-label={t("Contenuto del PDF")} className="min-w-0 rounded-lg border bg-card">
           <h3 className="flex items-center gap-2 border-b px-4 py-3 text-sm font-semibold">
-            <FileText className="size-4 text-blue-700 dark:text-blue-300" aria-hidden="true" /> Contenuto del PDF
+            <FileText className="size-4 text-blue-700 dark:text-blue-300" aria-hidden="true" /> {t("Contenuto del PDF")}
           </h3>
           <div className="space-y-3 p-4">
             {conListino && (
               <div className="flex items-center gap-2">
                 <Checkbox id={id("prezzo")} checked={conPrezzo} onCheckedChange={(v) => setConPrezzo(v === true)} />
-                <Label htmlFor={id("prezzo")} className="text-sm font-normal">Metti il prezzo di listino ({euro(u.listino)})</Label>
+                <Label htmlFor={id("prezzo")} className="text-sm font-normal">{t("Metti il prezzo di listino ({importo})", { importo: euro(u.listino) })}</Label>
               </div>
             )}
             <div className="flex items-center gap-2">
               <Checkbox id={id("planimetria")} checked={conPlanimetria && !!planimetria} disabled={!planimetria} onCheckedChange={(v) => setConPlanimetria(v === true)} />
               <Label htmlFor={id("planimetria")} className="text-sm font-normal">
-                {isLoading ? "Planimetria…" : planimetria ? "Planimetria" : "Planimetria (non caricata: si carica dalla scheda Vendita)"}
+                {isLoading ? t("Planimetria…") : planimetria ? t("Planimetria") : t("Planimetria (non caricata: si carica dalla scheda Vendita)")}
               </Label>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox id={id("foto")} checked={conFoto && foto.length > 0} disabled={foto.length === 0} onCheckedChange={(v) => setConFoto(v === true)} />
               <Label htmlFor={id("foto")} className="text-sm font-normal">
-                {foto.length === 0 ? "Foto o render (nessuna caricata)" : `Foto o render (${foto.length})`}
+                {foto.length === 0 ? t("Foto o render (nessuna caricata)") : t("Foto o render ({n})", { n: foto.length })}
               </Label>
             </div>
           </div>
         </section>
         <div className="min-w-0 rounded-lg border bg-card">
-          <Label htmlFor={id("capitolato")} className="block border-b px-4 py-3 text-sm font-semibold">Capitolato in breve</Label>
+          <Label htmlFor={id("capitolato")} className="block border-b px-4 py-3 text-sm font-semibold">{t("Capitolato in breve")}</Label>
           <div className="space-y-2 p-4">
             <Textarea
               id={id("capitolato")}
@@ -143,26 +145,26 @@ export function SchedaVendita({ generaleId, modello, operazione, unita: u, vedeI
               className="text-sm"
               placeholder={"Classe energetica A4\nPavimenti in gres porcellanato 60×60\nInfissi in PVC con triplo vetro"}
             />
-            <p className="text-xs text-muted-foreground">Una voce per riga. Il testo vale per tutte le unità dell’operazione.</p>
+            <p className="text-xs text-muted-foreground">{t("Una voce per riga. Il testo vale per tutte le unità dell’operazione.")}</p>
           </div>
         </div>
       </div>
       {mostraAnteprima && base ? (
         <div ref={visore} className="h-[clamp(320px,48dvh,440px)] min-w-0">
           <Suspense fallback={<div role="status" className="grid h-full place-items-center rounded-lg border text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-2"><Loader2 className="size-4 animate-spin" aria-hidden="true" /> Carico il visore PDF…</span>
+            <span className="inline-flex items-center gap-2"><Loader2 className="size-4 animate-spin" aria-hidden="true" /> {t("Carico il visore PDF…")}</span>
           </div>}>
             <AnteprimaPDF renderBlobUrl={genera} depsKey={chiavePDF} enabled={!isLoading}
-              downloadFileName={nomeFileScheda(base)} downloadButtonLabel="Scarica PDF"
+              downloadFileName={nomeFileScheda(base)} downloadButtonLabel={t("Scarica PDF")}
               requireRenderedDownload showDownloadOnMobile allowOpenInNewTab={false}
-              headerLabel="Anteprima del PDF" accentClass="text-blue-700 dark:text-blue-300" fitWholePage />
+              headerLabel={t("Anteprima del PDF")} accentClass="text-blue-700 dark:text-blue-300" fitWholePage />
           </Suspense>
         </div>
       ) : (
         <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-muted/25 px-4 py-6 text-center lg:min-h-full">
           <Eye className="size-6 text-blue-700 dark:text-blue-300" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">Controlla la scheda di {u.sigla} prima di scaricarla.</p>
-          <Button size="sm" disabled={!base || isLoading} onClick={() => setMostraAnteprima(true)}>Mostra anteprima</Button>
+          <p className="text-sm text-muted-foreground">{t("Controlla la scheda di {sigla} prima di scaricarla.", { sigla: String(u.sigla ?? "") })}</p>
+          <Button size="sm" disabled={!base || isLoading} onClick={() => setMostraAnteprima(true)}>{t("Mostra anteprima")}</Button>
         </div>
       )}
     </div>

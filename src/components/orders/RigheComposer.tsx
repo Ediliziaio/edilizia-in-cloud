@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { RigaDocumento } from "@/types/fatturazione";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * RigheComposer — composizione FLESSIBILE delle righe di un documento fiscale
@@ -35,7 +36,7 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 function fmt(value: number): string {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(value);
+  return new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(value);
 }
 
 /** Riga documento da un articolo (id stabile = item.id → la selezione non salta). */
@@ -105,8 +106,8 @@ export function useRigheComposer({
   defaultVat,
   itemsLoading = false,
   open,
-  label = "Righe documento",
-  freeLinesLabel = "Righe descrittive (prestazioni, servizi, note)",
+  label,
+  freeLinesLabel,
 }: {
   orderItems: RigaComposerItem[];
   defaultVat: number;
@@ -116,6 +117,7 @@ export function useRigheComposer({
   label?: string;
   freeLinesLabel?: string;
 }): UseRigheComposerResult {
+  const t = useT();
   const [excludedItemIds, setExcludedItemIds] = useState<Set<string>>(new Set());
   const [freeLines, setFreeLines] = useState<FreeLine[]>([]);
   const [draft, setDraft] = useState({ descrizione: "", quantita: "1", prezzo: "", aliquota: "" });
@@ -152,7 +154,7 @@ export function useRigheComposer({
 
   const addFreeLine = () => {
     const descrizione = draft.descrizione.trim();
-    if (!descrizione) { toast.error("Scrivi una descrizione per la riga"); return; }
+    if (!descrizione) { toast.error(t("Scrivi una descrizione per la riga")); return; }
     setFreeLines((prev) => [...prev, {
       id: crypto.randomUUID(),
       descrizione,
@@ -168,7 +170,7 @@ export function useRigheComposer({
     <div className="space-y-3">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
         <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-        {label} ({righe.length})
+        {label ?? t("Righe documento")} ({righe.length})
       </p>
 
       {itemsLoading ? (
@@ -181,11 +183,11 @@ export function useRigheComposer({
             <div className="border rounded-lg overflow-hidden">
               <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-muted/60">
                 <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <Package className="h-3 w-3" /> Articoli · {includedItemRighe.length}/{orderItems.length} inclusi
+                  <Package className="h-3 w-3" /> {t("Articoli · {inclusi}/{totale} inclusi", { inclusi: includedItemRighe.length, totale: orderItems.length })}
                 </span>
                 <div className="flex gap-2">
-                  <button type="button" className="text-[10px] font-medium text-primary hover:underline" onClick={() => setExcludedItemIds(new Set())}>Tutti</button>
-                  <button type="button" className="text-[10px] font-medium text-muted-foreground hover:underline" onClick={() => setExcludedItemIds(new Set(orderItems.map((i) => i.id)))}>Nessuno</button>
+                  <button type="button" className="text-[10px] font-medium text-primary hover:underline" onClick={() => setExcludedItemIds(new Set())}>{t("Tutti")}</button>
+                  <button type="button" className="text-[10px] font-medium text-muted-foreground hover:underline" onClick={() => setExcludedItemIds(new Set(orderItems.map((i) => i.id)))}>{t("Nessuno")}</button>
                 </div>
               </div>
               <div className="divide-y max-h-48 overflow-auto">
@@ -212,7 +214,7 @@ export function useRigheComposer({
 
           <div className="rounded-lg border overflow-hidden">
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/60 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <ListPlus className="h-3 w-3" /> {freeLinesLabel}
+              <ListPlus className="h-3 w-3" /> {freeLinesLabel ?? t("Righe descrittive (prestazioni, servizi, note)")}
             </div>
             {freeLines.length > 0 && (
               <div className="divide-y">
@@ -225,7 +227,7 @@ export function useRigheComposer({
                       <span className="text-right tabular-nums text-muted-foreground">{fmt(riga.prezzo_unitario)}</span>
                       <span className="text-right tabular-nums text-muted-foreground">{riga.aliquota_iva}%</span>
                       <span className="text-right tabular-nums font-medium">{fmt(riga.totale_riga)}</span>
-                      <button type="button" onClick={() => removeFreeLine(fl.id)} className="justify-self-end text-muted-foreground hover:text-red-600" title="Rimuovi riga">
+                      <button type="button" onClick={() => removeFreeLine(fl.id)} className="justify-self-end text-muted-foreground hover:text-red-600" title={t("Rimuovi riga")}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -238,14 +240,14 @@ export function useRigheComposer({
                 value={draft.descrizione}
                 onChange={(e) => setDraft((d) => ({ ...d, descrizione: e.target.value }))}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFreeLine(); } }}
-                placeholder="Descrizione (es. Manodopera, Sopralluogo…)"
+                placeholder={t("Descrizione (es. Manodopera, Sopralluogo…)")}
                 className="h-8 text-xs"
               />
-              <Input value={draft.quantita} onChange={(e) => setDraft((d) => ({ ...d, quantita: e.target.value }))} inputMode="decimal" placeholder="Qtà" className="h-8 text-xs text-right" title="Quantità" />
-              <Input value={draft.prezzo} onChange={(e) => setDraft((d) => ({ ...d, prezzo: e.target.value }))} inputMode="decimal" placeholder="Prezzo" className="h-8 text-xs text-right" title="Prezzo unitario (netto)" />
-              <Input value={draft.aliquota} onChange={(e) => setDraft((d) => ({ ...d, aliquota: e.target.value }))} inputMode="decimal" placeholder={`${defaultVat}`} className="h-8 text-xs text-right" title="Aliquota IVA %" />
+              <Input value={draft.quantita} onChange={(e) => setDraft((d) => ({ ...d, quantita: e.target.value }))} inputMode="decimal" placeholder={t("Qtà")} className="h-8 text-xs text-right" title={t("Quantità")} />
+              <Input value={draft.prezzo} onChange={(e) => setDraft((d) => ({ ...d, prezzo: e.target.value }))} inputMode="decimal" placeholder={t("Prezzo")} className="h-8 text-xs text-right" title={t("Prezzo unitario (netto)")} />
+              <Input value={draft.aliquota} onChange={(e) => setDraft((d) => ({ ...d, aliquota: e.target.value }))} inputMode="decimal" placeholder={`${defaultVat}`} className="h-8 text-xs text-right" title={t("Aliquota IVA %")} />
               <Button type="button" size="sm" variant="outline" className="h-8 gap-1" onClick={addFreeLine}>
-                <Plus className="h-3.5 w-3.5" /> Aggiungi
+                <Plus className="h-3.5 w-3.5" /> {t("Aggiungi")}
               </Button>
             </div>
           </div>
@@ -253,14 +255,14 @@ export function useRigheComposer({
           {righe.length === 0 && (
             <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
               <Info className="h-4 w-4 shrink-0" />
-              <span>Nessuna riga selezionata: includi un articolo o aggiungi una riga descrittiva.</span>
+              <span>{t("Nessuna riga selezionata: includi un articolo o aggiungi una riga descrittiva.")}</span>
             </div>
           )}
 
           {righe.length > 0 && (
             <div className="rounded-lg border bg-muted/30 px-3 py-2 space-y-0.5">
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Imponibile</span>
+                <span>{t("Imponibile")}</span>
                 <span className="tabular-nums">{fmt(totals.imponibile)}</span>
               </div>
               <div className="flex justify-between text-xs text-muted-foreground">
@@ -268,7 +270,7 @@ export function useRigheComposer({
                 <span className="tabular-nums">{fmt(totals.iva)}</span>
               </div>
               <div className="flex justify-between text-sm font-bold pt-1 border-t border-dashed">
-                <span>Totale</span>
+                <span>{t("Totale")}</span>
                 <span className="tabular-nums text-primary">{fmt(totals.lordo)}</span>
               </div>
             </div>

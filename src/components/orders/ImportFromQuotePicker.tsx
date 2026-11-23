@@ -12,6 +12,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
 import { FileText, ChevronsUpDown, Loader2 } from "lucide-react";
 import { preventiviImportabili } from "@/lib/preventivi/preventiviCommittente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * ImportFromQuotePicker — selettore in pagina "Crea commessa" per importare un
@@ -41,6 +42,7 @@ interface ImportFromQuotePickerProps {
 }
 
 export function ImportFromQuotePicker({ onSelect, disabled, customerId }: ImportFromQuotePickerProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const companyId = useEffectiveCompanyId();
 
@@ -85,7 +87,7 @@ export function ImportFromQuotePicker({ onSelect, disabled, customerId }: Import
       <PopoverTrigger asChild>
         <Button type="button" variant="outline" disabled={disabled} className="gap-2">
           <FileText className="h-4 w-4" />
-          Importa da preventivo
+          {t("Importa da preventivo")}
           <ChevronsUpDown className="h-4 w-4 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -95,14 +97,14 @@ export function ImportFromQuotePicker({ onSelect, disabled, customerId }: Import
             value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
           }
         >
-          <CommandInput placeholder="Cerca per numero, cliente, titolo…" />
+          <CommandInput placeholder={t("Cerca per numero, cliente, titolo…")} />
           <CommandList>
             {isLoading && (
               <div className="flex items-center gap-2 px-3 py-6 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Carico i preventivi…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("Carico i preventivi…")}
               </div>
             )}
-            {!isLoading && <CommandEmpty>{customerId ? "Nessun preventivo accettato e non ancora usato per questo committente." : "Nessun preventivo trovato."}</CommandEmpty>}
+            {!isLoading && <CommandEmpty>{customerId ? t("Nessun preventivo accettato e non ancora usato per questo committente.") : t("Nessun preventivo trovato.")}</CommandEmpty>}
             <CommandGroup>
               {(quotes ?? []).map((q) => {
                 const cfg = QUOTE_STATUS_CONFIG[q.status as QuoteStatus];
@@ -127,7 +129,7 @@ export function ImportFromQuotePicker({ onSelect, disabled, customerId }: Import
                         </span>
                         {cfg && (
                           <Badge variant="outline" className={`text-[10px] ${cfg.className}`}>
-                            {cfg.label}
+                            {t(cfg.label)}
                           </Badge>
                         )}
                       </div>

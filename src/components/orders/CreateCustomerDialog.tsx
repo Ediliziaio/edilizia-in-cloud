@@ -12,6 +12,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { companyCustomersKeys, useCompanyCustomers, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
 import { RigaCliente } from "@/components/orders/RigaCliente";
 import { clientiSimili } from "@/lib/orders/nuovaCommessaProposte";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   CustomerAddressFields,
   type CustomerAddresses,
@@ -93,6 +94,7 @@ export function CreateCustomerDialog({
   importedInvoiceId,
   onClienteEsistente,
 }: CreateCustomerDialogProps) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const { data: clientiEsistenti = [] } = useCompanyCustomers(effectiveCompany?.id, open);
   const queryClient = useQueryClient();
@@ -171,7 +173,9 @@ export function CreateCustomerDialog({
       file: customerDocuments,
     });
     if (falliti.length > 0) {
-      throw new Error(`Non caricati: ${falliti.join(", ")}${caricati ? ` (${caricati} caricati)` : ""}`);
+      throw new Error(caricati
+        ? t("Non caricati: {file} ({n} caricati)", { file: falliti.join(", "), n: caricati })
+        : t("Non caricati: {file}", { file: falliti.join(", ") }));
     }
   };
 
@@ -179,21 +183,21 @@ export function CreateCustomerDialog({
     if (!phone.trim()) return null;
     const cleaned = phone.replace(PHONE_CLEAN_REGEX, "").trim();
     if (!PHONE_ALLOWED.test(cleaned)) {
-      return "Telefono: solo cifre, spazi, + - ( ) .";
+      return t("Telefono: solo cifre, spazi, + - ( ) .");
     }
     const digits = cleaned.replace(/\D/g, "");
-    if (digits.length < 6) return "Numero troppo corto";
-    if (digits.length > 15) return "Numero troppo lungo";
+    if (digits.length < 6) return t("Numero troppo corto");
+    if (digits.length > 15) return t("Numero troppo lungo");
     return null;
-  }, [phone]);
+  }, [phone, t]);
 
   const emailError = useMemo(() => {
     if (!email.trim()) return null;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      return "Formato email non valido";
+      return t("Formato email non valido");
     }
     return null;
-  }, [email]);
+  }, [email, t]);
 
   const resetForm = () => {
     setFullName("");
@@ -249,28 +253,28 @@ export function CreateCustomerDialog({
     e.preventDefault();
 
     if (isBusiness && !fullName.trim()) {
-      toast.error("Campo obbligatorio", { description: "Inserisci la ragione sociale dell'azienda." });
+      toast.error(t("Campo obbligatorio"), { description: t("Inserisci la ragione sociale dell'azienda.") });
       return;
     }
     if (!isBusiness && !firstName.trim() && !lastName.trim()) {
-      toast.error("Campo obbligatorio", { description: "Inserisci il nome completo del cliente." });
+      toast.error(t("Campo obbligatorio"), { description: t("Inserisci il nome completo del cliente.") });
       return;
     }
     const shouldCreatePortal = !importedInvoiceId && companyPortalEnabled && createPortalAccount;
     if (shouldCreatePortal && !email.trim()) {
-      toast.error("Campo obbligatorio", { description: "Inserisci l'email per creare l'accesso al portale." });
+      toast.error(t("Campo obbligatorio"), { description: t("Inserisci l'email per creare l'accesso al portale.") });
       return;
     }
     if (emailError) {
-      toast.error("Email non valida", { description: emailError });
+      toast.error(t("Email non valida"), { description: emailError });
       return;
     }
     if (phoneError) {
-      toast.error("Telefono non valido", { description: phoneError });
+      toast.error(t("Telefono non valido"), { description: phoneError });
       return;
     }
     if (!effectiveCompany?.id) {
-      toast.error("Errore", { description: "Azienda non trovata." });
+      toast.error(t("Errore"), { description: t("Azienda non trovata.") });
       return;
     }
 
@@ -309,13 +313,13 @@ export function CreateCustomerDialog({
           const ctx = (error as { context?: unknown }).context;
           if (ctx instanceof Response) errBody = await ctx.json();
         } catch { /* ignore */ }
-        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? t("Errore"));
       }
       if (data?.error) throw new Error(data.error);
 
       const newCustomerId = data?.customer?.id ?? data?.user_id ?? data?.customer_id;
       if (!newCustomerId) {
-        throw new Error("Risposta non valida dal server (ID cliente mancante).");
+        throw new Error(t("Risposta non valida dal server (ID cliente mancante)."));
       }
 
       // L'anagrafica fiscale col tipo giusto (come la pagina «Nuovo cliente»): per un ente
@@ -329,7 +333,7 @@ export function CreateCustomerDialog({
             aggiornaProfilo: true,
           });
         } catch (fiscErr) {
-          toast.warning("Cliente creato, dati per la fattura da completare", { description: fiscErr instanceof Error ? fiscErr.message : String(fiscErr) });
+          toast.warning(t("Cliente creato, dati per la fattura da completare"), { description: fiscErr instanceof Error ? fiscErr.message : String(fiscErr) });
         }
       }
 
@@ -374,13 +378,13 @@ export function CreateCustomerDialog({
       if (selectedDocumentCount > 0) {
         try {
           await uploadCustomerDocuments(newCustomerId);
-          toast.success("Documenti cliente caricati", {
-            description: `${selectedDocumentCount} file salvati sul cliente: li trovi anche nei documenti delle sue commesse.`,
+          toast.success(t("Documenti cliente caricati"), {
+            description: t("{n} file salvati sul cliente: li trovi anche nei documenti delle sue commesse.", { n: selectedDocumentCount }),
           });
         } catch (uploadError) {
           logger.error("Customer documents upload error:", uploadError);
-          toast.error("Cliente creato, documenti non caricati", {
-            description: uploadError instanceof Error ? uploadError.message : "Carica i documenti dalla scheda cliente.",
+          toast.error(t("Cliente creato, documenti non caricati"), {
+            description: uploadError instanceof Error ? uploadError.message : t("Carica i documenti dalla scheda cliente."),
           });
         }
       }
@@ -396,8 +400,8 @@ export function CreateCustomerDialog({
           : `${firstName.trim()} ${lastName.trim()}`;
         onCustomerCreated(newCustomerId, customerName, optimisticCustomer);
         handleClose();
-        toast.success(data.reused ? "Cliente esistente riutilizzato" : "Cliente creato", {
-          description: `${customerName} (solo anagrafica) è disponibile per i lavori. Nessuna email inviata.`,
+        toast.success(data.reused ? t("Cliente esistente riutilizzato") : t("Cliente creato"), {
+          description: t("{nome} (solo anagrafica) è disponibile per i lavori. Nessuna email inviata.", { nome: customerName }),
         });
         return;
       }
@@ -405,8 +409,8 @@ export function CreateCustomerDialog({
       setShowSuccessStep(true);
     } catch (e) {
       logger.error("Create customer error:", e);
-      toast.error("Errore", {
-        description: e instanceof Error ? e.message : "Si è verificato un errore durante la creazione del cliente.",
+      toast.error(t("Errore"), {
+        description: e instanceof Error ? e.message : t("Si è verificato un errore durante la creazione del cliente."),
       });
     } finally {
       setIsSubmitting(false);
@@ -420,7 +424,7 @@ export function CreateCustomerDialog({
       setPasswordCopied(true);
       setTimeout(() => setPasswordCopied(false), 2000);
     } catch {
-      toast.error("Errore", { description: "Impossibile copiare la password." });
+      toast.error(t("Errore"), { description: t("Impossibile copiare la password.") });
     }
   };
 
@@ -435,8 +439,8 @@ export function CreateCustomerDialog({
       email: email.trim() || null,
     });
     handleClose();
-    toast.success("Cliente creato", {
-      description: `${customerName} è stato selezionato per la commessa.`,
+    toast.success(t("Cliente creato"), {
+      description: t("{nome} è stato selezionato per la commessa.", { nome: customerName }),
     });
   };
 
@@ -456,9 +460,9 @@ export function CreateCustomerDialog({
                   <User className="h-5 w-5 text-primary" />
                 </div>
                 <div className="min-w-0">
-                  <DialogTitle>Nuovo cliente</DialogTitle>
+                  <DialogTitle>{t("Nuovo cliente")}</DialogTitle>
                   <DialogDescription>
-                    Bastano il nome e un recapito; il resto si completa anche dopo. Il cliente resta selezionato qui.
+                    {t("Bastano il nome e un recapito; il resto si completa anche dopo. Il cliente resta selezionato qui.")}
                   </DialogDescription>
                 </div>
               </div>
@@ -466,7 +470,7 @@ export function CreateCustomerDialog({
 
             <form onSubmit={handleSubmit} className="space-y-6 px-6 py-5">
               <section className="space-y-4">
-              <div role="radiogroup" aria-label="Tipo di cliente" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div role="radiogroup" aria-label={t("Tipo di cliente")} className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {([
                   { valore: "B2C", Icona: User, titolo: "Privato", nota: "Persona fisica: nome e cognome" },
                   { valore: "B2B", Icona: Building2, titolo: "Azienda", nota: "Ditta, società, condominio" },
@@ -490,15 +494,15 @@ export function CreateCustomerDialog({
                   >
                     <Icona className={`mt-0.5 h-5 w-5 shrink-0 ${tipoCliente === valore ? "text-primary" : "text-muted-foreground"}`} />
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium">{titolo}</span>
-                      <span className="block text-xs text-muted-foreground">{nota}</span>
+                      <span className="block text-sm font-medium">{t(titolo)}</span>
+                      <span className="block text-xs text-muted-foreground">{t(nota)}</span>
                     </span>
                   </button>
                 ))}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="dialog-fullName">
-                  {isPa ? "Denominazione dell'ente" : isBusiness ? "Ragione sociale" : "Nome completo"}
+                  {isPa ? t("Denominazione dell'ente") : isBusiness ? t("Ragione sociale") : t("Nome completo")}
                 </Label>
                 <Input
                   id="dialog-fullName"
@@ -512,18 +516,18 @@ export function CreateCustomerDialog({
                     setFirstName(s.first);
                     setLastName(s.last);
                   }}
-                  placeholder={isPa ? "Es. Comune di Bologna" : isBusiness ? "Es. Edilizia Rossi S.r.l." : "Es. Mario Rossi"}
+                  placeholder={isPa ? t("Es. Comune di Bologna") : isBusiness ? t("Es. Edilizia Rossi S.r.l.") : t("Es. Mario Rossi")}
                   autoComplete={isBusiness ? "organization" : "name"}
                 />
                 <p className="text-xs text-muted-foreground">
                   {isBusiness
-                    ? "Nome e cognome qui sotto sono il referente, e si possono lasciare vuoti."
-                    : "Diviso in automatico in Nome/Cognome. Correggi sotto se serve (basta Nome o Cognome)."}
+                    ? t("Nome e cognome qui sotto sono il referente, e si possono lasciare vuoti.")
+                    : t("Diviso in automatico in Nome/Cognome. Correggi sotto se serve (basta Nome o Cognome).")}
                 </p>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="dialog-firstName">{isBusiness ? "Nome referente" : "Nome"}</Label>
+                  <Label htmlFor="dialog-firstName">{isBusiness ? t("Nome referente") : t("Nome")}</Label>
                   <Input
                     id="dialog-firstName"
                     value={firstName}
@@ -533,7 +537,7 @@ export function CreateCustomerDialog({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dialog-lastName">{isBusiness ? "Cognome referente" : "Cognome"}</Label>
+                  <Label htmlFor="dialog-lastName">{isBusiness ? t("Cognome referente") : t("Cognome")}</Label>
                   <Input
                     id="dialog-lastName"
                     value={lastName}
@@ -547,10 +551,10 @@ export function CreateCustomerDialog({
               </section>
 
               <section className="space-y-4">
-              <h3 className="text-sm font-semibold">Recapiti</h3>
+              <h3 className="text-sm font-semibold">{t("Recapiti")}</h3>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="dialog-email">Email {shouldRequireEmail ? "*" : ""}</Label>
+                <Label htmlFor="dialog-email">{t("Email")} {shouldRequireEmail ? "*" : ""}</Label>
                 <Input
                   id="dialog-email"
                   type="email"
@@ -564,13 +568,13 @@ export function CreateCustomerDialog({
                 {emailError && <p className="text-xs text-destructive">{emailError}</p>}
                 {!shouldRequireEmail && (
                   <p className="text-xs text-muted-foreground">
-                    Opzionale se crei solo l'anagrafica. Obbligatoria per il portale clienti.
+                    {t("Opzionale se crei solo l'anagrafica. Obbligatoria per il portale clienti.")}
                   </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dialog-phone">Telefono</Label>
+                <Label htmlFor="dialog-phone">{t("Telefono")}</Label>
                 <Input
                   id="dialog-phone"
                   type="tel"
@@ -588,7 +592,7 @@ export function CreateCustomerDialog({
                 <div className="rounded-lg border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-800 dark:bg-amber-950/30">
                   <p className="flex items-center gap-2 text-sm font-medium text-amber-900 dark:text-amber-200">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
-                    {simili.length === 1 ? "Sembra già in anagrafica" : `${simili.length} clienti simili già in anagrafica`}
+                    {t(simili.length === 1 ? "Sembra già in anagrafica" : "{n} clienti simili già in anagrafica", { n: simili.length })}
                   </p>
                   <ul className="mt-2 space-y-2">
                     {simili.map(({ cliente, motivo }) => (
@@ -598,7 +602,7 @@ export function CreateCustomerDialog({
                         {onClienteEsistente && (
                           <Button type="button" size="sm" variant="outline" className="h-7 shrink-0"
                             onClick={() => { onClienteEsistente(cliente); handleClose(); }}>
-                            Usa questo
+                            {t("Usa questo")}
                           </Button>
                         )}
                       </li>
@@ -609,7 +613,7 @@ export function CreateCustomerDialog({
               </section>
 
               <section className="space-y-4">
-              <h3 className="text-sm font-semibold">Indirizzi</h3>
+              <h3 className="text-sm font-semibold">{t("Indirizzi")}</h3>
 
               {/* Indirizzi cliente: fatturazione + cantiere, con ricerca/autocompletamento */}
               <CustomerAddressFields value={custAddresses} onChange={setCustAddresses} />
@@ -622,10 +626,10 @@ export function CreateCustomerDialog({
               </section>
 
               <section className="space-y-4">
-              <h3 className="text-sm font-semibold">Dati fiscali <span className="font-normal text-muted-foreground">(facoltativi, servono per fatturare)</span></h3>
+              <h3 className="text-sm font-semibold">{t("Dati fiscali")} <span className="font-normal text-muted-foreground">{t("(facoltativi, servono per fatturare)")}</span></h3>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className={`space-y-2 ${isBusiness ? "sm:order-2" : ""}`}>
-                  <Label htmlFor="dialog-fiscalCode">Codice fiscale</Label>
+                  <Label htmlFor="dialog-fiscalCode">{t("Codice fiscale")}</Label>
                   <Input
                     id="dialog-fiscalCode"
                     value={fiscalCode}
@@ -633,10 +637,10 @@ export function CreateCustomerDialog({
                     placeholder="RSSMRA80A01H501U"
                     maxLength={16}
                   />
-                  <p className="text-[11px] text-muted-foreground">Per il cliente privato.</p>
+                  <p className="text-[11px] text-muted-foreground">{t("Per il cliente privato.")}</p>
                 </div>
                 <div className={`space-y-2 ${isBusiness ? "sm:order-1" : ""}`}>
-                  <Label htmlFor="dialog-vatNumber">Partita IVA</Label>
+                  <Label htmlFor="dialog-vatNumber">{t("Partita IVA")}</Label>
                   <Input
                     id="dialog-vatNumber"
                     value={vatNumber}
@@ -645,7 +649,7 @@ export function CreateCustomerDialog({
                     maxLength={13}
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Per le società: è ciò che lega il cliente alle sue fatture.
+                    {t("Per le società: è ciò che lega il cliente alle sue fatture.")}
                   </p>
                 </div>
               </div>
@@ -657,10 +661,9 @@ export function CreateCustomerDialog({
                 <div className="flex items-start gap-2">
                   <FileCheck2 className="h-4 w-4 text-emerald-600 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium">Documenti personali <span className="font-normal text-muted-foreground">(facoltativi)</span></p>
+                    <p className="text-sm font-medium">{t("Documenti personali")} <span className="font-normal text-muted-foreground">{t("(facoltativi)")}</span></p>
                     <p className="text-xs text-muted-foreground">
-                      Carta d'identità e codice fiscale, anche più file. Compaiono anche nei documenti delle commesse
-                      del cliente. Il contratto si carica nella commessa.
+                      {t("Carta d'identità e codice fiscale, anche più file. Compaiono anche nei documenti delle commesse del cliente. Il contratto si carica nella commessa.")}
                     </p>
                   </div>
                 </div>
@@ -673,12 +676,12 @@ export function CreateCustomerDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dialog-notes">Note</Label>
+                <Label htmlFor="dialog-notes">{t("Note")}</Label>
                 <Textarea
                   id="dialog-notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Note aggiuntive sul cliente..."
+                  placeholder={t("Note aggiuntive sul cliente...")}
                   rows={5}
                   maxLength={500}
                 />
@@ -692,7 +695,7 @@ export function CreateCustomerDialog({
                   <Alert className="py-2">
                     <ShieldOff className="h-4 w-4" />
                     <AlertDescription className="text-xs">
-                      {importedInvoiceId ? "Recupero dallo storico: cliente operativo senza accesso al portale e senza email di benvenuto." : "Area privata disattivata dalle impostazioni azienda. Il cliente verrà creato solo in anagrafica e non è possibile creare l'accesso al portale."}
+                      {importedInvoiceId ? t("Recupero dallo storico: cliente operativo senza accesso al portale e senza email di benvenuto.") : t("Area privata disattivata dalle impostazioni azienda. Il cliente verrà creato solo in anagrafica e non è possibile creare l'accesso al portale.")}
                     </AlertDescription>
                   </Alert>
                 ) : (
@@ -706,10 +709,10 @@ export function CreateCustomerDialog({
                         )}
                         <div className="min-w-0">
                           <Label htmlFor="dialog-toggle-portal" className="text-sm">
-                            Crea account portale
+                            {t("Crea account portale")}
                           </Label>
                           <p className="text-xs text-muted-foreground">
-                            Genera password di accesso per il cliente.
+                            {t("Genera password di accesso per il cliente.")}
                           </p>
                         </div>
                       </div>
@@ -723,10 +726,10 @@ export function CreateCustomerDialog({
                       <div className="flex items-center justify-between gap-3 pt-1 border-t">
                         <div className="min-w-0">
                           <Label htmlFor="dialog-toggle-welcome" className="text-sm">
-                            Invia email di benvenuto
+                            {t("Invia email di benvenuto")}
                           </Label>
                           <p className="text-xs text-muted-foreground">
-                            Email con credenziali al cliente.
+                            {t("Email con credenziali al cliente.")}
                           </p>
                         </div>
                         <Switch
@@ -742,10 +745,10 @@ export function CreateCustomerDialog({
 
               <DialogFooter className="sticky bottom-0 -mx-6 -mb-5 gap-2 border-t bg-background px-6 py-3">
                 <Button type="button" variant="outline" onClick={requestClose}>
-                  Annulla
+                  {t("Annulla")}
                 </Button>
                 <Button type="submit" disabled={isSubmitting || !!emailError || !!phoneError}>
-                  {isSubmitting ? "Creazione..." : simili.length > 0 ? "Crea comunque" : "Crea cliente"}
+                  {isSubmitting ? t("Creazione...") : simili.length > 0 ? t("Crea comunque") : t("Crea cliente")}
                 </Button>
               </DialogFooter>
             </form>
@@ -755,12 +758,12 @@ export function CreateCustomerDialog({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-emerald-500" />
-                Cliente creato!
+                {t("Cliente creato!")}
               </DialogTitle>
               <DialogDescription>
                 {portalWasCreated
-                  ? "Comunica al cliente la password generata per accedere al suo account."
-                  : "Il cliente è stato creato solo in anagrafica."}
+                  ? t("Comunica al cliente la password generata per accedere al suo account.")
+                  : t("Il cliente è stato creato solo in anagrafica.")}
               </DialogDescription>
             </DialogHeader>
 
@@ -768,11 +771,11 @@ export function CreateCustomerDialog({
               {portalWasCreated && generatedPassword ? (
                 <>
                   <div className="space-y-2">
-                    <Label>Email</Label>
+                    <Label>{t("Email")}</Label>
                     <Input value={email} readOnly className="bg-muted" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Password generata</Label>
+                    <Label>{t("Password generata")}</Label>
                     <div className="flex gap-2">
                       <Input
                         value={generatedPassword}
@@ -784,7 +787,7 @@ export function CreateCustomerDialog({
                         variant="outline"
                         size="icon"
                         onClick={copyPassword}
-                        aria-label="Copia password"
+                        aria-label={t("Copia password")}
                       >
                         {passwordCopied ? (
                           <Check className="h-4 w-4 text-emerald-500" />
@@ -794,7 +797,7 @@ export function CreateCustomerDialog({
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Conserva questa password in un luogo sicuro.
+                      {t("Conserva questa password in un luogo sicuro.")}
                     </p>
                   </div>
                 </>
@@ -802,7 +805,7 @@ export function CreateCustomerDialog({
                 <Alert>
                   <ShieldOff className="h-4 w-4" />
                   <AlertDescription className="text-xs">
-                    Cliente creato <strong>solo in anagrafica</strong>. Nessun accesso al portale.
+                    <strong>{t("Cliente creato solo in anagrafica.")}</strong> {t("Nessun accesso al portale.")}
                   </AlertDescription>
                 </Alert>
               )}
@@ -810,7 +813,7 @@ export function CreateCustomerDialog({
 
             <DialogFooter>
               <Button onClick={handleConfirm}>
-                Seleziona e Continua
+                {t("Seleziona e Continua")}
               </Button>
             </DialogFooter>
           </div>
@@ -822,18 +825,18 @@ export function CreateCustomerDialog({
     <AlertDialog open={showConfirmClose} onOpenChange={setShowConfirmClose}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Annullare la creazione del cliente?</AlertDialogTitle>
+          <AlertDialogTitle>{t("Annullare la creazione del cliente?")}</AlertDialogTitle>
           <AlertDialogDescription>
-            Hai inserito dei dati che non sono ancora stati salvati. Se esci ora, tutte le informazioni verranno perse.
+            {t("Hai inserito dei dati che non sono ancora stati salvati. Se esci ora, tutte le informazioni verranno perse.")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Continua creazione</AlertDialogCancel>
+          <AlertDialogCancel>{t("Continua creazione")}</AlertDialogCancel>
           <AlertDialogAction
             onClick={confirmDiscardAndClose}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            Esci e annulla
+            {t("Esci e annulla")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -7,6 +7,7 @@ import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { formattaEuro } from "@/lib/orders/commesseGenerali";
 import { composizioneCosti } from "@/lib/orders/generali/graficiPanoramica";
 import { Ciambella } from "./Ciambella";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ComposizioneCosti({
   riepilogo,
@@ -19,6 +20,7 @@ export function ComposizioneCosti({
   const [modalita, setModalita] = useState<"budget" | "reale" | "stima" | null>(null);
   const [parametri, setParametri] = useSearchParams();
   const telefono = useIsMobile();
+  const t = useT();
   if (!riepilogo.permessi.costi || !riepilogo.permessi.margini) return null;
   const previsioneDisponibile = !!n.piano && n.piano.budgetCompleto !== false;
   const conBudget = !!n.piano?.confronto.costi.some((r) => (r.previsto ?? 0) > 0);
@@ -58,15 +60,15 @@ export function ComposizioneCosti({
             <ChartPie aria-hidden="true" />
           </span>
           <div>
-            <h2 id="composizione-costi-titolo">Composizione dei costi</h2>
-            <p>Intera operazione · importi netti</p>
+            <h2 id="composizione-costi-titolo">{t("Composizione dei costi")}</h2>
+            <p>{t("Intera operazione · importi netti")}</p>
           </div>
         </div>
         {(conBudget || previsioneDisponibile || c.categorie.length > 0) && (
           <div
             className="generale-segmented"
             role="group"
-            aria-label="Base della composizione costi"
+            aria-label={t("Base della composizione costi")}
           >
             {conBudget && (
               <button
@@ -74,7 +76,7 @@ export function ComposizioneCosti({
                 aria-pressed={colonna === "previsto"}
                 onClick={() => setModalita("budget")}
               >
-                Budget
+                {t("Budget")}
               </button>
             )}
             <button
@@ -82,7 +84,7 @@ export function ComposizioneCosti({
               aria-pressed={colonna === "reale"}
               onClick={() => setModalita("reale")}
             >
-              Registrati
+              {t("Registrati")}
             </button>
             <button
               type="button"
@@ -90,37 +92,37 @@ export function ComposizioneCosti({
               disabled={!previsioneDisponibile}
               title={
                 !previsioneDisponibile
-                  ? "Completa il budget per vedere la stima finale"
+                  ? t("Completa il budget per vedere la stima finale")
                   : undefined
               }
               onClick={() => setModalita("stima")}
             >
-              Stima finale
+              {t("Stima finale")}
             </button>
           </div>
         )}
       </header>
       {n.isLoading ? (
         <div role="status" className="generale-chart-empty generale-chart-empty--compatto">
-          Caricamento dei costi…
+          {t("Caricamento dei costi…")}
         </div>
       ) : n.isError ? (
         <div role="status" className="generale-chart-empty generale-chart-empty--compatto">
-          <p>Costi momentaneamente non disponibili.</p>
+          <p>{t("Costi momentaneamente non disponibili.")}</p>
           <button type="button" onClick={() => n.refetch()}>
-            Riprova
+            {t("Riprova")}
           </button>
         </div>
       ) : c.categorie.length === 0 ? (
         <div className="generale-chart-empty generale-chart-empty--compatto">
-          {colonna === "previsto" ? "Nessun costo a budget" : colonna === "stima" ? "Nessun costo stimato" : "Nessun costo registrato"}
+          {colonna === "previsto" ? t("Nessun costo a budget") : colonna === "stima" ? t("Nessun costo stimato") : t("Nessun costo registrato")}
         </div>
       ) : (
         <div className="generale-chart-body">
           {c.conRettifiche ? (
             <div className="generale-signed-total">
               <strong>{formattaEuro(c.totale)}</strong>
-              <span>Totale netto con rettifiche</span>
+              <span>{t("Totale netto con rettifiche")}</span>
             </div>
           ) : (
             <Ciambella
@@ -133,13 +135,13 @@ export function ComposizioneCosti({
               }
               valore={formattaEuro(c.totale)}
               etichetta={
-                colonna === "reale" ? "costi registrati" : colonna === "previsto" ? "budget del piano" : "stima finale"
+                colonna === "reale" ? t("costi registrati") : colonna === "previsto" ? t("budget del piano") : t("stima finale")
               }
             />
           )}
           <dl
             className="generale-chart-legend"
-            aria-label={`Costi ${colonna === "reale" ? "registrati" : colonna === "previsto" ? "a budget" : "stimati"} per categoria`}
+            aria-label={colonna === "reale" ? t("Costi registrati per categoria") : colonna === "previsto" ? t("Costi a budget per categoria") : t("Costi stimati per categoria")}
           >
             {c.categorie.map((r) => (
               <div key={r.id} className="generale-legend-row">
@@ -155,7 +157,7 @@ export function ComposizioneCosti({
                     <button
                       type="button"
                       className="generale-legend-link"
-                      aria-label={`Filtra costi: ${r.nome}`}
+                      aria-label={t("Filtra costi: {nome}", { nome: r.nome })}
                       onClick={() => apri(r.categorie)}
                     >
                       {r.nome}
@@ -167,7 +169,7 @@ export function ComposizioneCosti({
                   <strong>{formattaEuro(r.valore)}</strong>
                   {!c.conRettifiche && (
                     <span>
-                      {((r.valore / c.totale) * 100).toLocaleString("it-IT", {
+                      {((r.valore / c.totale) * 100).toLocaleString(intlCampo(), {
                         maximumFractionDigits: 1,
                       })}
                       %
@@ -182,16 +184,16 @@ export function ComposizioneCosti({
       <footer className="generale-panel-footer">
         <span>
           {c.conRettifiche
-            ? "Le rettifiche sono incluse con il loro segno."
+            ? t("Le rettifiche sono incluse con il loro segno.")
             : colonna === "previsto"
-              ? "Il budget del piano, gruppo per gruppo: dove andranno i soldi."
+              ? t("Il budget del piano, gruppo per gruppo: dove andranno i soldi.")
               : colonna === "reale"
-              ? "Costi sulla generale e sulle commesse collegate."
-              : "Reale registrato + costi ancora da sostenere."}
+              ? t("Costi sulla generale e sulle commesse collegate.")
+              : t("Reale registrato + costi ancora da sostenere.")}
         </span>
         {!telefono && (
           <button type="button" onClick={() => apri()}>
-            Apri il piano <ArrowUpRight aria-hidden="true" />
+            {t("Apri il piano")} <ArrowUpRight aria-hidden="true" />
           </button>
         )}
       </footer>

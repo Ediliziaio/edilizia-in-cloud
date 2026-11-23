@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface Spicchio {
   id: string;
@@ -21,6 +22,7 @@ export function Ciambella({
   compatta?: boolean;
   onSeleziona?: (id: string) => void;
 }) {
+  const t = useT();
   const positivi = dati.filter(
     (d) => Number.isFinite(d.valore) && d.valore > 0,
   );
@@ -34,7 +36,7 @@ export function Ciambella({
         viewBox="0 0 200 200"
         aria-hidden={!onSeleziona}
         role={onSeleziona ? "group" : undefined}
-        aria-label={onSeleziona ? `Filtra ${etichetta}` : undefined}
+        aria-label={onSeleziona ? t("Filtra {cosa}", { cosa: etichetta }) : undefined}
       >
         <circle
           cx="100"
@@ -63,7 +65,7 @@ export function Ciambella({
               style={{ stroke: d.colore } as CSSProperties}
               role={onSeleziona ? "button" : undefined}
               tabIndex={onSeleziona ? 0 : undefined}
-              aria-label={onSeleziona ? `Mostra ${d.nome ?? d.id}` : undefined}
+              aria-label={onSeleziona ? t("Mostra {cosa}", { cosa: d.nome ?? d.id }) : undefined}
               onClick={onSeleziona ? () => onSeleziona(d.id) : undefined}
               onKeyDown={
                 onSeleziona

@@ -9,8 +9,8 @@ import { moduliDelModello } from "@/lib/orders/generali/moduli";
 import type { UnitaDalPiano } from "@/lib/orders/generali/unitaDalPiano";
 import { euro } from "../piano/formato";
 import { CompletaOperazione, type PassoOperazione } from "./CompletaOperazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
-const voci1 = (n: number, una: string, tante: string) => (n === 1 ? `1 ${una}` : `${n} ${tante}`);
 
 export function AvvisiPiano({
   riepilogo,
@@ -28,6 +28,7 @@ export function AvvisiPiano({
   const fonti = useFontiGenerale(riepilogo.generale.id, conFonti);
   const [parametri, setParametri] = useSearchParams();
   const telefono = useIsMobile();
+  const t = useT();
   if (!riepilogo.permessi.margini || n.isLoading || n.isError || (conFonti && fonti.isLoading)) return null;
 
   const vai = (scheda: string, extra: Record<string, string> = {}) => {
@@ -56,59 +57,59 @@ export function AvvisiPiano({
       if (conUnita && (dalPiano || unitaCreate > 0))
         passi.push({
           id: "unita",
-          titolo: "Cosa vendi",
+          titolo: t("Cosa vendi"),
           fatto: unitaCreate > 0 && !dalPiano,
           testo: dalPiano
-            ? `Il piano elenca ${dalPiano.composizione}: creale per seguire acquirenti e incassi.`
-            : `${voci1(unitaCreate, "unità creata", "unità create")}.`,
-          azione: dalPiano && puoModificare ? { etichetta: "Crea le unità dal piano", apri: () => vai("unita", { "dal-piano": "1" }) } : undefined,
+            ? t("Il piano elenca {composizione}: creale per seguire acquirenti e incassi.", { composizione: dalPiano.composizione })
+            : t(unitaCreate === 1 ? "1 unità creata." : "{n} unità create.", { n: unitaCreate }),
+          azione: dalPiano && puoModificare ? { etichetta: t("Crea le unità dal piano"), apri: () => vai("unita", { "dal-piano": "1" }) } : undefined,
         });
       passi.push({
         id: "calendario",
-        titolo: "Quando entrano ed escono i soldi",
+        titolo: t("Quando entrano ed escono i soldi"),
         fatto: senzaMese === 0,
         testo: senzaMese
-          ? `${voci1(senzaMese, "voce non ha", "voci non hanno")} il mese: senza, niente cassa né capitale impegnato.`
-          : "Ogni voce con un importo ha il suo mese.",
-        azione: { etichetta: bozzaModificabile ? "Metti i mesi" : "Apri il piano", apri: () => vai("piano", bozzaModificabile ? { calendario: "1" } : {}) },
+          ? t(senzaMese === 1 ? "1 voce non ha il mese: senza, niente cassa né capitale impegnato." : "{n} voci non hanno il mese: senza, niente cassa né capitale impegnato.", { n: senzaMese })
+          : t("Ogni voce con un importo ha il suo mese."),
+        azione: { etichetta: bozzaModificabile ? t("Metti i mesi") : t("Apri il piano"), apri: () => vai("piano", bozzaModificabile ? { calendario: "1" } : {}) },
       });
       passi.push({
         id: "stime",
-        titolo: "Le stime che mancano",
+        titolo: t("Le stime che mancano"),
         fatto: daStimare === 0,
         testo: daStimare
-          ? `${voci1(daStimare, "voce è", "voci sono")} ancora da stimare, o da confermare a zero.`
-          : "Tutte le voci hanno una stima.",
-        azione: { etichetta: "Completa le stime", apri: () => vai("piano", bozzaModificabile ? { stime: "1" } : {}) },
+          ? t(daStimare === 1 ? "1 voce è ancora da stimare, o da confermare a zero." : "{n} voci sono ancora da stimare, o da confermare a zero.", { n: daStimare })
+          : t("Tutte le voci hanno una stima."),
+        azione: { etichetta: t("Completa le stime"), apri: () => vai("piano", bozzaModificabile ? { stime: "1" } : {}) },
       });
       passi.push({
         id: "approva",
-        titolo: "Approva il budget",
+        titolo: t("Approva il budget"),
         fatto: approvato,
         testo: approvato
-          ? "Approvato: è il riferimento per gli scostamenti."
-          : "Il piano è ancora in bozza. L’approvazione fissa il riferimento per gli scostamenti.",
-        azione: puoModificare ? { etichetta: "Apri il piano economico", apri: () => vai("piano") } : undefined,
+          ? t("Approvato: è il riferimento per gli scostamenti.")
+          : t("Il piano è ancora in bozza. L’approvazione fissa il riferimento per gli scostamenti."),
+        azione: puoModificare ? { etichetta: t("Apri il piano economico"), apri: () => vai("piano") } : undefined,
       });
       if (quanteFonti !== null)
         passi.push({
           id: "fonti",
-          titolo: "Da dove arrivano i soldi",
+          titolo: t("Da dove arrivano i soldi"),
           fatto: quanteFonti > 0,
           testo: quanteFonti > 0
-            ? `${voci1(quanteFonti, "fonte indicata", "fonti indicate")}.`
-            : "Mezzi propri, soci, banca: per sapere se coprono il capitale che l'operazione chiede.",
-          azione: puoModificare ? { etichetta: "Indica le fonti", apri: () => vai("investitori") } : undefined,
+            ? t(quanteFonti === 1 ? "1 fonte indicata." : "{n} fonti indicate.", { n: quanteFonti })
+            : t("Mezzi propri, soci, banca: per sapere se coprono il capitale che l'operazione chiede."),
+          azione: puoModificare ? { etichetta: t("Indica le fonti"), apri: () => vai("investitori") } : undefined,
         });
     }
   }
 
   const avvisi: string[] = [];
   if (n.vuoto)
-    avvisi.push("Imposta il budget per confrontare costi e previsione finale.");
+    avvisi.push(t("Imposta il budget per confrontare costi e previsione finale."));
   const scarto = n.piano?.confronto.totali.margine.scostamento;
   if (n.piano?.budgetCompleto !== false && scarto !== undefined && scarto < -0.5)
-    avvisi.push(`Il margine stimato è sotto il previsto di ${euro(-scarto)}.`);
+    avvisi.push(t("Il margine stimato è sotto il previsto di {importo}.", { importo: euro(-scarto) }));
 
   if (!passi.length && !avvisi.length) return null;
   return (
@@ -124,7 +125,7 @@ export function AvvisiPiano({
           </div>
           {!telefono && (
             <button type="button" onClick={() => vai("piano")}>
-              Controlla il piano <ArrowUpRight aria-hidden="true" />
+              {t("Controlla il piano")} <ArrowUpRight aria-hidden="true" />
             </button>
           )}
         </div>

@@ -8,6 +8,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { useProfiloLavori } from "@/hooks/useProfiloLavori";
 import { useModelliFasi } from "@/hooks/useModelliFasi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { fasiPerCommessa, modelliDaOffrire, totaleSottofasi, type FaseModello, type ModelloFasi } from "@/lib/orders/modelliFasi";
 
 interface ModelliFasiPickerProps {
@@ -20,6 +21,7 @@ const TITOLO = "text-[11px] font-medium uppercase tracking-wide text-muted-foreg
 
 /** «Parti da un modello»: i modelli dell'azienda (con le sottofasi); finché non sono suoi, gli stessi di sempre. */
 export function ModelliFasiPicker({ onApplica, inCorso }: ModelliFasiPickerProps) {
+  const t = useT();
   const { modelli, inizializzati, isLoading, isError, refetch } = useModelliFasi();
   const { canViewSettingsOrders } = usePermissions();
   // Solo i modelli dei lavori che l'azienda fa: chi fa serramenti non si vede proporre il fotovoltaico.
@@ -33,16 +35,16 @@ export function ModelliFasiPicker({ onApplica, inCorso }: ModelliFasiPickerProps
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2"><Label className={TITOLO}>Parti da un modello</Label>
-        {canViewSettingsOrders && <a href="/azienda/impostazioni/modelli-fasi#modelli" className="text-xs font-medium underline">Gestisci modelli</a>}
+      <div className="flex flex-wrap items-center justify-between gap-2"><Label className={TITOLO}>{t("Parti da un modello")}</Label>
+        {canViewSettingsOrders && <a href="/azienda/impostazioni/modelli-fasi#modelli" className="text-xs font-medium underline">{t("Gestisci modelli")}</a>}
       </div>
-      <p className="text-xs text-muted-foreground">{inizializzati ? "Modelli della tua azienda." : "Modelli standard e modelli salvati dall'azienda."} Aggiungono fasi e sottofasi, non persone, costi o date.</p>
-      {isLoading && <p role="status" className="text-xs">Caricamento modelli aziendali…</p>}
-      {isError && <div role="alert" className="text-xs text-amber-800">Modelli aziendali non disponibili. Non applico standard al loro posto. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova modelli</Button></div>}
-      {elenco.length > 5 && <Input aria-label="Cerca modello" value={search} onChange={e => {setSearch(e.target.value); setSceltoId(null);}} placeholder="Cerca un modello…" />}
+      <p className="text-xs text-muted-foreground">{inizializzati ? t("Modelli della tua azienda.") : t("Modelli standard e modelli salvati dall'azienda.")} {t("Aggiungono fasi e sottofasi, non persone, costi o date.")}</p>
+      {isLoading && <p role="status" className="text-xs">{t("Caricamento modelli aziendali…")}</p>}
+      {isError && <div role="alert" className="text-xs text-amber-800">{t("Modelli aziendali non disponibili. Non applico standard al loro posto.")} <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova modelli")}</Button></div>}
+      {elenco.length > 5 && <Input aria-label={t("Cerca modello")} value={search} onChange={e => {setSearch(e.target.value); setSceltoId(null);}} placeholder={t("Cerca un modello…")} />}
       {elenco.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Non hai modelli: preparali in Impostazioni → Fasi e avanzamento, oppure torna a «Scrivi una fase».
+          {t("Non hai modelli: preparali in Impostazioni → Fasi e avanzamento, oppure torna a «Scrivi una fase».")}
         </p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
@@ -63,12 +65,12 @@ export function ModelliFasiPicker({ onApplica, inCorso }: ModelliFasiPickerProps
           ))}
         </div>
       )}
-      {elenco.length > 0 && visible.length === 0 && <p className="text-xs text-muted-foreground">Nessun modello trovato.</p>}
+      {elenco.length > 0 && visible.length === 0 && <p className="text-xs text-muted-foreground">{t("Nessun modello trovato.")}</p>}
 
       {scelto && (
         <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
           <p className="text-xs text-muted-foreground">
-            {[scelto.descrizione, `${scelto.fasi.length} fasi`, nSotto > 0 ? `${nSotto} sottofasi` : null].filter(Boolean).join(" · ")}
+            {[scelto.descrizione, t("{n} fasi", { n: scelto.fasi.length }), nSotto > 0 ? t("{n} sottofasi", { n: nSotto }) : null].filter(Boolean).join(" · ")}
           </p>
           <div className="flex flex-wrap gap-1">
             {scelto.fasi.map((f, i) => (
@@ -81,10 +83,10 @@ export function ModelliFasiPicker({ onApplica, inCorso }: ModelliFasiPickerProps
               </span>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">Le fasi con lo stesso nome vengono mantenute: si aggiungono solo fasi e sottofasi mancanti.</p>
+          <p className="text-xs text-muted-foreground">{t("Le fasi con lo stesso nome vengono mantenute: si aggiungono solo fasi e sottofasi mancanti.")}</p>
           <Button size="sm" className="w-full" disabled={inCorso || isLoading || isError} onClick={() => {if (!inCorso && !isLoading && !isError) onApplica(fasiPerCommessa(scelto), scelto);}}>
             {inCorso ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ListPlus className="mr-1 h-4 w-4" />}
-            Aggiungi le {scelto.fasi.length} fasi
+            {t("Aggiungi le {n} fasi", { n: scelto.fasi.length })}
           </Button>
         </div>
       )}

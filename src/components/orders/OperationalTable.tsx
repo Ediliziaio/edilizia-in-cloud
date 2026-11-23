@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** The list view stays tabular at every width; narrow screens scroll inside the table. */
 export function OperationalTable({
@@ -12,6 +13,7 @@ export function OperationalTable({
   children: ReactNode;
   className?: string;
 }) {
+  const t = useT();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   return (
     <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -22,7 +24,7 @@ export function OperationalTable({
       <div
         ref={setContainer}
         role="region"
-        aria-label={`Scorri ${label.toLowerCase()}`}
+        aria-label={t("Scorri {elenco}", { elenco: label.toLowerCase() })}
         tabIndex={0}
         className="max-h-[70vh] overflow-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
       >

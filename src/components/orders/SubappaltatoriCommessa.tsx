@@ -19,6 +19,7 @@ import { ContatoriFiltro } from "./ContatoriFiltro";
 import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
 import { useQuadroPagamenti } from "./QuadroPagamentiCommessa";
 import { RiquadroCommessa, StatoPill, TabellaCommessa, type TonoStato } from "./TabellaCommessa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Tabelle dei subappalti non ancora nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,6 +72,7 @@ function useSchedaImpresa(orderId: string, companyId: string | undefined) {
 }
 
 export function SubappaltatoriCommessa({ orderId, onApriCantiere }: { orderId: string; onApriCantiere: () => void }) {
+  const t = useT();
   const permessi = usePermissions();
   const { righe, companyId, isLoading, isError, riprova } = useRigheSubappalti(orderId);
   const { apri, scheda } = useSchedaImpresa(orderId, companyId);
@@ -79,13 +81,21 @@ export function SubappaltatoriCommessa({ orderId, onApriCantiere }: { orderId: s
   const conta = (chiave: StatoSubappalto) => righe.filter((r) => statoDi(r).chiave === chiave).length;
   const visibili = filtro ? righe.filter((r) => statoDi(r).chiave === filtro) : righe;
   const totali = totaliSubappalti(righe);
+  // Il testo dello stato, tradotto qui: quello della libreria resta in italiano.
+  const testoStato = (r: RigaSubappalto): string => {
+    const s = statoDi(r);
+    if (s.chiave === "problema") return t(r.salContestati === 1 ? "{n} SAL contestato" : "{n} SAL contestati", { n: r.salContestati });
+    if (s.chiave === "daVerificare") return t("{n} SAL da verificare", { n: r.salDaVerificare });
+    if (s.chiave === "daPagare") return t("Da pagare");
+    return s.chiave === "inRegola" ? t("Saldato") : t("Nessun SAL");
+  };
   // Con una ditta sola i filtri non filtrano niente; e un filtro a zero non serve.
   const filtri = ([
-    { chiave: "problema", etichetta: "Contestati", avviso: true },
-    { chiave: "daVerificare", etichetta: "SAL da verificare", avviso: true },
-    { chiave: "daPagare", etichetta: "Da pagare" },
-    { chiave: "inRegola", etichetta: "Saldati" },
-    { chiave: "nessuno", etichetta: "Senza SAL" },
+    { chiave: "problema", etichetta: t("Contestati"), avviso: true },
+    { chiave: "daVerificare", etichetta: t("SAL da verificare"), avviso: true },
+    { chiave: "daPagare", etichetta: t("Da pagare") },
+    { chiave: "inRegola", etichetta: t("Saldati") },
+    { chiave: "nessuno", etichetta: t("Senza SAL") },
   ] as const).map((v) => ({ ...v, valore: conta(v.chiave) })).filter((v) => v.valore > 0);
 
   return (
@@ -94,42 +104,43 @@ export function SubappaltatoriCommessa({ orderId, onApriCantiere }: { orderId: s
       {costoAperto && <ExpensePaymentDialog key={costoAperto} costId={costoAperto} onClose={() => setCostoAperto(null)} />}
       <RiquadroCommessa
         icona={<Users className="h-5 w-5 text-primary" aria-hidden="true" />}
-        titolo="Subappaltatori e ditte" conteggio={righe.length}
+        titolo={t("Subappaltatori e ditte")} conteggio={righe.length}
         numeri={righe.length > 0 ? <>
           <dl className="grid grid-cols-2 gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-3 lg:grid-cols-5">
-            <Numero titolo="Contratti" valore={totali.contratto} />
-            <Numero titolo="Maturato" valore={totali.maturato} />
-            <Numero titolo="Ritenute" valore={totali.ritenute} />
-            <Numero titolo="Pagato" valore={totali.pagato} />
-            <Numero titolo="Da pagare" valore={totali.residuo} evidenza={totali.residuo > 0} />
+            <Numero titolo={t("Contratti")} valore={totali.contratto} />
+            <Numero titolo={t("Maturato")} valore={totali.maturato} />
+            <Numero titolo={t("Ritenute")} valore={totali.ritenute} />
+            <Numero titolo={t("Pagato")} valore={totali.pagato} />
+            <Numero titolo={t("Da pagare")} valore={totali.residuo} evidenza={totali.residuo > 0} />
           </dl>
-          {righe.length > 1 && filtri.length > 1 && <ContatoriFiltro etichetta="Ditte per stato" attivo={filtro} onScegli={setFiltro} voci={filtri.map((v) => ({ ...v }))} />}
+          {righe.length > 1 && filtri.length > 1 && <ContatoriFiltro etichetta={t("Ditte per stato")} attivo={filtro} onScegli={setFiltro} voci={filtri.map((v) => ({ ...v }))} />}
         </> : undefined}
       >
         {isError ? (
-          <p role="alert" className="text-sm text-destructive">Non riesco a leggere i subappalti. <button type="button" className="underline" onClick={riprova}>Riprova</button></p>
+          <p role="alert" className="text-sm text-destructive">{t("Non riesco a leggere i subappalti.")} <button type="button" className="underline" onClick={riprova}>{t("Riprova")}</button></p>
         ) : isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : righe.length === 0 ? (
-          <p className="commessa-empty text-sm text-muted-foreground">Nessun subappaltatore su questa commessa. Ditte e contratti si assegnano in Cantiere → Lavorazioni.</p>
+          <p className="commessa-empty text-sm text-muted-foreground">{t("Nessun subappaltatore su questa commessa. Ditte e contratti si assegnano in Cantiere → Lavorazioni.")}</p>
         ) : (
-          <TabellaCommessa etichetta="Subappaltatori e ditte" righe={visibili} chiave={(r) => r.uscita.chiave} colonne={[
-            { titolo: "Ditta", principale: true, cella: (r) => {
+          <TabellaCommessa etichetta={t("Subappaltatori e ditte")} righe={visibili} chiave={(r) => r.uscita.chiave} colonne={[
+            { titolo: t("Ditta"), principale: true, cella: (r) => {
               const pct = percentualeMaturato(r.uscita);
               return (
                 <div className="min-w-0 space-y-1">
-                  <p className="font-medium">{r.uscita.controparte ?? "Senza nome"}</p>
+                  <p className="font-medium">{r.uscita.controparte ?? t("Senza nome")}</p>
                   <p className="text-xs text-muted-foreground">{[r.uscita.riferimento, r.uscita.descrizione].filter(Boolean).join(" · ")}</p>
                   {pct != null && (
-                    <div className="flex max-w-xs items-center gap-2" title={`Maturato il ${pct}% del contratto`}>
+                    <div className="flex max-w-xs items-center gap-2" title={t("Maturato il {pct}% del contratto", { pct })}>
                       <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"><span className="block h-full rounded-full bg-primary" style={{ width: `${pct}%` }} /></span>
                       <span className="text-xs tabular-nums text-muted-foreground">{pct}%</span>
                     </div>
                   )}
                   {r.sal.length > 0 && (
-                    <ul className="flex flex-wrap gap-1" aria-label={`SAL di ${r.uscita.controparte ?? "questa ditta"}`}>
+                    <ul className="flex flex-wrap gap-1" aria-label={t("SAL di {ditta}", { ditta: r.uscita.controparte ?? t("questa ditta") })}>
                       {r.sal.map((s) => {
-                        const st = STATO_SAL[s.stato ?? ""] ?? { testo: s.stato ?? "", tono: "grigio" as TonoStato };
+                        const noto = STATO_SAL[s.stato ?? ""];
+                        const st = noto ? { testo: t(noto.testo), tono: noto.tono } : { testo: s.stato ?? "", tono: "grigio" as TonoStato };
                         return <li key={s.id}><StatoPill tono={st.tono}>SAL {s.numero_sal} · {formatCurrency(Number(s.importo_netto ?? 0))} · {st.testo}</StatoPill></li>;
                       })}
                     </ul>
@@ -137,18 +148,18 @@ export function SubappaltatoriCommessa({ orderId, onApriCantiere }: { orderId: s
                 </div>
               );
             } },
-            { titolo: "Contratto", destra: true, cella: (r) => (r.uscita.contratto != null ? formatCurrency(r.uscita.contratto) : "—") },
-            { titolo: "Maturato", destra: true, cella: (r) => (r.uscita.maturato_lordo != null ? formatCurrency(r.uscita.maturato_lordo) : "—") },
-            { titolo: "Ritenute", destra: true, cella: (r) => (r.uscita.ritenute ? formatCurrency(r.uscita.ritenute) : "—") },
-            { titolo: "Pagato", destra: true, cella: (r) => formatCurrency(r.uscita.pagato) },
-            { titolo: "Da pagare", destra: true, cella: (r) => <span className="font-medium">{formatCurrency(r.uscita.residuo)}</span> },
-            { titolo: "Stato", cella: (r) => { const s = statoDi(r); return <StatoPill tono={TONO[s.chiave]}>{s.testo}</StatoPill>; } },
-            { titolo: "Azioni", destra: true, senzaEtichetta: true, cella: (r) => r.subappaltatoreId ? (
-              permessi.canViewSubappaltatori ? <Button size="sm" variant="outline" onClick={() => apri(r)}>SAL e pagamenti</Button> : null
+            { titolo: t("Contratto"), destra: true, cella: (r) => (r.uscita.contratto != null ? formatCurrency(r.uscita.contratto) : "—") },
+            { titolo: t("Maturato"), destra: true, cella: (r) => (r.uscita.maturato_lordo != null ? formatCurrency(r.uscita.maturato_lordo) : "—") },
+            { titolo: t("Ritenute"), destra: true, cella: (r) => (r.uscita.ritenute ? formatCurrency(r.uscita.ritenute) : "—") },
+            { titolo: t("Pagato"), destra: true, cella: (r) => formatCurrency(r.uscita.pagato) },
+            { titolo: t("Da pagare"), destra: true, cella: (r) => <span className="font-medium">{formatCurrency(r.uscita.residuo)}</span> },
+            { titolo: t("Stato"), cella: (r) => { const s = statoDi(r); return <StatoPill tono={TONO[s.chiave]}>{testoStato(r)}</StatoPill>; } },
+            { titolo: t("Azioni"), destra: true, senzaEtichetta: true, cella: (r) => r.subappaltatoreId ? (
+              permessi.canViewSubappaltatori ? <Button size="sm" variant="outline" onClick={() => apri(r)}>{t("SAL e pagamenti")}</Button> : null
             ) : r.uscita.origine_tipo === "costo" ? (
-              <Button size="sm" variant="outline" onClick={() => setCostoAperto(r.uscita.origine_id)}>Pagamenti</Button>
+              <Button size="sm" variant="outline" onClick={() => setCostoAperto(r.uscita.origine_id)}>{t("Pagamenti")}</Button>
             ) : (
-              <Button size="sm" variant="ghost" onClick={onApriCantiere}>Contratto</Button>
+              <Button size="sm" variant="ghost" onClick={onApriCantiere}>{t("Contratto")}</Button>
             ) },
           ]} />
         )}

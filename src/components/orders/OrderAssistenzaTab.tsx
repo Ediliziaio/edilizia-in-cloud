@@ -7,7 +7,6 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { LifeBuoy, Plus, Euro, Package, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +14,7 @@ import { TICKET_STATI, TICKET_STATI_CHIUSI, ticketStatoLabel } from "@/types/tic
 import { EmptyRow } from "./EmptyRow";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
+import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TONO: Record<string, string> = {
   blue: "bg-blue-100 text-blue-700", amber: "bg-amber-100 text-amber-700",
@@ -32,6 +32,7 @@ interface TicketRiga {
 }
 
 function useAssistenzeCommessa(orderId: string) {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const permissions = usePermissions();
   return useQuery({
@@ -46,7 +47,7 @@ function useAssistenzeCommessa(orderId: string) {
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      if ((data?.length ?? 0) >= 1000) throw new Error("Elenco assistenze incompleto: verifica nella sezione Assistenza.");
+      if ((data?.length ?? 0) >= 1000) throw new Error(tr("Elenco assistenze incompleto: verifica nella sezione Assistenza."));
       return (data ?? []) as unknown as TicketRiga[];
     },
   });
@@ -54,24 +55,26 @@ function useAssistenzeCommessa(orderId: string) {
 
 /** Solo un avviso operativo; il pannello completo resta in Consegna e assistenza. */
 export function OrderAssistenzaAlert({ orderId, onOpen }: { orderId: string; onOpen: () => void }) {
+  const tr = useT();
   const p = usePermissions();
   const query = useAssistenzeCommessa(orderId);
   if (!p.canViewTickets || p.isLoading) return null;
   if (query.isError) return <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-    <span>Assistenze non disponibili: impossibile verificare gli interventi aperti.</span>
-    <Button type="button" variant="outline" size="sm" onClick={() => { void query.refetch(); }}>Riprova</Button>
+    <span>{tr("Assistenze non disponibili: impossibile verificare gli interventi aperti.")}</span>
+    <Button type="button" variant="outline" size="sm" onClick={() => { void query.refetch(); }}>{tr("Riprova")}</Button>
   </div>;
   const open = (query.data ?? []).filter(t => !TICKET_STATI_CHIUSI.includes(t.status as never));
   if (!open.length) return null;
   return <div className="relative flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm max-md:py-2">
-    <span className="inline-flex items-center gap-2"><LifeBuoy className="h-4 w-4" />{open.length} {open.length === 1 ? "assistenza aperta" : "assistenze aperte"}</span>
-    <Button type="button" variant="outline" size="sm" aria-label="Apri assistenza" className="max-md:after:absolute max-md:after:inset-0 max-md:border-0 max-md:bg-transparent max-md:px-0 max-md:text-amber-800 max-md:shadow-none" onClick={onOpen}>
-      <span className="max-md:hidden">Apri assistenza</span><span className="md:hidden">Apri</span>
+    <span className="inline-flex items-center gap-2"><LifeBuoy className="h-4 w-4" />{tr(open.length === 1 ? "{n} assistenza aperta" : "{n} assistenze aperte", { n: open.length })}</span>
+    <Button type="button" variant="outline" size="sm" aria-label={tr("Apri assistenza")} className="max-md:after:absolute max-md:after:inset-0 max-md:border-0 max-md:bg-transparent max-md:px-0 max-md:text-amber-800 max-md:shadow-none" onClick={onOpen}>
+      <span className="max-md:hidden">{tr("Apri assistenza")}</span><span className="md:hidden">{tr("Apri")}</span>
     </Button>
   </div>;
 }
 
 export function OrderAssistenzaTab({ orderId, customerId }: { orderId: string; customerId?: string | null }) {
+  const tr = useT();
   const permissions = usePermissions();
   const { data: tickets = [], isLoading, isError, refetch } = useAssistenzeCommessa(orderId);
 
@@ -80,25 +83,25 @@ export function OrderAssistenzaTab({ orderId, customerId }: { orderId: string; c
     .filter(t => t.a_pagamento && !t.pagato)
     .reduce((s, t) => s + Number(t.importo_finale ?? t.importo_preventivato ?? 0), 0);
 
-  if (!permissions.canViewTickets || permissions.isLoading) return <p className="text-sm text-muted-foreground">L'assistenza è disponibile ai ruoli autorizzati.</p>;
+  if (!permissions.canViewTickets || permissions.isLoading) return <p className="text-sm text-muted-foreground">{tr("L'assistenza è disponibile ai ruoli autorizzati.")}</p>;
   if (isLoading) {
     return <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
   }
-  if (isError) return <div role="alert" className="space-y-2 text-sm text-destructive"><p>Impossibile caricare le assistenze. Non possiamo confermare che siano assenti.</p><Button type="button" size="sm" variant="outline" onClick={() => { void refetch(); }}>Riprova</Button></div>;
+  if (isError) return <div role="alert" className="space-y-2 text-sm text-destructive"><p>{tr("Impossibile caricare le assistenze. Non possiamo confermare che siano assenti.")}</p><Button type="button" size="sm" variant="outline" onClick={() => { void refetch(); }}>{tr("Riprova")}</Button></div>;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <LifeBuoy className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Assistenze su questa commessa</h3>
+          <h3 className="text-sm font-semibold">{tr("Assistenze su questa commessa")}</h3>
           {aperti.length > 0 && (
-            <Badge className="bg-amber-100 text-amber-700">{aperti.length} aperte</Badge>
+            <Badge className="bg-amber-100 text-amber-700">{tr("{n} aperte", { n: aperti.length })}</Badge>
           )}
         </div>
         {permissions.canEditTickets && !permissions.solaLettura && <Button asChild size="sm" variant="outline">
           <Link to={`/azienda/assistenza/nuovo?order=${encodeURIComponent(orderId)}&tipo=intervento${customerId ? `&customer_id=${encodeURIComponent(customerId)}` : ""}`}>
-            <Plus className="mr-1 h-3.5 w-3.5" /> Nuova assistenza
+            <Plus className="mr-1 h-3.5 w-3.5" /> {tr("Nuova assistenza")}
           </Link>
         </Button>}
       </div>
@@ -107,15 +110,15 @@ export function OrderAssistenzaTab({ orderId, customerId }: { orderId: string; c
         <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
           <Euro className="h-3.5 w-3.5 shrink-0" />
           <span>
-            Da incassare su queste assistenze:{" "}
-            <strong>{daIncassare.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true })}</strong>
+            {tr("Da incassare su queste assistenze:")}{" "}
+            <strong>{daIncassare.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", useGrouping: true })}</strong>
           </span>
         </div>
       )}
 
       {tickets.length === 0 ? (
         // Riga compatta: la card con icona centrata occupava 126px per una frase.
-        <EmptyRow icon={LifeBuoy}>Nessuna assistenza aperta su questa commessa</EmptyRow>
+        <EmptyRow icon={LifeBuoy}>{tr("Nessuna assistenza aperta su questa commessa")}</EmptyRow>
       ) : (
         <div className="space-y-2">
           {tickets.map(t => {
@@ -126,28 +129,28 @@ export function OrderAssistenzaTab({ orderId, customerId }: { orderId: string; c
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="min-w-0 flex-1 truncate text-sm font-semibold">{t.subject}</span>
                   <Badge className={`shrink-0 text-[10px] ${TONO[stato?.tone ?? "slate"]}`}>
-                    {ticketStatoLabel(t.status)}
+                    {stato ? tr(stato.label) : ticketStatoLabel(t.status)}
                   </Badge>
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                  <span>Aperta il {format(new Date(t.created_at), "d MMM yyyy", { locale: it })}</span>
+                  <span>{tr("Aperta il {data}", { data: format(new Date(t.created_at), "d MMM yyyy", { locale: dateFnsCampo() }) })}</span>
                   {t.data_intervento_prevista && (
-                    <span>· Intervento {format(new Date(t.data_intervento_prevista), "d MMM", { locale: it })}</span>
+                    <span>· {tr("Intervento {data}", { data: format(new Date(t.data_intervento_prevista), "d MMM", { locale: dateFnsCampo() }) })}</span>
                   )}
                   {t.merce_richiesta && (
                     <span className="inline-flex items-center gap-1 text-purple-700">
-                      <Package className="h-3 w-3" /> merce ordinata
+                      <Package className="h-3 w-3" /> {tr("merce ordinata")}
                     </span>
                   )}
                   {permissions.canViewOrderAmounts && (t.a_pagamento ? (
                     <span className={t.pagato ? "text-green-700" : "text-amber-700"}>
-                      · {t.pagato ? "incassata" : "da incassare"}
+                      · {t.pagato ? tr("incassata") : tr("da incassare")}
                       {t.importo_finale || t.importo_preventivato
-                        ? ` ${Number(t.importo_finale ?? t.importo_preventivato).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true })}`
+                        ? ` ${Number(t.importo_finale ?? t.importo_preventivato).toLocaleString(intlCampo(), { style: "currency", currency: "EUR", useGrouping: true })}`
                         : ""}
                     </span>
                   ) : (
-                    <span>· in garanzia</span>
+                    <span>· {tr("in garanzia")}</span>
                   ))}
                 </div>
               </Link>

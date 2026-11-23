@@ -23,6 +23,7 @@ import {
   DETRAZIONI_EDILIZIE,
   type DetrazioneValue,
 } from "@/lib/fatturazione/detrazioniEdilizie";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   value: DetrazioneValue;
@@ -30,6 +31,7 @@ interface Props {
 }
 
 export function DetrazioniFiscaliFields({ value, onChange }: Props) {
+  const t = useT();
   const set = (patch: Partial<DetrazioneValue>) => onChange({ ...value, ...patch });
 
   const selectPreset = (id: string) => {
@@ -48,7 +50,7 @@ export function DetrazioniFiscaliFields({ value, onChange }: Props) {
       <div className="flex items-center justify-between gap-3">
         <Label htmlFor="detr-switch" className="flex items-center gap-2 text-sm font-semibold cursor-pointer">
           <Percent className="h-4 w-4 text-amber-600" />
-          Lavori con detrazione fiscale
+          {t("Lavori con detrazione fiscale")}
         </Label>
         <Switch
           id="detr-switch"
@@ -60,10 +62,10 @@ export function DetrazioniFiscaliFields({ value, onChange }: Props) {
       {value.active && (
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Tipo di agevolazione</Label>
+            <Label className="text-xs text-muted-foreground">{t("Tipo di agevolazione")}</Label>
             <Select value={value.presetId ?? undefined} onValueChange={selectPreset}>
               <SelectTrigger className="h-9">
-                <SelectValue placeholder="Scegli l'agevolazione…" />
+                <SelectValue placeholder={t("Scegli l'agevolazione…")} />
               </SelectTrigger>
               <SelectContent>
                 {DETRAZIONI_EDILIZIE.map((p) => (
@@ -80,13 +82,13 @@ export function DetrazioniFiscaliFields({ value, onChange }: Props) {
 
           <div className="space-y-1.5">
             <Label htmlFor="detr-clausola" className="text-xs text-muted-foreground">
-              Clausola in fattura <span className="text-[10px]">(editabile — finisce nella causale del documento)</span>
+              {t("Clausola in fattura")} <span className="text-[10px]">{t("(editabile — finisce nella causale del documento)")}</span>
             </Label>
             <Textarea
               id="detr-clausola"
               value={value.clausola}
               onChange={(e) => set({ clausola: e.target.value })}
-              placeholder="Seleziona un'agevolazione qui sopra, oppure scrivi la clausola a mano…"
+              placeholder={t("Seleziona un'agevolazione qui sopra, oppure scrivi la clausola a mano…")}
               rows={4}
               className="text-xs leading-relaxed"
               maxLength={1000}
@@ -99,11 +101,11 @@ export function DetrazioniFiscaliFields({ value, onChange }: Props) {
                 checked={value.manodoperaEvidenzia}
                 onCheckedChange={(checked) => set({ manodoperaEvidenzia: checked === true })}
               />
-              Evidenzia separatamente il costo della manodopera
+              {t("Evidenzia separatamente il costo della manodopera")}
             </Label>
             {value.manodoperaEvidenzia && (
               <div className="flex items-center gap-2 pl-6">
-                <span className="text-xs text-muted-foreground">Di cui manodopera</span>
+                <span className="text-xs text-muted-foreground">{t("Di cui manodopera")}</span>
                 <div className="relative w-36">
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
                   <Input
@@ -123,8 +125,7 @@ export function DetrazioniFiscaliFields({ value, onChange }: Props) {
 
           <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-700">
             <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            Testi indicativi: verifica con il commercialista l'agevolazione applicabile, l'aliquota e i requisiti
-            (es. bonifico parlante, asseverazioni). Puoi modificare liberamente la clausola.
+            {t("Testi indicativi: verifica con il commercialista l'agevolazione applicabile, l'aliquota e i requisiti (es. bonifico parlante, asseverazioni). Puoi modificare liberamente la clausola.")}
           </p>
         </div>
       )}

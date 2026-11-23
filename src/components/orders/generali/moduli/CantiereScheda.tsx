@@ -35,6 +35,7 @@ import type { ModuloScheda, PropsScheda } from "../tipiScheda";
 import { MovimentiOperazione } from "./MovimentiOperazione";
 import { AmbitoOperazione } from "./AmbitoOperazione";
 import { IndiceLavorazioni } from "./IndiceLavorazioni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Valore del selettore per «tutta l'operazione»: generale e figlie insieme, sola lettura. */
 const TUTTA = "__tutta__";
@@ -164,6 +165,7 @@ const Riconciliazione = lazy(() =>
 );
 
 export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
+  const tr = useT();
   const g = riepilogo.generale;
   const [parametri, setParametri] = useSearchParams();
   const telefono = useIsMobile();
@@ -273,23 +275,23 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
   const comandi = (navigaForniture || controllaDdt) && (
     <>
       {navigaForniture && (
-        <div role="group" aria-label="Vista ordini d’acquisto" className="flex w-fit flex-wrap gap-0.5">
+        <div role="group" aria-label={tr("Vista ordini d’acquisto")} className="flex w-fit flex-wrap gap-0.5">
           <Button type="button" size="sm" className="h-8 px-2 text-xs" variant={mostraControllo ? "ghost" : "secondary"} aria-pressed={!mostraControllo} onClick={() => setVista("acquisti")}>
-            <PackageCheck className="size-4" aria-hidden="true" /> Ordini
+            <PackageCheck className="size-4" aria-hidden="true" /> {tr("Ordini")}
           </Button>
           <Button type="button" size="sm" className="h-8 px-2 text-xs" variant={mostraControllo ? "secondary" : "ghost"} aria-pressed={mostraControllo} onClick={() => setVista("controllo")}>
-            <ClipboardCheck className="size-4" aria-hidden="true" /> Controllo forniture
+            <ClipboardCheck className="size-4" aria-hidden="true" /> {tr("Controllo forniture")}
           </Button>
         </div>
       )}
       {controllaDdt && (
         <Button type="button" size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => setVista("controllo")}>
-          <ClipboardCheck className="size-4" aria-hidden="true" /> Controllo forniture <ArrowRight className="size-4" aria-hidden="true" />
+          <ClipboardCheck className="size-4" aria-hidden="true" /> {tr("Controllo forniture")} <ArrowRight className="size-4" aria-hidden="true" />
         </Button>
       )}
       {creaOdaGenerale && (
         <Button type="button" size="sm" className="h-8 gap-1.5 px-2 text-xs" onClick={() => setNuovoOda(true)}>
-          <Plus className="size-4" aria-hidden="true" /> Nuovo OdA sulla generale
+          <Plus className="size-4" aria-hidden="true" /> {tr("Nuovo OdA sulla generale")}
         </Button>
       )}
     </>
@@ -310,7 +312,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
   return (
     <AspettoOperativoProvider value={{ generaleId: g.id, codice: g.codice }}>
       <section
-        aria-label="Cantiere della commessa generale"
+        aria-label={tr("Cantiere della commessa generale")}
         className="generale-cantiere min-w-0"
       >
         <DocumentiInPopup orderId={orderId}>
@@ -318,33 +320,33 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
             <div className="generale-cantiere-toolbar">
               <div ref={scorrimentoSchede} className="generale-cantiere-scroll min-w-0 overflow-x-auto">
                 <TabsList className="generale-subtabs generale-section-navigation generale-cantiere-nav h-auto justify-start"
-                  aria-label="Sezioni del cantiere">
+                  aria-label={tr("Sezioni del cantiere")}>
                   {schedeDisponibili.map(({ id, nome, icona: Icona }) => (
-                    <TabsTrigger key={id} value={id}><Icona aria-hidden="true" />{nome}</TabsTrigger>
+                    <TabsTrigger key={id} value={id}><Icona aria-hidden="true" />{tr(nome)}</TabsTrigger>
                   ))}
                 </TabsList>
               </div>
               <label className="generale-cantiere-vista-mobile min-w-0 text-xs font-medium">
-                <span>Sezione</span>
-                <UniformSelect aria-label="Vista del cantiere" value={vista} onChange={e => setVista(e.target.value)}
+                <span>{tr("Sezione")}</span>
+                <UniformSelect aria-label={tr("Vista del cantiere")} value={vista} onChange={e => setVista(e.target.value)}
                   className="h-8 w-full min-w-0 bg-background pl-2.5 font-normal">
-                  {schedeDisponibili.map(({ id, nome }) => <option key={id} value={id}>{nome}</option>)}
+                  {schedeDisponibili.map(({ id, nome }) => <option key={id} value={id}>{tr(nome)}</option>)}
                 </UniformSelect>
               </label>
               <div className="generale-cantiere-ambito">
                 {riepilogo.figlie.length > 12 ? <div className="flex min-w-0 items-center gap-2 text-xs font-medium">
-                  <span>Ambito</span>
-                  <AmbitoOperazione fissi={[{ id: TUTTA, nome: "Tutta l’operazione" }, { id: g.id, nome: "Commessa generale", codice: g.codice }]}
+                  <span>{tr("Ambito")}</span>
+                  <AmbitoOperazione fissi={[{ id: TUTTA, nome: tr("Tutta l’operazione") }, { id: g.id, nome: tr("Commessa generale"), codice: g.codice }]}
                     figlie={riepilogo.figlie} valore={tutta ? TUTTA : orderId} onChange={setAmbito} />
                 </div> : <label className="flex min-w-0 items-center gap-2 text-xs font-medium">
-                  <span>Ambito</span>
-                  <UniformSelect aria-label="Ambito del cantiere" value={tutta ? TUTTA : orderId}
+                  <span>{tr("Ambito")}</span>
+                  <UniformSelect aria-label={tr("Ambito del cantiere")} value={tutta ? TUTTA : orderId}
                     onChange={e => setAmbito(e.target.value)}
                     className="h-8 min-w-0 flex-1 rounded-md border bg-background pl-2.5 font-normal">
-                    {riepilogo.figlie.length > 0 && <option value={TUTTA}>Tutta l’operazione</option>}
-                    <option value={g.id}>Commessa generale · {g.codice ?? g.nome}</option>
+                    {riepilogo.figlie.length > 0 && <option value={TUTTA}>{tr("Tutta l’operazione")}</option>}
+                    <option value={g.id}>{tr("Commessa generale · {tipo}", { tipo: g.codice ?? g.nome })}</option>
                     {riepilogo.figlie.length > 0 && (
-                      <optgroup label={DEFINIZIONI_MODELLI[g.modello].figlia.tante}>
+                      <optgroup label={tr(DEFINIZIONI_MODELLI[g.modello].figlia.tante)}>
                         {riepilogo.figlie.map(f => <option key={f.id} value={f.id}>{[f.nome, f.codice].filter(Boolean).join(" · ")}</option>)}
                       </optgroup>
                     )}
@@ -361,7 +363,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                 <TabsContent value="lavorazioni" className="mt-2.5">
                   {tornaAlCrono && <Button type="button" size="sm" variant="outline" className="mb-2 h-10 max-w-full"
                     onClick={() => setVista("cronoprogramma")}>
-                    <ArrowLeft className="size-4" aria-hidden="true" /> Torna al cronoprogramma
+                    <ArrowLeft className="size-4" aria-hidden="true" /> {tr("Torna al cronoprogramma")}
                   </Button>}
                   <div className={riepilogo.figlie.length ? "grid min-w-0 items-start gap-2 lg:grid-cols-[12rem_minmax(0,1fr)]" : undefined}>
                     {riepilogo.figlie.length > 0 && <IndiceLavorazioni riepilogo={riepilogo} attiva={orderId} tutta={tutta}
@@ -377,7 +379,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                         <Lavorazioni key={orderId} orderId={orderId} orderCode={scelto.codice} figlia={!!figlia}
                           importo={figlia ? figlia.importo : g.valore} fase={fase} onApriCronoprogramma={() => setVista("cronoprogramma")} />
                         {effectiveCompany?.id && permessi.canViewOrders && g.modello !== "appalto" && (
-                          <Sezione id="computi" titolo="Computi del cantiere">
+                          <Sezione id="computi" titolo={tr("Computi del cantiere")}>
                             <Computo key={`${orderId}:${parametri.get("computo") ?? ""}`} orderId={orderId} companyId={effectiveCompany.id}
                               canEdit={puoModificare} canViewAmounts={riepilogo.permessi.importi} orderLabel={scelto.codice}
                               computoInizialeId={parametri.get("computo") || undefined} />
@@ -402,7 +404,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                       setAperturaMateriali({ id, faseProposte });
                     } : undefined} />
                     : <MaterialiAmbito key={`${orderId}:${faseMateriali ?? ""}:${cercaMateriale ?? ""}`} orderId={orderId} orderCode={scelto.codice}
-                      nome={figlia ? figlia.nome : "Materiali della generale"} puoModificare={puoModificare}
+                      nome={figlia ? figlia.nome : tr("Materiali della generale")} puoModificare={puoModificare}
                       generaIniziale={aperturaMateriali?.id === orderId && aperturaMateriali.genera}
                       computoIniziale={aperturaMateriali?.id === orderId ? aperturaMateriali.computoId : undefined}
                       faseProposteIniziale={aperturaMateriali?.id === orderId ? aperturaMateriali.faseProposte : undefined}
@@ -430,7 +432,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
               ) : (
               <>
               <TabsContent value="rapportini" className="mt-2.5 space-y-4">
-                <Sezione id="rapportini" titolo="Rapportini">
+                <Sezione id="rapportini" titolo={tr("Rapportini")}>
                   <DaApprovare key={`approva-${orderId}`} orderId={orderId} />
                   {puoModificare && (
                     <RapportiniUfficio
@@ -467,7 +469,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
               </TabsContent>
               {costi && (
                 <TabsContent value="contabilita" className="mt-2.5 space-y-4">
-                  <Sezione id="fatture" titolo="Fatture e costi">
+                  <Sezione id="fatture" titolo={tr("Fatture e costi")}>
                     <Fatture
                       key={orderId}
                       orderId={orderId}
@@ -481,7 +483,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                       puoModificare={puoModificare}
                     />
                   </Sezione>
-                  <Sezione id="pagamenti" titolo="Pagamenti">
+                  <Sezione id="pagamenti" titolo={tr("Pagamenti")}>
                     <Pagamenti
                       key={orderId}
                       orderId={orderId}
@@ -491,7 +493,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                 </TabsContent>
               )}
               <TabsContent value="squadre" className="mt-2.5 space-y-4">
-                <Sezione id="squadre" titolo="Squadre, ore e accessi">
+                <Sezione id="squadre" titolo={tr("Squadre, ore e accessi")}>
                   <Squadre
                     key={orderId}
                     orderId={orderId}
@@ -499,10 +501,9 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                   />
                 </Sezione>
                 {costi && (
-                  <Sezione id="subappalti" titolo="Ditte e subappalti">
+                  <Sezione id="subappalti" titolo={tr("Ditte e subappalti")}>
                     <p className="text-sm text-muted-foreground">
-                      Le ore di una ditta nei rapportini contano la presenza: il costo della ditta
-                      arriva dalla sua fattura o dal SAL, se non ha un listino.
+                      {tr("Le ore di una ditta nei rapportini contano la presenza: il costo della ditta arriva dalla sua fattura o dal SAL, se non ha un listino.")}
                     </p>
                     <Subappalti
                       key={orderId}

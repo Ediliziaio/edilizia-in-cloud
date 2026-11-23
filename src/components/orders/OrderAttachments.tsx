@@ -69,6 +69,7 @@ import { DocumentFoldersNavigation, SENZA_CARTELLA, TUTTI_DOCUMENTI } from "./Do
 import { usePermissions } from "@/hooks/usePermissions";
 import { BUCKET_DOCUMENTI_CLIENTE, ETICHETTA_DOCUMENTO_CLIENTE } from "@/lib/clienti/documentiCliente";
 import { MESSAGGIO_PERMESSI } from "@/lib/userErrorMessage";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 import {
   ACCEPT_INPUT,
   cartellaDocumentiCliente,
@@ -148,6 +149,7 @@ export function OrderAttachments(props: OrderAttachmentsProps) {
 }
 
 function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, documentiCollegati, cartellaIniziale }: OrderAttachmentsProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const permissions = usePermissions();
   const puoGestireCartelle = permissions.isAdmin || permissions.canEditSettingsOrders;
@@ -249,9 +251,9 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
     },
     onSuccess: (_d, { visible }) => {
       invalida();
-      toast.success(visible ? "Ora il cliente vede il documento" : "Documento tornato privato");
+      toast.success(visible ? t("Ora il cliente vede il documento") : t("Documento tornato privato"));
     },
-    onError: () => toast.error("Visibilità non aggiornata"),
+    onError: () => toast.error(t("Visibilità non aggiornata")),
   });
 
   const spostaMutation = useMutation({
@@ -274,18 +276,18 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
     },
     onError: (_e, _v, ctx) => {
       if (ctx?.prima) queryClient.setQueryData(["order-attachments", orderId], ctx.prima);
-      toast.error("Documento non spostato");
+      toast.error(t("Documento non spostato"));
     },
     onSuccess: (_d, { folderId, tipo }) => {
-      const nome = tipo ? TIPI_DOCUMENTO_CANTIERE[tipo] : cartelle.find((c) => c.id === folderId)?.nome ?? "Senza cartella";
-      toast.success(`Spostato in «${nome}»`);
+      const nome = tipo ? t(TIPI_DOCUMENTO_CANTIERE[tipo]) : cartelle.find((c) => c.id === folderId)?.nome ?? t("Senza cartella");
+      toast.success(t("Spostato in «{nome}»", { nome }));
     },
     onSettled: invalida,
   });
 
   const deleteAttachmentMutation = useMutation({
     mutationFn: async (attachment: OrderAttachment) => {
-      if(attachment.file_url.startsWith("order-variation-documents/")) throw new Error("Originale conservato: annulla la proposta senza eliminare i documenti.");
+      if(attachment.file_url.startsWith("order-variation-documents/")) throw new Error(t("Originale conservato: annulla la proposta senza eliminare i documenti."));
       const { data: tolte, error } = await supabase
         .from("order_attachments")
         .delete()
@@ -302,15 +304,15 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
     },
     onSuccess: () => {
       invalida();
-      toast.success("Documento eliminato");
+      toast.success(t("Documento eliminato"));
     },
-    onError: (e: unknown) => toast.error("Documento non eliminato", { description: (e as { message?: string } | null)?.message }),
+    onError: (e: unknown) => toast.error(t("Documento non eliminato"), { description: (e as { message?: string } | null)?.message }),
   });
 
   const apriCaricamento = (files: File[], cartellaId: string | null) => {
     const buoni = files.filter((f) => {
       const problema = problemaFile(f);
-      if (problema) toast.error("File escluso", { description: problema });
+      if (problema) toast.error(t("File escluso"), { description: problema });
       return !problema;
     });
     if (buoni.length === 0) return;
@@ -369,8 +371,8 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
   const conteggi = useMemo(() => contaPerCartella(tutti), [tutti]);
   const nomeCartella = useMemo(() => {
     const m = new Map(cartelle.map((c) => [c.id, c.nome]));
-    return (id: string | null) => (id ? m.get(id) ?? (caricoCartelle ? "Caricamento categoria…" : erroreCartelle ? "Categoria non disponibile" : "Cartella non disponibile") : "Senza cartella");
-  }, [cartelle, caricoCartelle, erroreCartelle]);
+    return (id: string | null) => (id ? m.get(id) ?? (caricoCartelle ? t("Caricamento categoria…") : erroreCartelle ? t("Categoria non disponibile") : t("Cartella non disponibile")) : t("Senza cartella"));
+  }, [cartelle, caricoCartelle, erroreCartelle, t]);
   const mancanti = useMemo(() => cartelleMancanti(cartelle, documentiGenerali), [cartelle, documentiGenerali]);
   const orfani = tutti.filter((a) => a.folder_id && !cartelle.some((c) => c.id === a.folder_id)).length;
   const senzaCartella = (conteggi[""] ?? 0) + orfani;
@@ -395,7 +397,7 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Paperclip className="h-5 w-5" />
-            Documenti commessa
+            {t("Documenti commessa")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -407,10 +409,10 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
       </Card>
     );
   }
-  if (erroreAllegati || erroreCartelle) return <Card><CardHeader><CardTitle>Documenti commessa</CardTitle></CardHeader><CardContent>
+  if (erroreAllegati || erroreCartelle) return <Card><CardHeader><CardTitle>{t("Documenti commessa")}</CardTitle></CardHeader><CardContent>
     {documentiCollegati}
-    <div role="alert" className="space-y-2 text-sm text-destructive"><p>Documenti o categorie non disponibili. Non possiamo confermare che siano vuoti.</p>
-      <Button type="button" variant="outline" onClick={() => { void rileggiAllegati(); void rileggiCartelle(); }}>Riprova</Button>
+    <div role="alert" className="space-y-2 text-sm text-destructive"><p>{t("Documenti o categorie non disponibili. Non possiamo confermare che siano vuoti.")}</p>
+      <Button type="button" variant="outline" onClick={() => { void rileggiAllegati(); void rileggiCartelle(); }}>{t("Riprova")}</Button>
     </div>
   </CardContent></Card>;
 
@@ -427,7 +429,7 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 pb-3 space-y-0">
         <CardTitle className="flex items-center gap-2 min-w-0 text-base sm:text-lg">
           <Paperclip className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-          <span className="truncate">Documenti commessa</span>
+          <span className="truncate">{t("Documenti commessa")}</span>
 
         </CardTitle>
         {editable && (
@@ -445,9 +447,9 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
                 e.target.value = "";
               }}
             />
-            <Button size="sm" aria-label="Carica file" className="min-h-11 shrink-0 font-semibold" onClick={() => fileInputRef.current?.click()}>
+            <Button size="sm" aria-label={t("Carica file")} className="min-h-11 shrink-0 font-semibold" onClick={() => fileInputRef.current?.click()}>
               <Upload className="h-4 w-4" aria-hidden="true" />
-              <span className="ml-1.5 hidden sm:inline">Carica file</span><span className="ml-1.5 sm:hidden">Carica</span>
+              <span className="ml-1.5 hidden sm:inline">{t("Carica file")}</span><span className="ml-1.5 sm:hidden">{t("Carica")}</span>
             </Button>
           </div>
         )}
@@ -455,36 +457,36 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
 
       <CardContent className="space-y-3">
         {documentiCollegati}
-        <div role="group" aria-label="Sezioni documenti" className="flex flex-wrap items-center gap-1 rounded-lg border bg-muted/40 p-1">
+        <div role="group" aria-label={t("Sezioni documenti")} className="flex flex-wrap items-center gap-1 rounded-lg border bg-muted/40 p-1">
           <Button type="button" size="sm" variant={!inCantiere ? "secondary" : "ghost"} aria-pressed={!inCantiere}
             className="gap-2" onClick={() => { setSezione("commessa"); azzeraFiltri(); }}>
-            <Paperclip className="h-4 w-4" aria-hidden="true" /> Allegati commessa <span className="tabular-nums text-muted-foreground">{documentiGenerali.length}</span>
+            <Paperclip className="h-4 w-4" aria-hidden="true" /> {t("Allegati commessa")} <span className="tabular-nums text-muted-foreground">{documentiGenerali.length}</span>
           </Button>
           <Button type="button" size="sm" variant={inCantiere ? "secondary" : "ghost"} aria-pressed={inCantiere}
             className="gap-2" onClick={() => { setSezione("cantiere"); azzeraFiltri(); }}>
-            <HardHat className="h-4 w-4" aria-hidden="true" /> Documenti di cantiere <span className="tabular-nums text-muted-foreground">{documentiCantiere.length}</span>
+            <HardHat className="h-4 w-4" aria-hidden="true" /> {t("Documenti di cantiere")} <span className="tabular-nums text-muted-foreground">{documentiCantiere.length}</span>
           </Button>
         </div>
         {inCantiere && editable && <p className="text-xs text-muted-foreground">
-          I documenti operativi approvati compaiono nell’app per il capocantiere e le persone abilitate alla scheda.
+          {t("I documenti operativi approvati compaiono nell’app per il capocantiere e le persone abilitate alla scheda.")}
         </p>}
         {inCantiere && editable && permissions.isAdmin && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-primary/5 px-4 py-3">
-          <div><p className="text-sm font-medium">QR documenti di cantiere</p><p className="text-xs text-muted-foreground">Scegli i documenti consultabili sul posto e stampa il QR della commessa.</p></div>
-          <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setQrAperto(true)}><QrCode className="h-4 w-4" /> Gestisci QR</Button>
+          <div><p className="text-sm font-medium">{t("QR documenti di cantiere")}</p><p className="text-xs text-muted-foreground">{t("Scegli i documenti consultabili sul posto e stampa il QR della commessa.")}</p></div>
+          <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setQrAperto(true)}><QrCode className="h-4 w-4" /> {t("Gestisci QR")}</Button>
         </div>}
         {editable && <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}
           className={`h-auto w-full justify-center gap-2 whitespace-normal border-dashed py-3 ${isDragging ? "border-primary bg-primary/10" : "bg-muted/20"}`}>
           <Upload className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {isDragging ? (sopraCartella ? `Rilascia in «${sopraCartella === SENZA ? "Senza cartella" : nomeCartella(sopraCartella)}»` : "Rilascia i file qui")
-            : <><span className="hidden sm:inline">Trascina qui i file o selezionali</span><span className="sm:hidden">Seleziona i file</span><span className="text-xs font-normal text-muted-foreground">Fino a 50 MB per file</span></>}
+          {isDragging ? (sopraCartella ? t("Rilascia in «{nome}»", { nome: sopraCartella === SENZA ? t("Senza cartella") : nomeCartella(sopraCartella) }) : t("Rilascia i file qui"))
+            : <><span className="hidden sm:inline">{t("Trascina qui i file o selezionali")}</span><span className="sm:hidden">{t("Seleziona i file")}</span><span className="text-xs font-normal text-muted-foreground">{t("Fino a 50 MB per file")}</span></>}
         </Button>}
-        {!inCantiere && erroreCliente && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm"><span>Documenti del cliente non disponibili. L'elenco mostra solo gli allegati della commessa.</span><Button type="button" variant="outline" size="sm" onClick={() => { void rileggiCliente(); }}>Riprova documenti cliente</Button></div>}
-        {!inCantiere && caricoCliente && <p role="status" className="text-xs text-muted-foreground">Verifica documenti del cliente…</p>}
+        {!inCantiere && erroreCliente && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm"><span>{t("Documenti del cliente non disponibili. L'elenco mostra solo gli allegati della commessa.")}</span><Button type="button" variant="outline" size="sm" onClick={() => { void rileggiCliente(); }}>{t("Riprova documenti cliente")}</Button></div>}
+        {!inCantiere && caricoCliente && <p role="status" className="text-xs text-muted-foreground">{t("Verifica documenti del cliente…")}</p>}
         {!inCantiere && mancanti.length > 0 && (
           <div className="flex items-start gap-2 rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
             <span>
-              <strong>Mancano:</strong>{" "}
+              <strong>{t("Mancano:")}</strong>{" "}
               {mancanti.map((c, i) => (
                 <span key={c.id}>
                   {i > 0 && ", "}
@@ -499,26 +501,26 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
 
         <div className="space-y-3">
           {tutti.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2">
-            <div role="group" aria-label="Visibilità documenti" className="flex flex-wrap gap-1">
+            <div role="group" aria-label={t("Visibilità documenti")} className="flex flex-wrap gap-1">
               {([
-                ["tutti", "Tutti", tutti.length],
-                ["interni", "Interni", tutti.length - condivisi],
-                ["condivisi", "Condivisi con cliente", condivisi],
+                ["tutti", t("Tutti"), tutti.length],
+                ["interni", t("Interni"), tutti.length - condivisi],
+                ["condivisi", t("Condivisi con cliente"), condivisi],
               ] as const).map(([value, label, count]) => <Button key={value} type="button" size="sm"
                 variant={visibilita === value ? "secondary" : "ghost"} className="min-h-10 gap-2"
-                aria-label={`${label}: ${count} documenti`}
+                aria-label={t("{etichetta}: {n} documenti", { etichetta: label, n: count })}
                 aria-pressed={visibilita === value} onClick={() => setVisibilita(value)}>
-                {value === "condivisi" ? <><span className="sm:hidden">Condivisi</span><span className="hidden sm:inline">{label}</span></> : label}
+                {value === "condivisi" ? <><span className="sm:hidden">{t("Condivisi")}</span><span className="hidden sm:inline">{label}</span></> : label}
                 <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
               </Button>)}
             </div>
             {filtriAttivi && <Button type="button" variant="ghost" size="sm" onClick={azzeraFiltri}>
-              <X className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Azzera filtri
+              <X className="mr-1 h-3.5 w-3.5" aria-hidden="true" />{t("Azzera filtri")}
             </Button>}
           </div>}
           <div className="flex flex-col gap-2 xl:flex-row xl:items-start">
-          {inCantiere ? <OfficeSelect label="Tipo di documento di cantiere" value={tipoCantiere} onValueChange={setTipoCantiere} className="h-11 sm:w-72"
-            options={[{ value: TUTTI, label: "Tutti i tipi" }, ...Object.entries(TIPI_DOCUMENTO_CANTIERE).map(([value, label]) => ({ value, label }))]} />
+          {inCantiere ? <OfficeSelect label={t("Tipo di documento di cantiere")} value={tipoCantiere} onValueChange={setTipoCantiere} className="h-11 sm:w-72"
+            options={[{ value: TUTTI, label: t("Tutti i tipi") }, ...Object.entries(TIPI_DOCUMENTO_CANTIERE).map(([value, label]) => ({ value, label: t(label) }))]} />
           : <DocumentFoldersNavigation
             compact
             cartelle={cartelle} conteggi={conteggi} totale={tutti.length} senzaCartella={senzaCartella}
@@ -536,22 +538,22 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
                     <Input
                       id={`cerca-documenti-${orderId}`}
                       value={ricerca}
-                      aria-label="Cerca documenti"
+                      aria-label={t("Cerca documenti")}
                       onChange={(e) => setRicerca(e.target.value)}
-                      placeholder={inCantiere || selezione === TUTTI ? "Cerca nei documenti…" : `Cerca in «${selezione === SENZA ? "Senza cartella" : nomeCartella(selezione)}»…`}
+                      placeholder={inCantiere || selezione === TUTTI ? t("Cerca nei documenti…") : t("Cerca in «{nome}»…", { nome: selezione === SENZA ? t("Senza cartella") : nomeCartella(selezione) })}
                       className="h-11 pl-8"
                     />
                   </div>
-                <div className="flex shrink-0 rounded-md border p-0.5" role="group" aria-label="Vista documenti">
+                <div className="flex shrink-0 rounded-md border p-0.5" role="group" aria-label={t("Vista documenti")}>
                   <Button
                     type="button" size="icon" variant={vista === "griglia" ? "secondary" : "ghost"} className="h-10 w-10"
-                    onClick={() => cambiaVista("griglia")} aria-pressed={vista === "griglia"} aria-label="Vista con anteprime"
+                    onClick={() => cambiaVista("griglia")} aria-pressed={vista === "griglia"} aria-label={t("Vista con anteprime")}
                   >
                     <LayoutGrid className="h-4 w-4" />
                   </Button>
                   <Button
                     type="button" size="icon" variant={vista === "elenco" ? "secondary" : "ghost"} className="h-10 w-10"
-                    onClick={() => cambiaVista("elenco")} aria-pressed={vista === "elenco"} aria-label="Vista elenco"
+                    onClick={() => cambiaVista("elenco")} aria-pressed={vista === "elenco"} aria-label={t("Vista elenco")}
                   >
                     <List className="h-4 w-4" />
                   </Button>
@@ -564,28 +566,28 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
             {visibili.length === 0 ? (
               <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground max-sm:py-4 max-sm:text-xs">
                 {filtriAttivi
-                  ? <><p>Nessun documento con questi filtri.</p><Button type="button" variant="link" onClick={azzeraFiltri}>Mostra tutti i documenti</Button></>
+                  ? <><p>{t("Nessun documento con questi filtri.")}</p><Button type="button" variant="link" onClick={azzeraFiltri}>{t("Mostra tutti i documenti")}</Button></>
                   : inCantiere
-                    ? "Nessun documento di cantiere. Qui puoi raccogliere POS, PSC, tavole e verbali."
+                    ? t("Nessun documento di cantiere. Qui puoi raccogliere POS, PSC, tavole e verbali.")
                     : selezione === TUTTI
                     ? (editable ? (
                         <>
                           {/* Dal telefono non si trascina: basta «Carica file». */}
-                          <span className="max-sm:hidden">Nessun documento. Premi «Carica file» o trascina qui i file.</span>
-                          <span className="sm:hidden">Nessun documento.</span>
+                          <span className="max-sm:hidden">{t("Nessun documento. Premi «Carica file» o trascina qui i file.")}</span>
+                          <span className="sm:hidden">{t("Nessun documento.")}</span>
                         </>
-                      ) : "Nessun documento caricato.")
+                      ) : t("Nessun documento caricato."))
                     : editable
                       ? (
                         <>
-                          Nessun documento in questa cartella.{" "}
+                          {t("Nessun documento in questa cartella.")}{" "}
                           <button type="button" className="underline underline-offset-2 text-foreground" onClick={() => fileInputRef.current?.click()}>
-                            Carica file
+                            {t("Carica file")}
                           </button>{" "}
-                          o trascinali qui.
+                          {t("o trascinali qui.")}
                         </>
                       )
-                      : "Nessun documento in questa cartella."}
+                      : t("Nessun documento in questa cartella.")}
               </div>
             ) : (
               <div className={vista === "griglia" ? "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4" : "overflow-hidden rounded-xl border divide-y bg-background"}>
@@ -595,7 +597,7 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
                     attachment={attachment}
                     editable={editable}
                     cartelle={cartelleAttive}
-                    nomeCartella={attachment.cantiere_tipo ? TIPI_DOCUMENTO_CANTIERE[attachment.cantiere_tipo] : selezione === TUTTI || ricerca ? nomeCartella(attachment.folder_id) : null}
+                    nomeCartella={attachment.cantiere_tipo ? t(TIPI_DOCUMENTO_CANTIERE[attachment.cantiere_tipo]) : selezione === TUTTI || ricerca ? nomeCartella(attachment.folder_id) : null}
                     thumbUrl={miniaturaDi(attachment)}
                     vista={vista}
                     visibilityPending={toggleVisibilityMutation.isPending}
@@ -609,8 +611,8 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
             )}
 
             {tutti.length > 0 && <p role="status" className="text-xs text-muted-foreground flex flex-wrap justify-between gap-2 pt-1">
-              <span>{visibili.length} di {tutti.length} documenti</span>
-              <span>{condivisi === 0 ? "Nessun documento condiviso con il cliente" : `${condivisi} documenti condivisi con il cliente`}</span>
+              <span>{t("{visibili} di {totale} documenti", { visibili: visibili.length, totale: tutti.length })}</span>
+              <span>{condivisi === 0 ? t("Nessun documento condiviso con il cliente") : t("{n} documenti condivisi con il cliente", { n: condivisi })}</span>
             </p>}
           </div>
         </div>
@@ -658,6 +660,7 @@ function AzioniDocumento({
 }: Pick<AttachmentItemProps, "attachment" | "editable" | "cartelle" | "onToggleVisibility" | "onMove" | "onDelete" | "visibilityPending"> & {
   compatta: boolean;
 }) {
+  const t = useT();
   const daCliente = attachment.daCliente;
   const [confermaElimina, setConfermaElimina] = useState(false);
   const [confermaVisibilita, setConfermaVisibilita] = useState(false);
@@ -668,19 +671,19 @@ function AzioniDocumento({
     <div className={`flex items-center gap-1 shrink-0 ${compatta ? "" : "col-span-2 justify-end sm:col-span-1"}`}>
       {!daCliente && !compatta && (editable ? <Button type="button" variant="ghost" size="sm"
         className={`min-h-10 gap-1.5 text-xs ${attachment.visible_to_customer ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}
-        disabled={visibilityPending} aria-label={`Visibilità di ${attachment.file_name}: ${attachment.visible_to_customer ? "condiviso con cliente" : "interno"}`}
+        disabled={visibilityPending} aria-label={attachment.visible_to_customer ? t("Visibilità di {nome}: condiviso con cliente", { nome: attachment.file_name }) : t("Visibilità di {nome}: interno", { nome: attachment.file_name })}
         onClick={() => setConfermaVisibilita(true)}>
         {attachment.visible_to_customer ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-        {attachment.visible_to_customer ? "Condiviso" : "Interno"}
+        {attachment.visible_to_customer ? t("Condiviso") : t("Interno")}
       </Button> : <span className={`mr-2 text-xs ${attachment.visible_to_customer ? "text-emerald-700" : "text-muted-foreground"}`}>
-        {attachment.visible_to_customer ? "Condiviso con cliente" : "Interno"}
+        {attachment.visible_to_customer ? t("Condiviso con cliente") : t("Interno")}
       </span>)}
 
       <Button
         variant="ghost"
         size="icon"
         className="h-10 w-10"
-        aria-label={`Scarica ${attachment.file_name}`}
+        aria-label={t("Scarica {nome}", { nome: attachment.file_name })}
         onClick={(e) => {
           e.stopPropagation();
           void scaricaAllegato(attachment.file_url, attachment.file_name, daCliente ? BUCKET_DOCUMENTI_CLIENTE : undefined);
@@ -693,21 +696,21 @@ function AzioniDocumento({
         <>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={`Altre azioni per ${attachment.file_name}`} onClick={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={t("Altre azioni per {nome}", { nome: attachment.file_name })} onClick={(e) => e.stopPropagation()}>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-h-[60vh] overflow-y-auto w-64">
               <DropdownMenuItem disabled={visibilityPending} onSelect={() => setConfermaVisibilita(true)}>
                 {attachment.visible_to_customer ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
-                {attachment.visible_to_customer ? "Nascondi al cliente" : "Mostra al cliente"}
+                {attachment.visible_to_customer ? t("Nascondi al cliente") : t("Mostra al cliente")}
               </DropdownMenuItem>
-              {isAdmin && <DropdownMenuItem onSelect={()=>setAccessOpen(true)}>Riservatezza del documento…</DropdownMenuItem>}
+              {isAdmin && <DropdownMenuItem onSelect={()=>setAccessOpen(true)}>{t("Riservatezza del documento…")}</DropdownMenuItem>}
               <DropdownMenuItem onSelect={() => setRevisioneAperta(true)}>
-                <FileCheck2 className="h-4 w-4 mr-2" /> Revisione…
+                <FileCheck2 className="h-4 w-4 mr-2" /> {t("Revisione…")}
               </DropdownMenuItem>
               <DropdownMenuLabel className="flex items-center gap-2 text-xs text-muted-foreground font-normal">
-                <FolderInput className="h-3.5 w-3.5" /> Sposta in…
+                <FolderInput className="h-3.5 w-3.5" /> {t("Sposta in…")}
               </DropdownMenuLabel>
               {cartelle.map((c) => (
                 <DropdownMenuItem
@@ -719,14 +722,14 @@ function AzioniDocumento({
                   {c.nome}
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuItem onSelect={() => onMove(null)} disabled={!attachment.cantiere_tipo && !attachment.folder_id} className="pl-7">Senza categoria</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onMove(null)} disabled={!attachment.cantiere_tipo && !attachment.folder_id} className="pl-7">{t("Senza categoria")}</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">Documenti di cantiere</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">{t("Documenti di cantiere")}</DropdownMenuLabel>
               {Object.entries(TIPI_DOCUMENTO_CANTIERE).map(([tipo, nome]) => <DropdownMenuItem key={tipo} className="pl-7"
-                disabled={tipo === attachment.cantiere_tipo} onSelect={() => onMove(null, tipo as TipoDocumentoCantiere)}>{nome}</DropdownMenuItem>)}
+                disabled={tipo === attachment.cantiere_tipo} onSelect={() => onMove(null, tipo as TipoDocumentoCantiere)}>{t(nome)}</DropdownMenuItem>)}
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled={attachment.file_url.startsWith("order-variation-documents/")} className="text-destructive focus:text-destructive" onSelect={() => setConfermaElimina(true)}>
-                <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                <Trash2 className="h-4 w-4 mr-2" /> {t("Elimina")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -735,17 +738,17 @@ function AzioniDocumento({
           <AlertDialog open={confermaVisibilita} onOpenChange={setConfermaVisibilita}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{attachment.visible_to_customer ? "Rendere interno il documento?" : "Condividere con il cliente?"}</AlertDialogTitle>
+                <AlertDialogTitle>{attachment.visible_to_customer ? t("Rendere interno il documento?") : t("Condividere con il cliente?")}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  «{attachment.file_name}». {attachment.visible_to_customer
-                    ? "Non sarà più visibile nell'area cliente. Eventuali copie già scaricate restano al cliente."
-                    : "Sarà visibile nell'area cliente. La condivisione può inviare una notifica: controlla che il file sia quello corretto."}
+                  {attachment.visible_to_customer
+                    ? t("«{nome}». Non sarà più visibile nell'area cliente. Eventuali copie già scaricate restano al cliente.", { nome: attachment.file_name })
+                    : t("«{nome}». Sarà visibile nell'area cliente. La condivisione può inviare una notifica: controlla che il file sia quello corretto.", { nome: attachment.file_name })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                 <AlertDialogAction disabled={visibilityPending} onClick={() => onToggleVisibility(!attachment.visible_to_customer)}>
-                  {attachment.visible_to_customer ? "Rendi interno" : "Condividi documento"}
+                  {attachment.visible_to_customer ? t("Rendi interno") : t("Condividi documento")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -753,18 +756,18 @@ function AzioniDocumento({
           <AlertDialog open={confermaElimina} onOpenChange={setConfermaElimina}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Eliminare il documento?</AlertDialogTitle>
+                <AlertDialogTitle>{t("Eliminare il documento?")}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  «{attachment.file_name}» verrà eliminato definitivamente dalla commessa.
+                  {t("«{nome}» verrà eliminato definitivamente dalla commessa.", { nome: attachment.file_name })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={onDelete}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  Elimina
+                  {t("Elimina")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -776,11 +779,12 @@ function AzioniDocumento({
 }
 
 function AttachmentItem(props: AttachmentItemProps) {
+  const t = useT();
   const { attachment, nomeCartella, thumbUrl, vista, onPreview } = props;
   const daCliente = attachment.daCliente;
   const file = attachment as unknown as PreviewableFile;
   const kind = fileKind(file);
-  const data = new Date(attachment.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  const data = new Date(attachment.created_at).toLocaleDateString(intlCampo(), { day: "2-digit", month: "2-digit", year: "2-digit" });
   const peso = fmtBytes(attachment.file_size);
 
   if (vista === "griglia") {
@@ -789,16 +793,16 @@ function AttachmentItem(props: AttachmentItemProps) {
         <button
           type="button"
           onClick={onPreview}
-          aria-label={`Scarica ${attachment.file_name}`}
+          aria-label={t("Scarica {nome}", { nome: attachment.file_name })}
           className="relative aspect-[4/3] w-full overflow-hidden bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
           <FileThumb file={file} thumbUrl={thumbUrl} size="tile" />
           <span className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_TINT[kind]}`}>
-            {KIND_LABEL[kind]}
+            {t(KIND_LABEL[kind])}
           </span>
           {daCliente && (
             <span className="absolute right-1.5 top-1.5 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800 dark:bg-sky-950 dark:text-sky-300">
-              Dal cliente
+              {t("Dal cliente")}
             </span>
           )}
         </button>
@@ -808,7 +812,7 @@ function AttachmentItem(props: AttachmentItemProps) {
             <span className="block truncate text-[11px] text-muted-foreground">
               {nomeCartella ? `${nomeCartella} · ` : ""}{peso ? `${peso} · ` : ""}{data}
             </span>
-            {!daCliente && <span className="block text-[11px] text-muted-foreground">{attachment.visible_to_customer ? "Condiviso con cliente" : "Interno"}</span>}
+            {!daCliente && <span className="block text-[11px] text-muted-foreground">{attachment.visible_to_customer ? t("Condiviso con cliente") : t("Interno")}</span>}
             <EtichettaRevisione doc={attachment} />
           </button>
           <AzioniDocumento {...props} compatta />
@@ -822,7 +826,7 @@ function AttachmentItem(props: AttachmentItemProps) {
       <button
         type="button"
         onClick={onPreview}
-        aria-label={`Scarica ${attachment.file_name}`}
+        aria-label={t("Scarica {nome}", { nome: attachment.file_name })}
         className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
       >
         <FileThumb file={file} thumbUrl={thumbUrl} size="sm" />
@@ -846,10 +850,10 @@ function AttachmentItem(props: AttachmentItemProps) {
           )}
           {daCliente && (
             <span className="text-sky-700 dark:text-sky-400">
-              Dal cliente: {ETICHETTA_DOCUMENTO_CLIENTE[daCliente.tipo] ?? "documento"} ·
+              {t("Dal cliente: {tipo} ·", { tipo: ETICHETTA_DOCUMENTO_CLIENTE[daCliente.tipo] ? t(ETICHETTA_DOCUMENTO_CLIENTE[daCliente.tipo]) : t("documento") })}
             </span>
           )}
-          <span>{KIND_LABEL[kind]}{peso ? ` · ${peso}` : ""} · {data}</span>
+          <span>{t(KIND_LABEL[kind])}{peso ? ` · ${peso}` : ""} · {data}</span>
         </span>
       </div>
 
@@ -860,6 +864,7 @@ function AttachmentItem(props: AttachmentItemProps) {
 
 // Customer-facing component (read-only, only shows visible documents)
 export function CustomerOrderAttachments({ orderId }: { orderId: string }) {
+  const t = useT();
   const { data: attachments = [], isLoading } = useQuery({
     queryKey: ["customer-order-attachments", orderId],
     queryFn: async () => {
@@ -885,7 +890,7 @@ export function CustomerOrderAttachments({ orderId }: { orderId: string }) {
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <FileText className="h-5 w-5" />
-          Documenti
+          {t("Documenti")}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -900,6 +905,7 @@ export function CustomerOrderAttachments({ orderId }: { orderId: string }) {
 }
 
 function CustomerAttachmentItem({ attachment }: { attachment: OrderAttachment }) {
+  const t = useT();
   const [loadingUrl, setLoadingUrl] = useState(false);
 
   const handleDownload = async () => {
@@ -930,7 +936,7 @@ function CustomerAttachmentItem({ attachment }: { attachment: OrderAttachment })
         ) : (
           <Download className="h-4 w-4 mr-2" />
         )}
-        Scarica
+        {t("Scarica")}
       </Button>
     </div>
   );

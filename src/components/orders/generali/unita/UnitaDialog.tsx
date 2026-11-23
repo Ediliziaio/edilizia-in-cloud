@@ -19,6 +19,7 @@ import { SchedaVendita } from "@/components/orders/generali/vendita/SchedaVendit
 import { NOMI_STATO, etichettaPiano, prezzoConVarianti, type ElencoUnita, type UnitaGenerale } from "@/lib/orders/generali/unita";
 import { formattaNumero, pagamentiUnita, type ContiUnita } from "@/lib/orders/generali/unitaConti";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import "./unita-dialog.css";
 
 interface Props {
@@ -53,6 +54,7 @@ export function UnitaDialog({ unita, onChiudi, ...props }: Props) {
 }
 
 function Contenuto({ generaleId, operazione, u, elenco, conti, gestisci, telefono, linkCantiere, onDividi }: Omit<Props, "unita" | "onChiudi"> & { u: UnitaGenerale }) {
+  const t = useT();
   const corpo = useRef<HTMLDivElement>(null);
   const [scheda, setScheda] = useState("vendita");
   const cambiaScheda = (id: string) => {
@@ -67,11 +69,11 @@ function Contenuto({ generaleId, operazione, u, elenco, conti, gestisci, telefon
   const vendita = <>
     {garanzia && <p className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
       <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      Immobile da costruire con somme versate prima del rogito: serve la fideiussione (D.Lgs. 122/2005), e al rogito la polizza decennale.
+      {t("Immobile da costruire con somme versate prima del rogito: serve la fideiussione (D.Lgs. 122/2005), e al rogito la polizza decennale.")}
     </p>}
     <div className={cn("grid items-start gap-4 lg:gap-5", !u.divisaIl && "md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]")}>
-      <section aria-label="Vendita dell’unità" className="min-w-0 rounded-lg border bg-card">
-        <h3 className="border-b px-4 py-3 text-sm font-semibold">Stato di vendita</h3>
+      <section aria-label={t("Vendita dell’unità")} className="min-w-0 rounded-lg border bg-card">
+        <h3 className="border-b px-4 py-3 text-sm font-semibold">{t("Stato di vendita")}</h3>
         <div className="space-y-4 p-4">
           <CambioStato generaleId={generaleId} unita={u} permessi={permessi} telefono={telefono} />
           <DettagliVendita u={u} vedeImporti={permessi.importi} />
@@ -100,10 +102,10 @@ function Contenuto({ generaleId, operazione, u, elenco, conti, gestisci, telefon
     <Tabs value={schedaAttiva} onValueChange={cambiaScheda}
         className="flex min-h-0 flex-1 flex-col">
         <div className="unita-dettaglio-nav shrink-0 border-y bg-muted/25 px-4 sm:px-6">
-          <TabsList aria-label="Schede dell’unità" className="h-auto bg-transparent px-0 py-2">
+          <TabsList aria-label={t("Schede dell’unità")} className="h-auto bg-transparent px-0 py-2">
             {schede.map(({ id, nome, icona: Icona }) => <TabsTrigger key={id} value={id}
               className="gap-1.5 rounded-md px-3 text-sm data-[state=active]:bg-blue-100 data-[state=active]:text-blue-950 data-[state=active]:shadow-none motion-reduce:transition-none dark:data-[state=active]:bg-blue-950 dark:data-[state=active]:text-blue-100">
-              <Icona className="size-4" aria-hidden="true" /> {nome}
+              <Icona className="size-4" aria-hidden="true" /> {t(nome)}
             </TabsTrigger>)}
           </TabsList>
         </div>
@@ -116,19 +118,20 @@ function Contenuto({ generaleId, operazione, u, elenco, conti, gestisci, telefon
     </Tabs>
     <footer className="unita-dettaglio-azioni flex shrink-0 flex-wrap items-center gap-2.5 border-t bg-muted/25 px-4 py-3 sm:px-6 sm:py-3.5">
       {linkCantiere && <Button asChild size="sm" className="gap-1.5">
-        <Link to={linkCantiere}><HardHat className="size-4" aria-hidden="true" /> Cantiere di questa unità</Link>
+        <Link to={linkCantiere}><HardHat className="size-4" aria-hidden="true" /> {t("Cantiere di questa unità")}</Link>
       </Button>}
       <Button asChild variant="outline" size="sm" className={cn("gap-1.5", telefono && "flex-1")}>
-        <Link to={`/azienda/ordini/${u.orderId}`}><ExternalLink className="size-3.5" aria-hidden="true" /> Apri la commessa{u.codice && !telefono ? ` ${u.codice}` : ""}</Link>
+        <Link to={`/azienda/ordini/${u.orderId}`}><ExternalLink className="size-3.5" aria-hidden="true" /> {u.codice && !telefono ? t("Apri la commessa {codice}", { codice: u.codice }) : t("Apri la commessa")}</Link>
       </Button>
       {divisibile && !telefono && <Button variant="ghost" size="sm" className="ml-auto gap-1.5" onClick={() => onDividi(u.orderId)}>
-        <Scissors className="size-3.5" aria-hidden="true" /> Dividi {u.sigla}
+        <Scissors className="size-3.5" aria-hidden="true" /> {t("Dividi {sigla}", { sigla: u.sigla })}
       </Button>}
     </footer>
   </>;
 }
 
 function IntestazioneUnita({ u, vedeImporti }: { u: UnitaGenerale; vedeImporti: boolean }) {
+  const t = useT();
   const posizione = [u.edificio, u.piano ? etichettaPiano(u.piano) : null, u.mq !== null ? `${formattaNumero(u.mq)} m²` : null,
     u.millesimi !== null ? `${formattaNumero(u.millesimi)} ‰` : null].filter(Boolean).join(" · ");
   const libera = u.stato === "libera";
@@ -151,15 +154,15 @@ function IntestazioneUnita({ u, vedeImporti }: { u: UnitaGenerale; vedeImporti: 
           <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
             u.divisaIl ? "bg-muted text-muted-foreground" : STILE_STATO[u.stato].casella)}>
             {!u.divisaIl && <span className={cn("size-1.5 rounded-full", STILE_STATO[u.stato].punto)} aria-hidden="true" />}
-            {u.divisaIl ? "Divisa" : NOMI_STATO[u.stato].una}
+            {u.divisaIl ? t("Divisa") : t(NOMI_STATO[u.stato].una)}
           </span>
         </div>
-        <DialogDescription className={cn("mt-1", !posizione && "sr-only")}>{posizione || `Unità ${u.sigla}`}</DialogDescription>
+        <DialogDescription className={cn("mt-1", !posizione && "sr-only")}>{posizione || t("Unità {nome}", { nome: String(u.sigla ?? "") })}</DialogDescription>
       </div>
     </div>
-    {vedeImporti && cifre.length > 0 && <dl aria-label="Importi dell’unità" className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-6">
+    {vedeImporti && cifre.length > 0 && <dl aria-label={t("Importi dell’unità")} className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-6">
       {cifre.map(c => <div key={c.titolo} className="min-w-0 sm:text-right">
-        <dt className="text-xs text-muted-foreground">{c.titolo}</dt>
+        <dt className="text-xs text-muted-foreground">{t(c.titolo)}</dt>
         <dd className="text-lg font-semibold leading-tight tabular-nums">{euro(c.valore)}</dd>
       </div>)}
     </dl>}
@@ -167,15 +170,16 @@ function IntestazioneUnita({ u, vedeImporti }: { u: UnitaGenerale; vedeImporti: 
 }
 
 function DettagliVendita({ u, vedeImporti }: { u: UnitaGenerale; vedeImporti: boolean }) {
+  const t = useT();
   const righe: [string, string][] = [];
-  if (u.acquirente) righe.push(["Acquirente", u.acquirente]);
-  if (u.dataPrenotazione) righe.push(["Prenotata il", dataBreve(u.dataPrenotazione)]);
-  if (u.dataCompromesso) righe.push(["Compromesso il", dataBreve(u.dataCompromesso)]);
-  if (u.rogitoPrevisto && u.stato === "compromesso") righe.push(["Rogito previsto", dataBreve(u.rogitoPrevisto)]);
-  if (u.dataRogito) righe.push(["Rogito il", dataBreve(u.dataRogito)]);
-  if (vedeImporti && u.stato !== "libera" && u.listino !== null) righe.push(["Listino", euro(u.listino)]);
-  if (vedeImporti && u.variantiAccettate) righe.push(["Varianti accettate", euro(u.variantiAccettate)]);
-  if (u.agenzia) righe.push(["Agenzia", u.agenzia]);
+  if (u.acquirente) righe.push([t("Acquirente"), u.acquirente]);
+  if (u.dataPrenotazione) righe.push([t("Prenotata il"), dataBreve(u.dataPrenotazione)]);
+  if (u.dataCompromesso) righe.push([t("Compromesso il"), dataBreve(u.dataCompromesso)]);
+  if (u.rogitoPrevisto && u.stato === "compromesso") righe.push([t("Rogito previsto"), dataBreve(u.rogitoPrevisto)]);
+  if (u.dataRogito) righe.push([t("Rogito il"), dataBreve(u.dataRogito)]);
+  if (vedeImporti && u.stato !== "libera" && u.listino !== null) righe.push([t("Listino"), euro(u.listino)]);
+  if (vedeImporti && u.variantiAccettate) righe.push([t("Varianti accettate"), euro(u.variantiAccettate)]);
+  if (u.agenzia) righe.push([t("Agenzia"), u.agenzia]);
   if (!righe.length) return null;
   return <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-3">
     {righe.map(([titolo, valore]) => <div key={titolo} className="min-w-0">

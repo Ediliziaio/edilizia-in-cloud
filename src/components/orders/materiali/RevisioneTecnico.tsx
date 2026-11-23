@@ -6,6 +6,7 @@ import { ClipboardCheck, Loader2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { ETICHETTA_MOTIVO, dettaglioRevisione, type RevisioneFase } from "@/lib/distinta/revisioneTecnico";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MAX_RIGHE = 4;
 
@@ -15,6 +16,7 @@ export function RevisioneTecnico({ revisione, onApriFase, onValida, inCorso }: {
   onValida: (fasi: Array<{ phaseId: string; nome: string }>) => void;
   inCorso: boolean;
 }) {
+  const t = useT();
   const [conferma, setConferma] = useState(false);
   if (revisione.length === 0) return null;
   const validabili = revisione.filter((f) => f.validabileInBlocco);
@@ -26,18 +28,18 @@ export function RevisioneTecnico({ revisione, onApriFase, onValida, inCorso }: {
         <div>
           <h3 id="revisione-tecnico" className="flex items-center gap-1.5 font-semibold">
             <ClipboardCheck className="h-4 w-4" aria-hidden />
-            {revisione.length === 1 ? "1 fase da validare" : `${revisione.length} fasi da validare`}
+            {revisione.length === 1 ? t("1 fase da validare") : t("{n} fasi da validare", { n: revisione.length })}
           </h3>
           <p className="text-xs text-muted-foreground">
             {daGuardare === 0
-              ? "Tutte le righe vengono dal calcolo del computo o delle tavole, nessuna toccata a mano."
-              : `${daGuardare} ${daGuardare === 1 ? "riga da guardare" : "righe da guardare"} prima di validare; le altre vengono dal calcolo.`}
+              ? t("Tutte le righe vengono dal calcolo del computo o delle tavole, nessuna toccata a mano.")
+              : t(daGuardare === 1 ? "{n} riga da guardare prima di validare; le altre vengono dal calcolo." : "{n} righe da guardare prima di validare; le altre vengono dal calcolo.", { n: daGuardare })}
           </p>
         </div>
         {validabili.length > 0 && (
           <Button size="sm" onClick={() => setConferma(true)} disabled={inCorso}>
             {inCorso && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden />}
-            {validabili.length === revisione.length ? "Valida tutte" : validabili.length === 1 ? "Valida la fase pronta" : `Valida le ${validabili.length} pronte`}
+            {validabili.length === revisione.length ? t("Valida tutte") : validabili.length === 1 ? t("Valida la fase pronta") : t("Valida le {n} pronte", { n: validabili.length })}
           </Button>
         )}
       </div>
@@ -50,9 +52,9 @@ export function RevisioneTecnico({ revisione, onApriFase, onValida, inCorso }: {
                 {f.nome}
               </button>
               <span className="text-xs text-muted-foreground tabular-nums">
-                {f.totale} {f.totale === 1 ? "materiale" : "materiali"}
-                {f.daGuardare.length ? ` · ${f.daGuardare.length} da guardare` : " · tutto dal calcolo"}
-                {!f.validabileInBlocco && " · da correggere prima"}
+                {t(f.totale === 1 ? "{n} materiale" : "{n} materiali", { n: f.totale })}
+                {f.daGuardare.length ? " · " + t("{n} da guardare", { n: f.daGuardare.length }) : " · " + t("tutto dal calcolo")}
+                {!f.validabileInBlocco && " · " + t("da correggere prima")}
               </span>
             </div>
             {f.daGuardare.length > 0 && (
@@ -60,7 +62,7 @@ export function RevisioneTecnico({ revisione, onApriFase, onValida, inCorso }: {
                 {f.daGuardare.slice(0, MAX_RIGHE).map((d) => (
                   <li key={d.riga.id} className="flex flex-wrap gap-x-1.5">
                     <span className={d.motivo === "senza_quantita" ? "font-medium text-red-700 dark:text-red-300" : "font-medium text-amber-800 dark:text-amber-200"}>
-                      {ETICHETTA_MOTIVO[d.motivo]}
+                      {t(ETICHETTA_MOTIVO[d.motivo])}
                     </span>
                     <span className="truncate">{d.riga.name}</span>
                     <span className="text-muted-foreground">— {dettaglioRevisione(d)}</span>
@@ -69,7 +71,7 @@ export function RevisioneTecnico({ revisione, onApriFase, onValida, inCorso }: {
                 {f.daGuardare.length > MAX_RIGHE && (
                   <li>
                     <button type="button" className="text-muted-foreground underline-offset-2 hover:underline" onClick={() => onApriFase(f.phaseId)}>
-                      e altre {f.daGuardare.length - MAX_RIGHE}: apri la fase
+                      {t("e altre {n}: apri la fase", { n: f.daGuardare.length - MAX_RIGHE })}
                     </button>
                   </li>
                 )}
@@ -82,20 +84,20 @@ export function RevisioneTecnico({ revisione, onApriFase, onValida, inCorso }: {
       <AlertDialog open={conferma} onOpenChange={setConferma}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Validare {validabili.length === 1 ? "1 fase" : `${validabili.length} fasi`}?</AlertDialogTitle>
+            <AlertDialogTitle>{validabili.length === 1 ? t("Validare 1 fase?") : t("Validare {n} fasi?", { n: validabili.length })}</AlertDialogTitle>
             <AlertDialogDescription>
-              I materiali passano all'ufficio acquisti, che può ordinarli. Per cambiarli dopo, la fase torna in bozza.
-              {daGuardare > 0 && " Le righe toccate a mano sono comprese: se non le hai guardate, apri prima la fase."}
-              {validabili.length < revisione.length && ` ${revisione.length - validabili.length} con righe senza quantità restano in verifica.`}
+              {t("I materiali passano all'ufficio acquisti, che può ordinarli. Per cambiarli dopo, la fase torna in bozza.")}
+              {daGuardare > 0 && " " + t("Le righe toccate a mano sono comprese: se non le hai guardate, apri prima la fase.")}
+              {validabili.length < revisione.length && " " + t("{n} con righe senza quantità restano in verifica.", { n: revisione.length - validabili.length })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <ul className="max-h-48 space-y-0.5 overflow-y-auto text-sm">
-            {validabili.map((f) => <li key={f.phaseId}>{f.nome} · {f.totale} materiali</li>)}
+            {validabili.map((f) => <li key={f.phaseId}>{f.nome} · {t("{n} materiali", { n: f.totale })}</li>)}
           </ul>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => { setConferma(false); onValida(validabili.map((f) => ({ phaseId: f.phaseId, nome: f.nome }))); }}>
-              Valida
+              {t("Valida")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

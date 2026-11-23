@@ -24,6 +24,7 @@ import {
   type CampoDati,
   type SezioneDati,
 } from "@/lib/orders/generali/datiOperazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Valori = Record<string, string>;
 
@@ -57,6 +58,7 @@ function Riquadro({ titolo, descrizione, children, salva, inSalvataggio, cambiat
   cambiato: boolean;
   puoModificare: boolean;
 }) {
+  const t = useT();
   return (
     <section aria-label={titolo} className="generale-panel generale-dati-card">
       <div className="generale-dati-card-header">
@@ -66,11 +68,11 @@ function Riquadro({ titolo, descrizione, children, salva, inSalvataggio, cambiat
         </div>
         {puoModificare && (
           <div className="flex shrink-0 items-center gap-2">
-            {cambiato && !inSalvataggio && <span className="text-xs text-amber-800 dark:text-amber-200">Da salvare</span>}
+            {cambiato && !inSalvataggio && <span className="text-xs text-amber-800 dark:text-amber-200">{t("Da salvare")}</span>}
             <Button type="button" size="sm" variant={cambiato ? "default" : "outline"} className="h-8"
               onClick={salva} disabled={!cambiato || inSalvataggio}>
               {inSalvataggio && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
-              {inSalvataggio ? "Salvataggio…" : "Salva"}
+              {inSalvataggio ? t("Salvataggio…") : t("Salva")}
             </Button>
           </div>
         )}
@@ -81,12 +83,13 @@ function Riquadro({ titolo, descrizione, children, salva, inSalvataggio, cambiat
 }
 
 function Campo({ id, campo, valore, onCambia, disabilitato }: { id: string; campo: CampoDati; valore: string; onCambia: (v: string) => void; disabilitato: boolean }) {
+  const t = useT();
   return (
     <div className="space-y-1">
       <Label htmlFor={id} className="text-xs">
         {campo.etichetta}
         {campo.unita && <span className="font-normal text-muted-foreground"> ({campo.unita})</span>}
-        {campo.tipo === "importo" && <span className="font-normal text-muted-foreground"> (€, al netto dell'IVA)</span>}
+        {campo.tipo === "importo" && <span className="font-normal text-muted-foreground"> {t("(€, al netto dell'IVA)")}</span>}
       </Label>
       {campo.tipo === "scelta" ? (
         <UniformSelect
@@ -117,6 +120,7 @@ function Campo({ id, campo, valore, onCambia, disabilitato }: { id: string; camp
 
 function SezioneTipologia({ generaleId, sezione, iniziali, puoModificare }: { generaleId: string; sezione: SezioneDati; iniziali: Record<string, unknown>; puoModificare: boolean }) {
   const partenza = (): Valori => Object.fromEntries(sezione.campi.map((c) => [c.chiave, testoDi(iniziali[c.chiave], c.tipo)]));
+  const t = useT();
   const [valori, setValori] = useState<Valori>(partenza);
   const salva = useSalvaDatiGenerale(generaleId);
   const cambiato = sezione.campi.some((c) => (valori[c.chiave] ?? "") !== testoDi(iniziali[c.chiave], c.tipo));
@@ -126,13 +130,13 @@ function SezioneTipologia({ generaleId, sezione, iniziali, puoModificare }: { ge
     for (const c of sezione.campi) {
       const v = valoreDi(valori[c.chiave] ?? "", c.tipo);
       if (!v.ok) {
-        toast.error(`${c.etichetta}: scrivi un numero, ad esempio 250 o 1.250,50.`);
+        toast.error(t("{campo}: scrivi un numero, ad esempio 250 o 1.250,50.", { campo: c.etichetta }));
         return;
       }
       fuori[c.chiave] = v.valore;
     }
     salva.mutate({ [sezione.id]: fuori }, {
-      onSuccess: () => toast.success(`${sezione.titolo}: salvato`),
+      onSuccess: () => toast.success(t("{sezione}: salvato", { sezione: sezione.titolo })),
       onError: (e) => toast.error(messaggioGenerale(e, sezione.titolo.toLowerCase())),
     });
   };
@@ -154,6 +158,7 @@ function SezioneTipologia({ generaleId, sezione, iniziali, puoModificare }: { ge
 }
 
 function SezioneComune({ riepilogo, puoModificare }: PropsScheda) {
+  const t = useT();
   const g = riepilogo.generale;
   const def = DEFINIZIONI_MODELLI[g.modello];
   const iniziali = {
@@ -171,7 +176,7 @@ function SezioneComune({ riepilogo, puoModificare }: PropsScheda) {
 
   const conferma = () => {
     if (dateSbagliate) {
-      toast.error("La fine dei lavori viene prima dell'inizio.");
+      toast.error(t("La fine dei lavori viene prima dell'inizio."));
       return;
     }
     const fuori: Record<string, unknown> = {};
@@ -180,43 +185,43 @@ function SezioneComune({ riepilogo, puoModificare }: PropsScheda) {
       fuori[k === "cliente" ? "cliente_id" : k] = x === "" ? null : x;
     }
     salva.mutate(fuori, {
-      onSuccess: () => toast.success("Dati salvati"),
+      onSuccess: () => toast.success(t("Dati salvati")),
       onError: (e) => toast.error(messaggioGenerale(e, "i dati")),
     });
   };
   const disab = !puoModificare || salva.isPending;
-  const luogo = g.modello === "compravendita" ? "Indirizzo dell'immobile" : g.modello === "sviluppo" ? "Indirizzo dell'area" : "Indirizzo del cantiere";
+  const luogo = g.modello === "compravendita" ? t("Indirizzo dell'immobile") : g.modello === "sviluppo" ? t("Indirizzo dell'area") : t("Indirizzo del cantiere");
 
   return (
-    <Riquadro titolo="La commessa" descrizione="" salva={conferma} inSalvataggio={salva.isPending} cambiato={cambiati.length > 0} puoModificare={puoModificare}>
+    <Riquadro titolo={t("La commessa")} descrizione="" salva={conferma} inSalvataggio={salva.isPending} cambiato={cambiati.length > 0} puoModificare={puoModificare}>
       <div className="space-y-1">
-        <Label htmlFor="dati-cliente" className="text-xs">{def.cliente.etichetta}</Label>
+        <Label htmlFor="dati-cliente" className="text-xs">{t(def.cliente.etichetta)}</Label>
         {puoModificare ? (
           <>
             <ScegliCliente id="dati-cliente" valore={v.cliente} onCambia={(c) => setV((x) => ({ ...x, cliente: c }))} />
-            {!v.cliente && g.cliente && <p className="text-xs text-muted-foreground">{g.cliente} · da collegare alla rubrica</p>}
+            {!v.cliente && g.cliente && <p className="text-xs text-muted-foreground">{t("{cliente} · da collegare alla rubrica", { cliente: String(g.cliente ?? "") })}</p>}
           </>
         ) : <p id="dati-cliente" className="text-sm">{g.cliente ?? "—"}</p>}
       </div>
       <div className="generale-dati-indirizzo space-y-1">
         <Label htmlFor="dati-indirizzo" className="text-xs">{luogo}</Label>
-        <CampoIndirizzo id="dati-indirizzo" className="h-9" value={v.indirizzo} disabled={disab} placeholder="Via, numero, comune" onChange={(t) => setV((x) => ({ ...x, indirizzo: t }))} />
+        <CampoIndirizzo id="dati-indirizzo" className="h-9" value={v.indirizzo} disabled={disab} placeholder={t("Via, numero, comune")} onChange={(t) => setV((x) => ({ ...x, indirizzo: t }))} />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="dati-inizio" className="text-xs">Inizio lavori</Label>
+        <Label htmlFor="dati-inizio" className="text-xs">{t("Inizio lavori")}</Label>
         <Input id="dati-inizio" type="date" className="h-9" value={v.inizio} disabled={disab} onChange={(e) => setV((x) => ({ ...x, inizio: e.target.value }))} />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="dati-fine" className="text-xs">Fine lavori prevista</Label>
+        <Label htmlFor="dati-fine" className="text-xs">{t("Fine lavori prevista")}</Label>
         <Input id="dati-fine" type="date" className="h-9" value={v.fine} disabled={disab} aria-invalid={dateSbagliate || undefined} onChange={(e) => setV((x) => ({ ...x, fine: e.target.value }))} />
-        {dateSbagliate && <p className="text-xs text-destructive">Viene prima dell'inizio.</p>}
+        {dateSbagliate && <p className="text-xs text-destructive">{t("Viene prima dell'inizio.")}</p>}
       </div>
       <div className="space-y-1">
-        <Label htmlFor="dati-responsabile" className="text-xs">Chi la segue</Label>
-        <Input id="dati-responsabile" className="h-9" value={v.responsabile} disabled={disab} placeholder="es. Mario Rossi" onChange={(e) => setV((x) => ({ ...x, responsabile: e.target.value }))} />
+        <Label htmlFor="dati-responsabile" className="text-xs">{t("Chi la segue")}</Label>
+        <Input id="dati-responsabile" className="h-9" value={v.responsabile} disabled={disab} placeholder={t("es. Mario Rossi")} onChange={(e) => setV((x) => ({ ...x, responsabile: e.target.value }))} />
       </div>
       <div className="generale-dati-note space-y-1">
-        <Label htmlFor="dati-note" className="text-xs">Note</Label>
+        <Label htmlFor="dati-note" className="text-xs">{t("Note")}</Label>
         <Textarea id="dati-note" rows={2} className="min-h-12 resize-y" value={v.note} disabled={disab} onChange={(e) => setV((x) => ({ ...x, note: e.target.value }))} />
       </div>
     </Riquadro>
@@ -224,6 +229,7 @@ function SezioneComune({ riepilogo, puoModificare }: PropsScheda) {
 }
 
 export function SchedaDati(props: PropsScheda) {
+  const t = useT();
   const g = props.riepilogo.generale;
   const mancanti = datiMancanti({
     modello: g.modello,
@@ -234,14 +240,14 @@ export function SchedaDati(props: PropsScheda) {
     dati: g.dati ?? {},
   });
   const campiMancanti: Record<string, { id: string; etichetta: string }> = {
-    cliente: { id: "dati-cliente", etichetta: g.cliente ? "Collega il committente alla rubrica" : "Committente" },
-    tipo: { id: "dati-appalto-tipo", etichetta: "Appalto pubblico o privato" },
-    indirizzo: { id: "dati-indirizzo", etichetta: g.modello === "sviluppo" ? "Indirizzo dell’area" : g.modello === "compravendita" ? "Indirizzo dell’immobile" : "Indirizzo del cantiere" },
-    inizio: { id: "dati-inizio", etichetta: "Inizio lavori" },
-    titolo: { id: "dati-titolo-tipo", etichetta: "Titolo edilizio" },
+    cliente: { id: "dati-cliente", etichetta: g.cliente ? t("Collega il committente alla rubrica") : t("Committente") },
+    tipo: { id: "dati-appalto-tipo", etichetta: t("Appalto pubblico o privato") },
+    indirizzo: { id: "dati-indirizzo", etichetta: g.modello === "sviluppo" ? t("Indirizzo dell’area") : g.modello === "compravendita" ? t("Indirizzo dell’immobile") : t("Indirizzo del cantiere") },
+    inizio: { id: "dati-inizio", etichetta: t("Inizio lavori") },
+    titolo: { id: "dati-titolo-tipo", etichetta: t("Titolo edilizio") },
     immobile: {
       id: g.dati?.immobile?.prezzo == null ? "dati-immobile-prezzo" : "dati-immobile-data_rogito",
-      etichetta: g.dati?.immobile?.prezzo == null && !g.dati?.immobile?.data_rogito ? "Prezzo e data del rogito" : g.dati?.immobile?.prezzo == null ? "Prezzo d’acquisto" : "Data del rogito",
+      etichetta: g.dati?.immobile?.prezzo == null && !g.dati?.immobile?.data_rogito ? t("Prezzo e data del rogito") : g.dati?.immobile?.prezzo == null ? t("Prezzo d’acquisto") : t("Data del rogito"),
     },
   };
   const vaiAlCampo = (id: string) => {
@@ -254,12 +260,12 @@ export function SchedaDati(props: PropsScheda) {
     <section aria-labelledby="generale-dati-titolo" className="generale-dati space-y-2.5">
       <h2 id="generale-dati-titolo" className="flex items-center gap-2 text-sm font-semibold">
         <span className="generale-section-icon"><ClipboardList className="size-4" aria-hidden="true" /></span>
-        {g.modello === "appalto" ? "Dati dell’appalto" : "Dati dell’operazione"}
+        {g.modello === "appalto" ? t("Dati dell’appalto") : t("Dati dell’operazione")}
       </h2>
       {mancanti.length > 0 && (
         <div className="generale-dati-mancanti">
           <p role="status" className="flex shrink-0 items-center gap-1.5 text-xs font-semibold">
-            <AlertTriangle className="size-3.5" aria-hidden="true" /> Da completare · {mancanti.length}
+            <AlertTriangle className="size-3.5" aria-hidden="true" /> {t("Da completare · {n}", { n: mancanti.length })}
           </p>
           <ul className="flex flex-wrap gap-1.5">
             {mancanti.map(m => {

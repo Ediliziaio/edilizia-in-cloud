@@ -52,6 +52,7 @@ import {
   type EventoChiusura,
   type PassoFlusso,
 } from "@/lib/flussoLavoro";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface PlaybookEditorDialogProps {
   open: boolean;
@@ -134,13 +135,14 @@ export function PlaybookEditorDialog({
   vertical,
   onSaved,
 }: PlaybookEditorDialogProps) {
+  const t = useT();
   const v = vertical ?? null;
   const perTicket = ambito === "ticket";
   const playbookKey = getOrderPlaybook(vertical).key;
   // Su assistenza il "mestiere" non c'entra: il percorso predefinito è uno solo.
   const etichettaFlusso = perTicket
-    ? "Assistenza"
-    : PLAYBOOK_LABELS[playbookKey];
+    ? t("Assistenza")
+    : t(PLAYBOOK_LABELS[playbookKey]);
   const passiPredefiniti: PassoFlusso[] = perTicket
     ? TICKET_PLAYBOOK
     : getOrderPlaybook(vertical).steps;
@@ -159,9 +161,9 @@ export function PlaybookEditorDialog({
     () =>
       staffUsers.map((p) => ({
         id: p.id,
-        nome: `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Utente",
+        nome: `${p.first_name || ""} ${p.last_name || ""}`.trim() || t("Utente"),
       })),
-    [staffUsers],
+    [staffUsers, t],
   );
 
   const { data: autoApplyData } = useQuery({
@@ -301,7 +303,7 @@ export function PlaybookEditorDialog({
       ),
     );
     toast.info(
-      "Flusso standard importato a catena — assegna le persone e salva.",
+      t("Flusso standard importato a catena — assegna le persone e salva."),
     );
   };
 
@@ -345,9 +347,9 @@ export function PlaybookEditorDialog({
     setSaving(true);
     try {
       if (isLoading || isFetching || isError || !dbRows)
-        throw new Error("Ricarica il modello prima di salvare.");
+        throw new Error(t("Ricarica il modello prima di salvare."));
       if (rows.some((r) => !r.titolo.trim()))
-        throw new Error("Completa il titolo di ogni passo prima di salvare.");
+        throw new Error(t("Completa il titolo di ogni passo prima di salvare."));
       const payload = rows.map((r, idx) => ({
         id: r.id ?? null,
         titolo: r.titolo.trim(),
@@ -389,13 +391,13 @@ export function PlaybookEditorDialog({
         } as never,
       );
       if (error) throw error;
-      toast.success("Flusso di lavoro salvato.");
+      toast.success(t("Flusso di lavoro salvato."));
       refetch();
       onSaved?.();
       onOpenChange(false);
     } catch (e) {
       toast.error(
-        "Errore salvataggio: " + (e instanceof Error ? e.message : "riprova"),
+        t("Errore salvataggio: {errore}", { errore: e instanceof Error ? e.message : t("riprova") }),
       );
     } finally {
       setSaving(false);
@@ -412,18 +414,15 @@ export function PlaybookEditorDialog({
       <DialogContent className="flex max-h-[92dvh] max-w-4xl flex-col gap-0 overflow-hidden rounded-3xl p-0 sm:rounded-3xl">
         <DialogHeader className="shrink-0 border-b px-6 pb-5 pt-6 pr-12">
           <div className="mb-2 flex items-center gap-2 text-xs font-medium text-blue-600">
-            <GitBranch className="h-4 w-4" /> Modello aziendale ·{" "}
-            {etichettaFlusso}
+            <GitBranch className="h-4 w-4" /> {t("Modello aziendale · {flusso}", { flusso: etichettaFlusso })}
           </div>
           <DialogTitle className="text-xl">
             {perTicket
-              ? "Flusso di lavoro assistenza"
-              : "Flusso di lavoro commessa"}
+              ? t("Flusso di lavoro assistenza")
+              : t("Flusso di lavoro commessa")}
           </DialogTitle>
           <DialogDescription className="max-w-2xl leading-relaxed">
-            Definisci chi fa cosa e quando. I passi collegati aspettano il
-            precedente; le opzioni avanzate gestiscono eventi e passaggi di
-            stato.
+            {t("Definisci chi fa cosa e quando. I passi collegati aspettano il precedente; le opzioni avanzate gestiscono eventi e passaggi di stato.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -431,16 +430,14 @@ export function PlaybookEditorDialog({
           <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl border bg-background p-4">
             <div className="min-w-0">
               <p className="text-sm font-medium">
-                Applica automaticamente{" "}
-                {perTicket ? "ai nuovi ticket" : "alle nuove commesse"}
+                {perTicket ? t("Applica automaticamente ai nuovi ticket") : t("Applica automaticamente alle nuove commesse")}
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Si attiva dopo «Salva flusso». Le{" "}
-                {perTicket ? "richieste" : "commesse"} esistenti non cambiano.
+                {perTicket ? t("Si attiva dopo «Salva flusso». Le richieste esistenti non cambiano.") : t("Si attiva dopo «Salva flusso». Le commesse esistenti non cambiano.")}
               </p>
             </div>
             <Switch
-              aria-label="Applica automaticamente"
+              aria-label={t("Applica automaticamente")}
               checked={autoApply}
               onCheckedChange={toggleAutoApply}
               disabled={autoApplyData === undefined || saving}
@@ -452,39 +449,37 @@ export function PlaybookEditorDialog({
               role="alert"
               className="rounded-2xl border border-destructive/20 bg-background p-4 text-sm text-destructive"
             >
-              Modello non disponibile. Nessuna modifica salvata.{" "}
+              {t("Modello non disponibile. Nessuna modifica salvata.")}{" "}
               <button onClick={() => void refetch()} className="underline">
-                Riprova
-              </button>
+                  {t("Riprova")}
+                </button>
             </p>
           ) : isLoading || isFetching ? (
             <p
               role="status"
               className="py-12 text-center text-sm text-muted-foreground"
             >
-              Caricamento…
-            </p>
+                {t("Caricamento…")}
+              </p>
           ) : rows.length === 0 ? (
             <div className="rounded-2xl border border-dashed bg-background px-6 py-10 text-center">
               <Sparkles className="mx-auto mb-3 h-7 w-7 text-orange-500" />
               <h3 className="font-semibold">
-                Disegna il percorso del tuo team
-              </h3>
+                  {t("Disegna il percorso del tuo team")}
+                </h3>
               <p className="mx-auto mb-5 mt-2 max-w-md text-sm text-muted-foreground">
-                Parti dal modello {etichettaFlusso} oppure aggiungi un’attività.
-                Potrai cambiare responsabili, tempi e dipendenze prima di
-                salvare.
+                {t("Parti dal modello {flusso} oppure aggiungi un’attività. Potrai cambiare responsabili, tempi e dipendenze prima di salvare.", { flusso: etichettaFlusso })}
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 <Button className="rounded-xl" onClick={importaStandard}>
-                  Importa il flusso standard {etichettaFlusso}
+                  {t("Importa il flusso standard {flusso}", { flusso: etichettaFlusso })}
                 </Button>
                 <Button
                   className="rounded-xl"
                   variant="outline"
                   onClick={addRow}
                 >
-                  <Plus className="mr-1.5 h-4 w-4" /> Aggiungi passo
+                  <Plus className="mr-1.5 h-4 w-4" /> {t("Aggiungi passo")}
                 </Button>
               </div>
             </div>
@@ -492,21 +487,19 @@ export function PlaybookEditorDialog({
             <>
               <div
                 className="mb-5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
-                aria-label="Riepilogo modello"
+                aria-label={t("Riepilogo modello")}
               >
                 <span className="rounded-full border bg-background px-3 py-1.5">
-                  {rows.filter((r) => r.attivo).length} passi attivi
+                  {t("{n} passi attivi", { n: rows.filter((r) => r.attivo).length })}
                 </span>
                 <span className="rounded-full border bg-background px-3 py-1.5">
-                  {rows.filter((r) => r.attivo && !r.dipende_da_key).length} con
-                  avvio immediato
+                  {t("{n} con avvio immediato", { n: rows.filter((r) => r.attivo && !r.dipende_da_key).length })}
                 </span>
                 <span className="rounded-full border bg-background px-3 py-1.5">
-                  {rows.filter((r) => r.attivo && r.dipende_da_key).length}{" "}
-                  collegati a un altro passo
+                  {t("{n} collegati a un altro passo", { n: rows.filter((r) => r.attivo && r.dipende_da_key).length })}
                 </span>
               </div>
-              <ol className="space-y-4" aria-label="Passi del flusso">
+              <ol className="space-y-4" aria-label={t("Passi del flusso")}>
                 {rows.map((r, idx) => {
                   const precedenti = rows
                     .slice(0, idx)
@@ -517,15 +510,13 @@ export function PlaybookEditorDialog({
                   );
                   const isOffice = r.ufficio || !!r.assegna_a_ufficio_id;
                   const assignee = r.assegna_a_ufficio_id
-                    ? "Ufficio · " +
-                      (uffici.find((u) => u.id === r.assegna_a_ufficio_id)
-                        ?.nome ?? "non disponibile")
+                    ? t("Ufficio · {nome}", { nome: uffici.find((u) => u.id === r.assegna_a_ufficio_id)?.nome ?? t("non disponibile") })
                     : r.assegna_a_utente
                       ? (persone.find((p) => p.id === r.assegna_a_utente)
-                          ?.nome ?? "Persona non disponibile")
+                          ?.nome ?? t("Persona non disponibile"))
                       : perTicket
-                        ? "Tecnico del ticket"
-                        : "Responsabile commessa";
+                        ? t("Tecnico del ticket")
+                        : t("Responsabile commessa");
                   return (
                     <li key={r._key} className="relative pl-10 sm:pl-12">
                       {idx < rows.length - 1 && (
@@ -547,15 +538,15 @@ export function PlaybookEditorDialog({
                           <div className="flex items-start gap-2">
                             <div className="min-w-0 flex-1">
                               <Input
-                                aria-label={`Titolo del passo ${idx + 1}`}
+                                aria-label={t("Titolo del passo {n}", { n: idx + 1 })}
                                 value={r.titolo}
                                 onChange={(e) =>
                                   updateRow(r._key, { titolo: e.target.value })
                                 }
                                 placeholder={
                                   perTicket
-                                    ? "Es. Diagnosi del guasto"
-                                    : "Es. Conferma capitolato"
+                                    ? t("Es. Diagnosi del guasto")
+                                    : t("Es. Conferma capitolato")
                                 }
                                 className="h-10 rounded-xl font-medium"
                                 disabled={saving}
@@ -563,7 +554,7 @@ export function PlaybookEditorDialog({
                             </div>
                             <div className="flex h-10 items-center gap-2 pl-1">
                               <Switch
-                                aria-label={`Passo ${idx + 1} attivo`}
+                                aria-label={t("Passo {n} attivo", { n: idx + 1 })}
                                 checked={r.attivo}
                                 disabled={saving}
                                 onCheckedChange={(attivo) =>
@@ -577,7 +568,7 @@ export function PlaybookEditorDialog({
                                 disabled={saving}
                                 className="h-9 w-9 rounded-xl text-muted-foreground hover:bg-red-50 hover:text-red-600"
                                 onClick={() => removeRow(r._key)}
-                                aria-label={`Rimuovi passo ${idx + 1}`}
+                                aria-label={t("Rimuovi passo {n}", { n: idx + 1 })}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -588,10 +579,10 @@ export function PlaybookEditorDialog({
                             <div className="mt-3 grid gap-3 sm:grid-cols-2">
                               <div className="space-y-1.5">
                                 <span className="text-xs font-medium text-muted-foreground">
-                                  Dove si svolge
+                                  {t("Dove si svolge")}
                                 </span>
                                 <OfficeSelect
-                                  label={`Ambito del passo ${idx + 1}`}
+                                  label={t("Ambito del passo {n}", { n: idx + 1 })}
                                   value={isOffice ? "ufficio" : "operativa"}
                                   disabled={saving || !!r.assegna_a_ufficio_id}
                                   onValueChange={(value) =>
@@ -602,11 +593,11 @@ export function PlaybookEditorDialog({
                                   options={[
                                     {
                                       value: "ufficio",
-                                      label: "Attività d’ufficio",
+                                      label: t("Attività d’ufficio"),
                                     },
                                     {
                                       value: "operativa",
-                                      label: "Attività operativa",
+                                      label: t("Attività operativa"),
                                     },
                                   ]}
                                 />
@@ -614,17 +605,17 @@ export function PlaybookEditorDialog({
                               {isOffice && (
                                 <div className="space-y-1.5">
                                   <span className="text-xs font-medium text-muted-foreground">
-                                    Fase dell’ufficio
+                                    {t("Fase dell’ufficio")}
                                   </span>
                                   <OfficeSelect
-                                    label={`Gruppo del passo ${idx + 1}`}
+                                    label={t("Gruppo del passo {n}", { n: idx + 1 })}
                                     value={r.office_stage}
                                     disabled={saving}
                                     onValueChange={(office_stage) =>
                                       updateRow(r._key, { office_stage })
                                     }
                                     options={OFFICE_STAGES.map(
-                                      ([value, label]) => ({ value, label }),
+                                      ([value, label]) => ({ value, label: t(label) }),
                                     )}
                                   />
                                 </div>
@@ -635,11 +626,10 @@ export function PlaybookEditorDialog({
                           <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_130px]">
                             <div className="min-w-0 space-y-1.5">
                               <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                                <GitBranch className="h-3.5 w-3.5" /> Quando
-                                parte
+                                <GitBranch className="h-3.5 w-3.5" /> {t("Quando parte")}
                               </span>
                               <OfficeSelect
-                                label={`Avvio del passo ${idx + 1}`}
+                                label={t("Avvio del passo {n}", { n: idx + 1 })}
                                 value={r.dipende_da_key ?? SUBITO}
                                 disabled={saving}
                                 onValueChange={(val) =>
@@ -651,12 +641,12 @@ export function PlaybookEditorDialog({
                                   {
                                     value: SUBITO,
                                     label: perTicket
-                                      ? "Subito, con il ticket"
-                                      : "Subito, con la commessa",
+                                      ? t("Subito, con il ticket")
+                                      : t("Subito, con la commessa"),
                                   },
                                   ...precedenti.map((p) => ({
                                     value: p._key,
-                                    label: `Dopo ${rows.indexOf(p) + 1}. ${p.titolo.trim()}`,
+                                    label: t("Dopo {n}. {titolo}", { n: rows.indexOf(p) + 1, titolo: p.titolo.trim() }),
                                   })),
                                 ]}
                               />
@@ -664,10 +654,10 @@ export function PlaybookEditorDialog({
                             <div className="min-w-0 space-y-1.5">
                               <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                                 <UserRound className="h-3.5 w-3.5" />{" "}
-                                Responsabile
+                                {t("Responsabile")}
                               </span>
                               <OfficeSelect
-                                label={`Responsabile del passo ${idx + 1}`}
+                                label={t("Responsabile del passo {n}", { n: idx + 1 })}
                                 value={
                                   r.assegna_a_ufficio_id
                                     ? PREFISSO_UFFICIO + r.assegna_a_ufficio_id
@@ -699,12 +689,12 @@ export function PlaybookEditorDialog({
                                   {
                                     value: RESPONSABILE,
                                     label: perTicket
-                                      ? "Tecnico del ticket"
-                                      : "Responsabile commessa",
+                                      ? t("Tecnico del ticket")
+                                      : t("Responsabile commessa"),
                                   },
                                   ...uffici.map((u) => ({
                                     value: PREFISSO_UFFICIO + u.id,
-                                    label: "Ufficio · " + u.nome,
+                                    label: t("Ufficio · {nome}", { nome: u.nome }),
                                   })),
                                   ...persone.map((p) => ({
                                     value: p.id,
@@ -717,7 +707,7 @@ export function PlaybookEditorDialog({
                                     ? [
                                         {
                                           value: r.assegna_a_utente,
-                                          label: "Persona non disponibile",
+                                          label: t("Persona non disponibile"),
                                         },
                                       ]
                                     : []),
@@ -730,7 +720,7 @@ export function PlaybookEditorDialog({
                                           value:
                                             PREFISSO_UFFICIO +
                                             r.assegna_a_ufficio_id,
-                                          label: "Ufficio non disponibile",
+                                          label: t("Ufficio non disponibile"),
                                         },
                                       ]
                                     : []),
@@ -739,10 +729,10 @@ export function PlaybookEditorDialog({
                             </div>
                             <label className="space-y-1.5">
                               <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                                <Clock3 className="h-3.5 w-3.5" /> Entro giorni
+                                <Clock3 className="h-3.5 w-3.5" /> {t("Entro giorni")}
                               </span>
                               <Input
-                                aria-label={`Giorni del passo ${idx + 1}`}
+                                aria-label={t("Giorni del passo {n}", { n: idx + 1 })}
                                 type="number"
                                 min={0}
                                 max={3650}
@@ -773,35 +763,36 @@ export function PlaybookEditorDialog({
                           </div>
                           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
                             {!r.attivo
-                              ? "Passo disattivato: non verrà creato. "
+                              ? `${t("Passo disattivato: non verrà creato.")} `
                               : ""}
                             {aCatena
-                              ? `Aspetta «${previous?.titolo || "il passo precedente"}»: poi avrà ${r.giorni_dopo_sblocco} giorni per essere completato.`
-                              : `Scadenza a ${r.giorni_offset} giorni dalla creazione ${perTicket ? "del ticket" : "della commessa"}.`}{" "}
-                            Assegnato a: {assignee}.
+                              ? t("Aspetta «{passo}»: poi avrà {giorni} giorni per essere completato.", { passo: previous?.titolo || t("il passo precedente"), giorni: r.giorni_dopo_sblocco })
+                              : perTicket
+                                ? t("Scadenza a {giorni} giorni dalla creazione del ticket.", { giorni: r.giorni_offset })
+                                : t("Scadenza a {giorni} giorni dalla creazione della commessa.", { giorni: r.giorni_offset })}{" "}
+                            {t("Assegnato a: {chi}.", { chi: assignee })}
                           </p>
                         </div>
 
                         <details className="group border-t bg-muted/10">
                           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/40 sm:px-5 [&::-webkit-details-marker]:hidden">
                             <span className="flex items-center gap-2">
-                              <Settings2 className="h-3.5 w-3.5" /> Opzioni
-                              avanzate
+                              <Settings2 className="h-3.5 w-3.5" /> {t("Opzioni avanzate")}
                               {r.chiudi_su_evento ||
                               r.dopo_fase_lavorazione ||
                               r.fase_raggiunta_id
-                                ? " · configurate"
-                                : ""}
+                                ? ` · ${t("configurate")}`
+                                  : ""}
                             </span>
                             <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none" />
                           </summary>
                           <div className="grid gap-4 px-4 pb-4 sm:grid-cols-2 sm:px-5 sm:pb-5">
                             <div className="space-y-1.5">
                               <span className="text-xs font-medium">
-                                Priorità
-                              </span>
+                                  {t("Priorità")}
+                                </span>
                               <OfficeSelect
-                                label={`Priorità del passo ${idx + 1}`}
+                                label={t("Priorità del passo {n}", { n: idx + 1 })}
                                 value={r.priorita}
                                 disabled={saving}
                                 onValueChange={(val) =>
@@ -811,17 +802,16 @@ export function PlaybookEditorDialog({
                                 }
                                 options={PRIORITA.map((value) => ({
                                   value,
-                                  label:
-                                    value[0].toUpperCase() + value.slice(1),
+                                  label: { bassa: t("Bassa"), normale: t("Normale"), alta: t("Alta"), urgente: t("Urgente") }[value],
                                 }))}
                               />
                             </div>
                             <div className="space-y-1.5">
                               <span className="text-xs font-medium">
-                                Come si completa
-                              </span>
+                                  {t("Come si completa")}
+                                </span>
                               <OfficeSelect
-                                label={`Completamento del passo ${idx + 1}`}
+                                label={t("Completamento del passo {n}", { n: idx + 1 })}
                                 value={r.chiudi_su_evento ?? A_MANO}
                                 disabled={saving}
                                 onValueChange={(val) =>
@@ -835,11 +825,11 @@ export function PlaybookEditorDialog({
                                 options={[
                                   {
                                     value: A_MANO,
-                                    label: "A mano, con la spunta",
+                                    label: t("A mano, con la spunta"),
                                   },
                                   ...EVENTI_CHIUSURA.map((e) => ({
                                     value: e.value,
-                                    label: e.label,
+                                      label: t(e.label),
                                   })),
                                 ]}
                               />
@@ -848,32 +838,31 @@ export function PlaybookEditorDialog({
                               <>
                                 <label className="space-y-1.5">
                                   <span className="text-xs font-medium">
-                                    Aspetta anche una fase del cantiere
-                                  </span>
+                                      {t("Aspetta anche una fase del cantiere")}
+                                    </span>
                                   <Input
                                     value={r.dopo_fase_lavorazione}
                                     disabled={saving}
-                                    placeholder="Nessuna · es. Rilievo misure"
+                                    placeholder={t("Nessuna · es. Rilievo misure")}
                                     onChange={(e) =>
                                       updateRow(r._key, {
                                         dopo_fase_lavorazione: e.target.value,
                                       })
                                     }
                                     className="h-10 rounded-xl"
-                                    aria-label={`Fase del cantiere da aspettare: ${r.titolo || "passo"}`}
+                                    aria-label={t("Fase del cantiere da aspettare: {passo}", { passo: r.titolo || t("passo") })}
                                   />
                                   <span className="block text-xs leading-relaxed text-muted-foreground">
-                                    Usa il nome esatto della fase prevista nella
-                                    commessa.
-                                  </span>
+                                      {t("Usa il nome esatto della fase prevista nella commessa.")}
+                                    </span>
                                 </label>
                                 {fasi.length > 0 && (
                                   <div className="space-y-1.5">
                                     <span className="text-xs font-medium">
-                                      Al completamento, stato commessa
-                                    </span>
+                                          {t("Al completamento, stato commessa")}
+                                        </span>
                                     <OfficeSelect
-                                      label={`Stato raggiunto dal passo ${idx + 1}`}
+                                      label={t("Stato raggiunto dal passo {n}", { n: idx + 1 })}
                                       value={r.fase_raggiunta_id ?? STESSA_FASE}
                                       disabled={saving}
                                       onValueChange={(val) =>
@@ -885,7 +874,7 @@ export function PlaybookEditorDialog({
                                       options={[
                                         {
                                           value: STESSA_FASE,
-                                          label: "Non cambiare lo stato",
+                                          label: t("Non cambiare lo stato"),
                                         },
                                         ...fasi.map((f) => ({
                                           value: f.id,
@@ -899,11 +888,11 @@ export function PlaybookEditorDialog({
                             )}
                             {r.chiudi_su_evento && (
                               <p className="rounded-xl bg-blue-50 p-3 text-xs leading-relaxed text-blue-800 dark:bg-blue-950 dark:text-blue-200 sm:col-span-2">
-                                {
-                                  EVENTI_CHIUSURA.find(
-                                    (e) => e.value === r.chiudi_su_evento,
-                                  )?.spiegazione
-                                }
+                                {t(
+                                    EVENTI_CHIUSURA.find(
+                                      (e) => e.value === r.chiudi_su_evento,
+                                    )?.spiegazione ?? "",
+                                  )}
                               </p>
                             )}
                           </div>
@@ -920,7 +909,7 @@ export function PlaybookEditorDialog({
                   onClick={addRow}
                   disabled={saving}
                 >
-                  <Plus className="mr-1.5 h-4 w-4" /> Aggiungi passo
+                  <Plus className="mr-1.5 h-4 w-4" /> {t("Aggiungi passo")}
                 </Button>
                 <Button
                   variant="ghost"
@@ -928,7 +917,7 @@ export function PlaybookEditorDialog({
                   onClick={importaStandard}
                   disabled={saving}
                 >
-                  <Sparkles className="mr-1.5 h-4 w-4" /> Reimporta standard
+                  <Sparkles className="mr-1.5 h-4 w-4" /> {t("Reimporta standard")}
                 </Button>
               </div>
             </>
@@ -937,7 +926,7 @@ export function PlaybookEditorDialog({
 
         <DialogFooter className="shrink-0 border-t bg-background px-6 py-4 sm:items-center sm:justify-between">
           <p className="mb-2 text-xs text-muted-foreground sm:mb-0">
-            Le modifiche restano in bozza fino al salvataggio.
+            {t("Le modifiche restano in bozza fino al salvataggio.")}
           </p>
           <div className="flex justify-end gap-2">
             <Button
@@ -946,7 +935,7 @@ export function PlaybookEditorDialog({
               onClick={() => onOpenChange(false)}
               disabled={saving}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               className="rounded-xl"
@@ -959,7 +948,7 @@ export function PlaybookEditorDialog({
                 autoApplyData === undefined
               }
             >
-              {saving ? "Salvataggio…" : "Salva flusso"}
+              {saving ? t("Salvataggio…") : t("Salva flusso")}
             </Button>
           </div>
         </DialogFooter>

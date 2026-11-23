@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CampiModulo } from "@/components/campo/CampiModulo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   campiPerContesto, componiValori, daCompletare, fasiDelRapportino, leggiValori, valoriInBozza, type ModuloSchema,
 } from "../../../supabase/functions/_shared/moduliCantiere";
@@ -27,6 +28,7 @@ interface Rapportino {
 export function CampiDaCompletare({ report, schema, puoModificare, onSalvato }: {
   report: Rapportino; schema: ModuloSchema; puoModificare: boolean; onSalvato: () => void;
 }) {
+  const t = useT();
   const precedenti = leggiValori(report.campi_extra);
   const fineLavori = report.lavoro_completato === true;
   const fasi = fasiDelRapportino(report.fasi_lavorate, precedenti);
@@ -49,19 +51,19 @@ export function CampiDaCompletare({ report, schema, puoModificare, onSalvato }: 
     },
     onSuccess: () => { setAperto(false); onSalvato(); },
     onError: (e) => toast.error(e instanceof Error && e.message === "cambiato"
-      ? "Il rapportino è cambiato nel frattempo: ricarica e riprova."
-      : "Campi non salvati. Riprova."),
+      ? t("Il rapportino è cambiato nel frattempo: ricarica e riprova.")
+      : t("Campi non salvati. Riprova.")),
   });
 
   if (manca.length === 0) return null;
   const modificabile = puoModificare && report.approvato !== true && report.stato !== "approvato";
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-      <span>Da completare: {manca.join(", ")}</span>
-      {modificabile && <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setAperto(true)}>Completa</Button>}
+      <span>{t("Da completare: {campi}", { campi: manca.join(", ") })}</span>
+      {modificabile && <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setAperto(true)}>{t("Completa")}</Button>}
       <Dialog open={aperto} onOpenChange={setAperto}>
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader><DialogTitle>Completa il rapportino</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("Completa il rapportino")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <CampiModulo campi={campi.filter(c => c.livello !== "fase" || fasi.length === 0)} valori={valori} onChange={cambia} mostraErrori={errori} />
             {campi.some(c => c.livello === "fase") && fasi.map(f => (
@@ -72,12 +74,12 @@ export function CampiDaCompletare({ report, schema, puoModificare, onSalvato }: 
             ))}
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setAperto(false)}>Annulla</Button>
+            <Button variant="ghost" onClick={() => setAperto(false)}>{t("Annulla")}</Button>
             <Button disabled={salva.isPending} onClick={() => {
               setErrori(true);
               // Si chiede quello che è stato segnalato: i campi del capo restano facoltativi per l'ufficio.
               if (daCompletare(schema, { ...contesto, valori: componiValori(campi, valori, precedenti, fasi) }).length === 0) salva.mutate();
-            }}>Salva</Button>
+            }}>{t("Salva")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

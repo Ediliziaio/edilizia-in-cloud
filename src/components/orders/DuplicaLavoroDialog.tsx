@@ -6,12 +6,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type TipoCopia = "commessa" | "rst";
 interface RiepilogoCopia { totale?: number | null; numero: string; materiali: number; voci: number; fasi: number; sottofasi: number; impronta: string; id?: string }
 export function DuplicaLavoroDialog({ tipo, sourceId, open, onOpenChange, onDuplicato }: {
   tipo: TipoCopia; sourceId: string; open: boolean; onOpenChange: (v: boolean) => void; onDuplicato: (id: string) => void;
 }) {
+  const t = useT();
   const [mantieniCliente, setMantieniCliente] = useState(false);
   const [riepilogo, setRiepilogo] = useState<RiepilogoCopia | null>(null);
   const [errore, setErrore] = useState("");
@@ -34,10 +36,10 @@ export function DuplicaLavoroDialog({ tipo, sourceId, open, onOpenChange, onDupl
       p_tipo: tipo, p_source_id: sourceId, p_mantieni_cliente: mantieniCliente, p_anteprima: true,
     } as never).then(({ data, error }) => {
       if (!attivo) return;
-      if (error || !data) setErrore(error?.message ?? "Riepilogo non disponibile.");
+      if (error || !data) setErrore(error?.message ?? t("Riepilogo non disponibile."));
       else setRiepilogo(data as unknown as RiepilogoCopia);
       setCaricamento(false);
-    }, () => { if (attivo) { setErrore("Connessione non disponibile. Chiudi e riprova."); setCaricamento(false); } });
+    }, () => { if (attivo) { setErrore(t("Connessione non disponibile. Chiudi e riprova.")); setCaricamento(false); } });
     return () => { attivo = false; };
   }, [open, sourceId, tipo, mantieniCliente, revisione]);
   const duplica = async () => {
@@ -50,39 +52,39 @@ export function DuplicaLavoroDialog({ tipo, sourceId, open, onOpenChange, onDupl
       } as never);
       if (error) { setAggiornare(["PT409", "40001"].includes(error.code ?? "")); throw new Error(error.message); }
       const risultato = data as unknown as RiepilogoCopia;
-      if (!risultato?.id) throw new Error("Duplicazione non confermata. Riprova.");
-      toast.success(tipo === "commessa" ? "Commessa duplicata" : "Preventivo duplicato", { description: "La copia è pronta da modificare. L’originale resta invariato." });
+      if (!risultato?.id) throw new Error(t("Duplicazione non confermata. Riprova."));
+      toast.success(tipo === "commessa" ? t("Commessa duplicata") : t("Preventivo duplicato"), { description: t("La copia è pronta da modificare. L’originale resta invariato.") });
       onOpenChange(false); onDuplicato(risultato.id);
-    } catch (e) { setErrore(e instanceof Error ? e.message : "Duplicazione non riuscita."); }
+    } catch (e) { setErrore(e instanceof Error ? e.message : t("Duplicazione non riuscita.")); }
     finally { setSalvataggio(false); }
   };
   return <Dialog open={open} onOpenChange={(v) => { if (!salvataggio) onOpenChange(v); }}>
     <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
-      <DialogHeader><DialogTitle>Duplica {etichetta}</DialogTitle>
-        <DialogDescription>Riparti dai lavori già organizzati. La copia sarà indipendente dall’originale.</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>{tipo === "commessa" ? t("Duplica commessa") : t("Duplica preventivo")}</DialogTitle>
+        <DialogDescription>{t("Riparti dai lavori già organizzati. La copia sarà indipendente dall’originale.")}</DialogDescription></DialogHeader>
       <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
-        <Checkbox disabled={salvataggio} checked={mantieniCliente} onCheckedChange={(v) => setMantieniCliente(v === true)} aria-label="Mantieni cliente e indirizzo" />
-        <span><span className="font-medium">Mantieni cliente e indirizzo</span><span className="mt-1 block text-xs text-muted-foreground">Lascia spento per preparare il lavoro per un nuovo cliente.</span></span>
+        <Checkbox disabled={salvataggio} checked={mantieniCliente} onCheckedChange={(v) => setMantieniCliente(v === true)} aria-label={t("Mantieni cliente e indirizzo")} />
+        <span><span className="font-medium">{t("Mantieni cliente e indirizzo")}</span><span className="mt-1 block text-xs text-muted-foreground">{t("Lascia spento per preparare il lavoro per un nuovo cliente.")}</span></span>
       </label>
-      {caricamento ? <p role="status" className="flex gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Controllo cosa verrà copiato…</p> : riepilogo && <div className="space-y-3 text-sm">
-        <p className="font-medium">Da {riepilogo.numero || etichetta}</p>
-        {riepilogo.totale != null && <p className="text-sm">Contratto invariato · <strong>{formatCurrency(riepilogo.totale)}</strong> IVA inclusa</p>}
-        <div className="rounded-lg bg-muted p-3"><p className="font-semibold">Nella copia</p>
+      {caricamento ? <p role="status" className="flex gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />{t("Controllo cosa verrà copiato…")}</p> : riepilogo && <div className="space-y-3 text-sm">
+        <p className="font-medium">{t("Da {numero}", { numero: riepilogo.numero || t(etichetta) })}</p>
+        {riepilogo.totale != null && <p className="text-sm">{t("Contratto invariato ·")} <strong>{formatCurrency(riepilogo.totale)}</strong> {t("IVA inclusa")}</p>}
+        <div className="rounded-lg bg-muted p-3"><p className="font-semibold">{t("Nella copia")}</p>
           <ul className="mt-2 list-inside list-disc space-y-1">
-            <li>{tipo === "commessa" ? `Materiali da approvvigionare: ${riepilogo.materiali}` : `${riepilogo.voci} voci di computo con prezzi e descrizioni`}</li>
-            <li>{tipo === "rst" && riepilogo.fasi === 0 ? "Lavorazioni organizzate dai capitoli del computo" : `${riepilogo.fasi} fasi e ${riepilogo.sottofasi} sottofasi pianificate`}</li>
-            <li>Condizioni economiche e prezzi di vendita</li>
+            <li>{tipo === "commessa" ? t("Materiali da approvvigionare: {n}", { n: riepilogo.materiali }) : t("{n} voci di computo con prezzi e descrizioni", { n: riepilogo.voci })}</li>
+            <li>{tipo === "rst" && riepilogo.fasi === 0 ? t("Lavorazioni organizzate dai capitoli del computo") : t("{fasi} fasi e {sottofasi} sottofasi pianificate", { fasi: riepilogo.fasi, sottofasi: riepilogo.sottofasi })}</li>
+            <li>{t("Condizioni economiche e prezzi di vendita")}</li>
           </ul>
         </div>
-        <p className="text-xs text-muted-foreground">Avanzamento da zero. Non si copiano ore lavorate, costi effettivi, incassi, foto di cantiere, assegnazioni o vecchie scadenze.</p>
-        <p className="text-xs text-muted-foreground">{tipo === "rst" ? "La copia riparte in bozza e potrai convertirla in una nuova commessa." : "I materiali ripartono da ordinare; nessun prelievo dal magazzino e nessun ordine al fornitore."}</p>
+        <p className="text-xs text-muted-foreground">{t("Avanzamento da zero. Non si copiano ore lavorate, costi effettivi, incassi, foto di cantiere, assegnazioni o vecchie scadenze.")}</p>
+        <p className="text-xs text-muted-foreground">{tipo === "rst" ? t("La copia riparte in bozza e potrai convertirla in una nuova commessa.") : t("I materiali ripartono da ordinare; nessun prelievo dal magazzino e nessun ordine al fornitore.")}</p>
       </div>}
       {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
-      {aggiornare && <Button variant="outline" onClick={() => setRevisione(v => v + 1)}>Aggiorna riepilogo</Button>}
-      <DialogFooter><Button variant="outline" disabled={salvataggio} onClick={() => onOpenChange(false)}>Annulla</Button>
+      {aggiornare && <Button variant="outline" onClick={() => setRevisione(v => v + 1)}>{t("Aggiorna riepilogo")}</Button>}
+      <DialogFooter><Button variant="outline" disabled={salvataggio} onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
         <Button disabled={caricamento || salvataggio || !riepilogo || aggiornare} onClick={() => { void duplica(); }}>
           {salvataggio ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Copy className="mr-2 h-4 w-4" />}
-          {salvataggio ? "Creazione copia…" : "Crea copia e apri"}
+          {salvataggio ? t("Creazione copia…") : t("Crea copia e apri")}
         </Button></DialogFooter>
     </DialogContent>
   </Dialog>;

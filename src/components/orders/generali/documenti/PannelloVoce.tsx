@@ -18,6 +18,7 @@ import {
 import { IconaStato } from "@/components/orders/generali/documenti/IconaStato";
 import { COLORE_TONO, tonoCasella } from "@/components/orders/generali/documenti/statoVisivo";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const dataValida = (v: string) => v === "" || /^(19|20)\d\d-\d\d-\d\d$/.test(v);
 
@@ -32,6 +33,7 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
   nascondiIntestazione?: boolean;
   apriOriginale?: (file: AllegatoCommessa) => void;
 }) {
+  const t = useT();
   const azione = useAzioneDocumento(generaleId);
   const carica = useCaricaDocumentoVoce(generaleId);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -43,7 +45,7 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
   const esegui = (a: AzioneDocumento, fatto?: string) =>
     azione.mutate(a, {
       onSuccess: () => { if (fatto) toast.success(fatto); },
-      onError: (e) => toast.error("Modifica non salvata", { description: messaggioDocumenti(e, "Riprova tra poco.") }),
+      onError: (e) => toast.error(t("Modifica non salvata"), { description: messaggioDocumenti(e, t("Riprova tra poco.")) }),
     });
 
   const caricaFile = async (files: FileList | null) => {
@@ -52,11 +54,11 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
     for (const file of elenco) {
       try {
         await carica.mutateAsync({ orderId: c.orderId, voce, file, scadenza: voce.conScadenza && scadenzaNuovo ? scadenzaNuovo : null });
-        toast.success(`«${file.name}» caricato per ${voce.nome}`, {
-          description: voce.conScadenza && !scadenzaNuovo ? "Indica la scadenza per avere l'avviso." : undefined,
+        toast.success(t("«{file}» caricato per {voce}", { file: file.name, voce: voce.nome }), {
+          description: voce.conScadenza && !scadenzaNuovo ? t("Indica la scadenza per avere l'avviso.") : undefined,
         });
       } catch (e) {
-        toast.error(`«${file.name}» non caricato`, { description: messaggioDocumenti(e, "Riprova tra poco.") });
+        toast.error(t("«{file}» non caricato", { file: file.name }), { description: messaggioDocumenti(e, t("Riprova tra poco.")) });
         return;
       }
     }
@@ -92,7 +94,7 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
         <div className="space-y-2 border-t pt-3">
           {voce.conScadenza && (
             <div className="flex items-center gap-2">
-              <Label htmlFor={`scadenza-nuovo-${c.orderId}-${voce.id}`} className="shrink-0 text-xs font-normal text-muted-foreground">Il file che carichi scade il</Label>
+              <Label htmlFor={`scadenza-nuovo-${c.orderId}-${voce.id}`} className="shrink-0 text-xs font-normal text-muted-foreground">{t("Il file che carichi scade il")}</Label>
               <Input
                 id={`scadenza-nuovo-${c.orderId}-${voce.id}`}
                 type="date"
@@ -102,31 +104,31 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
               />
             </div>
           )}
-          <input ref={fileRef} type="file" multiple accept={ACCEPT_INPUT} aria-label={`Carica file per ${voce.nome}`} className="hidden" onChange={(e) => void caricaFile(e.target.files)} />
+          <input ref={fileRef} type="file" multiple accept={ACCEPT_INPUT} aria-label={t("Carica file per {voce}", { voce: voce.nome })} className="hidden" onChange={(e) => void caricaFile(e.target.files)} />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => fileRef.current?.click()} disabled={occupato}>
               {carica.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
-              Carica file
+              {t("Carica file")}
             </Button>
             {candidati.length > 0 && (
               <Button size="sm" variant="outline" onClick={() => setScegli((v) => !v)} aria-expanded={scegli} disabled={occupato}>
-                Scegli tra i caricati ({candidati.length})
+                {t("Scegli tra i caricati ({n})", { n: candidati.length })}
               </Button>
             )}
           </div>
           {scegli && (
-            <ul className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-1" aria-label="File già nell'archivio di questa commessa">
+            <ul className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-1" aria-label={t("File già nell'archivio di questa commessa")}>
               {candidati.map(({ a, simile }) => (
                 <li key={a.id}>
                   <button
                     type="button"
                     disabled={occupato}
-                    onClick={() => { setScegli(false); esegui({ tipo: "segna", orderId: c.orderId, voce: voce.id, attachmentId: a.id, scadenza: null }, `Segnato per ${voce.nome}`); }}
+                    onClick={() => { setScegli(false); esegui({ tipo: "segna", orderId: c.orderId, voce: voce.id, attachmentId: a.id, scadenza: null }, t("Segnato per {voce}", { voce: voce.nome })); }}
                     className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-50"
                   >
                     <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">{a.file_name}</span>
-                    {simile && <span className="shrink-0 text-[11px] text-muted-foreground">dal nome sembra questo</span>}
+                    {simile && <span className="shrink-0 text-[11px] text-muted-foreground">{t("dal nome sembra questo")}</span>}
                   </button>
                 </li>
               ))}
@@ -137,9 +139,9 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
               type="button"
               disabled={occupato}
               className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
-              onClick={() => esegui({ tipo: "non_serve", orderId: c.orderId, voce: voce.id }, `${voce.nome}: non serve qui`)}
+              onClick={() => esegui({ tipo: "non_serve", orderId: c.orderId, voce: voce.id }, t("{voce}: non serve qui", { voce: voce.nome }))}
             >
-              Non serve qui
+              {t("Non serve qui")}
             </button>
           )}
         </div>
@@ -147,7 +149,7 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
 
       {puoModificare && c.stato === "non_serve" && c.nonServe?.segnoId && (
         <Button size="sm" variant="outline" disabled={occupato} onClick={() => esegui({ tipo: "serve", segnoId: c.nonServe!.segnoId! })}>
-          Serve di nuovo
+          {t("Serve di nuovo")}
         </Button>
       )}
     </div>
@@ -162,6 +164,7 @@ function DocumentoRiga({ d, c, puoModificare, occupato, esegui, apriOriginale }:
   esegui: (a: AzioneDocumento, fatto?: string) => void;
   apriOriginale?: (file: AllegatoCommessa) => void;
 }) {
+  const t = useT();
   const [scadenza, setScadenza] = useState(d.scadenza ?? "");
   const salvaScadenza = () => {
     if (!dataValida(scadenza) || scadenza === (d.scadenza ?? "")) return;
@@ -184,10 +187,10 @@ function DocumentoRiga({ d, c, puoModificare, occupato, esegui, apriOriginale }:
         <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         <span className="min-w-0 truncate">{d.allegato.file_name}</span>
       </button>
-      {d.riconosciuto && <p className="text-[11px] text-muted-foreground">Riconosciuto dal nome del file.</p>}
+      {d.riconosciuto && <p className="text-[11px] text-muted-foreground">{t("Riconosciuto dal nome del file.")}</p>}
       {c.voce.conScadenza && (puoModificare ? (
         <div className="flex items-center gap-2">
-          <Label htmlFor={`scadenza-${d.allegato.id}-${c.voce.id}`} className="shrink-0 text-xs font-normal text-muted-foreground">Scade il</Label>
+          <Label htmlFor={`scadenza-${d.allegato.id}-${c.voce.id}`} className="shrink-0 text-xs font-normal text-muted-foreground">{t("Scade il")}</Label>
           <Input
             id={`scadenza-${d.allegato.id}-${c.voce.id}`}
             type="date"
@@ -204,13 +207,13 @@ function DocumentoRiga({ d, c, puoModificare, occupato, esegui, apriOriginale }:
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
           {d.riconosciuto && (
             <button type="button" disabled={occupato} className="font-medium text-primary hover:underline disabled:opacity-50"
-              onClick={() => esegui({ tipo: "segna", orderId: c.orderId, voce: c.voce.id, attachmentId: d.allegato.id, scadenza: scadenza || null }, "Confermato")}>
-              È questo
+              onClick={() => esegui({ tipo: "segna", orderId: c.orderId, voce: c.voce.id, attachmentId: d.allegato.id, scadenza: scadenza || null }, t("Confermato"))}>
+              {t("È questo")}
             </button>
           )}
           <button type="button" disabled={occupato} className="text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50"
-            onClick={() => esegui({ tipo: "non_e_questo", orderId: c.orderId, voce: c.voce.id, attachmentId: d.allegato.id }, `Tolto da ${c.voce.nome}: il file resta nell'archivio`)}>
-            Non è questo
+            onClick={() => esegui({ tipo: "non_e_questo", orderId: c.orderId, voce: c.voce.id, attachmentId: d.allegato.id }, t("Tolto da {voce}: il file resta nell'archivio", { voce: c.voce.nome }))}>
+            {t("Non è questo")}
           </button>
         </div>
       )}

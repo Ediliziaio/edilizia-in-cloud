@@ -16,6 +16,7 @@ import { useModelliPagamento } from "@/hooks/useModelliPagamento";
 import { formatCurrency } from "@/lib/formatters";
 import type { Installment } from "@/lib/orderUtils";
 import { quandoSiIncassa, rateDaModello, riepilogoModello, type ModelloPagamento } from "@/lib/orders/modelliPagamento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
  aperto:boolean; totaleLordo:number; sostituisce:boolean; onChiudi:()=>void;
@@ -27,6 +28,7 @@ export function ScegliPianoPagamento(props:Props){
 }
 /** Stessa interfaccia anche nella prova locale, senza richieste al gestionale. */
 export function SceltaPianoPagamento({aperto,totaleLordo,sostituisce,onChiudi,onScegli,modelli:offerti}:Props & {modelli:ReadonlyArray<ModelloPagamento>}) {
+  const t = useT();
   const [modo,setModo]=useState<ModalitaPiano>("fixed");
   const [acconto,setAcconto]=useState("20");
   const [unita,setUnita]=useState<"percent"|"amount">("percent");
@@ -42,30 +44,30 @@ export function SceltaPianoPagamento({aperto,totaleLordo,sostituisce,onChiudi,on
     <Dialog open={aperto} onOpenChange={(o) => { if (!o) onChiudi(); }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Come si paga</DialogTitle>
+          <DialogTitle>{t("Come si paga")}</DialogTitle>
           <DialogDescription>
-            Scegli se concordare le rate in anticipo oppure pagare secondo i lavori eseguiti.
-            Totale contratto con IVA: {formatCurrency(totaleLordo)}.
-            {sostituisce ? " Il piano attuale viene sostituito." : ""}
+            {t("Scegli se concordare le rate in anticipo oppure pagare secondo i lavori eseguiti.")}{" "}
+            {t("Totale contratto con IVA: {importo}.", { importo: formatCurrency(totaleLordo) })}
+            {sostituisce ? ` ${t("Il piano attuale viene sostituito.")}` : ""}
           </DialogDescription>
         </DialogHeader>
 
-        <RadioGroup aria-label="Modalità di pagamento" value={modo} onValueChange={v=>setModo(v as ModalitaPiano)} className="gap-2">
-          {([{id:"fixed",title:"Rate a percentuale",text:"Importi e momenti concordati prima: acconto, rate intermedie e saldo."},{id:"advance_sal",title:"Acconto + SAL",text:"Definisci solo l’acconto. I SAL seguono l’avanzamento effettivo del cantiere."},{id:"sal",title:"Solo SAL",text:"Nessun acconto e nessun numero di SAL da fissare oggi."}] as const).map(option=><label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal ${modo===option.id?"border-primary bg-primary/5":""}`}><RadioGroupItem value={option.id} className="mt-0.5" aria-label={option.title}/><span className="min-w-0 space-y-0.5"><span className="block text-sm font-medium">{option.title}</span><span className="block text-xs text-muted-foreground">{option.text}</span></span></label>)}
+        <RadioGroup aria-label={t("Modalità di pagamento")} value={modo} onValueChange={v=>setModo(v as ModalitaPiano)} className="gap-2">
+          {([{id:"fixed",title:t("Rate a percentuale"),text:t("Importi e momenti concordati prima: acconto, rate intermedie e saldo.")},{id:"advance_sal",title:t("Acconto + SAL"),text:t("Definisci solo l’acconto. I SAL seguono l’avanzamento effettivo del cantiere.")},{id:"sal",title:t("Solo SAL"),text:t("Nessun acconto e nessun numero di SAL da fissare oggi.")}] as const).map(option=><label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal ${modo===option.id?"border-primary bg-primary/5":""}`}><RadioGroupItem value={option.id} className="mt-0.5" aria-label={option.title}/><span className="min-w-0 space-y-0.5"><span className="block text-sm font-medium">{option.title}</span><span className="block text-xs text-muted-foreground">{option.text}</span></span></label>)}
         </RadioGroup>
         {modo!=="fixed" && <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3">
-          {modo==="advance_sal" && <><Label htmlFor="sal-acconto">Acconto iniziale · IVA inclusa</Label><div className="flex gap-2"><Input id="sal-acconto" inputMode="decimal" value={acconto} onChange={e=>setAcconto(e.target.value)} aria-invalid={!!dinamico?.error}/><select aria-label="Inserisci acconto in" value={unita} onChange={e=>{setUnita(e.target.value as "percent"|"amount");setAcconto("");}} className="rounded-md border bg-background px-2 text-sm"><option value="percent">Percentuale %</option><option value="amount">Importo €</option></select></div></>}
-          <p className="text-sm font-medium">I SAL si definiscono durante i lavori</p><p className="text-xs text-muted-foreground">Non servono numero, percentuali o date dei SAL futuri. Ogni verbale registra i lavori eseguiti; dalla quota certificata prepari la fattura e la sua scadenza. Il recupero dell’eventuale acconto si verifica nel certificato.</p>
+          {modo==="advance_sal" && <><Label htmlFor="sal-acconto">{t("Acconto iniziale · IVA inclusa")}</Label><div className="flex gap-2"><Input id="sal-acconto" inputMode="decimal" value={acconto} onChange={e=>setAcconto(e.target.value)} aria-invalid={!!dinamico?.error}/><select aria-label={t("Inserisci acconto in")} value={unita} onChange={e=>{setUnita(e.target.value as "percent"|"amount");setAcconto("");}} className="rounded-md border bg-background px-2 text-sm"><option value="percent">{t("Percentuale %")}</option><option value="amount">{t("Importo €")}</option></select></div></>}
+          <p className="text-sm font-medium">{t("I SAL si definiscono durante i lavori")}</p><p className="text-xs text-muted-foreground">{t("Non servono numero, percentuali o date dei SAL futuri. Ogni verbale registra i lavori eseguiti; dalla quota certificata prepari la fattura e la sua scadenza. Il recupero dell’eventuale acconto si verifica nel certificato.")}</p>
           {dinamico?.error && <p role="alert" className="text-xs text-destructive">{dinamico.error}</p>}
         </div>}
-        {modo==="fixed" && <p className="text-xs font-medium text-muted-foreground">Scegli un modello con quote già concordate</p>}
+        {modo==="fixed" && <p className="text-xs font-medium text-muted-foreground">{t("Scegli un modello con quote già concordate")}</p>}
         {modo!=="fixed" ? null : totaleLordo <= 0 ? (
           <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-            Scrivi prima l'importo della commessa: le rate sono una parte di quello.
+            {t("Scrivi prima l'importo della commessa: le rate sono una parte di quello.")}
           </p>
         ) : offerti.length === 0 ? (
           <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-            Non ci sono piani da scegliere. Si creano in Impostazioni → Pagamenti.
+            {t("Non ci sono piani da scegliere. Si creano in Impostazioni → Pagamenti.")}
           </p>
         ) : (
           <RadioGroup value={scelto} onValueChange={setScelto} className="gap-2">
@@ -73,7 +75,7 @@ export function SceltaPianoPagamento({aperto,totaleLordo,sostituisce,onChiudi,on
               <div key={m.id} className="flex items-start gap-3 rounded-lg border p-3">
                 <RadioGroupItem value={m.id} id={`nuovo-piano-${m.id}`} className="mt-0.5" />
                 <Label htmlFor={`nuovo-piano-${m.id}`} className="cursor-pointer space-y-0.5 font-normal">
-                  <span className="block text-sm font-medium">{m.nome === "Ristrutturazione a SAL" ? "Ristrutturazione · SAL a percentuale" : m.nome}</span>
+                  <span className="block text-sm font-medium">{m.nome === "Ristrutturazione a SAL" ? t("Ristrutturazione · SAL a percentuale") : m.nome}</span>
                   <span className="block text-xs text-muted-foreground">{riepilogoModello(m.righe)}</span>
                 </Label>
               </div>
@@ -82,7 +84,7 @@ export function SceltaPianoPagamento({aperto,totaleLordo,sostituisce,onChiudi,on
         )}
 
         {anteprima.length > 0 && (
-          <ul aria-label="Anteprima delle rate" className="space-y-1 rounded-lg bg-muted/40 p-3 text-sm">
+          <ul aria-label={t("Anteprima delle rate")} className="space-y-1 rounded-lg bg-muted/40 p-3 text-sm">
             {anteprima.map((r) => (
               <li key={r.position} className="flex items-baseline justify-between gap-2">
                 <span className="min-w-0 truncate">
@@ -95,9 +97,9 @@ export function SceltaPianoPagamento({aperto,totaleLordo,sostituisce,onChiudi,on
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={onChiudi}>Annulla</Button>
+          <Button variant="outline" onClick={onChiudi}>{t("Annulla")}</Button>
           <Button disabled={modo==="fixed"?!modello:!!dinamico?.error} onClick={() => { if (modo!=="fixed"&&!dinamico?.error) {onScegli(anteprima,{version:1,mode:modo});onChiudi();} else if (modello) {onScegli(anteprima,null);onChiudi();} }}>
-            Usa questo piano
+            {t("Usa questo piano")}
           </Button>
         </DialogFooter>
       </DialogContent>

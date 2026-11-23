@@ -11,14 +11,16 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { esportaRapportini, type RigaRapportino } from "@/lib/campo/esportaRapportini";
 import { valoreInTesto } from "../../../supabase/functions/_shared/moduliCantiere";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Totale { chiave: string; etichetta: string; tipo: string; unita: string | null; phase_id: string | null; fase_nome: string | null; approvati: number; da_approvare: number }
 
-const quanto = (t: Totale, n: number) => t.tipo === "boolean"
-  ? `${n} sì`
+const quanto = (t: Totale, n: number, tr: ReturnType<typeof useT>) => t.tipo === "boolean"
+  ? tr("{n} sì", { n })
   : valoreInTesto({ chiave: t.chiave, etichetta: t.etichetta, tipo: "number", valore: Number(n), stampa: "mai", ...(t.unita ? { unita: t.unita } : {}) });
 
 export function TotaliCampiCommessa({ orderId, rapportini }: { orderId: string; rapportini: RigaRapportino[] }) {
+  const tr = useT();
   const mobile = useIsMobile();
   const [esporto, setEsporto] = useState(false);
   const { data: totali = [] } = useQuery<Totale[]>({
@@ -39,18 +41,18 @@ export function TotaliCampiCommessa({ orderId, rapportini }: { orderId: string; 
       {totali.map((t) => (
         <div key={`${t.chiave}@${t.phase_id ?? ""}`} className="flex flex-wrap items-baseline gap-x-1.5">
           <span className="text-muted-foreground">{t.etichetta}{t.fase_nome ? ` · ${t.fase_nome}` : ""}</span>
-          <span className="font-semibold tabular-nums">{quanto(t, Number(t.approvati))}</span>
-          {Number(t.da_approvare) > 0 && <span className="text-xs text-amber-700">{quanto(t, Number(t.da_approvare))} da approvare</span>}
+          <span className="font-semibold tabular-nums">{quanto(t, Number(t.approvati), tr)}</span>
+          {Number(t.da_approvare) > 0 && <span className="text-xs text-amber-700">{tr("{quanti} da approvare", { quanti: quanto(t, Number(t.da_approvare), tr) })}</span>}
         </div>
       ))}
       {esportabile && (
         <Button type="button" variant="ghost" size="sm" className="ml-auto h-8" disabled={esporto} onClick={() => {
           setEsporto(true);
           esportaRapportini(rapportini, `rapportini_${orderId.slice(0, 8)}.xlsx`)
-            .catch(() => toast.error("Esportazione non riuscita. Riprova."))
+            .catch(() => toast.error(tr("Esportazione non riuscita. Riprova.")))
             .finally(() => setEsporto(false));
         }}>
-          {esporto ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}Esporta Excel
+          {esporto ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}{tr("Esporta Excel")}
         </Button>
       )}
     </div>

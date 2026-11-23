@@ -26,6 +26,7 @@ import {
 } from "./filePreviewUtils";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 interface FileDoc { id: string; file_name: string; file_url: string; file_type?: string | null; file_size?: number | null; thumb_path?: string | null }
 interface FiscalDoc { origine?:"nativa"|"importata"; id: string; numero: string; tipo?: string | null; stato?: string | null; totale_da_pagare?: number | null }
 interface ItemWithFiles { id: string; name?: string | null; attachments?: FileDoc[] | null }
@@ -60,7 +61,7 @@ function fiscalTypeLabel(t?: string | null) {
   }
 }
 const fmtEur = (n?: number | null) =>
-  typeof n === "number" ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n) : "";
+  typeof n === "number" ? new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(n) : "";
 
 /** Intestazione di sezione con conteggio. */
 function SectionTitle({ icon: Icon, children, count }: { icon: typeof FileText; children: React.ReactNode; count?: number }) {
@@ -77,6 +78,7 @@ function SectionTitle({ icon: Icon, children, count }: { icon: typeof FileText; 
 export function OrderFilesDialog({
   open, onOpenChange, fatture, documenti, items, formatDocType, onDownloadFattura, onDownloadOrderPdf, pdfBusy, documentiCollegati, gestioneAllegati,
 }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const itemsWithFiles = useMemo(
@@ -112,13 +114,13 @@ export function OrderFilesDialog({
         <div className="relative flex h-24 items-center justify-center overflow-hidden bg-muted/40 [&>div]:h-full [&>div]:w-full [&>div]:rounded-none [&>div]:border-0">
           <FileThumb file={d as unknown as PreviewableFile} thumbUrl={miniaturaDi(d)} size="tile" />
           <span className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_TINT[kind]}`}>
-            {KIND_LABEL[kind]}
+            {t(KIND_LABEL[kind])}
           </span>
         </div>
         <div className="min-w-0 px-2.5 py-2">
           <div className="truncate text-xs font-medium">{d.file_name}</div>
           <div className="truncate text-[11px] text-muted-foreground">
-            {formatDocType ? formatDocType(d) : KIND_LABEL[kind]}{peso ? ` · ${peso}` : ""}
+            {formatDocType ? formatDocType(d) : t(KIND_LABEL[kind])}{peso ? ` · ${peso}` : ""}
           </div>
         </div>
       </button>
@@ -131,10 +133,10 @@ export function OrderFilesDialog({
       <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FolderOpen className="h-5 w-5 text-primary" /> Documenti e file della commessa
+            <FolderOpen className="h-5 w-5 text-primary" /> {t("Documenti e file della commessa")}
           </DialogTitle>
           <DialogDescription>
-            Preventivo, planimetrie, fatture, allegati e schede prodotto collegati.
+            {t("Preventivo, planimetrie, fatture, allegati e schede prodotto collegati.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -144,10 +146,10 @@ export function OrderFilesDialog({
           {/* Il riepilogo è un PDF da scrivania: su telefono non compare. */}
           {!isMobile && (
             <section className="space-y-2">
-              <SectionTitle icon={FileText}>Riepilogo commessa</SectionTitle>
+              <SectionTitle icon={FileText}>{t("Riepilogo commessa")}</SectionTitle>
               <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={onDownloadOrderPdf} disabled={pdfBusy}>
                 {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-blue-600" />}
-                Scarica PDF riepilogo (cronoprogramma, grafici, costi, SAL…)
+                {t("Scarica PDF riepilogo (cronoprogramma, grafici, costi, SAL…)")}
               </Button>
             </section>
           )}
@@ -155,21 +157,21 @@ export function OrderFilesDialog({
           {/* Fatture / documenti fiscali — righe, non riquadri: qui contano numero e importo */}
           {fatture.length > 0 && (
             <section className="space-y-2">
-              <SectionTitle icon={Receipt} count={fatture.length}>Fatture e documenti fiscali</SectionTitle>
+              <SectionTitle icon={Receipt} count={fatture.length}>{t("Fatture e documenti fiscali")}</SectionTitle>
               <ul className="space-y-1.5">
                 {/* Le annullate restano raggiungibili, ma dopo le buone e spente. */}
                 {[...fatture].sort((a, b) => Number(a.stato === "annullata") - Number(b.stato === "annullata")).map((f) => (
                   <li key={f.id} className={`flex items-center justify-between gap-2 rounded-md border bg-card px-2 py-1 text-sm ${f.stato === "annullata" ? "opacity-55" : ""}`}>
                     <button type="button" className="min-w-0 flex-1 text-left" onClick={() => { onOpenChange(false); navigate(f.origine==="importata"?`/azienda/documenti/importata/${f.id}`:`/azienda/documenti/${f.id}/dettaglio`); }}>
                       <span className="font-medium truncate inline-flex items-center gap-1">{f.numero} <ExternalLink className="h-3 w-3 opacity-50" /></span>
-                      <span className="block text-[11px] text-muted-foreground">{fiscalTypeLabel(f.tipo)}{f.stato ? ` · ${f.stato}` : ""}</span>
+                      <span className="block text-[11px] text-muted-foreground">{t(fiscalTypeLabel(f.tipo))}{f.stato ? ` · ${f.stato}` : ""}</span>
                     </button>
                     <div className="flex items-center gap-2 shrink-0">
                       {f.totale_da_pagare != null && <span className="text-xs text-muted-foreground whitespace-nowrap">{fmtEur(f.totale_da_pagare)}</span>}
                       {/* La fattura resta raggiungibile: si tocca la riga e si
                           apre la sua pagina. Sparisce solo lo scarico. */}
                       {!isMobile && (
-                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={`Scarica ${f.numero}`} onClick={() => f.origine==="importata"?navigate(`/azienda/documenti/importata/${f.id}`):onDownloadFattura(f)}>
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={t("Scarica {numero}", { numero: f.numero })} onClick={() => f.origine==="importata"?navigate(`/azienda/documenti/importata/${f.id}`):onDownloadFattura(f)}>
                           <Download className="h-4 w-4" />
                         </Button>
                       )}
@@ -184,11 +186,11 @@ export function OrderFilesDialog({
           {open && gestioneAllegati && <OrderAttachments {...gestioneAllegati} />}
           {!gestioneAllegati && documenti.length > 0 && (
             <section className="space-y-2">
-              <SectionTitle icon={Paperclip} count={documenti.length}>Allegati commessa</SectionTitle>
+              <SectionTitle icon={Paperclip} count={documenti.length}>{t("Allegati commessa")}</SectionTitle>
               {documenti.length > 8 && (
                 <input
                   type="search" value={cerca} onChange={(e) => setCerca(e.target.value)}
-                  placeholder={`Cerca tra ${documenti.length} file…`} aria-label="Cerca tra gli allegati"
+                  placeholder={t("Cerca tra {n} file…", { n: documenti.length })} aria-label={t("Cerca tra gli allegati")}
                   className="h-8 w-full rounded-md border bg-background px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 />
               )}
@@ -200,7 +202,7 @@ export function OrderFilesDialog({
                   return (
                     <li key={d.id}>
                       <button type="button" onClick={() => void scaricaAllegato(d.file_url, d.file_name)} className="flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-muted/50">
-                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_TINT[kind]}`}>{KIND_LABEL[kind]}</span>
+                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_TINT[kind]}`}>{t(KIND_LABEL[kind])}</span>
                         <span className="min-w-0 flex-1 break-words text-xs">{d.file_name}</span>
                         {peso && <span className="shrink-0 text-[11px] text-muted-foreground">{peso}</span>}
                         <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -208,7 +210,7 @@ export function OrderFilesDialog({
                     </li>
                   );
                 })}
-                {documentiFiltrati.length === 0 && <li className="px-2 py-3 text-center text-xs text-muted-foreground">Nessun file con questo nome.</li>}
+                {documentiFiltrati.length === 0 && <li className="px-2 py-3 text-center text-xs text-muted-foreground">{t("Nessun file con questo nome.")}</li>}
               </ul>
             </section>
           )}
@@ -216,10 +218,10 @@ export function OrderFilesDialog({
           {/* Allegati / schede degli articoli */}
           {itemsWithFiles.length > 0 && (
             <section className="space-y-3">
-              <SectionTitle icon={Package} count={totalItemFiles}>Schede e allegati articoli</SectionTitle>
+              <SectionTitle icon={Package} count={totalItemFiles}>{t("Schede e allegati articoli")}</SectionTitle>
               {itemsWithFiles.map((it) => (
                 <div key={it.id} className="space-y-2">
-                  <div className="truncate text-xs font-medium text-foreground/80">{it.name || "Articolo"}</div>
+                  <div className="truncate text-xs font-medium text-foreground/80">{it.name || t("Articolo")}</div>
                   <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
                     {(it.attachments ?? []).map((a) => <FileTile key={a.id} d={a} />)}
                   </div>
@@ -232,9 +234,9 @@ export function OrderFilesDialog({
           {isEmpty && (
             <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-10 text-center">
               <FolderOpen className="h-9 w-9 text-muted-foreground/40" />
-              <p className="text-sm font-medium">Nessun altro allegato o documento fiscale</p>
+              <p className="text-sm font-medium">{t("Nessun altro allegato o documento fiscale")}</p>
               <p className="max-w-sm text-xs text-muted-foreground">
-                Fatture, allegati e schede prodotto compariranno qui. Intanto puoi scaricare il PDF riepilogo qui sopra.
+                {t("Fatture, allegati e schede prodotto compariranno qui. Intanto puoi scaricare il PDF riepilogo qui sopra.")}
               </p>
             </div>
           )}

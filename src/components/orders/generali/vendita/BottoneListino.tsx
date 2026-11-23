@@ -14,6 +14,7 @@ import { useAziendaDossier } from "@/hooks/useGeneraleRendiconto";
 import { oggiLocale } from "@/lib/orders/generali/documenti";
 import type { UnitaGenerale } from "@/lib/orders/generali/unita";
 import { aziendaVendita, componiListino, nomeFileListino } from "@/lib/orders/generali/vendita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   generaleId: string;
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function BottoneListino({ generaleId, operazione, unita, vedeImporti }: Props) {
+  const t = useT();
   const azienda = useAziendaDossier();
   const [aperto, setAperto] = useState(false);
   const [conPrezzi, setConPrezzi] = useState(vedeImporti);
@@ -45,7 +47,7 @@ export function BottoneListino({ generaleId, operazione, unita, vedeImporti }: P
       }
       setAperto(false);
     } catch {
-      toast.error(formato === "pdf" ? "Non sono riuscito a preparare il PDF. Riprova." : "Non sono riuscito a preparare l'Excel. Riprova.");
+      toast.error(formato === "pdf" ? t("Non sono riuscito a preparare il PDF. Riprova.") : t("Non sono riuscito a preparare l'Excel. Riprova."));
     } finally {
       setPreparo(null);
     }
@@ -55,17 +57,17 @@ export function BottoneListino({ generaleId, operazione, unita, vedeImporti }: P
   return (
     <Popover open={aperto} onOpenChange={setAperto}>
       <PopoverTrigger asChild>
-        <Button size="sm" variant="outline"><ListChecks className="mr-1.5 h-3.5 w-3.5" /> Listino</Button>
+        <Button size="sm" variant="outline"><ListChecks className="mr-1.5 h-3.5 w-3.5" /> {t("Listino")}</Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 space-y-3">
         <div>
-          <p className="text-sm font-medium">Listino disponibilità</p>
-          <p className="text-xs text-muted-foreground">Tutte le unità con m² e stato, da dare ad agenzie e clienti. Senza acquirenti né incassi.</p>
+          <p className="text-sm font-medium">{t("Listino disponibilità")}</p>
+          <p className="text-xs text-muted-foreground">{t("Tutte le unità con m² e stato, da dare ad agenzie e clienti. Senza acquirenti né incassi.")}</p>
         </div>
         {vedeImporti && (
           <div className="flex items-center gap-2">
             <Checkbox id={idPrezzi} checked={conPrezzi} onCheckedChange={(v) => setConPrezzi(v === true)} />
-            <Label htmlFor={idPrezzi} className="text-sm font-normal">Con i prezzi delle unità libere</Label>
+            <Label htmlFor={idPrezzi} className="text-sm font-normal">{t("Con i prezzi delle unità libere")}</Label>
           </div>
         )}
         <div className="flex gap-2">

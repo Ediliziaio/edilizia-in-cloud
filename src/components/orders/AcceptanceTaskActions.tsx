@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import type { AcceptanceAction } from "../../../supabase/functions/collaudo-commessa/model";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface AcceptanceTask {
   id: string;
@@ -28,10 +29,10 @@ const states: Record<string, string> = {
   in_attesa: "In attesa",
   completata: "Completata",
 };
-const day = (value: string | null) =>
+const day = (value: string | null, vuoto = "Da definire") =>
   value?.match(/^\d{4}-\d{2}-\d{2}$/)
     ? value.split("-").reverse().join("/")
-    : "Da definire";
+    : vuoto;
 
 export function AcceptanceTaskActions({
   reportId,
@@ -41,6 +42,7 @@ export function AcceptanceTaskActions({
   canCreate,
   onOpenTasks,
 }: Props) {
+  const tr = useT();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
@@ -75,16 +77,16 @@ export function AcceptanceTaskActions({
       if (error) throw error;
       if (typeof data !== "number" || !Number.isInteger(data) || data < 0)
         throw new Error(
-          "Risposta non valida: aggiorna le attività prima di riprovare.",
+          tr("Risposta non valida: aggiorna le attività prima di riprovare."),
         );
       toast.success(
         data > 0
-          ? `${data} ${data === 1 ? "attività creata" : "attività create"}`
-          : "Nessuna duplicazione: le attività risultano già collegate.",
+          ? tr(data === 1 ? "{n} attività creata" : "{n} attività create", { n: data })
+          : tr("Nessuna duplicazione: le attività risultano già collegate."),
         {
           description:
             data > 0
-              ? "Assegnate a te per il coordinamento. Referenti e scadenze sono riportati dal verbale."
+              ? tr("Assegnate a te per il coordinamento. Referenti e scadenze sono riportati dal verbale.")
               : undefined,
         },
       );
@@ -93,11 +95,11 @@ export function AcceptanceTaskActions({
         qc.invalidateQueries({ queryKey: ["order-next-task", orderId] }),
       ]);
     } catch (e) {
-      toast.error("Non riesco a creare le attività", {
+      toast.error(tr("Non riesco a creare le attività"), {
         description:
           e instanceof Error
             ? e.message
-            : ((e as { message?: string })?.message ?? "Riprova."),
+            : ((e as { message?: string })?.message ?? tr("Riprova.")),
       });
     } finally {
       submitting.current = false;
@@ -107,31 +109,29 @@ export function AcceptanceTaskActions({
   if (!actions.length) return null;
   return (
     <section
-      aria-label="Attività dalle riserve"
+      aria-label={tr("Attività dalle riserve")}
       className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold">Da fare dopo la verifica</h3>
+        <h3 className="font-semibold">{tr("Da fare dopo la verifica")}</h3>
         {!query.isLoading && !query.isError && (
           <Badge variant="outline">
-            {completed}/{actions.length} completate
+            {tr("{fatte}/{totale} completate", { fatte: completed, totale: actions.length })}
           </Badge>
         )}
       </div>
       <p className="text-sm text-muted-foreground">
-        Trasforma gli interventi del verbale in attività della commessa.
-        Assegnate a te per seguirne la chiusura; il referente indicato nel
-        verbale rimane riportato nelle note.
+        {tr("Trasforma gli interventi del verbale in attività della commessa. Assegnate a te per seguirne la chiusura; il referente indicato nel verbale rimane riportato nelle note.")}
       </p>
       {query.isLoading ? (
         <p role="status" className="text-sm">
-          Controllo le attività già collegate…
+          {tr("Controllo le attività già collegate…")}
         </p>
       ) : query.isError ? (
         <div role="alert" className="text-sm">
-          Non riesco a verificare le attività esistenti.{" "}
+          {tr("Non riesco a verificare le attività esistenti.")}{" "}
           <Button size="sm" variant="outline" onClick={() => query.refetch()}>
-            Riprova
+            {tr("Riprova")}
           </Button>
         </div>
       ) : (
@@ -146,17 +146,17 @@ export function AcceptanceTaskActions({
                   </p>
                   <Badge variant="outline">
                     {task
-                      ? (states[task.status] ?? task.status)
-                      : "Non collegata o non visibile"}
+                      ? (states[task.status] ? tr(states[task.status]) : task.status)
+                      : tr("Non collegata o non visibile")}
                   </Badge>
                 </div>
                 <p className="mt-1 text-muted-foreground">
-                  Referente nel verbale: {action.owner}
+                  {tr("Referente nel verbale: {nome}", { nome: action.owner })}
                 </p>
                 <p className="text-muted-foreground">
-                  Scadenza: {day(task ? task.due_date : action.due)}
+                  {tr("Scadenza: {data}", { data: day(task ? task.due_date : action.due, tr("Da definire")) })}
                   {task && task.due_date !== action.due
-                    ? ` · Nel verbale: ${day(action.due)}`
+                    ? ` · ${tr("Nel verbale: {data}", { data: day(action.due, tr("Da definire")) })}`
                     : ""}
                 </p>
               </li>
@@ -171,22 +171,20 @@ export function AcceptanceTaskActions({
             onClick={create}
           >
             {busy
-              ? "Creazione in corso…"
+              ? tr("Creazione in corso…")
               : missing === 0
-                ? "Attività già collegate"
-                : "Crea attività per me"}
+                ? tr("Attività già collegate")
+                : tr("Crea attività per me")}
           </Button>
         )}
         {onOpenTasks && (
           <Button variant="outline" onClick={onOpenTasks} disabled={busy}>
-            Apri attività della commessa
+            {tr("Apri attività della commessa")}
           </Button>
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        Le attività già create, anche completate, non vengono duplicate o
-        riassegnate. La loro chiusura non modifica questo verbale e non vale
-        come accettazione del cliente.
+        {tr("Le attività già create, anche completate, non vengono duplicate o riassegnate. La loro chiusura non modifica questo verbale e non vale come accettazione del cliente.")}
       </p>
     </section>
   );

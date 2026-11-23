@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { campoWorkDay } from "@/lib/campo/workDay";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Colonne nuove (activity_scope, attende_fase_id) non ancora nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,6 +54,7 @@ export function RiepilogoFasiUfficio({
   orderId: string;
   onOpen: () => void;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const q = useQuery({
     queryKey: [...chiaveFasiUfficio(orderId), "riepilogo"],
@@ -88,16 +90,16 @@ export function RiepilogoFasiUfficio({
     >
       <span className="min-w-0">
         <span className="block text-sm font-semibold">
-          Ufficio · {fatte} di {righe.length} fasi fatte
-          {ritardo > 0 ? ` · ${ritardo} in ritardo` : ""}
+          {t("Ufficio · {fatte} di {totale} fasi fatte", { fatte, totale: righe.length })}
+          {ritardo > 0 ? ` · ${t("{n} in ritardo", { n: ritardo })}` : ""}
         </span>
         {prossima && (
           <span className="block truncate text-xs text-muted-foreground">
-            Prossima: {prossima.title}
+            {t("Prossima: {titolo}", { titolo: prossima.title })}
           </span>
         )}
       </span>
-      <span className="shrink-0 text-xs text-primary underline">Apri</span>
+      <span className="shrink-0 text-xs text-primary underline">{t("Apri")}</span>
     </button>
   );
 }

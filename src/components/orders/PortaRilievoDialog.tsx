@@ -15,6 +15,7 @@ import {
 import { usePermissions } from "@/hooks/usePermissions";
 import type { TemplateSchema } from "@/types/surveys";
 import { OfficeSelect } from "./OfficeSelect";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Dal rilievo alle righe della commessa. Il sistema propone, una persona conferma.
@@ -42,6 +43,7 @@ const BADGE: Record<PropostaAbbinamento["stato"], { testo: string; classe: strin
 };
 
 export function PortaRilievoDialog({ surveyId, orderId, onClose }: { surveyId: string; orderId: string; onClose: () => void }) {
+  const tr = useT();
   const qc = useQueryClient();
   const { canEditOrders } = usePermissions();
 
@@ -60,7 +62,7 @@ export function PortaRilievoDialog({ surveyId, orderId, onClose }: { surveyId: s
           .is("diviso_da", null)
           .order("position"),
       ]);
-      if (righe.error) throw new Error("Righe della commessa non disponibili");
+      if (righe.error) throw new Error(tr("Righe della commessa non disponibili"));
       return { dettaglio, righe: (righe.data ?? []) as RigaMisure[] };
     },
   });
@@ -124,15 +126,15 @@ export function PortaRilievoDialog({ surveyId, orderId, onClose }: { surveyId: s
       qc.invalidateQueries({ queryKey: ["order-items", orderId] });
       qc.invalidateQueries({ queryKey: ["sopralluogo-posizioni", surveyId] });
       const pezzi = [
-        esito.create ? `${esito.create} righe create` : null,
-        esito.applicate - esito.create > 0 ? `${esito.applicate - esito.create} aggiornate` : null,
-        esito.tenute ? `${esito.tenute} tenute com'erano` : null,
+        esito.create ? tr("{n} righe create", { n: esito.create }) : null,
+        esito.applicate - esito.create > 0 ? tr("{n} aggiornate", { n: esito.applicate - esito.create }) : null,
+        esito.tenute ? tr("{n} tenute com'erano", { n: esito.tenute }) : null,
       ].filter(Boolean);
-      toast.success(pezzi.join(" · ") || "Nessuna modifica: era già tutto allineato");
-      if (esito.con_ordine.length > 0) toast.warning("Alcune posizioni sono già in un ordine: controlla col fornitore.");
+      toast.success(pezzi.join(" · ") || tr("Nessuna modifica: era già tutto allineato"));
+      if (esito.con_ordine.length > 0) toast.warning(tr("Alcune posizioni sono già in un ordine: controlla col fornitore."));
       onClose();
     },
-    onError: (e) => toast.error((e as Error).message || "Misure non portate in commessa"),
+    onError: (e) => toast.error((e as Error).message || tr("Misure non portate in commessa")),
     onSettled: () => { inCorso.current = false; },
   });
   const applicaUnaVolta = () => {
@@ -148,23 +150,23 @@ export function PortaRilievoDialog({ surveyId, orderId, onClose }: { surveyId: s
     <Dialog open onOpenChange={(aperto) => !aperto && onClose()}>
       <DialogContent className="flex max-h-[90dvh] max-w-2xl flex-col gap-3 max-sm:p-4">
         <DialogHeader>
-          <DialogTitle>Porta le misure in commessa</DialogTitle>
+          <DialogTitle>{tr("Porta le misure in commessa")}</DialogTitle>
           <DialogDescription>
             {commessaVuota
-              ? "La commessa non ha articoli: controlla le righe da creare."
-              : "Controlla gli abbinamenti proposti prima di applicarli."}
+              ? tr("La commessa non ha articoli: controlla le righe da creare.")
+              : tr("Controlla gli abbinamenti proposti prima di applicarli.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
           {dati.isLoading && (
             <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Leggo il rilievo…
+              <Loader2 className="h-4 w-4 animate-spin" /> {tr("Leggo il rilievo…")}
             </p>
           )}
-          {dati.isError && <p role="alert" className="py-6 text-sm text-red-600">Rilievo non disponibile.</p>}
+          {dati.isError && <p role="alert" className="py-6 text-sm text-red-600">{tr("Rilievo non disponibile.")}</p>}
           {dati.data && proposte.length === 0 && (
-            <p className="py-6 text-sm text-muted-foreground">Questo sopralluogo non ha misure da portare sulle righe.</p>
+            <p className="py-6 text-sm text-muted-foreground">{tr("Questo sopralluogo non ha misure da portare sulle righe.")}</p>
           )}
           {proposte.map((p) => {
             const c = p.componente;
@@ -181,19 +183,19 @@ export function PortaRilievoDialog({ surveyId, orderId, onClose }: { surveyId: s
                     <p className="text-sm font-semibold">{c.riferimento ? `${c.riferimento} · ${c.etichetta}` : c.etichetta}</p>
                     <p className="text-xs tabular-nums text-muted-foreground">{misureInTesto(c.misure, c.unita)}{c.quantita > 1 && !c.unita ? ` · ${c.quantita} pz` : ""}</p>
                   </div>
-                  <Badge variant="outline" className={`shrink-0 text-[10px] ${badge.classe}`} title={p.motivo}>{badge.testo}</Badge>
+                  <Badge variant="outline" className={`shrink-0 text-[10px] ${badge.classe}`} title={p.motivo}>{tr(badge.testo)}</Badge>
                 </div>
 
                 <label className="mt-2 block text-xs font-medium">
-                  Riga della commessa
+                  {tr("Riga della commessa")}
                   <OfficeSelect
                     className="mt-1 h-11 font-normal"
-                    label="Dove portarlo"
+                    label={tr("Dove portarlo")}
                     value={s.destinazione}
                     onValueChange={(v) => aggiorna(c, { destinazione: v })}
                     options={[
-                      { value: SALTA, label: "Non collegare" },
-                      ...(canEditOrders ? [{ value: NUOVA, label: "Crea una riga nuova" }] : []),
+                      { value: SALTA, label: tr("Non collegare") },
+                      ...(canEditOrders ? [{ value: NUOVA, label: tr("Crea una riga nuova") }] : []),
                       ...(dati.data?.righe ?? []).map((r) => ({
                         value: r.id,
                         label: `${r.riferimento ? `${r.riferimento} · ` : ""}${r.name}`,
@@ -204,7 +206,7 @@ export function PortaRilievoDialog({ surveyId, orderId, onClose }: { surveyId: s
 
                 {s.destinazione === NUOVA && (
                   <label className="mt-2 block text-xs font-medium">
-                    Nome della riga
+                    {tr("Nome della riga")}
                     <Input className="mt-1 h-11 font-normal" value={s.nome} onChange={(e) => aggiorna(c, { nome: e.target.value })} />
                   </label>
                 )}
@@ -213,11 +215,11 @@ export function PortaRilievoDialog({ surveyId, orderId, onClose }: { surveyId: s
                   <fieldset className="mt-2 rounded-md bg-amber-50 p-2 text-xs">
                     <legend className="font-medium text-amber-900">
                       {cambiate.length
-                        ? cambiate.map((d) => `${NOME_ASSE[d.asse]}: ${d.prima} → ${d.dopo}`).join(" · ")
-                        : "Uguali al rilievo precedente"}
+                        ? cambiate.map((d) => `${tr(NOME_ASSE[d.asse])}: ${d.prima} → ${d.dopo}`).join(" · ")
+                        : tr("Uguali al rilievo precedente")}
                     </legend>
                     <div className="mt-1 flex flex-wrap gap-3">
-                      {([["tieni_nuovo", "Tieni le nuove"], ["tieni_precedente", "Tieni le precedenti"]] as const).map(([v, t]) => (
+                      {([["tieni_nuovo", tr("Tieni le nuove")], ["tieni_precedente", tr("Tieni le precedenti")]] as const).map(([v, t]) => (
                         <label key={v} className="flex min-h-9 items-center gap-1.5">
                           <input type="radio" name={`tieni-${chiaveDi(c)}`} checked={s.tieni === v} onChange={() => aggiorna(c, { tieni: v })} />
                           {t}
@@ -231,12 +233,12 @@ export function PortaRilievoDialog({ surveyId, orderId, onClose }: { surveyId: s
           })}
         </div>
 
-        {doppia && <p role="alert" className="text-xs text-red-600">Due misure puntano alla stessa riga: scegline una.</p>}
+        {doppia && <p role="alert" className="text-xs text-red-600">{tr("Due misure puntano alla stessa riga: scegline una.")}</p>}
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="min-h-11" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" className="min-h-11" onClick={onClose}>{tr("Annulla")}</Button>
           <Button className="min-h-11" disabled={voci.length === 0 || doppia || nomeVuoto || applica.isPending} onClick={applicaUnaVolta}>
             {applica.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-            {daCreare > 0 ? `Crea ${daCreare} e applica` : `Applica ${voci.length}`}
+            {daCreare > 0 ? tr("Crea {n} e applica", { n: daCreare }) : tr("Applica {n}", { n: voci.length })}
           </Button>
         </DialogFooter>
       </DialogContent>

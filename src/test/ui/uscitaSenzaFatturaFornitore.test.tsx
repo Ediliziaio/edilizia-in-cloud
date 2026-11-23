@@ -91,7 +91,8 @@ describe("Le due finestre usano la tendina con ricerca e creazione", () => {
 
   it("costo della commessa: il fornitore nuovo si crea da lì", () => {
     const f = leggi("src/components/orders/OrderCostiCommessa.tsx");
-    expect(f).toContain('placeholder="Nessuno" searchable allowCreate />');
+    // Il segnaposto può essere tradotto: placeholder="Nessuno" oppure placeholder={tr("Nessuno")}.
+    expect(f).toMatch(/placeholder=(?:"Nessuno"|\{tr?\("Nessuno"\)\}) searchable allowCreate \/>/);
     expect(f).not.toContain("allowCreate={false}");
   });
 });

@@ -23,6 +23,7 @@ import { useLinkFatturaOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import type { ClienteSnapshot } from "@/types/fatturazione";
 import { useRigheComposer, type RigaComposerItem } from "@/components/orders/RigheComposer";
 import { CAUSALI_TRASPORTO } from "@/lib/ddt/causaliTrasporto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -55,6 +56,7 @@ export function CreaDDTDialog({
   customerId,
   customerName,
 }: CreaDDTDialogProps) {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -125,7 +127,7 @@ export function CreaDDTDialog({
 
   // ── Composizione righe flessibile (articoli selezionabili + righe libere) ──
   const { righe: previewRighe, totals, node: composerNode } = useRigheComposer({
-    orderItems, defaultVat, itemsLoading, open, label: "Righe DDT",
+    orderItems, defaultVat, itemsLoading, open, label: t("Righe DDT"),
   });
   const totaleLordo = totals.lordo;
 
@@ -136,8 +138,8 @@ export function CreaDDTDialog({
   const handleCreaDDT = () => {
     // P2 FIX: blocca creazione DDT vuoto (non conforme normativo).
     if (previewRighe.length === 0) {
-      toast.error("Impossibile creare un DDT senza righe", {
-        description: "Aggiungi almeno un articolo alla commessa prima di generare il DDT.",
+      toast.error(t("Impossibile creare un DDT senza righe"), {
+        description: t("Aggiungi almeno un articolo alla commessa prima di generare il DDT."),
       });
       return;
     }
@@ -192,9 +194,9 @@ export function CreaDDTDialog({
                 companyId,
               });
             } catch (err) {
-              toast.error("DDT creato ma collegamento commessa fallito", {
+              toast.error(t("DDT creato ma collegamento commessa fallito"), {
                 description:
-                  err instanceof Error ? err.message : "Apri il documento e riprova dal dettaglio.",
+                  err instanceof Error ? err.message : t("Apri il documento e riprova dal dettaglio."),
               });
               // Navighiamo comunque al DDT così l'utente può verificare
               onOpenChange(false);
@@ -222,11 +224,10 @@ export function CreaDDTDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Truck className="h-5 w-5 text-primary" />
-            Crea DDT da commessa {orderCode}
+            {t("Crea DDT da commessa {codice}", { codice: orderCode ?? "" })}
           </DialogTitle>
           <DialogDescription>
-            Documento di Trasporto. Scegli quali articoli inserire (o nessuno) e aggiungi righe
-            descrittive libere. Potrai modificarlo nell'editor prima di emetterlo.
+            {t("Documento di Trasporto. Scegli quali articoli inserire (o nessuno) e aggiungi righe descrittive libere. Potrai modificarlo nell'editor prima di emetterlo.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -239,13 +240,13 @@ export function CreaDDTDialog({
               <div className="flex items-center gap-1.5 mt-0.5">
                 <Check className="h-3 w-3 text-green-600" />
                 <span className="text-xs text-green-700">
-                  Anagrafica trovata
+                  {t("Anagrafica trovata")}
                   {matchedAnagrafica.partita_iva && ` · P.IVA ${matchedAnagrafica.partita_iva}`}
                 </span>
               </div>
             ) : (
               <span className="text-xs text-amber-600">
-                Anagrafica non trovata — potrai selezionarla nell'editor
+                {t("Anagrafica non trovata — potrai selezionarla nell'editor")}
               </span>
             )}
           </div>
@@ -256,7 +257,7 @@ export function CreaDDTDialog({
         {/* ── DDT Transport fields ───────────────────────── */}
         <div className="space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Dati trasporto
+            {t("Dati trasporto")}
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -328,7 +329,7 @@ export function CreaDDTDialog({
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             onClick={handleCreaDDT}
@@ -340,8 +341,8 @@ export function CreaDDTDialog({
               <Truck className="h-4 w-4 mr-1.5" />
             )}
             {createMutation.isPending
-              ? "Creazione in corso..."
-              : "Crea DDT"}
+              ? t("Creazione in corso...")
+              : t("Crea DDT")}
           </Button>
         </DialogFooter>
       </DialogContent>

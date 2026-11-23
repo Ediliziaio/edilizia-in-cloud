@@ -18,6 +18,7 @@ import {
   type CategoriaPiano,
 } from "@/lib/orders/generali/pianoCategorie";
 import "./piano-lettura.css";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Tipo = "costi" | "ricavi" | "margine";
 
@@ -62,12 +63,13 @@ export function ConfrontoPiano({
   onApriRighe: (titolo: string, righe: RigaReale[]) => void;
   onCategoria: (categoria: string, tipo: "costo" | "ricavo") => void;
 }) {
+  const tr = useT();
   const [scelta, setScelta] = useState<Tipo>("costi");
   const tipi = [
-    ...(permessi.costi ? [{ id: "costi" as const, nome: "Costi" }] : []),
-    ...(permessi.importi ? [{ id: "ricavi" as const, nome: "Ricavi" }] : []),
+    ...(permessi.costi ? [{ id: "costi" as const, nome: tr("Costi") }] : []),
+    ...(permessi.importi ? [{ id: "ricavi" as const, nome: tr("Ricavi") }] : []),
     ...(permessi.costi && permessi.importi
-      ? [{ id: "margine" as const, nome: "Margine" }]
+      ? [{ id: "margine" as const, nome: tr("Margine") }]
       : []),
   ];
   const tipo = tipi.find((t) => t.id === scelta) ?? tipi[0];
@@ -98,8 +100,10 @@ export function ConfrontoPiano({
     tipo.id === "costi" ? t.scostamento > 0.005 : t.scostamento < -0.005;
   const differenza =
     Math.abs(t.scostamento) < 0.005
-      ? "In linea con il budget"
-      : `${formatCurrency(Math.abs(t.scostamento))} ${t.scostamento > 0 ? "sopra" : "sotto"} il budget`;
+      ? tr("In linea con il budget")
+      : t.scostamento > 0
+        ? tr("{importo} sopra il budget", { importo: formatCurrency(Math.abs(t.scostamento)) })
+        : tr("{importo} sotto il budget", { importo: formatCurrency(Math.abs(t.scostamento)) });
 
   return (
     <div className="generale-plan-reading">
@@ -113,16 +117,16 @@ export function ConfrontoPiano({
               <ChartNoAxesCombined aria-hidden="true" />
             </span>
             <div>
-              <h2 id="confronto-piano-titolo">Dal budget alla stima finale</h2>
+              <h2 id="confronto-piano-titolo">{tr("Dal budget alla stima finale")}</h2>
               <p>
-                Intera operazione · stessa versione del piano · importi netti
+                {tr("Intera operazione · stessa versione del piano · importi netti")}
               </p>
             </div>
           </div>
           <div
             className="generale-segmented"
             role="group"
-            aria-label="Confronta il piano"
+            aria-label={tr("Confronta il piano")}
           >
             {tipi.map((x) => (
               <button
@@ -138,7 +142,13 @@ export function ConfrontoPiano({
         </header>
         <dl
           className="generale-plan-comparison"
-          aria-label={`Confronto ${tipo.nome.toLowerCase()} in euro netti`}
+          aria-label={
+            tipo.id === "costi"
+              ? tr("Confronto costi in euro netti")
+              : tipo.id === "ricavi"
+                ? tr("Confronto ricavi in euro netti")
+                : tr("Confronto margine in euro netti")
+          }
         >
           {[
             {
@@ -161,9 +171,9 @@ export function ConfrontoPiano({
           ].map((r) => (
             <div key={r.nome}>
               <dt>
-                {r.nome}
+                {tr(r.nome)}
                 {!completo && r.nome !== "Registrato a oggi" && (
-                  <span className="generale-indicator-tag">provvisorio</span>
+                  <span className="generale-indicator-tag">{tr("provvisorio")}</span>
                 )}
               </dt>
               <dd>{formatCurrency(r.valore)}</dd>
@@ -177,7 +187,9 @@ export function ConfrontoPiano({
           >
             {completo
               ? differenza
-              : `${differenza} · ${daStimare === 1 ? "1 voce" : `${daStimare} voci`} ancora da stimare`}
+              : daStimare === 1
+                ? tr("{differenza} · 1 voce ancora da stimare", { differenza })
+                : tr("{differenza} · {n} voci ancora da stimare", { differenza, n: daStimare })}
           </span>
           {tipo.id !== "margine" && (
             <button
@@ -185,25 +197,28 @@ export function ConfrontoPiano({
               disabled={!righe.some((r) => r.righe.length)}
               onClick={() =>
                 onApriRighe(
-                  `${tipo.nome} registrati · intera operazione`,
+                  tipo.id === "costi"
+                    ? tr("Costi registrati · intera operazione")
+                    : tr("Ricavi registrati · intera operazione"),
                   righe.flatMap((r) => r.righe),
                 )
               }
             >
-              <Search aria-hidden="true" /> Vedi {tipo.nome.toLowerCase()}{" "}
-              registrati
+              <Search aria-hidden="true" />{" "}
+              {tipo.id === "costi" ? tr("Vedi costi registrati") : tr("Vedi ricavi registrati")}
             </button>
           )}
         </div>
         <footer className="generale-panel-footer generale-plan-formula">
           <span>
-            Registrato {formatCurrency(t.reale)} <b>+</b> a finire{" "}
-            {formatCurrency(t.aFinire)} <b>=</b> stima {formatCurrency(t.stima)}
+            {tr("Registrato {importo}", { importo: formatCurrency(t.reale) })} <b>+</b>{" "}
+            {tr("a finire {importo}", { importo: formatCurrency(t.aFinire) })} <b>=</b>{" "}
+            {tr("stima {importo}", { importo: formatCurrency(t.stima) })}
           </span>
           <small>
             {tipo.id === "margine"
-              ? "Il margine registrato è ricavi meno costi. Il saldo di cassa si consulta nei movimenti effettivi."
-              : "L’a finire è quanto resta da registrare: non coincide con le fatture ancora da pagare."}
+              ? tr("Il margine registrato è ricavi meno costi. Il saldo di cassa si consulta nei movimenti effettivi.")
+              : tr("L’a finire è quanto resta da registrare: non coincide con le fatture ancora da pagare.")}
           </small>
         </footer>
       </section>
@@ -217,13 +232,13 @@ export function ConfrontoPiano({
               <Search aria-hidden="true" />
             </span>
             <div>
-              <h2 id="scostamenti-piano-titolo">Scostamenti da controllare</h2>
+              <h2 id="scostamenti-piano-titolo">{tr("Scostamenti da controllare")}</h2>
               <p>
                 {scostamenti.length
                   ? scostamenti.length === 1
-                    ? "1 voce riduce il margine previsto"
-                    : `${scostamenti.length} voci riducono il margine previsto`
-                  : "Controllo della stima rispetto al budget"}
+                    ? tr("1 voce riduce il margine previsto")
+                    : tr("{n} voci riducono il margine previsto", { n: scostamenti.length })
+                  : tr("Controllo della stima rispetto al budget")}
               </p>
             </div>
           </div>
@@ -231,11 +246,11 @@ export function ConfrontoPiano({
         {!scostamenti.length ? (
           <div className="generale-plan-priorities-empty">
             <CheckCircle2 aria-hidden="true" />
-            <strong>{completo ? "Nessuno scostamento sfavorevole" : "Finora nessuna spesa oltre il previsto"}</strong>
+            <strong>{completo ? tr("Nessuno scostamento sfavorevole") : tr("Finora nessuna spesa oltre il previsto")}</strong>
             <p>
               {completo
-                ? "Le stime attuali non riducono il margine rispetto alle voci previste."
-                : "Il confronto completo arriva quando le voci da stimare hanno un importo."}
+                ? tr("Le stime attuali non riducono il margine rispetto alle voci previste.")
+                : tr("Il confronto completo arriva quando le voci da stimare hanno un importo.")}
             </p>
           </div>
         ) : (
@@ -252,24 +267,24 @@ export function ConfrontoPiano({
                     ) : (
                       <ArrowDownRight aria-hidden="true" />
                     )}
-                    {r.tipo === "costo" ? "Costo" : "Ricavo"} ·{" "}
-                    {CATEGORIE_PIANO[r.categoria as CategoriaPiano]?.nome ??
-                      CHIAVI_REALI[r.categoria] ??
-                      r.categoria}
+                    {r.tipo === "costo" ? tr("Costo") : tr("Ricavo")} ·{" "}
+                    {tr(
+                      CATEGORIE_PIANO[r.categoria as CategoriaPiano]?.nome ??
+                        CHIAVI_REALI[r.categoria] ??
+                        r.categoria,
+                    )}
                   </span>
-                  <strong>{r.etichetta}</strong>
+                  <strong dir="auto">{r.etichetta}</strong>
                   <small>
-                    Budget {formatCurrency(r.previsto)} · stima{" "}
-                    {formatCurrency(r.stima)}
+                    {tr("Budget {previsto} · stima {stima}", { previsto: formatCurrency(r.previsto), stima: formatCurrency(r.stima) })}
                   </small>
                   <b>
-                    {formatCurrency(Math.abs(r.scostamento))}{" "}
                     {r.tipo === "costo"
-                      ? "di costi in più"
-                      : "di ricavi in meno"}
+                      ? tr("{importo} di costi in più", { importo: formatCurrency(Math.abs(r.scostamento)) })
+                      : tr("{importo} di ricavi in meno", { importo: formatCurrency(Math.abs(r.scostamento)) })}
                   </b>
                   <em>
-                    Vai alle voci <ArrowUpRight aria-hidden="true" />
+                    {tr("Vai alle voci")} <ArrowUpRight aria-hidden="true" />
                   </em>
                 </button>
               </li>
@@ -279,9 +294,9 @@ export function ConfrontoPiano({
         <footer className="generale-panel-footer">
           <span>
             {scostamenti.length > 3
-              ? "Le tre voci con l’impatto maggiore. "
+              ? `${tr("Le tre voci con l’impatto maggiore.")} `
               : ""}
-            I filtri della tabella non cambiano questo riepilogo.
+            {tr("I filtri della tabella non cambiano questo riepilogo.")}
           </span>
         </footer>
       </section>

@@ -42,6 +42,7 @@ import { totaleElencoLavori, type RigaElencoLavori } from "@/lib/subappaltatori/
 import { OfficeSelect } from "./OfficeSelect";
 import { ComputoSubappaltoAnteprima, type AnteprimaSubappalto } from "./ComputoSubappaltoAnteprima";
 import type { RichiestaDaLavorazioni } from "@/lib/subappaltatori/richiesteDaLavorazioni";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -51,7 +52,7 @@ interface ContrattoCommessa { importo_contrattuale?: number; oneri_sicurezza?: n
 
 const ListinoDitta = lazy(() => import("@/components/subappaltatori/ListinoDitta")
   .then((modulo) => ({ default: modulo.ListinoDitta })));
-const qt = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 3 });
+const qt = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 3 });
 const casella = (n: number | null | undefined, decimali = 2) => (n == null ? "" : String(Math.round(n * 10 ** decimali) / 10 ** decimali).replace(".", ","));
 const oggi = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
 
@@ -90,6 +91,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
   onChiudi: () => void; onFatto: () => void;
   onContrattoSalvato?: (id: string) => void;
 }) {
+  const tr = useT();
   const qc = useQueryClient();
   const vai = useNavigate();
   const idDitta = useId();
@@ -295,7 +297,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
       fatte++;
     }
     setPrezzi((s) => ({ ...s, ...nuovi }));
-    toast.success(fatte ? `Prezzo scritto in ${fatte} ${fatte === 1 ? "riga" : "righe"}.` : "Nessuna riga da cambiare.");
+    toast.success(fatte ? tr(fatte === 1 ? "Prezzo scritto in {n} riga." : "Prezzo scritto in {n} righe.", { n: fatte }) : tr("Nessuna riga da cambiare."));
   };
   const conto = contoTabella(righe, voci, residuaRiga, comprende);
   const righeStima = righe.map((riga) => ({ ...riga, prezzo: proposto(riga.voceId) }));
@@ -364,17 +366,17 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
 
   const crea = useMutation({
     mutationFn: async (inFirma: boolean) => {
-      if (!ditta) throw new Error("Scegli la ditta.");
-      if (!periodoValido) throw new Error("Controlla le date previste.");
-      if (!righe.length && !extraElenco.length) throw new Error("Scegli una voce o aggiungi un lavoro a corpo.");
-      if (!extraValidi || sicurezza == null) throw new Error("Controlla lavori a corpo e oneri di sicurezza.");
-      if (!affidamenti.isSuccess) throw new Error("Gli affidamenti della commessa non sono ancora disponibili.");
-      if (conto.errori.length) throw new Error(`${conto.errori.length === 1 ? "Una riga" : `${conto.errori.length} righe`} da sistemare: ${conto.errori[0].motivo.toLowerCase()}.`);
+      if (!ditta) throw new Error(tr("Scegli la ditta."));
+      if (!periodoValido) throw new Error(tr("Controlla le date previste."));
+      if (!righe.length && !extraElenco.length) throw new Error(tr("Scegli una voce o aggiungi un lavoro a corpo."));
+      if (!extraValidi || sicurezza == null) throw new Error(tr("Controlla lavori a corpo e oneri di sicurezza."));
+      if (!affidamenti.isSuccess) throw new Error(tr("Gli affidamenti della commessa non sono ancora disponibili."));
+      if (conto.errori.length) throw new Error(tr(conto.errori.length === 1 ? "Una riga da sistemare: {motivo}." : "{n} righe da sistemare: {motivo}.", { n: conto.errori.length, motivo: tr(conto.errori[0].motivo).toLowerCase() }));
       // Prima si guarda il contratto della ditta: se è firmato o in firma ci si ferma prima di toccare qualcosa.
       let inFirmaOra = false;
       if (contrattoAttuale && !contrattoAttuale.firmato_il) {
         const { data, error } = await db.rpc("contratto_in_firma", { p_contratto: contrattoAttuale.id });
-        if (error) throw new Error("Non riesco a sapere se il contratto della ditta è in firma: riprova tra poco.");
+        if (error) throw new Error(tr("Non riesco a sapere se il contratto della ditta è in firma: riprova tra poco."));
         inFirmaOra = data === true;
       }
       if (anteprima?.tipo === "contratto") {
@@ -384,7 +386,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
         if (error) throw error;
         if (JSON.stringify(contrattoDellaDitta(ditta, correnti ?? [], schede)) !== JSON.stringify(contrattoAttuale)) {
           void qc.invalidateQueries({ queryKey: ["affida-contratto-commessa", companyId, orderId] });
-          throw new Error("Il contratto della ditta è cambiato. Aggiorna il computo prima di confermare.");
+          throw new Error(tr("Il contratto della ditta è cambiato. Aggiorna il computo prima di confermare."));
         }
       }
       const destino = destinoContratto(contrattoAttuale, inFirmaOra);
@@ -393,7 +395,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
       // Una bozza storica con importo a corpo e senza elenco ha bisogno prima della sua voce di base.
       if (destino.tipo === "aggiungi" && contrattoAttuale?.importo_contrattuale != null
         && Math.abs(contrattoAttuale.importo_contrattuale - elencoUnito(contrattoAttuale.elenco_lavori, []).importo) > 0.005) {
-        throw new Error("Prima completa l’elenco lavori della bozza esistente in «Lavori e prezzi».");
+        throw new Error(tr("Prima completa l’elenco lavori della bozza esistente in «Lavori e prezzi»."));
       }
 
       // 1. Le voci che l'AI ha collegato al listino: si collegano e si ricordano.
@@ -427,7 +429,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
         const richieste = new Map(righe.map(riga => [riga.voceId, riga.quantita]));
         if (collegate.length !== righe.length || collegate.some(riga =>
           Math.abs(riga.quantita - (richieste.get(riga.voce_id ?? "") ?? 0)) > 0.0005))
-          throw new Error("Le voci affidate sono cambiate: ricarica la pagina e riprova.");
+          throw new Error(tr("Le voci affidate sono cambiate: ricarica la pagina e riprova."));
         elenco = [...collegate, ...extraElenco];
       }
 
@@ -435,7 +437,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
       // Non blocca il contratto: se non riesce lo si dice e basta.
       let imparati = 0;
       if (ricorda && canEditSettingsPricing && comprende === "posa") {
-        try { imparati = await ricordaNelListino(); } catch { toast.warning("Il contratto si crea, ma i prezzi non sono entrati nel listino della ditta."); }
+        try { imparati = await ricordaNelListino(); } catch { toast.warning(tr("Il contratto si crea, ma i prezzi non sono entrati nel listino della ditta.")); }
       }
       // 3. Il contratto: nuovo, o le righe in coda a quello in bozza. I prezzi della tabella vanno sulle quote dal database.
       if (destino.tipo === "aggiungi") {
@@ -443,7 +445,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
         const { data: ora, error: errOra } = await db.from("contratti_subappalto").select("elenco_lavori, importo_contrattuale").eq("id", destino.id).single();
         if (errOra) throw errOra;
         if (Math.abs(Number(ora.importo_contrattuale) - elencoUnito(ora.elenco_lavori, []).importo) > 0.005)
-          throw new Error("Importo della bozza cambiato. Controlla «Lavori e prezzi» e riprova.");
+          throw new Error(tr("Importo della bozza cambiato. Controlla «Lavori e prezzi» e riprova."));
         const unito = elencoUnito(ora.elenco_lavori, elenco);
         const aggiornamento = db.from("contratti_subappalto")
           .update({ elenco_lavori: unito.elenco, importo_contrattuale: unito.importo,
@@ -453,7 +455,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
           ? aggiornamento.is("elenco_lavori", null)
           : aggiornamento.eq("elenco_lavori", JSON.stringify(ora.elenco_lavori))).select("id");
         if (error) throw error;
-        if (!toccati?.length) throw new Error("Il contratto è cambiato nel frattempo: ricarica la pagina e riprova. Le voci restano affidate alla ditta in bozza.");
+        if (!toccati?.length) throw new Error(tr("Il contratto è cambiato nel frattempo: ricarica la pagina e riprova. Le voci restano affidate alla ditta in bozza."));
         return { contrattoId: destino.id, schedaId: contrattoAttuale!.subappaltatore_id, inFirma, nuovo: false, imparati };
       }
       const proprie = schedeSicurezzaDitta(ditta, schede, orderId);
@@ -473,7 +475,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
         db.from("orders").select("order_code").eq("id", orderId).maybeSingle(),
         db.from("contratti_subappalto").select("numero_contratto").eq("order_id", orderId).eq("company_id", companyId),
       ]);
-      if (errO || errN) throw new Error("Non riesco a leggere i contratti della commessa per il numero: riprova.");
+      if (errO || errN) throw new Error(tr("Non riesco a leggere i contratti della commessa per il numero: riprova."));
       const usati = ((esistenti ?? []) as Array<{ numero_contratto: string | null }>).map((c) => Number(/\/S(\d+)$/.exec(c.numero_contratto ?? "")?.[1] ?? 0));
       const faseIds = [...new Set(elenco.flatMap((voce) => voce.fase_id ? [voce.fase_id] : []))];
       const periodo = dalPrevisto && alPrevisto ? { dal: dalPrevisto, al: alPrevisto } : periodoFasi(fasi, faseIds);
@@ -487,25 +489,25 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
       }).select("id").single();
       if (errC) {
         if (schedaCreata) await db.from("subappaltatori_sicurezza").delete().eq("id", schedaCreata).eq("company_id", companyId);
-        throw new Error(`${errC.message} Le voci restano affidate alla ditta in bozza: le trovi in «Chi fa cosa».`);
+        throw new Error(`${errC.message} ${tr("Le voci restano affidate alla ditta in bozza: le trovi in «Chi fa cosa».")}`);
       }
       return { contrattoId: creato.id as string, schedaId: schedaId!, inFirma, nuovo: true, imparati };
     },
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: chiaveAffidamenti(orderId) });
-      if (r.imparati) toast.success(`${r.imparati} ${r.imparati === 1 ? "prezzo è entrato" : "prezzi sono entrati"} nel listino della ditta: la prossima volta arrivano da soli.`);
+      if (r.imparati) toast.success(tr(r.imparati === 1 ? "{n} prezzo è entrato nel listino della ditta: la prossima volta arrivano da soli." : "{n} prezzi sono entrati nel listino della ditta: la prossima volta arrivano da soli.", { n: r.imparati }));
       onFatto();
       if (r.inFirma) {
-        toast.success(r.nuovo ? "Contratto creato: controlla chi firma e invia." : "Voci aggiunte al contratto: controlla chi firma e invia.");
+        toast.success(r.nuovo ? tr("Contratto creato: controlla chi firma e invia.") : tr("Voci aggiunte al contratto: controlla chi firma e invia."));
         if (computoOrigine) onContrattoSalvato?.(r.contrattoId);
         vai(`/azienda/subappaltatori/${r.schedaId}?tab=contratto&contratto=${r.contrattoId}&invia=1`);
         return;
       }
-      toast.success(r.nuovo ? "Contratto creato in bozza." : "Voci aggiunte al contratto in bozza.");
+      toast.success(r.nuovo ? tr("Contratto creato in bozza.") : tr("Voci aggiunte al contratto in bozza."));
       onChiudi();
       onContrattoSalvato?.(r.contrattoId);
     },
-    onError: (e: Error) => { void qc.invalidateQueries({ queryKey: chiaveAffidamenti(orderId) }); toast.error(e.message || "Contratto non creato."); },
+    onError: (e: Error) => { void qc.invalidateQueries({ queryKey: chiaveAffidamenti(orderId) }); toast.error(e.message || tr("Contratto non creato.")); },
   });
 
   const nomeDitta = dittaFissa?.nome ?? ditte.data?.find((d) => d.id === ditta)?.ragione_sociale;
@@ -522,9 +524,9 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
   const datiComputo = useMutation({
     mutationFn: async (azione: "richiesta" | "salva-richiesta" | "contratto" | "firma") => {
       const richiesta = azione === "richiesta" || azione === "salva-richiesta";
-      if (!nomeDitta) throw new Error("Scegli la ditta.");
-      if (richiesta && !richiestaValida) throw new Error("Controlla lavorazioni e quantità da quotare.");
-      if (azione === "salva-richiesta" && troppeVoci) throw new Error(`Una richiesta può contenere fino a ${MAX_VOCI_RICHIESTA} voci.`);
+      if (!nomeDitta) throw new Error(tr("Scegli la ditta."));
+      if (richiesta && !richiestaValida) throw new Error(tr("Controlla lavorazioni e quantità da quotare."));
+      if (azione === "salva-richiesta" && troppeVoci) throw new Error(tr("Una richiesta può contenere fino a {n} voci.", { n: MAX_VOCI_RICHIESTA }));
       const [{ data: ordine, error }, { data: contatti, error: erroreDitta }] = await Promise.all([
         db.from("orders").select("order_code, work_address").eq("id", orderId).eq("company_id", companyId).single(),
         richiesta ? db.from("subappaltatori").select("indirizzo,piva,email").eq("id", ditta).eq("company_id", companyId).single()
@@ -578,19 +580,19 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
       if (azione === "salva-richiesta" && suRichiesta) await suRichiesta(dati);
       else setAnteprima({ tipo: "richiesta", dati });
     },
-    onError: (e: Error) => toast.error(e.message || "Non riesco a preparare il computo. Riprova."),
+    onError: (e: Error) => toast.error(e.message || tr("Non riesco a preparare il computo. Riprova.")),
   });
   const scarica = useMutation({
     mutationFn: async (dati: RichiestaDaLavorazioni) => {
       const { scaricaComputoRichiesta } = await import("@/lib/subappaltatori/richiestaOffertaPdf");
-      if (!azienda || azienda.id !== companyId) throw new Error("Azienda non disponibile.");
+      if (!azienda || azienda.id !== companyId) throw new Error(tr("Azienda non disponibile."));
       await scaricaComputoRichiesta(dati, azienda);
     },
-    onError: () => toast.error("Non riesco a scaricare il computo. Riprova."),
+    onError: () => toast.error(tr("Non riesco a scaricare il computo. Riprova.")),
   });
   const salvaRichiesta = useMutation({
     mutationFn: async (dati: RichiestaDaLavorazioni) => suRichiesta?.(dati),
-    onError: (e: Error) => toast.error(e.message || "Non riesco a salvare la richiesta nella commessa."),
+    onError: (e: Error) => toast.error(e.message || tr("Non riesco a salvare la richiesta nella commessa.")),
   });
   const occupato = crea.isPending || datiComputo.isPending || scarica.isPending || salvaRichiesta.isPending;
   const conteggio = righe.length + extra.length;
@@ -630,29 +632,29 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
   };
 
   const NavigazioneComputo = incorporato ? SoloContenutoComputo : MacrofasiSubappalto;
-  const documentoVoce = soloRichiesta ? "nella richiesta" : "nel contratto";
+  const documentoVoce = soloRichiesta ? tr("nella richiesta") : tr("nel contratto");
   const campiPeriodo = <>
-    <label className="space-y-1 text-sm">Inizio previsto<Input type="date" value={dalPrevisto} disabled={occupato}
+    <label className="space-y-1 text-sm">{tr("Inizio previsto")}<Input type="date" value={dalPrevisto} disabled={occupato}
       onChange={(e) => { setPeriodoModificato(true); setDalPrevisto(e.target.value); }} /></label>
-    <label className="space-y-1 text-sm">Fine prevista<Input type="date" value={alPrevisto} min={dalPrevisto || undefined} disabled={occupato}
+    <label className="space-y-1 text-sm">{tr("Fine prevista")}<Input type="date" value={alPrevisto} min={dalPrevisto || undefined} disabled={occupato}
       onChange={(e) => { setPeriodoModificato(true); setAlPrevisto(e.target.value); }} /></label>
   </>;
   const contenuto = anteprima ? (
     <div className="min-h-0 space-y-3 overflow-y-auto">
-      {!incorporato && <DialogHeader><DialogTitle>Anteprima computo</DialogTitle><DialogDescription>Controlla il documento destinato alla ditta.</DialogDescription></DialogHeader>}
+      {!incorporato && <DialogHeader><DialogTitle>{tr("Anteprima computo")}</DialogTitle><DialogDescription>{tr("Controlla il documento destinato alla ditta.")}</DialogDescription></DialogHeader>}
       <ComputoSubappaltoAnteprima dati={anteprima.dati} richiesta={anteprima.tipo === "richiesta" ? anteprima.dati : undefined} />
       {anteprima.tipo === "contratto" && anteprima.firmaDati !== firmaDati() &&
-        <p role="alert" className="text-sm text-amber-800">Il computo è cambiato. Torna alle voci e rivedi l’anteprima.</p>}
+        <p role="alert" className="text-sm text-amber-800">{tr("Il computo è cambiato. Torna alle voci e rivedi l’anteprima.")}</p>}
       <AzioniLavorazioni><div className="flex flex-wrap justify-end gap-2">
-        <Button variant="outline" disabled={occupato} onClick={() => setAnteprima(undefined)}>Torna alle voci</Button>
+        <Button variant="outline" disabled={occupato} onClick={() => setAnteprima(undefined)}>{tr("Torna alle voci")}</Button>
         {anteprima.tipo === "richiesta" ? <>
-          <Button variant="outline" disabled={occupato} onClick={() => avviaAzione(() => scarica.mutateAsync(anteprima.dati))}><Download className="mr-1 h-4 w-4" />Scarica PDF</Button>
+          <Button variant="outline" disabled={occupato} onClick={() => avviaAzione(() => scarica.mutateAsync(anteprima.dati))}><Download className="mr-1 h-4 w-4" />{tr("Scarica PDF")}</Button>
           {suRichiesta && <Button disabled={occupato || anteprima.dati.righe.length > MAX_VOCI_RICHIESTA} onClick={() => avviaAzione(() => salvaRichiesta.mutateAsync(anteprima.dati))}>
-            {salvaRichiesta.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Salva bozza
+            {salvaRichiesta.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{tr("Salva bozza")}
           </Button>}
         </> : <Button disabled={nonSalvabile || anteprima.firmaDati !== firmaDati()} onClick={() => avviaAzione(() => crea.mutateAsync(anteprima.firma))}>
           {crea.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-          {anteprima.firma ? "Conferma e apri la firma" : "Salva bozza contratto"}
+          {anteprima.firma ? tr("Conferma e apri la firma") : tr("Salva bozza contratto")}
         </Button>}
       </div></AzioniLavorazioni>
     </div>
@@ -660,113 +662,113 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
     <>
         {mostraListino && nomeDitta && <Dialog open onOpenChange={(o) => !o && setMostraListino(false)}>
           <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl">
-            <DialogHeader><DialogTitle>Listino della ditta</DialogTitle><DialogDescription>Prezzi associati alle voci del listino.</DialogDescription></DialogHeader>
-            <Suspense fallback={<p role="status">Carico il listino…</p>}><ListinoDitta companyId={companyId} anagraficaId={ditta} nomeDitta={nomeDitta} consultazione /></Suspense>
+            <DialogHeader><DialogTitle>{tr("Listino della ditta")}</DialogTitle><DialogDescription>{tr("Prezzi associati alle voci del listino.")}</DialogDescription></DialogHeader>
+            <Suspense fallback={<p role="status">{tr("Carico il listino…")}</p>}><ListinoDitta companyId={companyId} anagraficaId={ditta} nomeDitta={nomeDitta} consultazione /></Suspense>
           </DialogContent>
         </Dialog>}
         {!incorporato && <DialogHeader>
-          <DialogTitle>{dittaFissa ? "Nuovo contratto di subappalto" : "Prezzi e contratto di subappalto"}</DialogTitle>
-          <DialogDescription>Scegli le voci da quotare. Confermando i prezzi aggiorni il costo previsto e prepari il computo del contratto.</DialogDescription>
+          <DialogTitle>{dittaFissa ? tr("Nuovo contratto di subappalto") : tr("Prezzi e contratto di subappalto")}</DialogTitle>
+          <DialogDescription>{tr("Scegli le voci da quotare. Confermando i prezzi aggiorni il costo previsto e prepari il computo del contratto.")}</DialogDescription>
         </DialogHeader>}
 
         <div className={soloRichiesta ? "grid gap-3 rounded-lg border bg-muted/30 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)]" : "flex flex-wrap items-center gap-2"}>
           {dittaFissa ? <p className="px-1 text-sm font-medium">{dittaFissa.nome}</p> : <div className="min-w-0 flex-1">
-            {soloRichiesta && <label htmlFor={idDitta} className="mb-1.5 block text-xs font-medium">Ditta destinataria</label>}
-            <OfficeSelect label="Ditta" id={soloRichiesta ? idDitta : undefined} className="h-9 min-w-[12rem]" value={ditta} onValueChange={cambiaDitta}
-              placeholder={ditte.isLoading ? "Carico le ditte…" : "Scegli la ditta"} options={(ditte.data ?? []).filter((d) => d.is_active !== false).map((d) => ({ value: d.id, label: d.ragione_sociale }))} />
+            {soloRichiesta && <label htmlFor={idDitta} className="mb-1.5 block text-xs font-medium">{tr("Ditta destinataria")}</label>}
+            <OfficeSelect label={tr("Ditta")} id={soloRichiesta ? idDitta : undefined} className="h-9 min-w-[12rem]" value={ditta} onValueChange={cambiaDitta}
+              placeholder={ditte.isLoading ? tr("Carico le ditte…") : tr("Scegli la ditta")} options={(ditte.data ?? []).filter((d) => d.is_active !== false).map((d) => ({ value: d.id, label: d.ragione_sociale }))} />
           </div>}
           <div>
-            {soloRichiesta && <label htmlFor={idComprende} className="mb-1.5 block text-xs font-medium">Cosa deve quotare la ditta</label>}
-            <OfficeSelect label="Cosa comprende il prezzo" id={soloRichiesta ? idComprende : undefined} className={soloRichiesta ? "h-9" : "h-9 w-44"} value={comprendeScelto ?? (partenza ? comprende : "")} placeholder="Cosa comprende" onValueChange={(c) => setComprende(c as typeof comprende)}
-              options={[{ value: "posa", label: "Solo posa" }, { value: "fornitura_e_posa", label: "Fornitura e posa" }]} />
+            {soloRichiesta && <label htmlFor={idComprende} className="mb-1.5 block text-xs font-medium">{tr("Cosa deve quotare la ditta")}</label>}
+            <OfficeSelect label={tr("Cosa comprende il prezzo")} id={soloRichiesta ? idComprende : undefined} className={soloRichiesta ? "h-9" : "h-9 w-44"} value={comprendeScelto ?? (partenza ? comprende : "")} placeholder={tr("Cosa comprende")} onValueChange={(c) => setComprende(c as typeof comprende)}
+              options={[{ value: "posa", label: tr("Solo posa") }, { value: "fornitura_e_posa", label: tr("Fornitura e posa") }]} />
           </div>
           {!revisioneVociScelte && <div className="relative min-w-[12rem] flex-1">
             <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca voce o fase" className="h-9 pl-8" aria-label="Cerca voce o fase" />
+            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={tr("Cerca voce o fase")} className="h-9 pl-8" aria-label={tr("Cerca voce o fase")} />
           </div>}
-          {!dittaFissa && ditte.isError && <p role="alert" className="col-span-full basis-full text-sm text-destructive">Ditte non disponibili. <Button type="button" variant="link" onClick={() => void ditte.refetch()}>Riprova</Button></p>}
-          {!dittaFissa && ditte.isSuccess && !ditte.data.some((r) => r.is_active !== false) && <p className="col-span-full basis-full text-sm text-muted-foreground">Aggiungi una ditta da «Manodopera e Mezzi → Subappaltatori».</p>}
+          {!dittaFissa && ditte.isError && <p role="alert" className="col-span-full basis-full text-sm text-destructive">{tr("Ditte non disponibili.")} <Button type="button" variant="link" onClick={() => void ditte.refetch()}>{tr("Riprova")}</Button></p>}
+          {!dittaFissa && ditte.isSuccess && !ditte.data.some((r) => r.is_active !== false) && <p className="col-span-full basis-full text-sm text-muted-foreground">{tr("Aggiungi una ditta da «Manodopera e Mezzi → Subappaltatori».")}</p>}
         </div>
-        {incorporato && !revisioneVociScelte && <OfficeSelect label="Fase del computo" className="h-8 max-w-xs" value={faseAttiva} onValueChange={setFaseAttiva}
-          options={[{ value: "", label: "Tutte le fasi del computo" }, ...fasi.map((f) => ({ value: f.id, label: f.name }))]} />}
+        {incorporato && !revisioneVociScelte && <OfficeSelect label={tr("Fase del computo")} className="h-8 max-w-xs" value={faseAttiva} onValueChange={setFaseAttiva}
+          options={[{ value: "", label: tr("Tutte le fasi del computo") }, ...fasi.map((f) => ({ value: f.id, label: f.name }))]} />}
         {partenza && !soloRichiesta && <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-muted/30 p-3">
           {campiPeriodo}
-          <p className="text-xs text-muted-foreground">{contrattoAttuale && periodoEsplicito ? "Salvando aggiorni anche il periodo della bozza." : "Il periodo indicato compare nella richiesta d’offerta e nella nuova bozza."}</p>
-          {!periodoValido && <p role="alert" className="text-sm text-destructive">Indica entrambe le date in ordine cronologico.</p>}
+          <p className="text-xs text-muted-foreground">{contrattoAttuale && periodoEsplicito ? tr("Salvando aggiorni anche il periodo della bozza.") : tr("Il periodo indicato compare nella richiesta d’offerta e nella nuova bozza.")}</p>
+          {!periodoValido && <p role="alert" className="text-sm text-destructive">{tr("Indica entrambe le date in ordine cronologico.")}</p>}
         </div>}
         {partenza && ditta && scelteManuali === null && scelte.size > sceltiOrdinati.length && affidamenti.isSuccess && (
-          <p role="status" className="text-xs text-amber-800">{scelte.size - sceltiOrdinati.length} voci selezionate senza quantità disponibile.</p>
+          <p role="status" className="text-xs text-amber-800">{tr("{n} voci selezionate senza quantità disponibile.", { n: scelte.size - sceltiOrdinati.length })}</p>
         )}
-        {!soloRichiesta && contrattoAttuale && !contrattoAttuale.firmato_il && <p className="text-xs text-muted-foreground">La ditta ha già un contratto in bozza su questa commessa: le voci scelte si aggiungono a quello.</p>}
-        {!soloRichiesta && contrattoAttuale?.firmato_il && <p role="alert" className="text-xs text-amber-800">La ditta ha già un contratto firmato su questa commessa: le voci in più vanno con «Variante sulle voci».</p>}
+        {!soloRichiesta && contrattoAttuale && !contrattoAttuale.firmato_il && <p className="text-xs text-muted-foreground">{tr("La ditta ha già un contratto in bozza su questa commessa: le voci scelte si aggiungono a quello.")}</p>}
+        {!soloRichiesta && contrattoAttuale?.firmato_il && <p role="alert" className="text-xs text-amber-800">{tr("La ditta ha già un contratto firmato su questa commessa: le voci in più vanno con «Variante sulle voci».")}</p>}
 
         {!soloRichiesta && partenza && ditta && <section className="space-y-2 rounded-lg border bg-slate-50 p-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="font-semibold">Prezzi del computo</h4>
-            <Button type="button" variant="outline" size="sm" onClick={() => setMostraListino(true)}>Vedi listino ditta</Button>
+            <h4 className="font-semibold">{tr("Prezzi del computo")}</h4>
+            <Button type="button" variant="outline" size="sm" onClick={() => setMostraListino(true)}>{tr("Vedi listino ditta")}</Button>
           </div>
-          {offerta ? <p>Computo dall’offerta del {offerta.offerta?.data.split("-").reverse().join("/")}{offerta.offerta?.riferimento ? ` · ${offerta.offerta.riferimento}` : ""}.</p>
-            : <p className="text-muted-foreground">{computoOrigine ? "Voci e quantità riprese dalla richiesta. " : ""}Le voci di sola posa collegate al listino si precompilano. Per le altre inserisci il prezzo concordato o carica un’offerta.</p>}
-          {computoOrigine?.istruzioni && <p className="whitespace-pre-wrap text-muted-foreground">Istruzioni della richiesta · {computoOrigine.istruzioni}</p>}
-          {proposti.isError && <p role="alert" className="text-amber-900">Prezzi del listino non disponibili. <Button variant="link" onClick={() => void proposti.refetch()}>Riprova</Button></p>}
-          {!offerta && offerte?.some((r) => r.dittaId === ditta) && <div className="flex flex-wrap gap-2" aria-label="Offerte della ditta">
+          {offerta ? <p>{tr("Computo dall’offerta del {data}", { data: offerta.offerta?.data.split("-").reverse().join("/") ?? "" })}{offerta.offerta?.riferimento ? ` · ${offerta.offerta.riferimento}` : ""}.</p>
+            : <p className="text-muted-foreground">{computoOrigine ? `${tr("Voci e quantità riprese dalla richiesta.")} ` : ""}{tr("Le voci di sola posa collegate al listino si precompilano. Per le altre inserisci il prezzo concordato o carica un’offerta.")}</p>}
+          {computoOrigine?.istruzioni && <p className="whitespace-pre-wrap text-muted-foreground">{tr("Istruzioni della richiesta")} · {computoOrigine.istruzioni}</p>}
+          {proposti.isError && <p role="alert" className="text-amber-900">{tr("Prezzi del listino non disponibili.")} <Button variant="link" onClick={() => void proposti.refetch()}>{tr("Riprova")}</Button></p>}
+          {!offerta && offerte?.some((r) => r.dittaId === ditta) && <div className="flex flex-wrap gap-2" aria-label={tr("Offerte della ditta")}>
             {offerte.filter((r) => r.dittaId === ditta).map((r) => <Button key={r.id} size="sm" variant="outline" onClick={() => onCaricaOfferta?.(r)}>
-              Usa offerta {r.offerta?.riferimento || r.offerta?.data.split("-").reverse().join("/")}
+              {tr("Usa offerta {riferimento}", { riferimento: r.offerta?.riferimento || r.offerta?.data.split("-").reverse().join("/") || "" })}
             </Button>)}
           </div>}
         </section>}
         {soloRichiesta && <details className="group rounded-lg border">
           <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
-            <ChevronDown className="size-4 text-muted-foreground group-open:rotate-180" aria-hidden="true" />Date e istruzioni per la ditta
-            <span className="text-xs font-normal text-muted-foreground">Facoltative</span>
+            <ChevronDown className="size-4 text-muted-foreground group-open:rotate-180" aria-hidden="true" />{tr("Date e istruzioni per la ditta")}
+            <span className="text-xs font-normal text-muted-foreground">{tr("Facoltative")}</span>
           </summary>
           <div className="space-y-3 border-t p-3">
             <div className="flex flex-wrap gap-3">{campiPeriodo}
-              <label className="space-y-1 text-sm">Risposta entro<Input type="date" value={scadenza} min={oggi()} onChange={(e) => setScadenza(e.target.value)} /></label>
+              <label className="space-y-1 text-sm">{tr("Risposta entro")}<Input type="date" value={scadenza} min={oggi()} onChange={(e) => setScadenza(e.target.value)} /></label>
             </div>
-            <label className="block space-y-1 text-sm">Istruzioni alla ditta<Textarea rows={2} maxLength={3000} value={istruzioni}
-              onChange={(e) => setIstruzioni(e.target.value)} placeholder="Es. accesso al cantiere, protezioni e smaltimento da includere" /></label>
+            <label className="block space-y-1 text-sm">{tr("Istruzioni alla ditta")}<Textarea rows={2} maxLength={3000} value={istruzioni}
+              onChange={(e) => setIstruzioni(e.target.value)} placeholder={tr("Es. accesso al cantiere, protezioni e smaltimento da includere")} /></label>
           </div>
         </details>}
-        {soloRichiesta && !periodoValido && <p role="alert" className="text-sm text-destructive">Indica entrambe le date dei lavori in ordine cronologico.</p>}
-        {soloRichiesta && scadenza && scadenza < oggi() && <p role="alert" className="text-sm text-destructive">Indica una data di risposta da oggi in poi.</p>}
+        {soloRichiesta && !periodoValido && <p role="alert" className="text-sm text-destructive">{tr("Indica entrambe le date dei lavori in ordine cronologico.")}</p>}
+        {soloRichiesta && scadenza && scadenza < oggi() && <p role="alert" className="text-sm text-destructive">{tr("Indica una data di risposta da oggi in poi.")}</p>}
         {revisioneVociScelte && <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-sm font-semibold">{soloRichiesta ? "Lavorazioni da quotare" : "Lavorazioni del contratto"}</h4>
+          <h4 className="text-sm font-semibold">{soloRichiesta ? tr("Lavorazioni da quotare") : tr("Lavorazioni del contratto")}</h4>
           {libere.length > 0 && <Button type="button" size="sm" variant="outline" aria-expanded={mostraTutteVoci} onClick={() => {
             setMostraTutteVoci(!mostraTutteVoci);
             setCerca("");
             setFaseAttiva("");
-          }}>{mostraTutteVoci ? "Mostra solo voci scelte" : "Scegli altre voci dal computo"}</Button>}
+          }}>{mostraTutteVoci ? tr("Mostra solo voci scelte") : tr("Scegli altre voci dal computo")}</Button>}
           {mostraTutteVoci && <div className="flex w-full flex-wrap gap-2">
-            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca voce o fase" className="h-8 min-w-44 flex-1" aria-label="Cerca voce o fase" />
-            {incorporato && <OfficeSelect label="Fase del computo" className="h-8 max-w-xs" value={faseAttiva} onValueChange={setFaseAttiva}
-              options={[{ value: "", label: "Tutte le fasi del computo" }, ...fasi.map((f) => ({ value: f.id, label: f.name }))]} />}
+            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={tr("Cerca voce o fase")} className="h-8 min-w-44 flex-1" aria-label={tr("Cerca voce o fase")} />
+            {incorporato && <OfficeSelect label={tr("Fase del computo")} className="h-8 max-w-xs" value={faseAttiva} onValueChange={setFaseAttiva}
+              options={[{ value: "", label: tr("Tutte le fasi del computo") }, ...fasi.map((f) => ({ value: f.id, label: f.name }))]} />}
           </div>}
         </div>}
         {!soloRichiesta && ditta && sceltiOrdinati.length > 1 && (
           <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
-            <span className="font-medium">Prezzo per più righe:</span>
-            <Input aria-label="Prezzo uguale per le righe" inputMode="decimal" placeholder="€" value={prezzoUnico} onChange={(e) => setPrezzoUnico(e.target.value)} className="h-7 w-20 text-right" />
+            <span className="font-medium">{tr("Prezzo per più righe:")}</span>
+            <Input aria-label={tr("Prezzo uguale per le righe")} inputMode="decimal" placeholder="€" value={prezzoUnico} onChange={(e) => setPrezzoUnico(e.target.value)} className="h-7 w-20 text-right" />
             <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={!(parseAssignmentAmount(prezzoUnico, 2) ?? 0)}
-              onClick={() => applicaPrezzi(() => parseAssignmentAmount(prezzoUnico, 2), false)}>a quelle senza prezzo</Button>
+              onClick={() => applicaPrezzi(() => parseAssignmentAmount(prezzoUnico, 2), false)}>{tr("a quelle senza prezzo")}</Button>
             {canViewOrderAmounts && <>
-            <span className="text-muted-foreground">oppure il nostro venduto meno</span>
-            <Input aria-label="Percentuale da togliere al venduto" inputMode="decimal" placeholder="%" value={sconto} onChange={(e) => setSconto(e.target.value)} className="h-7 w-16 text-right" />
+            <span className="text-muted-foreground">{tr("oppure il nostro venduto meno")}</span>
+            <Input aria-label={tr("Percentuale da togliere al venduto")} inputMode="decimal" placeholder="%" value={sconto} onChange={(e) => setSconto(e.target.value)} className="h-7 w-16 text-right" />
             <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={parseAssignmentAmount(sconto, 2) == null || !sconto.trim()}
-              onClick={() => applicaPrezzi((v) => prezzoDalVenduto(v, parseAssignmentAmount(sconto, 2) ?? -1), false)}>a quelle senza prezzo</Button>
+              onClick={() => applicaPrezzi((v) => prezzoDalVenduto(v, parseAssignmentAmount(sconto, 2) ?? -1), false)}>{tr("a quelle senza prezzo")}</Button>
             <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={parseAssignmentAmount(sconto, 2) == null || !sconto.trim()}
-              title="Sostituisce anche i prezzi già scritti o presi dal listino"
-              onClick={() => applicaPrezzi((v) => prezzoDalVenduto(v, parseAssignmentAmount(sconto, 2) ?? -1), true)}>a tutte</Button></>}
+              title={tr("Sostituisce anche i prezzi già scritti o presi dal listino")}
+              onClick={() => applicaPrezzi((v) => prezzoDalVenduto(v, parseAssignmentAmount(sconto, 2) ?? -1), true)}>{tr("a tutte")}</Button></>}
           </div>
         )}
-        {affidamenti.isError && <p role="alert" className="text-sm text-destructive">Affidamenti non disponibili. <Button variant="link" onClick={() => void affidamenti.refetch()}>Riprova</Button></p>}
+        {affidamenti.isError && <p role="alert" className="text-sm text-destructive">{tr("Affidamenti non disponibili.")} <Button variant="link" onClick={() => void affidamenti.refetch()}>{tr("Riprova")}</Button></p>}
         <div className="min-h-0 flex-1 overflow-y-auto">
           <NavigazioneComputo attiva={faseAttiva} onSeleziona={setFaseAttiva} fasi={[
             ...fasi.map(fase => ({ id: fase.id, nome: fase.name, voci: (gruppi.find(g => g.fase.id === fase.id)?.voci.length ?? 0) + extra.filter(voce => voce.faseId === fase.id).length })),
-            ...(extra.some(voce => voce.faseId === ALTRI_LAVORI) ? [{ id: ALTRI_LAVORI, nome: "Altri lavori", voci: extra.filter(voce => voce.faseId === ALTRI_LAVORI).length }] : []),
+            ...(extra.some(voce => voce.faseId === ALTRI_LAVORI) ? [{ id: ALTRI_LAVORI, nome: tr("Altri lavori"), voci: extra.filter(voce => voce.faseId === ALTRI_LAVORI).length }] : []),
           ]}>
           {(!soloRichiesta || fasiVisibili.length > 0 || !extra.length || mostraTutteVoci) && <div className="overflow-x-auto rounded-md border">
-          {affidamenti.isLoading ? <p className="p-3 text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" />Caricamento…</p> : (
+          {affidamenti.isLoading ? <p className="p-3 text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" />{tr("Caricamento…")}</p> : (
             telefono ? (
               // Sul telefono una voce è una scheda di due righe: cosa e quanto resta, poi quantità, prezzo e importo.
               <ul className="divide-y text-sm">
@@ -774,7 +776,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                   const ids = vf.map((v) => v.id);
                   return [
                     <li key={fase.id} className="flex items-center gap-2 bg-muted/40 px-2 py-1.5 text-xs font-medium">
-                      <Checkbox checked={ids.every((id) => scelte.has(id))} aria-label={`Scegli tutte le voci di ${fase.name}`} onCheckedChange={(c) => cambiaScelta(ids, c === true)} />
+                      <Checkbox checked={ids.every((id) => scelte.has(id))} aria-label={tr("Scegli tutte le voci di {fase}", { fase: fase.name })} onCheckedChange={(c) => cambiaScelta(ids, c === true)} />
                       <span className="min-w-0 flex-1 truncate">{fase.name}</span><span className="font-normal text-muted-foreground">{vf.length}</span>
                     </li>,
                     ...vf.map((v) => {
@@ -789,30 +791,30 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                       return (
                         <li key={v.id} className={`space-y-1.5 px-2 py-2 ${grave ? "bg-red-50" : ""}`}>
                           <div className="flex items-start gap-2">
-                            <Checkbox className="mt-0.5" checked={si} aria-label={`Scegli ${v.descrizione}`} onCheckedChange={(c) => cambiaScelta([v.id], c === true)} />
+                            <Checkbox className="mt-0.5" checked={si} aria-label={tr("Scegli {voce}", { voce: v.descrizione })} onCheckedChange={(c) => cambiaScelta([v.id], c === true)} />
                             <p className="line-clamp-2 min-w-0 flex-1">{testi[v.id] ?? v.descrizione}</p>
                             <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{qt(residuaRiga(v.id))} {v.unita ?? ""}</span>
                           </div>
                           {si && (
                             <div className="flex items-center gap-2 pl-6">
-                              <Input aria-label={`Quantità di ${v.descrizione}`} inputMode="decimal" className="h-9 w-20 text-right tabular-nums"
+                              <Input aria-label={tr("Quantità di {voce}", { voce: v.descrizione })} inputMode="decimal" className="h-9 w-20 text-right tabular-nums"
                                 value={quantita[v.id] ?? casella(quantitaDi(v), 3)} onChange={(e) => setQuantita((x) => ({ ...x, [v.id]: e.target.value }))} />
                               {!soloRichiesta && <>
                               <span className="text-xs text-muted-foreground">×</span>
-                              <Input aria-label={`Prezzo di ${v.descrizione}`} inputMode="decimal" className="h-9 w-24 text-right tabular-nums" placeholder={ditta ? "€" : "ditta?"}
+                              <Input aria-label={tr("Prezzo di {voce}", { voce: v.descrizione })} inputMode="decimal" className="h-9 w-24 text-right tabular-nums" placeholder={ditta ? "€" : tr("ditta?")}
                                 disabled={!ditta} value={prezzi[v.id] ?? casella(prezzoDi(v.id))} onChange={(e) => setPrezzi((x) => ({ ...x, [v.id]: e.target.value }))} />
                               <span className="ml-auto text-right tabular-nums">{formatCurrency(Math.round(q * pr * 100) / 100)}</span>
                               </>}
                             </div>
                           )}
-                          {!soloRichiesta && si && !grave && q > 0 && <p className="pl-6 text-xs text-muted-foreground">Restano {qt(residuaRiga(v.id) - q)} {v.unita ?? ""}</p>}
+                          {!soloRichiesta && si && !grave && q > 0 && <p className="pl-6 text-xs text-muted-foreground">{tr("Restano {quantita} {unita}", { quantita: qt(residuaRiga(v.id) - q), unita: v.unita ?? "" })}</p>}
                           {sottofase && <p className="truncate pl-6 text-xs text-muted-foreground">{sottofase}</p>}
                           {si && (!soloRichiesta || errore || (!v.tariffa_id && a && !a.confermata)) && (
                             <div className="pl-6 text-[11px]">
-                              {(errore || !soloRichiesta) && <span className={errore ? (grave ? "text-red-800" : "text-amber-800") : "text-muted-foreground"}>{grave ? errore : prezziPerVoce.get(v.id)?.fonte}</span>}
+                              {(errore || !soloRichiesta) && <span className={errore ? (grave ? "text-red-800" : "text-amber-800") : "text-muted-foreground"}>{grave ? tr(errore ?? "") : tr(prezziPerVoce.get(v.id)?.fonte ?? "")}</span>}
                               {!v.tariffa_id && a && !a.confermata && (
                                 <button type="button" className="mt-1 block max-w-full truncate rounded border border-violet-300 bg-violet-50 px-1.5 py-0.5 text-left text-violet-900"
-                                  onClick={() => setAi((x) => ({ ...x, [v.id]: { ...a, confermata: true } }))}>è «{nomiProposti.data?.get(a.tariffaId) ?? "…"}»? Sì</button>
+                                  onClick={() => setAi((x) => ({ ...x, [v.id]: { ...a, confermata: true } }))}>{tr("è «{nome}»? Sì", { nome: nomiProposti.data?.get(a.tariffaId) ?? "…" })}</button>
                               )}
                             </div>
                           )}
@@ -821,20 +823,20 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                     }),
                   ];
                 })}
-                {fasiVisibili.length === 0 && <li className="px-3 py-4 text-sm text-muted-foreground">{soloRichiesta && !mostraTutteVoci ? "Scegli una voce dal computo o aggiungi un lavoro a corpo." : "Nessuna voce libera."}</li>}
+                {fasiVisibili.length === 0 && <li className="px-3 py-4 text-sm text-muted-foreground">{soloRichiesta && !mostraTutteVoci ? tr("Scegli una voce dal computo o aggiungi un lavoro a corpo.") : tr("Nessuna voce libera.")}</li>}
               </ul>
             ) : (
             <table className={`w-full table-fixed text-sm ${soloRichiesta ? "min-w-[25rem]" : "min-w-[46rem]"}`}>
               <thead className="sticky top-0 z-10 bg-muted text-xs text-muted-foreground">
                 <tr>
                   <th className="w-8 px-2 py-1.5" />
-                  <th className="px-1 py-1.5 text-left font-medium">Voce</th>
-                  <th className="w-24 px-1 py-1.5 text-right font-medium">Disponibile</th>
-                  <th className="w-28 px-1 py-1.5 text-right font-medium">{soloRichiesta ? "Da quotare" : "Quantità"}</th>
+                  <th className="px-1 py-1.5 text-left font-medium">{tr("Voce")}</th>
+                  <th className="w-24 px-1 py-1.5 text-right font-medium">{tr("Disponibile")}</th>
+                  <th className="w-28 px-1 py-1.5 text-right font-medium">{soloRichiesta ? tr("Da quotare") : tr("Quantità")}</th>
                   {!soloRichiesta && <>
-                  <th className="w-28 px-1 py-1.5 text-right font-medium">Prezzo concordato</th>
-                  <th className="w-36 px-1 py-1.5 text-left font-medium">Da dove</th>
-                  <th className="w-28 px-2 py-1.5 text-right font-medium">Importo</th>
+                  <th className="w-28 px-1 py-1.5 text-right font-medium">{tr("Prezzo concordato")}</th>
+                  <th className="w-36 px-1 py-1.5 text-left font-medium">{tr("Da dove")}</th>
+                  <th className="w-28 px-2 py-1.5 text-right font-medium">{tr("Importo")}</th>
                   </>}
                 </tr>
               </thead>
@@ -844,8 +846,8 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                   const tutte = ids.every((id) => scelte.has(id));
                   return [
                     <tr key={fase.id} className="border-t bg-muted/40">
-                      <td className="px-2 py-1"><Checkbox checked={tutte} aria-label={`Scegli tutte le voci di ${fase.name}`} onCheckedChange={(c) => cambiaScelta(ids, c === true)} /></td>
-                      <td colSpan={soloRichiesta ? 3 : 6} className="px-1 py-1 text-xs font-medium">{fase.name} <span className="font-normal text-muted-foreground">· {vf.length} {vf.length === 1 ? "voce" : "voci"}</span></td>
+                      <td className="px-2 py-1"><Checkbox checked={tutte} aria-label={tr("Scegli tutte le voci di {fase}", { fase: fase.name })} onCheckedChange={(c) => cambiaScelta(ids, c === true)} /></td>
+                      <td colSpan={soloRichiesta ? 3 : 6} className="px-1 py-1 text-xs font-medium">{fase.name} <span className="font-normal text-muted-foreground">· {tr(vf.length === 1 ? "{n} voce" : "{n} voci", { n: vf.length })}</span></td>
                     </tr>,
                     ...vf.map((v) => {
                       const si = scelte.has(v.id);
@@ -859,40 +861,40 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                       const sottofase = sottotitoloVoce(v);
                       return (
                         <tr key={v.id} className={`border-t align-middle ${grave ? "bg-red-50" : ""}`}>
-                          <td className="px-2 py-1"><Checkbox checked={si} aria-label={`Scegli ${v.descrizione}`} onCheckedChange={(c) => cambiaScelta([v.id], c === true)} /></td>
+                          <td className="px-2 py-1"><Checkbox checked={si} aria-label={tr("Scegli {voce}", { voce: v.descrizione })} onCheckedChange={(c) => cambiaScelta([v.id], c === true)} /></td>
                           <td className="max-w-0 px-1 py-1">
                             {si && inScrittura === v.id ? (
-                              <Input autoFocus aria-label={`Testo ${documentoVoce} per ${v.descrizione}`} className="h-8" value={testi[v.id] ?? v.descrizione}
+                              <Input autoFocus aria-label={tr("Testo {dove} per {voce}", { dove: documentoVoce, voce: v.descrizione })} className="h-8" value={testi[v.id] ?? v.descrizione}
                                 onChange={(e) => setTesti((t) => ({ ...t, [v.id]: e.target.value }))} onBlur={() => setInScrittura(null)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setInScrittura(null); }} />
                             ) : (
                               <div className="flex min-w-0 items-center gap-1">
-                                <p className={`truncate ${testi[v.id] ? "text-blue-900" : ""}`} title={testi[v.id] ? `Testo per la ditta\n${testi[v.id]}\n\nTesto della commessa\n${v.descrizione}` : v.descrizione}>{testi[v.id] ?? v.descrizione}</p>
-                                {si && <button type="button" className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Modifica descrizione di ${v.descrizione}`} title="Modifica la descrizione da inviare alla ditta" onClick={() => setInScrittura(v.id)}><Pencil className="h-3 w-3" /></button>}
+                                <p className={`truncate ${testi[v.id] ? "text-blue-900" : ""}`} title={testi[v.id] ? `${tr("Testo per la ditta")}\n${testi[v.id]}\n\n${tr("Testo della commessa")}\n${v.descrizione}` : v.descrizione}>{testi[v.id] ?? v.descrizione}</p>
+                                {si && <button type="button" className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={tr("Modifica descrizione di {voce}", { voce: v.descrizione })} title={tr("Modifica la descrizione da inviare alla ditta")} onClick={() => setInScrittura(v.id)}><Pencil className="h-3 w-3" /></button>}
                               </div>
                             )}
                             {sottofase && <p className="truncate text-xs text-muted-foreground">{sottofase}</p>}
                           </td>
-                          <td className="whitespace-nowrap px-1 py-1 text-right text-xs tabular-nums text-muted-foreground">{qt(residuaRiga(v.id))} {v.unita ?? ""}{!soloRichiesta && si && q > 0 && q <= residuaRiga(v.id) && <span className="block">Restano {qt(residuaRiga(v.id) - q)} {v.unita ?? ""}</span>}</td>
+                          <td className="whitespace-nowrap px-1 py-1 text-right text-xs tabular-nums text-muted-foreground">{qt(residuaRiga(v.id))} {v.unita ?? ""}{!soloRichiesta && si && q > 0 && q <= residuaRiga(v.id) && <span className="block">{tr("Restano {quantita} {unita}", { quantita: qt(residuaRiga(v.id) - q), unita: v.unita ?? "" })}</span>}</td>
                           <td className="px-1 py-1">
-                            {si && <Input aria-label={`Quantità di ${v.descrizione}`} inputMode="decimal" className="h-8 text-right tabular-nums"
+                            {si && <Input aria-label={tr("Quantità di {voce}", { voce: v.descrizione })} inputMode="decimal" className="h-8 text-right tabular-nums"
                               value={quantita[v.id] ?? casella(quantitaDi(v), 3)} aria-invalid={grave || undefined} onChange={(e) => setQuantita((s) => ({ ...s, [v.id]: e.target.value }))} />}
-                            {soloRichiesta && grave && <span className="mt-1 block text-xs text-red-800">{errore}</span>}
+                            {soloRichiesta && grave && <span className="mt-1 block text-xs text-red-800">{tr(errore ?? "")}</span>}
                           </td>
                           {!soloRichiesta && <>
                           <td className="px-1 py-1">
-                            {si && <Input aria-label={`Prezzo di ${v.descrizione}`} inputMode="decimal" className="h-8 text-right tabular-nums" placeholder={ditta ? "—" : "ditta?"}
+                            {si && <Input aria-label={tr("Prezzo di {voce}", { voce: v.descrizione })} inputMode="decimal" className="h-8 text-right tabular-nums" placeholder={ditta ? "—" : tr("ditta?")}
                               disabled={!ditta} value={prezzi[v.id] ?? casella(prezzoDi(v.id))} onChange={(e) => setPrezzi((s) => ({ ...s, [v.id]: e.target.value }))} />}
                           </td>
                           <td className="px-1 py-1 text-[11px] leading-tight">
                             {si && <span className={errore ? (grave ? "text-red-800" : "text-amber-800") : "text-muted-foreground"}>
-                              {grave ? errore : fonte}
+                              {grave ? tr(errore ?? "") : tr(fonte ?? "")}
                             </span>}
                             {si && !v.tariffa_id && a && (
                               a.confermata
-                                ? <Badge variant="outline" className="ml-1 h-4 border-violet-300 bg-violet-50 px-1 text-[10px] font-normal text-violet-900" title={nomiProposti.data?.get(a.tariffaId) ?? undefined}>listino</Badge>
-                                : <button type="button" className="mt-0.5 block max-w-full truncate rounded border border-violet-300 bg-violet-50 px-1 text-left text-[10px] text-violet-900" title={`Nel listino: ${a.perche || "proposta da verificare"}`}
-                                    onClick={() => setAi((x) => ({ ...x, [v.id]: { ...a, confermata: true } }))}>è «{nomiProposti.data?.get(a.tariffaId) ?? "…"}»{a.certezza === "media" ? " (dubbio)" : ""}? Sì</button>
+                                ? <Badge variant="outline" className="ml-1 h-4 border-violet-300 bg-violet-50 px-1 text-[10px] font-normal text-violet-900" title={nomiProposti.data?.get(a.tariffaId) ?? undefined}>{tr("listino")}</Badge>
+                                : <button type="button" className="mt-0.5 block max-w-full truncate rounded border border-violet-300 bg-violet-50 px-1 text-left text-[10px] text-violet-900" title={tr("Nel listino: {motivo}", { motivo: a.perche || tr("proposta da verificare") })}
+                                    onClick={() => setAi((x) => ({ ...x, [v.id]: { ...a, confermata: true } }))}>{a.certezza === "media" ? tr("è «{nome}» (dubbio)? Sì", { nome: nomiProposti.data?.get(a.tariffaId) ?? "…" }) : tr("è «{nome}»? Sì", { nome: nomiProposti.data?.get(a.tariffaId) ?? "…" })}</button>
                             )}
                           </td>
                           <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{si ? formatCurrency(Math.round(q * pr * 100) / 100) : ""}</td>
@@ -902,7 +904,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                     }),
                   ];
                 })}
-                {fasiVisibili.length === 0 && <tr><td colSpan={soloRichiesta ? 4 : 7} className="px-3 py-4 text-sm text-muted-foreground">{soloRichiesta && !mostraTutteVoci ? "Scegli una voce dal computo o aggiungi un lavoro a corpo." : voci.length ? "Nessuna voce disponibile per la selezione corrente." : "La commessa non ha voci: si affidano le voci del computo o del preventivo."}</td></tr>}
+                {fasiVisibili.length === 0 && <tr><td colSpan={soloRichiesta ? 4 : 7} className="px-3 py-4 text-sm text-muted-foreground">{soloRichiesta && !mostraTutteVoci ? tr("Scegli una voce dal computo o aggiungi un lavoro a corpo.") : voci.length ? tr("Nessuna voce disponibile per la selezione corrente.") : tr("La commessa non ha voci: si affidano le voci del computo o del preventivo.")}</td></tr>}
               </tbody>
             </table>
             )
@@ -912,75 +914,75 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
             {extra.map((voce, indice) => (!faseAttiva || voce.faseId === faseAttiva) && (
               <div key={voce.id} className={`grid gap-2 rounded-lg border p-2 ${soloRichiesta ? "sm:grid-cols-[minmax(7rem,1fr)_minmax(10rem,2fr)_auto]" : "sm:grid-cols-[minmax(7rem,1fr)_minmax(10rem,2fr)_7rem_auto]"}`}>
                 <div className="min-w-0 space-y-1.5">
-                  <OfficeSelect label={`Macrofase lavoro a corpo ${indice + 1}`} value={voce.faseId} className="w-full"
-                    options={[...fasi.map(fase => ({ value: fase.id, label: fase.name })), { value: ALTRI_LAVORI, label: "Senza macrofase" }]}
+                  <OfficeSelect label={tr("Macrofase lavoro a corpo {n}", { n: indice + 1 })} value={voce.faseId} className="w-full"
+                    options={[...fasi.map(fase => ({ value: fase.id, label: fase.name })), { value: ALTRI_LAVORI, label: tr("Senza macrofase") }]}
                     onValueChange={faseId => { cambiaExtra(voce.id, { faseId, sottofaseId: undefined }); if (faseAttiva) setFaseAttiva(faseId); }} />
                   {sottofasi.some(s => s.phase_id === voce.faseId) && (
-                    <OfficeSelect label={`Sottofase lavoro a corpo ${indice + 1}`} value={voce.sottofaseId ?? ""} className="w-full"
-                      placeholder="Sottofase facoltativa" options={sottofasi.filter(s => s.phase_id === voce.faseId).map(s => ({ value: s.id, label: s.name }))}
+                    <OfficeSelect label={tr("Sottofase lavoro a corpo {n}", { n: indice + 1 })} value={voce.sottofaseId ?? ""} className="w-full"
+                      placeholder={tr("Sottofase facoltativa")} options={sottofasi.filter(s => s.phase_id === voce.faseId).map(s => ({ value: s.id, label: s.name }))}
                       onValueChange={sottofaseId => cambiaExtra(voce.id, { sottofaseId })} />
                   )}
                 </div>
-                <Input value={voce.descrizione} aria-label={`Descrizione lavoro a corpo ${indice + 1}`} placeholder="Descrizione del lavoro"
+                <Input value={voce.descrizione} aria-label={tr("Descrizione lavoro a corpo {n}", { n: indice + 1 })} placeholder={tr("Descrizione del lavoro")}
                   onChange={e => cambiaExtra(voce.id, { descrizione: e.target.value })} />
-                {!soloRichiesta && <Input value={voce.importo ?? casella(prezzoACorpo(voce))} aria-label={`Importo a corpo ${indice + 1}`} inputMode="decimal" placeholder="Importo €"
+                {!soloRichiesta && <Input value={voce.importo ?? casella(prezzoACorpo(voce))} aria-label={tr("Importo a corpo {n}", { n: indice + 1 })} inputMode="decimal" placeholder={tr("Importo €")}
                   onChange={e => cambiaExtra(voce.id, { importo: e.target.value })} />}
-                <Button type="button" size="icon" variant="ghost" aria-label={`Togli lavoro a corpo ${indice + 1}`}
+                <Button type="button" size="icon" variant="ghost" aria-label={tr("Togli lavoro a corpo {n}", { n: indice + 1 })}
                   onClick={() => setExtra(lista => lista.filter(riga => riga.id !== voce.id))}><Trash2 className="size-4" /></Button>
               </div>
             ))}
             <Button type="button" size="sm" variant="outline" onClick={aggiungiACorpo}>
-              <Plus className="mr-1 size-4" /> Aggiungi lavoro a corpo
+              <Plus className="mr-1 size-4" /> {tr("Aggiungi lavoro a corpo")}
             </Button>
           </div>
           </NavigazioneComputo>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm">
-          <span>{conteggio} {conteggio === 1 ? "voce" : "voci"}{nomeDitta ? ` a ${nomeDitta}` : ""}</span>
-          {soloRichiesta && suRichiesta && troppeVoci && <p role="alert" className="text-xs text-destructive">Ogni richiesta salvata può contenere fino a {MAX_VOCI_RICHIESTA} voci.</p>}
+          <span>{nomeDitta ? tr(conteggio === 1 ? "{n} voce a {ditta}" : "{n} voci a {ditta}", { n: conteggio, ditta: nomeDitta }) : tr(conteggio === 1 ? "{n} voce" : "{n} voci", { n: conteggio })}</span>
+          {soloRichiesta && suRichiesta && troppeVoci && <p role="alert" className="text-xs text-destructive">{tr("Ogni richiesta salvata può contenere fino a {n} voci.", { n: MAX_VOCI_RICHIESTA })}</p>}
           {!soloRichiesta && <>
-          {canViewOrderAmounts && conto.venduto > 0 && <span>Venduto al cliente <strong className="tabular-nums">{formatCurrency(conto.venduto)}</strong></span>}
-          {stima != null && Math.abs(stima - conto.costo - importoACorpo) >= 0.01 && <span>Stima di partenza <strong className="tabular-nums">{formatCurrency(stima)}</strong></span>}
-          <span>Costo ditta <strong className="tabular-nums">{formatCurrency(conto.costo + importoACorpo)}</strong> <span className="text-xs text-muted-foreground">netto IVA</span></span>
-          {!contrattoAttuale && <label className="flex items-center gap-2 text-xs">Oneri di sicurezza
+          {canViewOrderAmounts && conto.venduto > 0 && <span>{tr("Venduto al cliente")} <strong className="tabular-nums">{formatCurrency(conto.venduto)}</strong></span>}
+          {stima != null && Math.abs(stima - conto.costo - importoACorpo) >= 0.01 && <span>{tr("Stima di partenza")} <strong className="tabular-nums">{formatCurrency(stima)}</strong></span>}
+          <span>{tr("Costo ditta")} <strong className="tabular-nums">{formatCurrency(conto.costo + importoACorpo)}</strong> <span className="text-xs text-muted-foreground">{tr("netto IVA")}</span></span>
+          {!contrattoAttuale && <label className="flex items-center gap-2 text-xs">{tr("Oneri di sicurezza")}
             <Input className="h-8 w-24 text-right tabular-nums" inputMode="decimal" placeholder="0,00 €"
               value={oneriTesto} onChange={e => setOneri(e.target.value)} aria-invalid={sicurezza == null} />
           </label>}
-          {!contrattoAttuale && oneri > 0 && <span>Totale con oneri <strong>{formatCurrency(conto.costo + importoACorpo + oneri)}</strong></span>}
+          {!contrattoAttuale && oneri > 0 && <span>{tr("Totale con oneri")} <strong>{formatCurrency(conto.costo + importoACorpo + oneri)}</strong></span>}
           {daScrivere > 0
-            ? <span className="text-amber-800">{daScrivere === 1 ? "1 prezzo da scrivere" : `${daScrivere} prezzi da scrivere`}</span>
-            : canViewOrderAmounts && canViewMargins && conto.venduto > 0 && <span className={conto.margine - importoACorpo < 0 ? "text-destructive" : "text-muted-foreground"}>Margine {formatCurrency(conto.margine - importoACorpo)}{conto.marginePct != null && !importoACorpo ? ` (${conto.marginePct.toLocaleString("it-IT")}%)` : ""}</span>}
+            ? <span className="text-amber-800">{daScrivere === 1 ? tr("1 prezzo da scrivere") : tr("{n} prezzi da scrivere", { n: daScrivere })}</span>
+            : canViewOrderAmounts && canViewMargins && conto.venduto > 0 && <span className={conto.margine - importoACorpo < 0 ? "text-destructive" : "text-muted-foreground"}>{tr("Margine")} {formatCurrency(conto.margine - importoACorpo)}{conto.marginePct != null && !importoACorpo ? ` (${conto.marginePct.toLocaleString(intlCampo())}%)` : ""}</span>}
           {(() => {
             const daDire = sceltiOrdinati.filter((v) => !v.tariffa_id && ai[v.id] && !ai[v.id].confermata).map((v) => v.id);
             return daDire.length > 1 && (
               <button type="button" className="rounded border border-violet-300 bg-violet-50 px-2 py-0.5 text-xs text-violet-900"
                 onClick={() => setAi((x) => ({ ...x, ...Object.fromEntries(daDire.map((id) => [id, { ...x[id], confermata: true }])) }))}>
-                Sì a tutte le {daDire.length} voci di listino proposte
+                {tr("Sì a tutte le {n} voci di listino proposte", { n: daDire.length })}
               </button>
             );
           })()}
           {canEditSettingsPricing && ditta && comprende === "posa" && (
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="I prezzi scritti a mano entrano nel listino della ditta: la prossima volta arrivano da soli">
-              <Checkbox checked={ricorda} onCheckedChange={(c) => setRicorda(c === true)} aria-label="Ricorda i prezzi nel listino della ditta" />
-              ricorda i prezzi nel listino della ditta
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title={tr("I prezzi scritti a mano entrano nel listino della ditta: la prossima volta arrivano da soli")}>
+              <Checkbox checked={ricorda} onCheckedChange={(c) => setRicorda(c === true)} aria-label={tr("Ricorda i prezzi nel listino della ditta")} />
+              {tr("ricorda i prezzi nel listino della ditta")}
             </label>
           )}
-          {(aiInCorso > 0 || proposti.isFetching) && <span className="text-xs text-muted-foreground"><Loader2 className="mr-1 inline h-3 w-3 animate-spin" />{aiInCorso > 0 ? <><Sparkles className="mr-0.5 inline h-3 w-3" />cerco nel listino {aiInCorso} voci</> : "calcolo i prezzi"}</span>}
+          {(aiInCorso > 0 || proposti.isFetching) && <span className="text-xs text-muted-foreground"><Loader2 className="mr-1 inline h-3 w-3 animate-spin" />{aiInCorso > 0 ? <><Sparkles className="mr-0.5 inline h-3 w-3" />{tr("cerco nel listino {n} voci", { n: aiInCorso })}</> : tr("calcolo i prezzi")}</span>}
           </>}
           <AzioniLavorazioni><span className="flex w-full flex-wrap justify-end gap-2 sm:ml-auto sm:w-auto">
             <Button variant={soloRichiesta && !suRichiesta ? "default" : "outline"} disabled={occupato || !richiestaValida} onClick={() => avviaAzione(() => datiComputo.mutateAsync("richiesta"))}>
-              {datiComputo.isPending && datiComputo.variables === "richiesta" ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" aria-hidden="true" />} {soloRichiesta ? "Anteprima PDF" : "Richiesta d’offerta"}
+              {datiComputo.isPending && datiComputo.variables === "richiesta" ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" aria-hidden="true" />} {soloRichiesta ? tr("Anteprima PDF") : tr("Richiesta d’offerta")}
             </Button>
             {soloRichiesta && suRichiesta && <Button disabled={occupato || !richiestaValida || troppeVoci} onClick={() => avviaAzione(() => datiComputo.mutateAsync("salva-richiesta"))}>
-              {datiComputo.isPending && datiComputo.variables === "salva-richiesta" && <Loader2 className="size-4 animate-spin" />}Salva bozza
+              {datiComputo.isPending && datiComputo.variables === "salva-richiesta" && <Loader2 className="size-4 animate-spin" />}{tr("Salva bozza")}
             </Button>}
             {!soloRichiesta && <>
             <Button variant="outline" className="max-sm:flex-1" disabled={nonSalvabile} onClick={() => avviaAzione(() => incorporato ? datiComputo.mutateAsync("contratto") : crea.mutateAsync(false))}>
-              {crea.isPending && crea.variables === false && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{contrattoAttuale && !contrattoAttuale.firmato_il ? "Conferma e aggiungi" : "Conferma prezzi e crea bozza"}
+              {crea.isPending && crea.variables === false && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{contrattoAttuale && !contrattoAttuale.firmato_il ? tr("Conferma e aggiungi") : tr("Conferma prezzi e crea bozza")}
             </Button>
             <Button className="max-sm:flex-1" disabled={nonSalvabile} onClick={() => avviaAzione(() => incorporato ? datiComputo.mutateAsync("firma") : crea.mutateAsync(true))}>
-              {crea.isPending && crea.variables === true ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />}{telefono ? "Manda in firma" : contrattoAttuale && !contrattoAttuale.firmato_il ? "Aggiungi e manda in firma" : "Crea e manda in firma"}
+              {crea.isPending && crea.variables === true ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />}{telefono ? tr("Manda in firma") : contrattoAttuale && !contrattoAttuale.firmato_il ? tr("Aggiungi e manda in firma") : tr("Crea e manda in firma")}
             </Button>
             </>}
           </span></AzioniLavorazioni>
@@ -1006,25 +1008,26 @@ export function AffidaContrattoDaCommessa({ orderId, companyId, dittaFissa, part
   onOccupato?: (si: boolean) => void;
   onChiudi: () => void; onContrattoSalvato?: (id: string) => void;
 }) {
+  const tr = useT();
   const qc = useQueryClient();
   const voci = useVociPrevisteFasi(orderId, true);
   const dati = useDatiAffidaContratto(orderId, companyId);
   const errore = dati.isError || voci.isError;
   useEffect(() => {
     if (!errore || incorporato) return;
-    toast.error("Non riesco a leggere fasi e voci della commessa.");
+    toast.error(tr("Non riesco a leggere fasi e voci della commessa."));
     onChiudi();
-  }, [errore, incorporato, onChiudi]);
+  }, [errore, incorporato, onChiudi, tr]);
   if (errore) return incorporato ? <div role="alert" className="space-y-2">
-    <p>Non riesco a leggere fasi e voci della commessa.</p>
-    <Button size="sm" variant="outline" onClick={() => { void dati.refetch(); void voci.refetch(); }}>Riprova</Button>
+    <p>{tr("Non riesco a leggere fasi e voci della commessa.")}</p>
+    <Button size="sm" variant="outline" onClick={() => { void dati.refetch(); void voci.refetch(); }}>{tr("Riprova")}</Button>
   </div> : null;
   if (!dati.data || !voci.data) {
-    if (incorporato) return <p role="status" className="text-sm text-muted-foreground">Carico il computo della commessa…</p>;
+    if (incorporato) return <p role="status" className="text-sm text-muted-foreground">{tr("Carico il computo della commessa…")}</p>;
     return (
       <Dialog open onOpenChange={(o) => !o && onChiudi()}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>Affida e manda il contratto</DialogTitle><DialogDescription>Carico fasi e voci della commessa…</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{tr("Affida e manda il contratto")}</DialogTitle><DialogDescription>{tr("Carico fasi e voci della commessa…")}</DialogDescription></DialogHeader>
           <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
         </DialogContent>
       </Dialog>

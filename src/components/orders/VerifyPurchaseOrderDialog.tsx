@@ -18,6 +18,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogDescription } from "@/componen
 import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { VerificationResultCard, type VerificationData } from "./VerificationResultCard";
 import type { JSX } from "react";
 
@@ -43,6 +44,7 @@ type VerificationMode = "auto" | "document_pdf" | "document_image" | "attachment
 export function VerifyPurchaseOrderDialog({
   open, onOpenChange, purchaseOrderId, odaNumber, orderId, orderCode, attachmentUrl,
 }: VerifyPurchaseOrderDialogProps): JSX.Element {
+  const t = useT();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [mode, setMode] = useState<VerificationMode>("auto");
@@ -75,12 +77,12 @@ export function VerifyPurchaseOrderDialog({
           .from("order-attachments")
           .createSignedUrl(attachmentUrl, 600);
         if (signErr || !signed?.signedUrl) {
-          throw new Error("Documento allegato non scaricabile dallo storage");
+          throw new Error(t("Documento allegato non scaricabile dallo storage"));
         }
         const resp = await fetch(signed.signedUrl);
-        if (!resp.ok) throw new Error("Documento allegato non scaricabile");
+        if (!resp.ok) throw new Error(t("Documento allegato non scaricabile"));
         const bytes = new Uint8Array(await resp.arrayBuffer());
-        if (bytes.length > 10 * 1024 * 1024) throw new Error("Documento troppo grande (max 10MB)");
+        if (bytes.length > 10 * 1024 * 1024) throw new Error(t("Documento troppo grande (max 10MB)"));
         let binary = "";
         for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
         const base = btoa(binary);
@@ -101,7 +103,7 @@ export function VerifyPurchaseOrderDialog({
       }
 
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Non autenticato");
+      if (!session) throw new Error(t("Non autenticato"));
 
       const resp = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-purchase-order`,
@@ -122,7 +124,7 @@ export function VerifyPurchaseOrderDialog({
 
       if (!resp.ok) {
         const errBody = await resp.json().catch(() => ({ error: resp.statusText }));
-        throw new Error(errBody.error || `Errore ${resp.status}`);
+        throw new Error(errBody.error || t("Errore {stato}", { stato: resp.status }));
       }
 
       return resp.json() as Promise<VerificationData>;
@@ -134,7 +136,7 @@ export function VerifyPurchaseOrderDialog({
       queryClient.invalidateQueries({ queryKey: ["purchase-order-detail", purchaseOrderId] });
     },
     onError: (e: Error) => {
-      toast.error("Errore nella verifica AI", { description: e.message });
+      toast.error(t("Errore nella verifica AI"), { description: e.message });
     },
   });
 
@@ -142,7 +144,7 @@ export function VerifyPurchaseOrderDialog({
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
-        toast.error("File troppo grande (max 10MB)");
+        toast.error(t("File troppo grande (max 10MB)"));
         return;
       }
       setUploadedFile(file);
@@ -163,17 +165,17 @@ export function VerifyPurchaseOrderDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
-            Verifica AI — {odaNumber}
+            {t("Verifica AI — {oda}", { oda: odaNumber })}
           </DialogTitle>
           <DialogDescription>
-            Confronta l'ordine d'acquisto con il documento del cliente o del fornitore usando l'intelligenza artificiale.
+            {t("Confronta l'ordine d'acquisto con il documento del cliente o del fornitore usando l'intelligenza artificiale.")}
           </DialogDescription>
         </DialogHeader>
 
         {/* Step 1 — Mode Selection */}
         {step === 1 && (
           <div className="space-y-4 py-2">
-            <Label className="text-sm font-medium">Seleziona modalità di verifica</Label>
+            <Label className="text-sm font-medium">{t("Seleziona modalità di verifica")}</Label>
             <div className="grid gap-3">
               {/* Auto mode */}
               <button
@@ -186,11 +188,11 @@ export function VerifyPurchaseOrderDialog({
               >
                 <FileText className="h-5 w-5 mt-0.5 text-primary shrink-0" />
                 <div>
-                  <p className="font-medium text-sm">Confronta con Commessa Cliente</p>
+                  <p className="font-medium text-sm">{t("Confronta con Commessa Cliente")}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {orderId
-                      ? `Confronto automatico degli articoli dell'OdA con la commessa ${orderCode || ""}`
-                      : "Non disponibile — OdA non collegato a una commessa"}
+                      ? t("Confronto automatico degli articoli dell'OdA con la commessa {commessa}", { commessa: orderCode || "" })
+                      : t("Non disponibile — OdA non collegato a una commessa")}
                   </p>
                 </div>
               </button>
@@ -206,9 +208,9 @@ export function VerifyPurchaseOrderDialog({
                 >
                   <ShieldCheck className="h-5 w-5 mt-0.5 text-primary shrink-0" />
                   <div>
-                    <p className="font-medium text-sm">Usa il documento allegato all'ordine</p>
+                    <p className="font-medium text-sm">{t("Usa il documento allegato all'ordine")}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Confronta la conferma d'ordine gia' caricata ({attachmentUrl.split("/").pop()}) senza ricaricarla
+                      {t("Confronta la conferma d'ordine gia' caricata ({file}) senza ricaricarla", { file: attachmentUrl.split("/").pop() })}
                     </p>
                   </div>
                 </button>
@@ -224,9 +226,9 @@ export function VerifyPurchaseOrderDialog({
               >
                 <Upload className="h-5 w-5 mt-0.5 text-primary shrink-0" />
                 <div>
-                  <p className="font-medium text-sm">Carica Preventivo Fornitore (PDF)</p>
+                  <p className="font-medium text-sm">{t("Carica Preventivo Fornitore (PDF)")}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Carica il PDF del preventivo o della conferma d'ordine del fornitore
+                    {t("Carica il PDF del preventivo o della conferma d'ordine del fornitore")}
                   </p>
                 </div>
               </button>
@@ -241,9 +243,9 @@ export function VerifyPurchaseOrderDialog({
               >
                 <ImageIcon className="h-5 w-5 mt-0.5 text-primary shrink-0" />
                 <div>
-                  <p className="font-medium text-sm">Carica Preventivo Fornitore (Foto)</p>
+                  <p className="font-medium text-sm">{t("Carica Preventivo Fornitore (Foto)")}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Carica una foto o scansione del preventivo del fornitore
+                    {t("Carica una foto o scansione del preventivo del fornitore")}
                   </p>
                 </div>
               </button>
@@ -251,7 +253,7 @@ export function VerifyPurchaseOrderDialog({
 
             <div className="flex justify-end">
               <Button onClick={() => setStep(2)}>
-                Avanti
+                {t("Avanti")}
               </Button>
             </div>
           </div>
@@ -262,19 +264,21 @@ export function VerifyPurchaseOrderDialog({
           <div className="space-y-4 py-2">
             {mode === "auto" || mode === "attachment" ? (
               <div className="rounded-lg border p-4 space-y-2">
-                <p className="text-sm font-medium">Riepilogo confronto</p>
+                <p className="text-sm font-medium">{t("Riepilogo confronto")}</p>
                 <p className="text-xs text-muted-foreground">
                   {mode === "auto"
-                    ? <>L'AI confronterà gli articoli dell'OdA <strong>{odaNumber}</strong> con quelli della commessa cliente <strong>{orderCode || ""}</strong>.</>
-                    : <>L'AI confronterà il documento allegato (<strong>{attachmentUrl?.split("/").pop()}</strong>) con il contenuto dell'OdA <strong>{odaNumber}</strong>{orderCode ? <> e della commessa <strong>{orderCode}</strong></> : null}.</>}
+                    ? t("L'AI confronterà gli articoli dell'OdA {oda} con quelli della commessa cliente {commessa}.", { oda: odaNumber, commessa: orderCode || "" })
+                    : orderCode
+                      ? t("L'AI confronterà il documento allegato ({file}) con il contenuto dell'OdA {oda} e della commessa {commessa}.", { file: attachmentUrl?.split("/").pop() ?? "", oda: odaNumber, commessa: orderCode })
+                      : t("L'AI confronterà il documento allegato ({file}) con il contenuto dell'OdA {oda}.", { file: attachmentUrl?.split("/").pop() ?? "", oda: odaNumber })}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Verranno verificati: quantità, prezzi, descrizioni e specifiche tecniche.
+                  {t("Verranno verificati: quantità, prezzi, descrizioni e specifiche tecniche.")}
                 </p>
               </div>
             ) : (
               <div className="space-y-3">
-                <Label>Carica documento fornitore</Label>
+                <Label>{t("Carica documento fornitore")}</Label>
                 <div className="border-2 border-dashed rounded-lg p-6 text-center">
                   {uploadedFile ? (
                     <div className="space-y-2">
@@ -288,7 +292,7 @@ export function VerifyPurchaseOrderDialog({
                         size="sm"
                         onClick={() => setUploadedFile(null)}
                       >
-                        Cambia file
+                        {t("Cambia file")}
                       </Button>
                     </div>
                   ) : (
@@ -296,8 +300,8 @@ export function VerifyPurchaseOrderDialog({
                       <Upload className="h-8 w-8 text-muted-foreground mx-auto" />
                       <p className="text-sm text-muted-foreground">
                         {mode === "document_pdf"
-                          ? "Clicca per caricare un PDF (max 10MB)"
-                          : "Clicca per caricare un'immagine (max 10MB)"}
+                          ? t("Clicca per caricare un PDF (max 10MB)")
+                          : t("Clicca per caricare un'immagine (max 10MB)")}
                       </p>
                       <input
                         type="file"
@@ -315,9 +319,9 @@ export function VerifyPurchaseOrderDialog({
             {verifyMutation.isPending && (
               <div className="rounded-lg border p-6 bg-primary/5 text-center space-y-3">
                 <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
-                <p className="text-sm font-medium">Analisi in corso...</p>
+                <p className="text-sm font-medium">{t("Analisi in corso...")}</p>
                 <p className="text-xs text-muted-foreground">
-                  L'AI sta confrontando i documenti. Potrebbe richiedere fino a 60 secondi.
+                  {t("L'AI sta confrontando i documenti. Potrebbe richiedere fino a 60 secondi.")}
                 </p>
                 <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                   <div className="bg-primary h-full animate-pulse rounded-full" style={{ width: "70%" }} />
@@ -327,7 +331,7 @@ export function VerifyPurchaseOrderDialog({
 
             <div className="flex items-center justify-between">
               <Button variant="outline" onClick={() => setStep(1)} disabled={verifyMutation.isPending}>
-                Indietro
+                {t("Indietro")}
               </Button>
               <Button
                 onClick={() => verifyMutation.mutate()}
@@ -336,12 +340,12 @@ export function VerifyPurchaseOrderDialog({
                 {verifyMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Verifica in corso...
+                    {t("Verifica in corso...")}
                   </>
                 ) : (
                   <>
                     <ShieldCheck className="h-4 w-4 mr-2" />
-                    Avvia Verifica
+                    {t("Avvia Verifica")}
                   </>
                 )}
               </Button>
@@ -354,7 +358,7 @@ export function VerifyPurchaseOrderDialog({
           <div className="space-y-4 py-2">
             <VerificationResultCard data={result} />
             <div className="flex justify-end">
-              <Button onClick={() => handleOpenChange(false)}>Chiudi</Button>
+              <Button onClick={() => handleOpenChange(false)}>{t("Chiudi")}</Button>
             </div>
           </div>
         )}

@@ -27,12 +27,13 @@ import { NavyStatCard } from "@/components/costi/KpiCard";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { useEsposizioneCommessa, type RataEsposizione } from "@/hooks/useEsposizioneCommessa";
 import type { VarianteDatata } from "@/lib/commissions";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** "al 50%" ma "all'80%" / "all'8%" / "all'11%". */
-const alPct = (n: number) => {
+const alPct = (n: number, t: (testo: string, valori?: Readonly<Record<string, string | number>>) => string) => {
   const r = Math.round(n);
   const apostrofo = r === 8 || r === 11 || (r >= 80 && r <= 89);
-  return `${apostrofo ? "all'" : "al "}${r}%`;
+  return apostrofo ? t("all'{n}%", { n: r }) : t("al {n}%", { n: r });
 };
 
 const fmtData = (iso: string) => {
@@ -75,6 +76,7 @@ export function CassaVerdettoBand({
   onVaiPagamenti: () => void;
   onVaiEsposizione: () => void;
 }) {
+  const t = useT();
   const { esposizione } = useEsposizioneCommessa({
     orderId,
     totalAmount,
@@ -106,13 +108,13 @@ export function CassaVerdettoBand({
   return (
     <div className="rounded-2xl bg-eic-navy-deep p-3 sm:p-4">
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">
-        La cassa di questa commessa
+        {t("La cassa di questa commessa")}
       </p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
         {canViewCosts && (
           <div className="col-span-2 sm:col-span-1">
             <NavyStatCard
-              label="Chi finanzia il cantiere"
+              label={t("Chi finanzia il cantiere")}
               value={
                 esposizione.hasMovimenti
                   ? `${clienteFinanzia ? "+" : "−"}${formatCurrencyCompact(Math.abs(saldo))}`
@@ -121,9 +123,9 @@ export function CassaVerdettoBand({
               sub={
                 esposizione.hasMovimenti
                   ? clienteFinanzia
-                    ? "il cliente: incassato più che pagato"
-                    : "tu: pagato più che incassato"
-                  : "nessun movimento ancora"
+                    ? t("il cliente: incassato più che pagato")
+                    : t("tu: pagato più che incassato")
+                  : t("nessun movimento ancora")
               }
               icon={HandCoins}
               tone={esposizione.hasMovimenti && !clienteFinanzia ? "text-red-300" : "text-emerald-300"}
@@ -132,22 +134,22 @@ export function CassaVerdettoBand({
           </div>
         )}
         <NavyStatCard
-          label="Incassato"
+          label={t("Incassato")}
           value={formatCurrencyCompact(collectedGross)}
-          sub={`${incassataPct}% su ${formatCurrencyCompact(cashTotalGross)}`}
+          sub={t("{percentuale}% su {totale}", { percentuale: incassataPct, totale: formatCurrencyCompact(cashTotalGross) })}
           icon={Banknote}
           tone="text-blue-100"
           onClick={onVaiPagamenti}
         />
         <NavyStatCard
-          label="Da incassare"
+          label={t("Da incassare")}
           value={formatCurrencyCompact(daIncassare)}
           sub={
             daIncassare <= 0
-              ? "tutto incassato"
+              ? t("tutto incassato")
               : prossimaRata
-                ? `${prossimaRata.scaduta ? "rata scaduta il" : "prossima rata il"} ${fmtData(prossimaRata.date)}`
-                : "nessuna scadenza fissata"
+                ? prossimaRata.scaduta ? t("rata scaduta il {data}", { data: fmtData(prossimaRata.date) }) : t("prossima rata il {data}", { data: fmtData(prossimaRata.date) })
+                : t("nessuna scadenza fissata")
           }
           icon={CalendarClock}
           tone={prossimaRata?.scaduta && daIncassare > 0 ? "text-orange-300" : "text-blue-100"}
@@ -186,6 +188,7 @@ export function EsposizioneCommessa({
    *  mobile e desktop sono entrambi nel DOM, un id doppio punterebbe al nodo nascosto). */
   anchorId?: string;
 }) {
+  const t = useT();
   const { esposizione, isLoading, isError, recorded } = useEsposizioneCommessa({
     orderId,
     totalAmount,
@@ -205,7 +208,7 @@ export function EsposizioneCommessa({
   if (isLoading) {
     return <Skeleton className="h-40 w-full rounded-xl" />;
   }
-  if (isError) return <p role="alert" className="rounded-xl border p-4 text-sm text-amber-700">Non riesco a leggere i movimenti di cassa della commessa.</p>;
+  if (isError) return <p role="alert" className="rounded-xl border p-4 text-sm text-amber-700">{t("Non riesco a leggere i movimenti di cassa della commessa.")}</p>;
   if (!esposizione.hasMovimenti) return null;
 
   const { incassato, uscite, saldoOggi, picco, daPagare, serieMensile } = esposizione;
@@ -218,20 +221,20 @@ export function EsposizioneCommessa({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <HandCoins className={`h-4 w-4 ${clienteFinanzia ? "text-emerald-500" : "text-red-500"}`} />
-            Chi finanzia il cantiere
+            {t("Chi finanzia il cantiere")}
           </CardTitle>
           <div className="text-right">
             <p className={`text-2xl font-bold tabular-nums leading-none ${clienteFinanzia ? "text-emerald-700" : "text-red-700"}`}>
               {clienteFinanzia ? "+" : "−"}{formatCurrency(Math.abs(saldoOggi))}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">{clienteFinanzia ? "in cassa grazie al cliente" : "anticipati da te"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{clienteFinanzia ? t("in cassa grazie al cliente") : t("anticipati da te")}</p>
           </div>
         </div>
         <p className={`rounded-lg px-3 py-2 text-sm ${clienteFinanzia ? "bg-emerald-50 text-emerald-900" : "bg-red-50 text-red-900"}`}>
           {clienteFinanzia ? (
-            <>Fin qui il cantiere lo <strong>finanzia il cliente</strong>: entrati {formatCurrency(incassato)}, usciti {formatCurrency(uscite)}.</>
+            <>{t("Fin qui il cantiere lo")} <strong>{t("finanzia il cliente")}</strong>{t(": entrati {entrati}, usciti {usciti}.", { entrati: formatCurrency(incassato), usciti: formatCurrency(uscite) })}</>
           ) : (
-            <>Fin qui il cantiere lo <strong>stai finanziando tu</strong>: hai pagato {formatCurrency(Math.abs(saldoOggi))} più di quanto hai incassato ({formatCurrency(uscite)} usciti, {formatCurrency(incassato)} entrati).</>
+            <>{t("Fin qui il cantiere lo")} <strong>{t("stai finanziando tu")}</strong>{t(": hai pagato {differenza} più di quanto hai incassato ({usciti} usciti, {entrati} entrati).", { differenza: formatCurrency(Math.abs(saldoOggi)), usciti: formatCurrency(uscite), entrati: formatCurrency(incassato) })}</>
           )}
         </p>
       </CardHeader>
@@ -241,9 +244,9 @@ export function EsposizioneCommessa({
         {serieMensile.length >= 2 && (
           <div className="max-sm:hidden">
             <div className="mb-1 flex flex-wrap items-center justify-end gap-3 text-[11px]">
-              <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Incassi</span>
-              <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-rose-500" /> Uscite</span>
-              <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-sky-600" /> Cassa del cantiere</span>
+              <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-emerald-500" /> {t("Incassi")}</span>
+              <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-rose-500" /> {t("Uscite")}</span>
+              <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-sky-600" /> {t("Cassa del cantiere")}</span>
             </div>
             <div className="h-[230px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
               <ResponsiveContainer width="100%" height="100%">
@@ -271,10 +274,10 @@ export function EsposizioneCommessa({
                       boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
                     }}
                     formatter={(value, name) => [
-                      Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }),
-                      name === "entrate" ? "Incassi del mese" : name === "uscite" ? "Uscite del mese" : "Cassa del cantiere",
+                      Number(value).toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }),
+                      name === "entrate" ? t("Incassi del mese") : name === "uscite" ? t("Uscite del mese") : t("Cassa del cantiere"),
                     ]}
-                    labelFormatter={(label) => `Mese: ${label}`}
+                    labelFormatter={(label) => t("Mese: {mese}", { mese: String(label) })}
                   />
                   {/* Sotto la linea dello zero il cantiere lo stai finanziando tu. */}
                   <ReferenceLine y={0} stroke="#94a3b8" />
@@ -291,25 +294,25 @@ export function EsposizioneCommessa({
             una riga (prima quattro riquadri che ripetevano la frase). */}
         {(daPagare > 0 || (picco && picco.value < 0)) && (
           <p className="text-[13px] text-muted-foreground sm:hidden">
-            {daPagare > 0 && <>Ancora da pagare <strong className="text-foreground">{formatCurrencyCompact(daPagare)}</strong></>}
+            {daPagare > 0 && <>{t("Ancora da pagare")} <strong className="text-foreground">{formatCurrencyCompact(daPagare)}</strong></>}
             {daPagare > 0 && picco && picco.value < 0 && " · "}
-            {picco && picco.value < 0 && <>picco <strong className="text-red-600">−{formatCurrencyCompact(Math.abs(picco.value))}</strong> il {fmtData(picco.date)}</>}
+            {picco && picco.value < 0 && <>{t("picco")} <strong className="text-red-600">−{formatCurrencyCompact(Math.abs(picco.value))}</strong> {t("il {data}", { data: fmtData(picco.date) })}</>}
           </p>
         )}
         {/* Numeri chiave */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 max-sm:hidden">
-          <Mini label="Incassato" value={formatCurrencyCompact(incassato)} valueClass="text-emerald-600" />
-          <Mini label="Pagato" value={formatCurrencyCompact(uscite)} valueClass="text-rose-600" />
+          <Mini label={t("Incassato")} value={formatCurrencyCompact(incassato)} valueClass="text-emerald-600" />
+          <Mini label={t("Pagato")} value={formatCurrencyCompact(uscite)} valueClass="text-rose-600" />
           <Mini
-            label="Picco esposizione"
-            value={picco && picco.value < 0 ? `−${formatCurrencyCompact(Math.abs(picco.value))}` : "mai in rosso"}
-            hint={picco && picco.value < 0 ? `a fine giornata ${fmtData(picco.date)}` : undefined}
+            label={t("Picco esposizione")}
+            value={picco && picco.value < 0 ? `−${formatCurrencyCompact(Math.abs(picco.value))}` : t("mai in rosso")}
+            hint={picco && picco.value < 0 ? t("a fine giornata {data}", { data: fmtData(picco.date) }) : undefined}
             valueClass={picco && picco.value < 0 ? "text-red-600" : "text-emerald-600"}
           />
           <Mini
-            label="Ancora da pagare"
+            label={t("Ancora da pagare")}
             value={daPagare > 0 ? formatCurrencyCompact(daPagare) : "—"}
-            hint={daPagare > 0 ? "costi registrati non pagati" : undefined}
+            hint={daPagare > 0 ? t("costi registrati non pagati") : undefined}
           />
         </div>
 
@@ -320,20 +323,20 @@ export function EsposizioneCommessa({
               <TrendingDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
             ) : null}
             <span>
-              Lavori <strong className="text-foreground">{alPct(avanzamentoPct)}</strong>, incassato il{" "}
+              {t("Lavori")} <strong className="text-foreground">{alPct(avanzamentoPct, t)}</strong>{t(", incassato il")}{" "}
               <strong className="text-foreground">{Math.round(incassataPct)}%</strong>
               {maturatoNonIncassato > 0 ? (
                 <>
                   : <strong className={avanzamentoPct - incassataPct >= 10 ? "text-amber-600" : "text-foreground"}>{formatCurrency(maturatoNonIncassato)}</strong>{" "}
-                  di lavoro fatto ancora da incassare.
+                  {t("di lavoro fatto ancora da incassare.")}
                 </>
               ) : (
-                ": gli incassi tengono il passo dei lavori."
+                t(": gli incassi tengono il passo dei lavori.")
               )}
             </span>
           </p>
         )}
-        <p className="text-[11px] text-muted-foreground max-sm:hidden">{recorded ? "Movimenti di prima nota registrati. I costi della squadra non sono automaticamente pagamenti." : "Pagamenti manuali con data effettiva. Verifica i movimenti in prima nota."}</p>
+        <p className="text-[11px] text-muted-foreground max-sm:hidden">{recorded ? t("Movimenti di prima nota registrati. I costi della squadra non sono automaticamente pagamenti.") : t("Pagamenti manuali con data effettiva. Verifica i movimenti in prima nota.")}</p>
       </CardContent>
     </Card>
   );

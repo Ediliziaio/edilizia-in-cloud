@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import type { JSX } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -121,6 +122,7 @@ export function VerificationResultCard({
   data,
   showActions = true,
 }: VerificationResultCardProps): JSX.Element {
+  const t = useT();
   const config = RESULT_CONFIG[data.result] || RESULT_CONFIG.mismatch;
   const Icon = config.icon;
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -148,41 +150,41 @@ export function VerificationResultCard({
           <Icon className={`h-10 w-10 ${config.color} shrink-0`} />
           <div className="flex-1">
             <p className={`text-lg font-semibold ${config.color}`}>
-              Verifica Completata — {config.label}
+              {t("Verifica Completata — {esito}", { esito: t(config.label) })}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5">{data.summary}</p>
           </div>
           <div className="text-right shrink-0">
             <p className="text-2xl font-bold">{Math.round(data.confidence_score)}%</p>
-            <p className="text-xs text-muted-foreground">Confidenza</p>
+            <p className="text-xs text-muted-foreground">{t("Confidenza")}</p>
           </div>
         </CardContent>
       </Card>
 
       {/* Counters */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <CounterCard label="Verificati" value={data.total_items_checked} color="text-foreground" />
-        <CounterCard label="Corrispondenti" value={data.items_matched} color="text-emerald-600" />
-        <CounterCard label="Discrepanze" value={data.items_mismatched} color="text-amber-600" />
-        <CounterCard label="Mancanti" value={data.items_missing} color="text-red-600" />
+        <CounterCard label={t("Verificati")} value={data.total_items_checked} color="text-foreground" />
+        <CounterCard label={t("Corrispondenti")} value={data.items_matched} color="text-emerald-600" />
+        <CounterCard label={t("Discrepanze")} value={data.items_mismatched} color="text-amber-600" />
+        <CounterCard label={t("Mancanti")} value={data.items_missing} color="text-red-600" />
       </div>
 
       {/* Price Analysis */}
       {data.price_analysis && (
         <Card>
           <CardContent className="py-3">
-            <p className="text-sm font-medium mb-2">Analisi Prezzi</p>
+            <p className="text-sm font-medium mb-2">{t("Analisi Prezzi")}</p>
             <div className="grid grid-cols-3 gap-3 text-center text-sm">
               <div>
-                <p className="text-muted-foreground text-xs">Commessa Cliente</p>
+                <p className="text-muted-foreground text-xs">{t("Commessa Cliente")}</p>
                 <p className="font-medium">{data.price_analysis.client_total.toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-muted-foreground text-xs">Fornitore</p>
+                <p className="text-muted-foreground text-xs">{t("Fornitore")}</p>
                 <p className="font-medium">{data.price_analysis.supplier_total.toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-muted-foreground text-xs">Differenza</p>
+                <p className="text-muted-foreground text-xs">{t("Differenza")}</p>
                 <p className={`font-medium ${data.price_analysis.difference > 0 ? "text-red-600" : "text-emerald-600"}`}>
                   {data.price_analysis.difference > 0 ? "+" : ""}
                   {data.price_analysis.difference.toFixed(2)} ({data.price_analysis.difference_percent.toFixed(1)}%)
@@ -199,7 +201,7 @@ export function VerificationResultCard({
       {/* Discrepancies Table */}
       {sortedDiscrepancies.length > 0 && (
         <div className="space-y-2">
-          <p className="text-sm font-medium">Discrepanze ({sortedDiscrepancies.length})</p>
+          <p className="text-sm font-medium">{t("Discrepanze ({n})", { n: sortedDiscrepancies.length })}</p>
           <div className="space-y-2">
             {sortedDiscrepancies.map((d, idx) => (
               <DiscrepancyRow
@@ -218,7 +220,7 @@ export function VerificationResultCard({
       {data.recommendations && data.recommendations.length > 0 && (
         <Card>
           <CardContent className="py-3">
-            <p className="text-sm font-medium mb-2">Raccomandazioni AI</p>
+            <p className="text-sm font-medium mb-2">{t("Raccomandazioni AI")}</p>
             <ul className="space-y-1.5">
               {data.recommendations.map((rec, idx) => (
                 <li key={idx} className="text-sm text-muted-foreground flex gap-2">
@@ -236,7 +238,7 @@ export function VerificationResultCard({
         <p className="text-xs text-muted-foreground text-right">
           {data.processing_time_ms && `${(data.processing_time_ms / 1000).toFixed(1)}s`}
           {data.processing_time_ms && data.tokens_used && " · "}
-          {data.tokens_used && `${data.tokens_used} token`}
+          {data.tokens_used && t("{n} token", { n: data.tokens_used })}
         </p>
       )}
     </div>
@@ -264,6 +266,7 @@ interface DiscrepancyRowProps {
 }
 
 function DiscrepancyRow({ discrepancy: d, expanded, onToggle, showActions }: DiscrepancyRowProps): JSX.Element {
+  const t = useT();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [resolutionNotes, setResolutionNotes] = useState("");
@@ -283,12 +286,12 @@ function DiscrepancyRow({ discrepancy: d, expanded, onToggle, showActions }: Dis
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Discrepanza aggiornata");
+      toast.success(t("Discrepanza aggiornata"));
       setResolutionNotes("");
       queryClient.invalidateQueries({ queryKey: ["purchase-order-verifications"] });
       queryClient.invalidateQueries({ queryKey: ["verification-discrepancies"] });
     },
-    onError: () => toast.error("Errore nell'aggiornamento"),
+    onError: () => toast.error(t("Errore nell'aggiornamento")),
   });
 
   const isResolved = d.resolution_status === "accepted" || d.resolution_status === "rejected" || d.resolution_status === "resolved";
@@ -302,13 +305,13 @@ function DiscrepancyRow({ discrepancy: d, expanded, onToggle, showActions }: Dis
       >
         <div className="flex items-center gap-2 flex-wrap">
           <Badge className={`text-xs border-0 ${SEVERITY_BADGE[d.severity] || ""}`}>
-            {SEVERITY_LABELS[d.severity] || d.severity}
+            {t(SEVERITY_LABELS[d.severity] || d.severity)}
           </Badge>
           <span className="text-sm font-medium">{d.item_reference}</span>
           <span className="text-xs text-muted-foreground">— {d.field_name}</span>
           {isResolved && (
             <Badge variant="outline" className="text-xs">
-              {d.resolution_status === "accepted" ? "Accettata" : d.resolution_status === "rejected" ? "Rifiutata" : "Risolta"}
+              {d.resolution_status === "accepted" ? t("Accettata") : d.resolution_status === "rejected" ? t("Rifiutata") : t("Risolta")}
             </Badge>
           )}
         </div>
@@ -318,13 +321,13 @@ function DiscrepancyRow({ discrepancy: d, expanded, onToggle, showActions }: Dis
       {/* Values row (always visible) */}
       <div className="flex items-center gap-4 mt-2 text-sm">
         <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground">Atteso:</span>
+          <span className="text-xs text-muted-foreground">{t("Atteso:")}</span>
           <span className="font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded text-xs">
             {d.expected_value}
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground">Ricevuto:</span>
+          <span className="text-xs text-muted-foreground">{t("Ricevuto:")}</span>
           <span className="font-mono text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30 px-1.5 py-0.5 rounded text-xs">
             {d.actual_value}
           </span>
@@ -335,17 +338,17 @@ function DiscrepancyRow({ discrepancy: d, expanded, onToggle, showActions }: Dis
       {expanded && (
         <div className="mt-3 space-y-2 border-t pt-2">
           <div className="text-xs text-muted-foreground space-y-1">
-            <p><strong>Tipo:</strong> {TYPE_LABELS[d.type] || d.type}</p>
-            <p><strong>Spiegazione:</strong> {d.explanation}</p>
-            <p><strong>Suggerimento:</strong> {d.suggestion}</p>
-            <p><strong>Confidenza:</strong> {d.confidence}%</p>
+            <p><strong>{t("Tipo:")}</strong> {t(TYPE_LABELS[d.type] || d.type)}</p>
+            <p><strong>{t("Spiegazione:")}</strong> {d.explanation}</p>
+            <p><strong>{t("Suggerimento:")}</strong> {d.suggestion}</p>
+            <p><strong>{t("Confidenza:")}</strong> {d.confidence}%</p>
           </div>
 
           {/* Actions */}
           {showActions && d.id && !isResolved && (
             <div className="flex items-center gap-2 pt-1">
               <Input
-                placeholder="Note (opzionale)..."
+                placeholder={t("Note (opzionale)...")}
                 value={resolutionNotes}
                 onChange={(e) => setResolutionNotes(e.target.value)}
                 className="flex-1 h-8 text-xs"
@@ -357,7 +360,7 @@ function DiscrepancyRow({ discrepancy: d, expanded, onToggle, showActions }: Dis
                 onClick={() => resolveMutation.mutate({ status: "accepted" })}
                 disabled={resolveMutation.isPending}
               >
-                Accetta
+                {t("Accetta")}
               </Button>
               <Button
                 size="sm"
@@ -366,7 +369,7 @@ function DiscrepancyRow({ discrepancy: d, expanded, onToggle, showActions }: Dis
                 onClick={() => resolveMutation.mutate({ status: "rejected" })}
                 disabled={resolveMutation.isPending}
               >
-                Rifiuta
+                {t("Rifiuta")}
               </Button>
               <Button
                 size="sm"
@@ -375,7 +378,7 @@ function DiscrepancyRow({ discrepancy: d, expanded, onToggle, showActions }: Dis
                 onClick={() => resolveMutation.mutate({ status: "resolved" })}
                 disabled={resolveMutation.isPending}
               >
-                Risolto
+                {t("Risolto")}
               </Button>
             </div>
           )}

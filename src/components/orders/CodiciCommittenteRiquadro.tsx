@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { codiceValido, codiciDaTesto, codiciNelTesto } from "@/lib/orders/codiciCommittente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -20,6 +21,7 @@ const db = supabase as any;
 interface Riga { codici_committente: string[] | null; riferimento_committente: string | null; description: string | null; work_description: string | null }
 
 export function CodiciCommittenteRiquadro({ orderId, puoModificare }: { orderId: string; puoModificare: boolean }) {
+  const t = useT();
   const qc = useQueryClient();
   const [modifica, setModifica] = useState(false);
   const [testo, setTesto] = useState("");
@@ -37,8 +39,8 @@ export function CodiciCommittenteRiquadro({ orderId, puoModificare }: { orderId:
       if (error) throw new Error(error.message);
       return data as string[];
     },
-    onSuccess: () => { toast.success("Codici del committente salvati"); setModifica(false); void qc.invalidateQueries({ queryKey: ["commessa-codici-committente", orderId] }); },
-    onError: (e: Error) => toast.error("Codici non salvati", { description: e.message }),
+    onSuccess: () => { toast.success(t("Codici del committente salvati")); setModifica(false); void qc.invalidateQueries({ queryKey: ["commessa-codici-committente", orderId] }); },
+    onError: (e: Error) => toast.error(t("Codici non salvati"), { description: e.message }),
   });
 
   if (q.isLoading || q.isError || !q.data) return null;
@@ -51,21 +53,21 @@ export function CodiciCommittenteRiquadro({ orderId, puoModificare }: { orderId:
     <section aria-labelledby="codici-committente" className="rounded-xl border bg-card p-4" data-testid="codici-committente">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 id="codici-committente" className="flex items-center gap-2 text-sm font-semibold">
-          <Hash className="h-4 w-4 text-slate-600" aria-hidden="true" />Codici del committente
+          <Hash className="h-4 w-4 text-slate-600" aria-hidden="true" />{t("Codici del committente")}
         </h3>
         {puoModificare && !modifica && (
           <Button size="sm" variant="ghost" onClick={() => { setTesto(codici.join(", ")); setModifica(true); }}>
-            <Pencil className="mr-1 h-3.5 w-3.5" />{codici.length ? "Modifica" : "Aggiungi"}
+            <Pencil className="mr-1 h-3.5 w-3.5" />{codici.length ? t("Modifica") : t("Aggiungi")}
           </Button>
         )}
       </div>
       {modifica ? (
         <div className="mt-2 space-y-2">
-          <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder="Per esempio: MM 311, ODL 4500123" aria-label="Codici del committente, separati da virgola" />
-          {nonValidi.length > 0 && <p className="text-xs text-destructive">Troppo corti: {nonValidi.join(", ")} (almeno 3 caratteri, 4 se solo cifre).</p>}
+          <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder={t("Per esempio: MM 311, ODL 4500123")} aria-label={t("Codici del committente, separati da virgola")} />
+          {nonValidi.length > 0 && <p className="text-xs text-destructive">{t("Troppo corti: {codici} (almeno 3 caratteri, 4 se solo cifre).", { codici: nonValidi.join(", ") })}</p>}
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => salva.mutate(nuovi)} disabled={salva.isPending || nonValidi.length > 0}>{salva.isPending ? "Salvo…" : "Salva"}</Button>
-            <Button size="sm" variant="outline" onClick={() => setModifica(false)} disabled={salva.isPending}>Chiudi</Button>
+            <Button size="sm" onClick={() => salva.mutate(nuovi)} disabled={salva.isPending || nonValidi.length > 0}>{salva.isPending ? t("Salvo…") : t("Salva")}</Button>
+            <Button size="sm" variant="outline" onClick={() => setModifica(false)} disabled={salva.isPending}>{t("Chiudi")}</Button>
           </div>
         </div>
       ) : codici.length ? (
@@ -74,14 +76,14 @@ export function CodiciCommittenteRiquadro({ orderId, puoModificare }: { orderId:
         </ul>
       ) : (
         <p className="mt-1 text-sm text-muted-foreground">
-          Nessun codice.{" "}
+          {t("Nessun codice.")}{" "}
           {dallaDescrizione.length
-            ? `Finché è vuoto, la banca cerca nella descrizione del lavoro: ${dallaDescrizione.join(", ")}.`
-            : "Finché è vuoto, la banca cerca un codice nella descrizione del lavoro."}
+            ? t("Finché è vuoto, la banca cerca nella descrizione del lavoro: {codici}.", { codici: dallaDescrizione.join(", ") })
+            : t("Finché è vuoto, la banca cerca un codice nella descrizione del lavoro.")}
         </p>
       )}
       <p className="mt-2 text-xs text-muted-foreground">
-        Il codice cantiere o il numero d'ordine che il cliente scrive nella causale del bonifico: la banca lo usa per collegare l'incasso a questa commessa.
+        {t("Il codice cantiere o il numero d'ordine che il cliente scrive nella causale del bonifico: la banca lo usa per collegare l'incasso a questa commessa.")}
       </p>
     </section>
   );

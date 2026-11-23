@@ -21,6 +21,7 @@ import {
   officeStage,
 } from "@/lib/orders/officeWorkspace";
 import { campoWorkDay } from "@/lib/campo/workDay";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function OfficeTemplateApplyDialog({
   open,
@@ -35,6 +36,7 @@ export function OfficeTemplateApplyDialog({
   orderId: string;
   vertical?: string | null;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const [start, setStart] = useState(campoWorkDay);
   const preview = useQuery({
@@ -92,9 +94,9 @@ export function OfficeTemplateApplyDialog({
         !/^\d{4}-\d{2}-\d{2}$/.test(start) ||
         !Number.isFinite(new Date(`${start}T12:00:00`).getTime())
       )
-        throw Error("Scegli una data valida.");
+        throw Error(t("Scegli una data valida."));
       if (!preview.data || preview.isFetching || preview.isError)
-        throw Error("Ricarica l’anteprima prima di applicare.");
+        throw Error(t("Ricarica l’anteprima prima di applicare."));
       return applyPlaybookToOrder({
         companyId,
         orderId,
@@ -106,14 +108,14 @@ export function OfficeTemplateApplyDialog({
     onSuccess: (r) => {
       toast.success(
         r.created
-          ? `${r.created} attività create nella commessa`
-          : "Le attività del modello sono già presenti",
+          ? t("{n} attività create nella commessa", { n: r.created })
+          : t("Le attività del modello sono già presenti"),
       );
       invalidateOfficeWorkspace(qc, orderId);
       onOpenChange(false);
     },
     onError: (e) => {
-      toast.error(e instanceof Error ? e.message : "Modello non applicato");
+      toast.error(e instanceof Error ? e.message : t("Modello non applicato"));
       invalidateOfficeWorkspace(qc, orderId);
       void preview.refetch();
     },
@@ -127,14 +129,13 @@ export function OfficeTemplateApplyDialog({
     >
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Applica il modello a questa commessa</DialogTitle>
+          <DialogTitle>{t("Applica il modello a questa commessa")}</DialogTitle>
           <DialogDescription>
-            Controlla attività e date prima di confermare. La configurazione
-            aziendale non viene modificata.
+            {t("Controlla attività e date prima di confermare. La configurazione aziendale non viene modificata.")}
           </DialogDescription>
         </DialogHeader>
         <label className="space-y-1 text-sm">
-          Data di partenza
+          {t("Data di partenza")}
           <Input
             type="date"
             value={start}
@@ -144,24 +145,23 @@ export function OfficeTemplateApplyDialog({
         </label>
         {preview.isError ? (
           <p role="alert" className="text-sm text-destructive">
-            Anteprima non disponibile.{" "}
+            {t("Anteprima non disponibile.")}{" "}
             <button
               onClick={() => void preview.refetch()}
               className="underline"
             >
-              Riprova
+              {t("Riprova")}
             </button>
           </p>
         ) : preview.isPending || preview.isFetching ? (
-          <p role="status">Carico il modello…</p>
+          <p role="status">{t("Carico il modello…")}</p>
         ) : (
           <>
             <p className="text-xs text-muted-foreground">
               {preview.data?.configured
-                ? "Modello aziendale configurato"
-                : "Modello standard di partenza"}{" "}
-              · comprende attività d’ufficio e operative. Le corrispondenze già
-              presenti sono controllate per titolo: verifica eventuali omonimie.
+                ? t("Modello aziendale configurato")
+                : t("Modello standard di partenza")}{" "}
+              · {t("comprende attività d’ufficio e operative. Le corrispondenze già presenti sono controllate per titolo: verifica eventuali omonimie.")}
             </p>
             <ol className="divide-y rounded-xl border">
               {preview.data?.steps.map((step, i) => {
@@ -188,22 +188,22 @@ export function OfficeTemplateApplyDialog({
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {exists
-                        ? "Già presente · non viene duplicata"
+                        ? t("Già presente · non viene duplicata")
                         : waiting
-                          ? "Data definita allo sblocco della dipendenza"
+                          ? t("Data definita allo sblocco della dipendenza")
                           : Number.isFinite(date.getTime())
-                            ? `Scadenza proposta: ${format(addDays(date, step.giorni_offset), "dd/MM/yyyy")}`
-                            : "Data da definire"}{" "}
+                            ? t("Scadenza proposta: {data}", { data: format(addDays(date, step.giorni_offset), "dd/MM/yyyy") })
+                            : t("Data da definire")}{" "}
                       ·{" "}
                       {step.activity_scope === "ufficio"
-                        ? OFFICE_STAGES.find(
+                        ? t(OFFICE_STAGES.find(
                             ([key]) => key === officeStage(step.office_stage),
-                          )?.[1]
-                        : "Attività operativa"}
+                          )?.[1] ?? "")
+                        : t("Attività operativa")}
                     </p>
                     {step.dopo_fase_lavorazione && (
                       <p className="text-xs text-orange-700">
-                        Attende: {step.dopo_fase_lavorazione}
+                        {t("Attende: {fase}", { fase: step.dopo_fase_lavorazione })}
                       </p>
                     )}
                   </li>
@@ -211,10 +211,7 @@ export function OfficeTemplateApplyDialog({
               })}
             </ol>
             <p className="text-xs text-muted-foreground">
-              Responsabili e dipendenze seguono il modello. Le attività senza
-              assegnazione esplicita vanno al responsabile della commessa o a
-              chi applica il modello. Non vengono inviati ordini ai fornitori,
-              email o fatture.
+              {t("Responsabili e dipendenze seguono il modello. Le attività senza assegnazione esplicita vanno al responsabile della commessa o a chi applica il modello. Non vengono inviati ordini ai fornitori, email o fatture.")}
             </p>
           </>
         )}
@@ -224,7 +221,7 @@ export function OfficeTemplateApplyDialog({
             onClick={() => onOpenChange(false)}
             disabled={apply.isPending}
           >
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             disabled={
@@ -236,7 +233,7 @@ export function OfficeTemplateApplyDialog({
             }
             onClick={() => apply.mutate()}
           >
-            {apply.isPending ? "Applico…" : "Conferma e crea le attività"}
+            {apply.isPending ? t("Applico…") : t("Conferma e crea le attività")}
           </Button>
         </DialogFooter>
       </DialogContent>

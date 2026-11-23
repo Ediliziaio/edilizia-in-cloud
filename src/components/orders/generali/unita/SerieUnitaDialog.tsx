@@ -19,6 +19,7 @@ import {
   type ColonnaSerie, type RigaSerie,
 } from "@/lib/orders/generali/unitaSerie";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -47,6 +48,7 @@ const LARGHEZZE: Record<ColonnaSerie, string> = {
 };
 
 function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti, dalPiano }: Omit<Props, "open">) {
+  const tr = useT();
   const crea = useCreaUnitaInSerie(generaleId);
   const daPiano = !!dalPiano && dalPiano.length > 0;
   const [righe, setRighe] = useState<RigaSerie[]>(() => (daPiano ? dalPiano!.map((r) => ({ ...r })) : Array.from({ length: 6 }, rigaVuota)));
@@ -83,7 +85,7 @@ function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti, dalPian
     if (quante === 0 || controllo.errori > 0 || crea.isPending) return;
     crea.mutate(controllo.unita.map((u) => (vedeImporti ? u : { ...u, prezzo_listino: null })), {
       onSuccess: (n) => {
-        toast.success(n === 1 ? "1 unità creata" : `${n} unità create`, { description: "Ognuna ha la sua commessa, dentro questa generale." });
+        toast.success(n === 1 ? tr("1 unità creata") : tr("{n} unità create", { n }), { description: tr("Ognuna ha la sua commessa, dentro questa generale.") });
         onOpenChange(false);
       },
       onError: (e) => toast.error(messaggioGenerale(e, "le unità")),
@@ -93,30 +95,30 @@ function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti, dalPian
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{daPiano ? "Unità dalle vendite del piano" : "Nuove unità in serie"}</DialogTitle>
+        <DialogTitle>{daPiano ? tr("Unità dalle vendite del piano") : tr("Nuove unità in serie")}</DialogTitle>
         <DialogDescription>
           {daPiano
-            ? "Nomi e prezzi vengono dal piano economico. Aggiungi piano, m² e millesimi se li hai, togli quello che non si vende come unità, poi conferma. Ogni unità diventa una commessa dentro questa generale."
-            : "Scrivi le unità o incolla le righe da Excel (anche con le intestazioni). Ogni unità diventa una commessa dentro questa generale."}
+            ? tr("Nomi e prezzi vengono dal piano economico. Aggiungi piano, m² e millesimi se li hai, togli quello che non si vende come unità, poi conferma. Ogni unità diventa una commessa dentro questa generale.")
+            : tr("Scrivi le unità o incolla le righe da Excel (anche con le intestazioni). Ogni unità diventa una commessa dentro questa generale.")}
         </DialogDescription>
       </DialogHeader>
 
       {/* Partendo dal piano le sigle ci sono già: «Prepara righe» le cancellerebbe. */}
       {!daPiano && <div className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/30 px-3 py-2">
         <div className="space-y-1">
-          <Label htmlFor="serie-prefisso">Sigle</Label>
+          <Label htmlFor="serie-prefisso">{tr("Sigle")}</Label>
           <Input id="serie-prefisso" className="h-8 w-20" value={prefisso} onChange={(e) => setPrefisso(e.target.value)} />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="serie-da">da</Label>
+          <Label htmlFor="serie-da">{tr("da")}</Label>
           <Input id="serie-da" className="h-8 w-16" inputMode="numeric" value={da} onChange={(e) => setDa(e.target.value)} />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="serie-a">a</Label>
+          <Label htmlFor="serie-a">{tr("a")}</Label>
           <Input id="serie-a" className="h-8 w-16" inputMode="numeric" value={a} onChange={(e) => setA(e.target.value)} />
         </div>
         <Button type="button" size="sm" variant="outline" className="h-8" onClick={riempiSigle}>
-          <Wand2 className="mr-1.5 h-3.5 w-3.5" /> Prepara {generaSigle(prefisso, Number(da), Number(a)).length || ""} righe
+          <Wand2 className="mr-1.5 h-3.5 w-3.5" /> {tr("Prepara {n} righe", { n: generaSigle(prefisso, Number(da), Number(a)).length || "" })}
         </Button>
       </div>}
 
@@ -125,7 +127,7 @@ function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti, dalPian
           <thead className="sticky top-0 bg-background">
             <tr className="border-b text-left text-xs text-muted-foreground">
               <th className="w-8 px-2 py-1.5 font-medium">#</th>
-              {colonne.map((c) => <th key={c} className="px-1 py-1.5 font-medium">{NOMI_COLONNA[c]}</th>)}
+              {colonne.map((c) => <th key={c} className="px-1 py-1.5 font-medium">{tr(NOMI_COLONNA[c])}</th>)}
               <th className="w-8" />
             </tr>
           </thead>
@@ -138,7 +140,7 @@ function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti, dalPian
                   {colonne.map((c) => (
                     <td key={c} className="px-1 py-0.5">
                       <Input
-                        aria-label={`${NOMI_COLONNA[c]}, riga ${i + 1}`}
+                        aria-label={tr("{colonna}, riga {n}", { colonna: tr(NOMI_COLONNA[c]), n: i + 1 })}
                         className={cn("h-8", LARGHEZZE[c], (c === "mq" || c === "millesimi" || c === "listino") && "text-right")}
                         inputMode={c === "mq" || c === "millesimi" || c === "listino" ? "decimal" : undefined}
                         list={c === "tipologia" ? "serie-tipologie" : undefined}
@@ -149,7 +151,7 @@ function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti, dalPian
                     </td>
                   ))}
                   <td className="px-1">
-                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={`Togli la riga ${i + 1}`}
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={tr("Togli la riga {n}", { n: i + 1 })}
                       onClick={() => setRighe((rr) => rr.filter((_, k) => k !== i))}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -166,29 +168,29 @@ function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti, dalPian
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <Button type="button" size="sm" variant="ghost" disabled={righe.length >= MAX_SERIE} onClick={() => setRighe((rr) => [...rr, rigaVuota()])}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" /> Aggiungi una riga
+          <Plus className="mr-1.5 h-3.5 w-3.5" /> {tr("Aggiungi una riga")}
         </Button>
         <span className="text-muted-foreground">
-          {quante === 1 ? "1 unità" : `${quante} unità`}
+          {quante === 1 ? tr("1 unità") : tr("{n} unità", { n: quante })}
           {totaleMq > 0 && ` · ${formattaNumero(totaleMq)} m²`}
           {totaleMillesimi > 0 && ` · ${formattaNumero(totaleMillesimi)} ‰`}
           {vedeImporti && totaleListino > 0 && (
-            <> · listino <span className="font-medium tabular-nums text-foreground">{formattaNumero(totaleListino)} €</span></>
+            <> · {tr("listino")} <span className="font-medium tabular-nums text-foreground">{formattaNumero(totaleListino)} €</span></>
           )}
         </span>
       </div>
       {errori.length > 0 && (
         <ul role="alert" className="space-y-0.5 text-xs text-destructive">
-          {errori.slice(0, 5).map((e, k) => <li key={k}>Riga {e.riga}: {e.errore}</li>)}
-          {errori.length > 5 && <li>… e altri {errori.length - 5}.</li>}
+          {errori.slice(0, 5).map((e, k) => <li key={k}>{tr("Riga {n}: {errore}", { n: e.riga, errore: tr(e.errore) })}</li>)}
+          {errori.length > 5 && <li>{tr("… e altri {n}.", { n: errori.length - 5 })}</li>}
         </ul>
       )}
 
       <DialogFooter className="gap-2 sm:gap-0">
-        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
+        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>{tr("Annulla")}</Button>
         <Button type="button" onClick={conferma} disabled={quante === 0 || controllo.errori > 0 || crea.isPending}>
           {crea.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {quante === 1 ? "Crea 1 unità" : `Crea ${quante} unità`}
+          {quante === 1 ? tr("Crea 1 unità") : tr("Crea {n} unità", { n: quante })}
         </Button>
       </DialogFooter>
     </>

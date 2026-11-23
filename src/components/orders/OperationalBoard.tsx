@@ -8,6 +8,7 @@ import {
   PipelineMoveCard,
 } from "@/components/orders/PipelineDrag";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface OperationalColumn<T> {
   id: string;
@@ -55,6 +56,7 @@ export function OperationalColumnFrame({
   alert?: string;
   children: ReactNode;
 }) {
+  const t = useT();
   const [collapseChoice, setCollapsed] = useState<boolean | null>(null);
   const collapsed = collapseChoice ?? count === 0;
   const tone =
@@ -95,7 +97,7 @@ export function OperationalColumnFrame({
           </span>
           <button
             type="button"
-            aria-label={`${collapsed ? "Espandi" : "Comprimi"} ${label}`}
+            aria-label={collapsed ? t("Espandi {nome}", { nome: label }) : t("Comprimi {nome}", { nome: label })}
             aria-expanded={!collapsed}
             onClick={() => setCollapsed(!collapsed)}
             className="rounded p-0.5 text-muted-foreground hover:bg-white focus-visible:ring-2 focus-visible:ring-primary"
@@ -112,7 +114,7 @@ export function OperationalColumnFrame({
             className="mt-1 truncate text-[11px] text-muted-foreground"
             title={hint}
           >
-            {hint || "Nessun elemento"}
+            {hint || t("Nessun elemento")}
           </p>
         )}
         {!collapsed && alert && (
@@ -154,6 +156,7 @@ export function OperationalBoard<T extends { id: string }>({
   onOpen?: (item: T) => void;
   renderActions?: (item: T) => ReactNode;
 }) {
+  const t = useT();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [limits, setLimits] = useState<Record<string, number>>({});
   return (
@@ -194,7 +197,7 @@ export function OperationalBoard<T extends { id: string }>({
                   ))}
                   {!column.items.length && (
                     <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-                      Nessun documento in questa fase
+                      {t("Nessun documento in questa fase")}
                     </p>
                   )}
                   {column.items.length > limit && (
@@ -209,7 +212,7 @@ export function OperationalBoard<T extends { id: string }>({
                         }))
                       }
                     >
-                      Mostra altri · {column.items.length - limit} rimanenti
+                      {t("Mostra altri · {n} rimanenti", { n: column.items.length - limit })}
                     </Button>
                   )}
                 </OperationalColumnFrame>
@@ -235,6 +238,7 @@ export function OperationalPagination({
   onChange: (page: number) => void;
   label: string;
 }) {
+  const t = useT();
   const pages = Math.max(1, Math.ceil(total / size));
   return (
     <nav
@@ -242,8 +246,7 @@ export function OperationalPagination({
       className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground"
     >
       <span>
-        {total ? (page - 1) * size + 1 : 0}–{Math.min(page * size, total)} di{" "}
-        {total}
+        {t("{da}–{a} di {totale}", { da: total ? (page - 1) * size + 1 : 0, a: Math.min(page * size, total), totale: total })}
       </span>
       <div className="flex items-center gap-2">
         <Button
@@ -252,7 +255,7 @@ export function OperationalPagination({
           disabled={page <= 1}
           onClick={() => onChange(page - 1)}
         >
-          Precedenti
+          {t("Precedenti")}
         </Button>
         <span>
           {page} / {pages}
@@ -263,7 +266,7 @@ export function OperationalPagination({
           disabled={page >= pages}
           onClick={() => onChange(page + 1)}
         >
-          Successivi
+          {t("Successivi")}
         </Button>
       </div>
     </nav>

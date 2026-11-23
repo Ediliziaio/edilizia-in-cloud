@@ -23,6 +23,7 @@ import {
   type OggiPanelView,
 } from "@/lib/orders/cantieriOggi";
 import { cn } from "@/lib/utils";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const Approvals = lazy(() =>
   import("./DaApprovareCommessa").then((m) => ({
@@ -40,14 +41,14 @@ const tabs: { value: OggiPanelView; label: string }[] = [
   { value: "ufficio", label: "Ufficio" },
   { value: "approvazioni", label: "Da approvare" },
 ];
-const dayLabel = (day: string | null) =>
+const dayLabel = (day: string | null, t: (testo: string) => string) =>
   day
-    ? new Date(`${day.slice(0, 10)}T12:00:00Z`).toLocaleDateString("it-IT", {
+    ? new Date(`${day.slice(0, 10)}T12:00:00Z`).toLocaleDateString(intlCampo(), {
         day: "numeric",
         month: "short",
         timeZone: "Europe/Rome",
       })
-    : "Data da definire";
+    : t("Data da definire");
 
 export function CantiereOggiPanel({
   item,
@@ -64,6 +65,7 @@ export function CantiereOggiPanel({
   canApprove: boolean;
   dataReady: boolean;
 }) {
+  const t = useT();
   const orderLink = item ? `/azienda/ordini/${item.row.id}` : "";
   const action = item ? nextOggiAction(item) : null;
   return (
@@ -76,18 +78,18 @@ export function CantiereOggiPanel({
       <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl sm:rounded-l-3xl">
         <SheetHeader className="shrink-0 border-b px-5 pb-4 pt-6 pr-12 text-left">
           <p className="text-xs font-medium text-blue-600">
-            Cantiere · {item?.row.codice || "Commessa"}
+            {t("Cantiere · {codice}", { codice: item?.row.codice || t("Commessa") })}
           </p>
           <SheetTitle className="text-lg leading-snug">
-            {item?.title || "Giornata del cantiere"}
+            {item?.title || t("Giornata del cantiere")}
           </SheetTitle>
           <SheetDescription>
-            {item?.row.indirizzo || "Indirizzo non indicato"} · {item?.owner}
+            {item?.row.indirizzo || t("Indirizzo non indicato")} · {item?.owner}
           </SheetDescription>
         </SheetHeader>
         <div
           role="tablist"
-          aria-label="Dettaglio giornata"
+          aria-label={t("Dettaglio giornata")}
           className="flex shrink-0 gap-1 overflow-x-auto border-b px-4 py-3"
         >
           {tabs.map((tab) => (
@@ -106,7 +108,7 @@ export function CantiereOggiPanel({
                   : "text-muted-foreground hover:bg-muted",
               )}
             >
-              {tab.label}
+              {t(tab.label)}
               {tab.value === "approvazioni" && !!item?.pending && (
                 <span className="ml-1.5 rounded-full bg-orange-100 px-1.5 py-0.5 text-xs text-orange-800">
                   {item.pending}
@@ -128,15 +130,14 @@ export function CantiereOggiPanel({
                   role="status"
                   className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900"
                 >
-                  Pianificazione e attività non sono ancora disponibili. Non
-                  vengono considerate pari a zero.
+                  {t("Pianificazione e attività non sono ancora disponibili. Non vengono considerate pari a zero.")}
                 </p>
               )}
               {view === "riepilogo" && (
                 <>
                   <div className="rounded-2xl border bg-muted/20 p-4">
                     <p className="mb-1 text-xs font-medium text-muted-foreground">
-                      Prossimo controllo suggerito
+                      {t("Prossimo controllo suggerito")}
                     </p>
                     <p className="text-sm font-semibold">{action?.detail}</p>
                     {action?.view !== "riepilogo" && (
@@ -145,7 +146,7 @@ export function CantiereOggiPanel({
                         className="mt-3 rounded-xl"
                         onClick={() => onViewChange(action!.view)}
                       >
-                        {action?.text}
+                        {action?.text ? t(action.text) : null}
                       </Button>
                     )}
                   </div>
@@ -155,16 +156,13 @@ export function CantiereOggiPanel({
                       <div>
                         <p className="font-medium">{presenzeLabel(item.row)}</p>
                         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                          Persone con una timbratura o riportate in un
-                          rapportino inviato/approvato oggi. Non è la presenza
-                          in tempo reale; il confronto dei totali non certifica
-                          la copertura nominativa della squadra.
+                          {t("Persone con una timbratura o riportate in un rapportino inviato/approvato oggi. Non è la presenza in tempo reale; il confronto dei totali non certifica la copertura nominativa della squadra.")}
                         </p>
                         <Link
                           className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
                           to={`${orderLink}?tab=cantiere&vista_cantiere=squadra`}
                         >
-                          Verifica ore e persone ↗
+                          {t("Verifica ore e persone ↗")}
                         </Link>
                       </div>
                     </div>
@@ -172,20 +170,20 @@ export function CantiereOggiPanel({
                       <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
                       <div>
                         <p className="font-medium">
-                          Lavorazioni della giornata
+                          {t("Lavorazioni della giornata")}
                         </p>
                         <p className="mt-1 text-muted-foreground">
                           {!dataReady
-                            ? "Pianificazione non disponibile"
+                            ? t("Pianificazione non disponibile")
                             : item.todayPhases.length
                               ? item.todayPhases.map((p) => p.name).join(" · ")
-                              : "Nessuna lavorazione con date che comprendono oggi"}
+                              : t("Nessuna lavorazione con date che comprendono oggi")}
                         </p>
                         <Link
                           className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
                           to={`${orderLink}?tab=cantiere&vista_cantiere=cronoprogramma`}
                         >
-                          Apri cronoprogramma ↗
+                          {t("Apri cronoprogramma ↗")}
                         </Link>
                       </div>
                     </div>
@@ -193,7 +191,7 @@ export function CantiereOggiPanel({
                       <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
                       <div>
                         <p className="font-medium">
-                          Ultimo aggiornamento dal campo
+                          {t("Ultimo aggiornamento dal campo")}
                         </p>
                         <p className="mt-1 text-muted-foreground">
                           {item.row.ultimo_segnale &&
@@ -201,25 +199,23 @@ export function CantiereOggiPanel({
                             new Date(item.row.ultimo_segnale).getTime(),
                           )
                             ? new Date(item.row.ultimo_segnale).toLocaleString(
-                                "it-IT",
+                                intlCampo(),
                                 {
                                   timeZone: "Europe/Rome",
                                   dateStyle: "medium",
                                   timeStyle: "short",
                                 },
                               )
-                            : "Nessun segnale disponibile"}
+                            : t("Nessun segnale disponibile")}
                         </p>
                         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                          Un segnale vecchio non dimostra che il cantiere sia
-                          fermo. Verifica pianificazione, calendario e
-                          aggiornamenti.
+                          {t("Un segnale vecchio non dimostra che il cantiere sia fermo. Verifica pianificazione, calendario e aggiornamenti.")}
                         </p>
                         <Link
                           className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
                           to={`${orderLink}?tab=cantiere&vista_cantiere=diario`}
                         >
-                          Apri diario ↗
+                          {t("Apri diario ↗")}
                         </Link>
                       </div>
                     </div>
@@ -229,12 +225,12 @@ export function CantiereOggiPanel({
               {view === "lavorazioni" && (
                 <>
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-semibold">Lavorazioni aperte</h3>
+                    <h3 className="font-semibold">{t("Lavorazioni aperte")}</h3>
                     <Link
                       className="text-xs font-medium text-primary hover:underline"
                       to={`${orderLink}?tab=cantiere&vista_cantiere=lavorazioni`}
                     >
-                      Gestisci ↗
+                      {t("Gestisci ↗")}
                     </Link>
                   </div>
                   {dataReady &&
@@ -244,15 +240,14 @@ export function CantiereOggiPanel({
                           <li key={p.id} className="p-3">
                             <p className="text-sm font-medium">{p.name}</p>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {dayLabel(p.start_date)} → {dayLabel(p.end_date)}{" "}
+                              {dayLabel(p.start_date, t)} → {dayLabel(p.end_date, t)}{" "}
                               · {p.status.replaceAll("_", " ")}
                             </p>
                             {item.latePhases.some(
                               (late) => late.id === p.id,
                             ) && (
                               <p className="mt-1 text-xs text-orange-700">
-                                Data prevista superata: verifica l’avanzamento
-                                reale.
+                                {t("Data prevista superata: verifica l’avanzamento reale.")}
                               </p>
                             )}
                           </li>
@@ -260,7 +255,7 @@ export function CantiereOggiPanel({
                       </ul>
                     ) : (
                       <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                        Nessuna lavorazione aperta registrata.
+                        {t("Nessuna lavorazione aperta registrata.")}
                       </p>
                     ))}
                 </>
@@ -268,12 +263,12 @@ export function CantiereOggiPanel({
               {view === "ufficio" && (
                 <>
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-semibold">Attività d’ufficio aperte</h3>
+                    <h3 className="font-semibold">{t("Attività d’ufficio aperte")}</h3>
                     <Link
                       className="text-xs font-medium text-primary hover:underline"
                       to={`${orderLink}?tab=cantiere&vista_cantiere=ufficio`}
                     >
-                      Gestisci attività ↗
+                      {t("Gestisci attività ↗")}
                     </Link>
                   </div>
                   {dataReady &&
@@ -284,18 +279,18 @@ export function CantiereOggiPanel({
                             <p className="text-sm font-medium">{task.title}</p>
                             <p className="mt-1 text-xs text-muted-foreground">
                               {task.status === "in_attesa"
-                                ? "In attesa di un prerequisito"
-                                : dayLabel(task.due_date)}{" "}
+                                ? t("In attesa di un prerequisito")
+                                : dayLabel(task.due_date, t)}{" "}
                               ·{" "}
                               {task.assigned_to || task.ufficio_id
-                                ? "Assegnata"
-                                : "Da assegnare"}
+                                ? t("Assegnata")
+                                : t("Da assegnare")}
                             </p>
                             {item.lateTasks.some(
                               (late) => late.id === task.id,
                             ) && (
                               <p className="mt-1 text-xs text-orange-700">
-                                Scadenza superata
+                                {t("Scadenza superata")}
                               </p>
                             )}
                           </li>
@@ -303,7 +298,7 @@ export function CantiereOggiPanel({
                       </ul>
                     ) : (
                       <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                        Nessuna attività d’ufficio aperta.
+                        {t("Nessuna attività d’ufficio aperta.")}
                       </p>
                     ))}
                 </>
@@ -313,12 +308,14 @@ export function CantiereOggiPanel({
                   <div className="rounded-2xl border bg-orange-50/50 p-4">
                     <h3 className="flex items-center gap-2 font-semibold">
                       <ClipboardCheck className="h-4 w-4 text-orange-600" />
-                      Elementi da verificare
+                      {t("Elementi da verificare")}
                     </h3>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      {item.row.rapportini_da_approvare ?? "—"} rapportini ·{" "}
-                      {item.row.correzioni ?? "—"} correzioni timbrature ·{" "}
-                      {item.row.bolle ?? "—"} bolle/acquisti
+                      {t("{rapportini} rapportini · {correzioni} correzioni timbrature · {bolle} bolle/acquisti", {
+                        rapportini: item.row.rapportini_da_approvare ?? "—",
+                        correzioni: item.row.correzioni ?? "—",
+                        bolle: item.row.bolle ?? "—",
+                      })}
                     </p>
                   </div>
                   {canApprove ? (
@@ -329,7 +326,7 @@ export function CantiereOggiPanel({
                           className="text-sm text-muted-foreground"
                         >
                           <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-                          Carico le verifiche…
+                          {t("Carico le verifiche…")}
                         </p>
                       }
                     >
@@ -356,8 +353,7 @@ export function CantiereOggiPanel({
                     </Suspense>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      Puoi consultare il riepilogo. Per approvare serve un
-                      utente autorizzato.
+                      {t("Puoi consultare il riepilogo. Per approvare serve un utente autorizzato.")}
                     </p>
                   )}
                 </>
@@ -367,12 +363,12 @@ export function CantiereOggiPanel({
         </div>
         <div className="flex shrink-0 justify-between gap-2 border-t bg-background p-4">
           <Button variant="outline" className="rounded-xl" onClick={onClose}>
-            Chiudi
+            {t("Chiudi")}
           </Button>
           {item && (
             <Button asChild className="rounded-xl">
               <Link to={orderLink}>
-                Apri commessa <ArrowUpRight className="ml-1.5 h-4 w-4" />
+                {t("Apri commessa")} <ArrowUpRight className="ml-1.5 h-4 w-4" />
               </Link>
             </Button>
           )}

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { emailPerOrdini } from "@/lib/suppliers/anagraficaFornitore";
 import type { FornitoreDocumento } from "@/lib/documentiOperativi/fornitore";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function FornitoreCombobox({
   fornitori,
   value,
@@ -25,6 +26,7 @@ export function FornitoreCombobox({
   value: string;
   onChange: (id: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const scelto = fornitori.find((s) => s.id === value);
   return (
@@ -34,12 +36,12 @@ export function FornitoreCombobox({
           type="button"
           variant="outline"
           role="combobox"
-          aria-label="Fornitore"
+          aria-label={t("Fornitore")}
           aria-expanded={open}
           className="w-full justify-between font-normal"
         >
           <span className="truncate">
-            {scelto?.name || "Cerca fornitore registrato"}
+            {scelto?.name || t("Cerca fornitore registrato")}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -49,9 +51,9 @@ export function FornitoreCombobox({
         align="start"
       >
         <Command>
-          <CommandInput placeholder="Cerca nome, email o partita IVA…" />
+          <CommandInput placeholder={t("Cerca nome, email o partita IVA…")} />
           <CommandList>
-            <CommandEmpty>Nessun fornitore trovato.</CommandEmpty>
+            <CommandEmpty>{t("Nessun fornitore trovato.")}</CommandEmpty>
             <CommandGroup>
               {fornitori
                 .filter((s) => s.is_active !== false)
@@ -74,7 +76,7 @@ export function FornitoreCombobox({
                       <span className="min-w-0">
                         <span className="block truncate">{s.name}</span>
                         <span className="block truncate text-xs text-slate-500">
-                          {email || "Email non registrata"}
+                          {email || t("Email non registrata")}
                         </span>
                       </span>
                       {s.id === value && <Check className="ml-auto h-4 w-4" />}

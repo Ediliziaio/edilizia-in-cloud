@@ -21,7 +21,7 @@ import { ConflittoModifica, isConflittoModifica } from "@/lib/concorrenza";
 import type { Json } from "@/integrations/supabase/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyCustomers, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
@@ -143,6 +143,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
+  const t = useT();
   const { onlyAssignedWork: onlyAssigned, canViewCosts, canViewOrderAmounts } = usePermissions();
   // Chi modifica la commessa senza «Venduto e importi» riceve totale, IVA e rate vuoti (la vista
   // li nasconde). Rimandarli indietro azzerava il totale e rifaceva il piano con un «Saldo» da 0
@@ -654,15 +655,15 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
     // async e la closure leggerebbe il valore vecchio (rischio customer_id
     // vuoto scritto a DB quando scatta l'auto-heal della race cliente).
     mutationFn: async (args?: { customerId?: string }) => {
-      if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
-      if (order?.workflow_kind === "intervento") throw new Error("Gli importi si gestiscono sul contratto di origine.");
-      if (puoImporti && order?.workflow_kind === "contratto" && (!vatRate.trim() || (!salPayment && !installments.length))) throw new Error("Conferma IVA e piano dei pagamenti prima di salvare i dati economici del contratto.");
+      if (!effectiveCompany?.id) throw new Error(t("Azienda non trovata"));
+      if (order?.workflow_kind === "intervento") throw new Error(t("Gli importi si gestiscono sul contratto di origine."));
+      if (puoImporti && order?.workflow_kind === "contratto" && (!vatRate.trim() || (!salPayment && !installments.length))) throw new Error(t("Conferma IVA e piano dei pagamenti prima di salvare i dati economici del contratto."));
       // Solo il saldo finale prende il residuo: i SAL intermedi restano col loro importo.
       if (puoImporti && paymentType === "financing" && parseDecimalIT(financingCost) > 0 && !financingCostMode &&
           (order?.payment_type !== paymentType || Number(order?.financing_cost ?? 0) !== parseDecimalIT(financingCost))) {
-        throw new Error("Scegli se il costo della finanziaria è trattenuto o pagato separatamente.");
+        throw new Error(t("Scegli se il costo della finanziaria è trattenuto o pagato separatamente."));
       }
-      if (puoImporti && order?.financing_cost_mode && !financingCostMode) throw new Error("Scegli come viene pagato il costo della finanziaria.");
+      if (puoImporti && order?.financing_cost_mode && !financingCostMode) throw new Error(t("Scegli come viene pagato il costo della finanziaria."));
       if (puoImporti && financingCostMode) {
         verificaCostoSuPiano(parseDecimalIT(financingCost), financingCostMode, installments);
         await verificaSupportoModalitaFinanziaria();
@@ -850,7 +851,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
         // messaggio solo se lo è, e l'oggetto grezzo di PostgREST non lo è —
         // finirebbero tutti dietro un generico «si è verificato un errore».
         throw new Error(
-          (error.message ?? "Errore durante il salvataggio della commessa")
+          (error.message ?? t("Errore durante il salvataggio della commessa"))
             .replace(/^commessa_salva:\s*/, ""),
         );
       }
@@ -861,7 +862,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
           await salvaRiferimentiPa(id!, bozzeRiferimentiPa, riferimentiPa.data.righe,
             riferimentiPaAttivi !== riferimentiPa.data.attivi ? !!riferimentiPaAttivi : undefined);
         } catch (e) {
-          toast.error("Commessa salvata, dati appalto no", { description: e instanceof Error ? e.message : String(e), duration: 12000 });
+          toast.error(t("Commessa salvata, dati appalto no"), { description: e instanceof Error ? e.message : String(e), duration: 12000 });
         }
         queryClient.invalidateQueries({ queryKey: ["order-riferimenti-pa", id] });
       }
@@ -916,23 +917,23 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
       queryClient.invalidateQueries({ queryKey: ["cruscotto"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["cashflow"] });
-      toast.success("Commessa aggiornata", { description: "La commessa è stata aggiornata con successo." });
+      toast.success(t("Commessa aggiornata"), { description: t("La commessa è stata aggiornata con successo.") });
       navigate(`/azienda/ordini/${id}`);
     },
     onError: (error) => {
       if (isConflittoModifica(error)) {
         // Non è un errore tecnico: è una persona che ha salvato prima di te.
         // La bozza locale resta, così quello che hai scritto non si perde.
-        toast.error("Qualcun altro ha salvato questa commessa", {
+        toast.error(t("Qualcun altro ha salvato questa commessa"), {
           description: error.message,
           duration: 10000,
-          action: { label: "Ricarica", onClick: () => window.location.reload() },
+          action: { label: t("Ricarica"), onClick: () => window.location.reload() },
         });
         logger.warn("Conflitto di modifica sulla commessa", { id });
         return;
       }
-      toast.error("Errore", {
-        description: error instanceof Error ? error.message : "Si è verificato un errore durante l'aggiornamento della commessa.",
+      toast.error(t("Errore"), {
+        description: error instanceof Error ? error.message : t("Si è verificato un errore durante l'aggiornamento della commessa."),
       });
       logger.error("Update order error:", error);
     },
@@ -945,7 +946,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
     if (updateOrderMutation.isPending) return;
     // Il saldo dipende dalle varianti approvate: si salva solo quando sono state lette.
     if (variazioniInLettura || variazioniInErrore) {
-      if (variazioniInErrore) toast.error("Non riesco a leggere le varianti: riprova prima di salvare");
+      if (variazioniInErrore) toast.error(t("Non riesco a leggere le varianti: riprova prima di salvare"));
       return;
     }
 
@@ -954,32 +955,32 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
     // a riselezionare un cliente che non è mai cambiato.
     const effectiveCustomerId = customerId || order?.customer_id || "";
     if (!effectiveCustomerId) {
-      toast.error("Campo obbligatorio", { description: "Seleziona un cliente." });
+      toast.error(t("Campo obbligatorio"), { description: t("Seleziona un cliente.") });
       return;
     }
     if (!customerId) setCustomerId(effectiveCustomerId);
     if (!description.trim()) {
-      toast.error("Campo obbligatorio", { description: "Inserisci una descrizione del lavoro." });
+      toast.error(t("Campo obbligatorio"), { description: t("Inserisci una descrizione del lavoro.") });
       return;
     }
     // Per i lavori per appaltatore (sola manodopera) l'importo può essere 0
     // perché spesso il compenso è gestito a SAL/contratto separato.
     // Senza «Venduto e importi» il totale non si vede né si salva: non si controlla.
     if (puoImporti && orderTypeState !== "appaltatore_lavoro" && total <= 0) {
-      toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
+      toast.error(t("Importo non valido"), { description: t("L'importo totale deve essere maggiore di zero.") });
       return;
     }
     if (puoImporti && (vat < 0 || vat > 100)) {
-      toast.error("IVA non valida", { description: "L'IVA deve essere un valore tra 0 e 100." });
+      toast.error(t("IVA non valida"), { description: t("L'IVA deve essere un valore tra 0 e 100.") });
       return;
     }
     if (puoImporti && (parseDecimalIT(financingCost)) < 0) {
-      toast.error("Costo finanziaria non valido", { description: "Il costo finanziaria non può essere negativo." });
+      toast.error(t("Costo finanziaria non valido"), { description: t("Il costo finanziaria non può essere negativo.") });
       return;
     }
     if (workStartDate && workEndDate && workEndDate < workStartDate) {
-      toast.error("Date lavori non valide", {
-        description: "La data di fine lavori non può precedere quella di inizio.",
+      toast.error(t("Date lavori non valide"), {
+        description: t("La data di fine lavori non può precedere quella di inizio."),
       });
       return;
     }
@@ -988,13 +989,13 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
         (item) => !item.name.trim() || item.quantity < 1 || (item.purchase_price !== undefined && item.purchase_price < 0)
       );
       if (invalidItems.length > 0) {
-        toast.error("Articoli non validi", { description: "Verifica che tutti gli articoli abbiano un nome, quantità ≥ 1 e prezzo d'acquisto non negativo." });
+        toast.error(t("Articoli non validi"), { description: t("Verifica che tutti gli articoli abbiano un nome, quantità ≥ 1 e prezzo d'acquisto non negativo.") });
         return;
       }
     }
 
     if ((bozzeRiferimentiPa ?? []).some(bozzaHaErrori)) {
-      toast.error("Dati appalto da correggere", { description: "Un CIG, un CUP o un codice ufficio non ha il formato giusto: correggilo o svuotalo." });
+      toast.error(t("Dati appalto da correggere"), { description: t("Un CIG, un CUP o un codice ufficio non ha il formato giusto: correggilo o svuotalo.") });
       return;
     }
 
@@ -1012,7 +1013,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
   if (orderLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Caricamento commessa...</p>
+        <p className="text-muted-foreground">{t("Caricamento commessa...")}</p>
       </div>
     );
   }
@@ -1020,23 +1021,23 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
   if (!order) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Commessa non trovata</p>
+        <p className="text-muted-foreground">{t("Commessa non trovata")}</p>
         <Button className="mt-4" onClick={() => navigate("/azienda/ordini")}>
-          Torna alle commesse
+          {t("Torna alle commesse")}
         </Button>
       </div>
     );
   }
 
-  if (order.workflow_kind === "intervento") return <section className="space-y-3 p-6"><h1 className="text-xl font-semibold">Intervento operativo</h1><p>Modifica lavorazioni, date, squadra e mezzi dal cantiere. I dati economici si gestiscono sul contratto di origine.</p><Button onClick={()=>navigate(`/azienda/ordini/${id}?tab=cantiere`)}>Apri il cantiere dell’intervento</Button></section>;
+  if (order.workflow_kind === "intervento") return <section className="space-y-3 p-6"><h1 className="text-xl font-semibold">{t("Intervento operativo")}</h1><p>{t("Modifica lavorazioni, date, squadra e mezzi dal cantiere. I dati economici si gestiscono sul contratto di origine.")}</p><Button onClick={()=>navigate(`/azienda/ordini/${id}?tab=cantiere`)}>{t("Apri il cantiere dell’intervento")}</Button></section>;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <QuotePageHeader
         icon={<ClipboardList className="h-5 w-5" />}
-        title="Modifica Commessa"
-        subtitle="Aggiorna i dettagli della commessa"
+        title={t("Modifica Commessa")}
+        subtitle={t("Aggiorna i dettagli della commessa")}
         actions={
           <Button
             variant="outline"
@@ -1045,7 +1046,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
             className="text-xs"
           >
             <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-            Indietro
+            {t("Indietro")}
           </Button>
         }
       />
@@ -1056,11 +1057,11 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
           <AlertTriangle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="flex items-center justify-between">
             <span className="text-amber-900 font-medium">
-              Bozza recuperata — le modifiche non salvate sono state ripristinate.
+              {t("Bozza recuperata — le modifiche non salvate sono state ripristinate.")}
             </span>
             <Button type="button" variant="outline" size="sm" className="ml-4 shrink-0 border-amber-300 hover:bg-amber-100" onClick={handleClearDraft}>
               <Trash2 className="h-3 w-3 mr-1" />
-              Ripristina originale
+              {t("Ripristina originale")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -1069,11 +1070,11 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Main Form */}
-          <QuoteCard title="Dettagli Commessa" icon={<ClipboardList className="h-4 w-4" />}>
+          <QuoteCard title={t("Dettagli Commessa")} icon={<ClipboardList className="h-4 w-4" />}>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="orderCode">Codice Commessa</Label>
-                <Input id="orderCode" value={orderCode} onChange={(e) => setOrderCode(e.target.value)} placeholder="es. ORD-2026-001" />
+                <Label htmlFor="orderCode">{t("Codice Commessa")}</Label>
+                <Input id="orderCode" value={orderCode} onChange={(e) => setOrderCode(e.target.value)} placeholder={t("es. ORD-2026-001")} />
               </div>
 
               {/* Su un lavoro in appalto il committente NON si cambia.
@@ -1085,15 +1086,15 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
                   contratto»). Si sbaglia una volta e non si torna indietro. */}
               {orderTypeState === "appaltatore_lavoro" ? (
                 <div className="space-y-2">
-                  <Label>Committente</Label>
+                  <Label>{t("Committente")}</Label>
                   <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
                     <HardHat className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <span className="font-medium">
+                    <span className="font-medium" dir="auto">
                       {(() => {
                         const c = allCustomers.find((x) => x.id === (customerId || order?.customer_id));
                         return c
                           ? nomeCliente(c)
-                          : "Committente";
+                          : t("Committente");
                       })()}
                     </span>
                     {(customerId || order?.customer_id) && (
@@ -1101,28 +1102,27 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
                         to={`/azienda/committenti/${customerId || order?.customer_id}`}
                         className="ml-auto text-xs font-medium text-blue-700 underline-offset-2 hover:underline"
                       >
-                        Apri la sua scheda
+                        {t("Apri la sua scheda")}
                       </Link>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Non si cambia: da lui scendono il contratto, il listino e tutte le righe già
-                    rendicontate. Se il lavoro è di un altro committente, aprine uno nuovo.
+                    {t("Non si cambia: da lui scendono il contratto, il listino e tutte le righe già rendicontate. Se il lavoro è di un altro committente, aprine uno nuovo.")}
                   </p>
                 </div>
               ) : (
               <div className="space-y-2">
-                <Label htmlFor="customer">Cliente *</Label>
+                <Label htmlFor="customer">{t("Cliente *")}</Label>
                 <div className="flex gap-2">
                   <Select
                     value={customerId && allCustomers.some(c => c.id === customerId) ? customerId : "__none__"}
                     onValueChange={(value) => setCustomerId(value === "__none__" ? "" : value)}
                   >
                     <SelectTrigger id="customer" className="flex-1">
-                      <SelectValue placeholder={isLoadingCustomers ? "Caricamento..." : "Seleziona un cliente"} />
+                      <SelectValue placeholder={isLoadingCustomers ? t("Caricamento...") : t("Seleziona un cliente")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__" disabled>Seleziona un cliente</SelectItem>
+                      <SelectItem value="__none__" disabled>{t("Seleziona un cliente")}</SelectItem>
                       {allCustomers.map((customer) => (
                         <SelectItem key={customer.id} value={customer.id}>
                           {nomeCliente(customer)}{emailDaMostrare(customer.email) ? ` (${emailDaMostrare(customer.email)})` : ""}
@@ -1130,7 +1130,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button type="button" variant="outline" size="icon" onClick={() => setShowCreateCustomer(true)} title="Nuovo cliente">
+                  <Button type="button" variant="outline" size="icon" onClick={() => setShowCreateCustomer(true)} title={t("Nuovo cliente")}>
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1138,13 +1138,13 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="description">Descrizione Lavoro *</Label>
-                <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descrivi il lavoro da eseguire..." rows={4} />
+                <Label htmlFor="description">{t("Descrizione Lavoro *")}</Label>
+                <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("Descrivi il lavoro da eseguire...")} rows={4} />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Note Interne</Label>
-                <Textarea id="notes" value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} placeholder="Note visibili solo all'azienda..." rows={3} />
+                <Label htmlFor="notes">{t("Note Interne")}</Label>
+                <Textarea id="notes" value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} placeholder={t("Note visibili solo all'azienda...")} rows={3} />
               </div>
 
               <SalespersonSelect
@@ -1164,12 +1164,12 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
               {/* Magazzino di competenza: chi gestisce quel magazzino vede la
                   commessa. Alla creazione c'era già, in modifica mancava. */}
               <div className="space-y-2">
-                <Label>Magazzino Destinazione Materiali</Label>
+                <Label>{t("Magazzino Destinazione Materiali")}</Label>
                 <WarehouseSelect
                   value={destinationWarehouseId}
                   onChange={setDestinationWarehouseId}
                   nullable
-                  placeholder="Magazzino predefinito"
+                  placeholder={t("Magazzino predefinito")}
                 />
               </div>
             </div>
@@ -1193,22 +1193,20 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
               proprio quello che genera una previsione di incasso falsa.
               Quello che fatturi esce dal rendiconto. */}
           {!puoImporti ? (
-            <QuoteCard title="Importi e pagamenti" icon={<HardHat className="h-4 w-4" />}>
+            <QuoteCard title={t("Importi e pagamenti")} icon={<HardHat className="h-4 w-4" />}>
               <p className="text-sm text-muted-foreground">
-                Importo, IVA e piano dei pagamenti li vede e li modifica chi ha il permesso
-                «Venduto e importi». Salvando da qui restano come sono. Per averlo, chiedi al
-                titolare dell'azienda.
+                {t("Importo, IVA e piano dei pagamenti li vede e li modifica chi ha il permesso «Venduto e importi». Salvando da qui restano come sono. Per averlo, chiedi al titolare dell'azienda.")}
               </p>
             </QuoteCard>
           ) : orderTypeState === "appaltatore_lavoro" && valorizzazione === "a_misura" ? (
             <QuoteCard
-              title="Quanto vale questo lavoro"
+              title={t("Quanto vale questo lavoro")}
               icon={<HardHat className="h-4 w-4" />}
-              subtitle="A misura: l'importo vero esce dal rendiconto, non da qui."
+              subtitle={t("A misura: l'importo vero esce dal rendiconto, non da qui.")}
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="stimaAppalto">Importo stimato (€)</Label>
+                  <Label htmlFor="stimaAppalto">{t("Importo stimato (€)")}</Label>
                   <Input
                     id="stimaAppalto"
                     inputMode="decimal"
@@ -1217,39 +1215,36 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
                     placeholder="0,00"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Quanto pensi di fare. Serve a te per sapere se il lavoro conviene: non è
-                    quello che fatturerai.
+                    {t("Quanto pensi di fare. Serve a te per sapere se il lavoro conviene: non è quello che fatturerai.")}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="tettoAppalto">Tetto concordato (€)</Label>
+                  <Label htmlFor="tettoAppalto">{t("Tetto concordato (€)")}</Label>
                   <Input
                     id="tettoAppalto"
                     inputMode="decimal"
                     value={tettoImporto}
                     onChange={(e) => setTettoImporto(e.target.value)}
-                    placeholder="Nessun limite"
+                    placeholder={t("Nessun limite")}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Oltre questa cifra la commessa avvisa. Lascialo vuoto se non c'è un limite.
+                    {t("Oltre questa cifra la commessa avvisa. Lascialo vuoto se non c'è un limite.")}
                   </p>
                 </div>
               </div>
               <p className="mt-3 rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                Niente rate qui: su un lavoro a misura una scadenza sull'importo stimato
-                diventerebbe una previsione di incasso falsa. La scadenza arriva con la fattura del
-                rendiconto, calcolata sui giorni di pagamento del contratto.
+                {t("Niente rate qui: su un lavoro a misura una scadenza sull'importo stimato diventerebbe una previsione di incasso falsa. La scadenza arriva con la fattura del rendiconto, calcolata sui giorni di pagamento del contratto.")}
               </p>
             </QuoteCard>
           ) : (
           <div className="space-y-3">
           {scegliPagamento && <ScegliPianoPagamento aperto={scegliPagamento} totaleLordo={totalWithVat} sostituisce={installments.length>0} onChiudi={()=>setScegliPagamento(false)} onScegli={async(rate,piano)=>{
             const {data:links,error}=await supabase.from("sal_records").select("id").eq("order_id",id!).eq("company_id",effectiveCompany!.id).not("installment_id","is",null).limit(1);
-            if(error||links?.length){toast.error("Piano non sostituito",{description:error?"Non riesco a verificare i SAL collegati. Riprova.":"Ci sono SAL già collegati alle rate: conserva i pagamenti registrati e modifica le singole quote."});return;}
+            if(error||links?.length){toast.error(t("Piano non sostituito"),{description:error?t("Non riesco a verificare i SAL collegati. Riprova."):t("Ci sono SAL già collegati alle rate: conserva i pagamenti registrati e modifica le singole quote.")});return;}
             setSalPayment(piano??undefined);setPaymentType("standard");setInstallments(rate);setNumInstallments(rate.length);
           }}/>}
           <FinancialSummary
-            azioniTestata={<Button type="button" variant="outline" size="sm" disabled={erroreDocumentiCollegati || documentiCollegati.length>0 || dbInstallments.some(r=>r.is_paid||!!r.documento_fiscale_id)} onClick={()=>setScegliPagamento(true)}>Cambia come si paga</Button>}
+            azioniTestata={<Button type="button" variant="outline" size="sm" disabled={erroreDocumentiCollegati || documentiCollegati.length>0 || dbInstallments.some(r=>r.is_paid||!!r.documento_fiscale_id)} onClick={()=>setScegliPagamento(true)}>{t("Cambia come si paga")}</Button>}
             hasLinkedInvoices={documentiCollegati.length > 0 || dbInstallments.some(rata => !!rata.documento_fiscale_id)}
             invoiceLinksError={erroreDocumentiCollegati}
             daContratto={order.workflow_kind === "contratto"}
@@ -1293,25 +1288,25 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
           )}
           {puoImporti && variazioniApprovate !== 0 && (
             <p className="mt-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-              Varianti approvate: <strong className="text-foreground">{variazioniApprovate > 0 ? "+" : ""}{formatDecimalIT(variazioniApprovate)} €</strong> IVA esclusa.
-              Il saldo le comprende, come nella scheda della commessa.
+              {t("Varianti approvate: {importo} IVA esclusa.", { importo: `${variazioniApprovate > 0 ? "+" : ""}${formatDecimalIT(variazioniApprovate)} €` })}{" "}
+              {t("Il saldo le comprende, come nella scheda della commessa.")}
             </p>
           )}
         </div>
 
         {/* Customer Dates Card */}
         <QuoteCard
-          title="Tempistiche per il Cliente"
+          title={t("Tempistiche per il Cliente")}
           icon={<CalendarIcon className="h-4 w-4" />}
         >
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
-                <Label>Data Prevista</Label>
+                <Label>{t("Data Prevista")}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal border-slate-200 hover:border-orange-300 hover:bg-orange-50/40", !expectedDate && "text-slate-400")}>
                       <CalendarIcon className="mr-2 h-4 w-4 text-orange-500" />
-                      {expectedDate ? format(expectedDate, "d MMMM yyyy", { locale: it }) : <span>Seleziona data</span>}
+                      {expectedDate ? format(expectedDate, "d MMMM yyyy", { locale: dateFnsCampo() }) : <span>{t("Seleziona data")}</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -1320,12 +1315,12 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
                 </Popover>
               </div>
               <div className="space-y-2">
-                <Label>Arrivo Merce in Magazzino</Label>
+                <Label>{t("Arrivo Merce in Magazzino")}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal border-slate-200 hover:border-orange-300 hover:bg-orange-50/40", !warehouseArrivalDate && "text-slate-400")}>
                       <CalendarIcon className="mr-2 h-4 w-4 text-orange-500" />
-                      {warehouseArrivalDate ? format(warehouseArrivalDate, "d MMMM yyyy", { locale: it }) : <span>Seleziona data</span>}
+                      {warehouseArrivalDate ? format(warehouseArrivalDate, "d MMMM yyyy", { locale: dateFnsCampo() }) : <span>{t("Seleziona data")}</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -1334,12 +1329,12 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
                 </Popover>
               </div>
               <div className="space-y-2">
-                <Label>Inizio Lavori</Label>
+                <Label>{t("Inizio Lavori")}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal border-slate-200 hover:border-orange-300 hover:bg-orange-50/40", !workStartDate && "text-slate-400")}>
                       <CalendarIcon className="mr-2 h-4 w-4 text-orange-500" />
-                      {workStartDate ? format(workStartDate, "d MMMM yyyy", { locale: it }) : <span>Seleziona data</span>}
+                      {workStartDate ? format(workStartDate, "d MMMM yyyy", { locale: dateFnsCampo() }) : <span>{t("Seleziona data")}</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -1348,12 +1343,12 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
                 </Popover>
               </div>
               <div className="space-y-2">
-                <Label>Fine Lavori</Label>
+                <Label>{t("Fine Lavori")}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal border-slate-200 hover:border-orange-300 hover:bg-orange-50/40", !workEndDate && "text-slate-400")}>
                       <CalendarIcon className="mr-2 h-4 w-4 text-orange-500" />
-                      {workEndDate ? format(workEndDate, "d MMMM yyyy", { locale: it }) : <span>Seleziona data</span>}
+                      {workEndDate ? format(workEndDate, "d MMMM yyyy", { locale: dateFnsCampo() }) : <span>{t("Seleziona data")}</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -1367,9 +1362,9 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
         {/* ── Modulo Appaltatori — campi specifici per lavoro manodopera ── */}
         {orderTypeState === "appaltatore_lavoro" && (
           <QuoteCard
-            title="Lavoro per appaltatore"
+            title={t("Lavoro per appaltatore")}
             icon={<HardHat className="h-4 w-4" />}
-            subtitle="Il lavoro che un'impresa committente ti ha passato."
+            subtitle={t("Il lavoro che un'impresa committente ti ha passato.")}
           >
             <div className="space-y-4">
               {/* Come viene pagato e con che contratto: alla creazione sono la
@@ -1380,48 +1375,48 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-lg border bg-muted/40 px-3 py-2">
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Come viene pagato
+                    {t("Come viene pagato")}
                   </p>
                   <p className="mt-0.5 text-sm font-medium">
-                    {valorizzazione === "a_misura" ? "A misura" : "A corpo"}
+                    {valorizzazione === "a_misura" ? t("A misura") : t("A corpo")}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {valorizzazione === "a_misura"
-                      ? "Vale quello che rendiconti. Non si cambia da qui: le righe già rendicontate cambierebbero senso."
-                      : "Importo concordato. Il lavoro in più si rendiconta a parte, segnato fuori contratto."}
+                      ? t("Vale quello che rendiconti. Non si cambia da qui: le righe già rendicontate cambierebbero senso.")
+                      : t("Importo concordato. Il lavoro in più si rendiconta a parte, segnato fuori contratto.")}
                   </p>
                 </div>
                 <div className="rounded-lg border bg-muted/40 px-3 py-2">
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Contratto
+                    {t("Contratto")}
                   </p>
-                  <p className="mt-0.5 text-sm font-medium">
-                    {nomeContratto ?? (order?.appalto_contratto_id ? "—" : "Nessuno")}
+                  <p className="mt-0.5 text-sm font-medium" dir="auto">
+                    {nomeContratto ?? (order?.appalto_contratto_id ? "—" : t("Nessuno"))}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Da qui scendono listino, ritenuta e regime IVA.
+                    {t("Da qui scendono listino, ritenuta e regime IVA.")}
                   </p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="rifCommittente">Loro numero d'ordine</Label>
+                <Label htmlFor="rifCommittente">{t("Loro numero d'ordine")}</Label>
                 <Input
                   id="rifCommittente"
                   value={riferimentoCommittente}
                   onChange={(e) => setRiferimentoCommittente(e.target.value)}
-                  placeholder="es. ORD-2026/118-A"
+                  placeholder={t("es. ORD-2026/118-A")}
                   maxLength={120}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Va in testa alla fattura. Molti committenti senza il loro riferimento non pagano.
+                  {t("Va in testa alla fattura. Molti committenti senza il loro riferimento non pagano.")}
                 </p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="workAddress" className="flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5" />
-                  Indirizzo cantiere
+                  {t("Indirizzo cantiere")}
                 </Label>
                 <CampoIndirizzo
                   id="workAddress"
@@ -1431,20 +1426,20 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
                     setWorkAddress(a.testo);
                     setWorkCoords(a.lat != null && a.lng != null ? { testo: a.testo, lat: a.lat, lng: a.lng } : null);
                   }}
-                  placeholder="Via del cantiere, 5 — 20100 Milano"
+                  placeholder={t("Via del cantiere, 5 — 20100 Milano")}
                   maxLength={250}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="workDescription" className="flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" />
-                  Cosa va fatto (briefing operativo)
+                  {t("Cosa va fatto (briefing operativo)")}
                 </Label>
                 <Textarea
                   id="workDescription"
                   value={workDescription}
                   onChange={(e) => setWorkDescription(e.target.value)}
-                  placeholder="Smontaggio infissi, posa, sigillature, ripristino imbotti..."
+                  placeholder={t("Smontaggio infissi, posa, sigillature, ripristino imbotti...")}
                   rows={4}
                   maxLength={2000}
                 />
@@ -1452,13 +1447,13 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
               <div className="space-y-2">
                 <Label htmlFor="materialsLocation" className="flex items-center gap-1.5">
                   <Package className="h-3.5 w-3.5" />
-                  Posizione materiali
+                  {t("Posizione materiali")}
                 </Label>
                 <Input
                   id="materialsLocation"
                   value={materialsLocation}
                   onChange={(e) => setMaterialsLocation(e.target.value)}
-                  placeholder="Magazzino appaltatore / cantiere stesso / deposito X"
+                  placeholder={t("Magazzino appaltatore / cantiere stesso / deposito X")}
                   maxLength={200}
                 />
               </div>
@@ -1483,9 +1478,9 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
           <Alert variant="destructive" role="alert">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between gap-3">
-              <span>Non riesco a leggere le varianti: riprova prima di salvare</span>
+              <span>{t("Non riesco a leggere le varianti: riprova prima di salvare")}</span>
               <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => rileggiVariazioni()}>
-                Riprova
+                {t("Riprova")}
               </Button>
             </AlertDescription>
           </Alert>
@@ -1494,10 +1489,10 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
         {/* Actions */}
         <div className="flex justify-end gap-3 sticky bottom-0 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent pt-4 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
           <Button type="button" variant="outline" onClick={() => navigate(`/azienda/ordini/${id}`)}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <QuotePrimaryButton type="submit" disabled={updateOrderMutation.isPending || variazioniInLettura || variazioniInErrore}>
-            {updateOrderMutation.isPending ? "Salvataggio..." : "Salva Modifiche"}
+            {updateOrderMutation.isPending ? t("Salvataggio...") : t("Salva Modifiche")}
           </QuotePrimaryButton>
         </div>
       </form>
@@ -1514,8 +1509,9 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
 export default function EditOrder() {
   const [revision, setRevision] = useState(0);
   const restoreOriginal = useCallback(() => setRevision((value) => value + 1), []);
+  const t = useT();
   return (
-    <ErrorBoundary title="Errore nella modifica commessa">
+    <ErrorBoundary title={t("Errore nella modifica commessa")}>
       <EditOrderInner key={revision} onRestoreOriginal={restoreOriginal} />
     </ErrorBoundary>
   );

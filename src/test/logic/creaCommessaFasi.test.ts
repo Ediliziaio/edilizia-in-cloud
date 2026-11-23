@@ -29,7 +29,9 @@ describe("fasi di partenza nel modulo di nuova commessa", () => {
   });
 
   it("pianificazione, modello e anteprima sono nella stessa scheda, una volta sola", () => {
-    const scheda = SORGENTE.indexOf('title="Pianificazione lavori"');
+    // Il titolo può essere tradotto: title="…" oppure title={t("…")} (lingua dell'ufficio).
+    const scheda = SORGENTE.search(/title=(?:"Pianificazione lavori"|\{t\("Pianificazione lavori"\)\})/);
+    expect(scheda).toBeGreaterThan(-1);
     const fine = SORGENTE.indexOf("</QuoteCard>", scheda);
     expect(SORGENTE.match(/<FasiDiPartenzaSelect/g)).toHaveLength(1);
     expect(SORGENTE.indexOf("<FasiDiPartenzaSelect")).toBeGreaterThan(SORGENTE.indexOf('<PianificazioneCommessa', scheda));

@@ -36,8 +36,9 @@ import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { pendingMaterials, planMaterial, unitaMateriale, type ProcurementItem } from "@/lib/orders/materialProcurement";
 import { createMaterialPurchaseOrder, IncompletePurchaseOrderError } from "@/lib/orders/createMaterialPurchaseOrder";
 import { usePermissions } from "@/hooks/usePermissions";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
-const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
+const eurFmt = () => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: true });
 
 type PanelItem = ProcurementItem;
 
@@ -49,6 +50,8 @@ interface PanelProps {
 
 export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProps) {
   const navigate = useNavigaDocumento();
+  const t = useT();
+  const eur = eurFmt();
   const queryClient = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const { suppliers } = useOperationalSuppliers();
@@ -91,8 +94,8 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
     // "Crea tutti" passa false e ordina i gruppi INTERI — cosi' una spunta
     // tolta in un dialog precedente non puo' filtrare di nascosto il bulk.
     mutationFn: async ({ supplierId, soloSelezionati }: { supplierId: string; soloSelezionati?: boolean }) => {
-      if (!effectiveCompany?.id) throw new Error("Azienda non disponibile");
-      if (!canEditOrders || !canViewCosts) throw new Error("Permessi insufficienti");
+      if (!effectiveCompany?.id) throw new Error(t("Azienda non disponibile"));
+      if (!canEditOrders || !canViewCosts) throw new Error(t("Permessi insufficienti"));
       let gruppo = gruppi.find(([sid]) => sid === supplierId)?.[1] ?? [];
       if (soloSelezionati) {
         gruppo = gruppo.filter((i) => selezione[i.id!] !== false);
@@ -118,13 +121,13 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
         // Si atterra DENTRO l'ordine appena creato: il vecchio flusso faceva
         // cosi', e senza questa navigazione il click sembrava non fare nulla
         // (la riga sparisce dal pannello, ma e' un feedback troppo sottile).
-        toast.success(`Bozza OdA creata per ${supplierName(supplierId)} (${n} articoli)`);
+        toast.success(t("Bozza OdA creata per {fornitore} ({n} articoli)", { fornitore: supplierName(supplierId), n }));
         navigate(`/azienda/ordini-acquisto/${poId}`);
       }
     },
-    onError: (e) => toast.error("Errore nella creazione dell'OdA", {
+    onError: (e) => toast.error(t("Errore nella creazione dell'OdA"), {
       description: e instanceof Error ? e.message : String(e),
-      action: e instanceof IncompletePurchaseOrderError ? { label: "Verifica bozza", onClick: () => navigate(`/azienda/ordini-acquisto/${e.poId}`) } : undefined,
+      action: e instanceof IncompletePurchaseOrderError ? { label: t("Verifica bozza"), onClick: () => navigate(`/azienda/ordini-acquisto/${e.poId}`) } : undefined,
     }),
     onSettled: () => {
       setCreatingFor(null);
@@ -151,7 +154,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
       if (!gruppo.some((i) => i.posizioni?.length)) {
         const { data: idRdo, error: rpcErr } = await db.rpc("acquisti_richiedi_offerta", { p_items: gruppo.map((i) => i.id), p_titolo: titoloRdo, p_fornitori: [supplierId] });
         if (rpcErr) throw rpcErr;
-        toast.success(`Richiesta d'offerta creata per ${supplierName(supplierId)}`);
+        toast.success(t("Richiesta d'offerta creata per {fornitore}", { fornitore: supplierName(supplierId) }));
         setSceltaPer(null);
         queryClient.invalidateQueries({ queryKey: ["supplier-rfqs"] });
         navigate(`/azienda/richieste-offerta/${idRdo}`);
@@ -188,11 +191,11 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
         rfq_id: rfq.id, company_id: effectiveCompany.id, supplier_id: supplierId,
       });
       if (supErr) throw supErr;
-      toast.success(`Richiesta d'offerta creata per ${supplierName(supplierId)}`);
+      toast.success(t("Richiesta d'offerta creata per {fornitore}", { fornitore: supplierName(supplierId) }));
       setSceltaPer(null);
       navigate(`/azienda/richieste-offerta/${rfq.id}`);
     } catch (e) {
-      toast.error("Errore nella richiesta d'offerta", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Errore nella richiesta d'offerta"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setRdoBusy(false);
     }
@@ -206,17 +209,17 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
       try { await creaOda.mutateAsync({ supplierId: sid }); ok++; } catch { ko++; }
     }
     setCreatingAll(false);
-    if (ok > 0) toast.success(`${ok} OdA creati, uno per fornitore`, {
-      action: { label: "Vedi OdA", onClick: () => navigate("/azienda/ordini-acquisto") },
+    if (ok > 0) toast.success(t("{n} OdA creati, uno per fornitore", { n: ok }), {
+      action: { label: t("Vedi OdA"), onClick: () => navigate("/azienda/ordini-acquisto") },
     });
-    if (ko > 0) toast.error(`${ko} OdA non creati: riprova dai singoli fornitori`);
+    if (ko > 0) toast.error(t("{n} OdA non creati: riprova dai singoli fornitori", { n: ko }));
   };
 
   if (!items.length) return null;
-  if (coverage.isPending || unmapped.isPending) return <p role="status" className="text-sm text-muted-foreground">Verifica ordini e quantità in corso…</p>;
+  if (coverage.isPending || unmapped.isPending) return <p role="status" className="text-sm text-muted-foreground">{t("Verifica ordini e quantità in corso…")}</p>;
   if (coverage.isError || unmapped.isError) return <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 p-4 text-sm">
-    Impossibile verificare gli acquisti già collegati. Creazione OdA sospesa per evitare duplicati.
-    <Button variant="outline" size="sm" onClick={() => { coverage.refetch(); unmapped.refetch(); }} disabled={coverage.isFetching || unmapped.isFetching}>Riprova</Button>
+    {t("Impossibile verificare gli acquisti già collegati. Creazione OdA sospesa per evitare duplicati.")}
+    <Button variant="outline" size="sm" onClick={() => { coverage.refetch(); unmapped.refetch(); }} disabled={coverage.isFetching || unmapped.isFetching}>{t("Riprova")}</Button>
   </div>;
   if (gruppi.length === 0 && senzaFornitore.length === 0 && daVerificare.length === 0 && !unmapped.data?.length) return null;
 
@@ -240,15 +243,15 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
       {(gruppi.length > 0 || senzaFornitore.length > 0) && <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2 text-sm">
           <Package className="h-4 w-4 shrink-0 text-blue-600" />
-          <span className="font-semibold">Acquisti per fornitore</span>
+          <span className="font-semibold">{t("Acquisti per fornitore")}</span>
           <span className="text-muted-foreground">
-            {nArticoli} {nArticoli === 1 ? "articolo pronto" : "articoli pronti"} · {pronti.length} {pronti.length === 1 ? "fornitore" : "fornitori"}{canViewCosts && <> · <span className="tabular-nums">{eur.format(totale)} + IVA</span></>}
+            {t(nArticoli === 1 ? "{n} articolo pronto" : "{n} articoli pronti", { n: nArticoli })} · {t(pronti.length === 1 ? "{n} fornitore" : "{n} fornitori", { n: pronti.length })}{canViewCosts && <> · <span className="tabular-nums">{t("{importo} + IVA", { importo: eur.format(totale) })}</span></>}
           </span>
         </div>
         {gruppi.length > 1 && canEditOrders && canViewCosts && !gruppi.some(([sid]) => blockedSuppliers.has(sid)) && (
           <Button size="sm" className="shrink-0 gap-1.5" disabled={creatingAll || creaOda.isPending} onClick={creaTutti}>
             {creatingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
-            Prepara tutte le bozze ({gruppi.length})
+            {t("Prepara tutte le bozze ({n})", { n: gruppi.length })}
           </Button>
         )}
       </div>}
@@ -258,9 +261,9 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
           nell'elenco articoli qui sotto: non va ripetuto due volte. */}
       <div className="divide-y">
         {!!unmapped.data?.length && <div className="p-3 bg-amber-50/60 dark:bg-amber-950/20 space-y-2 text-sm">
-          <p className="font-medium">Ordini da riconciliare con gli articoli</p>
-          <p className="text-xs text-muted-foreground">Questi OdA contengono righe non collegate o sono vuoti. Verificali prima di creare altri ordini allo stesso fornitore: le quantità residue potrebbero essere già coperte.</p>
-          <div className="flex flex-wrap gap-2">{unmapped.data.map(o => <Button key={o.id} size="sm" variant="outline" onClick={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}>Apri {o.oda_number}</Button>)}</div>
+          <p className="font-medium">{t("Ordini da riconciliare con gli articoli")}</p>
+          <p className="text-xs text-muted-foreground">{t("Questi OdA contengono righe non collegate o sono vuoti. Verificali prima di creare altri ordini allo stesso fornitore: le quantità residue potrebbero essere già coperte.")}</p>
+          <div className="flex flex-wrap gap-2">{unmapped.data.map(o => <Button key={o.id} size="sm" variant="outline" onClick={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}>{t("Apri {numero}", { numero: o.oda_number })}</Button>)}</div>
         </div>}
         {gruppi.map(([sid, gruppo]) => {
           const tot = gruppo.reduce((s2, i) => s2 + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0);
@@ -269,7 +272,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
             <div key={sid} className="flex items-center justify-between gap-3 px-3 py-2">
               <div className="min-w-0 flex-1 text-sm">
                 <span className="font-medium">{supplierName(sid)}</span>
-                {canViewCosts && <span className="text-muted-foreground"> · <span className="tabular-nums">{eur.format(tot)} + IVA</span></span>}
+                {canViewCosts && <span className="text-muted-foreground"> · <span className="tabular-nums">{t("{importo} + IVA", { importo: eur.format(tot) })}</span></span>}
                 <span className="ml-2 hidden truncate text-xs text-muted-foreground sm:inline">
                   {gruppo.map((i) => i.name).join(" · ")}
                 </span>
@@ -288,7 +291,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                 }}
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Package className="h-3.5 w-3.5" />}
-                Prepara acquisto…
+                {t("Prepara acquisto…")}
               </Button>
             </div>
           );
@@ -296,15 +299,15 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
         {senzaFornitore.length > 0 && (
           <div className="flex items-center gap-2 bg-amber-50/60 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/20 dark:text-amber-300">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            {senzaFornitore.length} {senzaFornitore.length === 1 ? "articolo senza fornitore" : "articoli senza fornitore"}: assegnalo (matita sulla riga) per poterli ordinare.
+            {t(senzaFornitore.length === 1 ? "{n} articolo senza fornitore: assegnalo (matita sulla riga) per poterli ordinare." : "{n} articoli senza fornitore: assegnalo (matita sulla riga) per poterli ordinare.", { n: senzaFornitore.length })}
           </div>
         )}
         {daVerificare.length > 0 && <div className="px-3 py-3 text-sm bg-amber-50/60 dark:bg-amber-950/20">
-          <p className="font-medium">Da verificare prima di acquistare</p>
+          <p className="font-medium">{t("Da verificare prima di acquistare")}</p>
           <div className="mt-1 space-y-1">
             {[...perMotivo].map(([motivo, piani]) => (
               <details key={motivo} className="text-xs text-muted-foreground">
-                <summary className="cursor-pointer">{piani.length} {piani.length === 1 ? "articolo" : "articoli"}: {motivo}</summary>
+                <summary className="cursor-pointer">{t(piani.length === 1 ? "{n} articolo: {motivo}" : "{n} articoli: {motivo}", { n: piani.length, motivo: t(motivo) })}</summary>
                 <ul className="mt-1 space-y-0.5 pl-4">
                   {piani.map(p => (
                     <li key={p.item.id ?? p.item.name}>
@@ -338,7 +341,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                 <DialogHeader>
                   <DialogTitle>{supplierName(sceltaPer)}</DialogTitle>
                   <DialogDescription>
-                    {scelti.length} di {gruppo.length} {gruppo.length === 1 ? "articolo" : "articoli"} · {eur.format(tot)} + IVA. Le quantità sono quelle ancora da acquistare: puoi ordinarne una parte adesso, il resto resta da ordinare. Nessun invio automatico al fornitore.
+                    {t(gruppo.length === 1 ? "{scelti} di {totale} articolo · {importo} + IVA. Le quantità sono quelle ancora da acquistare: puoi ordinarne una parte adesso, il resto resta da ordinare. Nessun invio automatico al fornitore." : "{scelti} di {totale} articoli · {importo} + IVA. Le quantità sono quelle ancora da acquistare: puoi ordinarne una parte adesso, il resto resta da ordinare. Nessun invio automatico al fornitore.", { scelti: scelti.length, totale: gruppo.length, importo: eur.format(tot) })}
                   </DialogDescription>
                 </DialogHeader>
                 {/* Spunte per articolo: si puo' ordinare solo una parte del
@@ -362,7 +365,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                             <span className="flex shrink-0 items-center gap-1" onClick={(e) => e.preventDefault()}>
                               <Input
                                 inputMode="decimal"
-                                aria-label={`Quanti ${i.name} ordinare adesso`}
+                                aria-label={t("Quanti {articolo} ordinare adesso", { articolo: i.name })}
                                 className="h-7 w-20 px-1.5 text-right tabular-nums"
                                 value={quantitaScelte[i.id!] ?? String(Number(i.quantity)).replace(".", ",")}
                                 disabled={!on}
@@ -389,7 +392,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                     onClick={() => chiediPreventivo(sceltaPer)}
                   >
                     {rdoBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileQuestion className="h-4 w-4" />}
-                    Chiedi preventivo (RDO)
+                    {t("Chiedi preventivo (RDO)")}
                   </Button>
                   <Button
                     className="gap-1.5"
@@ -397,7 +400,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                     onClick={() => { setCreatingFor(sceltaPer); setSceltaPer(null); creaOda.mutate({ supplierId: sceltaPer, soloSelezionati: true }); }}
                   >
                     {creaOda.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
-                    Crea bozza OdA
+                    {t("Crea bozza OdA")}
                   </Button>
                 </DialogFooter>
               </>
@@ -422,6 +425,8 @@ interface BannerProps {
 
 export function PosaInLavorazioniBanner({ orderId, items }: BannerProps) {
   const queryClient = useQueryClient();
+  const tr = useT();
+  const eur = eurFmt();
   const [open, setOpen] = useState(false);
   const [teamByItem, setTeamByItem] = useState<Record<string, string>>({});
   const [moving, setMoving] = useState(false);
@@ -475,10 +480,10 @@ export function PosaInLavorazioniBanner({ orderId, items }: BannerProps) {
       queryClient.invalidateQueries({ queryKey: ["order-items", orderId] });
       queryClient.invalidateQueries({ queryKey: ["order-external-teams", orderId] });
       queryClient.invalidateQueries({ queryKey: ["order-work-phases", orderId] });
-      toast.success("Posa spostata nelle Lavorazioni");
+      toast.success(tr("Posa spostata nelle Lavorazioni"));
       setOpen(false);
     } catch (e) {
-      toast.error("Errore nello spostamento", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Errore nello spostamento"), { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setMoving(false);
     }
@@ -493,22 +498,21 @@ export function PosaInLavorazioniBanner({ orderId, items }: BannerProps) {
           <HardHat className="h-4 w-4 shrink-0" />
           <span className="line-clamp-2">
             {candidati.length === 1
-              ? `"${candidati[0].name}" sembra manodopera: fra gli articoli il suo costo non entra nei conti della manodopera.`
-              : `${candidati.length} articoli sembrano manodopera: fra gli articoli il loro costo non entra nei conti della manodopera.`}
+              ? tr("\"{articolo}\" sembra manodopera: fra gli articoli il suo costo non entra nei conti della manodopera.", { articolo: candidati[0].name })
+              : tr("{n} articoli sembrano manodopera: fra gli articoli il loro costo non entra nei conti della manodopera.", { n: candidati.length })}
           </span>
         </div>
         <Button size="sm" variant="outline" className="shrink-0 gap-1.5 border-amber-400" onClick={() => setOpen(true)}>
-          Sposta nelle Lavorazioni <ArrowRight className="h-3.5 w-3.5" />
+          {tr("Sposta nelle Lavorazioni")} <ArrowRight className="h-3.5 w-3.5" />
         </Button>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Sposta la posa nelle Lavorazioni</DialogTitle>
+            <DialogTitle>{tr("Sposta la posa nelle Lavorazioni")}</DialogTitle>
             <DialogDescription>
-              Scegli chi la esegue: la riga esce dagli articoli ed entra nella manodopera
-              con il suo costo ({"a corpo"}). Cosi' il Conto economico la conta dove deve.
+              {tr("Scegli chi la esegue: la riga esce dagli articoli ed entra nella manodopera con il suo costo (a corpo). Cosi' il Conto economico la conta dove deve.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -525,15 +529,15 @@ export function PosaInLavorazioniBanner({ orderId, items }: BannerProps) {
                   onValueChange={(v) => setTeamByItem((prev) => ({ ...prev, [item.id!]: v }))}
                 >
                   <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Squadra / subappaltatore…" />
+                    <SelectValue placeholder={tr("Squadra / subappaltatore…")} />
                   </SelectTrigger>
                   <SelectContent>
                     {teams.length === 0 ? (
                       <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                        Nessuna squadra: creane una in Subappaltatori
+                        {tr("Nessuna squadra: creane una in Subappaltatori")}
                       </div>
                     ) : teams.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>{t.name ?? "Squadra"}</SelectItem>
+                      <SelectItem key={t.id} value={t.id}>{t.name ?? tr("Squadra")}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -541,10 +545,10 @@ export function PosaInLavorazioniBanner({ orderId, items }: BannerProps) {
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>{tr("Annulla")}</Button>
             <Button onClick={sposta} disabled={moving || pronte === 0} className="gap-1.5">
               {moving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Sposta {pronte > 0 ? `(${pronte})` : ""}
+              {tr("Sposta")} {pronte > 0 ? `(${pronte})` : ""}
             </Button>
           </DialogFooter>
         </DialogContent>

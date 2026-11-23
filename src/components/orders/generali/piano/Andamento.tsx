@@ -38,6 +38,7 @@ import {
 } from "@/hooks/useGeneralePiano";
 import type { FotografiaPiano } from "@/lib/orders/generali/pianoLettura";
 import { asseEuro } from "@/lib/orders/generali/cassaLettura";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import "./cassa-andamento.css";
 
 type Metrica = "margine" | "costi" | "capitale";
@@ -50,6 +51,7 @@ export function Andamento({
   puoModificare: boolean;
   onInvestitori?: (mese?: string) => void;
 }) {
+  const t = useT();
   const { data, isLoading, isError, refetch } =
     useFotografieGenerale(generaleId);
   const scatta = useFotografaOra(generaleId);
@@ -65,8 +67,8 @@ export function Andamento({
   const ultima = visibili.at(-1);
   const nomi =
     metrica === "capitale"
-      ? ["Picco previsto dal piano", "Capitale investito alla rilevazione"]
-      : ["Budget previsto", "Stima finale"];
+      ? [t("Picco previsto dal piano"), t("Capitale investito alla rilevazione")]
+      : [t("Budget previsto"), t("Stima finale")];
   const dati = visibili.map((f) => ({
     mese: f.mese,
     etichetta: nomeMese(f.mese),
@@ -91,7 +93,7 @@ export function Andamento({
       onClick={() =>
         scatta.mutate(undefined, {
           onSuccess: () =>
-            toast.success("Fotografia di questo mese aggiornata"),
+            toast.success(t("Fotografia di questo mese aggiornata")),
           onError: (e) => toast.error(messaggioPiano(e, "la fotografia")),
         })
       }
@@ -101,44 +103,41 @@ export function Andamento({
       ) : (
         <Camera className="mr-2 h-4 w-4" />
       )}
-      Fotografa adesso
+      {t("Fotografa adesso")}
     </Button>
   );
   if (isLoading) return <Skeleton className="h-64 w-full rounded-lg" />;
   if (isError)
     return (
       <div role="alert" className="generale-toolbar">
-        Non riesco a leggere le fotografie del piano.{" "}
+        {t("Non riesco a leggere le fotografie del piano.")}{" "}
         <Button size="sm" variant="outline" onClick={() => void refetch()}>
-          Riprova
+          {t("Riprova")}
         </Button>
       </div>
     );
   return (
     <section
       className="generale-andamento space-y-4"
-      aria-label="Andamento storico del piano"
+      aria-label={t("Andamento storico del piano")}
     >
       <IntestazioneScheda
         icona={History}
-        titolo="Andamento dell’operazione"
-        descrizione="Fotografie mensili dei valori economici, al netto dell’IVA. Le rilevazioni storiche restano distinte dal piano corrente."
+        titolo={t("Andamento dell’operazione")}
+        descrizione={t("Fotografie mensili dei valori economici, al netto dell’IVA. Le rilevazioni storiche restano distinte dal piano corrente.")}
       >
         {azione}
       </IntestazioneScheda>
       {!foto.length ? (
         <div className="generale-panel generale-history-empty">
           <Camera aria-hidden="true" />
-          <h3>Lo storico parte dalla prima fotografia</h3>
+          <h3>{t("Lo storico parte dalla prima fotografia")}</h3>
           <p>
-            L’ultimo giorno di ogni mese viene rilevato il piano. Puoi
-            aggiornare la fotografia del mese corrente con «Fotografa adesso»; i
-            valori correnti non vengono trasformati in rilevazioni dei mesi
-            passati.
+            {t("L’ultimo giorno di ogni mese viene rilevato il piano. Puoi aggiornare la fotografia del mese corrente con «Fotografa adesso»; i valori correnti non vengono trasformati in rilevazioni dei mesi passati.")}
           </p>
           {onInvestitori && (
             <Button variant="outline" onClick={() => onInvestitori()}>
-              Apri fonti e investitori
+              {t("Apri fonti e investitori")}
             </Button>
           )}
         </div>
@@ -146,49 +145,52 @@ export function Andamento({
         <>
           <div className="generale-toolbar generale-history-filters">
             <label>
-              Rilevazioni
+              {t("Rilevazioni")}
               <UniformSelect
-                aria-label="Periodo dell’andamento"
+                aria-label={t("Periodo dell’andamento")}
                 value={periodo}
                 onChange={(e) => setPeriodo(Number(e.target.value))}
               >
-                <option value={0}>Tutto lo storico</option>
-                <option value={6}>Ultime 6 rilevazioni</option>
-                <option value={12}>Ultime 12 rilevazioni</option>
+                <option value={0}>{t("Tutto lo storico")}</option>
+                <option value={6}>{t("Ultime {n} rilevazioni", { n: 6 })}</option>
+                <option value={12}>{t("Ultime {n} rilevazioni", { n: 12 })}</option>
               </UniformSelect>
             </label>
             <label>
-              Versione fotografata
+              {t("Versione fotografata")}
               <UniformSelect
-                aria-label="Stato delle fotografie"
+                aria-label={t("Stato delle fotografie")}
                 value={stato}
                 onChange={(e) => setStato(e.target.value)}
               >
-                <option value="tutte">Tutte le versioni</option>
-                <option value="approvata">Solo approvate</option>
-                <option value="bozza">Solo bozze</option>
+                <option value="tutte">{t("Tutte le versioni")}</option>
+                <option value="approvata">{t("Solo approvate")}</option>
+                <option value="bozza">{t("Solo bozze")}</option>
               </UniformSelect>
             </label>
             <span>
-              {visibili.length} di {foto.length}{" "}
-              {foto.length === 1 ? "fotografia" : "fotografie"} · valori del
-              periodo selezionato
+              {t(
+                foto.length === 1
+                  ? "{n} di {totale} fotografia · valori del periodo selezionato"
+                  : "{n} di {totale} fotografie · valori del periodo selezionato",
+                { n: visibili.length, totale: foto.length },
+              )}
             </span>
           </div>
           {ultima ? (
             <>
               <p className="generale-history-date">
-                Ultima fotografia in vista:{" "}
-                <strong>{nomeMese(ultima.mese)}</strong> · versione{" "}
-                {ultima.versioneNumero ?? "non indicata"}{" "}
-                {ultima.versioneStato ?? ""}
+                {t("Ultima fotografia in vista:")}{" "}
+                <strong>{nomeMese(ultima.mese)}</strong> ·{" "}
+                {t("versione {numero}", { numero: ultima.versioneNumero ?? t("non indicata") })}{" "}
+                {ultima.versioneStato ? t(ultima.versioneStato) : ""}
               </p>
               <div
                 className="generale-indicators"
-                aria-label="Valori dell’ultima fotografia in vista"
+                aria-label={t("Valori dell’ultima fotografia in vista")}
               >
                 <IndicatoreScheda
-                  titolo="Margine stimato nella fotografia"
+                  titolo={t("Margine stimato nella fotografia")}
                   valore={formatCurrency(
                     ultima.ricaviStima - ultima.costiStima,
                   )}
@@ -197,7 +199,7 @@ export function Andamento({
                   }
                 />
                 <IndicatoreScheda
-                  titolo="Scostamento dal budget del mese"
+                  titolo={t("Scostamento dal budget del mese")}
                   tono={
                     ultima.ricaviStima - ultima.costiStima <
                     ultima.ricaviPrevisti - ultima.costiPrevisti
@@ -210,16 +212,16 @@ export function Andamento({
                       ultima.ricaviPrevisti +
                       ultima.costiPrevisti,
                   )}
-                  nota="stima finale meno margine previsto"
+                  nota={t("stima finale meno margine previsto")}
                 />
                 <IndicatoreScheda
-                  titolo="Costi registrati alla rilevazione"
+                  titolo={t("Costi registrati alla rilevazione")}
                   valore={formatCurrency(ultima.costiReali)}
                 />
                 <IndicatoreScheda
-                  titolo="Capitale investito alla rilevazione"
+                  titolo={t("Capitale investito alla rilevazione")}
                   valore={formatCurrency(ultima.capitaleInvestito)}
-                  nota="base economica: costi registrati meno incassi"
+                  nota={t("base economica: costi registrati meno incassi")}
                 />
               </div>
               <div className="generale-panel">
@@ -230,22 +232,21 @@ export function Andamento({
                     </span>
                     <div>
                       <h3 id="andamento-titolo">
-                        Come cambia{" "}
                         {metrica === "margine"
-                          ? "il margine"
+                          ? t("Come cambia il margine")
                           : metrica === "costi"
-                            ? "la stima dei costi"
-                            : "il capitale"}
+                            ? t("Come cambia la stima dei costi")
+                            : t("Come cambia il capitale")}
                       </h3>
                       <p>
-                        {nomi[0]} e {nomi[1].toLowerCase()}
+                        {t("{primo} e {secondo}", { primo: nomi[0], secondo: nomi[1].toLowerCase() })}
                       </p>
                     </div>
                   </div>
                   <div
                     className="generale-segmented"
                     role="group"
-                    aria-label="Metrica dell’andamento"
+                    aria-label={t("Metrica dell’andamento")}
                   >
                     {(
                       [
@@ -260,7 +261,7 @@ export function Andamento({
                         aria-pressed={metrica === id}
                         onClick={() => setMetrica(id)}
                       >
-                        {nome}
+                        {t(nome)}
                       </button>
                     ))}
                   </div>
@@ -320,15 +321,14 @@ export function Andamento({
                 <footer className="generale-panel-footer">
                   <span>
                     {visibili.length === 1
-                      ? "Una sola fotografia: il grafico mostra un punto, non una tendenza. "
+                      ? t("Una sola fotografia: il grafico mostra un punto, non una tendenza.") + " "
                       : ""}
-                    Il capitale investito è distinto dal capitale versato dalle
-                    fonti e dal saldo bancario.
+                    {t("Il capitale investito è distinto dal capitale versato dalle fonti e dal saldo bancario.")}
                   </span>
                 </footer>
               </div>
               <div className="generale-panel generale-cash-table">
-                <table aria-label="Fotografie mensili del piano">
+                <table aria-label={t("Fotografie mensili del piano")}>
                   <thead>
                     <tr>
                       {[
@@ -339,7 +339,7 @@ export function Andamento({
                         "Costi registrati",
                         "Capitale investito",
                       ].map((x) => (
-                        <th key={x}>{x}</th>
+                        <th key={x}>{t(x)}</th>
                       ))}
                     </tr>
                   </thead>
@@ -350,7 +350,7 @@ export function Andamento({
                           <button
                             type="button"
                             className="generale-legend-link"
-                            aria-label={`Apri fotografia di ${nomeMese(f.mese)}`}
+                            aria-label={t("Apri fotografia di {mese}", { mese: nomeMese(f.mese) })}
                             onClick={() => setAperta(f)}
                           >
                             {nomeMese(f.mese)}{" "}
@@ -358,8 +358,8 @@ export function Andamento({
                           </button>
                           <small className="generale-history-meta">
                             v{f.versioneNumero ?? "—"} ·{" "}
-                            {f.versioneStato ?? "stato non indicato"} ·{" "}
-                            {f.origine === "manuale" ? "manuale" : "automatica"}
+                            {f.versioneStato ? t(f.versioneStato) : t("stato non indicato")} ·{" "}
+                            {f.origine === "manuale" ? t("manuale") : t("automatica")}
                           </small>
                         </th>
                         <td>
@@ -393,17 +393,16 @@ export function Andamento({
                 <div className="generale-toolbar generale-history-link">
                   <Landmark aria-hidden="true" />
                   <div>
-                    <strong>Dal periodo al rendiconto investitori</strong>
+                    <strong>{t("Dal periodo al rendiconto investitori")}</strong>
                     <p>
-                      Apri il rendiconto di {nomeMese(ultima.mese)} con i
-                      controlli di completezza della fotografia.
+                      {t("Apri il rendiconto di {mese} con i controlli di completezza della fotografia.", { mese: nomeMese(ultima.mese) })}
                     </p>
                   </div>
                   <Button
                     variant="outline"
                     onClick={() => onInvestitori(ultima.mese)}
                   >
-                    Rendiconto del periodo{" "}
+                    {t("Rendiconto del periodo")}{" "}
                     <ArrowUpRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
@@ -411,7 +410,7 @@ export function Andamento({
             </>
           ) : (
             <p role="status" className="generale-toolbar">
-              Nessuna fotografia corrisponde ai filtri selezionati.
+              {t("Nessuna fotografia corrisponde ai filtri selezionati.")}
             </p>
           )}
         </>
@@ -424,37 +423,38 @@ export function Andamento({
       >
         <DialogContentOperativo className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Fotografia di {nomeMese(aperta?.mese)}</DialogTitle>
+            <DialogTitle>{t("Fotografia di {mese}", { mese: nomeMese(aperta?.mese) })}</DialogTitle>
             <DialogDescription>
-              Valori rilevati nel periodo, al netto dell’IVA. Versione{" "}
-              {aperta?.versioneNumero ?? "non indicata"} ·{" "}
-              {aperta?.versioneStato ?? "stato non indicato"}.
+              {t("Valori rilevati nel periodo, al netto dell’IVA. Versione {numero} · {stato}.", {
+                numero: aperta?.versioneNumero ?? t("non indicata"),
+                stato: aperta?.versioneStato ? t(aperta.versioneStato) : t("stato non indicato"),
+              })}
             </DialogDescription>
           </DialogHeader>
           {aperta && (
             <>
               <div className="generale-cash-table">
-                <table aria-label="Dettaglio della fotografia">
+                <table aria-label={t("Dettaglio della fotografia")}>
                   <thead>
                     <tr>
-                      <th>Valore</th>
-                      <th>Budget</th>
-                      <th>Stima finale</th>
+                      <th>{t("Valore")}</th>
+                      <th>{t("Budget")}</th>
+                      <th>{t("Stima finale")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <th>Ricavi</th>
+                      <th>{t("Ricavi")}</th>
                       <td>{formatCurrency(aperta.ricaviPrevisti)}</td>
                       <td>{formatCurrency(aperta.ricaviStima)}</td>
                     </tr>
                     <tr>
-                      <th>Costi</th>
+                      <th>{t("Costi")}</th>
                       <td>{formatCurrency(aperta.costiPrevisti)}</td>
                       <td>{formatCurrency(aperta.costiStima)}</td>
                     </tr>
                     <tr>
-                      <th>Margine</th>
+                      <th>{t("Margine")}</th>
                       <td>
                         {formatCurrency(
                           aperta.ricaviPrevisti - aperta.costiPrevisti,
@@ -472,7 +472,7 @@ export function Andamento({
                   variant="outline"
                   onClick={() => onInvestitori(aperta.mese)}
                 >
-                  Apri rendiconto investitori di {nomeMese(aperta.mese)}
+                  {t("Apri rendiconto investitori di {mese}", { mese: nomeMese(aperta.mese) })}
                 </Button>
               )}
             </>

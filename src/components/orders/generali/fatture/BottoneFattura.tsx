@@ -10,6 +10,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useFattureGenerale } from "@/hooks/useGeneraleFatture";
 import { etichettaFattura, fatturaDi, type OrigineFattura } from "@/lib/orders/generali/fatture";
 import { FatturaDialog } from "./FatturaDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   generaleId: string;
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function BottoneFattura({ generaleId, origine, id, crea = true, compatto = false }: Props) {
+  const t = useT();
   const telefono = useIsMobile();
   const elenco = useFattureGenerale(generaleId);
   const [aperto, setAperto] = useState(false);
@@ -44,11 +46,11 @@ export function BottoneFattura({ generaleId, origine, id, crea = true, compatto 
     <>
       {compatto ? (
         <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setAperto(true)}>
-          <FileText className="mr-1 h-3.5 w-3.5" /> Crea fattura
+          <FileText className="mr-1 h-3.5 w-3.5" /> {t("Crea fattura")}
         </Button>
       ) : (
         <Button type="button" size="sm" variant="outline" onClick={() => setAperto(true)}>
-          <FileText className="mr-1.5 h-3.5 w-3.5" /> Crea fattura
+          <FileText className="mr-1.5 h-3.5 w-3.5" /> {t("Crea fattura")}
         </Button>
       )}
       {aperto && <FatturaDialog generaleId={generaleId} origine={origine} id={id} open={aperto} onOpenChange={setAperto} />}

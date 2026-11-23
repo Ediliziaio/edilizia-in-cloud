@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronsLeft, ChevronsRight, Info } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { type OrderWithDetails, type OrderStatus, getGrossOrderAmount } from "@/lib/orderUtils";
 
 interface OrdersPipelineViewProps {
@@ -87,6 +88,7 @@ const CONFRONTO: Record<Ordinamento, (a: OrderWithDetails, b: OrderWithDetails) 
 };
 
 export function OrdersPipelineView({ orders, statuses, onStatusChange, controls, onMove, canEdit, showAmounts }: OrdersPipelineViewProps) {
+  const t = useT();
   const [ordinamento, setOrdinamento] = useState<Ordinamento>(leggiOrdinamento);
   const [compresse, setCompresse] = useState<Set<string>>(leggiCompresse);
   // L'elemento che scorre: serve alla barra di scorrimento sotto le colonne.
@@ -168,23 +170,23 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange, controls,
           {controls}
           <p className="rounded-full bg-muted px-2 py-1 text-xs">
             <span className="font-bold tabular-nums">{orders.length}</span>{" "}
-            <span className="text-muted-foreground">{orders.length === 1 ? "commessa" : "commesse"}</span>
+            <span className="text-muted-foreground">{orders.length === 1 ? t("commessa") : t("commesse")}</span>
             {commesseInRitardo > 0 && (
               <span className="ml-2 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700 ring-1 ring-orange-200">
-                {commesseInRitardo} in ritardo
+                {t("{n} in ritardo", { n: commesseInRitardo })}
               </span>
             )}
           </p>
           <div className="flex items-center gap-2">
-            <span className="sr-only">Ordina per</span>
+            <span className="sr-only">{t("Ordina per")}</span>
             <Select value={!showAmounts && ordinamento === "valore" ? "posa" : ordinamento} onValueChange={(v) => cambiaOrdinamento(v as Ordinamento)}>
-              <SelectTrigger className="h-8 w-36 text-xs" aria-label="Ordina le commesse nelle colonne">
+              <SelectTrigger className="h-8 w-36 text-xs" aria-label={t("Ordina le commesse nelle colonne")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {ORDINAMENTI.filter((o) => showAmounts || o.value !== "valore").map((o) => (
                   <SelectItem key={o.value} value={o.value}>
-                    {o.label}
+                    {t(o.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -201,31 +203,31 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange, controls,
           >
             {tutteCompresse ? (
               <>
-                <ChevronsRight className="h-3.5 w-3.5" /> Espandi tutte
+                <ChevronsRight className="h-3.5 w-3.5" /> {t("Espandi tutte")}
               </>
             ) : (
               <>
-                <ChevronsLeft className="h-3.5 w-3.5" /> Comprimi tutte
+                <ChevronsLeft className="h-3.5 w-3.5" /> {t("Comprimi tutte")}
               </>
             )}
           </Button>
           <Popover>
             <PopoverTrigger asChild>
-              <button type="button" aria-label="Come leggere le card" title="Come leggere le card" className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs text-muted-foreground hover:bg-muted">
+              <button type="button" aria-label={t("Come leggere le card")} title={t("Come leggere le card")} className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs text-muted-foreground hover:bg-muted">
                 <Info className="h-3.5 w-3.5" />
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[360px] space-y-2.5 text-xs">
-              <p className="text-sm font-semibold">Cosa dice ogni riga</p>
+              <p className="text-sm font-semibold">{t("Cosa dice ogni riga")}</p>
               <dl className="space-y-2">
-                <div><dt className="font-semibold">Fasi e task ufficio</dt><dd className="text-muted-foreground">Quante lavorazioni e quante attività d’ufficio sono completate, ciascuna sul proprio totale.</dd></div>
-                {showAmounts && <div><dt className="font-semibold">Importo contratto</dt><dd className="text-muted-foreground">L’importo sulla scheda è con IVA. Nell’anteprima trovi anche incassato e residuo.</dd></div>}
-                <div><dt className="font-semibold">Materiali</dt><dd className="text-muted-foreground">Articoli pronti su totali (in magazzino, prenotati o installati).</dd></div>
-                <div><dt className="font-semibold">Squadra</dt><dd className="text-muted-foreground">Chi fa il lavoro: il primo nome e quanti altri sono assegnati. «Da assegnare» se manca.</dd></div>
-                <div><dt className="font-semibold">Ora</dt><dd className="text-muted-foreground">Il collegamento apre la sezione dove gestire la prossima azione suggerita.</dd></div>
-                <div><dt className="font-semibold">«N in ritardo» sulla colonna</dt><dd className="text-muted-foreground">Quante commesse della colonna hanno superato la scadenza prevista.</dd></div>
+                <div><dt className="font-semibold">{t("Fasi e task ufficio")}</dt><dd className="text-muted-foreground">{t("Quante lavorazioni e quante attività d’ufficio sono completate, ciascuna sul proprio totale.")}</dd></div>
+                {showAmounts && <div><dt className="font-semibold">{t("Importo contratto")}</dt><dd className="text-muted-foreground">{t("L’importo sulla scheda è con IVA. Nell’anteprima trovi anche incassato e residuo.")}</dd></div>}
+                <div><dt className="font-semibold">{t("Materiali")}</dt><dd className="text-muted-foreground">{t("Articoli pronti su totali (in magazzino, prenotati o installati).")}</dd></div>
+                <div><dt className="font-semibold">{t("Squadra")}</dt><dd className="text-muted-foreground">{t("Chi fa il lavoro: il primo nome e quanti altri sono assegnati. «Da assegnare» se manca.")}</dd></div>
+                <div><dt className="font-semibold">{t("Ora")}</dt><dd className="text-muted-foreground">{t("Il collegamento apre la sezione dove gestire la prossima azione suggerita.")}</dd></div>
+                <div><dt className="font-semibold">{t("«N in ritardo» sulla colonna")}</dt><dd className="text-muted-foreground">{t("Quante commesse della colonna hanno superato la scadenza prevista.")}</dd></div>
               </dl>
-              <p className="text-muted-foreground">Passa il mouse sulla scheda o usa Anteprima per leggere i dettagli. Per cambiare fase, trascina la scheda o usa Sposta.</p>
+              <p className="text-muted-foreground">{t("Passa il mouse sulla scheda o usa Anteprima per leggere i dettagli. Per cambiare fase, trascina la scheda o usa Sposta.")}</p>
             </PopoverContent>
           </Popover>
         </div>
@@ -256,7 +258,7 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange, controls,
           {/* Colonna per ordini senza stato (se ce ne sono) */}
           {ordersWithoutStatus.length > 0 && (
             <OrdersPipelineColumn
-              status={STATO_SENZA}
+              status={{ ...STATO_SENZA, name: t(STATO_SENZA.name) }}
               orders={ordersWithoutStatus}
               canDrop={false}
               canEdit={canEdit}

@@ -1,4 +1,5 @@
 import { useContractWorkflowProfile } from "@/hooks/useContractWorkflowProfile";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 /**
  * ContractImportDialog — "Carica contratto / copia commissione".
  *
@@ -80,6 +81,7 @@ function fmtBytes(b: number): string {
 
 export function ContractImportDialog({ open, onOpenChange, companyId, onApply, initialAnalysisId, destinazione = "cliente", orderId = null }: Props) {
   const { effectiveCompany, user } = useAuth();
+  const t = useT();
   const queryClient = useQueryClient();
   const workflowProfilo = useContractWorkflowProfile();
   const { perContratto: modelliFasi } = useFasiDiPartenza();
@@ -149,9 +151,9 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
   const pick = (f: File) => {
     if (busy) return;
     const ext = "." + (f.name.split(".").pop()?.toLowerCase() ?? "");
-    if (!ACCEPTED.includes(ext)) { toast.error("Formato non supportato. Usa PDF, XPWE, Excel .xlsx o immagine."); return; }
-    if (f.size === 0) { toast.error("Il file è vuoto. Carica un documento leggibile."); return; }
-    if (f.size > MAX_SIZE) { toast.error(`File troppo grande (max ${fmtBytes(MAX_SIZE)}).`); return; }
+    if (!ACCEPTED.includes(ext)) { toast.error(t("Formato non supportato. Usa PDF, XPWE, Excel .xlsx o immagine.")); return; }
+    if (f.size === 0) { toast.error(t("Il file è vuoto. Carica un documento leggibile.")); return; }
+    if (f.size > MAX_SIZE) { toast.error(t("File troppo grande (max {max}).", { max: fmtBytes(MAX_SIZE) })); return; }
     setFile(f); setError(null); setCommessaCollegata(null); setExtract(null); setPathAnalizzato(null); setFirmaVerificata(false); setDataFirma("");
     setRemoteFileSalvato(null); setAnalisiSalvata(null); setErroreArchivio(false);
   };
@@ -180,12 +182,12 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
       void queryClient.invalidateQueries({ queryKey: ["letture-contratto-salvate", companyId] });
     } catch {
       setErroreArchivio(true);
-      toast.warning("Lettura disponibile, ma analisi non archiviata. Conserva la bozza e riprova il salvataggio prima di chiudere.");
+      toast.warning(t("Lettura disponibile, ma analisi non archiviata. Conserva la bozza e riprova il salvataggio prima di chiudere."));
     }
   };
 
   const caricaOriginale = async (originale: File): Promise<StoredContractFile> => {
-    if (!companyId) throw new Error("Azienda non disponibile: ricarica la pagina.");
+    if (!companyId) throw new Error(t("Azienda non disponibile: ricarica la pagina."));
     const buf = await originale.arrayBuffer();
     const hashBuf = await crypto.subtle.digest("SHA-256", buf);
     const sha = Array.from(new Uint8Array(hashBuf)).map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -286,13 +288,13 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
             user_hint: destinazione === "cliente" ? contractAnalysisHint(effectiveCompany?.id === companyId ? effectiveCompany.name : null, noteAi, notaExtra || (nota.includes(RILEGGI_VOCI) ? RILEGGI_VOCI : REGOLA_VOCI)) : `Destinazione: ${destinazione}. Azienda importatrice: ${effectiveCompany?.name?.slice(0,80) ?? ""}. Estrai dati_appalto, corpo/misura, stima e tetto, base prima del ribasso, sicurezza e condizioni SAL solo esplicite. Distingui totale RTI e quota azienda. Non inventare IVA, tariffe, date, firme o incassi. ${nota}`.slice(0,600),
           },
         });
-        if (fnErr) throw new Error(await edgeErrorMessage(fnErr, "Analisi AI fallita"));
+        if (fnErr) throw new Error(await edgeErrorMessage(fnErr, t("Analisi AI fallita")));
         if (data?.error) throw new Error(String(data.error));
         return reconcileContractExtract(parseContractExtract(data?.extracted ?? data));
       };
       let parsed = await leggi(note);
       if (!parsed.cliente.nome_completo && !parsed.descrizione_lavori && contractImponibile(parsed) == null && !parsed.voci.length && parsed.dati_appalto?.importo_base_eur == null && parsed.dati_appalto?.stima_eur == null) {
-        throw new Error("Non sono stati letti dati utili del contratto. Controlla il documento e riprova: i campi della commessa non sono stati modificati.");
+        throw new Error(t("Non sono stati letti dati utili del contratto. Controlla il documento e riprova: i campi della commessa non sono stati modificati."));
       }
       // Il testo del PDF (gratis, nel browser): serve al controllo dei valori e a capire se l'AI ha letto
       // solo il totale. In quel caso si rilegge da soli una volta, con l'indicazione delle voci.
@@ -367,7 +369,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
       .select("id")
       .single();
     if (supErr) throw new Error(`Fornitore: ${supErr.message}`);
-    toast.success(`Fornitore "${nomeFornitore}" creato in anagrafica`);
+    toast.success(t("Fornitore \"{nome}\" creato in anagrafica", { nome: nomeFornitore }));
     return (nuovo as { id: string }).id;
   };
 
@@ -383,12 +385,12 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
   const registraRispostaRdo = async () => {
     if (!extract || !companyId || registrandoRdo) return;
     if (extract.valuta && extract.valuta !== "EUR") {
-      toast.error(`L'offerta è in ${extract.valuta}: converti gli importi prima di registrarla.`);
+      toast.error(t("L'offerta è in {valuta}: converti gli importi prima di registrarla.", { valuta: extract.valuta }));
       return;
     }
     const nomeFornitore = extract.fornitore_emittente?.trim();
     if (!nomeFornitore) {
-      toast.error("Fornitore emittente non rilevato: scrivilo nelle indicazioni per l'AI e rianalizza.");
+      toast.error(t("Fornitore emittente non rilevato: scrivilo nelle indicazioni per l'AI e rianalizza."));
       return;
     }
     setRegistrandoRdo(true);
@@ -566,17 +568,19 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
 
       toast.success(
         rdoTarget === "nuova"
-          ? `RDO creata con la risposta di ${nomeFornitore} (${quotes.length} prezzi)`
-          : `Risposta di ${nomeFornitore} ${aggiornata ? "aggiornata" : "registrata"} sulla RDO (${quotes.length} prezzi${nonAbbinate ? `, ${nonAbbinate} voci non abbinate` : ""})`,
+          ? t("RDO creata con la risposta di {nome} ({n} prezzi)", { nome: nomeFornitore, n: quotes.length })
+          : nonAbbinate
+            ? t(aggiornata ? "Risposta di {nome} aggiornata sulla RDO ({n} prezzi, {m} voci non abbinate)" : "Risposta di {nome} registrata sulla RDO ({n} prezzi, {m} voci non abbinate)", { nome: nomeFornitore, n: quotes.length, m: nonAbbinate })
+            : t(aggiornata ? "Risposta di {nome} aggiornata sulla RDO ({n} prezzi)" : "Risposta di {nome} registrata sulla RDO ({n} prezzi)", { nome: nomeFornitore, n: quotes.length }),
       );
-      if (nonAbbinate > 0) toast.warning(`${nonAbbinate} voci dell'offerta non hanno trovato la riga RDO corrispondente: controllale nel confronto.`);
+      if (nonAbbinate > 0) toast.warning(t("{n} voci dell'offerta non hanno trovato la riga RDO corrispondente: controllale nel confronto.", { n: nonAbbinate }));
       onOpenChange(false);
       navigate(`/azienda/richieste-offerta/${rfqId}`);
     } catch (e) {
       if (rfqCreataQui) {
         await supabase.from("supplier_rfqs").delete().eq("id", rfqCreataQui);
       }
-      toast.error(e instanceof Error ? e.message : "Errore registrazione risposta RDO");
+      toast.error(e instanceof Error ? e.message : t("Errore registrazione risposta RDO"));
     } finally {
       setRegistrandoRdo(false);
     }
@@ -592,12 +596,12 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
   const creaOdaDaOfferta = async () => {
     if (!extract || !companyId || creandoOda) return;
     if (extract.valuta && extract.valuta !== "EUR") {
-      toast.error(`L'offerta è in ${extract.valuta}: converti gli importi prima di creare l'OdA.`);
+      toast.error(t("L'offerta è in {valuta}: converti gli importi prima di creare l'OdA.", { valuta: extract.valuta }));
       return;
     }
     const nomeFornitore = extract.fornitore_emittente?.trim();
     if (!nomeFornitore) {
-      toast.error("Fornitore emittente non rilevato: scrivilo nelle indicazioni per l'AI (es. \"il fornitore è Termoplast\") e rianalizza.");
+      toast.error(t("Fornitore emittente non rilevato: scrivilo nelle indicazioni per l'AI (es. \"il fornitore è Termoplast\") e rianalizza."));
       return;
     }
     setCreandoOda(true);
@@ -652,11 +656,11 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         if (riErr) throw riErr;
       }
 
-      toast.success("Ordine d'Acquisto creato in bozza dalle voci dell'offerta");
+      toast.success(t("Ordine d'Acquisto creato in bozza dalle voci dell'offerta"));
       onOpenChange(false);
       navigate(`/azienda/ordini-acquisto/${poId}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore creazione OdA");
+      toast.error(e instanceof Error ? e.message : t("Errore creazione OdA"));
     } finally {
       setCreandoOda(false);
     }
@@ -664,9 +668,9 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
 
   const apply = async () => {
     if (!extract || (destinazione === "cliente" && !workflowProfilo.data)) return;
-    if (extract.valuta && extract.valuta !== "EUR") { toast.error("Il documento non è in euro. Converti gli importi prima di applicarlo."); return; }
+    if (extract.valuta && extract.valuta !== "EUR") { toast.error(t("Il documento non è in euro. Converti gli importi prima di applicarlo.")); return; }
     if (firmaVerificata && !dataFirmaVerificata({ firmaConfermataIl:dataFirma }, new Date().toLocaleDateString("en-CA"))) {
-      toast.error("Indica la data effettiva della firma, non futura.");
+      toast.error(t("Indica la data effettiva della firma, non futura."));
       return;
     }
     // Anche il file riusato da Silvio deve finire nei Documenti: se non c'è
@@ -678,7 +682,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         if (downloadError || !blob) throw new Error("Documento originale non disponibile");
         sorgente = new File([blob], remoteFile.name, { type: remoteFile.mime });
       } catch {
-        toast.error("Non riesco a recuperare il documento originale. Riprova o caricalo di nuovo prima di applicare i dati.");
+        toast.error(t("Non riesco a recuperare il documento originale. Riprova o caricalo di nuovo prima di applicare i dati."));
         return;
       }
     }
@@ -687,7 +691,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     // Un file non caricato da questo lettore (es. quello di Silvio) si conserva tra gli originali del contratto.
     if (sorgente && (!source || source.bucket !== (orderId ? BUCKET : BUCKET_ORIGINALI_AI) || !source.path.startsWith(`${orderId ?? companyId}/ai-contratti/`))) {
       try { source = await caricaOriginale(sorgente); }
-      catch { toast.error("Non riesco a conservare l'originale nei documenti della commessa. Riprova prima di applicare i dati."); return; }
+      catch { toast.error(t("Non riesco a conservare l'originale nei documenti della commessa. Riprova prima di applicare i dati.")); return; }
     }
     if (source && sorgente) source.size = sorgente.size;
     if (source && analisiSalvata) source = { ...source, sha256: analisiSalvata.originale.sha256 ?? source.sha256, analysisId: analisiSalvata.analysisId };
@@ -697,7 +701,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     // Solo le parti spuntate: le altre arrivano vuote, come se il documento non le avesse.
     onApply(destinazione === "cliente" ? soloLeParti(extract, scelte) : extract, sorgente, source);
     onOpenChange(false);
-    toast.success("Dati del contratto applicati alla commessa. Rivedi e salva.");
+    toast.success(t("Dati del contratto applicati alla commessa. Rivedi e salva."));
   };
 
   // Il piano della commessa dal contratto: cosa si conferma dopo nel modulo.
@@ -710,20 +714,20 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-orange-500" />
-            Carica contratto / copia commissione / computo metrico
+            {t("Carica contratto / copia commissione / computo metrico")}
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            Carica una foto o un PDF (anche il computo metrico): l'AI legge i dati e precompila la commessa. Rivedi sempre prima di salvare.
+            {t("Carica una foto o un PDF (anche il computo metrico): l'AI legge i dati e precompila la commessa. Rivedi sempre prima di salvare.")}
           </DialogDescription>
         </DialogHeader>
 
         {!extract ? (
           <div className="space-y-4">
-            {!file && analisiRecenti.length > 0 && <div className="space-y-2 rounded-lg border p-3" aria-label="Analisi salvate">
-              <p className="text-sm font-medium">{orderId ? "Documenti di questa commessa" : "Documenti da completare"}</p>
-              <p className="text-xs text-muted-foreground">{orderId ? "Riapri le ultime tre letture senza consumare AI." : "Ultime tre letture ancora da collegare. Dopo la creazione restano nella loro commessa."}</p>
+            {!file && analisiRecenti.length > 0 && <div className="space-y-2 rounded-lg border p-3" aria-label={t("Analisi salvate")}>
+              <p className="text-sm font-medium">{orderId ? t("Documenti di questa commessa") : t("Documenti da completare")}</p>
+              <p className="text-xs text-muted-foreground">{orderId ? t("Riapri le ultime tre letture senza consumare AI.") : t("Ultime tre letture ancora da collegare. Dopo la creazione restano nella loro commessa.")}</p>
               {analisiRecenti.map((lettura) => <Button key={`${lettura.originale.path}-${lettura.contesto}`} variant="outline" className="h-auto w-full justify-start whitespace-normal text-left" disabled={busy} onClick={() => riprendiAnalisi(lettura)}>
-                {lettura.originale.name} · {new Date(lettura.salvata_il).toLocaleString("it-IT")}
+                {lettura.originale.name} · {new Date(lettura.salvata_il).toLocaleString(intlCampo())}
               </Button>)}
             </div>}
             <div
@@ -733,7 +737,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
               onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) pick(f); }}
               onClick={() => inputRef.current?.click()}
             >
-              <input ref={inputRef} type="file" className="hidden" aria-label="File contratto" disabled={busy} accept={ACCEPTED.join(",")}
+              <input ref={inputRef} type="file" className="hidden" aria-label={t("File contratto")} disabled={busy} accept={ACCEPTED.join(",")}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f); }} />
               {file ? (
                 <div className="flex items-center gap-3 justify-center">
@@ -742,7 +746,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                     <p className="font-medium text-sm">{file.name}</p>
                     <p className="text-xs text-muted-foreground">{fmtBytes(file.size)}</p>
                   </div>
-                  <Button variant="ghost" size="sm" disabled={busy} aria-label="Rimuovi file contratto" onClick={(e) => { e.stopPropagation(); setFile(null); }}>
+                  <Button variant="ghost" size="sm" disabled={busy} aria-label={t("Rimuovi file contratto")} onClick={(e) => { e.stopPropagation(); setFile(null); }}>
                     <XCircle className="h-4 w-4" />
                   </Button>
                 </div>
@@ -752,13 +756,13 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                   {remoteFile ? (
                     <p className="text-sm font-medium">
                       <FileText className="mb-0.5 mr-1 inline h-4 w-4 text-emerald-600" />
-                      Uso il file già caricato: <span className="font-semibold">{remoteFile.name}</span>
-                      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">oppure trascina qui un altro documento</span>
+                      {t("Uso il file già caricato:")} <span className="font-semibold" dir="auto">{remoteFile.name}</span>
+                      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{t("oppure trascina qui un altro documento")}</span>
                     </p>
                   ) : (
-                  <p className="text-sm font-medium">Trascina qui il contratto</p>
+                  <p className="text-sm font-medium">{t("Trascina qui il contratto")}</p>
                   )}
-                  <p className="text-xs text-muted-foreground mt-1">PDF, XPWE, Excel .xlsx o immagine — max {fmtBytes(MAX_SIZE)}. I computi strutturati si leggono sul dispositivo.</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t("PDF, XPWE, Excel .xlsx o immagine — max {max}. I computi strutturati si leggono sul dispositivo.", { max: fmtBytes(MAX_SIZE) })}</p>
                 </>
               )}
             </div>
@@ -767,7 +771,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                 chiaramente. Entrano nel prompt con priorità sulle deduzioni. */}
             <div>
               <label className="text-xs font-medium text-muted-foreground" htmlFor="note-ai-contratto">
-                Indicazioni per l'AI (facoltative)
+                {t("Indicazioni per l'AI (facoltative)")}
               </label>
               <textarea
                 id="note-ai-contratto"
@@ -776,16 +780,16 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                 onChange={(e) => setNoteAi(e.target.value.slice(0, 120))}
                 maxLength={120}
                 rows={2}
-                placeholder={"Es. L'IVA è al 10% · È un'offerta del fornitore, il cliente finale è Rossi · I prezzi sono per pezzo, non totali"}
+                placeholder={t("Es. L'IVA è al 10% · È un'offerta del fornitore, il cliente finale è Rossi · I prezzi sono per pezzo, non totali")}
                 className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
-              <p className="mt-1 text-xs text-muted-foreground">{noteAi.length}/120 caratteri</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("{n}/120 caratteri", { n: noteAi.length })}</p>
             </div>
 
             {error && (
               <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <div><span>{error}</span>{commessaCollegata && <Button type="button" variant="outline" size="sm" className="mt-2 block" onClick={() => navigate(`/azienda/ordini/${commessaCollegata}`)}>Apri commessa collegata</Button>}</div>
+                <div><span>{error}</span>{commessaCollegata && <Button type="button" variant="outline" size="sm" className="mt-2 block" onClick={() => navigate(`/azienda/ordini/${commessaCollegata}`)}>{t("Apri commessa collegata")}</Button>}</div>
               </div>
             )}
 
@@ -793,18 +797,18 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         ) : (
           <div className="space-y-3">
             {analisiSalvata && <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="status">
-              <span className="flex-1">Lettura recuperata · {new Date(analisiSalvata.salvata_il).toLocaleString("it-IT")}{orderId ? " · di questa commessa" : " · si collega quando crei la commessa"}</span>
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => void analyze(`${REGOLA_VOCI} Nuova lettura richiesta dall’utente: ${new Date().toISOString()}.`)}>{busy ? "Rilettura…" : "Aggiorna con l’AI"}</Button>
+              <span className="flex-1">{orderId ? t("Lettura recuperata · {data} · di questa commessa", { data: new Date(analisiSalvata.salvata_il).toLocaleString(intlCampo()) }) : t("Lettura recuperata · {data} · si collega quando crei la commessa", { data: new Date(analisiSalvata.salvata_il).toLocaleString(intlCampo()) })}</span>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => void analyze(`${REGOLA_VOCI} Nuova lettura richiesta dall’utente: ${new Date().toISOString()}.`)}>{busy ? t("Rilettura…") : t("Aggiorna con l’AI")}</Button>
             </div>}
-            {erroreArchivio && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">Questa analisi non è stata archiviata: i dati sono disponibili nell’anteprima, ma il recupero dopo la chiusura non è garantito.</p>}
-            {destinazione === "cliente" && !workflowProfilo.data && <p role="status" className="text-sm text-muted-foreground">{workflowProfilo.isError ? "Configurazione aziendale non disponibile. Riprova prima di applicare il contratto." : "Caricamento configurazione aziendale…"}</p>}
+            {erroreArchivio && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{t("Questa analisi non è stata archiviata: i dati sono disponibili nell’anteprima, ma il recupero dopo la chiusura non è garantito.")}</p>}
+            {destinazione === "cliente" && !workflowProfilo.data && <p role="status" className="text-sm text-muted-foreground">{workflowProfilo.isError ? t("Configurazione aziendale non disponibile. Riprova prima di applicare il contratto.") : t("Caricamento configurazione aziendale…")}</p>}
             {destinazione === "cliente" && pianoContratto && !eLavoroSingolo(pianoContratto) && <ContractPreparationCard piano={pianoContratto} />}
             {soloIlTotale(extract, testoDocumento) && (
               <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
                 <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="min-w-0 flex-1">Il documento ha un elenco di voci con i prezzi, ma l'AI ha letto solo {extract.voci.length === 1 ? "la riga del totale" : `${extract.voci.length} righe`}.</span>
+                <span className="min-w-0 flex-1">{extract.voci.length === 1 ? t("Il documento ha un elenco di voci con i prezzi, ma l'AI ha letto solo la riga del totale.") : t("Il documento ha un elenco di voci con i prezzi, ma l'AI ha letto solo {n} righe.", { n: extract.voci.length })}</span>
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => void analyze(RILEGGI_VOCI)}>
-                  {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden /> : null}Rileggi con tutte le voci
+                  {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden /> : null}{t("Rileggi con tutte le voci")}
                 </Button>
               </div>
             )}
@@ -822,31 +826,31 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
               daConfermare={conferme?.brevi ?? []}
               extraAvvisi={[...(conferme?.altre ?? []), ...(extract.appalto_pubblico?.informazioni_da_confermare ?? []).map(readableContractWarning)]}
               dopoDati={<>
-                {destinazione !== "cliente" && <p className="rounded-lg border bg-muted/30 p-3 text-sm">{destinazione === "appaltatore" ? "Proposta per il lavoro in appalto. Conferma committente, corpo/misura e contratto/listino nel modulo esistente. La stima a misura non genera rate." : "Proposta per Contratto e SAL. Verifica base, ribasso, sicurezza e quota dell’azienda: il totale RTI non viene attribuito automaticamente."}</p>}
-                {destinazione !== "cliente" && extract.dati_appalto && <dl className="grid gap-x-4 gap-y-1 rounded-lg border p-3 text-sm sm:grid-cols-2" aria-label="Dati del contratto in appalto">{[
-                  ["Valorizzazione", extract.dati_appalto.valorizzazione === "a_corpo" ? "A corpo" : extract.dati_appalto.valorizzazione === "a_misura" ? "A misura" : "Da confermare"],
-                  ["Base soggetta a ribasso", extract.dati_appalto.importo_base_eur == null ? "Da confermare" : formatCurrency(extract.dati_appalto.importo_base_eur)],
-                  ["Stima", extract.dati_appalto.stima_eur == null ? "Non dichiarata" : formatCurrency(extract.dati_appalto.stima_eur)],
-                  ["Tetto", extract.dati_appalto.tetto_eur == null ? "Non dichiarato" : formatCurrency(extract.dati_appalto.tetto_eur)],
-                  ["Ribasso", extract.dati_appalto.ribasso_pct == null ? "Da confermare" : `${extract.dati_appalto.ribasso_pct}%`],
-                  ["Sicurezza", extract.dati_appalto.oneri_sicurezza_eur == null ? "Da confermare" : formatCurrency(extract.dati_appalto.oneri_sicurezza_eur)],
-                  ["Anticipazione", extract.dati_appalto.anticipazione_pct == null ? "Da confermare" : `${extract.dati_appalto.anticipazione_pct}%`],
-                  ["Ritenuta", extract.dati_appalto.ritenuta_pct == null ? "Da confermare" : `${extract.dati_appalto.ritenuta_pct}%`],
+                {destinazione !== "cliente" && <p className="rounded-lg border bg-muted/30 p-3 text-sm">{destinazione === "appaltatore" ? t("Proposta per il lavoro in appalto. Conferma committente, corpo/misura e contratto/listino nel modulo esistente. La stima a misura non genera rate.") : t("Proposta per Contratto e SAL. Verifica base, ribasso, sicurezza e quota dell’azienda: il totale RTI non viene attribuito automaticamente.")}</p>}
+                {destinazione !== "cliente" && extract.dati_appalto && <dl className="grid gap-x-4 gap-y-1 rounded-lg border p-3 text-sm sm:grid-cols-2" aria-label={t("Dati del contratto in appalto")}>{[
+                  [t("Valorizzazione"), extract.dati_appalto.valorizzazione === "a_corpo" ? t("A corpo") : extract.dati_appalto.valorizzazione === "a_misura" ? t("A misura") : t("Da confermare")],
+                  [t("Base soggetta a ribasso"), extract.dati_appalto.importo_base_eur == null ? t("Da confermare") : formatCurrency(extract.dati_appalto.importo_base_eur)],
+                  [t("Stima"), extract.dati_appalto.stima_eur == null ? t("Non dichiarata") : formatCurrency(extract.dati_appalto.stima_eur)],
+                  [t("Tetto"), extract.dati_appalto.tetto_eur == null ? t("Non dichiarato") : formatCurrency(extract.dati_appalto.tetto_eur)],
+                  [t("Ribasso"), extract.dati_appalto.ribasso_pct == null ? t("Da confermare") : `${extract.dati_appalto.ribasso_pct}%`],
+                  [t("Sicurezza"), extract.dati_appalto.oneri_sicurezza_eur == null ? t("Da confermare") : formatCurrency(extract.dati_appalto.oneri_sicurezza_eur)],
+                  [t("Anticipazione"), extract.dati_appalto.anticipazione_pct == null ? t("Da confermare") : `${extract.dati_appalto.anticipazione_pct}%`],
+                  [t("Ritenuta"), extract.dati_appalto.ritenuta_pct == null ? t("Da confermare") : `${extract.dati_appalto.ritenuta_pct}%`],
                 ].map(([nome, valore]) => <div key={nome}><dt className="text-muted-foreground">{nome}</dt><dd className="font-medium">{valore}</dd></div>)}</dl>}
               </>} />
 
             {destinazione === "cliente" && extract.natura_documento === "offerta_fornitore" && (
               <div className="rounded-lg border border-sky-200 bg-sky-50 p-2.5 space-y-1.5">
-                <p className="text-xs font-semibold text-sky-900">Confronto fornitori (RDO)</p>
-                <p className="text-[11px] text-sky-800">Se hai più offerte per lo stesso lavoro, registrale come risposte a una richiesta d'offerta: le confronti riga per riga prima di ordinare.</p>
+                <p className="text-xs font-semibold text-sky-900">{t("Confronto fornitori (RDO)")}</p>
+                <p className="text-[11px] text-sky-800">{t("Se hai più offerte per lo stesso lavoro, registrale come risposte a una richiesta d'offerta: le confronti riga per riga prima di ordinare.")}</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <OfficeSelect
-                    label="Richiesta d'offerta di destinazione"
+                    label={t("Richiesta d'offerta di destinazione")}
                     value={rdoTarget}
                     onValueChange={setRdoTarget}
                     className="h-8 max-w-[280px] text-xs"
                     options={[
-                      { value: "nuova", label: "— Crea nuova RDO da questa offerta —" },
+                      { value: "nuova", label: t("— Crea nuova RDO da questa offerta —") },
                       ...rdoAperte.map((r) => ({
                         value: r.id,
                         label: `${r.rfq_number} · ${r.titolo}`,
@@ -855,7 +859,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                   />
                   <Button size="sm" variant="outline" onClick={registraRispostaRdo} disabled={registrandoRdo} className="gap-1 h-8">
                     {registrandoRdo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                    Registra come risposta RDO
+                    {t("Registra come risposta RDO")}
                   </Button>
                 </div>
               </div>
@@ -866,39 +870,46 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                   Ma diventa un clic, con la data già scritta (17/11/2026). */}
               {extract.firma?.presente && !firmaVerificata && (
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span>L'AI vede la firma{extract.firma.firmatario ? ` di ${extract.firma.firmatario}` : ""}{extract.firma.data ? ` del ${extract.firma.data.split("-").reverse().join("/")}` : ""}.</span>
+                  <span dir="auto">{(() => {
+                    const firmatario = extract.firma?.firmatario;
+                    const data = extract.firma?.data ? extract.firma.data.split("-").reverse().join("/") : null;
+                    if (firmatario && data) return t("L'AI vede la firma di {firmatario} del {data}.", { firmatario, data });
+                    if (firmatario) return t("L'AI vede la firma di {firmatario}.", { firmatario });
+                    if (data) return t("L'AI vede la firma del {data}.", { data });
+                    return t("L'AI vede la firma.");
+                  })()}</span>
                   <Button type="button" size="sm" variant="outline" className="h-7"
                     onClick={() => { setFirmaVerificata(true); if (extract.firma?.data) setDataFirma(extract.firma.data); }}>
-                    Confermo: è firmato
+                    {t("Confermo: è firmato")}
                   </Button>
                 </div>
               )}
-              <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={firmaVerificata} onChange={e=>setFirmaVerificata(e.target.checked)} className="mt-1" /><span>Ho verificato che il documento è firmato dalle parti</span></label>
-              {firmaVerificata && <label className="block text-sm">Data effettiva della firma<input type="date" className="mt-1 block rounded-md border bg-background px-3 py-2" value={dataFirma} max={new Date().toLocaleDateString("en-CA")} onChange={e=>setDataFirma(e.target.value)} /></label>}
-              <p className="text-xs text-muted-foreground">Senza questa conferma il file resta un allegato e non attiva le scadenze legate alla firma. La data del documento non viene usata come data di firma.</p>
+              <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={firmaVerificata} onChange={e=>setFirmaVerificata(e.target.checked)} className="mt-1" /><span>{t("Ho verificato che il documento è firmato dalle parti")}</span></label>
+              {firmaVerificata && <label className="block text-sm">{t("Data effettiva della firma")}<input type="date" className="mt-1 block rounded-md border bg-background px-3 py-2" value={dataFirma} max={new Date().toLocaleDateString("en-CA")} onChange={e=>setDataFirma(e.target.value)} /></label>}
+              <p className="text-xs text-muted-foreground">{t("Senza questa conferma il file resta un allegato e non attiva le scadenze legate alla firma. La data del documento non viene usata come data di firma.")}</p>
             </fieldset>}
           </div>
         )}
         <DialogFooter className="flex-wrap justify-between gap-2">
           {!extract ? (
             <Button onClick={() => analyze()} disabled={(!file && !remoteFile) || busy || !companyId}>
-              {busy ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {rileggo ? "Rileggo le voci, la prima lettura era incompleta…" : "L'AI sta leggendo…"}</> : <><Sparkles className="h-4 w-4 mr-1" /> Analizza con l'AI</>}
+              {busy ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {rileggo ? t("Rileggo le voci, la prima lettura era incompleta…") : t("L'AI sta leggendo…")}</> : <><Sparkles className="h-4 w-4 mr-1" /> {t("Analizza con l'AI")}</>}
             </Button>
           ) : <>
-              <Button variant="outline" disabled={busy} onClick={reset}>Ricarica un altro</Button>
+              <Button variant="outline" disabled={busy} onClick={reset}>{t("Ricarica un altro")}</Button>
               {destinazione === "cliente" && extract.natura_documento !== "offerta_fornitore" && (
                 <span className="min-w-0 flex-1 self-center text-xs text-muted-foreground">
-                  {scelte.size ? <>Entrano nella commessa: {[...scelte].map((p) => ETICHETTA_PARTE[p].toLowerCase()).join(", ")}</> : "Non hai scelto niente da applicare"}
+                  {scelte.size ? t("Entrano nella commessa: {parti}", { parti: [...scelte].map((p) => t(ETICHETTA_PARTE[p]).toLowerCase()).join(", ") }) : t("Non hai scelto niente da applicare")}
                 </span>
               )}
               <div className="flex flex-wrap gap-2">
                 {destinazione === "cliente" && extract.natura_documento === "offerta_fornitore" && (
                   <Button variant="brand" onClick={creaOdaDaOfferta} disabled={creandoOda} className="gap-1">
                     {creandoOda ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                    Crea Ordine d'Acquisto
+                    {t("Crea Ordine d'Acquisto")}
                   </Button>
                 )}
-                <Button onClick={apply} disabled={busy || (destinazione === "cliente" && (!workflowProfilo.data || (extract.natura_documento !== "offerta_fornitore" && scelte.size === 0))) || (firmaVerificata && !dataFirmaVerificata({firmaConfermataIl:dataFirma},new Date().toLocaleDateString("en-CA")))} className="gap-1"><CheckCircle2 className="h-4 w-4" />{destinazione === "appaltatore" ? "Applica al lavoro" : destinazione === "generale_appalto" ? "Applica al contratto" : "Applica alla commessa"}</Button>
+                <Button onClick={apply} disabled={busy || (destinazione === "cliente" && (!workflowProfilo.data || (extract.natura_documento !== "offerta_fornitore" && scelte.size === 0))) || (firmaVerificata && !dataFirmaVerificata({firmaConfermataIl:dataFirma},new Date().toLocaleDateString("en-CA")))} className="gap-1"><CheckCircle2 className="h-4 w-4" />{destinazione === "appaltatore" ? t("Applica al lavoro") : destinazione === "generale_appalto" ? t("Applica al contratto") : t("Applica alla commessa")}</Button>
               </div>
           </>}
         </DialogFooter>

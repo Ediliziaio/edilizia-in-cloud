@@ -19,15 +19,17 @@ import { cn } from "@/lib/utils";
 import {
   datePerFasi, giorniDelPiano, leggiPianoDellaCommessa, pianificaFasiDellaCommessa, primoGiornoLavorativo,
 } from "@/lib/orders/pianoDalCronoprogramma";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const chiave = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
 const oggi = () => new Date().toLocaleDateString("en-CA");
-const dataIt = (iso: string | null | undefined) => iso ? new Date(`${iso}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" }) : "";
+const dataIt = (iso: string | null | undefined) => iso ? new Date(`${iso}T12:00:00`).toLocaleDateString(intlCampo(), { day: "numeric", month: "long", year: "numeric" }) : "";
 
 export function PianoDalPreventivo({ orderId, fasi }: {
   orderId: string;
   fasi: ReadonlyArray<{ name: string; start_date: string | null; end_date: string | null }>;
 }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   const [chiuso, setChiuso] = useState(false);
@@ -43,10 +45,10 @@ export function PianoDalPreventivo({ orderId, fasi }: {
     onSuccess: (esito) => {
       refreshWorkQueries(qc, orderId, companyId);
       void qc.invalidateQueries({ queryKey: ["order", orderId] });
-      const parti = [esito.datate && `${esito.datate} ${esito.datate === 1 ? "fase pianificata" : "fasi pianificate"}`,
-        esito.aggiunte && `${esito.aggiunte} ${esito.aggiunte === 1 ? "aggiunta" : "aggiunte"}`,
-        esito.saltate && `${esito.saltate} già con le sue date, lasciate com'erano`].filter(Boolean).join(", ");
-      toast.success(`${parti || "Nessuna fase da pianificare"}. Fine lavori prevista: ${dataIt(esito.fine)}.`);
+      const parti = [esito.datate && t(esito.datate === 1 ? "{n} fase pianificata" : "{n} fasi pianificate", { n: esito.datate }),
+        esito.aggiunte && t(esito.aggiunte === 1 ? "{n} aggiunta" : "{n} aggiunte", { n: esito.aggiunte }),
+        esito.saltate && t("{n} già con le sue date, lasciate com'erano", { n: esito.saltate })].filter(Boolean).join(", ");
+      toast.success(t("{esito}. Fine lavori prevista: {data}.", { esito: parti || t("Nessuna fase da pianificare"), data: dataIt(esito.fine) }));
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -62,10 +64,15 @@ export function PianoDalPreventivo({ orderId, fasi }: {
   const giorni = giorniDelPiano(piano.piano);
   const fonte = piano.origine.startsWith("computo") ? "computo" : piano.origine;
   const idDate = `date-dal-documento-${orderId}`;
+  // `fonte` arriva dalla lib: «computo», «preventivo», «preventivo di …».
+  const titolo = fonte === "computo" ? t("Tempi dal computo")
+    : fonte === "preventivo" ? t("Tempi dal preventivo")
+    : fonte.startsWith("preventivo di ") ? t("Tempi dal preventivo di {nome}", { nome: fonte.slice("preventivo di ".length) })
+    : t("Tempi dal {fonte}", { fonte });
 
   return (
-    <section aria-label={`Tempi dal ${fonte}`} className="relative rounded-xl border border-sky-200/80 bg-sky-50/60 p-3 text-sm dark:border-sky-900 dark:bg-sky-950/30">
-      <button type="button" aria-label="Nascondi piano date" className="absolute right-2 top-2 grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setChiuso(true)}>
+    <section aria-label={titolo} className="relative rounded-xl border border-sky-200/80 bg-sky-50/60 p-3 text-sm dark:border-sky-900 dark:bg-sky-950/30">
+      <button type="button" aria-label={t("Nascondi piano date")} className="absolute right-2 top-2 grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setChiuso(true)}>
         <X className="size-3.5" aria-hidden="true" />
       </button>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3 pr-7">
@@ -74,33 +81,33 @@ export function PianoDalPreventivo({ orderId, fasi }: {
             <CalendarClock className="size-4" aria-hidden="true" />
           </div>
           <div>
-            <h3 className="font-semibold">Tempi dal {fonte}</h3>
+            <h3 className="font-semibold">{titolo}</h3>
             <p className="text-xs text-muted-foreground">
-              {daPianificare.length} {daPianificare.length === 1 ? "fase da pianificare" : "fasi da pianificare"} · {giorni} {giorni === 1 ? "giorno lavorativo" : "giorni lavorativi"} stimati
+              {t(daPianificare.length === 1 ? "{n} fase da pianificare" : "{n} fasi da pianificare", { n: daPianificare.length })} · {t(giorni === 1 ? "{n} giorno lavorativo stimati" : "{n} giorni lavorativi stimati", { n: giorni })}
             </p>
           </div>
         </div>
         <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 text-sky-800 dark:text-sky-200 sm:hidden"
           aria-controls={idDate} aria-expanded={dateAperte} onClick={() => setDateAperte(v => !v)}>
-          {dateAperte ? "Chiudi date" : "Imposta date"}
+          {dateAperte ? t("Chiudi date") : t("Imposta date")}
           <ChevronDown className={cn("size-3.5", dateAperte && "rotate-180")} aria-hidden="true" />
         </Button>
         <div id={idDate} className={cn("flex flex-wrap items-end gap-2", !dateAperte && "max-sm:hidden")}>
           <div className="space-y-1">
-            <Label htmlFor={`inizio-lavori-${orderId}`} className="text-xs">Inizio lavori</Label>
+            <Label htmlFor={`inizio-lavori-${orderId}`} className="text-xs">{t("Inizio lavori")}</Label>
             <Input id={`inizio-lavori-${orderId}`} type="date" className="h-9 min-w-0 w-36 bg-background" value={giorno} onChange={e => setInizio(e.target.value || null)} />
           </div>
           <Button size="sm" className="h-9" disabled={applica.isPending || !giorno} onClick={() => applica.mutate(giorno)}>
             {applica.isPending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-            Pianifica le fasi
+            {t("Pianifica le fasi")}
           </Button>
         </div>
       </div>
-      <p className={cn("mt-2 text-xs text-muted-foreground", !dateAperte && "max-sm:hidden")}>Fine prevista <b className="font-semibold text-foreground">{dataIt(fine)}</b>
-        {daPianificare.length < piano.piano.length && ` · ${piano.piano.length - daPianificare.length} già pianificate`}
+      <p className={cn("mt-2 text-xs text-muted-foreground", !dateAperte && "max-sm:hidden")}>{t("Fine prevista")} <b className="font-semibold text-foreground">{dataIt(fine)}</b>
+        {daPianificare.length < piano.piano.length && ` · ${t("{n} già pianificate", { n: piano.piano.length - daPianificare.length })}`}
       </p>
       {piano.senzaDurata.length > 0 && <details className={cn("mt-1 text-xs text-amber-800 dark:text-amber-200", !dateAperte && "max-sm:hidden")}>
-        <summary className="w-fit cursor-pointer font-medium">{piano.senzaDurata.length} {piano.senzaDurata.length === 1 ? "fase stimata in un giorno" : "fasi stimate in un giorno ciascuna"}</summary>
+        <summary className="w-fit cursor-pointer font-medium">{t(piano.senzaDurata.length === 1 ? "{n} fase stimata in un giorno" : "{n} fasi stimate in un giorno ciascuna", { n: piano.senzaDurata.length })}</summary>
         <p className="mt-1">{piano.senzaDurata.join(", ")}.</p>
       </details>}
     </section>

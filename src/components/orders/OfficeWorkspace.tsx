@@ -43,6 +43,7 @@ import {
 } from "@/lib/orders/officeWorkspace";
 import { logTaskActivity } from "@/lib/taskActivityLog";
 import { cn } from "@/lib/utils";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 const Detail = lazy(() =>
   import("@/components/attivita/TaskDetailPanel").then((m) => ({
     default: m.TaskDetailPanel,
@@ -86,15 +87,16 @@ const emptyDraft = () => ({
   predecessor: "",
   days: "2",
 });
-const shortDate = (date: string | null) =>
+const shortDate = (date: string | null, vuoto = "Senza scadenza") =>
   date
-    ? new Date(`${date.slice(0, 10)}T12:00:00`).toLocaleDateString("it-IT", {
+    ? new Date(`${date.slice(0, 10)}T12:00:00`).toLocaleDateString(intlCampo(), {
         day: "numeric",
         month: "short",
       })
-    : "Senza scadenza";
+    : vuoto;
 
 export function OfficeWorkspace({ orderId }: { orderId: string }) {
+  const t = useT();
   const { effectiveCompany, user, role, profile } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
@@ -221,10 +223,10 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
   const counts = officeCounts(rows, today);
   const who = (f: Task) =>
     f.ufficio_id
-      ? (tasks.data?.offices.get(f.ufficio_id) ?? "Ufficio non disponibile")
+      ? (tasks.data?.offices.get(f.ufficio_id) ?? t("Ufficio non disponibile"))
       : f.assigned_to
-        ? names.get(f.assigned_to) || "Responsabile non disponibile"
-        : "Da assegnare";
+        ? names.get(f.assigned_to) || t("Responsabile non disponibile")
+        : t("Da assegnare");
   const late = (f: Task) =>
     f.status !== "completata" &&
     f.status !== "in_attesa" &&
@@ -232,19 +234,19 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
     f.due_date < today;
   const blocked = (f: Task) =>
     f.attende_fase_id
-      ? `Aspetta il cantiere: «${tasks.data?.phases.get(f.attende_fase_id) ?? "fase non disponibile"}»`
+      ? t("Aspetta il cantiere: «{fase}»", { fase: tasks.data?.phases.get(f.attende_fase_id) ?? t("fase non disponibile") })
       : f.bloccata_da_task_id
-        ? `Aspetta «${tasks.data?.previous.get(f.bloccata_da_task_id) ?? "attività non disponibile"}»`
-        : "In attesa di conferma";
+        ? t("Aspetta «{attivita}»", { attivita: tasks.data?.previous.get(f.bloccata_da_task_id) ?? t("attività non disponibile") })
+        : t("In attesa di conferma");
   const update = useMutation({
     mutationFn: async ({ task, status }: { task: Task; status: string }) => {
       if (!editable || !companyId || !user)
-        throw Error("Non puoi modificare questa attività.");
+        throw Error(t("Non puoi modificare questa attività."));
       if (
         task.status === "in_attesa" &&
         (task.bloccata_da_task_id || task.attende_fase_id)
       )
-        throw Error("Completa prima la dipendenza indicata.");
+        throw Error(t("Completa prima la dipendenza indicata."));
       const patch = {
         status,
         completed_at: status === "completata" ? new Date().toISOString() : null,
@@ -261,7 +263,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
       if (error) throw error;
       if (!data?.length)
         throw Error(
-          "Attività modificata da un altro utente o non più accessibile. Ricarica.",
+          t("Attività modificata da un altro utente o non più accessibile. Ricarica."),
         );
       await logTaskActivity({
         companyId,
@@ -283,29 +285,29 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
     onSuccess: (_d, v) => {
       toast.success(
         v.status === "completata"
-          ? "Attività completata"
+          ? t("Attività completata")
           : v.status === "in_corso"
-            ? "Attività avviata"
-            : "Attività riaperta",
+            ? t("Attività avviata")
+            : t("Attività riaperta"),
       );
       invalidateOfficeWorkspace(qc, orderId);
     },
     onError: (e) =>
-      toast.error(messaggioErrore(e, "Non sono riuscito a salvare.")),
+      toast.error(messaggioErrore(e, t("Non sono riuscito a salvare."))),
   });
   const add = useMutation({
     mutationFn: async () => {
       if (!editable || !companyId || !user || !draft.title.trim())
-        throw Error("Titolo e sessione sono necessari.");
-      if (offices.isLoading || offices.isError) throw Error("Attendi il caricamento delle aree o riprova.");
+        throw Error(t("Titolo e sessione sono necessari."));
+      if (offices.isLoading || offices.isError) throw Error(t("Attendi il caricamento delle aree o riprova."));
       const assignment = taskAssignment({ officeId: draft.office, assigneeId: draft.assigned, userId: user.id, offices: availableOffices, canAssignOthers: true });
       const predecessor = rows.find((r) => r.id === draft.predecessor);
       if (draft.predecessor && !predecessor)
-        throw Error("Dipendenza non più disponibile.");
+        throw Error(t("Dipendenza non più disponibile."));
       const waiting = !!predecessor && predecessor.status !== "completata";
       const days = Number(draft.days);
       if (!Number.isInteger(days) || days < 0 || days > 3650)
-        throw Error("Indica giorni validi per lo sblocco.");
+        throw Error(t("Indica giorni validi per lo sblocco."));
       const { data, error } = await db
         .from("tasks")
         .insert({
@@ -328,7 +330,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
         .select("id")
         .single();
       if (error) throw error;
-      if (!data?.id) throw Error("Attività non creata.");
+      if (!data?.id) throw Error(t("Attività non creata."));
       await logTaskActivity({
         companyId,
         userId: user.id,
@@ -340,12 +342,12 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
       });
     },
     onSuccess: () => {
-      toast.success("Attività d’ufficio creata");
+      toast.success(t("Attività d’ufficio creata"));
       setCreating(false);
       setDraft(emptyDraft());
       invalidateOfficeWorkspace(qc, orderId);
     },
-    onError: (e) => toast.error(messaggioErrore(e, "Attività non creata.")),
+    onError: (e) => toast.error(messaggioErrore(e, t("Attività non creata."))),
     onSettled: () => { addInFlightRef.current = false; },
   });
   const visible = rows.filter(
@@ -370,15 +372,14 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
   );
   const detail = rows.find((r) => r.id === selected);
   return (
-    <section aria-label="Attività d’ufficio" className="space-y-4">
+    <section aria-label={t("Attività d’ufficio")} className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold tracking-tight">
-            Il lavoro dell’ufficio
+            {t("Il lavoro dell’ufficio")}
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Responsabili, scadenze e passaggi della commessa. Le stesse attività
-            della tua agenda.
+            {t("Responsabili, scadenze e passaggi della commessa. Le stesse attività della tua agenda.")}
           </p>
         </div>
         <div className="flex gap-2">
@@ -388,13 +389,13 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
               size="sm"
               onClick={() => setApplyTemplate(true)}
             >
-              Applica modello
+              {t("Applica modello")}
             </Button>
           )}
           {editable && permissions.canEditSettingsOrders && (
             <Button variant="outline" size="sm" onClick={() => setConfig(true)}>
               <Settings2 className="mr-1.5 h-4 w-4" />
-              Modello aziendale
+              {t("Modello aziendale")}
             </Button>
           )}
           {editable && (
@@ -406,7 +407,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
               }}
             >
               <Plus className="mr-1.5 h-4 w-4" />
-              Nuova attività d’ufficio
+              {t("Nuova attività d’ufficio")}
             </Button>
           )}
         </div>
@@ -414,14 +415,14 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
       {!tasks.isLoading && !tasks.isError && (
         <div
           className="grid grid-cols-2 gap-2 lg:grid-cols-4"
-          aria-label="Situazione attività d’ufficio"
+          aria-label={t("Situazione attività d’ufficio")}
         >
           {(
             [
-              ["pronte", "Da fare adesso", counts.ready],
-              ["scadute", "Scadute", counts.late],
-              ["bloccate", "In attesa", counts.blocked],
-              ["senza-responsabile", "Da assegnare", counts.unassigned],
+              ["pronte", t("Da fare adesso"), counts.ready],
+              ["scadute", t("Scadute"), counts.late],
+              ["bloccate", t("In attesa"), counts.blocked],
+              ["senza-responsabile", t("Da assegnare"), counts.unassigned],
             ] as const
           ).map(([key, label, count]) => (
             <button
@@ -454,14 +455,14 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
           <div
             role="group"
-            aria-label="Filtra attività"
+            aria-label={t("Filtra attività")}
             className="flex gap-1 rounded-lg bg-muted/60 p-1"
           >
             {(
               [
-                ["aperte", "Aperte"],
-                ["tutte", "Tutte"],
-                ["completate", "Completate"],
+                ["aperte", t("Aperte")],
+                ["tutte", t("Tutte")],
+                ["completate", t("Completate")],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -480,8 +481,8 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              aria-label="Cerca attività d’ufficio"
-              placeholder="Cerca attività o responsabile…"
+              aria-label={t("Cerca attività d’ufficio")}
+              placeholder={t("Cerca attività o responsabile…")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-9 pl-8"
@@ -490,28 +491,27 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
         </div>
         {tasks.isLoading ? (
           <p className="p-6 text-sm text-muted-foreground">
-            Carico le attività…
+            {t("Carico le attività…")}
           </p>
         ) : tasks.isError ? (
           <div role="alert" className="p-5 text-sm">
-            Non riesco a leggere le attività.{" "}
+            {t("Non riesco a leggere le attività.")}{" "}
             <button
               className="text-primary underline"
               onClick={() => void tasks.refetch()}
             >
-              Riprova
+              {t("Riprova")}
             </button>
           </div>
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-3 border-b bg-muted/15 px-4 py-2.5 text-xs text-muted-foreground">
               <span>
-                {counts.done} di {counts.total} completate · solo attività
-                d’ufficio
+                {t("{fatte} di {totale} completate · solo attività d’ufficio", { fatte: counts.done, totale: counts.total })}
               </span>
               <div
                 role="progressbar"
-                aria-label="Avanzamento ufficio"
+                aria-label={t("Avanzamento ufficio")}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={
@@ -530,12 +530,12 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
               </div>
               {people.isError && (
                 <span className="text-orange-700">
-                  Nomi dei responsabili non disponibili.{" "}
+                  {t("Nomi dei responsabili non disponibili.")}{" "}
                   <button
                     className="underline"
                     onClick={() => void people.refetch()}
                   >
-                    Riprova
+                    {t("Riprova")}
                   </button>
                 </span>
               )}
@@ -545,13 +545,13 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                 <ListTodo className="mx-auto mb-3 h-7 w-7 text-primary/60" />
                 <p className="text-sm font-medium">
                   {rows.length
-                    ? "Nessuna attività per questa vista"
-                    : "Organizza il lavoro d’ufficio della commessa"}
+                    ? t("Nessuna attività per questa vista")
+                    : t("Organizza il lavoro d’ufficio della commessa")}
                 </p>
                 <p className="mx-auto mt-1 max-w-lg text-xs text-muted-foreground">
                   {rows.length
-                    ? "Cambia filtro o ricerca per vedere le altre attività."
-                    : "Aggiungi un’attività con responsabile e scadenza. Salvare un modello aziendale non lo applica a questa commessa."}
+                    ? t("Cambia filtro o ricerca per vedere le altre attività.")
+                    : t("Aggiungi un’attività con responsabile e scadenza. Salvare un modello aziendale non lo applica a questa commessa.")}
                 </p>
               </div>
             ) : (
@@ -568,7 +568,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                   >
                     <summary className="flex cursor-pointer list-none items-center gap-2 bg-muted/25 px-4 py-3 text-sm font-medium">
                       <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" />
-                      {label}
+                      {t(label)}
                       <span className="text-xs font-normal text-muted-foreground">
                         {group.length}
                       </span>
@@ -600,7 +600,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                           <button
                             className="min-w-0 flex-1 text-left"
                             onClick={() => setSelected(f.id)}
-                            aria-label={`Apri attività: ${f.title}`}
+                            aria-label={t("Apri attività: {titolo}", { titolo: f.title })}
                           >
                             <span className="block text-sm font-medium">
                               {f.title}
@@ -618,8 +618,8 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                               >
                                 <Clock3 className="h-3 w-3" />
                                 {f.status === "in_attesa"
-                                  ? "Scadenza dallo sblocco"
-                                  : shortDate(f.due_date)}
+                                  ? t("Scadenza dallo sblocco")
+                                  : shortDate(f.due_date, t("Senza scadenza"))}
                               </span>
                             </span>
                             {f.status === "in_attesa" && (
@@ -629,7 +629,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                             )}
                           </button>
                           <span className="rounded-full bg-muted px-2.5 py-1 text-[11px]">
-                            {officeStatus(f.status)}
+                            {t(officeStatus(f.status))}
                           </span>
                           {editable && f.status !== "in_attesa" && (
                             <div className="flex gap-1">
@@ -645,7 +645,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                                     })
                                   }
                                 >
-                                  Inizia
+                                  {t("Inizia")}
                                 </Button>
                               )}
                               <Button
@@ -663,14 +663,14 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                                 }
                               >
                                 {f.status === "completata"
-                                  ? "Riapri"
-                                  : "Completa"}
+                                  ? t("Riapri")
+                                  : t("Completa")}
                               </Button>
                             </div>
                           )}
                           <button
                             className="rounded-lg p-2 text-muted-foreground hover:bg-muted"
-                            aria-label={`Dettagli: ${f.title}`}
+                            aria-label={t("Dettagli: {titolo}", { titolo: f.title })}
                             onClick={() => setSelected(f.id)}
                           >
                             <ChevronRight className="h-4 w-4" />
@@ -704,14 +704,14 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
         />
       )}
       {detail && editable && (
-        <Suspense fallback={<p role="status">Apro il dettaglio…</p>}>
+        <Suspense fallback={<p role="status">{t("Apro il dettaglio…")}</p>}>
           <Detail
             task={{
               ...detail,
               assigned_profile: {
                 first_name: detail.assigned_to
                   ? names.get(detail.assigned_to) ||
-                    "Responsabile non disponibile"
+                    t("Responsabile non disponibile")
                   : null,
                 last_name: null,
               },
@@ -734,12 +734,12 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
             <DialogHeader>
               <DialogTitle>{detail.title}</DialogTitle>
               <DialogDescription>
-                {who(detail)} · {officeStatus(detail.status)} ·{" "}
-                {shortDate(detail.due_date)}
+                {who(detail)} · {t(officeStatus(detail.status))} ·{" "}
+                {shortDate(detail.due_date, t("Senza scadenza"))}
               </DialogDescription>
             </DialogHeader>
             <p className="whitespace-pre-wrap text-sm">
-              {detail.notes || "Nessuna nota"}
+              {detail.notes || t("Nessuna nota")}
             </p>
           </DialogContent>
         </Dialog>
@@ -752,9 +752,9 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
       >
         <DialogContent ampiezza="modulo" struttura="scorrevole" className="task-editor-dialog gap-3">
           <DialogHeader>
-            <DialogTitle>Nuova attività d’ufficio</DialogTitle>
+            <DialogTitle>{t("Nuova attività d’ufficio")}</DialogTitle>
             <DialogDescription>
-              Organizza il lavoro, scegli l’area e il responsabile. L’attività resta collegata a questa commessa.
+              {t("Organizza il lavoro, scegli l’area e il responsabile. L’attività resta collegata a questa commessa.")}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -769,7 +769,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
           >
             <fieldset disabled={add.isPending} aria-busy={add.isPending} className="min-w-0 space-y-3">
             <label className="block space-y-1.5 text-sm">
-              <span className="font-medium">Titolo *</span>
+              <span className="font-medium">{t("Titolo *")}</span>
               <Input
                 required
                 maxLength={250}
@@ -777,20 +777,20 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                 autoFocus
                 value={draft.title}
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                placeholder="Es. Confermare l’ordine al fornitore"
+                placeholder={t("Es. Confermare l’ordine al fornitore")}
               />
             </label>
             <label className="block space-y-1.5 text-sm">
-              <span className="font-medium">Descrizione</span>
+              <span className="font-medium">{t("Descrizione")}</span>
               <Textarea className="rounded-xl" value={draft.notes}
                 onChange={e => setDraft({ ...draft, notes: e.target.value })}
-                placeholder="Aggiungi dettagli, link, note…" rows={2} />
+                placeholder={t("Aggiungi dettagli, link, note…")} rows={2} />
             </label>
             <TaskAssignmentFields offices={availableOffices}
               people={[
-                ...(user ? [{ id: user.id, name: names.get(user.id) || "Me stesso" }] : []),
+                ...(user ? [{ id: user.id, name: names.get(user.id) || t("Me stesso") }] : []),
                 ...(people.data ?? []).filter(p => p.id !== user?.id && (p.roles ?? []).some(r => ["company_admin", "company_staff", "salesperson", "call_center"].includes(r)))
-                  .map(p => ({ id: p.id, name: names.get(p.id) || "Nome non disponibile" })),
+                  .map(p => ({ id: p.id, name: names.get(p.id) || t("Nome non disponibile") })),
               ]}
               manageOffices={admin} userId={user?.id} officeId={draft.office}
               assigneeId={draft.assigned || (draft.office ? "" : user?.id ?? "")}
@@ -801,21 +801,21 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
               onRetry={() => { void offices.refetch(); void people.refetch(); }} />
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block space-y-1.5 text-sm">
-                <span className="font-medium">Priorità</span>
+                <span className="font-medium">{t("Priorità")}</span>
                 <OfficeSelect
-                  label="Priorità"
+                  label={t("Priorità")}
                   value={draft.priority}
                   onValueChange={(priority) => setDraft({ ...draft, priority })}
-                  options={["bassa", "normale", "alta", "urgente"].map(
-                    (value) => ({
-                      value,
-                      label: value[0].toUpperCase() + value.slice(1),
-                    }),
-                  )}
+                  options={[
+                    { value: "bassa", label: t("Bassa") },
+                    { value: "normale", label: t("Normale") },
+                    { value: "alta", label: t("Alta") },
+                    { value: "urgente", label: t("Urgente") },
+                  ]}
                 />
               </label>
               <label className="block space-y-1.5 text-sm">
-                <span className="font-medium">Scadenza</span>
+                <span className="font-medium">{t("Scadenza")}</span>
                 <Input
                   type="date"
                   className="rounded-xl"
@@ -825,25 +825,25 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                 />
               </label>
             </div>
-            <section className="space-y-3 rounded-xl border bg-muted/20 p-3" aria-label="Flusso della commessa">
-              <p className="text-sm font-medium">Flusso della commessa</p>
+            <section className="space-y-3 rounded-xl border bg-muted/20 p-3" aria-label={t("Flusso della commessa")}>
+              <p className="text-sm font-medium">{t("Flusso della commessa")}</p>
               <div className="grid gap-4 sm:grid-cols-2">
               <label className="block space-y-1.5 text-sm">
-                <span className="font-medium">Fase dell’ufficio</span>
-                <OfficeSelect label="Fase dell’ufficio" value={draft.stage}
+                <span className="font-medium">{t("Fase dell’ufficio")}</span>
+                <OfficeSelect label={t("Fase dell’ufficio")} value={draft.stage}
                   onValueChange={stage => setDraft({ ...draft, stage })}
-                  options={OFFICE_STAGES.map(([value, label]) => ({ value, label }))} />
+                  options={OFFICE_STAGES.map(([value, label]) => ({ value, label: t(label) }))} />
               </label>
             <label className="block space-y-1.5 text-sm">
-              <span className="font-medium">Parte dopo</span>
+              <span className="font-medium">{t("Parte dopo")}</span>
               <OfficeSelect
-                label="Parte dopo"
+                label={t("Parte dopo")}
                 value={draft.predecessor}
                 onValueChange={(predecessor) =>
                   setDraft({ ...draft, predecessor })
                 }
                 options={[
-                  { value: "", label: "Può partire subito" },
+                  { value: "", label: t("Può partire subito") },
                   ...rows
                     .filter((r) => r.status !== "completata")
                     .map((r) => ({ value: r.id, label: r.title })),
@@ -854,7 +854,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
             {draft.predecessor && (
               <label className="block space-y-1.5 text-sm">
                 <span className="font-medium">
-                  Giorni per completarla dopo lo sblocco
+                  {t("Giorni per completarla dopo lo sblocco")}
                 </span>
                 <Input
                   type="number"
@@ -865,7 +865,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                   onChange={(e) => setDraft({ ...draft, days: e.target.value })}
                 />
                 <span className="block text-xs text-orange-700">
-                  Nasce in attesa, senza una scadenza già trascorsa.
+                  {t("Nasce in attesa, senza una scadenza già trascorsa.")}
                 </span>
               </label>
             )}
@@ -879,14 +879,14 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
               onClick={() => setCreating(false)}
               disabled={add.isPending}
             >
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               form="nuova-attivita-ufficio"
               disabled={add.isPending || !draft.title.trim() || people.isError || offices.isError || offices.isLoading || people.isLoading}
               type="submit"
             >
-              {add.isPending ? "Salvo…" : "Crea attività"}
+              {add.isPending ? t("Salvo…") : t("Crea attività")}
             </Button>
           </DialogFooter>
         </DialogContent>

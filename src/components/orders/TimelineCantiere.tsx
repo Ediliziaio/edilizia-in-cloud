@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
-import { it } from 'date-fns/locale';
+import { dateFnsCampo, intlCampo, useT } from '@/lib/campo/lingua/LinguaCampo';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -66,6 +66,7 @@ function safeParseDate(dateStr: string): Date | null {
 
 /** Una riga della cronologia: icona piccola, titolo e data sulla stessa riga. */
 function RigaEvento({ ev }: { ev: TimelineEvent }) {
+  const t = useT();
   const [photoExpanded, setPhotoExpanded] = useState(false);
   // Le foto stanno in bucket privati: si mostrano solo quelle con un link firmato. Chi non le può leggere
   // (il cliente esterno su foto-cantiere) non vede riquadri rotti, e nemmeno il conto.
@@ -85,7 +86,7 @@ function RigaEvento({ ev }: { ev: TimelineEvent }) {
           <p className="text-sm font-medium leading-snug text-foreground">{ev.title}</p>
           {parsedDate && (
             <time dateTime={ev.date} className="shrink-0 text-xs tabular-nums text-muted-foreground">
-              {format(parsedDate, 'd MMM yyyy', { locale: it })}
+              {format(parsedDate, 'd MMM yyyy', { locale: dateFnsCampo() })}
             </time>
           )}
         </div>
@@ -103,7 +104,7 @@ function RigaEvento({ ev }: { ev: TimelineEvent }) {
         {/* Avanzamento: una barra corta accanto alla percentuale */}
         {ev.progressPct != null && (
           <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Avanzamento</span>
+            <span>{t("Avanzamento")}</span>
             <span className="h-1.5 w-28 overflow-hidden rounded-full bg-muted">
               <span className="block h-full rounded-full bg-orange-500" style={{ width: `${Math.min(100, Math.max(0, ev.progressPct))}%` }} />
             </span>
@@ -114,7 +115,7 @@ function RigaEvento({ ev }: { ev: TimelineEvent }) {
         {/* Meta: operai + meteo */}
         {(ev.operai || ev.meteo) && (
           <div className="mt-1.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-            {ev.operai && <span>{ev.operai} {ev.operai === 1 ? 'operaio' : 'operai'}</span>}
+            {ev.operai && <span>{t(ev.operai === 1 ? "{n} operaio" : "{n} operai", { n: ev.operai })}</span>}
             {ev.meteo && (
               <span>
                 <Cloud className="mr-0.5 inline h-3 w-3" />
@@ -127,7 +128,7 @@ function RigaEvento({ ev }: { ev: TimelineEvent }) {
         {/* Importo della variante approvata */}
         {ev.amount != null && ev.type === 'variante' && (
           <p className="mt-1.5 text-xs font-medium text-green-700">
-            Importo variante: {ev.amount > 0 ? '+' : ''}{formatCurrency(ev.amount)}
+            {t("Importo variante: {importo}", { importo: `${ev.amount > 0 ? '+' : ''}${formatCurrency(ev.amount)}` })}
           </p>
         )}
 
@@ -141,7 +142,7 @@ function RigaEvento({ ev }: { ev: TimelineEvent }) {
               className="mb-2 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
               <Camera className="h-3 w-3" />
-              {fotoVisibili.length} foto
+              {t("{n} foto", { n: fotoVisibili.length })}
               {photoExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
             {photoExpanded && (
@@ -172,6 +173,7 @@ function RigaEvento({ ev }: { ev: TimelineEvent }) {
 }
 
 export function TimelineCantiere({ orderId, companyId, adminView = false }: TimelineCantiereProp) {
+  const tr = useT();
   const [filtro, setFiltro] = useState<EventType | 'tutti'>('tutti');
   const [visibili, setVisibili] = useState(10);
   // 1. Fetch status history
@@ -278,7 +280,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
       id: `stato-${s.id}`,
       type: 'stato' as EventType,
       date: s.changed_at,
-      title: `Stato aggiornato: ${(s.status as any)?.name ?? ''}`,
+      title: tr("Stato aggiornato: {stato}", { stato: (s.status as any)?.name ?? '' }),
       badge: (s.status as any)?.name as string | undefined,
       badgeColor: (s.status as any)?.color as string | undefined,
     })),
@@ -286,7 +288,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
       id: `lavori-${g.id}`,
       type: 'lavori' as EventType,
       date: g.data_lavori,
-      title: g.lavorazioni_eseguite ?? 'Aggiornamento lavori',
+      title: g.lavorazioni_eseguite ?? tr("Aggiornamento lavori"),
       progressPct: (g as any).avanzamento_percentuale ?? undefined,
       operai: (g as any).personale_presente ?? undefined,
       meteo: g.condizioni_meteo ?? undefined,
@@ -304,7 +306,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
       type: 'sal' as EventType,
       date: s.data_emissione,
       // Senza «Venduto e importi» l'importo arriva vuoto (15/11/2026): il titolo resta senza cifra.
-      title: s.importo_totale == null ? `SAL #${s.numero_sal}` : `SAL #${s.numero_sal} — lavori a tutto il SAL €${Number(s.importo_totale).toLocaleString('it-IT')}`,
+      title: s.importo_totale == null ? `SAL #${s.numero_sal}` : tr("SAL #{n} — lavori a tutto il SAL €{importo}", { n: s.numero_sal, importo: Number(s.importo_totale).toLocaleString(intlCampo()) }),
       badge: s.stato as string | undefined,
       badgeColor: s.stato === 'firmato' ? '#16A34A' : '#CA8A04',
       amount: s.importo_totale,
@@ -315,8 +317,8 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
         id: `odv-${v.id}`,
         type: 'variante' as EventType,
         date: (v.firmato_il ?? v.richiesto_il) as string,
-        title: v.titolo ?? 'Variante commessa',
-        badge: variationStatusLabel(v.status),
+        title: v.titolo ?? tr("Variante commessa"),
+        badge: tr(variationStatusLabel(v.status)),
         badgeColor: v.status === 'approvato' ? '#16A34A' : '#DC2626',
         amount: v.status === 'approvato' ? (v.impatto_economico ?? undefined) : undefined,
       })),
@@ -324,10 +326,10 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
       id: `rapportino-${r.id as string}`,
       type: 'rapportino' as EventType,
       date: r.data_intervento as string,
-      title: `Intervento #${r.numero as number}: ` +
+      title: tr("Intervento #{n}: {descrizione}", { n: r.numero as number, descrizione:
         `${((r.descrizione as string) ?? '').substring(0, 70)}` +
-        `${((r.descrizione as string)?.length ?? 0) > 70 ? '...' : ''}`,
-      badge: r.firmato_da ? `Firmato da ${r.firmato_da as string}` : 'Firmato',
+        `${((r.descrizione as string)?.length ?? 0) > 70 ? '...' : ''}` }),
+      badge: r.firmato_da ? tr("Firmato da {nome}", { nome: r.firmato_da as string }) : tr("Firmato"),
       badgeColor: '#475569',
       photos: Array.isArray(r.foto_urls) ? (r.foto_urls as string[]).filter(Boolean) : [],
     })),
@@ -335,7 +337,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
     .filter(e => !!e.date)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
 
-  [isLoading, statusHistory, giornale, sal, varianti, rapportini]);
+  [isLoading, statusHistory, giornale, sal, varianti, rapportini, tr]);
 
   // Riepilogo economico, filtro per tipo e raggruppamento per mese.
   const { riepilogo, tipiPresenti, gruppi, totaleFiltrati } = useMemo(() => {
@@ -362,13 +364,13 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
       const mese = d ? format(d, 'yyyy-MM') : '';
       let g = gruppi[gruppi.length - 1];
       if (!g || g.mese !== mese) {
-        g = { mese, etichetta: d ? format(d, 'LLLL yyyy', { locale: it }) : 'Senza data', eventi: [] };
+        g = { mese, etichetta: d ? format(d, 'LLLL yyyy', { locale: dateFnsCampo() }) : tr("Senza data"), eventi: [] };
         gruppi.push(g);
       }
       g.eventi.push(ev);
     }
     return { riepilogo, tipiPresenti, gruppi, totaleFiltrati: filtrati.length };
-  }, [events, varianti, sal, filtro, visibili]);
+  }, [events, varianti, sal, filtro, visibili, tr]);
 
   // Guard loading DOPO gli hooks
   if (isLoading) {
@@ -387,7 +389,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
   if (events.length === 0) {
     return (
       /* Riga compatta: py-10 centrato faceva 186px di vuoto accanto ai rapportini. */
-      <EmptyRow icon={RefreshCw}>Nessun aggiornamento su questa commessa</EmptyRow>
+      <EmptyRow icon={RefreshCw}>{tr("Nessun aggiornamento su questa commessa")}</EmptyRow>
     );
   }
 
@@ -399,7 +401,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
           {riepilogo.varianti > 0 && (
             <div>
               <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                {riepilogo.varianti === 1 ? 'Variante approvata' : 'Varianti approvate'} ({riepilogo.varianti})
+                {tr(riepilogo.varianti === 1 ? "Variante approvata ({n})" : "Varianti approvate ({n})", { n: riepilogo.varianti })}
               </dt>
               <dd className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">
                 {riepilogo.impattoVarianti > 0 ? '+' : ''}{formatCurrency(riepilogo.impattoVarianti)}
@@ -409,7 +411,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
           {riepilogo.sal > 0 && (
             <div>
               <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                SAL emessi ({riepilogo.sal}){riepilogo.importoSal != null ? " · lavori a tutto l'ultimo" : ""}
+                {tr("SAL emessi ({n})", { n: riepilogo.sal })}{riepilogo.importoSal != null ? ` · ${tr("lavori a tutto l'ultimo")}` : ""}
               </dt>
               <dd className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">{riepilogo.importoSal != null ? formatCurrency(riepilogo.importoSal) : "—"}</dd>
             </div>
@@ -419,7 +421,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
 
       {/* Filtro per tipo, solo se ce n'è più d'uno */}
       {tipiPresenti.length > 1 && (
-        <div role="group" aria-label="Filtra la cronologia" className="flex flex-wrap gap-1.5">
+        <div role="group" aria-label={tr("Filtra la cronologia")} className="flex flex-wrap gap-1.5">
           {([{ tipo: 'tutti' as const, n: events.length }, ...tipiPresenti]).map(({ tipo, n }) => (
             <button
               key={tipo}
@@ -433,7 +435,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
                   : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50',
               )}
             >
-              {tipo === 'tutti' ? 'Tutti' : typeConfig[tipo].label}
+              {tipo === 'tutti' ? tr("Tutti") : tr(typeConfig[tipo].label)}
               <span className={cn('tabular-nums', filtro === tipo ? 'text-white/80' : 'text-slate-500')}>{n}</span>
             </button>
           ))}
@@ -454,9 +456,9 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
       {totaleFiltrati > visibili && (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground" aria-live="polite">
-            Mostrati {Math.min(visibili, totaleFiltrati)} di {totaleFiltrati}
+            {tr("Mostrati {n} di {totale}", { n: Math.min(visibili, totaleFiltrati), totale: totaleFiltrati })}
           </p>
-          <Button variant="outline" size="sm" onClick={() => setVisibili(v => v + 10)}>Mostra altri 10</Button>
+          <Button variant="outline" size="sm" onClick={() => setVisibili(v => v + 10)}>{tr("Mostra altri 10")}</Button>
         </div>
       )}
     </div>

@@ -7,9 +7,10 @@
  * e si vede a colpo d'occhio invece che facendo la sottrazione a mente.
  */
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const euro = (v: number) => v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
-const pct = (v: number) => `${v.toLocaleString("it-IT", { maximumFractionDigits: 0 })}%`;
+const euro = (v: number) => v.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const pct = (v: number) => `${v.toLocaleString(intlCampo(), { maximumFractionDigits: 0 })}%`;
 
 interface Props {
   speso: number;
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function SpesaControLavori({ speso, budget, avanzamento, fasi, budgetParziale, budgetInBozza }: Props) {
+  const t = useT();
   const spesoPct = budget > 0 ? (speso / budget) * 100 : 0;
   const resta = budget - speso;
   // Lo scarto fra i due: spendere più di quanto si costruisce è il segnale da dare.
@@ -33,36 +35,36 @@ export function SpesaControLavori({ speso, budget, avanzamento, fasi, budgetParz
     <div className="generale-hero-progress">
       <div className="spesa-lavori">
         <Barra
-          etichetta={budgetInBozza ? "Speso sui costi in bozza" : "Speso del budget"}
+          etichetta={budgetInBozza ? t("Speso sui costi in bozza") : t("Speso del budget")}
           valore={euro(speso)}
           percento={spesoPct}
           tono={spesoPct > 100 ? "bg-red-400" : "bg-orange-400"}
           nota={resta >= 0
-            ? `restano ${euro(resta)}${budgetParziale ? " · stime da completare" : ""}`
-            : `oltre ${budgetInBozza ? "la bozza" : "il budget"} di ${euro(-resta)}`}
+            ? `${t("restano {importo}", { importo: euro(resta) })}${budgetParziale ? t(" · stime da completare") : ""}`
+            : budgetInBozza ? t("oltre la bozza di {importo}", { importo: euro(-resta) }) : t("oltre il budget di {importo}", { importo: euro(-resta) })}
         />
         {avanzamento !== null && (
           <Barra
-            etichetta="Lavori fatti"
+            etichetta={t("Lavori fatti")}
             valore={pct(avanzamento)}
             percento={avanzamento}
             tono="bg-sky-400"
             nota={scarto === null
               ? undefined
               : inAnticipoSullaSpesa
-                ? `la spesa corre ${pct(scarto)} più dei lavori`
+                ? t("la spesa corre {perc} più dei lavori", { perc: pct(scarto) })
                 : scarto < -5
-                  ? `i lavori corrono ${pct(-scarto)} più della spesa`
-                  : "spesa e lavori vanno di pari passo"}
+                  ? t("i lavori corrono {perc} più della spesa", { perc: pct(-scarto) })
+                  : t("spesa e lavori vanno di pari passo")}
           />
         )}
       </div>
       <div className="generale-hero-note text-[11px]">
-        <span>Importi al netto dell'IVA.</span>
+        <span>{t("Importi al netto dell'IVA.")}</span>
         {/* Senza fasi di cantiere non si disegna una barra a zero, che sembrerebbe un cantiere
             fermo: si dice che manca il termine di paragone (16/11/2026). */}
         {avanzamento === null && fasi === 0 && (
-          <span> Per confrontare la spesa coi lavori fatti, dividi il lavoro in fasi nel cantiere.</span>
+          <span> {t("Per confrontare la spesa coi lavori fatti, dividi il lavoro in fasi nel cantiere.")}</span>
         )}
       </div>
     </div>

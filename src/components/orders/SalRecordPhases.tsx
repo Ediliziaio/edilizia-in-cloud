@@ -7,10 +7,11 @@ import { nettoSal } from "@/lib/orders/salNetto";
 import type { SalCertificato } from "@/lib/orders/salCertificato";
 import { detrazioniDelPeriodo } from "@/lib/orders/salNuovoVerbale";
 import { calcolaVociDelPeriodo, voceAvanzata, type SalVoce, type SalVoceSottofase } from "@/lib/orders/salPeriodo";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const formattaQuantita = (n: number) => Number(n).toLocaleString("it-IT", { maximumFractionDigits: 3 });
+const formattaQuantita = (n: number) => Number(n).toLocaleString(intlCampo(), { maximumFractionDigits: 3 });
 const euro = (n: number | null | undefined) => n == null ? "—" : formatCurrency(n);
-const deltaPercentuale = (n: number | null | undefined) => n == null ? "—" : `${n > 0 ? "+" : ""}${n.toLocaleString("it-IT")} p.p.`;
+const deltaPercentuale = (n: number | null | undefined) => n == null ? "—" : `${n > 0 ? "+" : ""}${n.toLocaleString(intlCampo())} p.p.`;
 
 function quantitaDellaVoce(voce: SalVoceSottofase) {
   if (voce.quantita_a_oggi == null && voce.quantita_contratto == null) return "—";
@@ -31,6 +32,7 @@ export function SalRecordPhases({ fasi, fasiPrecedenti, totale, precedente, cert
   pdfInCorso: boolean;
   onScaricaPdf: (formato: "periodo" | "completo") => void;
 }) {
+  const t = useT();
   const [faseId, setFaseId] = useState<string | null>(fasi[0]?.id ?? null);
   const [soloPeriodo, setSoloPeriodo] = useState(false);
   const [soloAvanzate, setSoloAvanzate] = useState(false);
@@ -57,36 +59,36 @@ export function SalRecordPhases({ fasi, fasiPrecedenti, totale, precedente, cert
     : (fase ? [fase] : fasiVisibili).map((voce) => ({ voce, quantita: "", delta: periodo.get(voce.id) }));
   const quota = nettoSal(totale, precedente).daFatturare;
   const detrazioni = certificato ? detrazioniDelPeriodo(quota, certificato, certificatoPrima, fasiPrecedenti !== null) : [];
-  const etichettaImporto = soloPeriodo ? "Importo del periodo" : "Cumulativo SAL";
+  const etichettaImporto = soloPeriodo ? t("Importo del periodo") : t("Cumulativo SAL");
   const avanza = (v: number, delta: number | null | undefined) => soloPeriodo ? deltaPercentuale(delta) : `${v}%`;
 
   return (
     <>
       <div className="sal-record-phase-options">
-        <div className="sal-record-phase-modes" role="group" aria-label="Vista del SAL">
-          <button type="button" aria-pressed={soloPeriodo} onClick={() => setSoloPeriodo(true)}>Solo questo SAL</button>
-          <button type="button" aria-pressed={!soloPeriodo} onClick={() => setSoloPeriodo(false)}>Cumulativo</button>
+        <div className="sal-record-phase-modes" role="group" aria-label={t("Vista del SAL")}>
+          <button type="button" aria-pressed={soloPeriodo} onClick={() => setSoloPeriodo(true)}>{t("Solo questo SAL")}</button>
+          <button type="button" aria-pressed={!soloPeriodo} onClick={() => setSoloPeriodo(false)}>{t("Cumulativo")}</button>
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <label className="flex cursor-pointer items-center gap-2 text-xs">
             <input type="checkbox" className="h-4 w-4 accent-primary" checked={soloAvanzate} onChange={(e) => setSoloAvanzate(e.target.checked)} />
-            Solo voci avanzate
+            {t("Solo voci avanzate")}
           </label>
           {vedeImporti && (
             <Button type="button" variant="outline" size="sm" className="h-8 text-xs" disabled={pdfInCorso}
-              title="Scarica il verbale intero nel formato della vista selezionata"
+              title={t("Scarica il verbale intero nel formato della vista selezionata")}
               onClick={() => onScaricaPdf(soloPeriodo ? "periodo" : "completo")}>
               {pdfInCorso ? <Loader2 className="animate-spin" aria-hidden /> : <Download aria-hidden />}
-              {pdfInCorso ? "Preparo il PDF…" : "Scarica PDF"}
+              {pdfInCorso ? t("Preparo il PDF…") : t("Scarica PDF")}
             </Button>
           )}
         </div>
       </div>
       <div className="sal-record-phase-layout">
-        <nav className="sal-record-phase-nav" aria-label="Macrofasi del verbale">
+        <nav className="sal-record-phase-nav" aria-label={t("Macrofasi del verbale")}>
           <button type="button" className="sal-record-phase-overview" aria-pressed={!fase} onClick={() => setFaseId(null)}>
             <Layers3 className="h-4 w-4 shrink-0" aria-hidden />
-            <span>Tutte le macrofasi</span>
+            <span>{t("Tutte le macrofasi")}</span>
             <small>{fasiVisibili.length}</small>
           </button>
           {fasiVisibili.map((voce) => (
@@ -98,23 +100,23 @@ export function SalRecordPhases({ fasi, fasiPrecedenti, totale, precedente, cert
         </nav>
         <section key={fase?.id ?? "tutte"} className="sal-record-phase-panel" aria-labelledby={titoloId} tabIndex={0}>
           <div className="sal-record-phase-heading">
-            <h3 id={titoloId}>{fase?.descrizione ?? "Tutte le macrofasi"}</h3>
-            {haSottofasi && <span>{righe.length} {righe.length === 1 ? "lavorazione" : "lavorazioni"}</span>}
+            <h3 id={titoloId}>{fase?.descrizione ?? t("Tutte le macrofasi")}</h3>
+            {haSottofasi && <span>{t(righe.length === 1 ? "{n} lavorazione" : "{n} lavorazioni", { n: righe.length })}</span>}
           </div>
           {fase && haSottofasi && (
             <dl className="sal-record-phase-stats">
-              {vedeImporti && !soloPeriodo && <div><dt>Contrattuale</dt><dd>{euro(fase.importo_contrattuale)}</dd></div>}
-              <div><dt>{soloPeriodo ? "Avanzamento del periodo" : "Avanzamento"}</dt><dd>{avanza(fase.percentuale_avanzamento, periodoFase?.percentuale)}</dd></div>
+              {vedeImporti && !soloPeriodo && <div><dt>{t("Contrattuale")}</dt><dd>{euro(fase.importo_contrattuale)}</dd></div>}
+              <div><dt>{soloPeriodo ? t("Avanzamento del periodo") : t("Avanzamento")}</dt><dd>{avanza(fase.percentuale_avanzamento, periodoFase?.percentuale)}</dd></div>
               {vedeImporti && <div><dt>{etichettaImporto}</dt><dd>{euro(soloPeriodo ? periodoFase?.importo : fase.importo_sal)}</dd></div>}
             </dl>
           )}
           {righe.length > 0 ? <div className="sal-record-phase-table-scroll">
             <table className="sal-record-table w-full text-xs">
               <thead><tr>
-                <th scope="col" className="text-left">{fase ? "Lavorazione" : "Macrofase"}</th>
-                {haSottofasi && <th scope="col" className="text-right">{soloPeriodo ? "Quantità del periodo" : "Quantità a oggi"}</th>}
-                <th scope="col" className="text-right">{soloPeriodo ? "Δ Avanz." : "Avanz."}</th>
-                {vedeImporti && !soloPeriodo && <th scope="col" className="text-right">Contrattuale</th>}
+                <th scope="col" className="text-left">{fase ? t("Lavorazione") : t("Macrofase")}</th>
+                {haSottofasi && <th scope="col" className="text-right">{soloPeriodo ? t("Quantità del periodo") : t("Quantità a oggi")}</th>}
+                <th scope="col" className="text-right">{soloPeriodo ? t("Δ Avanz.") : t("Avanz.")}</th>
+                {vedeImporti && !soloPeriodo && <th scope="col" className="text-right">{t("Contrattuale")}</th>}
                 {vedeImporti && <th scope="col" className="text-right">{etichettaImporto}</th>}
               </tr></thead>
               <tbody>
@@ -135,35 +137,35 @@ export function SalRecordPhases({ fasi, fasiPrecedenti, totale, precedente, cert
                 ))}
               </tbody>
             </table>
-          </div> : <p className="sal-record-phase-note" role="status">Nessuna voce con avanzamento verificabile nel periodo.</p>}
+          </div> : <p className="sal-record-phase-note" role="status">{t("Nessuna voce con avanzamento verificabile nel periodo.")}</p>}
           {soloPeriodo && righe.some(({ delta, quantita }) => delta?.percentuale == null || (vedeImporti && delta.importo == null) || quantita === "—") &&
-            <p className="sal-record-phase-note">Il trattino indica un dato del periodo non ricostruibile.</p>}
-          {fase?.note && <p className="sal-record-phase-note">Nota della fase · {fase.note}</p>}
-          {nota && <p className="sal-record-phase-note">Nota del verbale · {nota}</p>}
+            <p className="sal-record-phase-note">{t("Il trattino indica un dato del periodo non ricostruibile.")}</p>}
+          {fase?.note && <p className="sal-record-phase-note">{t("Nota della fase · {nota}", { nota: fase.note })}</p>}
+          {nota && <p className="sal-record-phase-note">{t("Nota del verbale · {nota}", { nota })}</p>}
         </section>
       </div>
       {vedeImporti && (
         <Collapsible className="sal-record-phase-footer">
           <div className="sal-record-phase-summary">
-            <dl className="sal-record-phase-totals" aria-label="Totali del verbale">
-              {!soloPeriodo && <div><dt>Cumulativo del verbale</dt><dd>{euro(totale)}</dd></div>}
-              {!soloPeriodo && precedente > 0 && <div><dt>Già riconosciuto</dt><dd>{euro(precedente)}</dd></div>}
-              {(soloPeriodo || precedente > 0) && <div className="sal-record-phase-quota" data-rettifica={quota < 0}><dt>{quota < 0 ? "Rettifica da verificare" : "Quota nuova del SAL"}</dt><dd>{euro(quota)}</dd></div>}
+            <dl className="sal-record-phase-totals" aria-label={t("Totali del verbale")}>
+              {!soloPeriodo && <div><dt>{t("Cumulativo del verbale")}</dt><dd>{euro(totale)}</dd></div>}
+              {!soloPeriodo && precedente > 0 && <div><dt>{t("Già riconosciuto")}</dt><dd>{euro(precedente)}</dd></div>}
+              {(soloPeriodo || precedente > 0) && <div className="sal-record-phase-quota" data-rettifica={quota < 0}><dt>{quota < 0 ? t("Rettifica da verificare") : t("Quota nuova del SAL")}</dt><dd>{euro(quota)}</dd></div>}
             </dl>
             {certificato && (
               <CollapsibleTrigger className="sal-record-phase-certificate">
-                <span>Netto del certificato<strong>{euro(certificato.netto)}</strong></span>
+                <span>{t("Netto del certificato")}<strong>{euro(certificato.netto)}</strong></span>
                 <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
               </CollapsibleTrigger>
             )}
           </div>
           {certificato && <CollapsibleContent className="sal-record-phase-deductions">
-            <dl aria-label="Detrazioni del certificato">
-              <div><dt>Lavori del periodo</dt><dd>{euro(quota)}</dd></div>
+            <dl aria-label={t("Detrazioni del certificato")}>
+              <div><dt>{t("Lavori del periodo")}</dt><dd>{euro(quota)}</dd></div>
               {detrazioni.map(({ label, amount }) => <div key={label}><dt>{label}</dt><dd>{euro(amount)}</dd></div>)}
-              <div className="font-semibold"><dt>Netto certificato · IVA esclusa</dt><dd>{euro(certificato.netto)}</dd></div>
+              <div className="font-semibold"><dt>{t("Netto certificato · IVA esclusa")}</dt><dd>{euro(certificato.netto)}</dd></div>
             </dl>
-            {detrazioni.length === 0 && <p className="sal-record-phase-note">Nessuna detrazione nel periodo.</p>}
+            {detrazioni.length === 0 && <p className="sal-record-phase-note">{t("Nessuna detrazione nel periodo.")}</p>}
             {certificato.altre_detrazioni_nota && <p className="sal-record-phase-note">{certificato.altre_detrazioni_nota}</p>}
           </CollapsibleContent>}
         </Collapsible>

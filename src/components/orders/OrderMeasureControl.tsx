@@ -22,6 +22,7 @@ import {
 import { OfficeSelect } from "./OfficeSelect";
 import { chiaveMisureAcquisto, fornituraDaVerificare } from "@/lib/orders/materialProcurement";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * OrderMeasureControl — "Controllo misure" della commessa.
@@ -65,7 +66,7 @@ const STATUS: Record<string, { label: string; color: string }> = {
   confermato: { label: "Confermata", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
 };
 
-const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+const euro = (n: number) => n.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" });
 
 function assiDellaForma(forma: FormaMisura): AsseMisura[] {
   if (forma === "LxH") return ["larghezza_mm", "altezza_mm"];
@@ -74,6 +75,7 @@ function assiDellaForma(forma: FormaMisura): AsseMisura[] {
 }
 
 export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: string; onProponiVariante?: () => void }) {
+  const t = useT();
   const qc = useQueryClient();
   const companyId = useEffectiveCompanyId();
   const { canValidateBom, canEditOrders, canViewCosts, solaLettura } = usePermissions();
@@ -135,7 +137,7 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
       const costo = Math.round((numeroMisura(p.costo) ?? 0) * 100) / 100;
       const codice = p.codice.trim();
       if (!chiave || !codice || costo <= 0 || costo >= 1_000_000_000 || !fornituraDaVerificare(p.item)) {
-        throw new Error("Verifica misure, codice e costo netto d’acquisto.");
+        throw new Error(t("Verifica misure, codice e costo netto d’acquisto."));
       }
       const { data, error } = await supabase.from("order_items").update({
         product_code: codice, purchase_price: costo, prezzo_fonte: "manuale", prezzo_da_definire: false,
@@ -145,16 +147,16 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
         .filter("axis_selections", "eq", JSON.stringify(p.item.axis_selections))
         .select("id").maybeSingle();
       if (error) throw error;
-      if (!data) throw new Error("La posizione è cambiata. Aggiorna le misure e riprova.");
+      if (!data) throw new Error(t("La posizione è cambiata. Aggiorna le misure e riprova."));
     },
     onSuccess: () => {
       invalidate();
       setRevisione(null);
-      toast.success("Prezzo e codice confermati per queste misure");
+      toast.success(t("Prezzo e codice confermati per queste misure"));
     },
     onError: (e) => {
       invalidate();
-      toast.error((e as Error).message || "Dati d’acquisto non salvati");
+      toast.error((e as Error).message || t("Dati d’acquisto non salvati"));
     },
   });
 
@@ -165,10 +167,10 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
     },
     onSuccess: () => {
       invalidate();
-      toast.success("Misure aggiornate");
+      toast.success(t("Misure aggiornate"));
       setEditing(null);
     },
-    onError: (e) => toast.error((e as Error).message || "Misure non salvate"),
+    onError: (e) => toast.error((e as Error).message || t("Misure non salvate")),
   });
 
   // isPending arriva dopo il render: il secondo clic di un doppio clic non lo vedrebbe.
@@ -178,12 +180,12 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
     onSuccess: (esito) => {
       invalidate();
       setSelezione(new Set());
-      toast.success(esito.confermate === 1 ? "1 misura confermata" : `${esito.confermate} misure confermate`);
+      toast.success(esito.confermate === 1 ? t("1 misura confermata") : t("{n} misure confermate", { n: esito.confermate }));
       if (esito.scarti.some((s) => s.con_ordine)) {
-        toast.warning("Una posizione oltre soglia è già in un ordine: il costo non è cambiato, avvisa il fornitore.");
+        toast.warning(t("Una posizione oltre soglia è già in un ordine: il costo non è cambiato, avvisa il fornitore."));
       }
     },
-    onError: (e) => toast.error((e as Error).message || "Misure non confermate"),
+    onError: (e) => toast.error((e as Error).message || t("Misure non confermate")),
     onSettled: () => { confermaInCorso.current = false; },
   });
   const confermaUnaVolta = (righe: string[]) => {
@@ -195,7 +197,7 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
   const sfrido = useMutation({
     mutationFn: (p: { id: string; valore: number }) => impostaSfridoRiga(p.id, p.valore),
     onSuccess: invalidate,
-    onError: (e) => toast.error((e as Error).message || "Sfrido non salvato"),
+    onError: (e) => toast.error((e as Error).message || t("Sfrido non salvato")),
   });
 
   const salvaRegole = useMutation({
@@ -203,9 +205,9 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["misure-impostazioni", companyId] });
       setImpostazioni(null);
-      toast.success("Gioco di posa e soglia salvati. Valgono dalle prossime conferme.");
+      toast.success(t("Gioco di posa e soglia salvati. Valgono dalle prossime conferme."));
     },
-    onError: (e) => toast.error((e as Error).message || "Impostazioni non salvate"),
+    onError: (e) => toast.error((e as Error).message || t("Impostazioni non salvate")),
   });
 
   if (!items || items.length === 0) return null; // nessun articolo su misura → niente rumore
@@ -247,8 +249,8 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Ruler className="h-4 w-4 text-orange-500" aria-hidden="true" />
-            Controllo misure
-            <span className="text-xs font-normal text-muted-foreground">{fatte} di {items.length} confermate</span>
+            {t("Controllo misure")}
+            <span className="text-xs font-normal text-muted-foreground">{t("{fatte} di {totale} confermate", { fatte, totale: items.length })}</span>
           </CardTitle>
           {puoConfermare && daConfermare.length > 0 && (
             <Button
@@ -258,16 +260,16 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
               onClick={() => confermaUnaVolta(selezionate.length ? selezionate : daConfermare.map((i) => i.id))}
             >
               {conferma.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
-              Conferma {selezionate.length || daConfermare.length} {(selezionate.length || daConfermare.length) === 1 ? "misura" : "misure"}
+              {t((selezionate.length || daConfermare.length) === 1 ? "Conferma {n} misura" : "Conferma {n} misure", { n: selezionate.length || daConfermare.length })}
             </Button>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-muted/50 px-2 py-1.5 text-xs">
-          <span>Gioco di posa: <strong className="tabular-nums">{gioco} mm</strong> <span className="text-muted-foreground">(tolto dalle misure foro)</span></span>
-          <span>Soglia scarto: <strong className="tabular-nums">{soglia} mm</strong></span>
+          <span>{t("Gioco di posa:")} <strong className="tabular-nums">{gioco} mm</strong> <span className="text-muted-foreground">{t("(tolto dalle misure foro)")}</span></span>
+          <span>{t("Soglia scarto:")} <strong className="tabular-nums">{soglia} mm</strong></span>
           {puoConfermare && (
             <Button variant="ghost" size="sm" className="ml-auto h-9 px-2 text-xs" onClick={() => setImpostazioni({ gioco: String(gioco), soglia: String(soglia) })}>
-              <Settings2 className="mr-1 h-3.5 w-3.5" /> Cambia
+              <Settings2 className="mr-1 h-3.5 w-3.5" /> {t("Cambia")}
             </Button>
           )}
         </div>
@@ -289,7 +291,7 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
                   {puoConfermare && item.measure_status === "rilevato" && (
                     <Checkbox
                       className="mt-0.5"
-                      aria-label={`Seleziona ${item.riferimento || item.name}`}
+                      aria-label={t("Seleziona {nome}", { nome: item.riferimento || item.name })}
                       checked={selezione.has(item.id)}
                       onCheckedChange={(v) => scegli(item.id, v === true)}
                     />
@@ -299,23 +301,23 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
                     {item.riferimento && <p className="truncate text-xs text-muted-foreground">{item.name}</p>}
                   </div>
                 </div>
-                <Badge variant="outline" className={`shrink-0 text-[10px] ${cfg.color}`}>{cfg.label}</Badge>
+                <Badge variant="outline" className={`shrink-0 text-[10px] ${cfg.color}`}>{t(cfg.label)}</Badge>
               </div>
 
               <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs sm:grid-cols-3">
                 <div className="flex justify-between gap-2 sm:block">
-                  <dt className="text-muted-foreground">Provvisoria</dt>
+                  <dt className="text-muted-foreground">{t("Provvisoria")}</dt>
                   <dd className="tabular-nums">{misureInTesto(item.misure_preventivo, unita)}</dd>
                 </div>
                 <div className="flex justify-between gap-2 sm:block">
-                  <dt className="text-muted-foreground">Rilevata{item.misura_tipo ? ` (${NOME_TIPO_MISURA[item.misura_tipo].replace("misura ", "")})` : ""}</dt>
+                  <dt className="text-muted-foreground">{item.misura_tipo ? t("Rilevata ({tipo})", { tipo: t(NOME_TIPO_MISURA[item.misura_tipo].replace("misura ", "")) }) : t("Rilevata")}</dt>
                   <dd className="tabular-nums">{misureInTesto(item.misure_rilevate, unita)}</dd>
                 </div>
                 <div className="flex justify-between gap-2 sm:block">
-                  <dt className="text-muted-foreground">Da ordinare</dt>
+                  <dt className="text-muted-foreground">{t("Da ordinare")}</dt>
                   <dd className="font-medium tabular-nums">
                     {misureInTesto(item.misure_da_ordinare, unita)}
-                    {Number(item.gioco_posa_mm) > 0 && <span className="ml-1 font-normal text-muted-foreground">gioco {item.gioco_posa_mm} mm</span>}
+                    {Number(item.gioco_posa_mm) > 0 && <span className="ml-1 font-normal text-muted-foreground">{t("gioco {n} mm", { n: Number(item.gioco_posa_mm) })}</span>}
                   </dd>
                 </div>
               </dl>
@@ -323,23 +325,23 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
               {cambiate.length > 0 && (
                 <p className={`mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] ${scarto.oltreSoglia ? "font-medium text-amber-800" : "text-muted-foreground"}`}>
                   {scarto.oltreSoglia && <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />}
-                  {cambiate.map(([k, v]) => `${NOME_ASSE[k as AsseMisura] ?? k} ${v.delta! > 0 ? "+" : ""}${v.delta}`).join(" · ")}
-                  {scarto.oltreSoglia ? " · oltre soglia" : ""}
+                  {cambiate.map(([k, v]) => `${NOME_ASSE[k as AsseMisura] ? t(NOME_ASSE[k as AsseMisura]) : k} ${v.delta! > 0 ? "+" : ""}${v.delta}`).join(" · ")}
+                  {scarto.oltreSoglia ? ` · ${t("oltre soglia")}` : ""}
                 </p>
               )}
               {canViewCosts && costoCambiato && (
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  Costo stimato: {euro(Number(item.costo_stimato_iniziale))} → {euro(Number(item.purchase_price))}
+                  {t("Costo stimato: {da} → {a}", { da: euro(Number(item.costo_stimato_iniziale)), a: euro(Number(item.purchase_price)) })}
                 </p>
               )}
 
               {fornituraDaRivedere && (
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-900">
-                  Verifica il codice e il costo con il fornitore per le misure confermate.
+                  {t("Verifica il codice e il costo con il fornitore per le misure confermate.")}
                   {canEditOrders && canViewCosts && !solaLettura && (
                     <Button size="sm" variant="outline" onClick={() => setRevisione({
                       item, codice: item.product_code ?? "", costo: "",
-                    })}>Conferma dati d’acquisto</Button>
+                    })}>{t("Conferma dati d’acquisto")}</Button>
                   )}
                 </div>
               )}
@@ -347,17 +349,17 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
                 {puoScrivere && (
                   <Button size="sm" variant="outline" className="min-h-9 text-xs" onClick={() => openEdit(item)}>
                     <Pencil className="mr-1 h-3 w-3" />
-                    {item.misure_rilevate ? "Modifica misure" : "Rileva misure"}
+                    {item.misure_rilevate ? t("Modifica misure") : t("Rileva misure")}
                   </Button>
                 )}
                 {puoConfermare && item.measure_status === "rilevato" && (
                   <Button size="sm" variant="outline" className="min-h-9 text-xs" disabled={conferma.isPending} onClick={() => confermaUnaVolta([item.id])}>
-                    <CheckCircle2 className="mr-1 h-3 w-3" /> Conferma
+                    <CheckCircle2 className="mr-1 h-3 w-3" /> {t("Conferma")}
                   </Button>
                 )}
                 {quantitaRiga && (
                   <label className="flex items-center gap-1.5 text-xs">
-                    Sfrido %
+                    {t("Sfrido %")}
                     <Input
                       key={`${item.id}-${item.sfrido ?? 0}`}
                       type="number"
@@ -382,11 +384,11 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
         {oltreSoglia.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
             <span>
-              {oltreSoglia.length === 1 ? "1 posizione oltre soglia" : `${oltreSoglia.length} posizioni oltre soglia`}: il prezzo al cliente non cambia da solo.
+              {oltreSoglia.length === 1 ? t("1 posizione oltre soglia: il prezzo al cliente non cambia da solo.") : t("{n} posizioni oltre soglia: il prezzo al cliente non cambia da solo.", { n: oltreSoglia.length })}
             </span>
             {onProponiVariante && (
               <Button size="sm" variant="outline" className="min-h-9 bg-white text-xs" onClick={onProponiVariante}>
-                Proponi una variante
+                {t("Proponi una variante")}
               </Button>
             )}
           </div>
@@ -396,7 +398,7 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
       <Dialog open={!!revisione} onOpenChange={(o) => !o && !revisioneCosto.isPending && setRevisione(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Dati d’acquisto per le misure definitive</DialogTitle>
+            <DialogTitle>{t("Dati d’acquisto per le misure definitive")}</DialogTitle>
             <DialogDescription>
               {revisione && `${revisione.item.riferimento || revisione.item.name} · ${misureInTesto(revisione.item.misure_da_ordinare, "pz")}`}
             </DialogDescription>
@@ -404,17 +406,17 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
           {revisione && (
             <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (!revisioneCosto.isPending) revisioneCosto.mutate(revisione); }}>
               <div className="space-y-1">
-                <Label htmlFor="codice-fornitore-misure">Codice fornitore</Label>
+                <Label htmlFor="codice-fornitore-misure">{t("Codice fornitore")}</Label>
                 <Input id="codice-fornitore-misure" required value={revisione.codice}
                   onChange={(e) => setRevisione({ ...revisione, codice: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="costo-fornitore-misure">Costo unitario IVA esclusa (€)</Label>
+                <Label htmlFor="costo-fornitore-misure">{t("Costo unitario IVA esclusa (€)")}</Label>
                 <Input id="costo-fornitore-misure" inputMode="decimal" required value={revisione.costo}
                   onChange={(e) => setRevisione({ ...revisione, costo: e.target.value })} />
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={revisioneCosto.isPending}>Salva dati d’acquisto</Button>
+                <Button type="submit" disabled={revisioneCosto.isPending}>{t("Salva dati d’acquisto")}</Button>
               </DialogFooter>
             </form>
           )}
@@ -424,13 +426,13 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="max-sm:p-4">
           <DialogHeader>
-            <DialogTitle>Misure definitive — {editing?.riferimento || editing?.name}</DialogTitle>
+            <DialogTitle>{t("Misure definitive — {nome}", { nome: editing?.riferimento || editing?.name || "" })}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-1">
             {editing && assiEdit.map((asse) => (
               <div key={asse} className="grid grid-cols-[1fr_auto_7rem] items-center gap-2">
-                <Label htmlFor={`edit-${asse}`} className="text-sm">{NOME_ASSE[asse]}</Label>
-                <span className="text-xs tabular-nums text-muted-foreground">prov.: {valoreAsse(editing.misure_preventivo, asse) ?? "—"}</span>
+                <Label htmlFor={`edit-${asse}`} className="text-sm">{t(NOME_ASSE[asse])}</Label>
+                <span className="text-xs tabular-nums text-muted-foreground">{t("prov.: {valore}", { valore: valoreAsse(editing.misure_preventivo, asse) ?? "—" })}</span>
                 <Input
                   id={`edit-${asse}`}
                   inputMode="decimal"
@@ -443,13 +445,13 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
             ))}
             {editing && !assiEdit.includes("quantita") && (
               <label className="block text-sm">
-                È la misura del
-                <OfficeSelect label="È la misura del" className="mt-1 h-11" value={tipo} onValueChange={(v) => setTipo(v as TipoMisura | "")}
+                {t("È la misura del")}
+                <OfficeSelect label={t("È la misura del")} className="mt-1 h-11" value={tipo} onValueChange={(v) => setTipo(v as TipoMisura | "")}
                   options={[
-                    { value: "", label: "Non specificato" },
-                    { value: "foro", label: "Foro" },
-                    { value: "telaio", label: "Telaio" },
-                    { value: "finita", label: "Prodotto finito" },
+                    { value: "", label: t("Non specificato") },
+                    { value: "foro", label: t("Foro") },
+                    { value: "telaio", label: t("Telaio") },
+                    { value: "finita", label: t("Prodotto finito") },
                   ]} />
               </label>
             )}
@@ -461,7 +463,7 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
               onClick={() => editing && save.mutate({ item: editing, def: pulito(), confirm: false })}
               disabled={save.isPending || !draftCompleto}
             >
-              Salva come rilevata
+              {t("Salva come rilevata")}
             </Button>
             {puoConfermare && (
               <Button
@@ -469,7 +471,7 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
                 onClick={() => editing && save.mutate({ item: editing, def: pulito(), confirm: true })}
                 disabled={save.isPending || !draftCompleto}
               >
-                Salva e conferma
+                {t("Salva e conferma")}
               </Button>
             )}
           </DialogFooter>
@@ -479,19 +481,19 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
       <Dialog open={!!impostazioni} onOpenChange={(o) => !o && setImpostazioni(null)}>
         <DialogContent className="max-sm:p-4">
           <DialogHeader>
-            <DialogTitle>Gioco di posa e soglia</DialogTitle>
-            <DialogDescription>Valgono per tutta l'azienda, dalle prossime conferme.</DialogDescription>
+            <DialogTitle>{t("Gioco di posa e soglia")}</DialogTitle>
+            <DialogDescription>{t("Valgono per tutta l'azienda, dalle prossime conferme.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-1">
             <div>
-              <Label htmlFor="misure-gioco">Gioco di posa (mm)</Label>
+              <Label htmlFor="misure-gioco">{t("Gioco di posa (mm)")}</Label>
               <Input id="misure-gioco" inputMode="decimal" className="mt-1 h-11" value={impostazioni?.gioco ?? ""} onChange={(e) => setImpostazioni((v) => v && { ...v, gioco: e.target.value })} />
-              <p className="mt-1 text-xs text-muted-foreground">Tolto da larghezza e altezza solo quando è stato misurato il foro.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("Tolto da larghezza e altezza solo quando è stato misurato il foro.")}</p>
             </div>
             <div>
-              <Label htmlFor="misure-soglia">Soglia di scarto (mm)</Label>
+              <Label htmlFor="misure-soglia">{t("Soglia di scarto (mm)")}</Label>
               <Input id="misure-soglia" inputMode="decimal" className="mt-1 h-11" value={impostazioni?.soglia ?? ""} onChange={(e) => setImpostazioni((v) => v && { ...v, soglia: e.target.value })} />
-              <p className="mt-1 text-xs text-muted-foreground">Oltre questa differenza la posizione si evidenzia e il costo stimato si ricalcola.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("Oltre questa differenza la posizione si evidenzia e il costo stimato si ricalcola.")}</p>
             </div>
           </div>
           <DialogFooter>
@@ -500,7 +502,7 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
               disabled={salvaRegole.isPending || !impostazioni || !Number.isFinite(Number(impostazioni.gioco)) || !Number.isFinite(Number(impostazioni.soglia))}
               onClick={() => impostazioni && salvaRegole.mutate({ gioco: Number(impostazioni.gioco.replace(",", ".")), soglia: Number(impostazioni.soglia.replace(",", ".")) })}
             >
-              Salva
+              {t("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>

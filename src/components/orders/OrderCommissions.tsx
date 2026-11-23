@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { UserCheck, Percent, DollarSign, Receipt, CalendarIcon, Check, Loader2, Plus, Trash2, History, MinusCircle, PlusCircle, RotateCcw } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +35,7 @@ import {
 import { cn } from "@/lib/utils";
 import { calculateCommissionGross, calculateStoredCommissionNet, type CompensationMode } from "@/lib/commissions";
 import { useCommercialiCommessa, type OrderSalesperson } from "@/hooks/useCommercialiCommessa";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CommissionLedgerEntry {
   id: string;
@@ -91,7 +91,7 @@ export function OrderCommissions({
   vatRate,
   readOnly = false,
 }: OrderCommissionsProps) {
-
+  const t = useT();
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const confirm = useConfirm();
@@ -195,10 +195,10 @@ export function OrderCommissions({
       queryClient.invalidateQueries({ queryKey: ["oes-salespeople", orderId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.commissionLedger(orderId) });
       queryClient.invalidateQueries({ queryKey: ["esposizione-commessa", orderId] });
-      toast.success("Provvigione aggiornata", { description: "Le modifiche sono state salvate." });
+      toast.success(t("Provvigione aggiornata"), { description: t("Le modifiche sono state salvate.") });
     },
     onError: () => {
-      toast.error("Errore", { description: "Impossibile aggiornare la provvigione." });
+      toast.error(t("Errore"), { description: t("Impossibile aggiornare la provvigione.") });
     },
   });
 
@@ -206,7 +206,7 @@ export function OrderCommissions({
   const addSalespersonMutation = useMutation({
     mutationFn: async (spId: string) => {
       const sp = availableSalespeople.find(s => s.id === spId);
-      if (!sp) throw new Error("Venditore non trovato");
+      if (!sp) throw new Error(t("Venditore non trovato"));
       const commAmount = calculateCommissionGross({
         commissionType: sp.commission_type,
         commissionValue: sp.commission_value,
@@ -227,11 +227,11 @@ export function OrderCommissions({
       queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
       queryClient.invalidateQueries({ queryKey: ["oes-salespeople", orderId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.commissionLedger(orderId) });
-      toast.success("Commerciale aggiunto");
+      toast.success(t("Commerciale aggiunto"));
       setAddDialogOpen(false);
       setSelectedSalespersonId("");
     },
-    onError: () => toast.error("Errore nell'aggiunta del commerciale"),
+    onError: () => toast.error(t("Errore nell'aggiunta del commerciale")),
   });
 
   // Remove salesperson from order
@@ -244,9 +244,9 @@ export function OrderCommissions({
       queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
       queryClient.invalidateQueries({ queryKey: ["oes-salespeople", orderId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.commissionLedger(orderId) });
-      toast.success("Commerciale rimosso");
+      toast.success(t("Commerciale rimosso"));
     },
-    onError: () => toast.error("Errore nella rimozione del commerciale"),
+    onError: () => toast.error(t("Errore nella rimozione del commerciale")),
   });
 
   // When toggling paid: if turning ON, open dialog; if turning OFF, clear date directly
@@ -346,7 +346,7 @@ export function OrderCommissions({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UserCheck className="h-5 w-5" />
-            Provvigioni Venditori
+            {t("Provvigioni Venditori")}
           </CardTitle>
         </CardHeader>
         <CardContent className="flex items-center justify-center py-8">
@@ -358,7 +358,7 @@ export function OrderCommissions({
 
   if (isError) {
     return <p role="alert" className="rounded-lg border bg-background p-3 text-sm">
-      Commerciali e provvigioni non disponibili. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button>
+      {t("Commerciali e provvigioni non disponibili.")} <button type="button" className="underline" onClick={() => void refetch()}>{t("Riprova")}</button>
     </p>;
   }
   if (orderSalespeople.length === 0) {
@@ -369,18 +369,18 @@ export function OrderCommissions({
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
                 <UserCheck className="h-4 w-4" />
-                Provvigioni Venditori
+                {t("Provvigioni Venditori")}
               </CardTitle>
               {!readOnly && (
                 <Button variant="outline" size="sm" className="text-xs" onClick={() => setAddDialogOpen(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1" /><span className="max-sm:hidden">Aggiungi Commerciale</span><span className="sm:hidden">Aggiungi</span>
+                  <Plus className="h-3.5 w-3.5 mr-1" /><span className="max-sm:hidden">{t("Aggiungi Commerciale")}</span><span className="sm:hidden">{t("Aggiungi")}</span>
                 </Button>
               )}
             </div>
           </CardHeader>
           {/* Telefono: senza commerciali il riquadro è una riga sola (titolo e «Aggiungi»). */}
           <CardContent className="max-sm:hidden">
-            <p className="text-sm text-muted-foreground">Nessun commerciale assegnato a questa commessa.</p>
+            <p className="text-sm text-muted-foreground">{t("Nessun commerciale assegnato a questa commessa.")}</p>
           </CardContent>
         </Card>
         {renderAddDialog()}
@@ -395,11 +395,11 @@ export function OrderCommissions({
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
               <UserCheck className="h-4 w-4" />
-              Provvigioni Venditori
+              {t("Provvigioni Venditori")}
             </CardTitle>
             {!readOnly && (
               <Button variant="outline" size="sm" className="text-xs" onClick={() => setAddDialogOpen(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1" />Aggiungi
+                <Plus className="h-3.5 w-3.5 mr-1" />{t("Aggiungi")}
               </Button>
             )}
           </div>
@@ -424,7 +424,7 @@ export function OrderCommissions({
                     </span>
                     <Badge variant="outline" className="gap-1 text-xs">
                       {COMMISSION_TYPE_LABELS[sp.commission_type]?.icon}
-                      {COMMISSION_TYPE_LABELS[sp.commission_type]?.label}
+                      {COMMISSION_TYPE_LABELS[sp.commission_type] ? t(COMMISSION_TYPE_LABELS[sp.commission_type].label) : null}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-3">
@@ -439,29 +439,29 @@ export function OrderCommissions({
                             onCheckedChange={() => handleTogglePaid(sp)}
                           />
                           <span className="text-sm text-muted-foreground">
-                            {sp.is_paid ? "Pagata" : "Da pagare"}
+                            {sp.is_paid ? t("Pagata") : t("Da pagare")}
                           </span>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-7 px-2 text-xs"
-                          aria-label={`${editingId === sp.id ? "Chiudi" : "Modifica"} la provvigione di ${sp.salesperson?.first_name} ${sp.salesperson?.last_name}`}
+                          aria-label={t(editingId === sp.id ? "Chiudi la provvigione di {nome}" : "Modifica la provvigione di {nome}", { nome: `${sp.salesperson?.first_name} ${sp.salesperson?.last_name}` })}
                           onClick={() => setEditingId(editingId === sp.id ? null : sp.id)}
                         >
-                          {editingId === sp.id ? "Chiudi" : "Modifica"}
+                          {editingId === sp.id ? t("Chiudi") : t("Modifica")}
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          aria-label={`Rimuovi provvigione di ${sp.salesperson?.first_name} ${sp.salesperson.last_name}`}
+                          aria-label={t("Rimuovi provvigione di {nome}", { nome: `${sp.salesperson?.first_name} ${sp.salesperson.last_name}` })}
                           onClick={async () => {
                             if (
                               await confirm({
-                                title: "Rimuovere il venditore dalla commessa?",
-                                description: `La provvigione di ${sp.salesperson?.first_name} ${sp.salesperson.last_name} verrà rimossa da questa commessa.`,
-                                confirmLabel: "Rimuovi",
+                                title: t("Rimuovere il venditore dalla commessa?"),
+                                description: t("La provvigione di {nome} verrà rimossa da questa commessa.", { nome: `${sp.salesperson?.first_name} ${sp.salesperson.last_name}` }),
+                                confirmLabel: t("Rimuovi"),
                                 variant: "destructive",
                               })
                             ) {
@@ -476,7 +476,7 @@ export function OrderCommissions({
                     {readOnly && sp.is_paid && (
                       <Badge variant="secondary" className="gap-1">
                         <Check className="h-3 w-3" />
-                        Pagata
+                        {t("Pagata")}
                       </Badge>
                     )}
                   </div>
@@ -485,7 +485,7 @@ export function OrderCommissions({
                 {!readOnly && editingId === sp.id && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-2">
-                      <Label className="text-xs">Tipo</Label>
+                      <Label className="text-xs">{t("Tipo")}</Label>
                       <Select
                         value={sp.commission_type}
                         onValueChange={(type) =>
@@ -496,15 +496,15 @@ export function OrderCommissions({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="fixed">Importo Fisso</SelectItem>
-                          <SelectItem value="percentage_sold">% sul Venduto</SelectItem>
-                          <SelectItem value="percentage_collected">% sull'Incassato</SelectItem>
+                          <SelectItem value="fixed">{t("Importo Fisso")}</SelectItem>
+                          <SelectItem value="percentage_sold">{t("% sul Venduto")}</SelectItem>
+                          <SelectItem value="percentage_collected">{t("% sull'Incassato")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs">
-                        {sp.commission_type === "fixed" ? "Importo (€)" : "Percentuale (%)"}
+                        {sp.commission_type === "fixed" ? t("Importo (€)") : t("Percentuale (%)")}
                       </Label>
                       <Input
                         type="number"
@@ -521,7 +521,7 @@ export function OrderCommissions({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs">Decurtazione (€)</Label>
+                      <Label className="text-xs">{t("Decurtazione (€)")}</Label>
                       <Input
                         type="number"
                         step="0.01"
@@ -538,7 +538,7 @@ export function OrderCommissions({
                 {/* Data prevista: visibile solo col form aperto */}
                 {!sp.is_paid && !readOnly && editingId === sp.id && (
                   <div className="space-y-2">
-                    <Label className="text-xs">Data pagamento prevista</Label>
+                    <Label className="text-xs">{t("Data pagamento prevista")}</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
@@ -550,8 +550,8 @@ export function OrderCommissions({
                         >
                           <CalendarIcon className="mr-2 h-3 w-3" />
                           {sp.payment_expected_date
-                            ? format(new Date(sp.payment_expected_date), "d MMMM yyyy", { locale: it })
-                            : "Seleziona data prevista"}
+                            ? format(new Date(sp.payment_expected_date), "d MMMM yyyy", { locale: dateFnsCampo() })
+                            : t("Seleziona data prevista")}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
@@ -569,13 +569,13 @@ export function OrderCommissions({
 
                 {!sp.is_paid && readOnly && sp.payment_expected_date && (
                   <p className="text-xs text-muted-foreground">
-                    Pagamento previsto il {format(new Date(sp.payment_expected_date), "d MMMM yyyy", { locale: it })}
+                    {t("Pagamento previsto il {data}", { data: format(new Date(sp.payment_expected_date), "d MMMM yyyy", { locale: dateFnsCampo() }) })}
                   </p>
                 )}
 
                 {sp.paid_date && (
                   <p className="text-xs text-muted-foreground">
-                    Pagata il {format(new Date(sp.paid_date), "d MMMM yyyy", { locale: it })}
+                    {t("Pagata il {data}", { data: format(new Date(sp.paid_date), "d MMMM yyyy", { locale: dateFnsCampo() }) })}
                   </p>
                 )}
 
@@ -584,16 +584,16 @@ export function OrderCommissions({
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                         <History className="h-3.5 w-3.5" />
-                        Movimenti provvigione
+                        {t("Movimenti provvigione")}
                       </div>
                       <Badge variant="secondary" className="text-[11px]">
-                        Saldo {formatCurrency(Number(ledgerEntries[0]?.balance_after ?? currentAmount))}
+                        {t("Saldo {importo}", { importo: formatCurrency(Number(ledgerEntries[0]?.balance_after ?? currentAmount)) })}
                       </Badge>
                     </div>
                     <div className="mt-2 space-y-1">
                       {ledgerEntries.slice(0, 4).map((entry) => {
                         const amount = ledgerAmount(entry);
-                        const label = entry.description || COMMISSION_LEDGER_LABELS[entry.entry_type] || "Movimento";
+                        const label = entry.description || (COMMISSION_LEDGER_LABELS[entry.entry_type] ? t(COMMISSION_LEDGER_LABELS[entry.entry_type]) : t("Movimento"));
 
                         return (
                           <div key={entry.id} className="flex items-center justify-between gap-3 text-xs">
@@ -607,7 +607,7 @@ export function OrderCommissions({
                               )}
                               <span className="truncate">{label}</span>
                               <span className="shrink-0 text-muted-foreground">
-                                {format(new Date(entry.created_at), "dd/MM HH:mm", { locale: it })}
+                                {format(new Date(entry.created_at), "dd/MM HH:mm", { locale: dateFnsCampo() })}
                               </span>
                             </div>
                             <span
@@ -618,7 +618,7 @@ export function OrderCommissions({
                                 amount === 0 && "text-muted-foreground"
                               )}
                             >
-                              {amount === 0 ? "evento" : formatCurrency(amount)}
+                              {amount === 0 ? t("evento") : formatCurrency(amount)}
                             </span>
                           </div>
                         );
@@ -626,7 +626,7 @@ export function OrderCommissions({
                     </div>
                     {ledgerEntries.length > 4 && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
-                        +{ledgerEntries.length - 4} movimenti precedenti
+                        {t("+{n} movimenti precedenti", { n: ledgerEntries.length - 4 })}
                       </p>
                     )}
                   </div>
@@ -638,12 +638,12 @@ export function OrderCommissions({
           {/* Summary */}
           <div className="pt-4 border-t space-y-2">
             <div className="flex justify-between text-sm">
-              <span>Totale Provvigioni{orderSalespeople.some(sp => (sp.deduction_amount || 0) > 0) ? " (netto decurtazioni)" : ""}</span>
+              <span>{t("Totale Provvigioni")}{orderSalespeople.some(sp => (sp.deduction_amount || 0) > 0) ? ` ${t("(netto decurtazioni)")}` : ""}</span>
               <span className="font-medium">{formatCurrency(totalCommissions)}</span>
             </div>
             {unpaidCommissions > 0 && (
               <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Da pagare</span>
+                <span>{t("Da pagare")}</span>
                 <span className="text-destructive">{formatCurrency(unpaidCommissions)}</span>
               </div>
             )}
@@ -656,12 +656,12 @@ export function OrderCommissions({
       <Dialog open={paidDialogOpen} onOpenChange={setPaidDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Data pagamento provvigione</DialogTitle>
+            <DialogTitle>{t("Data pagamento provvigione")}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-4">
             {paidDialogSp && (
               <p className="text-sm text-muted-foreground">
-                Provvigione di{" "}
+                {t("Provvigione di")}{" "}
                 <span className="font-medium text-foreground">
                   {paidDialogSp.salesperson.first_name} {paidDialogSp.salesperson.last_name}
                 </span>
@@ -677,10 +677,10 @@ export function OrderCommissions({
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPaidDialogOpen(false)}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button onClick={handleConfirmPaidDate}>
-              Conferma pagamento
+              {t("Conferma pagamento")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -697,15 +697,15 @@ export function OrderCommissions({
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Aggiungi Commerciale</DialogTitle>
+            <DialogTitle>{t("Aggiungi Commerciale")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             {unassigned.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Tutti i commerciali sono già assegnati a questa commessa.</p>
+              <p className="text-sm text-muted-foreground">{t("Tutti i commerciali sono già assegnati a questa commessa.")}</p>
             ) : (
               <Select value={selectedSalespersonId} onValueChange={setSelectedSalespersonId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleziona commerciale" />
+                  <SelectValue placeholder={t("Seleziona commerciale")} />
                 </SelectTrigger>
                 <SelectContent>
                   {unassigned.map(sp => (
@@ -713,7 +713,7 @@ export function OrderCommissions({
                       {sp.first_name} {sp.last_name}
                       <span className="text-muted-foreground ml-2 text-xs">
                         ({sp.compensation_mode === "fixed_only"
-                          ? "solo fisso"
+                          ? t("solo fisso")
                           : sp.commission_type === "fixed"
                             ? formatCurrency(sp.commission_value)
                             : `${sp.commission_value}%`})
@@ -726,14 +726,14 @@ export function OrderCommissions({
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddDialogOpen(false); setSelectedSalespersonId(""); }}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               disabled={!selectedSalespersonId || addSalespersonMutation.isPending}
               onClick={() => addSalespersonMutation.mutate(selectedSalespersonId)}
             >
               {addSalespersonMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Aggiungi
+              {t("Aggiungi")}
             </Button>
           </DialogFooter>
         </DialogContent>

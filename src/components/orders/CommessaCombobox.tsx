@@ -27,6 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { BadgeGenerale, RigaAppartenenza } from "@/components/orders/generali/BadgeGerarchia";
 import { COLONNE_GERARCHIA, conGenerali, eGenerale, raggruppaPerGenerale, type RigaGerarchia } from "@/lib/orders/generali/gerarchiaScelta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface CommessaScelta extends RigaGerarchia {
   id: string;
@@ -58,11 +59,13 @@ export function CommessaCombobox({
   value,
   onChange,
   onSelection,
-  ariaLabel = "Commessa",
+  ariaLabel,
   disabled,
-  nessunaLabel = "Acquisto generico (senza commessa)",
+  nessunaLabel: nessunaLabelProp,
   className,
 }: Props) {
+  const tr = useT();
+  const nessunaLabel = nessunaLabelProp ?? tr("Acquisto generico (senza commessa)");
   const { effectiveCompany } = useAuth();
   const [open, setOpen] = useState(false);
   const [ricerca, setRicerca] = useState("");
@@ -120,8 +123,8 @@ export function CommessaCombobox({
 
   const etichetta = value
     ? selezionata
-      ? `${selezionata.order_code ?? "Commessa"}${selezionata.description ? ` — ${selezionata.description.slice(0, 40)}` : ""}${eGenerale(selezionata) ? " (generale)" : ""}`
-      : "Commessa collegata"
+      ? `${selezionata.order_code ?? tr("Commessa")}${selezionata.description ? ` — ${selezionata.description.slice(0, 40)}` : ""}${eGenerale(selezionata) ? ` (${tr("generale")})` : ""}`
+      : tr("Commessa collegata")
     : nessunaLabel;
 
   return (
@@ -131,7 +134,7 @@ export function CommessaCombobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          aria-label={ariaLabel}
+          aria-label={ariaLabel ?? tr("Commessa")}
           disabled={disabled}
           className={cn(
             "w-full justify-between font-normal",
@@ -149,14 +152,14 @@ export function CommessaCombobox({
       >
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Cerca codice, cliente o cantiere…"
+            placeholder={tr("Cerca codice, cliente o cantiere…")}
             value={ricerca}
             onValueChange={setRicerca}
           />
           <CommandList>
             {commesse.length === 0 && (
               <p role="status" className="px-3 py-3 text-sm text-muted-foreground">
-                {isFetching ? "Ricerca in corso…" : isError ? "Ricerca non disponibile. Riapri il menu per riprovare." : "Nessuna commessa trovata."}
+                {isFetching ? tr("Ricerca in corso…") : isError ? tr("Ricerca non disponibile. Riapri il menu per riprovare.") : tr("Nessuna commessa trovata.")}
               </p>
             )}
             <CommandGroup>
@@ -178,7 +181,7 @@ export function CommessaCombobox({
                 />
               </CommandItem>}
               {raggruppaPerGenerale(commesse).map(({ riga: c, annidata }) => {
-                const titolo = (eGenerale(c) ? c.description || c.client_name : c.client_name || c.description)?.trim() || "Commessa";
+                const titolo = (eGenerale(c) ? c.description || c.client_name : c.client_name || c.description)?.trim() || tr("Commessa");
                 const dettagli = [...new Set([c.description, c.client_name, c.work_address].map(t => t?.trim()).filter(t => t && t !== titolo))].join(" · ");
                 return (
                 <CommandItem

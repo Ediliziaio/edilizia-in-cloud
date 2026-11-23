@@ -13,16 +13,18 @@ import { recapitiFornitore } from "@/lib/documentiOperativi/fornitore";
 import { invalidaFornitori } from "@/lib/suppliers/cacheFornitori";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const FornitoreEditor = lazy(() => import("@/components/suppliers/FornitoreEditor").then(m => ({default:m.FornitoreEditor})));
 
 export function OdaFornitoreCard({supplier}: {supplier?: Supplier | null}) {
+  const t = useT();
   const {effectiveCompany} = useAuth();
   const permissions = usePermissions();
   const client = useQueryClient();
   const [editing,setEditing] = useState(false);
   const [saving,setSaving] = useState(false);
-  if (!supplier) return <QuoteCard title="Fornitore" icon={<Truck className="h-4 w-4" />}><p className="text-sm text-slate-500">Fornitore non disponibile.</p></QuoteCard>;
+  if (!supplier) return <QuoteCard title={t("Fornitore")} icon={<Truck className="h-4 w-4" />}><p className="text-sm text-slate-500">{t("Fornitore non disponibile.")}</p></QuoteCard>;
   const recapiti = recapitiFornitore(supplier);
   const save = async (form:SupplierFormData) => {
     if (!effectiveCompany || saving) return;
@@ -32,43 +34,43 @@ export function OdaFornitoreCard({supplier}: {supplier?: Supplier | null}) {
       if (error) throw error;
       await Promise.all([invalidaFornitori(client),client.invalidateQueries({queryKey:queryKeys.purchaseOrders.all}),client.invalidateQueries({queryKey:["purchase-order-detail"]}),client.invalidateQueries({queryKey:["rdo-fornitori-anagrafica"]})]);
       setEditing(false);
-      toast.success("Anagrafica fornitore aggiornata");
+      toast.success(t("Anagrafica fornitore aggiornata"));
     } catch (e) {
-      toast.error("Fornitore non salvato",{description:e instanceof Error ? e.message : "Riprova. Le modifiche restano aperte."});
+      toast.error(t("Fornitore non salvato"),{description:e instanceof Error ? e.message : t("Riprova. Le modifiche restano aperte.")});
     } finally {setSaving(false);}
   };
-  const dato = (label:string,value?:string | number | null) => <div><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-0.5 break-words text-sm text-slate-800">{value == null || value === "" ? <span className="text-slate-400">Non indicato</span> : value}</dd></div>;
+  const dato = (label:string,value?:string | number | null) => <div><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-0.5 break-words text-sm text-slate-800">{value == null || value === "" ? <span className="text-slate-400">{t("Non indicato")}</span> : value}</dd></div>;
   return <>
-    <QuoteCard title="Fornitore" icon={<Truck className="h-4 w-4" />} action={(permissions.canEditSettingsSuppliers || permissions.canManageSuppliers) && <Button variant="outline" size="sm" onClick={()=>setEditing(true)}><Pencil className="mr-1.5 h-3.5 w-3.5" />Modifica fornitore</Button>}>
+    <QuoteCard title={t("Fornitore")} icon={<Truck className="h-4 w-4" />} action={(permissions.canEditSettingsSuppliers || permissions.canManageSuppliers) && <Button variant="outline" size="sm" onClick={()=>setEditing(true)}><Pencil className="mr-1.5 h-3.5 w-3.5" />{t("Modifica fornitore")}</Button>}>
       <p className="text-base font-bold text-slate-900">{supplier.name}</p>
       <div className="mt-3 space-y-2 text-sm">
-        <p className="flex items-start gap-2"><Mail className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" /><span className="min-w-0 break-all"><span className="block text-xs text-slate-500">Email per gli ordini</span>{recapiti.destinatario.email ? <a className="text-blue-800 hover:underline" href={`mailto:${recapiti.destinatario.email}`}>{recapiti.destinatario.email}</a> : "Non indicata"}</span></p>
-        <p className="flex items-start gap-2"><Phone className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" /><span><span className="block text-xs text-slate-500">Telefono</span>{supplier.phone ? <a href={`tel:${supplier.phone}`}>{supplier.phone}</a> : "Non indicato"}</span></p>
+        <p className="flex items-start gap-2"><Mail className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" /><span className="min-w-0 break-all"><span className="block text-xs text-slate-500">{t("Email per gli ordini")}</span>{recapiti.destinatario.email ? <a className="text-blue-800 hover:underline" href={`mailto:${recapiti.destinatario.email}`}>{recapiti.destinatario.email}</a> : t("Non indicata")}</span></p>
+        <p className="flex items-start gap-2"><Phone className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" /><span><span className="block text-xs text-slate-500">{t("Telefono")}</span>{supplier.phone ? <a href={`tel:${supplier.phone}`}>{supplier.phone}</a> : t("Non indicato")}</span></p>
       </div>
       <dl className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-        {dato("Email generale",supplier.email)}{dato("PEC",supplier.pec)}
-        {dato("Partita IVA",supplier.vat_number)}{dato("Codice fiscale",supplier.fiscal_code)}
-        {dato("Codice SDI",supplier.codice_sdi)}{dato("Nostro codice cliente",supplier.codice_cliente)}
-        <div className="sm:col-span-2 lg:col-span-1 xl:col-span-2">{dato("Sede",recapiti.destinatario.indirizzo)}</div>
+        {dato(t("Email generale"),supplier.email)}{dato("PEC",supplier.pec)}
+        {dato(t("Partita IVA"),supplier.vat_number)}{dato(t("Codice fiscale"),supplier.fiscal_code)}
+        {dato(t("Codice SDI"),supplier.codice_sdi)}{dato(t("Nostro codice cliente"),supplier.codice_cliente)}
+        <div className="sm:col-span-2 lg:col-span-1 xl:col-span-2">{dato(t("Sede"),recapiti.destinatario.indirizzo)}</div>
       </dl>
       <div className="mt-4 border-t border-slate-100 pt-4">
-        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><UserRound className="h-3.5 w-3.5" />Referenti</h4>
-        {recapiti.referentiFornitore.length ? <div className="space-y-2">{recapiti.referentiFornitore.map((r,i)=><div key={`${r.ruolo}:${i}`} className="rounded-lg bg-slate-50 p-2.5 text-sm"><span className="text-xs text-slate-500">{etichettaRuoloReferente(r.ruolo)}</span><p className="font-medium">{r.nome || "Nome non indicato"}</p>{r.email && <a className="block break-all text-blue-800 hover:underline" href={`mailto:${r.email}`}>{r.email}</a>}{r.telefono && <a className="block" href={`tel:${r.telefono}`}>{r.telefono}</a>}</div>)}</div> : <p className="text-sm text-slate-400">Nessun referente inserito.</p>}
+        <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><UserRound className="h-3.5 w-3.5" />{t("Referenti")}</h4>
+        {recapiti.referentiFornitore.length ? <div className="space-y-2">{recapiti.referentiFornitore.map((r,i)=><div key={`${r.ruolo}:${i}`} className="rounded-lg bg-slate-50 p-2.5 text-sm"><span className="text-xs text-slate-500">{t(etichettaRuoloReferente(r.ruolo))}</span><p className="font-medium">{r.nome || t("Nome non indicato")}</p>{r.email && <a className="block break-all text-blue-800 hover:underline" href={`mailto:${r.email}`}>{r.email}</a>}{r.telefono && <a className="block" href={`tel:${r.telefono}`}>{r.telefono}</a>}</div>)}</div> : <p className="text-sm text-slate-400">{t("Nessun referente inserito.")}</p>}
       </div>
-      <details className="mt-4 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-sm font-medium text-slate-700">Pagamento, ritiro e altre informazioni</summary><dl className="mt-3 grid gap-3">
-        {dato("Condizioni concordate",recapiti.pagamento)}{dato("Banca",supplier.bank_name)}{dato("IBAN",supplier.iban)}
-        {dato("Sconto concordato",supplier.sconto_percentuale != null ? `${supplier.sconto_percentuale}%` : null)}
-        {dato("Tempi di consegna",supplier.lead_time_days != null ? `${supplier.lead_time_days} giorni` : null)}
-        {dato("Indirizzo di ritiro",recapiti.ritiroIndirizzo)}{dato("Indicazioni di ritiro",supplier.ritiro_note)}
-        {dato("IVA predefinita",supplier.inversione_contabile ? "Reverse charge" : supplier.vat_rate != null ? `${supplier.vat_rate}%` : null)}
-        {dato("Ordine minimo",supplier.min_order_amount != null ? formatCurrency(supplier.min_order_amount) : null)}
-        {dato("Plafond",supplier.credit_limit != null ? formatCurrency(supplier.credit_limit) : null)}
-        {dato("Valutazione",supplier.rating != null ? `${supplier.rating}/5` : null)}
-        {dato("Stato",supplier.is_active === false ? "Non attivo" : "Attivo")}
-        {dato("Sito web",supplier.website)}{dato("Categorie",categorieFornitore(supplier).join(" · "))}{dato("Note del fornitore",supplier.notes)}
+      <details className="mt-4 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-sm font-medium text-slate-700">{t("Pagamento, ritiro e altre informazioni")}</summary><dl className="mt-3 grid gap-3">
+        {dato(t("Condizioni concordate"),recapiti.pagamento)}{dato(t("Banca"),supplier.bank_name)}{dato("IBAN",supplier.iban)}
+        {dato(t("Sconto concordato"),supplier.sconto_percentuale != null ? `${supplier.sconto_percentuale}%` : null)}
+        {dato(t("Tempi di consegna"),supplier.lead_time_days != null ? t("{n} giorni", { n: supplier.lead_time_days }) : null)}
+        {dato(t("Indirizzo di ritiro"),recapiti.ritiroIndirizzo)}{dato(t("Indicazioni di ritiro"),supplier.ritiro_note)}
+        {dato(t("IVA predefinita"),supplier.inversione_contabile ? t("Reverse charge") : supplier.vat_rate != null ? `${supplier.vat_rate}%` : null)}
+        {dato(t("Ordine minimo"),supplier.min_order_amount != null ? formatCurrency(supplier.min_order_amount) : null)}
+        {dato(t("Plafond"),supplier.credit_limit != null ? formatCurrency(supplier.credit_limit) : null)}
+        {dato(t("Valutazione"),supplier.rating != null ? `${supplier.rating}/5` : null)}
+        {dato(t("Stato"),supplier.is_active === false ? t("Non attivo") : t("Attivo"))}
+        {dato(t("Sito web"),supplier.website)}{dato(t("Categorie"),categorieFornitore(supplier).join(" · "))}{dato(t("Note del fornitore"),supplier.notes)}
       </dl></details>
-      {(permissions.canEditSettingsSuppliers || permissions.canManageSuppliers) && <p className="mt-3 text-xs text-slate-500">La modifica aggiorna l’anagrafica condivisa con Impostazioni → Fornitori.</p>}
+      {(permissions.canEditSettingsSuppliers || permissions.canManageSuppliers) && <p className="mt-3 text-xs text-slate-500">{t("La modifica aggiorna l’anagrafica condivisa con Impostazioni → Fornitori.")}</p>}
     </QuoteCard>
-    {editing && <Suspense fallback={<p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Apertura anagrafica…</p>}><FornitoreEditor aperta fornitore={supplier} esteroIniziale={!!supplier.is_foreign} fornitori={[supplier]} categorieEsistenti={categorieFornitore(supplier)} salvataggio={saving} onChiudi={()=>{if (!saving) setEditing(false);}} onSalva={form=>void save(form)} /></Suspense>}
+    {editing && <Suspense fallback={<p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />{t("Apertura anagrafica…")}</p>}><FornitoreEditor aperta fornitore={supplier} esteroIniziale={!!supplier.is_foreign} fornitori={[supplier]} categorieEsistenti={categorieFornitore(supplier)} salvataggio={saving} onChiudi={()=>{if (!saving) setEditing(false);}} onSalva={form=>void save(form)} /></Suspense>}
   </>;
 }

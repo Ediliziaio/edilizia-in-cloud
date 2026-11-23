@@ -8,8 +8,10 @@ import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { cn } from "@/lib/utils";
 import { dataBreve, euro, nomeMese } from "../piano/formato";
 import { FasiDalPianoDialog } from "./FasiDalPianoDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }: { riepilogo: RiepilogoGenerale; puoModificare?: boolean }) {
+  const tr = useT();
   const [dalPiano, setDalPiano] = useState(false);
   const generaleId = riepilogo.generale.id;
   const [parametri, setParametri] = useSearchParams();
@@ -64,32 +66,32 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
     <section aria-labelledby="cantiere-operazione" className="generale-panel overflow-hidden">
       <header className="flex items-center justify-between gap-2 border-b bg-muted/25 px-3 py-2 sm:px-4">
         <h2 id="cantiere-operazione" className="flex items-center gap-2 text-sm font-semibold">
-          <span className="generale-section-icon !size-7"><HardHat aria-hidden="true" /></span>Cantiere
+          <span className="generale-section-icon !size-7"><HardHat aria-hidden="true" /></span>{tr("Cantiere")}
         </h2>
         <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => apri()}>
-          Apri il cantiere <ArrowRight className="ml-1.5 size-3.5" aria-hidden="true" />
+          {tr("Apri il cantiere")} <ArrowRight className="ml-1.5 size-3.5" aria-hidden="true" />
         </Button>
       </header>
       <div className="grid divide-y md:grid-cols-[minmax(0,1.25fr)_minmax(0,0.8fr)_minmax(0,1fr)] md:divide-x md:divide-y-0">
         {/* Le fasi */}
         <div className="min-w-0 px-3 py-2.5 sm:px-4">
-          <h3 className="text-xs font-medium text-muted-foreground">Avanzamento lavori</h3>
+          <h3 className="text-xs font-medium text-muted-foreground">{tr("Avanzamento lavori")}</h3>
           {fasi.isLoading ? (
-            <p role="status" className="mt-1 text-sm text-muted-foreground">Caricamento delle fasi…</p>
+            <p role="status" className="mt-1 text-sm text-muted-foreground">{tr("Caricamento delle fasi…")}</p>
           ) : fasi.isError ? (
-            <p className="mt-1 text-sm text-muted-foreground">Fasi non disponibili. <button type="button" onClick={() => void fasi.refetch()} className="text-primary hover:underline">Riprova</button></p>
+            <p className="mt-1 text-sm text-muted-foreground">{tr("Fasi non disponibili.")} <button type="button" onClick={() => void fasi.refetch()} className="text-primary hover:underline">{tr("Riprova")}</button></p>
           ) : elenco.length === 0 ? (
             <>
-              <p className="mt-0.5 text-sm font-medium">Nessuna fase</p>
-              <p className="text-xs text-muted-foreground">Dividi il lavoro in fasi, con le date e chi le fa.</p>
+              <p className="mt-0.5 text-sm font-medium">{tr("Nessuna fase")}</p>
+              <p className="text-xs text-muted-foreground">{tr("Dividi il lavoro in fasi, con le date e chi le fa.")}</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
                 {puoModificare && conVoci && (
                   <button type="button" onClick={() => setDalPiano(true)} className="inline-flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-orange-800 dark:text-orange-300">
-                    Proponi le fasi dal piano <ArrowRight className="size-3" aria-hidden="true" />
+                    {tr("Proponi le fasi dal piano")} <ArrowRight className="size-3" aria-hidden="true" />
                   </button>
                 )}
                 <button type="button" onClick={() => apri("lavorazioni", generaleId)} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                  {puoModificare && conVoci ? "Aggiungi fasi a mano" : "Imposta le fasi"} <ArrowRight className="size-3" aria-hidden="true" />
+                  {puoModificare && conVoci ? tr("Aggiungi fasi a mano") : tr("Imposta le fasi")} <ArrowRight className="size-3" aria-hidden="true" />
                 </button>
               </div>
             </>
@@ -98,28 +100,28 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
               <div className="mt-0.5 flex flex-wrap items-baseline justify-between gap-x-2">
                 <p className="text-lg font-semibold tabular-nums">{avanzamento}%</p>
                 <button type="button" onClick={() => apri("lavorazioni")} className="generale-text-link">
-                  Tutte le lavorazioni <ArrowRight className="size-3" aria-hidden="true" />
+                  {tr("Tutte le lavorazioni")} <ArrowRight className="size-3" aria-hidden="true" />
                 </button>
               </div>
               <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
                 <div className="h-full rounded-full bg-emerald-500" style={{ width: `${avanzamento}%` }} />
               </div>
               <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">
-                <span className="whitespace-nowrap">{finite} di {elenco.length} fasi concluse</span>
-                {" · "}<span className="whitespace-nowrap">{inCorso} in corso</span>
-                {" · "}<span className="whitespace-nowrap">{daAvviare} da avviare</span>
+                <span className="whitespace-nowrap">{tr("{finite} di {n} fasi concluse", { finite: String(finite ?? ""), n: elenco.length })}</span>
+                {" · "}<span className="whitespace-nowrap">{tr("{n} in corso", { n: String(inCorso ?? "") })}</span>
+                {" · "}<span className="whitespace-nowrap">{tr("{daAvviare} da avviare", { daAvviare: String(daAvviare ?? "") })}</span>
               </p>
               {prossimiAvvii.length > 0 && (
                 <div className="mt-2 border-t pt-1.5">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-                    <p className="text-xs font-medium text-muted-foreground">Prossimi avvii</p>
-                    <button type="button" onClick={() => apri("cronoprogramma")} className="generale-text-link">Cronoprogramma</button>
+                    <p className="text-xs font-medium text-muted-foreground">{tr("Prossimi avvii")}</p>
+                    <button type="button" onClick={() => apri("cronoprogramma")} className="generale-text-link">{tr("Cronoprogramma")}</button>
                   </div>
-                  <ul aria-label="Prossimi avvii" className="mt-0.5 space-y-0.5">
+                  <ul aria-label={tr("Prossimi avvii")} className="mt-0.5 space-y-0.5">
                     {prossimiAvvii.map(([chiave, { nome, data, numero }]) => (
                       <li key={chiave} className="flex items-baseline gap-2 text-xs">
                         <span title={nome} className="min-w-0 truncate">{nome}</span>
-                        {numero > 1 && <span className="shrink-0 text-muted-foreground">{numero} fasi</span>}
+                        {numero > 1 && <span className="shrink-0 text-muted-foreground">{tr("{n} fasi", { n: String(numero ?? "") })}</span>}
                         <time dateTime={data} className="ml-auto shrink-0 tabular-nums text-muted-foreground">{dataBreve(data)}</time>
                       </li>
                     ))}
@@ -132,16 +134,16 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
 
         {/* Il mese */}
         <div className="min-w-0 px-3 py-2.5 sm:px-4">
-          <h3 className="text-xs font-medium text-muted-foreground">Uscite di {nomeMese(meseCorrente)}</h3>
+          <h3 className="text-xs font-medium text-muted-foreground">{tr("Uscite di {mese}", { mese: String(nomeMese(meseCorrente) ?? "") })}</h3>
           {!vedeCosti ? (
-            <p className="mt-0.5 text-sm text-muted-foreground">Riservato</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{tr("Riservato")}</p>
           ) : (
             <>
               <p className="mt-0.5 text-lg font-semibold tabular-nums">{euro(delMese)}</p>
               <p className={cn("text-xs text-muted-foreground", previstoMese !== null && delMese > previstoMese + 0.5 && "text-destructive")}>
                 {previstoMese === null
-                  ? "registrate; il piano non ha uscite per questo mese"
-                  : `registrate su ${euro(previstoMese)} previste dal piano`}
+                  ? tr("registrate; il piano non ha uscite per questo mese")
+                  : tr("registrate su {importo} previste dal piano", { importo: euro(previstoMese) })}
               </p>
             </>
           )}
@@ -149,11 +151,11 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
 
         {/* Gli ultimi costi */}
         <div className="min-w-0 px-3 py-2.5 sm:px-4">
-          <h3 className="text-xs font-medium text-muted-foreground">Ultimi costi registrati</h3>
+          <h3 className="text-xs font-medium text-muted-foreground">{tr("Ultimi costi registrati")}</h3>
           {!vedeCosti ? (
-            <p className="mt-0.5 text-sm text-muted-foreground">Riservato</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{tr("Riservato")}</p>
           ) : ultimi.length === 0 ? (
-            <p className="mt-0.5 text-sm text-muted-foreground">Ancora nessuno</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{tr("Ancora nessuno")}</p>
           ) : (
             <ul className="mt-1 space-y-0.5">
               {ultimi.map((r) => (

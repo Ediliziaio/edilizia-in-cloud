@@ -18,6 +18,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { etichettaMetodoCosto } from "@/lib/costi/metodiPagamento";
 import { consegnatoFatturatoOda, contabilitaOda, quantitaFornitura, type RataOda, type RigaOdaConsegna } from "@/lib/orders/odaContabilita";
 import { quotaIvata } from "@/lib/fatturazione/quoteOrdini";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Costo {
   id: string;
@@ -53,6 +54,7 @@ export function OdaAccountingCard({
   /** Le righe dell'ordine, per il confronto fra arrivato e fatturato. */
   righe?: RigaOdaConsegna[];
 }) {
+  const t = useT();
   const [pagamentiAperti, setPagamentiAperti] = useState(false);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["oda-contabilita", odaId],
@@ -132,8 +134,8 @@ export function OdaAccountingCard({
   // sarebbe solo rumore.
   if (stato === "bozza" || stato === "annullato") return null;
 
-  if (isLoading) return <QuoteCard title="Contabilità" icon={<Wallet className="h-4 w-4"/>}><p role="status" className="text-sm text-slate-500">Caricamento dati contabili…</p></QuoteCard>;
-  if (isError) return <QuoteCard title="Contabilità" icon={<Wallet className="h-4 w-4"/>}><p role="alert" className="text-sm text-red-700">Dati contabili non disponibili. Non è possibile verificare costi e fatture.</p><Button size="sm" variant="outline" className="mt-3" onClick={()=>void refetch()}>Riprova</Button></QuoteCard>;
+  if (isLoading) return <QuoteCard title={t("Contabilità")} icon={<Wallet className="h-4 w-4"/>}><p role="status" className="text-sm text-slate-500">{t("Caricamento dati contabili…")}</p></QuoteCard>;
+  if (isError) return <QuoteCard title={t("Contabilità")} icon={<Wallet className="h-4 w-4"/>}><p role="alert" className="text-sm text-red-700">{t("Dati contabili non disponibili. Non è possibile verificare costi e fatture.")}</p><Button size="sm" variant="outline" className="mt-3" onClick={()=>void refetch()}>{t("Riprova")}</Button></QuoteCard>;
 
   const costi = data?.costi ?? [];
   const fatture = data?.fatture ?? [];
@@ -147,16 +149,16 @@ export function OdaAccountingCard({
   return (
     <>
     {pagamentiAperti && <OdaPaymentsDialog odaId={odaId} spese={spese} onClose={() => setPagamentiAperti(false)} />}
-    <QuoteCard title="Contabilità" icon={<Wallet className="h-4 w-4" />}>
+    <QuoteCard title={t("Contabilità")} icon={<Wallet className="h-4 w-4" />}>
       <div className="space-y-2.5 text-sm">
-        {quantita.righe > 0 && <div className="rounded-lg border bg-muted/20 p-3" aria-label="Quantità della fornitura">
-          <p className="font-medium">{quantita.completa ? 'Quantità complete' : `${quantita.complete} di ${quantita.righe} righe complete`}</p>
+        {quantita.righe > 0 && <div className="rounded-lg border bg-muted/20 p-3" aria-label={t("Quantità della fornitura")}>
+          <p className="font-medium">{quantita.completa ? t("Quantità complete") : t("{complete} di {righe} righe complete", { complete: quantita.complete, righe: quantita.righe })}</p>
           {quantita.unita.map(q => <p key={q.um} className="mt-1 text-xs text-muted-foreground">
-            {q.ordinate.toLocaleString('it-IT')} {q.um} ordinati · {q.ricevute.toLocaleString('it-IT')} ricevuti · {q.residue.toLocaleString('it-IT')} da ricevere
+            {t("{ordinate} {um} ordinati · {ricevute} ricevuti · {residue} da ricevere", { ordinate: q.ordinate.toLocaleString(intlCampo()), um: q.um, ricevute: q.ricevute.toLocaleString(intlCampo()), residue: q.residue.toLocaleString(intlCampo()) })}
           </p>)}
         </div>}
         <div className="flex items-start justify-between gap-3">
-          <span className="text-slate-500">Costo registrato</span>
+          <span className="text-slate-500">{t("Costo registrato")}</span>
           {costi.length > 0 ? (
             <button type="button" onClick={()=>setPagamentiAperti(true)} className="text-right group">
               <span className="font-semibold text-slate-900 group-hover:text-orange-600 inline-flex items-center gap-1">
@@ -164,18 +166,18 @@ export function OdaAccountingCard({
                 <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100" />
               </span>
               <span className="block text-[11px] text-slate-500">
-                {nonPagati > 0 ? `${nonPagati} da pagare` : "pagato"}
+                {nonPagati > 0 ? t("{n} da pagare", { n: nonPagati }) : t("pagato")}
               </span>
             </button>
           ) : (
             <span className="text-right text-slate-400 text-xs max-w-[60%]">
-              Nessuno: l'ordine è ancora un impegno finché non si registra un costo o una fattura
+              {t("Nessuno: l'ordine è ancora un impegno finché non si registra un costo o una fattura")}
             </span>
           )}
         </div>
 
         <div className="flex items-start justify-between gap-3">
-          <span className="text-slate-500">Fatturato IVA compresa</span>
+          <span className="text-slate-500">{t("Fatturato IVA compresa")}</span>
           {fatture.length > 0 ? (
             <button type="button" disabled={!costi.length} onClick={()=>setPagamentiAperti(true)} className="text-right group">
               <span className="font-semibold text-slate-900 group-hover:text-orange-600 inline-flex items-center gap-1">
@@ -184,12 +186,12 @@ export function OdaAccountingCard({
               </span>
               <span className="block text-[11px] text-slate-500">
                 {fatture.length === 1
-                  ? `n. ${fatture[0].numero_fattura ?? "—"} del ${dataIt(fatture[0].data_fattura)}`
-                  : `${fatture.length} documenti`}
+                  ? t("n. {numero} del {data}", { numero: fatture[0].numero_fattura ?? "—", data: dataIt(fatture[0].data_fattura) })
+                  : t("{n} documenti", { n: fatture.length })}
               </span>
             </button>
           ) : (
-            <span className="text-right text-slate-400 text-xs">Non ancora arrivata</span>
+            <span className="text-right text-slate-400 text-xs">{t("Non ancora arrivata")}</span>
           )}
         </div>
 
@@ -201,22 +203,22 @@ export function OdaAccountingCard({
             onClick={() => setPagamentiAperti(true)}
           >
             <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-            Pagamenti e residuo
+            {t("Pagamenti e residuo")}
           </Button>
         )}
 
-        {costi.length>1 && <p className="text-xs text-muted-foreground">{costi.length} spese collegate: apri il riepilogo per scegliere la fattura e vedere tutti i residui.</p>}
+        {costi.length>1 && <p className="text-xs text-muted-foreground">{t("{n} spese collegate: apri il riepilogo per scegliere la fattura e vedere tutti i residui.", { n: costi.length })}</p>}
 
         {conto.prossima && (
           <div className="flex items-start justify-between gap-3">
-            <span className="text-slate-500">Prossima uscita</span>
+            <span className="text-slate-500">{t("Prossima uscita")}</span>
             <span className="text-right">
               <span className="font-semibold text-slate-900">{formatCurrency(conto.prossima.importo)}</span>
               <span className="block text-[11px] text-slate-500">
                 {[
-                  conto.prossima.scadenza ? `il ${dataIt(conto.prossima.scadenza)}` : "senza data",
+                  conto.prossima.scadenza ? t("il {data}", { data: dataIt(conto.prossima.scadenza) }) : t("senza data"),
                   etichettaMetodoCosto(conto.prossima.rate[0]?.metodo),
-                  conto.rateAperte.length > 1 ? `${conto.rateAperte.length} rate da pagare` : null,
+                  conto.rateAperte.length > 1 ? t("{n} rate da pagare", { n: conto.rateAperte.length }) : null,
                 ].filter(Boolean).join(" · ")}
               </span>
             </span>
@@ -225,12 +227,12 @@ export function OdaAccountingCard({
 
         {arrivo && arrivo.consegnato > 0 && (
           <div className="flex items-start justify-between gap-3">
-            <span className="text-slate-500">Ricevuto ai prezzi dell’ODA</span>
+            <span className="text-slate-500">{t("Ricevuto ai prezzi dell’ODA")}</span>
             <span className="text-right">
               <span className="font-semibold text-slate-900">{formatCurrency(arrivo.consegnato)}</span>
               <span className="block text-[11px] text-slate-500">
-                IVA compresa · le differenze di prezzo non indicano merce mancante
-                {arrivo.righeSenzaPrezzo > 0 ? ` · ${arrivo.righeSenzaPrezzo} righe senza prezzo` : ""}
+                {t("IVA compresa · le differenze di prezzo non indicano merce mancante")}
+                {arrivo.righeSenzaPrezzo > 0 ? t(" · {n} righe senza prezzo", { n: arrivo.righeSenzaPrezzo }) : ""}
               </span>
             </span>
           </div>
@@ -240,8 +242,7 @@ export function OdaAccountingCard({
           <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 mt-0.5" />
             <span>
-              Fatturati <strong>{formatCurrency(conto.eccedenza)}</strong> in più dell'ordine
-              ({formatCurrency(totaleOrdine)}), IVA compresa.{quantita.completa ? ' Le quantità sono complete: controlla prezzi ed eventuali spese aggiuntive.' : ' Controlla prezzi e quantità separatamente.'}
+              {t("Fatturati")} <strong>{formatCurrency(conto.eccedenza)}</strong> {t("in più dell'ordine ({totale}), IVA compresa.", { totale: formatCurrency(totaleOrdine) })}{quantita.completa ? t(" Le quantità sono complete: controlla prezzi ed eventuali spese aggiuntive.") : t(" Controlla prezzi e quantità separatamente.")}
             </span>
           </div>
         )}
@@ -249,22 +250,20 @@ export function OdaAccountingCard({
           <p className="flex items-start gap-1.5 text-xs text-slate-600">
             <FileText className="h-3.5 w-3.5 shrink-0 mt-0.5 text-slate-400" />
             <span>
-              Restano da fatturare <strong>{formatCurrency(conto.residuo)}</strong> su {formatCurrency(totaleOrdine)}:
-              un acconto, una consegna parziale o fatture ancora da arrivare.
+              {t("Restano da fatturare")} <strong>{formatCurrency(conto.residuo)}</strong> {t("su {totale}: un acconto, una consegna parziale o fatture ancora da arrivare.", { totale: formatCurrency(totaleOrdine) })}
             </span>
           </p>
         )}
         {conto.stato === "combacia" && (
           <p className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Fatture e ordine combaciano
+            <CheckCircle2 className="h-3.5 w-3.5" /> {t("Fatture e ordine combaciano")}
           </p>
         )}
 
         {costi.length === 0 && fatture.length === 0 && (
           <p className="flex items-start gap-1.5 text-[11px] text-slate-400 pt-1">
             <FileText className="h-3 w-3 shrink-0 mt-0.5" />
-            Finché non arrivano merce e fattura, questo ordine è un impegno: non pesa
-            ancora sui costi né sulla cassa.
+            {t("Finché non arrivano merce e fattura, questo ordine è un impegno: non pesa ancora sui costi né sulla cassa.")}
           </p>
         )}
       </div>

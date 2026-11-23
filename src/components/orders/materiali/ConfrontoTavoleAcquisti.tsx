@@ -7,10 +7,12 @@ import { materialiEsistentiPerPiano } from "@/lib/distinta/materialiEsistentiPer
 import { pianoAcquisti } from "@/lib/distinta/pianoAcquisti";
 import { candidatiDaTavola, raggruppaConteggiTavola, type ConteggioTavola, type GruppoTavola } from "@/lib/distinta/confrontaTavole";
 import { Button } from "@/components/ui/button";
-const numero = (q: number | null | undefined) => q == null ? "Da verificare" : q.toLocaleString("it-IT", { maximumFractionDigits: 4 });
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 export function ConfrontoTavoleAcquisti({ companyId, orderId, conteggi, puoScrivere, onAggiornati, onGenera }: {
   companyId: string; orderId: string; conteggi: ConteggioTavola[]; puoScrivere: boolean; onAggiornati: () => void; onGenera?: () => void;
 }) {
+  const t = useT();
+  const numero = (q: number | null | undefined) => q == null ? t("Da verificare") : q.toLocaleString(intlCampo(), { maximumFractionDigits: 4 });
   const gruppi = useMemo(() => raggruppaConteggiTavola(conteggi), [conteggi]);
   const [gruppo, setGruppo] = useState<string | null>(null), [articoloId, setArticoloId] = useState("");
   const [conferma, setConferma] = useState(false), [salvando, setSalvando] = useState(false), [errore, setErrore] = useState("");
@@ -40,27 +42,27 @@ export function ConfrontoTavoleAcquisti({ companyId, orderId, conteggi, puoScriv
       if (error) throw error;
       await Promise.all([qc.invalidateQueries({ queryKey: ["confronto-tavole-acquisti"] }), qc.invalidateQueries({ queryKey: ["piano-acquisti-computo"] }),
         qc.invalidateQueries({ queryKey: ["materiali-per-fase"] }), qc.invalidateQueries({ queryKey: ["order-items"] }), qc.invalidateQueries({ queryKey: ["fabbisogno-materiali"] })]);
-      toast.success("Quantità aggiornata dalla tavola", { description: "Il piano ricalcola il residuo con magazzino e ordini. Gli ordini esistenti restano collegati." });
+      toast.success(t("Quantità aggiornata dalla tavola"), { description: t("Il piano ricalcola il residuo con magazzino e ordini. Gli ordini esistenti restano collegati.") });
       setConferma(false); onAggiornati();
-    } catch (e) { setErrore(e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Aggiornamento non riuscito. Riprova."); }
+    } catch (e) { setErrore(e instanceof Error ? e.message : (e as { message?: string })?.message ?? t("Aggiornamento non riuscito. Riprova.")); }
     finally { setSalvando(false); }
   };
-  return <section aria-label="Tavole e acquisti" className="space-y-3 rounded-xl border bg-muted/10 p-4">
-    <div><h3 className="font-semibold">Usa le tavole per migliorare gli acquisti</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Confronta una tavola alla volta con i materiali della commessa. La quantità scelta sostituisce il fabbisogno della riga: computo e tavola rimangono come fonti consultabili.</p></div>
-    {!gruppi.length ? <p className="text-sm text-muted-foreground">Classifica e conferma prima i conteggi da usare. I nomi anonimi dei blocchi richiedono un articolo riconoscibile.</p> : <>
-      {query.isPending && <p role="status">Leggo materiali, ordini e magazzino…</p>}
-      {query.isError && <p role="alert">Non riesco a verificare gli acquisti. <Button variant="link" onClick={() => void query.refetch()}>Riprova</Button></p>}
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"><div className="max-h-72 space-y-1 overflow-y-auto" aria-label="Quantità dalle tavole">{gruppi.map(r => <button key={r.chiave} type="button" disabled={salvando} onClick={() => scegli(r)} aria-pressed={r.chiave === gruppo}
-        className={`w-full rounded-lg border p-3 text-left text-sm ${r.chiave === gruppo ? "border-primary bg-primary/5" : "bg-background"}`}><span className="block font-medium">{r.nome} · {numero(r.quantita)} {r.unita}</span><span className="mt-1 block text-xs text-muted-foreground">{r.documento} · pagina {r.pagina}</span></button>)}</div>
-        <div className="space-y-3 rounded-lg border bg-background p-3">{!g ? <p className="text-sm text-muted-foreground">Scegli un conteggio per confrontarlo con gli articoli.</p> : <>
-          <label className="block text-xs font-medium">Articolo della commessa<select aria-label="Articolo da confrontare" className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm" value={articoloId} disabled={salvando} onChange={e => { setArticoloId(e.target.value); setConferma(false); setErrore(""); }}><option value="">Scegli l’articolo corrispondente</option>{candidati.map(({ materiale: m, esatto }) => <option key={m.id} value={m.id}>{esatto ? "Suggerito · " : ""}{m.name} · {numero(m.quantity)} {m.unita_misura}</option>)}</select></label>
-          {scelto && <><div className="grid grid-cols-2 gap-2 text-sm"><div className="rounded-lg bg-muted/40 p-3"><span className="block text-xs text-muted-foreground">Fabbisogno attuale</span><strong>{numero(scelto.quantity)} {scelto.unita_misura}</strong></div><div className="rounded-lg bg-primary/5 p-3"><span className="block text-xs text-muted-foreground">Dalla tavola</span><strong>{numero(g.quantita)} {g.unita}</strong></div></div>
-            <p className="text-xs leading-5 text-muted-foreground">Già ordinato: {numero(proposta?.ordinato)} · da magazzino: {numero(proposta?.daMagazzino)}. Nuovo ordine: {numero(attuale?.nuovoOrdine)} → <strong>{numero(proposta?.nuovoOrdine)} {g.unita}</strong>.</p>
-            <label className="flex items-start gap-2 rounded-lg bg-muted/30 p-3 text-xs leading-5"><input type="checkbox" className="mt-1" checked={conferma} disabled={salvando || !puoScrivere} onChange={e => setConferma(e.target.checked)} />Ho verificato che la tavola riguarda lo stesso articolo, fase e intero ambito della quantità da sostituire.</label>
-            <Button disabled={!conferma || !puoScrivere || salvando || !scelto.updated_at} onClick={() => void applica()}>{salvando ? "Aggiornamento…" : "Usa questa quantità negli acquisti"}</Button></>}
-          {!candidati.length && <p className="text-xs text-muted-foreground">Nessun articolo con fase e unità compatibili. Puoi generare una proposta dai conteggi confermati.</p>}
+  return <section aria-label={t("Tavole e acquisti")} className="space-y-3 rounded-xl border bg-muted/10 p-4">
+    <div><h3 className="font-semibold">{t("Usa le tavole per migliorare gli acquisti")}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{t("Confronta una tavola alla volta con i materiali della commessa. La quantità scelta sostituisce il fabbisogno della riga: computo e tavola rimangono come fonti consultabili.")}</p></div>
+    {!gruppi.length ? <p className="text-sm text-muted-foreground">{t("Classifica e conferma prima i conteggi da usare. I nomi anonimi dei blocchi richiedono un articolo riconoscibile.")}</p> : <>
+      {query.isPending && <p role="status">{t("Leggo materiali, ordini e magazzino…")}</p>}
+      {query.isError && <p role="alert">{t("Non riesco a verificare gli acquisti.")} <Button variant="link" onClick={() => void query.refetch()}>{t("Riprova")}</Button></p>}
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"><div className="max-h-72 space-y-1 overflow-y-auto" aria-label={t("Quantità dalle tavole")}>{gruppi.map(r => <button key={r.chiave} type="button" disabled={salvando} onClick={() => scegli(r)} aria-pressed={r.chiave === gruppo}
+        className={`w-full rounded-lg border p-3 text-left text-sm ${r.chiave === gruppo ? "border-primary bg-primary/5" : "bg-background"}`}><span className="block font-medium">{r.nome} · {numero(r.quantita)} {r.unita}</span><span className="mt-1 block text-xs text-muted-foreground">{r.documento} · {t("pagina {n}", { n: r.pagina })}</span></button>)}</div>
+        <div className="space-y-3 rounded-lg border bg-background p-3">{!g ? <p className="text-sm text-muted-foreground">{t("Scegli un conteggio per confrontarlo con gli articoli.")}</p> : <>
+          <label className="block text-xs font-medium">{t("Articolo della commessa")}<select aria-label={t("Articolo da confrontare")} className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm" value={articoloId} disabled={salvando} onChange={e => { setArticoloId(e.target.value); setConferma(false); setErrore(""); }}><option value="">{t("Scegli l’articolo corrispondente")}</option>{candidati.map(({ materiale: m, esatto }) => <option key={m.id} value={m.id}>{esatto ? t("Suggerito · ") : ""}{m.name} · {numero(m.quantity)} {m.unita_misura}</option>)}</select></label>
+          {scelto && <><div className="grid grid-cols-2 gap-2 text-sm"><div className="rounded-lg bg-muted/40 p-3"><span className="block text-xs text-muted-foreground">{t("Fabbisogno attuale")}</span><strong>{numero(scelto.quantity)} {scelto.unita_misura}</strong></div><div className="rounded-lg bg-primary/5 p-3"><span className="block text-xs text-muted-foreground">{t("Dalla tavola")}</span><strong>{numero(g.quantita)} {g.unita}</strong></div></div>
+            <p className="text-xs leading-5 text-muted-foreground">{t("Già ordinato: {ordinato} · da magazzino: {magazzino}. Nuovo ordine: {prima}", { ordinato: numero(proposta?.ordinato), magazzino: numero(proposta?.daMagazzino), prima: numero(attuale?.nuovoOrdine) })} → <strong>{numero(proposta?.nuovoOrdine)} {g.unita}</strong>.</p>
+            <label className="flex items-start gap-2 rounded-lg bg-muted/30 p-3 text-xs leading-5"><input type="checkbox" className="mt-1" checked={conferma} disabled={salvando || !puoScrivere} onChange={e => setConferma(e.target.checked)} />{t("Ho verificato che la tavola riguarda lo stesso articolo, fase e intero ambito della quantità da sostituire.")}</label>
+            <Button disabled={!conferma || !puoScrivere || salvando || !scelto.updated_at} onClick={() => void applica()}>{salvando ? t("Aggiornamento…") : t("Usa questa quantità negli acquisti")}</Button></>}
+          {!candidati.length && <p className="text-xs text-muted-foreground">{t("Nessun articolo con fase e unità compatibili. Puoi generare una proposta dai conteggi confermati.")}</p>}
         </>}</div></div>
-      {onGenera && <Button variant="outline" onClick={onGenera}>Genera materiali dai conteggi confermati</Button>}
+      {onGenera && <Button variant="outline" onClick={onGenera}>{t("Genera materiali dai conteggi confermati")}</Button>}
     </>}
     {errore && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{errore}</p>}
   </section>;

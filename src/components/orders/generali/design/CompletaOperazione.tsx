@@ -1,5 +1,6 @@
 import { ArrowRight, Check, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface PassoOperazione {
   id: "unita" | "calendario" | "stime" | "approva" | "fonti";
@@ -11,6 +12,7 @@ export interface PassoOperazione {
 }
 
 export function CompletaOperazione({ passi, telefono }: { passi: PassoOperazione[]; telefono: boolean }) {
+  const t = useT();
   const daFare = passi.filter(p => !p.fatto);
   if (!daFare.length) return null;
   const completati = passi.filter(p => p.fatto);
@@ -19,8 +21,8 @@ export function CompletaOperazione({ passi, telefono }: { passi: PassoOperazione
     <section aria-labelledby="completa-operazione" className="generale-panel overflow-hidden">
       <header className="flex flex-wrap items-center gap-2 border-b px-3 py-2 sm:px-4">
         <ListChecks className="size-4 text-primary" aria-hidden="true" />
-        <h2 id="completa-operazione" className="text-sm font-semibold">Completa l’operazione</h2>
-        <span className="text-xs text-muted-foreground">{daFare.length} da completare</span>
+        <h2 id="completa-operazione" className="text-sm font-semibold">{t("Completa l’operazione")}</h2>
+        <span className="text-xs text-muted-foreground">{t("{n} da completare", { n: daFare.length })}</span>
       </header>
       <ul className="divide-y">
         {daFare.map((passo, indice) => (
@@ -42,7 +44,7 @@ export function CompletaOperazione({ passi, telefono }: { passi: PassoOperazione
       </ul>
       {completati.length > 0 && (
         <details className="border-t px-3 py-2 text-xs text-muted-foreground sm:px-4">
-          <summary className="w-fit cursor-pointer font-medium">{completati.length} passaggi completati</summary>
+          <summary className="w-fit cursor-pointer font-medium">{t("{n} passaggi completati", { n: completati.length })}</summary>
           <ul className="mt-2 grid gap-2 sm:grid-cols-2">
             {completati.map(p => <li key={p.id} className="flex items-start gap-2">
               <Check className="size-3.5 shrink-0 text-emerald-600" aria-hidden="true" />

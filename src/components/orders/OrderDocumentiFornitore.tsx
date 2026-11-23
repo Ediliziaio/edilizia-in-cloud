@@ -40,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ContatoriFiltro } from "./ContatoriFiltro";
 import { RiquadroCommessa, StatoPill, TabellaCommessa, type ColonnaTabella, type TonoStato } from "./TabellaCommessa";
 import { useCostiCommessa } from "./OrderCostiCommessa";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Alcune tabelle non sono ancora nei tipi generati: contratto locale.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -235,15 +236,16 @@ const VERIFICA: Record<NonNullable<RigaBolla["verifica"]>, { testo: string; tono
   rifiutata: { testo: "Rifiutata", tono: "grigio" },
 };
 
-const quantitaMateriale = (m: MaterialeBolla) => (m.quantita == null ? "" : ` · ${m.quantita.toLocaleString("it-IT")}${m.unita ? ` ${m.unita}` : ""}`);
+const quantitaMateriale = (m: MaterialeBolla) => (m.quantita == null ? "" : ` · ${m.quantita.toLocaleString(intlCampo())}${m.unita ? ` ${m.unita}` : ""}`);
 
 /** I materiali: il primo si legge subito, gli altri si aprono. */
 function CellaMateriali({ materiali = [] }: { materiali?: MaterialeBolla[] }) {
+  const t = useT();
   if (materiali.length === 0) return <span className="text-muted-foreground">—</span>;
   if (materiali.length === 1) return <span>{materiali[0].nome}{quantitaMateriale(materiali[0])}</span>;
   return (
     <details>
-      <summary className="cursor-pointer">{materiali[0].nome} e altri {materiali.length - 1}</summary>
+      <summary className="cursor-pointer">{t("{nome} e altri {n}", { nome: materiali[0].nome, n: materiali.length - 1 })}</summary>
       <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
         {materiali.map((m, i) => <li key={`${m.nome}-${i}`}>{m.nome}{quantitaMateriale(m)}</li>)}
       </ul>
@@ -258,25 +260,28 @@ function CellaMateriali({ materiali = [] }: { materiali?: MaterialeBolla[] }) {
 function StatoBolla({ riga, orderId, puoCambiare, onCambia }: {
   riga: RigaBolla; orderId: string; puoCambiare: boolean; onCambia: (updates: { stato: DDTStato; has_damages?: boolean }) => void;
 }) {
+  const t = useT();
   const v = VERIFICA[riga.verifica!];
+  const testo = t(v.testo);
   const freccia = <ChevronDown className="ml-1 inline h-3 w-3" aria-hidden="true" />;
   if (riga.origine === "cantiere" && riga.verifica === "da_verificare") {
-    return <Link to={`/azienda/ordini/${orderId}?tab=cantiere&vista_cantiere=diario`} title="Verificala nel Diario"><StatoPill tono={v.tono}>{v.testo}{freccia}</StatoPill></Link>;
+    return <Link to={`/azienda/ordini/${orderId}?tab=cantiere&vista_cantiere=diario`} title={t("Verificala nel Diario")}><StatoPill tono={v.tono}>{testo}{freccia}</StatoPill></Link>;
   }
-  if (riga.origine !== "fornitore" || riga.verifica === "attesa" || !puoCambiare) return <StatoPill tono={v.tono}>{v.testo}</StatoPill>;
+  if (riga.origine !== "fornitore" || riga.verifica === "attesa" || !puoCambiare) return <StatoPill tono={v.tono}>{testo}</StatoPill>;
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger aria-label={`Cambia lo stato della bolla ${riga.numero ?? ""}`}><StatoPill tono={v.tono}>{v.testo}{freccia}</StatoPill></DropdownMenuTrigger>
+      <DropdownMenuTrigger aria-label={t("Cambia lo stato della bolla {numero}", { numero: riga.numero ?? "" })}><StatoPill tono={v.tono}>{testo}{freccia}</StatoPill></DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        <DropdownMenuItem disabled={riga.verifica === "verificata"} onSelect={() => onCambia({ stato: "verificato", has_damages: false })}>Verificata: merce conforme</DropdownMenuItem>
-        <DropdownMenuItem disabled={riga.verifica === "da_verificare"} onSelect={() => onCambia({ stato: "ricevuto", has_damages: false })}>Da verificare</DropdownMenuItem>
-        <DropdownMenuItem disabled={riga.verifica === "non_conforme"} onSelect={() => onCambia({ stato: "non_conforme", has_damages: true })}>Non conforme</DropdownMenuItem>
+        <DropdownMenuItem disabled={riga.verifica === "verificata"} onSelect={() => onCambia({ stato: "verificato", has_damages: false })}>{t("Verificata: merce conforme")}</DropdownMenuItem>
+        <DropdownMenuItem disabled={riga.verifica === "da_verificare"} onSelect={() => onCambia({ stato: "ricevuto", has_damages: false })}>{t("Da verificare")}</DropdownMenuItem>
+        <DropdownMenuItem disabled={riga.verifica === "non_conforme"} onSelect={() => onCambia({ stato: "non_conforme", has_damages: true })}>{t("Non conforme")}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
 export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orderId: string; puoAprireDocumenti?: boolean }) {
+  const t = useT();
   const aspetto = useAspettoOperativo();
   const { data = [], isLoading, isError, refetch } = useBolleCommessa(orderId);
   const [filtro, setFiltro] = useState<string | null>(null);
@@ -299,50 +304,50 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
   const { updateDDT } = useDDTRicezioneMutations(null);
   const linkDi = (r: RigaBolla) => (r.origine === "cliente" && !puoAprireDocumenti || !r.link ? undefined : percorsoDocumentoGenerale(r.link, aspetto?.generaleId));
   const colonne: ColonnaTabella<RigaBolla>[] = [
-    { titolo: "Numero", principale: true, cella: (r) => {
-      const testo = r.numero ? `N° ${r.numero}` : "Senza numero";
+    { titolo: t("Numero"), principale: true, cella: (r) => {
+      const testo = r.numero ? `N° ${r.numero}` : t("Senza numero");
       const link = linkDi(r);
       return link ? <Link to={link} className="font-medium underline-offset-2 hover:underline">{testo}</Link> : <span className="font-medium">{testo}</span>;
     } },
-    { titolo: "Data", cella: (r) => <span className="whitespace-nowrap">{dataIt(r.data)}</span> },
-    { titolo: "Fornitore o cliente", cella: (r) => r.controparte ?? "—" },
-    { titolo: "Provenienza", cella: (r) => <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${ORIGINE[r.origine].classe}`}>{ORIGINE[r.origine].testo}</span> },
-    { titolo: "Materiali", cella: (r) => <CellaMateriali materiali={r.materiali} /> },
-    { titolo: "Stato", cella: (r) => r.verifica ? (
+    { titolo: t("Data"), cella: (r) => <span className="whitespace-nowrap">{dataIt(r.data)}</span> },
+    { titolo: t("Fornitore o cliente"), cella: (r) => r.controparte ?? "—" },
+    { titolo: t("Provenienza"), cella: (r) => <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${ORIGINE[r.origine].classe}`}>{t(ORIGINE[r.origine].testo)}</span> },
+    { titolo: t("Materiali"), cella: (r) => <CellaMateriali materiali={r.materiali} /> },
+    { titolo: t("Stato"), cella: (r) => r.verifica ? (
       <div className="space-y-0.5">
         <StatoBolla riga={r} orderId={orderId} puoCambiare={puoCaricare} onCambia={(updates) => updateDDT.mutate({ id: r.id, updates })} />
-        {r.motivo && <p className="text-xs text-muted-foreground">{r.motivo}</p>}
+        {r.motivo && <p className="text-xs text-muted-foreground">{t(r.motivo)}</p>}
       </div>
-    ) : <StatoPill tono="grigio">{r.stato}</StatoPill> },
+    ) : <StatoPill tono="grigio">{t(r.stato)}</StatoPill> },
   ];
   return (
     <>
     <RiquadroCommessa
       icona={<Truck className="h-5 w-5 text-primary" aria-hidden="true" />}
-      descrizione="Merce ricevuta, provenienza e verifica delle consegne, anche senza ordine d’acquisto."
-      titolo="Bolle e DDT" conteggio={data.length}
-      azioni={puoCaricare ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setCaricaPiu(true)}>Più bolle</Button><Button size="sm" onClick={() => setCarica(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />Carica bolla</Button></div> : undefined}
+      descrizione={t("Merce ricevuta, provenienza e verifica delle consegne, anche senza ordine d’acquisto.")}
+      titolo={t("Bolle e DDT")} conteggio={data.length}
+      azioni={puoCaricare ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setCaricaPiu(true)}>{t("Più bolle")}</Button><Button size="sm" onClick={() => setCarica(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />{t("Carica bolla")}</Button></div> : undefined}
       numeri={data.length > 0 ? (
-        <ContatoriFiltro etichetta="Bolle per stato e provenienza" attivo={filtro} onScegli={setFiltro} voci={[
-          { chiave: "daVerificare", etichetta: "Da verificare", valore: conta("daVerificare"), avviso: true },
-          { chiave: "verificate", etichetta: "Verificate", valore: conta("verificate") },
-          { chiave: "fornitore", etichetta: "Dal fornitore", valore: conta("fornitore") },
-          { chiave: "cantiere", etichetta: "Dal cantiere", valore: conta("cantiere") },
-          { chiave: "cliente", etichetta: "DDT al cliente", valore: conta("cliente") },
+        <ContatoriFiltro etichetta={t("Bolle per stato e provenienza")} attivo={filtro} onScegli={setFiltro} voci={[
+          { chiave: "daVerificare", etichetta: t("Da verificare"), valore: conta("daVerificare"), avviso: true },
+          { chiave: "verificate", etichetta: t("Verificate"), valore: conta("verificate") },
+          { chiave: "fornitore", etichetta: t("Dal fornitore"), valore: conta("fornitore") },
+          { chiave: "cantiere", etichetta: t("Dal cantiere"), valore: conta("cantiere") },
+          { chiave: "cliente", etichetta: t("DDT al cliente"), valore: conta("cliente") },
         ]} />
       ) : undefined}
     >
         {isError ? (
-          <p role="alert" className="text-sm text-destructive">Non riesco a leggere le bolle. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></p>
+          <p role="alert" className="text-sm text-destructive">{t("Non riesco a leggere le bolle.")} <button type="button" className="underline" onClick={() => void refetch()}>{t("Riprova")}</button></p>
         ) : isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : data.length === 0 ? (
-          <p className="commessa-empty text-sm text-muted-foreground">Nessuna bolla su questa commessa. Caricala da «Carica bolla» (foto o PDF, l’AI legge le righe), oppure arriva quando registri la merce sull’ordine d’acquisto.</p>
+          <p className="commessa-empty text-sm text-muted-foreground">{t("Nessuna bolla su questa commessa. Caricala da «Carica bolla» (foto o PDF, l’AI legge le righe), oppure arriva quando registri la merce sull’ordine d’acquisto.")}</p>
         ) : (
-          <TabellaCommessa etichetta="Bolle e DDT della commessa" colonne={colonne} righe={visibili} chiave={(r) => `${r.origine}-${r.id}`} />
+          <TabellaCommessa etichetta={t("Bolle e DDT della commessa")} colonne={colonne} righe={visibili} chiave={(r) => `${r.origine}-${r.id}`} />
         )}
         {data.some((r) => r.origine === "cantiere" && r.verifica === "da_verificare") && (
-          <p className="mt-2 text-xs text-muted-foreground">Le bolle dal cantiere si verificano in Cantiere → Diario, nel riquadro «Da approvare dal cantiere».</p>
+          <p className="mt-2 text-xs text-muted-foreground">{t("Le bolle dal cantiere si verificano in Cantiere → Diario, nel riquadro «Da approvare dal cantiere».")}</p>
         )}
     </RiquadroCommessa>
       {caricaPiu && <BolleInBloccoDialog open onOpenChange={setCaricaPiu} orderId={orderId} destinazione="cantiere" />}
@@ -625,6 +630,7 @@ export function useFattureFornitoriCommessa(orderId: string, abilitato = true) {
 
 /** Sotto il costo: quanto dicono le bolle consegnate qui, e quante bolle della fattura mancano. */
 function BolleQui({ f }: { f: RigaFattura }) {
+  const t = useT();
   const b = f.bolle;
   if (!b || b.citate === 0 || f.legame === "suggerita") return null;
   const esito = ripartizioneDalleBolle(f.costoQui, b);
@@ -633,11 +639,11 @@ function BolleQui({ f }: { f: RigaFattura }) {
     <div className="mt-0.5 space-y-0.5 text-xs">
       {b.qui > 0 && (
         <p className={esito === "non_torna" ? "font-medium text-amber-700 dark:text-amber-400" : esito === "torna" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}>
-          Bolle qui: {formatCurrency(b.valoreQui)} ({b.qui} {b.qui === 1 ? "bolla" : "bolle"}){esito === "torna" ? " ✓" : ""}
+          {t(b.qui === 1 ? "Bolle qui: {importo} ({n} bolla)" : "Bolle qui: {importo} ({n} bolle)", { importo: formatCurrency(b.valoreQui), n: b.qui })}{esito === "torna" ? " ✓" : ""}
         </p>
       )}
-      {b.senzaPrezzo > 0 && <p className="text-muted-foreground">{b.senzaPrezzo} {b.senzaPrezzo === 1 ? "riga senza prezzo" : "righe senza prezzo"}</p>}
-      {mancanti > 0 && <p className="text-muted-foreground">{mancanti} {mancanti === 1 ? "bolla" : "bolle"} su {b.citate} da caricare</p>}
+      {b.senzaPrezzo > 0 && <p className="text-muted-foreground">{t(b.senzaPrezzo === 1 ? "{n} riga senza prezzo" : "{n} righe senza prezzo", { n: b.senzaPrezzo })}</p>}
+      {mancanti > 0 && <p className="text-muted-foreground">{t(mancanti === 1 ? "{n} bolla su {totale} da caricare" : "{n} bolle su {totale} da caricare", { n: mancanti, totale: b.citate })}</p>}
     </div>
   );
 }
@@ -655,6 +661,7 @@ const PAGAMENTO: Record<StatoPagamento, { testo: string; tono: TonoStato }> = {
 };
 
 export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFatture = true, puoModificare = false, onApriCosti }: { orderId: string; mostraImporti: boolean; puoAprireFatture?: boolean; puoModificare?: boolean; onApriCosti?: () => void }) {
+  const t = useT();
   const [paymentCostId, setPaymentCostId] = useState<string | null>(null);
   const [riepilogoId, setRiepilogoId] = useState<string | null>(null);
   const [daDividere, setDaDividere] = useState<RigaFattura | null>(null);
@@ -681,19 +688,19 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
     }
   };
   // Suggerita dall'AI → costo di questa commessa (contabilizzata se serve).
-  const collega = (f: RigaFattura) => azione(f, () => collegaFatturaACommessa(f.id, orderId), `Fattura ${f.numero ?? ""} messa fra i costi della commessa`, "Fattura non collegata");
+  const collega = (f: RigaFattura) => azione(f, () => collegaFatturaACommessa(f.id, orderId), t("Fattura {numero} messa fra i costi della commessa", { numero: f.numero ?? "" }), t("Fattura non collegata"));
   // Un suggerimento sbagliato dell'AI: la fattura resta nelle ricevute, solo non è più proposta qui.
   const nonDiQuesta = (f: RigaFattura) => azione(f, async () => {
     const { error } = await db.from("fatture_ricevute").update({ order_id_suggerito: null, order_match_confidenza: null }).eq("id", f.id).eq("order_id_suggerito", orderId);
     if (error) throw error;
-  }, `Fattura ${f.numero ?? ""} tolta dai suggerimenti`, "Suggerimento non tolto");
+  }, t("Fattura {numero} tolta dai suggerimenti", { numero: f.numero ?? "" }), t("Suggerimento non tolto"));
   // Stessa azione di Fatture ricevute: crea il costo o corregge quello nato dall'ordine, senza contarlo due volte.
   const contabilizza = (f: RigaFattura) => {
-    if (!window.confirm(`Contabilizzare la fattura ${f.numero ?? ""}? Il suo costo entra nei conti.`)) return;
+    if (!window.confirm(t("Contabilizzare la fattura {numero}? Il suo costo entra nei conti.", { numero: f.numero ?? "" }))) return;
     void azione(f, async () => {
       const { error } = await db.rpc("contabilizza_fattura_ricevuta", { p_fattura_id: f.id });
       if (error) throw error;
-    }, `Fattura ${f.numero ?? ""} contabilizzata`, "Fattura non contabilizzata");
+    }, t("Fattura {numero} contabilizzata", { numero: f.numero ?? "" }), t("Fattura non contabilizzata"));
   };
   const collegate = data.filter((f) => f.legame !== "suggerita");
   const suggerite = data.filter((f) => f.legame === "suggerita");
@@ -712,85 +719,85 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
   const visibili = filtro && filtri[filtro] && conta(filtro) > 0 ? data.filter(filtri[filtro]) : data;
   const importo = (n: number | null | undefined) => (n == null ? "—" : formatCurrency(n));
   const colonne: ColonnaTabella<RigaFattura>[] = [
-    { titolo: "Fattura", principale: true, cella: (f) => {
-      const testo = `${f.notaCredito ? "Nota di credito" : "N."} ${f.numero ?? "—"}`;
+    { titolo: t("Fattura"), principale: true, cella: (f) => {
+      const testo = `${f.notaCredito ? t("Nota di credito") : "N."} ${f.numero ?? "—"}`;
       return puoAprireFatture
         ? <button type="button" className="text-left font-medium underline-offset-2 hover:underline" onClick={() => setRiepilogoId(f.id)}>{testo}</button>
         : <span className="font-medium">{testo}</span>;
     } },
-    { titolo: "Data", cella: (f) => <span className="whitespace-nowrap">{dataIt(f.data)}</span> },
-    { titolo: "Fornitore", cella: (f) => (
+    { titolo: t("Data"), cella: (f) => <span className="whitespace-nowrap">{dataIt(f.data)}</span> },
+    { titolo: t("Fornitore"), cella: (f) => (
       <div className="min-w-0 max-sm:text-right">
-        <p>{f.fornitore ?? "Fornitore"}</p>
+        <p>{f.fornitore ?? t("Fornitore")}</p>
         {f.descrizione && <p className="line-clamp-1 text-xs text-muted-foreground" title={f.descrizione}>{f.descrizione}</p>}
       </div>
     ) },
-    { titolo: "Collegata a", cella: (f) => (
+    { titolo: t("Collegata a"), cella: (f) => (
       <div className="text-xs text-muted-foreground">
-        {f.oda ?? LEGAME[f.legame]}
+        {f.oda ?? t(LEGAME[f.legame])}
         {f.ripartizione.length > 0 && (
           <details>
-            <summary className="cursor-pointer">Divisa su {f.ripartizione.length} {f.ripartizione.length === 1 ? "commessa" : "commesse"}</summary>
+            <summary className="cursor-pointer">{t(f.ripartizione.length === 1 ? "Divisa su {n} commessa" : "Divisa su {n} commesse", { n: f.ripartizione.length })}</summary>
             <ul className="mt-0.5 space-y-0.5">
               {f.ripartizione.map((q) => (
                 <li key={q.orderId} className={q.orderId === orderId ? "font-medium text-foreground" : undefined}>
-                  {q.codice} · {q.pct.toLocaleString("it-IT")}%{mostraImporti && q.importo != null ? ` · ${formatCurrency(q.importo)}` : ""}
+                  {q.codice} · {q.pct.toLocaleString(intlCampo())}%{mostraImporti && q.importo != null ? ` · ${formatCurrency(q.importo)}` : ""}
                 </li>
               ))}
             </ul>
-            {f.vociQui.length > 0 && <p className="mt-0.5">Voci di questa commessa: {f.vociQui.join(", ")}</p>}
+            {f.vociQui.length > 0 && <p className="mt-0.5">{t("Voci di questa commessa: {voci}", { voci: f.vociQui.join(", ") })}</p>}
           </details>
         )}
-        {f.confidenza != null && <p>L’AI è sicura al {Math.round(f.confidenza * 100)}%</p>}
+        {f.confidenza != null && <p>{t("L’AI è sicura al {pct}%", { pct: Math.round(f.confidenza * 100) })}</p>}
       </div>
     ) },
-    { titolo: "Verifica", cella: (f) => f.legame === "suggerita" ? <StatoPill tono="ambra">Da collegare</StatoPill> : (
+    { titolo: t("Verifica"), cella: (f) => f.legame === "suggerita" ? <StatoPill tono="ambra">{t("Da collegare")}</StatoPill> : (
       <div className="space-y-0.5">
         <VerificaFatturaPill id={f.id} numero={f.numero} verificata={f.verificata} avviso={!!f.daControllare} puoCambiare={puoModificare}
-          altreAzioni={!f.contabilizzata ? [{ testo: "Contabilizza", fai: () => contabilizza(f) }] : undefined} />
-        {f.daControllare && <p className="text-xs text-muted-foreground">{f.daControllare}</p>}
+          altreAzioni={!f.contabilizzata ? [{ testo: t("Contabilizza"), fai: () => contabilizza(f) }] : undefined} />
+        {f.daControllare && <p className="text-xs text-muted-foreground">{t(f.daControllare)}</p>}
       </div>
     ) },
-    { titolo: "Pagamento", cella: (f) => f.legame === "suggerita" || f.notaCredito ? <span className="text-muted-foreground">—</span> : (
+    { titolo: t("Pagamento"), cella: (f) => f.legame === "suggerita" || f.notaCredito ? <span className="text-muted-foreground">—</span> : (
       <div className="space-y-0.5">
         {puoModificare || f.costId ? (
-          <button type="button" title={f.costId ? "Pagamenti e residuo" : f.pagamento === "pagata" ? "Rimetti da pagare" : "Segna pagata"} aria-label={`Pagamento della fattura ${f.numero ?? ""}`} disabled={segnaPagata.isPending}
+          <button type="button" title={f.costId ? t("Pagamenti e residuo") : f.pagamento === "pagata" ? t("Rimetti da pagare") : t("Segna pagata")} aria-label={t("Pagamento della fattura {numero}", { numero: f.numero ?? "" })} disabled={segnaPagata.isPending}
             onClick={() => {
               if (f.costId) { setPaymentCostId(f.costId); return; }
               segnaPagata.mutate({ id: f.id, pagata: f.pagamento !== "pagata", numero: f.numero ?? undefined }, {
                 onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] }),
               });
             }}>
-            <StatoPill tono={PAGAMENTO[f.pagamento].tono}>{PAGAMENTO[f.pagamento].testo}<ChevronDown className="ml-1 inline h-3 w-3" aria-hidden="true" /></StatoPill>
+            <StatoPill tono={PAGAMENTO[f.pagamento].tono}>{t(PAGAMENTO[f.pagamento].testo)}<ChevronDown className="ml-1 inline h-3 w-3" aria-hidden="true" /></StatoPill>
           </button>
-        ) : <StatoPill tono={PAGAMENTO[f.pagamento].tono}>{PAGAMENTO[f.pagamento].testo}</StatoPill>}
-        {f.pagataIl && <p className="whitespace-nowrap text-xs text-muted-foreground">il {dataIt(f.pagataIl)}</p>}
+        ) : <StatoPill tono={PAGAMENTO[f.pagamento].tono}>{t(PAGAMENTO[f.pagamento].testo)}</StatoPill>}
+        {f.pagataIl && <p className="whitespace-nowrap text-xs text-muted-foreground">{t("il {data}", { data: dataIt(f.pagataIl) })}</p>}
       </div>
     ) },
     ...(mostraImporti ? [
-      { titolo: "Fattura", destra: true, cella: (f: RigaFattura) => (
+      { titolo: t("Fattura"), destra: true, cella: (f: RigaFattura) => (
         <div className="whitespace-nowrap">
           <p>{importo(f.totaleDocumento ?? f.totale)}</p>
-          {f.imponibileDocumento != null && <p className="text-xs text-muted-foreground">imp. {formatCurrency((f.notaCredito ? -1 : 1) * Math.abs(f.imponibileDocumento))}</p>}
+          {f.imponibileDocumento != null && <p className="text-xs text-muted-foreground">{t("imp.")} {formatCurrency((f.notaCredito ? -1 : 1) * Math.abs(f.imponibileDocumento))}</p>}
         </div>
       ) },
-      { titolo: "Su questa commessa", destra: true, cella: (f: RigaFattura) => f.legame === "suggerita" ? <span className="text-muted-foreground">—</span> : (
+      { titolo: t("Su questa commessa"), destra: true, cella: (f: RigaFattura) => f.legame === "suggerita" ? <span className="text-muted-foreground">—</span> : (
         <div className="whitespace-nowrap">
           <p className="font-medium">{importo(f.costoQui)}</p>
-          {f.imponibileDocumento == null && f.costoQui != null && <p className="text-xs text-muted-foreground">IVA inclusa: imponibile non letto</p>}
-          <p className={f.quota != null ? "text-xs font-medium text-primary" : "text-xs text-muted-foreground"}>{incidenzaSullaFattura(f.quota)}</p>
+          {f.imponibileDocumento == null && f.costoQui != null && <p className="text-xs text-muted-foreground">{t("IVA inclusa: imponibile non letto")}</p>}
+          <p className={f.quota != null ? "text-xs font-medium text-primary" : "text-xs text-muted-foreground"}>{f.quota == null ? t("tutta la fattura") : t("{pct}% della fattura", { pct: f.quota.toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })}</p>
           <BolleQui f={f} />
         </div>
       ) },
-      { titolo: "Pagato", destra: true, cella: (f: RigaFattura) => (f.legame === "suggerita" ? "—" : importo(f.pagato)) },
-      { titolo: "Da pagare", destra: true, cella: (f: RigaFattura) => (f.legame === "suggerita" ? "—" : <span className={f.residuo ? "font-medium text-amber-700 dark:text-amber-400" : undefined}>{importo(f.residuo)}</span>) },
+      { titolo: t("Pagato"), destra: true, cella: (f: RigaFattura) => (f.legame === "suggerita" ? "—" : importo(f.pagato)) },
+      { titolo: t("Da pagare"), destra: true, cella: (f: RigaFattura) => (f.legame === "suggerita" ? "—" : <span className={f.residuo ? "font-medium text-amber-700 dark:text-amber-400" : undefined}>{importo(f.residuo)}</span>) },
     ] : []),
-    { titolo: "Azioni", destra: true, senzaEtichetta: true, cella: (f) => (
+    { titolo: t("Azioni"), destra: true, senzaEtichetta: true, cella: (f) => (
       <div className="flex flex-wrap justify-end gap-1">
-        {puoModificare && f.legame !== "oda" && <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => setDaDividere(f)}>{f.legame === "suggerita" ? "Dividi su più commesse" : "Commesse"}</Button>}
+        {puoModificare && f.legame !== "oda" && <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => setDaDividere(f)}>{f.legame === "suggerita" ? t("Dividi su più commesse") : t("Commesse")}</Button>}
         {puoModificare && f.legame === "suggerita" && <>
-          <Button size="sm" variant="outline" className="h-8 px-2 text-xs" disabled={occupata !== null} onClick={() => void collega(f)}>{occupata === f.id ? "Collego…" : "Collega a questa commessa"}</Button>
-          <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" disabled={occupata !== null} onClick={() => void nonDiQuesta(f)}>Non è di questa commessa</Button>
+          <Button size="sm" variant="outline" className="h-8 px-2 text-xs" disabled={occupata !== null} onClick={() => void collega(f)}>{occupata === f.id ? t("Collego…") : t("Collega a questa commessa")}</Button>
+          <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" disabled={occupata !== null} onClick={() => void nonDiQuesta(f)}>{t("Non è di questa commessa")}</Button>
         </>}
       </div>
     ) },
@@ -818,36 +825,36 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
     )}
     <RiquadroCommessa
       icona={<Receipt className="h-5 w-5 text-primary" aria-hidden="true" />}
-      descrizione="Fatture, quote della commessa, controlli e pagamenti della stessa spesa."
-      titolo="Fatture dei fornitori" conteggio={collegate.length}
-      riassunto={mostraImporti && collegate.length > 0 ? `${formatCurrency(costoCommessa)} di costo sulla commessa · ${formatCurrency(totale)} IVA inclusa` : undefined}
-      azioni={puoModificare ? <Button size="sm" onClick={() => setCollegaRicevuta(true)}><Link2 className="mr-1.5 h-4 w-4" aria-hidden="true" />Collega fattura</Button> : undefined}
+      descrizione={t("Fatture, quote della commessa, controlli e pagamenti della stessa spesa.")}
+      titolo={t("Fatture dei fornitori")} conteggio={collegate.length}
+      riassunto={mostraImporti && collegate.length > 0 ? t("{costo} di costo sulla commessa · {totale} IVA inclusa", { costo: formatCurrency(costoCommessa), totale: formatCurrency(totale) }) : undefined}
+      azioni={puoModificare ? <Button size="sm" onClick={() => setCollegaRicevuta(true)}><Link2 className="mr-1.5 h-4 w-4" aria-hidden="true" />{t("Collega fattura")}</Button> : undefined}
       numeri={!isLoading && !isError && (data.length > 0 || costiSenzaFattura > 0) ? (
-        <ContatoriFiltro etichetta="Fatture per stato" attivo={filtro} onScegli={(c) => {
+        <ContatoriFiltro etichetta={t("Fatture per stato")} attivo={filtro} onScegli={(c) => {
           if (c === "costi") { onApriCosti?.(); return; }
           setFiltro(c);
         }} voci={[
-          { chiave: "daVerificare", etichetta: "Da verificare", valore: conta("daVerificare"), avviso: true },
-          { chiave: "verificate", etichetta: "Verificate", valore: conta("verificate") },
-          { chiave: "collegare", etichetta: "Da collegare", valore: conta("collegare"), avviso: true },
-          { chiave: "pagare", etichetta: "Da pagare", valore: conta("pagare") },
-          { chiave: "pagate", etichetta: "Pagate", valore: conta("pagate") },
-          { chiave: "costi", etichetta: "Costi senza fattura", valore: costiSenzaFattura },
+          { chiave: "daVerificare", etichetta: t("Da verificare"), valore: conta("daVerificare"), avviso: true },
+          { chiave: "verificate", etichetta: t("Verificate"), valore: conta("verificate") },
+          { chiave: "collegare", etichetta: t("Da collegare"), valore: conta("collegare"), avviso: true },
+          { chiave: "pagare", etichetta: t("Da pagare"), valore: conta("pagare") },
+          { chiave: "pagate", etichetta: t("Pagate"), valore: conta("pagate") },
+          { chiave: "costi", etichetta: t("Costi senza fattura"), valore: costiSenzaFattura },
         ]} />
       ) : undefined}
     >
       {isError ? (
-        <p role="alert" className="text-sm text-destructive">Non riesco a leggere le fatture. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></p>
+        <p role="alert" className="text-sm text-destructive">{t("Non riesco a leggere le fatture.")} <button type="button" className="underline" onClick={() => void refetch()}>{t("Riprova")}</button></p>
       ) : isLoading ? (
         <Skeleton className="h-24 w-full" />
       ) : (
         <div className="space-y-3">
           {data.length === 0
-            ? <p className="commessa-empty text-sm text-muted-foreground">Nessuna fattura collegata. Con «Collega fattura» la scegli fra le fatture ricevute, o carichi il file se non c’è.</p>
-            : <TabellaCommessa etichetta="Fatture dei fornitori" colonne={colonne} righe={visibili} chiave={(f) => f.id} />}
-          {suggerite.length > 0 && <p className="text-xs text-muted-foreground">Le fatture «Da collegare» le ha riconosciute l’AI: finché non le colleghi non entrano nei costi.</p>}
+            ? <p className="commessa-empty text-sm text-muted-foreground">{t("Nessuna fattura collegata. Con «Collega fattura» la scegli fra le fatture ricevute, o carichi il file se non c’è.")}</p>
+            : <TabellaCommessa etichetta={t("Fatture dei fornitori")} colonne={colonne} righe={visibili} chiave={(f) => f.id} />}
+          {suggerite.length > 0 && <p className="text-xs text-muted-foreground">{t("Le fatture «Da collegare» le ha riconosciute l’AI: finché non le colleghi non entrano nei costi.")}</p>}
           {puoAprireFatture && <Link to="/azienda/documenti/fatture-ricevute" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline underline-offset-4">
-            <FileText className="h-4 w-4" aria-hidden="true" />Apri le fatture ricevute
+            <FileText className="h-4 w-4" aria-hidden="true" />{t("Apri le fatture ricevute")}
           </Link>}
         </div>
       )}

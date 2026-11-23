@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStatusIcon } from "@/lib/statusIconRegistry";
 import type { OrderStatus } from "@/lib/orderUtils";
+import { intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export type { OrderStatus };
 
@@ -45,7 +46,7 @@ export function OrderProgressTracker({
   const getStatusDate = (statusId: string): string | null => {
     const historyItem = statusHistory.find((h) => h.status_id === statusId);
     if (!historyItem) return null;
-    return new Date(historyItem.changed_at).toLocaleDateString("it-IT", {
+    return new Date(historyItem.changed_at).toLocaleDateString(intlCampo(), {
       day: "2-digit",
       month: "short",
     });

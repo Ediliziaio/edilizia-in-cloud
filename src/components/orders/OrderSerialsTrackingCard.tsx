@@ -15,6 +15,7 @@ import { RiquadroCommessa, StatoPill, TabellaCommessa, type ColonnaTabella } fro
 import { AssignSerialsDialog } from "@/components/warehouse/AssignSerialsDialog";
 import { useArticoliConSeriale, useStockUnitsByOrderItemIds, useSerialiCommessaSenzaRiga } from "@/hooks/warehouse/useStockUnits";
 import type { OrderItemData } from "@/lib/orderUtils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface OrderSerialsTrackingCardProps {
   orderId: string;
@@ -22,6 +23,7 @@ interface OrderSerialsTrackingCardProps {
 }
 
 export function OrderSerialsTrackingCard({ orderId, orderItems }: OrderSerialsTrackingCardProps) {
+  const t = useT();
   const [altriAperti, setAltriAperti] = useState(false);
   const [gestito, setGestito] = useState<OrderItemData | null>(null);
 
@@ -44,45 +46,45 @@ export function OrderSerialsTrackingCard({ orderId, orderItems }: OrderSerialsTr
   const complete = daSeguire.filter((it) => assegnati(it) >= (it.quantity ?? 0)).length;
 
   const colonne: ColonnaTabella<OrderItemData>[] = [
-    { titolo: "Articolo", principale: true, cella: (it) => (
+    { titolo: t("Articolo"), principale: true, cella: (it) => (
       <span className="flex flex-wrap items-center gap-2 font-medium">
         {it.name}
         {it.product_code && <span className="font-mono text-xs font-normal text-muted-foreground">{it.product_code}</span>}
       </span>
     ) },
-    { titolo: "Seriali", cella: (it) => {
+    { titolo: t("Seriali"), cella: (it) => {
       const n = assegnati(it);
       const q = it.quantity ?? 0;
       return <StatoPill tono={n >= q ? "verde" : n > 0 ? "ambra" : "grigio"}>{n} / {q}</StatoPill>;
     } },
-    { titolo: "Azione", intestazione: <span className="sr-only">Azione</span>, destra: true, cella: (it) => (
+    { titolo: t("Azione"), intestazione: <span className="sr-only">{t("Azione")}</span>, destra: true, cella: (it) => (
       <Button variant="outline" size="sm" className="h-8" onClick={() => setGestito(it)}>
-        <ScanLine className="mr-1.5 h-3.5 w-3.5" aria-hidden />Gestisci seriali
+        <ScanLine className="mr-1.5 h-3.5 w-3.5" aria-hidden />{t("Gestisci seriali")}
       </Button>
     ) },
   ];
 
   return (
-    <RiquadroCommessa icona={<Package className="h-4 w-4 text-orange-600" aria-hidden />} titolo="Seriali e garanzie" conteggio={daSeguire.length}
-      riassunto={daSeguire.length > 0 ? `${complete} su ${daSeguire.length} completi` : undefined}>
+    <RiquadroCommessa icona={<Package className="h-4 w-4 text-orange-600" aria-hidden />} titolo={t("Seriali e garanzie")} conteggio={daSeguire.length}
+      riassunto={daSeguire.length > 0 ? t("{completi} su {totale} completi", { completi: complete, totale: daSeguire.length }) : undefined}>
       <div className="space-y-3">
         {daSeguire.length > 0
-          ? <TabellaCommessa etichetta="Seriali degli articoli" colonne={colonne} righe={daSeguire} chiave={(it) => it.id} />
-          : <p className="text-sm text-muted-foreground">Nessuna matricola risulta collegata alle righe materiale elencate.</p>}
-        {erroreSenzaRiga && <p role="alert" className="text-sm text-destructive">Non è stato possibile controllare i seriali associati direttamente alla commessa.</p>}
+          ? <TabellaCommessa etichetta={t("Seriali degli articoli")} colonne={colonne} righe={daSeguire} chiave={(it) => it.id} />
+          : <p className="text-sm text-muted-foreground">{t("Nessuna matricola risulta collegata alle righe materiale elencate.")}</p>}
+        {erroreSenzaRiga && <p role="alert" className="text-sm text-destructive">{t("Non è stato possibile controllare i seriali associati direttamente alla commessa.")}</p>}
         {senzaRiga.length > 0 && (
           <div className="rounded-md border p-3 space-y-2">
-            <p className="font-medium">Seriali della commessa da abbinare alle righe ({senzaRiga.length})</p>
-            <p className="text-sm text-muted-foreground">Questi seriali sono associati alla commessa, ma non a una riga materiale. Non vengono conteggiati come assegnazioni complete.</p>
+            <p className="font-medium">{t("Seriali della commessa da abbinare alle righe ({n})", { n: senzaRiga.length })}</p>
+            <p className="text-sm text-muted-foreground">{t("Questi seriali sono associati alla commessa, ma non a una riga materiale. Non vengono conteggiati come assegnazioni complete.")}</p>
             <ul className="text-sm">{senzaRiga.map((u) => <li key={u.id}>{u.serial_number}</li>)}</ul>
           </div>
         )}
         {altri.length > 0 && (
           <Button variant="ghost" size="sm" className="h-8 text-muted-foreground" aria-expanded={altriAperti} onClick={() => setAltriAperti((v) => !v)}>
-            {altriAperti ? "Nascondi gli altri articoli" : `Altri articoli (${altri.length})`}
+            {altriAperti ? t("Nascondi gli altri articoli") : t("Altri articoli ({n})", { n: altri.length })}
           </Button>
         )}
-        {altriAperti && <TabellaCommessa etichetta="Altri articoli" colonne={colonne} righe={altri} chiave={(it) => it.id} />}
+        {altriAperti && <TabellaCommessa etichetta={t("Altri articoli")} colonne={colonne} righe={altri} chiave={(it) => it.id} />}
       </div>
       {gestito && (
         <AssignSerialsDialog

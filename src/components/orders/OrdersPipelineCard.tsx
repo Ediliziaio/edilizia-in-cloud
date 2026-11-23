@@ -21,6 +21,9 @@ import {
   lavoriCompletati, prossimoPasso, ritardoLavori, statoIncasso, statoMateriali, statoSquadra, type Tono,
 } from "@/lib/orders/etichettePipeline";
 import type { PipelineTarget } from "./PipelineDrag";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
+
+type Tr = ReturnType<typeof useT>;
 
 interface OrdersPipelineCardProps {
   order: OrderWithDetails;
@@ -46,12 +49,12 @@ function getMaterialSummary(order: OrderWithDetails) {
   return { total, ready, toOrder };
 }
 
-function getWorkPeriodLabel(order: OrderWithDetails) {
+function getWorkPeriodLabel(order: OrderWithDetails, t: Tr) {
   if (order.work_start_date && order.work_end_date) {
     return `${formatDateShort(order.work_start_date)} - ${formatDateShort(order.work_end_date)}`;
   }
-  if (order.work_start_date) return `Dal ${formatDateShort(order.work_start_date)}`;
-  if (order.work_end_date) return `Entro ${formatDateShort(order.work_end_date)}`;
+  if (order.work_start_date) return t("Dal {data}", { data: formatDateShort(order.work_start_date) });
+  if (order.work_end_date) return t("Entro {data}", { data: formatDateShort(order.work_end_date) });
   return null;
 }
 
@@ -70,17 +73,17 @@ function getPaymentTypeLabel(paymentType?: string | null) {
   return leggibile.charAt(0).toUpperCase() + leggibile.slice(1);
 }
 
-function getCustomerName(order: OrderWithDetails) {
+function getCustomerName(order: OrderWithDetails, t: Tr) {
   const nome = formatPersonName(order.customer) || order.client_name?.trim();
-  if (!nome) return "Cliente non indicato";
+  if (!nome) return t("Cliente non indicato");
   return nome.replace(/\p{L}+(?:\.\p{L}+)*/gu, parola => {
     if (parola !== parola.toLocaleUpperCase("it-IT") || SIGLE_SOCIETARIE.test(parola)) return parola;
     return parola[0].toLocaleUpperCase("it-IT") + parola.slice(1).toLocaleLowerCase("it-IT");
   });
 }
 
-function getOrderDescription(order: OrderWithDetails) {
-  const descrizione = order.description?.trim() || "Descrizione non indicata";
+function getOrderDescription(order: OrderWithDetails, t: Tr) {
+  const descrizione = order.description?.trim() || t("Descrizione non indicata");
   const confronta = (valore: string) => valore.trim().replace(/\s+/g, " ").toLocaleLowerCase("it-IT");
   const cliente = order.customer;
   const nomi = [
@@ -125,23 +128,24 @@ const PIANIFICAZIONE = { tab: "cantiere", cantiereView: "cronoprogramma" } satis
 const PAGAMENTI = { tab: "finanza", economiaView: "pagamenti" } satisfies OrderDetailDestination;
 
 function RigaInfo({ label, value, icon, tone }: { label: string; value: string; icon: ReactNode; tone: Tono }) {
+  const t = useT();
   return (
     <div className="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-1.5 text-xs">
-      <dt className="text-muted-foreground">{label}</dt>
+      <dt className="text-muted-foreground">{t(label)}</dt>
       <dd className={cn("flex min-w-0 items-center gap-1.5 font-medium [&>svg]:size-3.5 [&>svg]:shrink-0", TONO_TESTO[tone])}>
         {icon}
-        <span className="truncate">{value}</span>
+        <span className="truncate">{t(value)}</span>
       </dd>
     </div>
   );
 }
 
-function riepilogoConteggio(conteggio: ConteggioPipeline | null | undefined, vuoto: string, unita: string) {
+function riepilogoConteggio(conteggio: ConteggioPipeline | null | undefined, vuoto: string, conta: (fatti: number, totale: number) => string, t: Tr) {
   if (!conteggio?.total) {
-    return { value: conteggio === undefined ? "Caricamento…" : conteggio === null ? "Non disponibile" : vuoto, tone: "neutro" as const };
+    return { value: conteggio === undefined ? t("Caricamento…") : conteggio === null ? t("Non disponibile") : vuoto, tone: "neutro" as const };
   }
   return {
-    value: `${conteggio.done}/${conteggio.total} ${unita}`,
+    value: conta(conteggio.done, conteggio.total),
     tone: conteggio.done === conteggio.total ? "ok" as const : "neutro" as const,
   };
 }
@@ -151,6 +155,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
   destinazioni = [], onMove, onPhaseChange,
 }: OrdersPipelineCardProps) {
   const navigate = useNavigate();
+  const t = useT();
   const cardRef = useRef<HTMLDivElement>(null);
   const previewButton = useRef<HTMLButtonElement>(null);
   const timer = useRef<number | null>(null);
@@ -162,7 +167,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
   }, []);
   useEffect(() => cancelTimer, [cancelTimer]);
 
-  const customerName = getCustomerName(order);
+  const customerName = getCustomerName(order, t);
   const codice = order.order_code?.trim();
   const emailCliente = [order.customer?.email, order.client_email].map(emailVera)
     .find(email => email && /^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/.test(email));
@@ -171,7 +176,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
     ? `mailto:${encodeURIComponent(emailCliente).replace("%40", "@")}?subject=${encodeURIComponent(oggettoEmail)}`
     : null;
   const label = codice || customerName;
-  const descrizione = getOrderDescription(order);
+  const descrizione = getOrderDescription(order, t);
   const urlCommessa = `/azienda/ordini/${order.id}`;
   const apriSezione = (destination: OrderDetailDestination) => ({
     pathname: urlCommessa,
@@ -181,13 +186,13 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
   const labor = getLaborSummary(order);
   const materials = getMaterialSummary(order);
   const ritardo = ritardoLavori(order);
-  const ritardoTesto = ritardo === 1 ? "1 giorno di ritardo" : `${ritardo} giorni di ritardo`;
-  const periodoLavori = getWorkPeriodLabel(order);
+  const ritardoTesto = t(ritardo === 1 ? "1 giorno di ritardo" : "{n} giorni di ritardo", { n: ritardo });
+  const periodoLavori = getWorkPeriodLabel(order, t);
   const dataPrevista = periodoLavori ?? (order.expected_date ? formatDateShort(order.expected_date) : null);
   const squadra = statoSquadra(labor.names, labor.employees.length > 0 || labor.internal.length > 0, labor.external.length > 0);
   const materiali = statoMateriali(materials.total, materials.ready, materials.toOrder);
-  const fasiRiga = <RigaInfo label="Fasi" {...riepilogoConteggio(order.fasiPipeline, "Da definire", "completate")} icon={<ClipboardCheck aria-hidden />} />;
-  const ufficioRiga = <RigaInfo label="Task ufficio" {...riepilogoConteggio(order.taskUfficioPipeline, "Nessuna attività", "fatti")} icon={<ListTodo aria-hidden />} />;
+  const fasiRiga = <RigaInfo label="Fasi" {...riepilogoConteggio(order.fasiPipeline, t("Da definire"), (fatti, totale) => t("{fatti}/{totale} completate", { fatti, totale }), t)} icon={<ClipboardCheck aria-hidden />} />;
+  const ufficioRiga = <RigaInfo label="Task ufficio" {...riepilogoConteggio(order.taskUfficioPipeline, t("Nessuna attività"), (fatti, totale) => t("{fatti}/{totale} fatti", { fatti, totale }), t)} icon={<ListTodo aria-hidden />} />;
   const due = showAmounts ? getAmountDue(order) : 0;
   const collected = showAmounts ? getAmountCollected(order) : 0;
   const incassabile = collected + due;
@@ -201,16 +206,16 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
   const linkPasso = passo.destinazione ? apriSezione(passo.destinazione) : urlCommessa;
   const fasi = destinazioni.filter(fase => fase.id !== stage);
   const azioni: Array<{ label: string; icon: typeof Eye; destination: OrderDetailDestination }> = [
-    ...(showAmounts ? [{ label: "Fatture e incassi", icon: Wallet, destination: PAGAMENTI }] : []),
-    { label: "Materiali", icon: PackageCheck, destination: { tab: "articoli" } },
-    { label: "Cronoprogramma", icon: CalendarDays, destination: PIANIFICAZIONE },
-    { label: "Squadra e lavorazioni", icon: Users, destination: { tab: "cantiere", cantiereView: "lavorazioni" } },
+    ...(showAmounts ? [{ label: t("Fatture e incassi"), icon: Wallet, destination: PAGAMENTI }] : []),
+    { label: t("Materiali"), icon: PackageCheck, destination: { tab: "articoli" } },
+    { label: t("Cronoprogramma"), icon: CalendarDays, destination: PIANIFICAZIONE },
+    { label: t("Squadra e lavorazioni"), icon: Users, destination: { tab: "cantiere", cantiereView: "lavorazioni" } },
   ];
   const importi = showAmounts && preview && (
     <dl className="grid grid-cols-3 gap-1.5 rounded-lg border bg-muted/15 px-2.5 py-2 text-[11px] tabular-nums">
-      <div><dt className="text-muted-foreground">Totale con IVA</dt><dd className="mt-0.5 break-words text-xs font-semibold">{valore}</dd></div>
-      <div><dt className="text-muted-foreground">Incassato</dt><dd className={cn("mt-0.5 break-words text-xs font-semibold", collected > 0 && TONO_TESTO.ok)}>{formatCurrency(collected)}</dd></div>
-      <div><dt className="text-muted-foreground">Da incassare</dt><dd className={cn("mt-0.5 break-words text-xs font-semibold", due > 0 && TONO_TESTO.attenzione)}>{formatCurrency(due)}</dd></div>
+      <div><dt className="text-muted-foreground">{t("Totale con IVA")}</dt><dd className="mt-0.5 break-words text-xs font-semibold">{valore}</dd></div>
+      <div><dt className="text-muted-foreground">{t("Incassato")}</dt><dd className={cn("mt-0.5 break-words text-xs font-semibold", collected > 0 && TONO_TESTO.ok)}>{formatCurrency(collected)}</dd></div>
+      <div><dt className="text-muted-foreground">{t("Da incassare")}</dt><dd className={cn("mt-0.5 break-words text-xs font-semibold", due > 0 && TONO_TESTO.attenzione)}>{formatCurrency(due)}</dd></div>
     </dl>
   );
 
@@ -218,15 +223,15 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
     <div className="space-y-2 px-3 pb-2 pt-2.5">
       <div>
         <div className="flex min-w-0 items-baseline gap-1.5">
-          <p className="min-w-0 truncate text-sm font-semibold leading-tight">{customerName}</p>
+          <p dir="auto" className="min-w-0 truncate text-sm font-semibold leading-tight">{customerName}</p>
           {codice && <span className="shrink-0 text-[10px] font-medium tabular-nums text-muted-foreground">{codice}</span>}
         </div>
-        <p className="mt-1 truncate text-xs text-muted-foreground">{descrizione}</p>
+        <p dir="auto" className="mt-1 truncate text-xs text-muted-foreground">{descrizione}</p>
       </div>
       {valore && (
         <dl className="flex items-baseline justify-between gap-2">
-          <dt className="text-xs text-muted-foreground">{aMisura ? "Fatturato" : "Importo contratto"}</dt>
-          <dd className="text-right text-sm font-bold tabular-nums" title="IVA inclusa">{valore}</dd>
+          <dt className="text-xs text-muted-foreground">{aMisura ? t("Fatturato") : t("Importo contratto")}</dt>
+          <dd className="text-right text-sm font-bold tabular-nums" title={t("IVA inclusa")}>{valore}</dd>
         </dl>
       )}
       {ritardo > 0 && <div className={cn("flex items-center gap-1 text-xs", TONO_TESTO.critico)}><AlertTriangle className="size-3.5 shrink-0" aria-hidden />{ritardoTesto}</div>}
@@ -240,7 +245,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
         className={cn("flex w-fit max-w-full items-center gap-1 rounded-sm text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:underline",
           passo.tipo === "pronto" ? TONO_TESTO.ok : "text-primary")}>
         <ArrowRight className="size-3.5 shrink-0" aria-hidden />
-        <span className="truncate">{passo.testo}</span>
+        <span className="truncate">{t(passo.testo)}</span>
       </Link>
     </div>
   );
@@ -272,8 +277,8 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
 
   const mostraSpostamento = !!onPhaseChange && fasi.length > 0;
   const spostaProps = {
-    "aria-label": `Sposta commessa ${label}`,
-    title: "Sposta commessa",
+    "aria-label": t("Sposta commessa {commessa}", { commessa: label }),
+    title: t("Sposta commessa"),
     className: ACTION_CLASS,
   };
   const chiudiAnteprima = () => {
@@ -294,8 +299,8 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
           {...(isDraggable ? attributes : {})}
           role="group"
           tabIndex={0}
-          aria-label={`Apri dettagli commessa ${label}`}
-          aria-roledescription={isDraggable ? "scheda trascinabile" : undefined}
+          aria-label={t("Apri dettagli commessa {commessa}", { commessa: label })}
+          aria-roledescription={isDraggable ? t("scheda trascinabile") : undefined}
           className={cn(aspetto, "transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
             isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer", isDragging && "opacity-30")}
           onDragStartCapture={event => event.preventDefault()}
@@ -327,13 +332,13 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
             {dettagli}
           </div>
           <div className="flex items-center gap-0.5 rounded-b-xl border-t bg-muted/20 px-1.5 py-0.5" onPointerEnter={ritardaChiusura}>
-            <button ref={previewButton} type="button" title="Anteprima" aria-label={`Anteprima commessa ${label}`}
+            <button ref={previewButton} type="button" title={t("Anteprima")} aria-label={t("Anteprima commessa {commessa}", { commessa: label })}
               aria-haspopup="dialog" aria-expanded={preview !== null} className={ACTION_CLASS}
               onClick={() => { cancelTimer(); setPreview(preview === "pinned" ? null : "pinned"); }}>
               <Eye className="size-4" aria-hidden />
             </button>
             {hrefEmail && (
-              <a href={hrefEmail} data-no-drag title="Scrivi al cliente" aria-label={`Scrivi al cliente · ${label}`} className={ACTION_CLASS}
+              <a href={hrefEmail} data-no-drag title={t("Scrivi al cliente")} aria-label={t("Scrivi al cliente · {commessa}", { commessa: label })} className={ACTION_CLASS}
                 onClick={chiudiAnteprima}>
                 <Mail className="size-4" aria-hidden />
               </a>
@@ -344,7 +349,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
               </Link>
             ))}
             {canEdit && (
-              <Link to={`${urlCommessa}/modifica`} data-no-drag title="Modifica commessa" aria-label={`Modifica commessa ${label}`} className={ACTION_CLASS}>
+              <Link to={`${urlCommessa}/modifica`} data-no-drag title={t("Modifica commessa")} aria-label={t("Modifica commessa {commessa}", { commessa: label })} className={ACTION_CLASS}>
                 <Pencil className="size-4" aria-hidden />
               </Link>
             )}
@@ -352,7 +357,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><button type="button" {...spostaProps}><ArrowRightLeft className="size-4" aria-hidden /></button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Sposta nella fase</DropdownMenuLabel>
+                  <DropdownMenuLabel>{t("Sposta nella fase")}</DropdownMenuLabel>
                   {fasi.map(fase => (
                     <DropdownMenuItem key={fase.id} onClick={() => { chiudiAnteprima(); onPhaseChange?.(order.id, fase.id); }}>
                       {fase.label}
@@ -360,7 +365,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
                   ))}
                   {onMove && <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => { chiudiAnteprima(); onMove(order); }}>Cambia pipeline…</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { chiudiAnteprima(); onMove(order); }}>{t("Cambia pipeline…")}</DropdownMenuItem>
                   </>}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -373,7 +378,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
 
       {preview && (
         <PopoverContent
-          aria-label={`Riepilogo commessa ${label}`} side="right" align="start" sideOffset={8} collisionPadding={12}
+          aria-label={t("Riepilogo commessa {commessa}", { commessa: label })} side="right" align="start" sideOffset={8} collisionPadding={12}
           className="z-[80] max-h-[var(--radix-popover-content-available-height)] w-[min(23rem,calc(100vw-1.5rem))] overflow-auto rounded-xl p-0 shadow-xl"
           onOpenAutoFocus={event => { if (preview === "hover") event.preventDefault(); }}
           onCloseAutoFocus={event => event.preventDefault()}
@@ -382,14 +387,14 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
         >
           <div className="relative rounded-t-xl border-b bg-muted/40 px-4 py-3.5 pr-12">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <p className="text-sm font-bold">{customerName}</p>
+              <p dir="auto" className="text-sm font-bold">{customerName}</p>
               {codice && <span className="text-[11px] font-medium tabular-nums text-muted-foreground">{codice}</span>}
             </div>
-            <p className="mt-1 whitespace-pre-line break-words text-xs leading-relaxed text-muted-foreground">{descrizione}</p>
+            <p dir="auto" className="mt-1 whitespace-pre-line break-words text-xs leading-relaxed text-muted-foreground">{descrizione}</p>
             <span className="mt-2 inline-flex rounded-full bg-background px-2 py-0.5 text-[11px] font-medium ring-1 ring-border">
-              {order.status?.name || "Senza stato"}
+              {order.status?.name || t("Senza stato")}
             </span>
-            <button type="button" aria-label="Chiudi riepilogo commessa"
+            <button type="button" aria-label={t("Chiudi riepilogo commessa")}
               className="absolute right-2.5 top-2.5 grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               onClick={() => { chiudiAnteprima(); if (preview === "pinned") previewButton.current?.focus(); }}>
               <X aria-hidden className="size-4" />
@@ -405,46 +410,46 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
               <div className="space-y-1.5">
                 {importi}
                 <div className="flex justify-between gap-2 px-0.5 text-[11px] text-muted-foreground">
-                  <span>Pagamento · {getPaymentTypeLabel(order.payment_type)}</span>
-                  <span className={cn("font-medium", TONO_TESTO[pagamento.tono])}>{pagamento.testo}</span>
+                  <span>{t("Pagamento · {tipo}", { tipo: t(getPaymentTypeLabel(order.payment_type)) })}</span>
+                  <span className={cn("font-medium", TONO_TESTO[pagamento.tono])}>{t(pagamento.testo)}</span>
                 </div>
               </div>
             )}
             <dl className="space-y-2.5">
-              {order.indirizzo_lavori && <div className="flex items-start gap-2 text-muted-foreground"><MapPin aria-hidden className="mt-0.5 size-3.5 shrink-0" /><dt className="sr-only">Indirizzo cantiere</dt><dd>{order.indirizzo_lavori}</dd></div>}
+              {order.indirizzo_lavori && <div className="flex items-start gap-2 text-muted-foreground"><MapPin aria-hidden className="mt-0.5 size-3.5 shrink-0" /><dt className="sr-only">{t("Indirizzo cantiere")}</dt><dd dir="auto">{order.indirizzo_lavori}</dd></div>}
               {dataPrevista && <div className="flex items-start gap-2">
                 <CalendarDays aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-                <div><dt className="font-semibold">{periodoLavori ? "Lavori previsti" : "Data prevista"}</dt><dd className="mt-0.5 text-muted-foreground">
+                <div><dt className="font-semibold">{periodoLavori ? t("Lavori previsti") : t("Data prevista")}</dt><dd className="mt-0.5 text-muted-foreground">
                   {dataPrevista}
                   {ritardo > 0 && <span className={cn("ml-1.5", TONO_TESTO.critico)}>{ritardoTesto}</span>}
                 </dd></div>
               </div>}
               <div className="flex items-start gap-2">
                 <PackageCheck aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-                <div><dt className="font-semibold">Materiali</dt><dd className="mt-0.5 text-muted-foreground">
-                  <span className={TONO_TESTO[materiali.tono]}>{materiali.testo}</span>
-                  {materials.toOrder > 0 && ` · ${materials.toOrder} da ordinare`}
-                  {order.warehouse_arrival_date && <span className="block">Arrivo in magazzino {formatDateShort(order.warehouse_arrival_date)}</span>}
+                <div><dt className="font-semibold">{t("Materiali")}</dt><dd className="mt-0.5 text-muted-foreground">
+                  <span className={TONO_TESTO[materiali.tono]}>{t(materiali.testo)}</span>
+                  {materials.toOrder > 0 && ` · ${t("{n} da ordinare", { n: materials.toOrder })}`}
+                  {order.warehouse_arrival_date && <span className="block">{t("Arrivo in magazzino {data}", { data: formatDateShort(order.warehouse_arrival_date) })}</span>}
                 </dd></div>
               </div>
               <div className="flex items-start gap-2">
                 <Users aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-                <div><dt className="font-semibold">Squadra</dt><dd className="mt-0.5 break-words text-muted-foreground">
-                  {labor.names.length === 0 && squadra.testo}
+                <div><dt className="font-semibold">{t("Squadra")}</dt><dd className="mt-0.5 break-words text-muted-foreground">
+                  {labor.names.length === 0 && t(squadra.testo)}
                   {labor.employees.length > 0 && <span className="block">{labor.employees.join(", ")}</span>}
-                  {labor.internal.length > 0 && <span className="block">Squadre interne · {labor.internal.join(", ")}</span>}
-                  {labor.external.length > 0 && <span className="block">Subappalto · {labor.external.join(", ")}</span>}
+                  {labor.internal.length > 0 && <span className="block">{t("Squadre interne · {nomi}", { nomi: labor.internal.join(", ") })}</span>}
+                  {labor.external.length > 0 && <span className="block">{t("Subappalto · {nomi}", { nomi: labor.external.join(", ") })}</span>}
                 </dd></div>
               </div>
             </dl>
             {passo.destinazione && (
               <Link to={linkPasso} className="flex items-start justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                <span><span className="block font-semibold text-primary">{passo.testo}</span><span className="mt-0.5 block text-muted-foreground">{passo.motivo}</span></span>
+                <span><span className="block font-semibold text-primary">{t(passo.testo)}</span><span className="mt-0.5 block text-muted-foreground">{t(passo.motivo)}</span></span>
                 <ArrowRight aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
               </Link>
             )}
             <Link to={urlCommessa} className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
-              Apri commessa
+              {t("Apri commessa")}
             </Link>
           </div>
         </PopoverContent>

@@ -2,8 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const labels: Record<string, string> = { senza_piano: "Nessun piano rate registrato", rate_incassate: "Tutte le rate registrate risultano incassate", da_incassare: "Rate registrate da incassare", parziale: "Una parte delle rate registrate è stata incassata" };
 export function OrderPaymentStatus({ orderId }: { orderId: string }) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const { canViewOrderPaymentStatus, canViewOrderAmounts, isLoading } = usePermissions();
   const allowed = canViewOrderPaymentStatus && !canViewOrderAmounts && !isLoading;
@@ -17,5 +19,5 @@ export function OrderPaymentStatus({ orderId }: { orderId: string }) {
     },
   });
   if (!allowed) return null;
-  return <section aria-label="Stato incassi senza importi" className="rounded-lg border bg-white p-4"><h3 className="font-medium">Stato degli incassi</h3>{query.isPending ? <p role="status">Verifica in corso…</p> : query.isError ? <p role="alert">Stato non disponibile.</p> : <p>{labels[query.data!.status]}</p>}<p className="mt-1 text-xs text-muted-foreground">Riferito alle rate registrate, senza importi o fatture.</p></section>;
+  return <section aria-label={t("Stato incassi senza importi")} className="rounded-lg border bg-white p-4"><h3 className="font-medium">{t("Stato degli incassi")}</h3>{query.isPending ? <p role="status">{t("Verifica in corso…")}</p> : query.isError ? <p role="alert">{t("Stato non disponibile.")}</p> : <p>{t(labels[query.data!.status])}</p>}<p className="mt-1 text-xs text-muted-foreground">{t("Riferito alle rate registrate, senza importi o fatture.")}</p></section>;
 }

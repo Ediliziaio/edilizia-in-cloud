@@ -24,6 +24,7 @@ import {
   unitaNormalizzata,
   type OpzioneRiga,
 } from "@/lib/orders/rigaAcquisto";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** La sigla si legge nella casella, la spiegazione solo a menu aperto. */
 const voceMenu = (o: OpzioneRiga) => ({
@@ -63,14 +64,15 @@ export function PurchaseOrderItemRow({
   commessaPrincipaleId?: string | null;
   residuiDestinazioni?: ResiduiDestinazioniRiga;
 }) {
+  const tr = useT();
   const [desc, setDesc] = useInputDraft(item.description);
   const [qty, setQty] = useInputDraft(String(item.quantity));
   const [destinazioniAperte, setDestinazioniAperte] = useState(false);
   const destinazioni = item.destinazioni_previste ?? [];
   const riepilogoDestinazioni = destinazioni.map(d =>
-    `${d.nome ?? (d.tipo === "commessa" ? "Commessa" : "Magazzino")} · ${d.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 })}`,
+    `${d.nome ?? (d.tipo === "commessa" ? tr("Commessa") : tr("Magazzino"))} · ${d.quantita.toLocaleString(intlCampo(), { maximumFractionDigits: 3 })}`,
   ).join(" / ");
-  const quantitaLocale = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 3 });
+  const quantitaLocale = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 3 });
   const [um, setUm] = useInputDraft(unitaNormalizzata(item.unit_of_measure) || "pz");
   const [pendingText, setPendingText] = useInputDraft(
     item.price_pending ? "yes" : "no",
@@ -122,7 +124,7 @@ export function PurchaseOrderItemRow({
     const n = attesa ? 0 : Number(price);
     if (!Number.isFinite(n) || n < 0) {
       toast.error(
-        "Il prezzo deve essere positivo o zero, oppure vuoto se da confermare.",
+        tr("Il prezzo deve essere positivo o zero, oppure vuoto se da confermare."),
       );
       rollbackPrezzo();
       return;
@@ -185,9 +187,9 @@ export function PurchaseOrderItemRow({
       toast.error(
         campo === "quantity"
           ? item.quantity_received > 0
-            ? `La quantità non può essere inferiore ai ${item.quantity_received} pezzi già ricevuti.`
-            : "Indica una quantità maggiore di zero."
-          : "Indica una percentuale tra 0 e 100.",
+            ? tr("La quantità non può essere inferiore ai {n} pezzi già ricevuti.", { n: item.quantity_received })
+            : tr("Indica una quantità maggiore di zero.")
+          : tr("Indica una percentuale tra 0 e 100."),
       );
       return;
     }
@@ -203,7 +205,7 @@ export function PurchaseOrderItemRow({
   const totaleMostrato = isEditable ? netto : item.line_total;
   const prezzoInAttesa = isEditable ? pending : !!item.price_pending;
   return (
-    <tr className="border-b align-top" aria-label={`Articolo ${desc}`}>
+    <tr className="border-b align-top" aria-label={tr("Articolo {nome}", { nome: desc })}>
       <td className="min-w-[260px] p-1 pl-2">
         {isEditable && !(item.quantity_received > 0) ? (
           <ArticleCombobox
@@ -211,7 +213,7 @@ export function PurchaseOrderItemRow({
             modalita="acquisto"
             preferredSupplierId={supplierId}
             onValueChange={scegliArticolo}
-            placeholder="Cerca articolo o scrivi una nuova voce…"
+            placeholder={tr("Cerca articolo o scrivi una nuova voce…")}
           />
         ) : (
           <span className="block p-2">{item.description}</span>
@@ -224,20 +226,20 @@ export function PurchaseOrderItemRow({
         )}
         {residuiDestinazioni && <ul className="space-y-0.5 px-2 pb-1 text-xs text-muted-foreground">
           {residuiDestinazioni.destinazioni.map(d => <li key={`${d.tipo}:${d.id}`}>
-            {d.nome ?? (d.tipo === "commessa" ? "Commessa" : "Magazzino")} · {quantitaLocale(d.residua)} da consegnare
-            {d.eccedenza > 0 && ` · ${quantitaLocale(d.eccedenza)} in più`}
+            {d.nome ?? (d.tipo === "commessa" ? tr("Commessa") : tr("Magazzino"))} · {tr("{n} da consegnare", { n: quantitaLocale(d.residua) })}
+            {d.eccedenza > 0 && ` · ${tr("{n} in più", { n: quantitaLocale(d.eccedenza) })}`}
           </li>)}
-          {residuiDestinazioni.non_attribuita > 0 && <li>{quantitaLocale(residuiDestinazioni.non_attribuita)} ricevuti con destinazione da attribuire.</li>}
-          {residuiDestinazioni.fuori_piano > 0 && <li>{quantitaLocale(residuiDestinazioni.fuori_piano)} consegnati fuori piano.</li>}
-          {residuiDestinazioni.da_verificare && residuiDestinazioni.non_attribuita === 0 && <li>Verifica le quantità registrate.</li>}
+          {residuiDestinazioni.non_attribuita > 0 && <li>{tr("{n} ricevuti con destinazione da attribuire.", { n: quantitaLocale(residuiDestinazioni.non_attribuita) })}</li>}
+          {residuiDestinazioni.fuori_piano > 0 && <li>{tr("{n} consegnati fuori piano.", { n: quantitaLocale(residuiDestinazioni.fuori_piano) })}</li>}
+          {residuiDestinazioni.da_verificare && residuiDestinazioni.non_attribuita === 0 && <li>{tr("Verifica le quantità registrate.")}</li>}
         </ul>}
         {destinazioniAperte && (
           <DestinazioniRigaOdaDialog item={item} commessaId={commessaPrincipaleId}
             onSave={onUpdate} onClose={() => setDestinazioniAperte(false)} />
         )}
         {item.ripartito && (
-          <span className="ml-2 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800" title="Prezzo ricavato da un'offerta a corpo, ripartita sui mq delle posizioni">
-            Ripartito
+          <span className="ml-2 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800" title={tr("Prezzo ricavato da un'offerta a corpo, ripartita sui mq delle posizioni")}>
+            {tr("Ripartito")}
           </span>
         )}
         {saving && (
@@ -246,15 +248,15 @@ export function PurchaseOrderItemRow({
             className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-500"
           >
             <Loader2 className="h-3 w-3 animate-spin" />
-            Salvataggio…
+            {tr("Salvataggio…")}
           </span>
         )}
       </td>
       <td className="p-1">
         {isEditable ? (
           <Input
-            aria-label="Quantità"
-            title={destinazioni.length ? "Modifica la quantità dalle destinazioni dell’articolo." : undefined}
+            aria-label={tr("Quantità")}
+            title={destinazioni.length ? tr("Modifica la quantità dalle destinazioni dell’articolo.") : undefined}
             disabled={destinazioni.length > 0}
             type="number"
             min={Math.max(0.001, item.quantity_received || 0)}
@@ -271,7 +273,7 @@ export function PurchaseOrderItemRow({
       <td className="p-1">
         {isEditable ? (
           <OfficeSelect
-            label="Unità di misura"
+            label={tr("Unità di misura")}
             disabled={item.quantity_received > 0}
             value={um}
             onValueChange={(v) => {
@@ -291,10 +293,10 @@ export function PurchaseOrderItemRow({
       {showReceived && (
         <>
         <td className="whitespace-nowrap p-2 text-right tabular-nums">
-          {(item.quantity_received ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 4 })}
+          {(item.quantity_received ?? 0).toLocaleString(intlCampo(), { maximumFractionDigits: 4 })}
         </td>
         <td className="whitespace-nowrap p-2 text-right tabular-nums">
-          {Math.max(0, item.quantity - (item.quantity_received ?? 0)).toLocaleString("it-IT", { maximumFractionDigits: 4 })}
+          {Math.max(0, item.quantity - (item.quantity_received ?? 0)).toLocaleString(intlCampo(), { maximumFractionDigits: 4 })}
         </td>
         </>
       )}
@@ -303,12 +305,12 @@ export function PurchaseOrderItemRow({
         {isEditable ? (
           <div className="min-w-32">
             <Input
-              aria-label="Prezzo di acquisto"
+              aria-label={tr("Prezzo di acquisto")}
               type="number"
               min="0"
               step="0.01"
               value={price}
-              placeholder="Da confermare"
+              placeholder={tr("Da confermare")}
               onChange={(e) => {
                 setPrice(e.target.value);
                 if (e.target.value !== "") setPending(false);
@@ -330,18 +332,18 @@ export function PurchaseOrderItemRow({
                     );
                   }}
                 >
-                  Usa listino: {formatCurrency(prezzoListino)}
-                  {daListino?.scadutoIl ? " (non aggiornato)" : ""}
+                  {tr("Usa listino: {prezzo}", { prezzo: formatCurrency(prezzoListino) })}
+                  {daListino?.scadutoIl ? ` (${tr("non aggiornato")})` : ""}
                 </button>
               )}
             {prezzoListino !== null && daListino?.scadutoIl && (
               <span className="mt-0.5 block text-[11px] text-amber-700">
-                Listino scaduto il {giornoItaliano(daListino.scadutoIl)}: controlla il prezzo col fornitore.
+                {tr("Listino scaduto il {data}: controlla il prezzo col fornitore.", { data: giornoItaliano(daListino.scadutoIl) })}
               </span>
             )}
           </div>
         ) : item.price_pending ? (
-          <span className="text-xs text-amber-700">Da confermare</span>
+          <span className="text-xs text-amber-700">{tr("Da confermare")}</span>
         ) : (
           formatCurrency(item.unit_price)
         )}
@@ -349,7 +351,7 @@ export function PurchaseOrderItemRow({
       <td className="p-1">
         {isEditable ? (
           <Input
-            aria-label="Sconto percentuale"
+            aria-label={tr("Sconto percentuale")}
             type="number"
             min="0"
             max="100"
@@ -369,10 +371,10 @@ export function PurchaseOrderItemRow({
       </td>
       <td className="p-1">
         {inversioneContabile ? (
-          <span className="text-xs text-slate-600">Inv. cont.</span>
+          <span className="text-xs text-slate-600">{tr("Inv. cont.")}</span>
         ) : isEditable ? (
           <OfficeSelect
-            label="IVA percentuale"
+            label={tr("IVA percentuale")}
             value={vat}
             onValueChange={(v) => {
               setVat(v);
@@ -390,7 +392,7 @@ export function PurchaseOrderItemRow({
       </td>
       <td className="whitespace-nowrap p-2 text-right font-medium">
         {prezzoInAttesa ? (
-          <span className="text-xs text-amber-700">Da confermare</span>
+          <span className="text-xs text-amber-700">{tr("Da confermare")}</span>
         ) : totaleMostrato == null || !Number.isFinite(totaleMostrato) ? (
           "—"
         ) : (
@@ -403,15 +405,15 @@ export function PurchaseOrderItemRow({
           <div className="flex items-center justify-end gap-2">
             {!Number(item.quantity_received) && (
               <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0"
-                title="Destinazioni" aria-label={`Destinazioni per ${item.description}`}
+                title={tr("Destinazioni")} aria-label={tr("Destinazioni per {nome}", { nome: item.description })}
                 disabled={saving} onClick={() => setDestinazioniAperte(true)}>
                 <MapPin className="h-4 w-4" />
               </Button>
             )}
-            <label className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] font-normal text-slate-600" title="Prezzo da confermare">
+            <label className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] font-normal text-slate-600" title={tr("Prezzo da confermare")}>
               <input
                 type="checkbox"
-                aria-label="Prezzo da confermare"
+                aria-label={tr("Prezzo da confermare")}
                 checked={pending}
                 disabled={saving}
                 onChange={(e) => {
@@ -424,14 +426,14 @@ export function PurchaseOrderItemRow({
                   );
                 }}
               />
-              Da confermare
+              {tr("Da confermare")}
             </label>
           <Button
-            aria-label={`Rimuovi ${desc}`}
+            aria-label={tr("Rimuovi {nome}", { nome: desc })}
             variant="ghost"
             size="sm"
             disabled={saving || item.quantity_received > 0}
-            title={item.quantity_received > 0 ? "La riga contiene merce già ricevuta" : undefined}
+            title={item.quantity_received > 0 ? tr("La riga contiene merce già ricevuta") : undefined}
             className="h-7 w-7 p-0"
             onClick={onDelete}
           >

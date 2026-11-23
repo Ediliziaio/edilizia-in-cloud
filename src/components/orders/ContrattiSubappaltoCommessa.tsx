@@ -17,6 +17,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { AffidaVociDialog } from "./AffidaVociDialog";
 import { VarianteVociDialog } from "./VarianteVociDialog";
 import type { SALSubappaltatore } from "@/types/subappaltatori";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const LavorazioniAffidateDialog = lazy(() => import("@/components/subappaltatori/LavorazioniAffidateDialog").then((m) => ({ default: m.LavorazioniAffidateDialog })));
 const LavoriMisureSubDialog = lazy(() => import("@/components/subappaltatori/LavoriMisureSubDialog").then((m) => ({ default: m.LavoriMisureSubDialog })));
@@ -34,29 +35,31 @@ interface Props {
   contrattoAperto?: string;
 }
 const dataIt = (data: string) => data.includes("T")
-  ? new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome" }).format(new Date(data))
+  ? new Intl.DateTimeFormat(intlCampo(), { timeZone: "Europe/Rome" }).format(new Date(data))
   : data.slice(0, 10).split("-").reverse().join("/");
 const statoSal = { ricevuto: "Da verificare", verificato: "Approvato", pagato: "Pagato", contestato: "Contestato" };
 
 export function ContrattiSubappaltoCommessa(props: Props) {
+  const t = useT();
   const p = usePermissions();
   if (!p.canViewCosts || !puoConsultareSalSub(p)) return null;
   const attivo = props.dati.contratti.find((c) => c.id === props.contrattoAperto);
   const contratti = attivo ? [attivo, ...props.dati.contratti.filter((c) => c.id !== attivo.id)] : props.dati.contratti;
-  return <section className="space-y-2" aria-label="Contratti e avanzamento del subappalto">
+  return <section className="space-y-2" aria-label={t("Contratti e avanzamento del subappalto")}>
     <div>
-      <h4 className="text-sm font-semibold">Contratti, varianti e SAL</h4>
-      <p className="text-xs text-muted-foreground">Tutti i contratti della commessa. Gli importi riguardano l’intero contratto e sono IVA esclusa.</p>
+      <h4 className="text-sm font-semibold">{t("Contratti, varianti e SAL")}</h4>
+      <p className="text-xs text-muted-foreground">{t("Tutti i contratti della commessa. Gli importi riguardano l’intero contratto e sono IVA esclusa.")}</p>
     </div>
-    {!props.dati.contratti.length && <p className="text-sm text-muted-foreground">Dopo la conferma dei costi trovi qui il computo della ditta, le varianti e i SAL.</p>}
+    {!props.dati.contratti.length && <p className="text-sm text-muted-foreground">{t("Dopo la conferma dei costi trovi qui il computo della ditta, le varianti e i SAL.")}</p>}
     {props.contrattoAperto && !attivo && (props.inRicarica
-      ? <p role="status" className="text-sm text-muted-foreground">Carico il contratto collegato…</p>
-      : <p role="alert" className="text-sm text-muted-foreground">Il contratto collegato non è disponibile tra i contratti della commessa.</p>)}
+      ? <p role="status" className="text-sm text-muted-foreground">{t("Carico il contratto collegato…")}</p>
+      : <p role="alert" className="text-sm text-muted-foreground">{t("Il contratto collegato non è disponibile tra i contratti della commessa.")}</p>)}
     {contratti.map((c) => <Contratto key={c.id} {...props} contratto={c} />)}
   </section>;
 }
 
 function Contratto({ companyId, orderId, dati, voci, affidamenti, inRicarica, contrattoAperto, contratto: c }: Props & { contratto: ContrattoFlusso }) {
+  const t = useT();
   const p = usePermissions();
   const qc = useQueryClient();
   const { effectiveCompany: azienda } = useAuth();
@@ -82,7 +85,7 @@ function Contratto({ companyId, orderId, dati, voci, affidamenti, inRicarica, co
 
   const scarica = useMutation({
     mutationFn: async () => {
-      if (ricarica || dettaglio.isError || !elenco?.coerente || !azienda || azienda.id !== companyId) throw new Error("Rileggi il computo prima di generare il PDF.");
+      if (ricarica || dettaglio.isError || !elenco?.coerente || !azienda || azienda.id !== companyId) throw new Error(t("Rileggi il computo prima di generare il PDF."));
       const [{ generaPdfComputoSubappalto }, { scaricaBlob }] = await Promise.all([
         import("@/lib/subappaltatori/computoPdf"), import("./generali/vendita/scarica"),
       ]);
@@ -92,80 +95,80 @@ function Contratto({ companyId, orderId, dati, voci, affidamenti, inRicarica, co
       });
       scaricaBlob(blob, `Computo subappalto ${nome} ${c.numero_contratto || c.id.slice(0, 8)}.pdf`.replace(/[\\/:*?"<>|]/g, "-"));
     },
-    onError: (e: Error) => toast.error(e.message || "PDF non generato. Riprova."),
+    onError: (e: Error) => toast.error(e.message || t("PDF non generato. Riprova.")),
   });
 
-  return <article className="overflow-hidden rounded-lg border bg-background max-sm:[&_button]:min-h-11" aria-label={`${nome} · ${c.numero_contratto || "Contratto"}`}>
+  return <article className="overflow-hidden rounded-lg border bg-background max-sm:[&_button]:min-h-11" aria-label={`${nome} · ${c.numero_contratto || t("Contratto")}`}>
     <button type="button" className="flex w-full flex-wrap items-center justify-between gap-3 px-3 py-3 text-left hover:bg-muted/30"
       aria-expanded={aperto} aria-controls={`subappalto-${c.id}`} onClick={() => setAperto((v) => !v)}>
-      <span className="min-w-0 flex-1 max-sm:basis-full"><span className="block text-sm font-semibold">{nome} · {c.numero_contratto || "Contratto"}</span>
+      <span className="min-w-0 flex-1 max-sm:basis-full"><span className="block text-sm font-semibold">{nome} · {c.numero_contratto || t("Contratto")}</span>
         <span className="block text-xs text-muted-foreground">{c.descrizione_lavori}</span></span>
-      <Badge variant="outline">{inBozza ? "Bozza · costi da confermare" : c.stato === "risolto" ? "Risolto" : c.stato === "completato" ? "Completato" : c.stato === "sospeso" ? "Sospeso" : c.firmato_il ? "Firmato" : "Da firmare"}</Badge>
+      <Badge variant="outline">{inBozza ? t("Bozza · costi da confermare") : c.stato === "risolto" ? t("Risolto") : c.stato === "completato" ? t("Completato") : c.stato === "sospeso" ? t("Sospeso") : c.firmato_il ? t("Firmato") : t("Da firmare")}</Badge>
       <span className="text-sm font-semibold tabular-nums">{formatCurrency(Number(c.importo_contrattuale) + Number(c.oneri_sicurezza))}</span>
       <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${aperto ? "rotate-180" : ""}`} aria-hidden="true" />
     </button>
     {aperto && <div id={`subappalto-${c.id}`} className="space-y-4 border-t p-3">
       {dettaglio.isError ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
-        Non riesco a leggere computo, varianti e SAL. <Button size="sm" variant="outline" onClick={() => void dettaglio.refetch()}>Riprova</Button>
-      </div> : !dettaglio.data || !costi || !elenco ? <p role="status" className="text-sm text-muted-foreground">Carico computo, varianti e SAL…</p> : <>
+        {t("Non riesco a leggere computo, varianti e SAL.")} <Button size="sm" variant="outline" onClick={() => void dettaglio.refetch()}>{t("Riprova")}</Button>
+      </div> : !dettaglio.data || !costi || !elenco ? <p role="status" className="text-sm text-muted-foreground">{t("Carico computo, varianti e SAL…")}</p> : <>
         <dl className="grid grid-cols-2 gap-2 text-sm lg:grid-cols-4">
-          <Cifra titolo={inBozza ? "Costo proposto iniziale" : "Importo iniziale"} valore={costi.iniziale} />
-          <Cifra titolo="Varianti registrate" valore={costi.variazione} />
-          <Cifra titolo={inBozza ? "Costo proposto attuale" : "Costo attuale"} valore={costi.attuale} />
-          <Cifra titolo="SAL approvati" valore={costi.approvato} />
+          <Cifra titolo={inBozza ? t("Costo proposto iniziale") : t("Importo iniziale")} valore={costi.iniziale} />
+          <Cifra titolo={t("Varianti registrate")} valore={costi.variazione} />
+          <Cifra titolo={inBozza ? t("Costo proposto attuale") : t("Costo attuale")} valore={costi.attuale} />
+          <Cifra titolo={t("SAL approvati")} valore={costi.approvato} />
         </dl>
-        <p className="text-xs text-muted-foreground">Lavori {formatCurrency(Number(c.importo_contrattuale))} + oneri sicurezza {formatCurrency(Number(c.oneri_sicurezza))}. Le varianti sono comprese nel costo attuale.</p>
-        {!elenco.coerente && <p role="alert" className="rounded-md bg-amber-50 p-3 text-sm text-amber-950">Il computo non torna con l’importo attuale. Aggiorna il quadro da «Lavori e quantità» prima di stampare il computo aggiornato.</p>}
+        <p className="text-xs text-muted-foreground">{t("Lavori {lavori} + oneri sicurezza {oneri}. Le varianti sono comprese nel costo attuale.", { lavori: formatCurrency(Number(c.importo_contrattuale)), oneri: formatCurrency(Number(c.oneri_sicurezza)) })}</p>
+        {!elenco.coerente && <p role="alert" className="rounded-md bg-amber-50 p-3 text-sm text-amber-950">{t("Il computo non torna con l’importo attuale. Aggiorna il quadro da «Lavori e quantità» prima di stampare il computo aggiornato.")}</p>}
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" disabled={!elenco.coerente || ricarica} onClick={() => setComputo("corrente")}><FileText className="mr-1 h-3.5 w-3.5" />Computo aggiornato{elenco.revisione != null ? ` · rev. ${elenco.revisione}` : ""}</Button>
-          <Button size="sm" variant="outline" disabled={!elenco.coerente || ricarica || scarica.isPending} onClick={() => scarica.mutate()}>{scarica.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}PDF computo</Button>
-          {c.firmato_il && elenco.originali.length > 0 && <Button size="sm" variant="ghost" onClick={() => setComputo("originale")}>Elenco originale firmato</Button>}
-          <Button size="sm" variant="outline" onClick={() => apriScheda("contratto")}>{inBozza ? "Conferma costi e condizioni" : "Condizioni e firma"}</Button>
-          {ditta?.campo_subappaltatore_id && <Button size="sm" variant="ghost" onClick={() => apriScheda("listino")}>Listino della ditta</Button>}
+          <Button size="sm" variant="outline" disabled={!elenco.coerente || ricarica} onClick={() => setComputo("corrente")}><FileText className="mr-1 h-3.5 w-3.5" />{t("Computo aggiornato")}{elenco.revisione != null ? ` · ${t("rev. {n}", { n: elenco.revisione })}` : ""}</Button>
+          <Button size="sm" variant="outline" disabled={!elenco.coerente || ricarica || scarica.isPending} onClick={() => scarica.mutate()}>{scarica.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{t("PDF computo")}</Button>
+          {c.firmato_il && elenco.originali.length > 0 && <Button size="sm" variant="ghost" onClick={() => setComputo("originale")}>{t("Elenco originale firmato")}</Button>}
+          <Button size="sm" variant="outline" onClick={() => apriScheda("contratto")}>{inBozza ? t("Conferma costi e condizioni") : t("Condizioni e firma")}</Button>
+          {ditta?.campo_subappaltatore_id && <Button size="sm" variant="ghost" onClick={() => apriScheda("listino")}>{t("Listino della ditta")}</Button>}
         </div>
         {c.firmato_il && <div className="space-y-2 rounded-md border p-3">
-          <h5 className="text-sm font-semibold">Nuovi lavori e varianti</h5>
-          <p className="text-xs text-muted-foreground">Per nuovi lavori, aggiungi le voci nelle lavorazioni della commessa e assegnale a questa ditta. Poi registra la variante e controlla il nuovo totale.</p>
+          <h5 className="text-sm font-semibold">{t("Nuovi lavori e varianti")}</h5>
+          <p className="text-xs text-muted-foreground">{t("Per nuovi lavori, aggiungi le voci nelle lavorazioni della commessa e assegnale a questa ditta. Poi registra la variante e controlla il nuovo totale.")}</p>
           {scrittura && <div className="flex flex-wrap gap-2">
-            {ditta?.campo_subappaltatore_id && <Button size="sm" variant="outline" disabled={ricarica} onClick={() => setAssegna(true)}>Assegna nuove voci alla ditta</Button>}
-            <Button size="sm" variant="outline" disabled={!conVociCollegate || ricarica} onClick={() => setVariante(true)}>Registra variante sulle voci</Button>
+            {ditta?.campo_subappaltatore_id && <Button size="sm" variant="outline" disabled={ricarica} onClick={() => setAssegna(true)}>{t("Assegna nuove voci alla ditta")}</Button>}
+            <Button size="sm" variant="outline" disabled={!conVociCollegate || ricarica} onClick={() => setVariante(true)}>{t("Registra variante sulle voci")}</Button>
           </div>}
-          {!conVociCollegate && <p className="text-xs text-muted-foreground">Questo contratto non ha affidamenti collegati alle voci. Gestisci le varianti d’importo da «Condizioni e firma» e aggiorna il quadro lavori.</p>}
-          {dettaglio.data.varianti.length > 0 && <ul className="divide-y text-sm" aria-label="Storico varianti">{dettaglio.data.varianti.map((v) => <li key={v.id} className="flex flex-wrap justify-between gap-2 py-2">
+          {!conVociCollegate && <p className="text-xs text-muted-foreground">{t("Questo contratto non ha affidamenti collegati alle voci. Gestisci le varianti d’importo da «Condizioni e firma» e aggiorna il quadro lavori.")}</p>}
+          {dettaglio.data.varianti.length > 0 && <ul className="divide-y text-sm" aria-label={t("Storico varianti")}>{dettaglio.data.varianti.map((v) => <li key={v.id} className="flex flex-wrap justify-between gap-2 py-2">
             <span>{dataIt(v.created_at)} · {v.motivo}</span><strong className="tabular-nums">{variazioneSubappalto(v) > 0 ? "+" : ""}{formatCurrency(variazioneSubappalto(v))}</strong>
           </li>)}</ul>}
         </div>}
-        <section className="space-y-2" aria-label="Avanzamento e verbali SAL">
+        <section className="space-y-2" aria-label={t("Avanzamento e verbali SAL")}>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h5 className="text-sm font-semibold">Misure, SAL e verbali</h5>
+            <h5 className="text-sm font-semibold">{t("Misure, SAL e verbali")}</h5>
             {c.firmato_il && <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => setMisure("lavori")}>Lavori e quantità</Button>
-              <Button size="sm" variant="outline" onClick={() => setMisure("misure")}>Misure</Button>
-              <Button size="sm" onClick={() => setMisure("sal")}>{scrittura ? "Prepara SAL e verbale" : "Consulta SAL"}</Button>
+              <Button size="sm" variant="outline" onClick={() => setMisure("lavori")}>{t("Lavori e quantità")}</Button>
+              <Button size="sm" variant="outline" onClick={() => setMisure("misure")}>{t("Misure")}</Button>
+              <Button size="sm" onClick={() => setMisure("sal")}>{scrittura ? t("Prepara SAL e verbale") : t("Consulta SAL")}</Button>
             </div>}
           </div>
-          {!c.firmato_il && <p className="text-sm text-muted-foreground">Completa condizioni e firma del contratto per gestire misure e SAL.</p>}
-          <p className="text-xs text-muted-foreground">Da verificare {formatCurrency(costi.daVerificare)} · Pagato {formatCurrency(costi.pagato)} · Netto approvato da pagare {formatCurrency(costi.daPagareApprovato)}</p>
-          {dettaglio.data.sal.length === 0 ? <p className="text-sm text-muted-foreground">Nessun SAL registrato.</p> : <ul className="divide-y rounded-md border" aria-label="SAL del contratto">{dettaglio.data.sal.map((s) => <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
-            <div><p className="font-medium">SAL {s.numero_sal} · {dataIt(s.data_emissione)} · {statoSal[s.stato] || s.stato}</p>
-              <p className="text-xs text-muted-foreground">Lordo {formatCurrency(Number(s.importo_lordo))} · Ritenuta {formatCurrency(Number(s.ritenuta_importo))} · Netto {formatCurrency(Number(s.importo_netto))}</p></div>
-            <Button size="sm" variant="outline" onClick={() => setVerbale(s)}>Apri verbale SAL {s.numero_sal}</Button>
+          {!c.firmato_il && <p className="text-sm text-muted-foreground">{t("Completa condizioni e firma del contratto per gestire misure e SAL.")}</p>}
+          <p className="text-xs text-muted-foreground">{t("Da verificare {verificare} · Pagato {pagato} · Netto approvato da pagare {netto}", { verificare: formatCurrency(costi.daVerificare), pagato: formatCurrency(costi.pagato), netto: formatCurrency(costi.daPagareApprovato) })}</p>
+          {dettaglio.data.sal.length === 0 ? <p className="text-sm text-muted-foreground">{t("Nessun SAL registrato.")}</p> : <ul className="divide-y rounded-md border" aria-label={t("SAL del contratto")}>{dettaglio.data.sal.map((s) => <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+            <div><p className="font-medium">SAL {s.numero_sal} · {dataIt(s.data_emissione)} · {statoSal[s.stato] ? t(statoSal[s.stato]) : s.stato}</p>
+              <p className="text-xs text-muted-foreground">{t("Lordo {lordo} · Ritenuta {ritenuta} · Netto {netto}", { lordo: formatCurrency(Number(s.importo_lordo)), ritenuta: formatCurrency(Number(s.ritenuta_importo)), netto: formatCurrency(Number(s.importo_netto)) })}</p></div>
+            <Button size="sm" variant="outline" onClick={() => setVerbale(s)}>{t("Apri verbale SAL {n}", { n: s.numero_sal })}</Button>
           </li>)}</ul>}
-          <Button size="sm" variant="ghost" onClick={() => apriScheda("contabilita")}>Contabilità, fatture e pagamenti della ditta</Button>
+          <Button size="sm" variant="ghost" onClick={() => apriScheda("contabilita")}>{t("Contabilità, fatture e pagamenti della ditta")}</Button>
         </section>
       </>}
     </div>}
-    <Suspense fallback={<p role="status" className="p-3 text-sm">Apro il dettaglio del subappalto…</p>}>
-      {computo && elenco && <LavorazioniAffidateDialog titolo={`${nome} · ${c.numero_contratto || "Contratto"} · ${computo === "originale" ? "Elenco originale firmato" : `Computo corrente${elenco.revisione != null ? ` · revisione ${elenco.revisione}` : ""}`}`}
+    <Suspense fallback={<p role="status" className="p-3 text-sm">{t("Apro il dettaglio del subappalto…")}</p>}>
+      {computo && elenco && <LavorazioniAffidateDialog titolo={`${nome} · ${c.numero_contratto || t("Contratto")} · ${computo === "originale" ? t("Elenco originale firmato") : `${t("Computo corrente")}${elenco.revisione != null ? ` · ${t("revisione {n}", { n: elenco.revisione })}` : ""}`}`}
         righe={computo === "originale" ? elenco.originali : elenco.righe}
         oneri={computo === "originale" ? undefined : Number(c.oneri_sicurezza)} importoPattuito={computo === "originale" ? undefined : Number(c.importo_contrattuale)}
-        onPdf={computo === "corrente" ? () => scarica.mutate() : undefined} etichettaPdf="PDF computo" pdfInCorso={scarica.isPending} onClose={() => setComputo(undefined)} />}
+        onPdf={computo === "corrente" ? () => scarica.mutate() : undefined} etichettaPdf={t("PDF computo")} pdfInCorso={scarica.isPending} onClose={() => setComputo(undefined)} />}
       {scheda && <SchedaCommessaDialog destinazione={{ to: scheda }} companyId={companyId} orderId={orderId} onClose={() => { setScheda(undefined); refresh(); }} />}
       {misure && <LavoriMisureSubDialog companyId={companyId} contratto={{ ...c, order_id: orderId }} sezioneIniziale={misure}
         onClose={() => { setMisure(undefined); refresh(); }} onApriVerbale={async (id) => {
           const aggiornato = await dettaglio.refetch();
           const s = aggiornato.data?.sal.find((r) => r.id === id);
-          if (aggiornato.isError || !s) throw new Error("SAL salvato, ma il verbale non è ancora leggibile: riprova la lettura.");
+          if (aggiornato.isError || !s) throw new Error(t("SAL salvato, ma il verbale non è ancora leggibile: riprova la lettura."));
           setMisure(undefined); setVerbale(s); refresh();
         }} />}
       {verbale && <VerbaleSalSubDialog companyId={companyId} sal={verbale} onClose={() => { setVerbale(undefined); refresh(); }} />}

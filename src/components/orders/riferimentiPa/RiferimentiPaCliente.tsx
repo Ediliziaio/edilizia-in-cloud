@@ -15,6 +15,7 @@ import {
   type CommessaDelCliente, type RiferimentoPa,
 } from "@/lib/orders/riferimentiPa";
 import { RigaRiferimentoPa } from "./RiquadroRiferimentiPa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export const chiaveRiferimentiPaCliente = (orderIds: string[]) => ["order-riferimenti-pa", "cliente", ...orderIds] as const;
 
@@ -43,6 +44,7 @@ export interface RiferimentiPaClienteProps {
 }
 
 export function RiferimentiPaCliente({ commesse, clientePa, nomiUffici = {}, apertoAllInizio = true }: RiferimentiPaClienteProps) {
+  const t = useT();
   const ids = commesse.map((c) => c.id);
   const { data: righe = [], isLoading, isError } = useRiferimentiPaCliente(ids);
   const gruppi = raggruppaRiferimentiPerCommessa(righe, commesse);
@@ -54,29 +56,29 @@ export function RiferimentiPaCliente({ commesse, clientePa, nomiUffici = {}, ape
       <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
         <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
         <Landmark className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
-        Riferimenti appalto
+        {t("Riferimenti appalto")}
         {conteggio > 0 && <span className="font-normal text-muted-foreground">({conteggio})</span>}
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-3 px-1 pt-1">
         {isLoading && ids.length > 0 ? (
-          <p className="text-[11px] text-muted-foreground">Carico i riferimenti…</p>
+          <p className="text-[11px] text-muted-foreground">{t("Carico i riferimenti…")}</p>
         ) : isError ? (
-          <p className="text-[11px] text-red-700">Non riesco a leggere i riferimenti delle commesse.</p>
+          <p className="text-[11px] text-red-700">{t("Non riesco a leggere i riferimenti delle commesse.")}</p>
         ) : gruppi.length === 0 ? (
           <p className="text-[11px] text-amber-800">
             {commesse.length === 0
-              ? "Nessuna commessa: contratto, CIG e CUP si scrivono sulla commessa."
-              : "Nessuna commessa ha ancora contratto, CIG o CUP: si scrivono nella Panoramica della commessa."}
+              ? t("Nessuna commessa: contratto, CIG e CUP si scrivono sulla commessa.")
+              : t("Nessuna commessa ha ancora contratto, CIG o CUP: si scrivono nella Panoramica della commessa.")}
           </p>
         ) : (
           gruppi.map(({ commessa, righe: r }) => (
-            <section key={commessa.id} className="rounded-lg border bg-muted/20 p-2" aria-label={`Riferimenti della commessa ${commessa.order_code ?? ""}`.trim()}>
+            <section key={commessa.id} className="rounded-lg border bg-muted/20 p-2" aria-label={t("Riferimenti della commessa {codice}", { codice: commessa.order_code ?? "" }).trim()}>
               <Link
                 to={`/azienda/ordini/${commessa.id}`}
                 className="mb-2 flex min-w-0 items-center gap-1 text-xs font-semibold text-primary hover:underline"
               >
-                <span className="shrink-0">{commessa.order_code || "Commessa"}</span>
-                {commessa.description && <span className="truncate font-normal text-muted-foreground">· {commessa.description}</span>}
+                <span className="shrink-0">{commessa.order_code || t("Commessa")}</span>
+                {commessa.description && <span className="truncate font-normal text-muted-foreground" dir="auto">· {commessa.description}</span>}
                 <ExternalLink className="ml-auto h-3 w-3 shrink-0" aria-hidden="true" />
               </Link>
               <ol className="divide-y">

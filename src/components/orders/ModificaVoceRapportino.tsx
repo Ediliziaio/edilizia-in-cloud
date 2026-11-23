@@ -12,11 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CampiViaggioRapportino } from "./CampiViaggioRapportino";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ModificaVoceRapportino({ id, rapportinoId, nome }: { id: string; rapportinoId: string; nome: string }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   return <>
-    <button type="button" aria-label={`Modifica ${nome}`} className="tap-compact rounded p-1 text-blue-700" onClick={() => setAperto(true)}><PenLine className="h-3.5 w-3.5" /></button>
+    <button type="button" aria-label={t("Modifica {nome}", { nome })} className="tap-compact rounded p-1 text-blue-700" onClick={() => setAperto(true)}><PenLine className="h-3.5 w-3.5" /></button>
     {aperto && <Editor id={id} rapportinoId={rapportinoId} onClose={() => setAperto(false)} />}
   </>;
 }
@@ -24,6 +26,7 @@ export function ModificaVoceRapportino({ id, rapportinoId, nome }: { id: string;
 type VoceLetta = { descrizione: string; quantita: number; unita: string; costo_unitario: number | null; vendita_unitaria?: number | null; viaggio: unknown; updated_at: string; order_id: string };
 type Bozza = { descrizione: string; quantita: string; unita: string; costo: string; vendita: string; motivo: string; viaggio?: BozzaViaggio; updatedAt: string; orderId: string };
 function Editor({ id, rapportinoId, onClose }: { id: string; rapportinoId: string; onClose: () => void }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { canViewOrderAmounts } = usePermissions();
   const q = useQuery({
@@ -37,11 +40,12 @@ function Editor({ id, rapportinoId, onClose }: { id: string; rapportinoId: strin
       return data as unknown as VoceLetta;
     },
   });
-  if (!q.data || q.isError) return <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}><DialogContent><DialogHeader><DialogTitle>Modifica voce del rapportino</DialogTitle></DialogHeader>
-    {q.isError ? <p role="alert">Voce non disponibile. <Button variant="outline" onClick={() => void q.refetch()}>Riprova</Button></p> : <p role="status">Carico…</p>}<Button variant="outline" onClick={onClose}>Annulla</Button></DialogContent></Dialog>;
+  if (!q.data || q.isError) return <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}><DialogContent><DialogHeader><DialogTitle>{t("Modifica voce del rapportino")}</DialogTitle></DialogHeader>
+    {q.isError ? <p role="alert">{t("Voce non disponibile.")} <Button variant="outline" onClick={() => void q.refetch()}>{t("Riprova")}</Button></p> : <p role="status">{t("Carico…")}</p>}<Button variant="outline" onClick={onClose}>{t("Annulla")}</Button></DialogContent></Dialog>;
   return <FormVoce id={id} onClose={onClose} v={q.data} fetching={q.isFetching} />;
 }
 function FormVoce({ id, onClose, v, fetching }: { id: string; onClose: () => void; v: VoceLetta; fetching: boolean }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { canViewOrderAmounts } = usePermissions();
   const qc = useQueryClient();
@@ -50,10 +54,10 @@ function FormVoce({ id, onClose, v, fetching }: { id: string; onClose: () => voi
       viaggio: v.viaggio ? Object.fromEntries(Object.entries(leggiDettagliViaggio(v.viaggio)).map(([k, valore]) => [k, String(valore)])) : undefined }));
   const salva = useMutation({
     mutationFn: async () => {
-      if (!b || !b.descrizione.trim() || !b.unita.trim()) throw new Error("Scrivi descrizione e unità.");
+      if (!b || !b.descrizione.trim() || !b.unita.trim()) throw new Error(t("Scrivi descrizione e unità."));
       const quantita = misuraRapportino(b.quantita, "Quantità");
-      if (!quantita) throw new Error("La quantità deve essere maggiore di zero.");
-      if (b.viaggio && !misureViaggioValide(b.viaggio)) throw new Error("Controlla chilometri e ore del viaggio.");
+      if (!quantita) throw new Error(t("La quantità deve essere maggiore di zero."));
+      if (b.viaggio && !misureViaggioValide(b.viaggio)) throw new Error(t("Controlla chilometri e ore del viaggio."));
       const campi = { descrizione: b.descrizione.trim(), quantita, unita: b.unita.trim(),
         costo_unitario: b.costo.trim() ? misuraRapportino(b.costo, "Costo unitario") : null,
         ...(canViewOrderAmounts ? { vendita_unitaria: b.vendita.trim() ? misuraRapportino(b.vendita, "Vendita unitaria") : null } : {}),
@@ -65,26 +69,26 @@ function FormVoce({ id, onClose, v, fetching }: { id: string; onClose: () => voi
     onSuccess: () => {
       refreshWorkQueries(qc, b!.orderId, effectiveCompany?.id);
       void qc.invalidateQueries({ predicate: ({ queryKey }) => typeof queryKey[0] === "string" && /rapport|appalto-rendiconto/.test(queryKey[0]) });
-      toast.success("Voce corretta. Se il rapportino è tornato in attesa, serve una nuova approvazione."); onClose();
+      toast.success(t("Voce corretta. Se il rapportino è tornato in attesa, serve una nuova approvazione.")); onClose();
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Correzione non salvata"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("Correzione non salvata")),
   });
   return <Dialog open onOpenChange={(o) => { if (!o && !salva.isPending) onClose(); }}>
     <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
-      <DialogHeader><DialogTitle>Modifica voce del rapportino</DialogTitle></DialogHeader>
+      <DialogHeader><DialogTitle>{t("Modifica voce del rapportino")}</DialogTitle></DialogHeader>
       {<fieldset disabled={salva.isPending} className="grid gap-3">
-        <label className="text-sm">Descrizione<Input value={b.descrizione} onChange={(e) => setB({ ...b, descrizione: e.target.value })} /></label>
+        <label className="text-sm">{t("Descrizione")}<Input value={b.descrizione} onChange={(e) => setB({ ...b, descrizione: e.target.value })} /></label>
         <div className="grid grid-cols-2 gap-2">
-          <label className="text-sm">Quantità<Input inputMode="decimal" value={b.quantita} onChange={(e) => setB({ ...b, quantita: e.target.value })} /></label>
-          <label className="text-sm">Unità<Input value={b.unita} onChange={(e) => setB({ ...b, unita: e.target.value })} /></label>
-          <label className="text-sm">Costo unitario<Input inputMode="decimal" value={b.costo} onChange={(e) => setB({ ...b, costo: e.target.value })} /></label>
-          {canViewOrderAmounts && <label className="text-sm">Vendita unitaria<Input inputMode="decimal" value={b.vendita} onChange={(e) => setB({ ...b, vendita: e.target.value })} /></label>}
+          <label className="text-sm">{t("Quantità")}<Input inputMode="decimal" value={b.quantita} onChange={(e) => setB({ ...b, quantita: e.target.value })} /></label>
+          <label className="text-sm">{t("Unità")}<Input value={b.unita} onChange={(e) => setB({ ...b, unita: e.target.value })} /></label>
+          <label className="text-sm">{t("Costo unitario")}<Input inputMode="decimal" value={b.costo} onChange={(e) => setB({ ...b, costo: e.target.value })} /></label>
+          {canViewOrderAmounts && <label className="text-sm">{t("Vendita unitaria")}<Input inputMode="decimal" value={b.vendita} onChange={(e) => setB({ ...b, vendita: e.target.value })} /></label>}
         </div>
         {(b.viaggio || voceTrasporto(b.descrizione, b.unita)) && <CampiViaggioRapportino valore={b.viaggio ?? {}} quantitaInKm={unitaChilometro(b.unita)} onChange={(viaggio) => setB({ ...b, viaggio })} />}
-        <label className="text-sm">Motivo della correzione<Input placeholder="Obbligatorio sui rapportini approvati" value={b.motivo} onChange={(e) => setB({ ...b, motivo: e.target.value })} /></label>
-        <p className="text-xs text-muted-foreground">La voce mantiene il collegamento al listino. Costi e rendiconto in bozza si aggiornano insieme; i documenti confermati o firmati impediscono la modifica.</p>
+        <label className="text-sm">{t("Motivo della correzione")}<Input placeholder={t("Obbligatorio sui rapportini approvati")} value={b.motivo} onChange={(e) => setB({ ...b, motivo: e.target.value })} /></label>
+        <p className="text-xs text-muted-foreground">{t("La voce mantiene il collegamento al listino. Costi e rendiconto in bozza si aggiornano insieme; i documenti confermati o firmati impediscono la modifica.")}</p>
       </fieldset>}
-      <DialogFooter><Button variant="outline" disabled={salva.isPending} onClick={onClose}>Annulla</Button><Button disabled={!b || fetching || salva.isPending} onClick={() => salva.mutate()}>Salva modifiche</Button></DialogFooter>
+      <DialogFooter><Button variant="outline" disabled={salva.isPending} onClick={onClose}>{t("Annulla")}</Button><Button disabled={!b || fetching || salva.isPending} onClick={() => salva.mutate()}>{t("Salva modifiche")}</Button></DialogFooter>
     </DialogContent>
   </Dialog>;
 }

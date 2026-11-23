@@ -17,6 +17,7 @@ import {
 import "./commessa-generale.css";
 import "./operativo.css";
 import "./dialog-generale.css";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface AspettoOperativo {
   generaleId: string;
@@ -123,6 +124,7 @@ export function percorsoDocumentoGenerale(
 
 /** Una scheda aperta separatamente mantiene il contesto visivo e il ritorno al cantiere. */
 export function PaginaDocumentoGenerale({ children }: { children: ReactNode }) {
+  const t = useT();
   const esistente = useAspettoOperativo();
   const [parametri] = useSearchParams();
   const id = parametri.get("commessa-generale");
@@ -140,10 +142,10 @@ export function PaginaDocumentoGenerale({ children }: { children: ReactNode }) {
             <Link
               to={`/azienda/ordini/${aspetto.generaleId}?scheda=cantiere&vista-cantiere=forniture`}
             >
-              <ArrowLeft aria-hidden="true" /> Torna alla commessa generale
+              <ArrowLeft aria-hidden="true" /> {t("Torna alla commessa generale")}
             </Link>
             <span>
-              <Layers3 aria-hidden="true" /> Documenti del cantiere
+              <Layers3 aria-hidden="true" /> {t("Documenti del cantiere")}
             </span>
           </div>
         )}

@@ -15,6 +15,9 @@ import type { FatturaCommessa } from "@/lib/orders/fattureCommessa";
 import type { OrderDetailSection } from "@/lib/orders/detailNavigation";
 import type { Installment } from "@/lib/orderUtils";
 import { useIvaCommessa } from "./IvaCommessa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
+
+type Traduci = ReturnType<typeof useT>;
 
 interface Props {
   orderId: string;
@@ -36,15 +39,18 @@ function Importo({ voce, children }: { voce: string; children: ReactNode }) {
   </div>;
 }
 
-function testoSaldo(saldo: ReturnType<typeof saldoIva>) {
-  if (saldo.verso === "pari") return "In pari";
-  return `${formatCurrency(saldo.importo)} ${saldo.verso === "credito" ? "a credito" : "da versare"}`;
+function testoSaldo(saldo: ReturnType<typeof saldoIva>, t: Traduci) {
+  if (saldo.verso === "pari") return t("In pari");
+  return saldo.verso === "credito"
+    ? t("{importo} a credito", { importo: formatCurrency(saldo.importo) })
+    : t("{importo} da versare", { importo: formatCurrency(saldo.importo) });
 }
 
 export function IncassiMarginiCommessa({
   orderId, rate, documenti, statoIncassi, residuoContratto, incassato, conCommerciali, conRitenuteBancarie,
   apriRegistroBancario, vaiA,
 }: Props) {
+  const t = useT();
   const iva = useIvaCommessa(orderId);
   const garanzia = useRitenuteClienteCommessa(orderId);
   const subappalti = useRitenuteGaranzia(orderId);
@@ -63,9 +69,9 @@ export function IncassiMarginiCommessa({
     aliquota={ivaCommessa?.aliquota ?? null} ivaInCaricamento={iva.isPending}
     trattenuteSal={importiGaranzia ? garanzia.trattenuteSal : 0}
     trattenuteCliente={importiGaranzia ? formatCurrency(garanzia.trattenute)
-      : !garanzia.permissions.isAdmin ? "Riservate all’amministrazione" : garanzia.q.isError ? "Dati non disponibili" : "Caricamento…"}
-    trattenuteSubappalti={subappalti.isError ? "Dati non disponibili"
-      : subappalti.isLoading ? "Caricamento…" : formatCurrency(subappalti.totaleRitenuto)}
+      : !garanzia.permissions.isAdmin ? t("Riservate all’amministrazione") : garanzia.q.isError ? t("Dati non disponibili") : t("Caricamento…")}
+    trattenuteSubappalti={subappalti.isError ? t("Dati non disponibili")
+      : subappalti.isLoading ? t("Caricamento…") : formatCurrency(subappalti.totaleRitenuto)}
     bonifici={riepilogoBonificiCommessa(fattureNative, bancarie.data ?? [])} statoBonifici={statoBonifici}
     commerciali={commerciali} apriRegistroBancario={apriRegistroBancario && conRitenuteBancarie}
     rate={rate} documenti={documenti} statoIncassi={statoIncassi}
@@ -90,6 +96,7 @@ export function QuadroIncassiMargini({
   bonifici, statoBonifici, commerciali, apriRegistroBancario, rate, documenti, statoIncassi,
   residuoContratto, incassato, vaiA,
 }: DatiQuadro) {
+  const t = useT();
   const quadratura = quadraturaCassaCommessa(residuoContratto, rate, documenti, trattenuteSal, aliquota);
   const nomi = commerciali.map(({ salesperson }) => `${salesperson.first_name} ${salesperson.last_name}`.trim()).filter(Boolean);
   const provvigioni = commerciali.reduce((totale, riga) =>
@@ -100,63 +107,65 @@ export function QuadroIncassiMargini({
     <section aria-labelledby="titolo-iva-trattenute-cassa" className="rounded-xl border bg-background">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
         <h3 id="titolo-iva-trattenute-cassa" className="flex items-center gap-2 text-base font-semibold">
-          <WalletCards className="h-4 w-4 text-primary" aria-hidden /> IVA, trattenute e cassa
+          <WalletCards className="h-4 w-4 text-primary" aria-hidden /> {t("IVA, trattenute e cassa")}
         </h3>
         {nomi.length > 0 && <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><button type="button" className="text-left text-sm text-muted-foreground hover:text-primary"
           onClick={() => vaiA("section-provvigioni")}>
-          {nomi.length === 1 ? "Commerciale" : "Commerciali"} <strong className="text-foreground">{nomi.join(", ")}</strong>
+          {nomi.length === 1 ? t("Commerciale") : t("Commerciali")} <strong className="text-foreground">{nomi.join(", ")}</strong>
         </button>
-          <span className="text-sm text-muted-foreground">{nomi.length === 1 ? "Provvigione" : "Provvigioni"} <strong className="text-foreground tabular-nums">{formatCurrency(provvigioni)}</strong></span>
+          <span className="text-sm text-muted-foreground">{nomi.length === 1 ? t("Provvigione") : t("Provvigioni")} <strong className="text-foreground tabular-nums">{formatCurrency(provvigioni)}</strong></span>
         </div>}
       </header>
       <div className="grid grid-cols-1 gap-px bg-border lg:grid-cols-3">
         <div className="space-y-2 bg-background px-4 py-3">
-          <h4 className="text-sm font-semibold">IVA della commessa</h4>
+          <h4 className="text-sm font-semibold">{t("IVA della commessa")}</h4>
           {saldi ? <dl className="space-y-1.5">
-            <Importo voce="Ad oggi">{saldi.senzaFatture ? "Nessuna fattura rilevata" : testoSaldo(saldi.oggi)}</Importo>
-            <Importo voce="Stima finale">{testoSaldo(saldi.fine)}</Importo>
-          </dl> : <p className="text-sm text-muted-foreground">{ivaInCaricamento ? "Caricamento…" : "Dati IVA non disponibili"}</p>}
-          <button type="button" className={collegamento} onClick={() => vaiA("section-iva-commessa")}>Dettaglio IVA</button>
+            <Importo voce={t("Ad oggi")}>{saldi.senzaFatture ? t("Nessuna fattura rilevata") : testoSaldo(saldi.oggi, t)}</Importo>
+            <Importo voce={t("Stima finale")}>{testoSaldo(saldi.fine, t)}</Importo>
+          </dl> : <p className="text-sm text-muted-foreground">{ivaInCaricamento ? t("Caricamento…") : t("Dati IVA non disponibili")}</p>}
+          <button type="button" className={collegamento} onClick={() => vaiA("section-iva-commessa")}>{t("Dettaglio IVA")}</button>
         </div>
         <div className="space-y-2 bg-background px-4 py-3">
-          <h4 className="text-sm font-semibold">Ritenute di garanzia</h4>
+          <h4 className="text-sm font-semibold">{t("Ritenute di garanzia")}</h4>
           <dl className="space-y-1.5">
-            <Importo voce="Trattenute dal cliente">{trattenuteCliente}</Importo>
-            <Importo voce="Da svincolare ai subappaltatori">{trattenuteSubappalti}</Importo>
+            <Importo voce={t("Trattenute dal cliente")}>{trattenuteCliente}</Importo>
+            <Importo voce={t("Da svincolare ai subappaltatori")}>{trattenuteSubappalti}</Importo>
           </dl>
-          <button type="button" className={collegamento} onClick={() => vaiA("section-ritenute")}>Dettaglio garanzie e svincoli</button>
+          <button type="button" className={collegamento} onClick={() => vaiA("section-ritenute")}>{t("Dettaglio garanzie e svincoli")}</button>
         </div>
         <div className="space-y-2 bg-background px-4 py-3">
-          <h4 className="text-sm font-semibold">Ritenuta d’acconto bancaria</h4>
-          {statoBonifici === "riservato" ? <p className="text-sm text-muted-foreground">Registro riservato all’amministrazione.</p>
-            : statoBonifici === "errore" ? <p className="text-sm text-muted-foreground">Dati dei bonifici non disponibili.</p>
-              : statoBonifici === "in_caricamento" ? <p className="text-sm text-muted-foreground">Caricamento…</p>
-                : bonifici.lordo === 0 ? <p className="text-sm text-muted-foreground">Nessun bonifico parlante registrato.</p>
+          <h4 className="text-sm font-semibold">{t("Ritenuta d’acconto bancaria")}</h4>
+          {statoBonifici === "riservato" ? <p className="text-sm text-muted-foreground">{t("Registro riservato all’amministrazione.")}</p>
+            : statoBonifici === "errore" ? <p className="text-sm text-muted-foreground">{t("Dati dei bonifici non disponibili.")}</p>
+              : statoBonifici === "in_caricamento" ? <p className="text-sm text-muted-foreground">{t("Caricamento…")}</p>
+                : bonifici.lordo === 0 ? <p className="text-sm text-muted-foreground">{t("Nessun bonifico parlante registrato.")}</p>
                   : <dl className="space-y-1.5">
-                    <Importo voce="Bonifici lordi">{formatCurrency(bonifici.lordo)}</Importo>
-                    <Importo voce="Trattenuta dalla banca">{formatCurrency(bonifici.ritenuta)}</Importo>
-                    {bonifici.commissioni > 0 && <Importo voce="Commissioni bancarie">{formatCurrency(bonifici.commissioni)}</Importo>}
-                    <Importo voce="Netto accreditato">{formatCurrency(bonifici.netto)}</Importo>
+                    <Importo voce={t("Bonifici lordi")}>{formatCurrency(bonifici.lordo)}</Importo>
+                    <Importo voce={t("Trattenuta dalla banca")}>{formatCurrency(bonifici.ritenuta)}</Importo>
+                    {bonifici.commissioni > 0 && <Importo voce={t("Commissioni bancarie")}>{formatCurrency(bonifici.commissioni)}</Importo>}
+                    <Importo voce={t("Netto accreditato")}>{formatCurrency(bonifici.netto)}</Importo>
                   </dl>}
-          {apriRegistroBancario && <Link className={collegamento} to="/azienda/contabilita-fiscale?vista=ritenute_bancarie">Registro ritenute bancarie</Link>}
+          {apriRegistroBancario && <Link className={collegamento} to="/azienda/contabilita-fiscale?vista=ritenute_bancarie">{t("Registro ritenute bancarie")}</Link>}
         </div>
       </div>
       <div className="space-y-2 border-t px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-sm font-semibold">Quadratura del residuo <span className="font-normal text-muted-foreground">· IVA inclusa</span></h4>
-          <Button variant="outline" size="sm" onClick={() => vaiA("section-pagamenti")}>Apri Fatture e Incassi</Button>
+          <h4 className="text-sm font-semibold">{t("Quadratura del residuo")} <span className="font-normal text-muted-foreground">· {t("IVA inclusa")}</span></h4>
+          <Button variant="outline" size="sm" onClick={() => vaiA("section-pagamenti")}>{t("Apri Fatture e Incassi")}</Button>
         </div>
-        {statoIncassi !== "pronto" ? <p className="text-sm text-muted-foreground">{statoIncassi === "errore" ? "Quadratura non disponibile." : "Caricamento incassi e rate…"}</p> : <>
+        {statoIncassi !== "pronto" ? <p className="text-sm text-muted-foreground">{statoIncassi === "errore" ? t("Quadratura non disponibile.") : t("Caricamento incassi e rate…")}</p> : <>
           <dl className="grid grid-cols-2 gap-2 xl:grid-cols-4 [&>div]:grid [&>div]:content-start [&>div]:rounded-md [&>div]:bg-muted/35 [&>div]:px-3 [&>div]:py-2 [&_dd]:text-base [&_dd]:font-semibold [&_dt]:text-xs">
-            <Importo voce="Incassato dal cliente">{formatCurrency(incassato)}</Importo>
-            <Importo voce="Residuo contrattuale">{formatCurrency(residuoContratto)}</Importo>
-            <Importo voce="Residuo delle rate registrate">{rate.length > 0 ? formatCurrency(quadratura.rateAperte) : "Nessuna rata"}</Importo>
-            <Importo voce="Differenza">{rate.length > 0 ? formatCurrency(quadratura.differenza) : "—"}</Importo>
+            <Importo voce={t("Incassato dal cliente")}>{formatCurrency(incassato)}</Importo>
+            <Importo voce={t("Residuo contrattuale")}>{formatCurrency(residuoContratto)}</Importo>
+            <Importo voce={t("Residuo delle rate registrate")}>{rate.length > 0 ? formatCurrency(quadratura.rateAperte) : t("Nessuna rata")}</Importo>
+            <Importo voce={t("Differenza")}>{rate.length > 0 ? formatCurrency(quadratura.differenza) : "—"}</Importo>
           </dl>
           {rate.length > 0 && quadratura.differenza !== 0 && <p className="text-xs text-muted-foreground">
             {quadratura.coerenteConGaranzia
-              ? <>Lo scarto corrisponde a {formatCurrency(trattenuteSal)} di garanzia dei SAL{(aliquota ?? 0) > 0 ? " più IVA" : ""}. Il residuo delle rate è già al netto di questa garanzia.</>
-              : <>Il residuo del contratto differisce dal piano registrato. Verifica gli importi in Fatture e Incassi.</>}
+              ? ((aliquota ?? 0) > 0
+                ? t("Lo scarto corrisponde a {importo} di garanzia dei SAL più IVA. Il residuo delle rate è già al netto di questa garanzia.", { importo: formatCurrency(trattenuteSal) })
+                : t("Lo scarto corrisponde a {importo} di garanzia dei SAL. Il residuo delle rate è già al netto di questa garanzia.", { importo: formatCurrency(trattenuteSal) }))
+              : t("Il residuo del contratto differisce dal piano registrato. Verifica gli importi in Fatture e Incassi.")}
           </p>}
         </>}
       </div>

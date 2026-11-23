@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { nomeBreve } from "@/lib/acquisti/fabbisogno";
 import { INTERA_COMMESSA, type AmbitoLavoro } from "@/lib/orders/previsionaleLavoro";
 import type { AperturaSubappalto } from "./SubappaltoLavorazioni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type SezioneLavoro = "sottofasi" | "economia" | "chi" | "mezzi" | "materiali" | "note" | "subappalto" | "previsionale";
 export interface AperturaLavoro {
@@ -29,6 +30,7 @@ export function OrganizzaLavoroDialog({ apertura, albero, sezioni, occupato, onC
   onChiudi: () => void;
   children: ReactNode;
 }) {
+  const t = useT();
   const [footer, setFooter] = useState<HTMLDivElement | null>(null);
   const [cerca, setCerca] = useState("");
   const [naviga, setNaviga] = useState(false);
@@ -67,7 +69,7 @@ export function OrganizzaLavoroDialog({ apertura, albero, sezioni, occupato, onC
     <div className={cn("flex min-w-0 items-center gap-2 rounded-lg px-2",
       apertura.attiva === r.id ? "bg-blue-50 ring-1 ring-inset ring-blue-200 dark:bg-primary/15 dark:ring-primary/30" : "hover:bg-muted/80")}>
       {guida}
-      <Checkbox aria-label={`Seleziona ${r.nome}`} checked={scelte.has(r.id)} disabled={occupato}
+      <Checkbox aria-label={t("Seleziona {nome}", { nome: r.nome })} checked={scelte.has(r.id)} disabled={occupato}
         onCheckedChange={(si) => {
           const candidati = apertura.ids.filter((id) => {
             if (id === INTERA_COMMESSA) return false;
@@ -97,18 +99,18 @@ export function OrganizzaLavoroDialog({ apertura, albero, sezioni, occupato, onC
       <DialogContent className="flex h-[min(50rem,90dvh)] max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(72rem,96vw)] max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:rounded-none"
         onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader className="shrink-0 border-b bg-slate-50/70 px-4 py-2.5 pr-14 text-left sm:flex-row sm:items-baseline sm:gap-3 sm:space-y-0">
-          <DialogTitle className="text-base">Organizza il lavoro</DialogTitle>
-          <DialogDescription>{albero.filter((r) => r.id === r.faseId).length} fasi · {albero.filter((r) => r.faseId && r.id !== r.faseId).length} voci</DialogDescription>
+          <DialogTitle className="text-base">{t("Organizza il lavoro")}</DialogTitle>
+          <DialogDescription>{t("{fasi} fasi · {voci} voci", { fasi: albero.filter((r) => r.id === r.faseId).length, voci: albero.filter((r) => r.faseId && r.id !== r.faseId).length })}</DialogDescription>
         </DialogHeader>
         <Button type="button" variant="ghost" size="sm" className="m-2 justify-start md:hidden" aria-expanded={naviga} onClick={() => setNaviga(!naviga)}>
-          <ListTree className="mr-2 h-4 w-4" />{naviga ? "Torna al dettaglio" : "Fasi e voci"}
+          <ListTree className="mr-2 h-4 w-4" />{naviga ? t("Torna al dettaglio") : t("Fasi e voci")}
         </Button>
         <div className="relative flex min-h-0 flex-1 md:pl-56 lg:pl-64">
-          <aside aria-label="Fasi e voci" className={cn("w-full shrink-0 flex-col border-r bg-slate-50/70 dark:bg-muted/30 md:absolute md:inset-y-0 md:left-0 md:w-56 lg:w-64", naviga ? "flex" : "hidden md:flex")}>
+          <aside aria-label={t("Fasi e voci")} className={cn("w-full shrink-0 flex-col border-r bg-slate-50/70 dark:bg-muted/30 md:absolute md:inset-y-0 md:left-0 md:w-56 lg:w-64", naviga ? "flex" : "hidden md:flex")}>
             <div className="shrink-0 border-b border-border/70 p-3">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input className="h-9 bg-background pl-8" aria-label="Cerca fasi e voci" placeholder="Cerca fase o voce" value={cerca} onChange={(e) => setCerca(e.target.value)} />
+                <Input className="h-9 bg-background pl-8" aria-label={t("Cerca fasi e voci")} placeholder={t("Cerca fase o voce")} value={cerca} onChange={(e) => setCerca(e.target.value)} />
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
@@ -118,7 +120,7 @@ export function OrganizzaLavoroDialog({ apertura, albero, sezioni, occupato, onC
                   const espansa = !!q || (espansione[fase.id] ?? (attiva?.faseId === fase.id));
                   return <div key={fase.id}>
                     {riga(fase, tutte.length > 0 ? <button type="button" className="grid h-8 w-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-background hover:text-foreground"
-                      aria-label={`Voci di ${fase.nome}`} aria-expanded={espansa}
+                      aria-label={t("Voci di {nome}", { nome: fase.nome })} aria-expanded={espansa}
                       onClick={() => setEspansione((prima) => ({ ...prima, [fase.id]: !espansa }))}>{espansa ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button>
                       : <span className="w-6 shrink-0" />)}
                     {espansa && viste.length > 0 && <div className="ml-5 mt-1 space-y-1 border-l border-border pl-3">
@@ -126,26 +128,26 @@ export function OrganizzaLavoroDialog({ apertura, albero, sezioni, occupato, onC
                     </div>}
                   </div>;
                 })}
-                {q && !gruppi.length && <p className="p-2 text-sm text-muted-foreground">Nessuna lavorazione trovata.</p>}
+                {q && !gruppi.length && <p className="p-2 text-sm text-muted-foreground">{t("Nessuna lavorazione trovata.")}</p>}
               </div>
             </div>
           </aside>
-          <section className={cn("min-w-0 flex-1 flex-col", naviga ? "hidden md:flex" : "flex")} aria-label="Dettaglio lavorazione">
+          <section className={cn("min-w-0 flex-1 flex-col", naviga ? "hidden md:flex" : "flex")} aria-label={t("Dettaglio lavorazione")}>
             <div className="shrink-0 border-b px-4 pt-2.5">
               <div className="mb-1.5 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   {padre && <p className="text-xs text-muted-foreground">{padre.nome}</p>}
-                  <h3 className="break-words text-base font-semibold">{attiva ? titoloAmbito(attiva) : "Lavorazioni"}</h3>
+                  <h3 className="break-words text-base font-semibold">{attiva ? titoloAmbito(attiva) : t("Lavorazioni")}</h3>
                 </div>
                 {vicine.length > 1 && <div className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
                   <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={occupato || posizione < 1}
-                    aria-label={padre ? "Voce prima" : "Fase prima"} onClick={() => vai(vicine[posizione - 1])}><ChevronLeft size={15} /></Button>
-                  {posizione + 1} di {vicine.length}
+                    aria-label={padre ? t("Voce prima") : t("Fase prima")} onClick={() => vai(vicine[posizione - 1])}><ChevronLeft size={15} /></Button>
+                  {t("{posizione} di {totale}", { posizione: posizione + 1, totale: vicine.length })}
                   <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={occupato || posizione >= vicine.length - 1}
-                    aria-label={padre ? "Voce dopo" : "Fase dopo"} onClick={() => vai(vicine[posizione + 1])}><ChevronRight size={15} /></Button>
+                    aria-label={padre ? t("Voce dopo") : t("Fase dopo")} onClick={() => vai(vicine[posizione + 1])}><ChevronRight size={15} /></Button>
                 </div>}
               </div>
-              <nav aria-label="Sezioni lavorazione" className="flex flex-wrap gap-0.5 sm:flex-nowrap sm:gap-1 sm:overflow-x-auto">
+              <nav aria-label={t("Sezioni lavorazione")} className="flex flex-wrap gap-0.5 sm:flex-nowrap sm:gap-1 sm:overflow-x-auto">
                 {sezioni.map(([id, nome]) => <button key={id} type="button" disabled={occupato}
                   aria-current={apertura.sezione === id ? "page" : undefined}
                   onClick={() => onCambio({ ...apertura, sezione: id })}
@@ -155,7 +157,7 @@ export function OrganizzaLavoroDialog({ apertura, albero, sezioni, occupato, onC
             </div>
             <div ref={corpo} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 [scrollbar-gutter:stable]" tabIndex={0}>
               {attiva && titoloAmbito(attiva) !== attiva.nome && <details key={attiva.id} className="mb-3 rounded-lg border px-3 py-2 text-sm">
-                <summary className="cursor-pointer font-medium text-muted-foreground">Descrizione completa</summary>
+                <summary className="cursor-pointer font-medium text-muted-foreground">{t("Descrizione completa")}</summary>
                 <p className="mt-2 break-words">{attiva.nome}</p>
               </details>}
               <FooterLavorazioniProvider value={naviga ? null : footer}>{children}</FooterLavorazioniProvider>
@@ -163,9 +165,9 @@ export function OrganizzaLavoroDialog({ apertura, albero, sezioni, occupato, onC
           </section>
         </div>
         <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-4 py-2 pb-[max(.5rem,env(safe-area-inset-bottom))] sm:px-5">
-          <span className="text-xs text-muted-foreground sm:text-sm">{scelte.size === 1 ? "1 lavorazione selezionata" : `${scelte.size} lavorazioni selezionate`}</span>
+          <span className="text-xs text-muted-foreground sm:text-sm">{scelte.size === 1 ? t("1 lavorazione selezionata") : t("{n} lavorazioni selezionate", { n: scelte.size })}</span>
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-            <Button type="button" variant="ghost" size="sm" disabled={occupato} onClick={onChiudi}>Chiudi</Button>
+            <Button type="button" variant="ghost" size="sm" disabled={occupato} onClick={onChiudi}>{t("Chiudi")}</Button>
             <div ref={setFooter} className="empty:hidden" />
           </div>
         </footer>

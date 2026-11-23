@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { VariationContext } from "./VariationEditor";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MAX_FILE = 18 * 1024 * 1024;
 const MAX_TESTO = 30000;
@@ -37,6 +38,7 @@ export function VarianteDaDocumento({ companyId, context, onBozza }: {
   context: VariationContext;
   onBozza: (bozza: VariationDraft) => void;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [scritto, setScritto] = useState("");
@@ -55,18 +57,18 @@ export function VarianteDaDocumento({ companyId, context, onBozza }: {
       const sha = Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
       const path = `${companyId}/ai-varianti/${sha}-${nomePulito(daLeggere.name)}`;
       const { error: eUp } = await supabase.storage.from(BUCKET_ORIGINALI_AI).upload(path, daLeggere, { upsert: false, contentType: daLeggere.type || undefined });
-      if (eUp && !/already exists|duplicate/i.test(eUp.message)) throw new Error(`Caricamento: ${eUp.message}`);
+      if (eUp && !/already exists|duplicate/i.test(eUp.message)) throw new Error(t("Caricamento: {errore}", { errore: eUp.message }));
       const { data, error } = await supabase.functions.invoke("generic-doc-ai-extract", {
         body: {
           storage_bucket: BUCKET_ORIGINALI_AI, storage_path: path, file_name: daLeggere.name,
           mime_type: daLeggere.type || "application/pdf", company_id: companyId, doc_type: "variante_commessa",
         },
       });
-      if (error) throw new Error(await edgeErrorMessage(error, "Lettura AI non riuscita"));
+      if (error) throw new Error(await edgeErrorMessage(error, t("Lettura AI non riuscita")));
       if (data?.error) throw new Error(String(data.error));
       const letta = leggiVarianteDaAi(data?.extracted ?? data);
       if (!letta.titolo && !letta.descrizione && letta.voci.length === 0) {
-        throw new Error("Nel documento non ho trovato lavori da aggiungere o togliere. Controlla il file o scrivi la variante a mano.");
+        throw new Error(t("Nel documento non ho trovato lavori da aggiungere o togliere. Controlla il file o scrivi la variante a mano."));
       }
       const { bozza, avvisi } = bozzaVarianteDaDocumento(letta, {
         ...emptyVariationDraft(),
@@ -75,9 +77,9 @@ export function VarianteDaDocumento({ companyId, context, onBozza }: {
       });
       setLeggo(false); setAperto(false); setFile(null); setScritto(""); setErrore(null);
       onBozza(bozza);
-      toast.success("Variante scritta dal documento: controllala", avvisi.length
+      toast.success(t("Variante scritta dal documento: controllala"), avvisi.length
         ? { description: avvisi.join(" "), duration: 15000 }
-        : { description: "Chiudendo resta come bozza: al cliente parte solo quando la mandi tu." });
+        : { description: t("Chiudendo resta come bozza: al cliente parte solo quando la mandi tu.") });
     } catch (e) {
       setErrore(e instanceof Error ? e.message : String(e));
       setLeggo(false);
@@ -86,39 +88,39 @@ export function VarianteDaDocumento({ companyId, context, onBozza }: {
 
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => setAperto(true)} aria-label="Leggi una variante con l'AI">
-        <Sparkles className="h-4 w-4" /><span className="ml-1.5 hidden sm:inline">Leggi con l'AI</span>
+      <Button size="sm" variant="outline" onClick={() => setAperto(true)} aria-label={t("Leggi una variante con l'AI")}>
+        <Sparkles className="h-4 w-4" /><span className="ml-1.5 hidden sm:inline">{t("Leggi con l'AI")}</span>
       </Button>
       <Dialog open={aperto} onOpenChange={(o) => !o && chiudi()}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Variante da un documento</DialogTitle>
-            <DialogDescription>Carica il PDF o la foto della richiesta, oppure incolla il testo della mail. L'AI scrive la variante come bozza; tu la controlli prima di mandarla.</DialogDescription>
+            <DialogTitle>{t("Variante da un documento")}</DialogTitle>
+            <DialogDescription>{t("Carica il PDF o la foto della richiesta, oppure incolla il testo della mail. L'AI scrive la variante come bozza; tu la controlli prima di mandarla.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-sm">
             <div className="space-y-1">
-              <Label htmlFor="variante-ai-file">PDF o foto</Label>
+              <Label htmlFor="variante-ai-file">{t("PDF o foto")}</Label>
               <Input id="variante-ai-file" type="file" accept="application/pdf,image/*" disabled={leggo}
                 onChange={(e) => {
                   const f = e.target.files?.[0] ?? null;
-                  if (f && f.size > MAX_FILE) { setErrore("File troppo grande (massimo 18 MB)."); return; }
+                  if (f && f.size > MAX_FILE) { setErrore(t("File troppo grande (massimo 18 MB).")); return; }
                   setFile(f); setErrore(null);
                 }} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="variante-ai-testo">Oppure il testo della richiesta</Label>
+              <Label htmlFor="variante-ai-testo">{t("Oppure il testo della richiesta")}</Label>
               <Textarea id="variante-ai-testo" rows={5} disabled={leggo || !!file} maxLength={MAX_TESTO} value={scritto}
-                placeholder="Es. «Buongiorno, vorremmo aggiungere due punti luce in cucina e non fare più il controsoffitto in bagno.»"
+                placeholder={t("Es. «Buongiorno, vorremmo aggiungere due punti luce in cucina e non fare più il controsoffitto in bagno.»")}
                 onChange={(e) => setScritto(e.target.value)} />
-              {file && <p className="text-xs text-muted-foreground">Si legge il file {file.name}.</p>}
+              {file && <p className="text-xs text-muted-foreground">{t("Si legge il file {nome}.", { nome: file.name })}</p>}
             </div>
             {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" disabled={leggo} onClick={chiudi}>Annulla</Button>
+            <Button variant="outline" disabled={leggo} onClick={chiudi}>{t("Annulla")}</Button>
             <Button disabled={leggo || (!file && !scritto.trim())} onClick={() => void leggi()}>
               {leggo ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-              {leggo ? "Leggo…" : "Leggi e scrivi la variante"}
+              {leggo ? t("Leggo…") : t("Leggi e scrivi la variante")}
             </Button>
           </DialogFooter>
         </DialogContent>

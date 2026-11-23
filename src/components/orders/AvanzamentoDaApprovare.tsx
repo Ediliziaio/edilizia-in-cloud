@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { anteprimaAvanzamento, avanzateInAnteprima, fasiAperte, type AvanzataInAnteprima, type RigaAnteprima } from "@/lib/orders/anteprimaAvanzamento";
 import { SOTTOFASI_NELLA_FASE, sottofasiDalleFasi } from "@/lib/orders/sottofasi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Le sottofasi non sono ancora nei tipi generati: cast localizzato.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -13,6 +14,7 @@ const NIENTE: Anteprima = { righe: [], aperte: [] };
 
 /** Nell'approvazione di un rapportino: cosa cambia alle fasi della commessa se si approva. */
 export function AvanzamentoDaApprovare({ orderId, reportId }: { orderId: string; reportId: string }) {
+  const t = useT();
   const { data: { righe, aperte, avanzate = [] } = NIENTE } = useQuery({
     queryKey: ["avanzamento-da-approvare", orderId, reportId],
     staleTime: 0,
@@ -51,46 +53,46 @@ export function AvanzamentoDaApprovare({ orderId, reportId }: { orderId: string;
   if (aperte.length > 0) {
     return (
       <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-        Fine lavori: restano aperte {aperte.join(", ")}. Questo rapportino non le chiude: si chiudono dalle fasi della commessa.
+        {t("Fine lavori: restano aperte {fasi}. Questo rapportino non le chiude: si chiudono dalle fasi della commessa.", { fasi: aperte.join(", ") })}
       </p>
     );
   }
   if (righe.length === 0 && avanzate.length === 0) return null;
 
   return (
-    <section aria-label="Avanzamento che passa in commessa" className="rounded-xl border p-3">
-      <p className="text-sm font-semibold">Avanzamento che passa in commessa</p>
+    <section aria-label={t("Avanzamento che passa in commessa")} className="rounded-xl border p-3">
+      <p className="text-sm font-semibold">{t("Avanzamento che passa in commessa")}</p>
       <ul className="mt-2 space-y-1.5">
         {righe.map((r) => (
           <li key={r.phaseId} className="text-sm">
             <div className="flex items-center justify-between gap-3">
               <span className="min-w-0 truncate font-medium">{r.nome}</span>
               <span className="shrink-0 tabular-nums">
-                {r.inizia ? <span>Inizia</span> : <span>{r.prima}% → {r.dopo}%</span>}
-                {r.chiude && <span className="ml-2 rounded-full bg-green-500/10 px-2 py-0.5 text-[11px] font-semibold text-green-700">si chiude</span>}
+                {r.inizia ? <span>{t("Inizia")}</span> : <span>{r.prima}% → {r.dopo}%</span>}
+                {r.chiude && <span className="ml-2 rounded-full bg-green-500/10 px-2 py-0.5 text-[11px] font-semibold text-green-700">{t("si chiude")}</span>}
               </span>
             </div>
-            {r.sottofasiNuove.length > 0 && <p className="text-xs text-muted-foreground">Sottofasi fatte: {r.sottofasiNuove.join(", ")}</p>}
+            {r.sottofasiNuove.length > 0 && <p className="text-xs text-muted-foreground">{t("Sottofasi fatte: {elenco}", { elenco: r.sottofasiNuove.join(", ") })}</p>}
             {r.dichiarata !== null && r.dichiarata < r.prima && (
-              <p className="text-xs text-muted-foreground">Il rapportino dice {r.dichiarata}%: l'avanzamento non scende.</p>
+              <p className="text-xs text-muted-foreground">{t("Il rapportino dice {n}%: l'avanzamento non scende.", { n: r.dichiarata })}</p>
             )}
           </li>
         ))}
       </ul>
       {avanzate.length > 0 && (
         <div className="mt-2 border-t pt-2">
-          <p className="text-xs font-semibold">Fatto oggi</p>
+          <p className="text-xs font-semibold">{t("Fatto oggi")}</p>
           <ul className="mt-1 space-y-0.5">
             {avanzate.map((a) => (
               <li key={a.id} className="flex justify-between gap-3 text-xs">
                 <span className="min-w-0 truncate">{a.nome}</span>
-                <span className={a.oltre ? "shrink-0 font-semibold text-amber-800" : "shrink-0 tabular-nums"}>{a.testo}{a.oltre ? " · oltre il previsto, la chiude" : ""}</span>
+                <span className={a.oltre ? "shrink-0 font-semibold text-amber-800" : "shrink-0 tabular-nums"}>{a.testo}{a.oltre ? ` · ${t("oltre il previsto, la chiude")}` : ""}</span>
               </li>
             ))}
           </ul>
         </div>
       )}
-      <p className="mt-2 text-xs text-muted-foreground">Vale se approvi. Dopo si cambia dalle fasi della commessa.</p>
+      <p className="mt-2 text-xs text-muted-foreground">{t("Vale se approvi. Dopo si cambia dalle fasi della commessa.")}</p>
     </section>
   );
 }

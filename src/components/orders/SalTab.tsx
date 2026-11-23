@@ -47,6 +47,7 @@ import { SalRecordPhases } from "./SalRecordPhases";
 import type { SalVoce } from "@/lib/orders/salPeriodo";
 import { OfficeSelect } from "./OfficeSelect";
 import { ApriComputoCommessa } from "@/components/computo/commessa/ApriComputoCommessa";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 import {conPercentuale, conQuantita, percentualeFaseDaSottofasi, type SottofaseSalDraft} from "@/lib/orders/salSottofasi";
 
 interface SalRecord {
@@ -122,6 +123,7 @@ const emptyVoce = (): VoceForm => ({
 });
 
 export function SalTab({ orderId, companyId, orderTotalAmount, installments, vatRate = 22, financingCost = 0, financingCostMode, showPaymentProgress = true, onApriBozzaFattura }: SalTabProps) {
+  const tr = useT();
   const queryClient = useQueryClient();
   const permissions = usePermissions();
   // I SAL sono di chi ha «Venduto e importi» (15/11/2026): gli altri li vedono, senza importi, e non li fanno.
@@ -225,10 +227,10 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     mutationFn: async (salId: string) => {
       const { data, error } = await supabase.rpc("sal_ritenuta_nel_registro", { p_sal: salId });
       if (error) throw new Error(error.message);
-      if (!data) throw new Error("Niente da registrare: la ritenuta di questo SAL è già tolta dai certificati prima.");
+      if (!data) throw new Error(tr("Niente da registrare: la ritenuta di questo SAL è già tolta dai certificati prima."));
     },
     onSuccess: () => {
-      toast.success("Ritenuta registrata: la trovi in Ritenute a garanzia, da svincolare.");
+      toast.success(tr("Ritenuta registrata: la trovi in Ritenute a garanzia, da svincolare."));
       void queryClient.invalidateQueries({ queryKey: ["sal-ritenute-registro", orderId] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -247,25 +249,25 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   // AI: suggerisce % avanzamento dalle voci ordine + storico SAL + rapportini
   const aiSuggestMutation = useMutation({
     mutationFn: async () => {
-      if(!puoFareSal || !dialogOpen)throw new Error("Non hai il permesso di compilare il SAL.");
+      if(!puoFareSal || !dialogOpen)throw new Error(tr("Non hai il permesso di compilare il SAL."));
       const revision=draftRevision.current;
       const nextNumero = numeroNuovoSal((installments??[]).find(i=>i.id===rataCollegata)??null,salList);
       const { data, error } = await supabase.functions.invoke("suggerisci-sal-ai", {
         body: { order_id: orderId, company_id: companyId, numero_sal: nextNumero },
       });
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error ?? "Suggerimento fallito");
+      if (!data?.success) throw new Error(data?.error ?? tr("Suggerimento fallito"));
       return {...data,draftRevision:revision};
     },
     onSuccess: (data) => {
-      if(!dialogOpen || draftRevision.current!==data.draftRevision){toast.info("Bozza modificata: il suggerimento AI non ha sostituito i tuoi dati.");return;}
+      if(!dialogOpen || draftRevision.current!==data.draftRevision){toast.info(tr("Bozza modificata: il suggerimento AI non ha sostituito i tuoi dati."));return;}
       const voci_suggerite: Array<{
         descrizione: string;
         importo_contrattuale: number;
         perc_suggerita: number;
       }> = data?.suggerimenti?.voci_suggerite ?? [];
       if (voci_suggerite.length === 0) {
-        toast.info("L'AI non ha trovato voci da suggerire");
+        toast.info(tr("L'AI non ha trovato voci da suggerire"));
         return;
       }
       // Le voci dell'AI sono nuove: si mostrano tutte.
@@ -279,7 +281,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       const noteDraft = data?.suggerimenti?.note_sal_draft;
       if (noteDraft && !note) setNote(noteDraft);
       toast.success(
-        `Compilate ${voci_suggerite.length} voci · % globale ${data?.suggerimenti?.percentuale_globale_suggerita ?? "—"}`,
+        tr("Compilate {n} voci · % globale {pct}", { n: voci_suggerite.length, pct: data?.suggerimenti?.percentuale_globale_suggerita ?? "—" }),
       );
       const warnings: string[] = data?.suggerimenti?.warnings ?? [];
       warnings.forEach((w) => toast.warning(w, { duration: 6000 }));
@@ -289,12 +291,12 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
 
   const createSalMutation = useMutation({
     mutationFn: async ({emetti}:{emetti:boolean}) => {
-      if(!puoFareSal || !review || blocked || saveBlocked)throw new Error("Controlla lo storico e il riepilogo prima di salvare.");
-      if(vociInDiscesa.length>0 && !rettifica)throw new Error("Alcune voci scendono sotto il SAL precedente: conferma che è una rettifica o correggi le percentuali.");
+      if(!puoFareSal || !review || blocked || saveBlocked)throw new Error(tr("Controlla lo storico e il riepilogo prima di salvare."));
+      if(vociInDiscesa.length>0 && !rettifica)throw new Error(tr("Alcune voci scendono sotto il SAL precedente: conferma che è una rettifica o correggi le percentuali."));
       if(rataCollegata && (!(installments??[]).some(i=>i.id===rataCollegata) || salList.some(s=>s.installment_id===rataCollegata)))
-        throw new Error("La rata non è disponibile o ha già un verbale SAL.");
-      if(conCertificato && !certificatoNuovo)throw new Error("Controlla ritenuta e detrazioni del certificato.");
-      if(emetti && !salMatura)throw new Error("Regola di maturazione del SAL non verificata: salva la bozza ed emettila dalla scheda.");
+        throw new Error(tr("La rata non è disponibile o ha già un verbale SAL."));
+      if(conCertificato && !certificatoNuovo)throw new Error(tr("Controlla ritenuta e detrazioni del certificato."));
+      if(emetti && !salMatura)throw new Error(tr("Regola di maturazione del SAL non verificata: salva la bozza ed emettila dalla scheda."));
       const numero=numeroNuovoSal((installments??[]).find(i=>i.id===rataCollegata)??null,salList);
       if(emetti){const problema=salEmissionIssue({id:"nuovo",numero_sal:numero,stato:"bozza"},salList);if(problema)throw new Error(problema);}
       const {id}=await saveSalDraft(supabase,{orderId,companyId,number:numero,
@@ -304,20 +306,20 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       let certificatoOk=true;
       if(conCertificato && certificatoNuovo){
         const {error}=await supabase.from("sal_certificati").upsert({sal_id:id,order_id:orderId,company_id:companyId,...certificatoNuovo});
-        if(error){certificatoOk=false;avvisi.push(`Certificato non salvato (${error.message}): aggiungilo dalla scheda del SAL.`);}
+        if(error){certificatoOk=false;avvisi.push(tr("Certificato non salvato ({errore}): aggiungilo dalla scheda del SAL.", { errore: error.message }));}
       }
       let emesso=false;
       if(emetti && certificatoOk){
         const {data,error}=await supabase.from("sal_records").update({stato:"emesso",data_emissione:giornoLocale(new Date().toISOString())})
           .eq("id",id).eq("order_id",orderId).eq("company_id",companyId).eq("stato","bozza").select("id,stato");
-        if(error || data?.length!==1)avvisi.push("Il SAL è salvato in bozza ma non emesso: emettilo dalla scheda.");
+        if(error || data?.length!==1)avvisi.push(tr("Il SAL è salvato in bozza ma non emesso: emettilo dalla scheda."));
         else emesso=true;
-      }else if(emetti)avvisi.push("Il SAL resta in bozza finché il certificato non è salvato.");
+      }else if(emetti)avvisi.push(tr("Il SAL resta in bozza finché il certificato non è salvato."));
       return {id,emesso,avvisi};
     },
     onSuccess: ({emesso,avvisi}) => {
       if(avvisi.length)avvisi.forEach(a=>toast.warning(a,{duration:9000}));
-      else toast.success(emesso ? "SAL emesso. Nessuna fattura o email generata." : "Bozza SAL salvata. Nessuna fattura o email generata.");
+      else toast.success(emesso ? tr("SAL emesso. Nessuna fattura o email generata.") : tr("Bozza SAL salvata. Nessuna fattura o email generata."));
       refreshSal();setDialogOpen(false);setNote("");setRataCollegata("");setVoci([emptyVoce()]);setReview(false);setRettifica(false);
     },
     onError: (error:Error) => {
@@ -330,26 +332,26 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const deleteSalMutation = useMutation({
     mutationFn: async (salId:string) => {
       const row=salList.find(s=>s.id===salId);
-      if(!puoFareSal || blocked || row?.stato!=="bozza")throw new Error("Si può eliminare solo una bozza SAL.");
+      if(!puoFareSal || blocked || row?.stato!=="bozza")throw new Error(tr("Si può eliminare solo una bozza SAL."));
       const {data,error}=await supabase.from("sal_records").delete().eq("id",salId).eq("order_id",orderId).eq("company_id",companyId).eq("stato","bozza").select("id");
-      if(error || data?.length!==1)throw new Error("Eliminazione non confermata: il SAL potrebbe essere stato modificato.");
+      if(error || data?.length!==1)throw new Error(tr("Eliminazione non confermata: il SAL potrebbe essere stato modificato."));
     },
-    onSuccess:()=>{toast.success("Bozza SAL eliminata");refreshSal();},
+    onSuccess:()=>{toast.success(tr("Bozza SAL eliminata"));refreshSal();},
     onError:(error:Error)=>{toast.error(error.message);refreshSal();},
   });
   const cambiaStato = useMutation({
     mutationFn: async ({id,stato:next}:{id:string;stato:"emesso"|"approvato"}) => {
       const row=salList.find(s=>s.id===id);
-      if(!puoFareSal || blocked || !salMatura || !row || prossimoStatoSal(row.stato)?.stato!==next)throw new Error("Passaggio non consentito o regola SAL non verificata.");
+      if(!puoFareSal || blocked || !salMatura || !row || prossimoStatoSal(row.stato)?.stato!==next)throw new Error(tr("Passaggio non consentito o regola SAL non verificata."));
       const sequenceIssue=salEmissionIssue(row,salList);
       if(sequenceIssue)throw new Error(sequenceIssue);
       const prepared=prepareSalLines((row.sal_voci??[]).map(v=>({descrizione:v.descrizione,importo_contrattuale:String(v.importo_contrattuale),percentuale_avanzamento:String(v.percentuale_avanzamento),note:v.note??""})),orderTotalAmount);
-      if(Math.abs(prepared.total-Number(row.importo_totale))>0.01)throw new Error("Totale SAL diverso dalle voci: verifica la bozza prima di emetterla.");
+      if(Math.abs(prepared.total-Number(row.importo_totale))>0.01)throw new Error(tr("Totale SAL diverso dalle voci: verifica la bozza prima di emetterla."));
       const patch=next==="emesso" ? {stato:next,data_emissione:giornoLocale(new Date().toISOString())} : {stato:next};
       const {data,error}=await supabase.from("sal_records").update(patch).eq("id",id).eq("order_id",orderId).eq("company_id",companyId).eq("stato",row.stato).select("id,stato");
-      if(error || data?.length!==1 || data[0].stato!==next)throw new Error("Passaggio non confermato: aggiorna lo storico SAL.");
+      if(error || data?.length!==1 || data[0].stato!==next)throw new Error(tr("Passaggio non confermato: aggiorna lo storico SAL."));
     },
-    onSuccess:(_data,{stato:next})=>{toast.success(next==="emesso"?"SAL emesso, non incassato":"Approvazione registrata, non firma del cliente");refreshSal();},
+    onSuccess:(_data,{stato:next})=>{toast.success(next==="emesso"?tr("SAL emesso, non incassato"):tr("Approvazione registrata, non firma del cliente"));refreshSal();},
     onError:(error:Error)=>{toast.error(error.message);refreshSal();},
   });
 
@@ -360,8 +362,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       const { data, error } = await supabase.functions.invoke("generate-sal-pdf", {
         body: { sal_id: sal.id, company_id: companyId, prepare_signature:false, foto_ids: fotoIds, allegati, formato },
       });
-      if (error) throw new Error(await edgeErrorMessage(error, "Errore nella generazione del PDF"));
-      if (typeof data?.html !== "string" || !data.html.trim()) throw new Error("Nessun contenuto generato");
+      if (error) throw new Error(await edgeErrorMessage(error, tr("Errore nella generazione del PDF")));
+      if (typeof data?.html !== "string" || !data.html.trim()) throw new Error(tr("Nessun contenuto generato"));
       if (download && formato !== "sintetico") {
         const { generaVerbaleSalScaricabile } = await import("@/lib/orders/scaricaVerbaleSal");
         const pdf = await generaVerbaleSalScaricabile(data.html, formato);
@@ -373,7 +375,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       setPrintHtml(data.html);
       setVerbaleDi(null);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore nell'esportazione");
+      toast.error(err instanceof Error ? err.message : tr("Errore nell'esportazione"));
     } finally {
       setIsExporting(false);
     }
@@ -462,7 +464,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   };
   const openComposer=(installmentId="")=>{
     if(!puoFareSal || blocked)return;
-    if(saveBlocked){toast.error("Un salvataggio precedente resta da verificare: ricarica lo storico prima di creare un altro SAL.");return;}
+    if(saveBlocked){toast.error(tr("Un salvataggio precedente resta da verificare: ricarica lo storico prima di creare un altro SAL."));return;}
     const rata = installmentId;
     // Il certificato si propone da sé quando c'è da togliere qualcosa: acconto da recuperare o ritenuta del contratto.
     const haCertificati=salList.some(s=>certificatoDelSal(s.sal_certificati)) || anticipazione>0 || (ritenutaContratto ?? 0)>0;
@@ -483,7 +485,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   };
   const reviewDraft=()=>{
     try{prepareSalLines(voci,orderTotalAmount);setFormError("");setReview(true);}
-    catch(e){setFormError(e instanceof Error ? e.message : "Controlla le voci del SAL.");setMostraTutte(true);}
+    catch(e){setFormError(e instanceof Error ? e.message : tr("Controlla le voci del SAL."));setMostraTutte(true);}
   };
 
   // ── Avanzamento incassi (piano rate della commessa) ─────────────────
@@ -518,11 +520,11 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const incassoPct = incassoTarget > 0 ? Math.round((incassato / incassoTarget) * 100) : 0;
   const rateIncassate = recapRows.filter((r) => r.inst.is_paid).length;
   const fmtDateIt = (d: string) => {
-    try { return new Date(d).toLocaleDateString("it-IT"); } catch { return d; }
+    try { return new Date(d).toLocaleDateString(intlCampo()); } catch { return d; }
   };
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
-  if(isError || listIssues.length)return <div role="alert" className="rounded-lg border p-4 text-sm space-y-2"><p>{listIssues[0] || "Storico SAL non disponibile. Non vengono calcolati importi su uno storico incompleto."}</p><Button variant="outline" size="sm" onClick={()=>void refetch()}>Riprova SAL</Button></div>;
+  if(isError || listIssues.length)return <div role="alert" className="rounded-lg border p-4 text-sm space-y-2"><p>{listIssues[0] || tr("Storico SAL non disponibile. Non vengono calcolati importi su uno storico incompleto.")}</p><Button variant="outline" size="sm" onClick={()=>void refetch()}>{tr("Riprova SAL")}</Button></div>;
 
   const searchSal = salSearch.trim().toLocaleLowerCase("it");
   // Si filtra solo la vista: precedenti, quote e numerazione usano sempre lo storico completo.
@@ -537,7 +539,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <FileBarChart2 className="h-5 w-5 text-primary" aria-hidden="true" />
-          <h3 className="font-semibold">Verbali SAL (documenti)</h3>
+          <h3 className="font-semibold">{tr("Verbali SAL (documenti)")}</h3>
           {salList.length > 0 && (
             <Badge variant="secondary">{salList.length}</Badge>
           )}
@@ -546,7 +548,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
             due bottoni identici nella stessa card erano solo rumore. */}
         {puoFareSal && salList.length > 0 && (
           <Button size="sm" disabled={blocked} onClick={() => openComposer()}>
-            <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo verbale
+            <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> {tr("Nuovo verbale")}
           </Button>
         )}
       </div>
@@ -560,32 +562,32 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
           <div><dt className="text-xs text-muted-foreground">{titolo}</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums">{valore}</dd>{nota && <dd className="text-[11px] text-muted-foreground">{nota}</dd>}</div>
         );
         return (
-          <dl aria-label="Riepilogo dei SAL" className="sal-workspace-overview grid grid-cols-2 gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-4">
-            {numero("Voci del contratto", formatCurrency(contrattuale))}
-            {numero("Eseguito a tutto l'ultimo SAL", formatCurrency(eseguito), `verbale ${ultimo.numero_sal}`)}
-            {numero("Avanzamento", contrattuale > 0 ? `${Math.round((eseguito / contrattuale) * 1000) / 10}%` : "—")}
-            {numero("Resta da eseguire", formatCurrency(Math.max(0, contrattuale - eseguito)))}
+          <dl aria-label={tr("Riepilogo dei SAL")} className="sal-workspace-overview grid grid-cols-2 gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-4">
+            {numero(tr("Voci del contratto"), formatCurrency(contrattuale))}
+            {numero(tr("Eseguito a tutto l'ultimo SAL"), formatCurrency(eseguito), tr("verbale {n}", { n: ultimo.numero_sal }))}
+            {numero(tr("Avanzamento"), contrattuale > 0 ? `${Math.round((eseguito / contrattuale) * 1000) / 10}%` : "—")}
+            {numero(tr("Resta da eseguire"), formatCurrency(Math.max(0, contrattuale - eseguito)))}
           </dl>
         );
       })()}
 
       {lavoroPubblico && (
         <div role="note" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
-          <span>Lavoro pubblico: libretto delle misure, SAL e certificati di pagamento si fanno nella contabilità del computo.</span>
+          <span>{tr("Lavoro pubblico: libretto delle misure, SAL e certificati di pagamento si fanno nella contabilità del computo.")}</span>
           <ApriComputoCommessa orderId={orderId} />
         </div>
       )}
 
       {!vedeImporti && (
         <p role="note" className="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          I SAL li prepara ed emette chi ha il permesso «Venduto e importi»: qui li vedi con le percentuali, senza importi.
+          {tr("I SAL li prepara ed emette chi ha il permesso «Venduto e importi»: qui li vedi con le percentuali, senza importi.")}
         </p>
       )}
 
       {/* Il punto che vale tutto il capitolo: il SAL è una misura del lavoro
           eseguito, non una scadenza sul calendario. */}
       <details className="rounded-lg border bg-muted/20">
-        <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-muted-foreground">Come funziona il SAL e quando matura la rata</summary>
+        <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-muted-foreground">{tr("Come funziona il SAL e quando matura la rata")}</summary>
         <div className="px-3 pb-3"><SalPlanInfo companyId={companyId} installments={installments ?? []}/></div>
       </details>
 
@@ -598,10 +600,10 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Banknote className="h-4 w-4 text-primary" aria-hidden="true" />
-                Avanzamento incassi
+                {tr("Avanzamento incassi")}
               </CardTitle>
               <span className="text-xs text-muted-foreground">
-                {rateIncassate}/{recapRows.length} rate incassate
+                {tr("{incassate}/{totale} rate incassate", { incassate: rateIncassate, totale: recapRows.length })}
               </span>
             </div>
           </CardHeader>
@@ -609,7 +611,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
             <div>
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="text-muted-foreground">
-                  Incassato {formatCurrency(incassato)} su {formatCurrency(incassoTarget)}
+                  {tr("Incassato {incassato} su {totale}", { incassato: formatCurrency(incassato), totale: formatCurrency(incassoTarget) })}
                 </span>
                 <span className="font-semibold">{Math.min(100, incassoPct)}%</span>
               </div>
@@ -637,11 +639,11 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                               ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
                               : "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200"
                           }`}
-                          title={`Verbale SAL n. ${salRata.numero_sal} — ${STATO_LABELS[salRata.stato]}`}
+                          title={tr("Verbale SAL n. {n} — {stato}", { n: salRata.numero_sal, stato: tr(STATO_LABELS[salRata.stato]) })}
                         >
                           <FileBarChart2 className="h-3 w-3" aria-hidden="true" />
                           SAL {salRata.numero_sal}
-                          {salMaturato(salMatura, salRata.stato) ? " · maturata" : ""}
+                          {salMaturato(salMatura, salRata.stato) ? ` · ${tr("maturata")}` : ""}
                         </span>
                       );
                     })()}
@@ -651,7 +653,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                     {inst.is_paid ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-800 dark:bg-green-900/40 dark:text-green-200">
                         <Check className="h-3 w-3" aria-hidden="true" />
-                        Pagato{inst.paid_date ? ` il ${fmtDateIt(inst.paid_date)}` : ""}
+                        {inst.paid_date ? tr("Pagato il {data}", { data: fmtDateIt(inst.paid_date) }) : tr("Pagato")}
                       </span>
                     ) : (
                       <span
@@ -662,8 +664,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         }
                       >
                         <Clock className="h-3 w-3" aria-hidden="true" />
-                        {scaduta ? "Scaduta" : "Non pagato"}
-                        {inst.expected_date ? ` · prev. ${fmtDateIt(inst.expected_date)}` : ""}
+                        {scaduta ? tr("Scaduta") : tr("Non pagato")}
+                        {inst.expected_date ? ` · ${tr("prev. {data}", { data: fmtDateIt(inst.expected_date) })}` : ""}
                       </span>
                     )}
                   </span>
@@ -671,7 +673,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               ))}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Per segnare una rata come pagata usa i bottoni Pagato/Non pagato nel Riepilogo Finanziario (sezione Pagamenti).
+              {tr("Per segnare una rata come pagata usa i bottoni Pagato/Non pagato nel Riepilogo Finanziario (sezione Pagamenti).")}
             </p>
           </CardContent>
         </Card>
@@ -686,19 +688,19 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
             <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-1">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <FileBarChart2 className="h-4 w-4 text-primary" aria-hidden="true" />
-                Rate previste al SAL
+                {tr("Rate previste al SAL")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5 max-sm:p-3 max-sm:pt-0">
               {attesi.map((inst) => (
                 <div key={inst.id} className="flex items-center justify-between gap-2 text-sm">
                   <span className="min-w-0 truncate">
-                    {inst.trigger_numero ? `SAL n. ${inst.trigger_numero}` : "SAL"} <span className="text-muted-foreground">· {inst.label}</span>
+                    {inst.trigger_numero ? tr("SAL n. {n}", { n: inst.trigger_numero }) : "SAL"} <span className="text-muted-foreground">· {inst.label}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     <span className="font-medium">{euro(inst.amount)}</span>
                     {puoFareSal && <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={blocked} onClick={() => openComposer(inst.id ?? "")}>
-                      Prepara SAL
+                      {tr("Prepara SAL")}
                     </Button>}
                   </span>
                 </div>
@@ -716,24 +718,24 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
           <CardContent className="py-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground flex items-center gap-2 min-w-0">
               <FileBarChart2 className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-              <span>{puoFareSal ? "Nessun verbale. Crea una bozza dalle fasi oppure compila le voci a mano." : "Nessun verbale SAL su questa commessa."}</span>
+              <span>{puoFareSal ? tr("Nessun verbale. Crea una bozza dalle fasi oppure compila le voci a mano.") : tr("Nessun verbale SAL su questa commessa.")}</span>
             </p>
             {puoFareSal && <Button size="sm" variant="outline" disabled={blocked} onClick={() => openComposer()}>
-              <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Crea verbale
+              <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> {tr("Crea verbale")}
             </Button>}
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
           <div className="sal-records-toolbar">
-            <div className="relative min-w-0 flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" /><Input aria-label="Cerca verbale SAL" value={salSearch} onChange={e => setSalSearch(e.target.value)} placeholder="Cerca numero, data, rata o lavorazione…" className="pl-9 pr-9" />{salSearch && <button type="button" aria-label="Cancella ricerca SAL" className="absolute right-2 top-2 rounded p-1 hover:bg-muted" onClick={() => setSalSearch("")}><X className="h-4 w-4" aria-hidden="true" /></button>}</div>
-            <OfficeSelect label="Stato dei verbali SAL" value={salStatus} onValueChange={setSalStatus} className="sal-status-filter" options={[
-              { value: "tutti", label: `Tutti gli stati (${salList.length})` },
-              ...Object.entries(STATO_LABELS).map(([value, label]) => ({ value, label: `${label} (${salList.filter(s => s.stato === value).length})` })),
+            <div className="relative min-w-0 flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" /><Input aria-label={tr("Cerca verbale SAL")} value={salSearch} onChange={e => setSalSearch(e.target.value)} placeholder={tr("Cerca numero, data, rata o lavorazione…")} className="pl-9 pr-9" />{salSearch && <button type="button" aria-label={tr("Cancella ricerca SAL")} className="absolute right-2 top-2 rounded p-1 hover:bg-muted" onClick={() => setSalSearch("")}><X className="h-4 w-4" aria-hidden="true" /></button>}</div>
+            <OfficeSelect label={tr("Stato dei verbali SAL")} value={salStatus} onValueChange={setSalStatus} className="sal-status-filter" options={[
+              { value: "tutti", label: tr("Tutti gli stati ({n})", { n: salList.length }) },
+              ...Object.entries(STATO_LABELS).map(([value, label]) => ({ value, label: `${tr(label)} (${salList.filter(s => s.stato === value).length})` })),
             ]} />
-            <p role="status" className="sal-records-count">{visibleSal.length} di {salList.length} verbali · più recenti prima{vedeImporti ? " · importi netti, IVA esclusa" : " · importi riservati"}</p>
+            <p role="status" className="sal-records-count">{tr("{visibili} di {totale} verbali · più recenti prima", { visibili: visibleSal.length, totale: salList.length })}{vedeImporti ? ` · ${tr("importi netti, IVA esclusa")}` : ` · ${tr("importi riservati")}`}</p>
           </div>
-          {visibleSal.length === 0 && <div className="rounded-lg border border-dashed p-5 text-center text-sm"><p className="font-medium">Nessun verbale corrisponde ai filtri.</p><Button variant="link" size="sm" onClick={() => { setSalSearch(""); setSalStatus("tutti"); }}>Mostra tutti i verbali</Button></div>}
+          {visibleSal.length === 0 && <div className="rounded-lg border border-dashed p-5 text-center text-sm"><p className="font-medium">{tr("Nessun verbale corrisponde ai filtri.")}</p><Button variant="link" size="sm" onClick={() => { setSalSearch(""); setSalStatus("tutti"); }}>{tr("Mostra tutti i verbali")}</Button></div>}
           {visibleSal.map((sal) => {
             const precedente = maturatoPrecedente(sal, salList);
             const certificato = certificatoDelSal(sal.sal_certificati);
@@ -748,11 +750,11 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                     <CardTitle className="text-base flex items-center gap-2">
                       SAL #{sal.numero_sal}
                       <Badge className="sal-record-status" variant={STATO_COLORS[sal.stato] as "secondary" | "default" | "outline" | "destructive"}>
-                        {STATO_LABELS[sal.stato]}
+                        {tr(STATO_LABELS[sal.stato])}
                       </Badge>
                     </CardTitle>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {sal.stato==="bozza" ? "Bozza del" : "Emesso il"} {fmtDate(sal.data_emissione)} · {sal.sal_voci?.length ?? 0} {(sal.sal_voci?.length ?? 0) === 1 ? "voce" : "voci"}
+                      {sal.stato==="bozza" ? tr("Bozza del {data}", { data: fmtDate(sal.data_emissione) }) : tr("Emesso il {data}", { data: fmtDate(sal.data_emissione) })} · {tr((sal.sal_voci?.length ?? 0) === 1 ? "{n} voce" : "{n} voci", { n: sal.sal_voci?.length ?? 0 })}
                     </p>
                     {salEmissionIssue(sal,salList) && <p className="text-xs text-amber-700 mt-1 max-w-xl">{salEmissionIssue(sal,salList)}</p>}
                   </div>
@@ -768,24 +770,24 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                           className="h-7 text-xs"
                           disabled={cambiaStato.isPending || blocked || !salMatura || !sal.sal_voci?.length || !!salEmissionIssue(sal,salList)}
                           onClick={async () => {
-                            const ok=await confirm({title:prossimo.stato==="emesso" ? `Emettere il SAL #${sal.numero_sal}?` : `Registrare l'approvazione del SAL #${sal.numero_sal}?`,description:prossimo.stato==="emesso" ? "Il verbale esce dalla bozza. La rata può maturare secondo la regola aziendale, ma non viene creata una fattura, inviata un'email o registrato un incasso." : "Registra solo un'approvazione realmente ottenuta. Questo comando non appone la firma del cliente e può far maturare la rata collegata.",confirmLabel:prossimo.etichetta});
+                            const ok=await confirm({title:prossimo.stato==="emesso" ? tr("Emettere il SAL #{n}?", { n: sal.numero_sal }) : tr("Registrare l'approvazione del SAL #{n}?", { n: sal.numero_sal }),description:prossimo.stato==="emesso" ? tr("Il verbale esce dalla bozza. La rata può maturare secondo la regola aziendale, ma non viene creata una fattura, inviata un'email o registrato un incasso.") : tr("Registra solo un'approvazione realmente ottenuta. Questo comando non appone la firma del cliente e può far maturare la rata collegata."),confirmLabel:tr(prossimo.etichetta)});
                             if(ok)cambiaStato.mutate({id:sal.id,stato:prossimo.stato});
                           }}
                         >
-                          {prossimo.etichetta}
+                          {tr(prossimo.etichetta)}
                         </Button>
                       );
                     })()}
                     {permissions.canViewBilling && vedeImporti && fatturaId && (onApriBozzaFattura && rata?.fattura?.stato === "bozza" ? (
                       <Button type="button" variant="outline" size="sm" onClick={() => onApriBozzaFattura(fatturaId)}>
                         <Receipt className="h-3.5 w-3.5" aria-hidden />
-                        Apri fattura
+                        {tr("Apri fattura")}
                       </Button>
                     ) : (
                       <Button asChild variant="outline" size="sm">
                         <Link to={`/azienda/documenti/${fatturaId}/dettaglio`}>
                           <Receipt className="h-3.5 w-3.5" aria-hidden />
-                          Apri fattura
+                          {tr("Apri fattura")}
                         </Link>
                       </Button>
                     ))}
@@ -794,12 +796,12 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       size="sm"
                       className="h-7 gap-1 text-xs"
                       onClick={() => setVerbaleDi(sal)}
-                      aria-label="Anteprima e stampa SAL"
+                      aria-label={tr("Anteprima e stampa SAL")}
                       disabled={!vedeImporti || isExporting}
-                      title={!vedeImporti ? "Il verbale contiene importi: serve il permesso Venduto e importi." : "Apri le opzioni e l’anteprima del verbale"}
+                      title={!vedeImporti ? tr("Il verbale contiene importi: serve il permesso Venduto e importi.") : tr("Apri le opzioni e l’anteprima del verbale")}
                     >
                       <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                      Verbale PDF
+                      {tr("Verbale PDF")}
                     </Button>
                     {puoFareSal && sal.stato === "bozza" && <Button
                       variant="ghost"
@@ -808,10 +810,10 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       onClick={async () => {
                         if (
                           await confirm({
-                            title: `Eliminare il SAL #${sal.numero_sal}?`,
+                            title: tr("Eliminare il SAL #{n}?", { n: sal.numero_sal }),
                             description:
-                              "Lo stato avanzamento lavori verrà rimosso definitivamente. L'operazione non può essere annullata.",
-                            confirmLabel: "Elimina",
+                              tr("Lo stato avanzamento lavori verrà rimosso definitivamente. L'operazione non può essere annullata."),
+                            confirmLabel: tr("Elimina"),
                             variant: "destructive",
                           })
                         ) {
@@ -819,24 +821,24 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         }
                       }}
                       disabled={deleteSalMutation.isPending}
-                      aria-label="Elimina SAL"
+                      aria-label={tr("Elimina SAL")}
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>}
                     {puoFareSal && ["emesso","approvato"].includes(sal.stato) && <Button variant="outline" size="sm" disabled={signatureBusy || blocked} onClick={async()=>{
                       if(signatureBusy)return;setSignatureBusy(true);
                       try{const {data,error}=await supabase.functions.invoke("generate-sal-pdf",{body:{sal_id:sal.id,company_id:companyId,prepare_signature:true}});
-                        if(error || typeof data?.signature_url!=="string" || !/^https:\/\//.test(data.signature_url))throw new Error("Link cliente non confermato.");
+                        if(error || typeof data?.signature_url!=="string" || !/^https:\/\//.test(data.signature_url))throw new Error(tr("Link cliente non confermato."));
                         setSignatureUrl(data.signature_url);
-                      }catch(e){toast.error(e instanceof Error?e.message:"Link non disponibile");}finally{setSignatureBusy(false);}
-                    }}>Prepara link cliente</Button>}
+                      }catch(e){toast.error(e instanceof Error?e.message:tr("Link non disponibile"));}finally{setSignatureBusy(false);}
+                    }}>{tr("Prepara link cliente")}</Button>}
                   </div>
                 </div>
               </CardHeader>
-              {vedeImporti && <dl className="sal-record-amounts" aria-label={`Importi SAL ${sal.numero_sal}`}>
-                <div><dt>Avanzamento cumulativo netto</dt><dd>{formatCurrency(sal.importo_totale)}</dd></div>
-                <div><dt>Già riconosciuto nei SAL precedenti</dt><dd>{formatCurrency(precedente)}</dd></div>
-                <div data-rettifica={quotaNuova < 0}><dt>{quotaNuova < 0 ? "Rettifica da verificare" : "Quota nuova del SAL"}</dt><dd>{formatCurrency(quotaNuova)}</dd>{certificato && <small>Prima delle detrazioni del certificato</small>}</div>
+              {vedeImporti && <dl className="sal-record-amounts" aria-label={tr("Importi SAL {n}", { n: sal.numero_sal })}>
+                <div><dt>{tr("Avanzamento cumulativo netto")}</dt><dd>{formatCurrency(sal.importo_totale)}</dd></div>
+                <div><dt>{tr("Già riconosciuto nei SAL precedenti")}</dt><dd>{formatCurrency(precedente)}</dd></div>
+                <div data-rettifica={quotaNuova < 0}><dt>{quotaNuova < 0 ? tr("Rettifica da verificare") : tr("Quota nuova del SAL")}</dt><dd>{formatCurrency(quotaNuova)}</dd>{certificato && <small>{tr("Prima delle detrazioni del certificato")}</small>}</div>
               </dl>}
               {vedeImporti && <div className="sal-record-support">
                     <CertificatoSal salId={sal.id} orderId={orderId} companyId={companyId} numero={sal.numero_sal} cumulativo={sal.importo_totale}
@@ -849,11 +851,11 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                     {(() => {
                       const cert = certificatoDelSal(sal.sal_certificati);
                       if (!cert || sal.stato === "bozza" || !(Number(cert.ritenuta) > 0) || !permissions.isAdmin || !salNelRegistro) return null;
-                      if (salNelRegistro.has(sal.id)) return <p className="mt-0.5 text-xs text-muted-foreground">Ritenuta nel registro «Ritenute a garanzia»: torna allo svincolo.</p>;
+                      if (salNelRegistro.has(sal.id)) return <p className="mt-0.5 text-xs text-muted-foreground">{tr("Ritenuta nel registro «Ritenute a garanzia»: torna allo svincolo.")}</p>;
                       return (
                         <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-amber-700">
-                          La ritenuta di questo SAL non è nel registro delle ritenute: senza, nessuno ricorda di farsela restituire.
-                          <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" disabled={registraRitenuta.isPending} onClick={() => registraRitenuta.mutate(sal.id)}>Registra la ritenuta</Button>
+                          {tr("La ritenuta di questo SAL non è nel registro delle ritenute: senza, nessuno ricorda di farsela restituire.")}
+                          <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" disabled={registraRitenuta.isPending} onClick={() => registraRitenuta.mutate(sal.id)}>{tr("Registra la ritenuta")}</Button>
                         </p>
                       );
                     })()}
@@ -872,8 +874,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       return (
                         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                           <span>
-                            Rata «{rata.label}»: {formatCurrency(mostrato)} · IVA inclusa
-                            {rata.is_paid ? " · incassata" : salMaturato(salMatura, sal.stato) ? " · da incassare" : ""}
+                            {tr("Rata «{rata}»: {importo} · IVA inclusa", { rata: rata.label, importo: formatCurrency(mostrato) })}
+                            {rata.is_paid ? ` · ${tr("incassata")}` : salMaturato(salMatura, sal.stato) ? ` · ${tr("da incassare")}` : ""}
                           </span>
                           {puoFareSal && proposta !== null && (
                             <Button
@@ -884,16 +886,16 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                               disabled={sostituisciRate.isPending}
                               onClick={async () => {
                                 const ok = await confirm({
-                                  title: `Portare la rata a ${formatCurrency(proposta)}?`,
-                                  description: `La quota nuova di questo SAL vale ${formatCurrency(proposta)} con l'IVA. Verifica separatamente approvazione, acconti e fatture già emesse. Le provvigioni sulla rata si ricalcolano sul nuovo importo.`,
-                                  confirmLabel: "Cambia la rata",
+                                  title: tr("Portare la rata a {importo}?", { importo: formatCurrency(proposta) }),
+                                  description: tr("La quota nuova di questo SAL vale {importo} con l'IVA. Verifica separatamente approvazione, acconti e fatture già emesse. Le provvigioni sulla rata si ricalcolano sul nuovo importo.", { importo: formatCurrency(proposta) }),
+                                  confirmLabel: tr("Cambia la rata"),
                                 });
                                 if (ok) {
                                   sostituisciRate.mutate((installments ?? []).map((r) => rataPerServer(r.id === rata.id ? { ...r, amount: proposta, importo_da_misurare: false } : r)));
                                 }
                               }}
                             >
-                              Imposta la rata a {formatCurrency(proposta)}
+                              {tr("Imposta la rata a {importo}", { importo: formatCurrency(proposta) })}
                             </Button>
                           )}
                         </div>
@@ -909,7 +911,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       pulsanteDettaglioSal.current = event.currentTarget;
                       setDettaglioSalId(sal.id);
                     }}>
-                    <span>Voci del verbale ({sal.sal_voci.length})</span>
+                    <span>{tr("Voci del verbale ({n})", { n: sal.sal_voci.length })}</span>
                     <ChevronRight className="h-4 w-4" aria-hidden />
                   </Button>
                 </CardContent>
@@ -929,9 +931,9 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               }
             }}>
             <DialogHeader className="border-b px-4 py-3 pr-11">
-              <DialogTitle>Voci del verbale · SAL n. {dettaglioSal.numero_sal}</DialogTitle>
+              <DialogTitle>{tr("Voci del verbale · SAL n. {n}", { n: dettaglioSal.numero_sal })}</DialogTitle>
               <DialogDescription>
-                {STATO_LABELS[dettaglioSal.stato]} · {fmtDate(dettaglioSal.data_emissione)} · {dettaglioSal.sal_voci.length} {dettaglioSal.sal_voci.length === 1 ? "voce" : "voci"}
+                {tr(STATO_LABELS[dettaglioSal.stato])} · {fmtDate(dettaglioSal.data_emissione)} · {tr(dettaglioSal.sal_voci.length === 1 ? "{n} voce" : "{n} voci", { n: dettaglioSal.sal_voci.length })}
               </DialogDescription>
             </DialogHeader>
             <SalRecordPhases key={dettaglioSal.id} fasi={dettaglioSal.sal_voci} totale={dettaglioSal.importo_totale}
@@ -951,32 +953,32 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
           <DialogHeader className="shrink-0 border-b p-4 pr-10">
             <DialogTitle className="flex items-center gap-2">
               <FileBarChart2 className="h-5 w-5" aria-hidden="true" />
-              {review ? "Controlla il SAL" : "Nuova bozza SAL"}
+              {review ? tr("Controlla il SAL") : tr("Nuova bozza SAL")}
             </DialogTitle>
-            <DialogDescription>Compila i lavori eseguiti fino a oggi, poi controlla e salva il verbale.</DialogDescription>
-            <ol aria-label="Passaggi del verbale SAL" className="sal-draft-steps">
-              <li aria-current={!review ? 'step' : undefined}><span>1</span> Lavorazioni</li>
-              <li aria-current={review ? 'step' : undefined}><span>2</span> Riepilogo e salvataggio</li>
+            <DialogDescription>{tr("Compila i lavori eseguiti fino a oggi, poi controlla e salva il verbale.")}</DialogDescription>
+            <ol aria-label={tr("Passaggi del verbale SAL")} className="sal-draft-steps">
+              <li aria-current={!review ? 'step' : undefined}><span>1</span> {tr("Lavorazioni")}</li>
+              <li aria-current={review ? 'step' : undefined}><span>2</span> {tr("Riepilogo e salvataggio")}</li>
             </ol>
           </DialogHeader>
 
           <div className="min-h-0 overflow-y-auto p-4 space-y-4">
           {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
-          {review && <Button variant="outline" size="sm" disabled={createSalMutation.isPending} onClick={()=>{setReview(false);setRettifica(false);}}>Modifica bozza</Button>}
-            <div className="sal-draft-overview" aria-label="Riepilogo economico del verbale">
-              <div><span>Già riconosciuto</span><strong>{formatCurrency(precedenteNuovo)}</strong><small>Nei SAL precedenti</small></div>
-              <div data-rettifica={nuoviLavori < 0}><span>Nuovi lavori</span><strong>{formatCurrency(nuoviLavori)}</strong><small>{formatCurrency(totalDialogImporto)} eseguiti a oggi</small></div>
-              <div data-rettifica={daPagare !== null && daPagare < 0}><span>{daPagare !== null && daPagare < 0 ? "Rettifica" : "Da pagare per questo SAL"}</span><strong>{daPagare === null ? "Da verificare" : formatCurrency(daPagare)}</strong><small>IVA esclusa</small></div>
+          {review && <Button variant="outline" size="sm" disabled={createSalMutation.isPending} onClick={()=>{setReview(false);setRettifica(false);}}>{tr("Modifica bozza")}</Button>}
+            <div className="sal-draft-overview" aria-label={tr("Riepilogo economico del verbale")}>
+              <div><span>{tr("Già riconosciuto")}</span><strong>{formatCurrency(precedenteNuovo)}</strong><small>{tr("Nei SAL precedenti")}</small></div>
+              <div data-rettifica={nuoviLavori < 0}><span>{tr("Nuovi lavori")}</span><strong>{formatCurrency(nuoviLavori)}</strong><small>{tr("{importo} eseguiti a oggi", { importo: formatCurrency(totalDialogImporto) })}</small></div>
+              <div data-rettifica={daPagare !== null && daPagare < 0}><span>{daPagare !== null && daPagare < 0 ? tr("Rettifica") : tr("Da pagare per questo SAL")}</span><strong>{daPagare === null ? tr("Da verificare") : formatCurrency(daPagare)}</strong><small>{tr("IVA esclusa")}</small></div>
             </div>
           <fieldset hidden={review} className="space-y-4 min-w-0" disabled={review || createSalMutation.isPending || !puoFareSal}>
 
-            {Math.round(totalDialogImporto * 100) > Math.round(orderTotalAmount * 100) && orderTotalAmount > 0 && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">Le voci riconoscono {formatCurrency(totalDialogImporto - orderTotalAmount)} in più rispetto al contratto netto di {formatCurrency(orderTotalAmount)}. Verifica gli importi delle fasi e le eventuali varianti prima di emettere il SAL.</p>}
+            {Math.round(totalDialogImporto * 100) > Math.round(orderTotalAmount * 100) && orderTotalAmount > 0 && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">{tr("Le voci riconoscono {differenza} in più rispetto al contratto netto di {contratto}. Verifica gli importi delle fasi e le eventuali varianti prima di emettere il SAL.", { differenza: formatCurrency(totalDialogImporto - orderTotalAmount), contratto: formatCurrency(orderTotalAmount) })}</p>}
 
-            {orderTotalAmount > 0 && contrattualeVoci < orderTotalAmount - .01 && <p className="sal-contract-gap" role="note">{formatCurrency(orderTotalAmount - contrattualeVoci)} del contratto netto ancora da ripartire nelle lavorazioni. Verifica gli importi prima dell’emissione.</p>}
+            {orderTotalAmount > 0 && contrattualeVoci < orderTotalAmount - .01 && <p className="sal-contract-gap" role="note">{tr("{importo} del contratto netto ancora da ripartire nelle lavorazioni. Verifica gli importi prima dell’emissione.", { importo: formatCurrency(orderTotalAmount - contrattualeVoci) })}</p>}
             {/* Voci */}
             <div className="space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <div><h3 className="text-sm font-semibold">Lavorazioni da certificare</h3><p className="text-xs text-muted-foreground">Aggiorna le quantità o le percentuali. Gli importi sono al netto dell’IVA.</p></div>
+                <div><h3 className="text-sm font-semibold">{tr("Lavorazioni da certificare")}</h3><p className="text-xs text-muted-foreground">{tr("Aggiorna le quantità o le percentuali. Gli importi sono al netto dell’IVA.")}</p></div>
                 <div className="flex items-center gap-1 flex-wrap">
                   <Button
                     type="button"
@@ -984,14 +986,14 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                     size="sm"
                     onClick={async () => { const v=vociSalDaFasi(fasiSal,precedentiVoci);if(!v.length)return;
                       const hasInput=voci.some(v=>v.descrizione.trim() || v.importo_contrattuale.trim());
-                      if(hasInput && !(await confirm({title:"Sostituire le voci della bozza?",description:"I dati già scritti saranno sostituiti dalle lavorazioni della commessa.",confirmLabel:"Usa le fasi"})))return;
+                      if(hasInput && !(await confirm({title:tr("Sostituire le voci della bozza?"),description:tr("I dati già scritti saranno sostituiti dalle lavorazioni della commessa."),confirmLabel:tr("Usa le fasi")})))return;
                       draftRevision.current++;setVoci(v);setFasiInvariate(fasiSenzaCambi(v,precedentiVoci)); }}
                     disabled={fasiSal.length === 0}
                     className="gap-1"
-                    title="Compila le voci dalle fasi di lavorazione: descrizione e % di avanzamento dichiarate in cantiere"
+                    title={tr("Compila le voci dalle fasi di lavorazione: descrizione e % di avanzamento dichiarate in cantiere")}
                   >
                     <ListChecks className="h-3.5 w-3.5" />
-                    Dalle fasi
+                    {tr("Dalle fasi")}
                   </Button>
                   <Button
                     type="button"
@@ -1000,26 +1002,26 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                     onClick={() => aiSuggestMutation.mutate()}
                     disabled={aiSuggestMutation.isPending}
                     className="gap-1 border-violet-300 text-violet-700 hover:bg-violet-50"
-                    title="Suggerisci voci e % avanzamento dall'AI"
+                    title={tr("Suggerisci voci e % avanzamento dall'AI")}
                   >
                     {aiSuggestMutation.isPending ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <Wand2 className="h-3.5 w-3.5" />
                     )}
-                    Suggerisci AI
+                    {tr("Suggerisci AI")}
                   </Button>
                   <Button type="button" variant="ghost" size="sm" onClick={addVoce}>
-                    <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Aggiungi voce
+                    <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> {tr("Aggiungi voce")}
                   </Button>
                 </div>
               </div>
-              {fasiError && <p role="alert" className="text-xs text-destructive">Fasi non disponibili: compila a mano o <button type="button" className="underline" onClick={()=>void refetchFasi()}>riprova le fasi</button>.</p>}
+              {fasiError && <p role="alert" className="text-xs text-destructive">{tr("Fasi non disponibili: compila a mano o")} <button type="button" className="underline" onClick={()=>void refetchFasi()}>{tr("riprova le fasi")}</button>.</p>}
 
 
               {vociNascoste > 0 && (
                 <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-                  {vociNascoste === 1 ? "1 voce è uguale" : `${vociNascoste} voci sono uguali`} al SAL n. {precedentiVoci.numero}: restano nel verbale con gli stessi importi. Puoi aprirle dalla colonna delle fasi.{" "}
+                  {vociNascoste === 1 ? tr("1 voce è uguale al SAL n. {numero}: restano nel verbale con gli stessi importi. Puoi aprirle dalla colonna delle fasi.", { numero: precedentiVoci.numero ?? "" }) : tr("{n} voci sono uguali al SAL n. {numero}: restano nel verbale con gli stessi importi. Puoi aprirle dalla colonna delle fasi.", { n: vociNascoste, numero: precedentiVoci.numero ?? "" })}{" "}
 
                 </p>
               )}
@@ -1028,14 +1030,14 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
             </div>
 
             <details className="sal-payment-settings">
-              <summary><span>Pagamento, ritenute e note <small>Facoltativo · scegli la rata e controlla il netto</small></span><span className="text-primary">{conCertificato && certificatoNuovo ? formatCurrency(certificatoNuovo.netto) : "Imposta"}</span></summary>
+              <summary><span>{tr("Pagamento, ritenute e note")} <small>{tr("Facoltativo · scegli la rata e controlla il netto")}</small></span><span className="text-primary">{conCertificato && certificatoNuovo ? formatCurrency(certificatoNuovo.netto) : tr("Imposta")}</span></summary>
               <div className="space-y-4 border-t p-3">
             {/* Rata certificata: il piano rate nasce dagli importi del
                 contratto, e ogni verbale SAL matura la sua rata. Facoltativo
                 per non bloccare chi usa i SAL come soli documenti. */}
             {(installments ?? []).length > 0 && (
               <div className="space-y-2">
-                <Label>Rata collegata <span className="font-normal text-muted-foreground">· facoltativa</span></Label>
+                <Label>{tr("Rata collegata")} <span className="font-normal text-muted-foreground">· {tr("facoltativa")}</span></Label>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -1047,14 +1049,14 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         : "border-border hover:bg-muted"
                     }`}
                   >
-                    Nessuna
+                    {tr("Nessuna")}
                   </button>
                   {recapRows.map(({ inst, amount }) => (
                     <button
                       key={inst.position}
                       type="button"
                       aria-pressed={rataCollegata === inst.id}
-                      title={!inst.id ? 'Salva prima il piano rate.' : salList.some(s => s.installment_id === inst.id) ? `Già collegata al SAL n. ${salList.find(s => s.installment_id === inst.id)?.numero_sal}` : 'Collega questa rata al verbale'}
+                      title={!inst.id ? tr("Salva prima il piano rate.") : salList.some(s => s.installment_id === inst.id) ? tr("Già collegata al SAL n. {n}", { n: salList.find(s => s.installment_id === inst.id)?.numero_sal ?? "" }) : tr("Collega questa rata al verbale")}
                       disabled={!inst.id || salList.some(s=>s.installment_id===inst.id)}
                       onClick={() => { if (inst.id) impostaRata(inst.id); }}
                       className={`px-3 py-1.5 rounded-lg border text-sm transition-colors disabled:opacity-50 ${
@@ -1064,99 +1066,99 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       }`}
                     >
                       {inst.label} · {formatCurrency(amount)}
-                      {rataSuggerita && rataSuggerita === inst.id && <span className="ml-1 text-xs text-muted-foreground">· suggerita dal piano</span>}
-                      {salList.some(s => s.installment_id === inst.id) && <span className="ml-1 text-xs">· SAL n. {salList.find(s => s.installment_id === inst.id)?.numero_sal}</span>}
+                      {rataSuggerita && rataSuggerita === inst.id && <span className="ml-1 text-xs text-muted-foreground">· {tr("suggerita dal piano")}</span>}
+                      {salList.some(s => s.installment_id === inst.id) && <span className="ml-1 text-xs">· {tr("SAL n. {n}", { n: salList.find(s => s.installment_id === inst.id)?.numero_sal ?? "" })}</span>}
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">{recapRows.every(({ inst }) => !inst.id || salList.some(s => s.installment_id === inst.id)) ? 'Le rate sono già collegate ai verbali o non ancora salvate. Puoi proseguire senza rata.' : 'Puoi collegare una rata del piano anche quando il verbale nasce dalle lavorazioni.'}</p>
+                <p className="text-xs text-muted-foreground">{recapRows.every(({ inst }) => !inst.id || salList.some(s => s.installment_id === inst.id)) ? tr("Le rate sono già collegate ai verbali o non ancora salvate. Puoi proseguire senza rata.") : tr("Puoi collegare una rata del piano anche quando il verbale nasce dalle lavorazioni.")}</p>
               </div>
             )}
 
             {rataScelta && <p className="text-xs text-muted-foreground">
-              SAL n. {numeroNuovo}. La rata «{rataScelta.label}» vale {formatCurrency(recapRows.find(r => r.inst.id === rataScelta.id)?.amount ?? rataScelta.amount)} IVA inclusa.
+              {tr("SAL n. {numero}. La rata «{rata}» vale {importo} IVA inclusa.", { numero: numeroNuovo, rata: rataScelta.label, importo: formatCurrency(recapRows.find(r => r.inst.id === rataScelta.id)?.amount ?? rataScelta.amount) })}
             </p>}
 
             {/* Certificato di pagamento: nello stesso modulo, non più un passaggio a parte (lotto C). */}
             <div className="space-y-2 rounded-lg border p-3">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input type="checkbox" checked={conCertificato} onChange={(e) => {draftRevision.current++;setConCertificato(e.target.checked);}} />
-                Certificato di pagamento
+                {tr("Certificato di pagamento")}
               </label>
-              {!conCertificato && anticipazione > 0 && <p className="text-xs text-amber-700">C'è un acconto di {formatCurrency(anticipazione)} senza IVA già fatturato o incassato: senza certificato questo SAL lo fattura una seconda volta.</p>}
+              {!conCertificato && anticipazione > 0 && <p className="text-xs text-amber-700">{tr("C'è un acconto di {importo} senza IVA già fatturato o incassato: senza certificato questo SAL lo fattura una seconda volta.", { importo: formatCurrency(anticipazione) })}</p>}
               {conCertificato && (
                 <>
                   <div className="sal-certificate-layout"><div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label htmlFor="cert-nuovo-ritenuta" className="text-xs">Ritenuta di garanzia %</Label>
+                      <Label htmlFor="cert-nuovo-ritenuta" className="text-xs">{tr("Ritenuta di garanzia %")}</Label>
                       <Input id="cert-nuovo-ritenuta" inputMode="decimal" className="h-8 text-sm" value={certRitenuta}
                         placeholder={String(certificatoNuovo?.ritenuta_pct ?? certificatoPrima?.ritenuta_pct ?? ritenutaContratto ?? 0)}
                         onChange={(e) => {draftRevision.current++;setCertRitenuta(e.target.value);}} />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="cert-nuovo-recupero" className="text-xs">Recupero acconto (totale a oggi)</Label>
+                      <Label htmlFor="cert-nuovo-recupero" className="text-xs">{tr("Recupero acconto (totale a oggi)")}</Label>
                       <Input id="cert-nuovo-recupero" inputMode="decimal" className="h-8 text-sm" value={certRecupero}
                         placeholder={String(certificatoNuovo?.recupero_anticipazione ?? 0)}
                         onChange={(e) => {draftRevision.current++;setCertRecupero(e.target.value);}} />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="cert-nuovo-altre" className="text-xs">Altre detrazioni (totale a oggi)</Label>
+                      <Label htmlFor="cert-nuovo-altre" className="text-xs">{tr("Altre detrazioni (totale a oggi)")}</Label>
                       <Input id="cert-nuovo-altre" inputMode="decimal" className="h-8 text-sm" value={certAltre}
                         placeholder={String(certificatoPrima?.altre_detrazioni ?? 0)}
                         onChange={(e) => {draftRevision.current++;setCertAltre(e.target.value);}} />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="cert-nuovo-nota" className="text-xs">Motivo delle detrazioni</Label>
+                      <Label htmlFor="cert-nuovo-nota" className="text-xs">{tr("Motivo delle detrazioni")}</Label>
                       <Input id="cert-nuovo-nota" className="h-8 text-sm" value={certNota} placeholder={certificatoPrima?.altre_detrazioni_nota ?? ""}
                         onChange={(e) => {draftRevision.current++;setCertNota(e.target.value);}} />
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-1 text-xs">
-                    <span className="mr-1 text-muted-foreground">Arrotonda il netto</span>
+                    <span className="mr-1 text-muted-foreground">{tr("Arrotonda il netto")}</span>
                     {([0, 10, 100] as const).map((passo) => (
                       <button key={passo} type="button" aria-pressed={arrotondamento === passo}
                         onClick={() => {draftRevision.current++;setCertArrotonda(passo);}}
                         className={`rounded-md border px-2 py-1 ${arrotondamento === passo ? "border-primary bg-primary/10 font-medium text-primary" : "hover:bg-muted"}`}>
-                        {passo === 0 ? "No" : `a ${passo} €`}
+                        {passo === 0 ? tr("No") : tr("a {n} €", { n: passo })}
                       </button>
                     ))}
                   </div>
                   </div><div className="sal-certificate-calculation">
                   {certificatoNuovo ? (
-                    <dl aria-label="Certificato di pagamento" className="space-y-0.5 text-sm">
+                    <dl aria-label={tr("Certificato di pagamento")} className="space-y-0.5 text-sm">
                       {([
-                        ["Lavori a tutto il SAL", certificatoNuovo.lavori_contrattuali + certificatoNuovo.varianti],
-                        [`Ritenuta ${certificatoNuovo.ritenuta_pct.toLocaleString("it-IT")}%`, -certificatoNuovo.ritenuta],
-                        ...(certificatoNuovo.recupero_anticipazione > 0 ? [["Recupero anticipazione", -certificatoNuovo.recupero_anticipazione] as [string, number]] : []),
-                        ...(certificatoNuovo.altre_detrazioni > 0 ? [["Altre detrazioni", -certificatoNuovo.altre_detrazioni] as [string, number]] : []),
-                        ["Acconti già certificati", -certificatoNuovo.acconti_precedenti],
-                        ...(Number(certificatoNuovo.rinviato) > 0 ? [["Rinviato al prossimo certificato", -Number(certificatoNuovo.rinviato)] as [string, number]] : []),
+                        [tr("Lavori a tutto il SAL"), certificatoNuovo.lavori_contrattuali + certificatoNuovo.varianti],
+                        [tr("Ritenuta {pct}%", { pct: certificatoNuovo.ritenuta_pct.toLocaleString(intlCampo()) }), -certificatoNuovo.ritenuta],
+                        ...(certificatoNuovo.recupero_anticipazione > 0 ? [[tr("Recupero anticipazione"), -certificatoNuovo.recupero_anticipazione] as [string, number]] : []),
+                        ...(certificatoNuovo.altre_detrazioni > 0 ? [[tr("Altre detrazioni"), -certificatoNuovo.altre_detrazioni] as [string, number]] : []),
+                        [tr("Acconti già certificati"), -certificatoNuovo.acconti_precedenti],
+                        ...(Number(certificatoNuovo.rinviato) > 0 ? [[tr("Rinviato al prossimo certificato"), -Number(certificatoNuovo.rinviato)] as [string, number]] : []),
                       ] as Array<[string, number]>).map(([t, v]) => (
                         <div key={t} className="flex justify-between text-muted-foreground"><dt>{t}</dt><dd className="tabular-nums">{formatCurrency(v)}</dd></div>
                       ))}
-                      <div className="flex justify-between font-semibold"><dt>Netto del certificato</dt><dd className="tabular-nums">{formatCurrency(certificatoNuovo.netto)}</dd></div>
-                      <div className="flex justify-between text-muted-foreground"><dt>Con l'IVA {vatRate}%</dt><dd className="tabular-nums">{formatCurrency(rataDaSal(certificatoNuovo.netto, vatRate))}</dd></div>
+                      <div className="flex justify-between font-semibold"><dt>{tr("Netto del certificato")}</dt><dd className="tabular-nums">{formatCurrency(certificatoNuovo.netto)}</dd></div>
+                      <div className="flex justify-between text-muted-foreground"><dt>{tr("Con l'IVA {pct}%", { pct: vatRate })}</dt><dd className="tabular-nums">{formatCurrency(rataDaSal(certificatoNuovo.netto, vatRate))}</dd></div>
                     </dl>
                   ) : <p role="alert" className="text-xs text-destructive">{certificatoNegativo
-                    ? `Il netto del certificato viene ${formatCurrency(certificatoCalcolato!.netto)}: ritenuta, detrazioni e acconti superano i lavori di questo verbale. Controlla le voci e le detrazioni, oppure togli il certificato se è una rettifica.`
-                    : "Ritenuta tra 0 e 100%, detrazioni non negative."}</p>}
+                    ? tr("Il netto del certificato viene {importo}: ritenuta, detrazioni e acconti superano i lavori di questo verbale. Controlla le voci e le detrazioni, oppure togli il certificato se è una rettifica.", { importo: formatCurrency(certificatoCalcolato!.netto) })
+                    : tr("Ritenuta tra 0 e 100%, detrazioni non negative.")}</p>}
                   </div></div>
-                  {anticipazione > 0 && <p className="text-[11px] text-muted-foreground">Acconto già fatturato o incassato: {formatCurrency(anticipazione)} senza IVA. Si recupera in proporzione ai lavori, così all'ultimo SAL è tolto tutto.</p>}
-                  {!certificatoPrima && !(ritenutaContratto ?? 0) && !ritenutaScritta && <p className="text-[11px] text-muted-foreground">Il contratto non dice una ritenuta di garanzia: scrivila se l'avete concordata.</p>}
-                  <p className="text-[11px] text-muted-foreground">Gli acconti sono il netto dei certificati prima{certificatoPrima ? "" : " (o il cumulativo dei SAL emessi)"}: non si riscrivono a mano. Quello che l'arrotondamento toglie torna nel certificato dopo.</p>
+                  {anticipazione > 0 && <p className="text-[11px] text-muted-foreground">{tr("Acconto già fatturato o incassato: {importo} senza IVA. Si recupera in proporzione ai lavori, così all'ultimo SAL è tolto tutto.", { importo: formatCurrency(anticipazione) })}</p>}
+                  {!certificatoPrima && !(ritenutaContratto ?? 0) && !ritenutaScritta && <p className="text-[11px] text-muted-foreground">{tr("Il contratto non dice una ritenuta di garanzia: scrivila se l'avete concordata.")}</p>}
+                  <p className="text-[11px] text-muted-foreground">{certificatoPrima ? tr("Gli acconti sono il netto dei certificati prima: non si riscrivono a mano. Quello che l'arrotondamento toglie torna nel certificato dopo.") : tr("Gli acconti sono il netto dei certificati prima (o il cumulativo dei SAL emessi): non si riscrivono a mano. Quello che l'arrotondamento toglie torna nel certificato dopo.")}</p>
                 </>
               )}
             </div>
 
             {/* Note */}
             <div className="space-y-2">
-              <Label htmlFor="sal-notes">Note SAL · visibili al cliente</Label>
+              <Label htmlFor="sal-notes">{tr("Note SAL · visibili al cliente")}</Label>
               <Textarea
                 id="sal-notes"
                 value={note}
                 onChange={(e) => {draftRevision.current++;setNote(e.target.value);}}
-                placeholder="Condizioni o annotazioni per il cliente. Non inserire costi o note riservate."
+                placeholder={tr("Condizioni o annotazioni per il cliente. Non inserire costi o note riservate.")}
                 rows={2}
                 className="resize-none"
               />
@@ -1164,45 +1166,45 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               </div>
             </details>
           </fieldset>
-          {review && <section aria-label="Controllo del verbale SAL" className="space-y-3">
-            <h3 className="text-sm font-semibold">SAL n. {numeroNuovo} · Verifica prima di salvare</h3>
+          {review && <section aria-label={tr("Controllo del verbale SAL")} className="space-y-3">
+            <h3 className="text-sm font-semibold">{tr("SAL n. {numero} · Verifica prima di salvare", { numero: numeroNuovo })}</h3>
             <div className="sal-review-payment rounded-lg border p-3 text-sm">
-              <dl aria-label="Calcolo del pagamento del periodo">
-                <div><dt>Nuovi lavori</dt><dd>{formatCurrency(nuoviLavori)}</dd></div>
+              <dl aria-label={tr("Calcolo del pagamento del periodo")}>
+                <div><dt>{tr("Nuovi lavori")}</dt><dd>{formatCurrency(nuoviLavori)}</dd></div>
                 {detrazioni.map(({ label, amount }) => <div key={label}><dt>{label}</dt><dd>{amount > 0 ? "+" : "−"} {formatCurrency(Math.abs(amount))}</dd></div>)}
-                <div className="font-semibold text-primary"><dt>{daPagare !== null && daPagare < 0 ? "Importo della rettifica" : "Da pagare per questo SAL"}</dt><dd>{daPagare === null ? "Da verificare" : formatCurrency(daPagare)}</dd></div>
-                {daPagare !== null && daPagare >= 0 && <div><dt>Con IVA {vatRate}%</dt><dd>{formatCurrency(rataDaSal(daPagare, vatRate))}</dd></div>}
+                <div className="font-semibold text-primary"><dt>{daPagare !== null && daPagare < 0 ? tr("Importo della rettifica") : tr("Da pagare per questo SAL")}</dt><dd>{daPagare === null ? tr("Da verificare") : formatCurrency(daPagare)}</dd></div>
+                {daPagare !== null && daPagare >= 0 && <div><dt>{tr("Con IVA {pct}%", { pct: vatRate })}</dt><dd>{formatCurrency(rataDaSal(daPagare, vatRate))}</dd></div>}
               </dl>
-              {conCertificato && !certificatoNuovo && <p className="text-destructive mt-2">Il certificato va corretto. Torna alla bozza e controlla le detrazioni.</p>}
-              <p className="mt-2"><strong>Rata collegata:</strong> {rataScelta ? `${rataScelta.label} · ${formatCurrency(recapRows.find(r => r.inst.id === rataScelta.id)?.amount ?? rataScelta.amount)} IVA inclusa` : "Nessuna"}</p>
+              {conCertificato && !certificatoNuovo && <p className="text-destructive mt-2">{tr("Il certificato va corretto. Torna alla bozza e controlla le detrazioni.")}</p>}
+              <p className="mt-2"><strong>{tr("Rata collegata:")}</strong> {rataScelta ? `${rataScelta.label} · ${tr("{importo} IVA inclusa", { importo: formatCurrency(recapRows.find(r => r.inst.id === rataScelta.id)?.amount ?? rataScelta.amount) })}` : tr("Nessuna")}</p>
               {note && <p className="mt-2 whitespace-pre-wrap">{note}</p>}
             </div>
-            <div className="sal-phase-table-scroll"><table className="sal-phase-table sal-review-table"><thead><tr><th>Lavorazione</th><th>SAL precedente</th><th>A oggi</th><th>Eseguito netto</th></tr></thead>
+            <div className="sal-phase-table-scroll"><table className="sal-phase-table sal-review-table"><thead><tr><th>{tr("Lavorazione")}</th><th>{tr("SAL precedente")}</th><th>{tr("A oggi")}</th><th>{tr("Eseguito netto")}</th></tr></thead>
               <tbody>{voci.map((v, i) => {
                 const prima = percentualePrecedenteVoce(v, precedentiVoci);
-                return <tr key={i}><td>{v.descrizione}{!!v.sottofasi?.length && <small className="block text-muted-foreground">{v.sottofasi.length} {v.sottofasi.length === 1 ? "voce" : "voci"} nel verbale</small>}</td><td>{prima === null ? "—" : `${prima}%`}</td><td>{v.percentuale_avanzamento}%</td><td>{formatCurrency(computedImporto(v))}</td></tr>;
+                return <tr key={i}><td>{v.descrizione}{!!v.sottofasi?.length && <small className="block text-muted-foreground">{tr(v.sottofasi.length === 1 ? "{n} voce nel verbale" : "{n} voci nel verbale", { n: v.sottofasi.length })}</small>}</td><td>{prima === null ? "—" : `${prima}%`}</td><td>{v.percentuale_avanzamento}%</td><td>{formatCurrency(computedImporto(v))}</td></tr>;
               })}</tbody>
             </table></div>
-            <p className="text-xs text-muted-foreground">Salva una bozza per il controllo interno, oppure emetti il verbale per fissare il contratto e le varianti approvate a oggi.</p>
+            <p className="text-xs text-muted-foreground">{tr("Salva una bozza per il controllo interno, oppure emetti il verbale per fissare il contratto e le varianti approvate a oggi.")}</p>
           </section>}
           {review && vociInDiscesa.length > 0 && (
             <div role="alert" className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-              <p className="font-medium">Queste voci scendono sotto il SAL n. {precedentiVoci.numero}:</p>
+              <p className="font-medium">{tr("Queste voci scendono sotto il SAL n. {numero}:", { numero: precedentiVoci.numero ?? "" })}</p>
               <ul className="list-disc pl-5 text-xs">
-                {vociInDiscesa.map((d, i) => <li key={i}>{d.descrizione}: dal {d.precedente}% al {d.attuale}%</li>)}
+                {vociInDiscesa.map((d, i) => <li key={i}>{tr("{voce}: dal {prima}% al {dopo}%", { voce: d.descrizione, prima: d.precedente, dopo: d.attuale })}</li>)}
               </ul>
-              <p className="text-xs">Il verbale è cumulativo: abbassare una voce riduce il già certificato. Salvalo solo se è una rettifica.</p>
+              <p className="text-xs">{tr("Il verbale è cumulativo: abbassare una voce riduce il già certificato. Salvalo solo se è una rettifica.")}</p>
               <label className="flex items-center gap-2 text-xs font-medium">
                 <input type="checkbox" checked={rettifica} onChange={(e) => setRettifica(e.target.checked)} disabled={createSalMutation.isPending} />
-                È una rettifica: le percentuali più basse sono corrette
+                {tr("È una rettifica: le percentuali più basse sono corrette")}
               </label>
             </div>
           )}
-          <p className="text-xs text-muted-foreground">Il salvataggio del verbale non crea fatture o incassi.</p>
+          <p className="text-xs text-muted-foreground">{tr("Il salvataggio del verbale non crea fatture o incassi.")}</p>
           </div>
 
           <DialogFooter className="shrink-0 border-t p-4 gap-2">
-            <Button className="h-auto min-h-11 whitespace-normal" variant="outline" disabled={createSalMutation.isPending} onClick={() => {draftRevision.current++;setDialogOpen(false);}}>Annulla</Button>
+            <Button className="h-auto min-h-11 whitespace-normal" variant="outline" disabled={createSalMutation.isPending} onClick={() => {draftRevision.current++;setDialogOpen(false);}}>{tr("Annulla")}</Button>
             <Button
               className="h-auto min-h-11 whitespace-normal"
               variant={review ? "outline" : "default"}
@@ -1210,9 +1212,9 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               disabled={createSalMutation.isPending || aiSuggestMutation.isPending || blocked || saveBlocked || !puoFareSal || (review && vociInDiscesa.length > 0 && !rettifica) || (review && conCertificato && !certificatoNuovo)}
             >
               {createSalMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> Salvataggio...</>
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> {tr("Salvataggio...")}</>
               ) : (
-                review ? "Salva bozza SAL" : "Controlla riepilogo"
+                review ? tr("Salva bozza SAL") : tr("Controlla riepilogo")
               )}
             </Button>
             {review && (
@@ -1220,19 +1222,19 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                 className="h-auto min-h-11 whitespace-normal"
                 onClick={async () => {
                   if (saving.current) return;
-                  const ok = await confirm({ title: `Emettere il SAL n. ${numeroNuovo}?`, description: "Il verbale conserva il contratto e le varianti approvate al momento dell’emissione. L’eventuale rata segue il piano pagamenti della commessa.", confirmLabel: "Emetti" });
+                  const ok = await confirm({ title: tr("Emettere il SAL n. {n}?", { n: numeroNuovo }), description: tr("Il verbale conserva il contratto e le varianti approvate al momento dell’emissione. L’eventuale rata segue il piano pagamenti della commessa."), confirmLabel: tr("Emetti") });
                   if (!ok || saving.current) return;
                   saving.current = true; createSalMutation.mutate({ emetti: true });
                 }}
                 disabled={createSalMutation.isPending || blocked || saveBlocked || !puoFareSal || !salMatura || (vociInDiscesa.length > 0 && !rettifica) || (conCertificato && !certificatoNuovo) || !!salEmissionIssue({ id: "nuovo", numero_sal: numeroNuovo, stato: "bozza" }, salList)}
               >
-                Salva ed emetti
+                {tr("Salva ed emetti")}
               </Button>
             )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={!!signatureUrl} onOpenChange={open=>{if(!open)setSignatureUrl(null);}}><DialogContent><DialogHeader><DialogTitle>Link per il cliente</DialogTitle><DialogDescription>Il link consente di approvare il SAL. Non è stata inviata alcuna email.</DialogDescription></DialogHeader><Input readOnly aria-label="Link cliente SAL" value={signatureUrl??""}/><Button onClick={async()=>{try{await navigator.clipboard.writeText(signatureUrl!);toast.success("Link copiato");}catch{toast.error("Copia non riuscita: seleziona e copia il link dal campo.");}}}>Copia link</Button></DialogContent></Dialog>
+      <Dialog open={!!signatureUrl} onOpenChange={open=>{if(!open)setSignatureUrl(null);}}><DialogContent><DialogHeader><DialogTitle>{tr("Link per il cliente")}</DialogTitle><DialogDescription>{tr("Il link consente di approvare il SAL. Non è stata inviata alcuna email.")}</DialogDescription></DialogHeader><Input readOnly aria-label={tr("Link cliente SAL")} value={signatureUrl??""}/><Button onClick={async()=>{try{await navigator.clipboard.writeText(signatureUrl!);toast.success(tr("Link copiato"));}catch{toast.error(tr("Copia non riuscita: seleziona e copia il link dal campo."));}}}>{tr("Copia link")}</Button></DialogContent></Dialog>
 
       {verbaleDi && (() => {
         // salList è dal più recente: il precedente è il primo con un numero più basso e già emesso.

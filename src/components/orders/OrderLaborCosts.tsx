@@ -16,6 +16,7 @@ import { accessiCommessaKey, caricaAccessiCommessa, fonteAccesso, useTogliAccess
 import { toast } from "sonner";
 import { formatDateIt, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO } from "date-fns";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,9 +37,9 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 
 /** Il nome da mostrare: nome e cognome, altrimenti l'email, altrimenti una parola. */
-function nomePersona(p: { first_name: string | null; last_name: string | null; email: string | null } | null): string {
+function nomePersona(p: { first_name: string | null; last_name: string | null; email: string | null } | null, t: ReturnType<typeof useT>): string {
   const nome = [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim();
-  return nome || p?.email || "Persona senza nome";
+  return nome || p?.email || t("Persona senza nome");
 }
 
 interface CampoAssignment {
@@ -70,11 +71,12 @@ function daysUntil(dateStr: string | null | undefined): number | null {
 }
 
 function DurcBadge({ scadenza }: { scadenza: string | null }) {
+  const t = useT();
   const daysLeft = daysUntil(scadenza);
-  if (daysLeft === null) return <Badge variant="outline" className="text-xs">DURC mancante</Badge>;
-  if (daysLeft < 0) return <Badge className="text-xs bg-red-600 text-white">DURC scaduto</Badge>;
-  if (daysLeft <= 30) return <Badge className="text-xs bg-yellow-500 text-white">DURC {daysLeft}gg</Badge>;
-  return <Badge className="text-xs bg-green-600 text-white">DURC OK</Badge>;
+  if (daysLeft === null) return <Badge variant="outline" className="text-xs">{t("DURC mancante")}</Badge>;
+  if (daysLeft < 0) return <Badge className="text-xs bg-red-600 text-white">{t("DURC scaduto")}</Badge>;
+  if (daysLeft <= 30) return <Badge className="text-xs bg-yellow-500 text-white">{t("DURC {giorni}gg", { giorni: daysLeft })}</Badge>;
+  return <Badge className="text-xs bg-green-600 text-white">{t("DURC OK")}</Badge>;
 }
 
 interface OrderLaborCostsProps {
@@ -89,6 +91,7 @@ interface OrderLaborCostsProps {
 }
 
 export function OrderLaborCosts({ orderId, editable = true, embedded = false, parte = "tutto", compact = false }: OrderLaborCostsProps) {
+  const t = useT();
   const { effectiveCompany, role } = useAuth();
   const effectiveCompanyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -165,7 +168,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
   // ── Mutations ────────────────────────────────────────────────
   const assegnaCampoMutation = useMutation({
     mutationFn: async () => {
-      if (!canEdit || !effectiveCompanyId || assignmentsError || loadingAssegnazioni) throw new Error("Assegnazioni non disponibili");
+      if (!canEdit || !effectiveCompanyId || assignmentsError || loadingAssegnazioni) throw new Error(t("Assegnazioni non disponibili"));
       if (formError) throw new Error(formError);
       const row = {
         company_id: effectiveCompanyId,
@@ -181,7 +184,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
         ? await supabase.from("order_campo_assignments").update(row).eq("id", existingAssignment.id).eq("order_id", orderId).select("id").maybeSingle()
         : await supabase.from("order_campo_assignments").insert(row);
       if (error) throw error;
-      if (existingAssignment && !updated) throw new Error("Nomina non aggiornata: verifica i permessi e ricarica");
+      if (existingAssignment && !updated) throw new Error(t("Nomina non aggiornata: verifica i permessi e ricarica"));
 
       // UNIFICAZIONE delle due porte: il dipendente che entra nel cantiere deve esistere
       // anche sul lato costi. Se l'utente assegnato ha una scheda dipendente
@@ -198,16 +201,16 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
       return { avvisoCosti };
     },
     onSuccess: ({ avvisoCosti }) => {
-      toast.success("Assegnato al cantiere");
+      toast.success(t("Assegnato al cantiere"));
       if (avvisoCosti) {
-        toast.warning("Assegnato, ma la riga costi non è stata creata", { description: avvisoCosti });
+        toast.warning(t("Assegnato, ma la riga costi non è stata creata"), { description: avvisoCosti });
       }
       refreshWorkQueries(queryClient, orderId);
       setCampoDialogOpen(false);
       setFormUserId(""); setFormDataInizio(""); setFormDataFine("");
       setFormCapocantiere(false); setFormNote("");
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore assegnazione"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("Errore assegnazione")),
   });
 
   const rimuoviCampoMutation = useTogliAccessoAMano(orderId);
@@ -218,23 +221,23 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
 
   const ditte = (
     <>
-            {subError && <div role="alert" className="text-sm text-destructive">Affidamenti non disponibili. <Button variant="outline" size="sm" onClick={() => retrySub()}>Riprova affidamenti</Button></div>}
-            {loadingSub && <p className="text-sm text-muted-foreground">Caricamento affidamenti…</p>}
+            {subError && <div role="alert" className="text-sm text-destructive">{t("Affidamenti non disponibili.")} <Button variant="outline" size="sm" onClick={() => retrySub()}>{t("Riprova affidamenti")}</Button></div>}
+            {loadingSub && <p className="text-sm text-muted-foreground">{t("Caricamento affidamenti…")}</p>}
             {durcAlerts.length > 0 && (
               <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-1.5">
                 <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  Attenzione DURC subappaltatori in commessa
+                  {t("Attenzione DURC subappaltatori in commessa")}
                 </div>
                 <ul className="space-y-0.5 text-xs text-amber-800">
                   {durcAlerts.map((a) => (
                     <li key={a.id}>
                       <span className="font-medium">{a.nome}</span>:{" "}
                       {a.level === "scaduto"
-                        ? `DURC SCADUTO${a.days != null ? ` da ${Math.abs(a.days)}gg` : ""}`
+                        ? (a.days != null ? t("DURC SCADUTO da {giorni}gg", { giorni: Math.abs(a.days) }) : t("DURC SCADUTO"))
                         : a.level === "scadenza"
-                          ? `DURC in scadenza tra ${a.days}gg`
-                          : "DURC non presente in scheda"}
+                          ? t("DURC in scadenza tra {giorni}gg", { giorni: a.days ?? "" })
+                          : t("DURC non presente in scheda")}
                     </li>
                   ))}
                 </ul>
@@ -258,7 +261,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
                       {contr > 0 && (
                         <div className="space-y-1">
                           <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Contratto eseguito</span>
+                            <span>{t("Contratto eseguito")}</span>
                             <span className="font-medium">{pct}%</span>
                           </div>
                           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
@@ -268,7 +271,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
                           <div className="flex justify-between text-xs text-muted-foreground">
                             <span>{formatCurrency(lordo)} / {formatCurrency(contr)}</span>
                             {(sub.ritenute_in_corso ?? 0) > 0 && (
-                              <span className="text-amber-600 font-medium">{formatCurrency(sub.ritenute_in_corso)} ritenuta</span>
+                              <span className="text-amber-600 font-medium">{t("{importo} ritenuta", { importo: formatCurrency(sub.ritenute_in_corso) })}</span>
                             )}
                           </div>
                           )}
@@ -276,7 +279,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
                       )}
                       <Button asChild variant="ghost" size="sm" className="h-7 text-xs w-full">
                         <Link to={`/azienda/subappaltatori/${sub.id}`}>
-                          <ExternalLink className="h-3 w-3 mr-1" /> Gestisci
+                          <ExternalLink className="h-3 w-3 mr-1" /> {t("Gestisci")}
                         </Link>
                       </Button>
                     </div>
@@ -286,7 +289,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
             )}
 
             {!subError && !loadingSub && subappaltatori.length === 0 && (
-              <p className="text-sm text-muted-foreground py-2">Nessun affidamento con scheda DURC/SAL collegato. Le squadre operative e i relativi costi sono nelle lavorazioni qui sopra.</p>
+              <p className="text-sm text-muted-foreground py-2">{t("Nessun affidamento con scheda DURC/SAL collegato. Le squadre operative e i relativi costi sono nelle lavorazioni qui sopra.")}</p>
             )}
     </>
   );
@@ -295,11 +298,11 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
     if (!subError && !loadingSub && subappaltatori.length === 0) return null;
     if (compact) {
       const scaduti = durcAlerts.filter(a => a.level === "scaduto").length;
-      return <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Subappalti · contratti e DURC ({subError ? "non verificabili" : loadingSub ? "…" : subappaltatori.length}){durcAlerts.length > 0 && <span className="ml-2 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">{scaduti ? `${scaduti} DURC ${scaduti === 1 ? "scaduto" : "scaduti"}` : `${durcAlerts.length} DURC da verificare`}</span>}</summary><div className="mt-3">{ditte}</div></details>;
+      return <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">{t("Subappalti · contratti e DURC ({n})", { n: subError ? t("non verificabili") : loadingSub ? "…" : subappaltatori.length })}{durcAlerts.length > 0 && <span className="ml-2 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">{scaduti ? t(scaduti === 1 ? "{n} DURC scaduto" : "{n} DURC scaduti", { n: scaduti }) : t("{n} DURC da verificare", { n: durcAlerts.length })}</span>}</summary><div className="mt-3">{ditte}</div></details>;
     }
     return (
-      <section aria-label="Ditte in subappalto" className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ditte in subappalto · DURC e avanzamento del contratto</h3>
+      <section aria-label={t("Ditte in subappalto")} className="space-y-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("Ditte in subappalto · DURC e avanzamento del contratto")}</h3>
         {ditte}
       </section>
     );
@@ -312,7 +315,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Crown className="h-4 w-4 text-amber-600" />
-              <span className="text-sm font-semibold text-amber-900 dark:text-amber-200">Capocantiere</span>
+              <span className="text-sm font-semibold text-amber-900 dark:text-amber-200">{t("Capocantiere")}</span>
             </div>
             {!capocantiere && canEdit && !assignmentsError && !loadingAssegnazioni && (
               <Button
@@ -320,7 +323,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
                 className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
                 onClick={() => openCampoDialog(true)}
               >
-                <UserPlus className="h-3 w-3 mr-1" /> Assegna
+                <UserPlus className="h-3 w-3 mr-1" /> {t("Assegna")}
               </Button>
             )}
           </div>
@@ -331,14 +334,14 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
                   {capocantiere.profile?.first_name?.[0]}{capocantiere.profile?.last_name?.[0]}
                 </div>
                 <div>
-                  <p className="text-sm font-medium">{nomePersona(capocantiere.profile)}</p>
+                  <p className="text-sm font-medium">{nomePersona(capocantiere.profile, t)}</p>
                   <div className="flex items-center gap-1">
                     <Badge variant="outline" className="text-[10px] py-0 border-amber-300">
-                      {capocantiere.role_type === "employee" ? "Dipendente" : "Subappaltatore"}
+                      {capocantiere.role_type === "employee" ? t("Dipendente") : t("Subappaltatore")}
                     </Badge>
                     {capocantiere.data_inizio && (
                       <span className="text-[10px] text-muted-foreground">
-                        Dal {formatDateIt(capocantiere.data_inizio)}{capocantiere.data_fine_prevista ? ` al ${formatDateIt(capocantiere.data_fine_prevista)}` : ""}
+                        {capocantiere.data_fine_prevista ? t("Dal {inizio} al {fine}", { inizio: formatDateIt(capocantiere.data_inizio), fine: formatDateIt(capocantiere.data_fine_prevista) }) : t("Dal {inizio}", { inizio: formatDateIt(capocantiere.data_inizio) })}
                       </span>
                     )}
                   </div>
@@ -346,7 +349,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
               </div>
               {canEdit && fonteAccesso(capocantiere) === "a_mano" && (
                 <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
-                  aria-label="Rimuovi assegnazione esplicita del capocantiere"
+                  aria-label={t("Rimuovi assegnazione esplicita del capocantiere")}
                   onClick={() => setRemoveTarget(capocantiere)}
                   disabled={rimuoviCampoMutation.isPending}
                 >
@@ -362,7 +365,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
             // rapportino UNICO di squadra e, una volta nominato, riserva a lui
             // la dichiarazione di avanzamento delle fasi.
             <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
-              {assignmentsError ? "Nomina non verificabile: ricarica gli accessi qui sotto." : loadingAssegnazioni ? "Verifica della nomina in corso…" : <>Facoltativo. Ogni operaio può inviare il proprio rapportino. Con un referente puoi raccogliere presenze e avanzamento in un <strong>rapportino di squadra</strong>.</>}
+              {assignmentsError ? t("Nomina non verificabile: ricarica gli accessi qui sotto.") : loadingAssegnazioni ? t("Verifica della nomina in corso…") : <>{t("Facoltativo. Ogni operaio può inviare il proprio rapportino. Con un referente puoi raccogliere presenze e avanzamento in un")} <strong>{t("rapportino di squadra")}</strong>.</>}
             </p>
           )}
         </div>
@@ -372,11 +375,11 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="teams" className="gap-1.5 text-xs">
               <Building2 className="h-3.5 w-3.5" />
-              Ditte in subappalto ({subError ? "—" : loadingSub ? "…" : subappaltatori.length})
+              {t("Ditte in subappalto ({n})", { n: subError ? "—" : loadingSub ? "…" : subappaltatori.length })}
             </TabsTrigger>
             <TabsTrigger value="cantiere" className="gap-1.5 text-xs">
               <ShieldCheck className="h-3.5 w-3.5" />
-              Chi vede il cantiere nell'app ({assignmentsError ? "—" : loadingAssegnazioni ? "…" : assegnazioni.length})
+              {t("Chi vede il cantiere nell'app ({n})", { n: assignmentsError ? "—" : loadingAssegnazioni ? "…" : assegnazioni.length })}
             </TabsTrigger>
           </TabsList>
 
@@ -388,21 +391,21 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
           {/* ── Assegnazioni Cantiere ───────────────────────────── */}
           <TabsContent value="cantiere" className="space-y-3 mt-4">
             <p className="text-xs text-muted-foreground">
-              Qui trovi chi vede questo cantiere nell'app di cantiere. Chi è in una squadra sulla commessa ci entra da solo; le date servono a organizzarsi.
+              {t("Qui trovi chi vede questo cantiere nell'app di cantiere. Chi è in una squadra sulla commessa ci entra da solo; le date servono a organizzarsi.")}
             </p>
 
             {assignmentsError ? (
-              <div role="alert" className="text-sm text-destructive">Impossibile verificare gli accessi. <Button variant="outline" size="sm" onClick={() => retryAssignments()}>Riprova accessi</Button></div>
+              <div role="alert" className="text-sm text-destructive">{t("Impossibile verificare gli accessi.")} <Button variant="outline" size="sm" onClick={() => retryAssignments()}>{t("Riprova accessi")}</Button></div>
             ) : loadingAssegnazioni ? (
               <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5 text-muted-foreground" /></div>
             ) : assegnazioni.filter((a) => !a.is_capocantiere).length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">Nessuno per ora.</p>
+              <p className="text-sm text-muted-foreground py-2">{t("Nessuno per ora.")}</p>
             ) : (
               <div className="space-y-2">
                 {/* Operai */}
                 {assegnazioniOperai.filter((a) => !a.is_capocantiere).length > 0 && (
                   <>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Operai</p>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t("Operai")}</p>
                     {assegnazioniOperai.filter((a) => !a.is_capocantiere).map((a) => (
                       <div key={a.id} className="flex items-center justify-between p-2.5 bg-muted/40 rounded-lg border">
                         <div className="flex items-center gap-2">
@@ -410,17 +413,17 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
                             {a.profile?.first_name?.[0]}{a.profile?.last_name?.[0]}
                           </div>
                           <div>
-                            <p className="text-sm font-medium">{nomePersona(a.profile)}{a.da_squadra_id && <span className="ml-1.5 text-xs font-normal text-muted-foreground">con la squadra</span>}</p>
+                            <p className="text-sm font-medium">{nomePersona(a.profile, t)}{a.da_squadra_id && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{t("con la squadra")}</span>}</p>
                             {a.data_inizio && (
                               <span className="text-[10px] text-muted-foreground">
-                                Dal {formatDateIt(a.data_inizio)}{a.data_fine_prevista ? ` al ${formatDateIt(a.data_fine_prevista)}` : ""}
+                                {a.data_fine_prevista ? t("Dal {inizio} al {fine}", { inizio: formatDateIt(a.data_inizio), fine: formatDateIt(a.data_fine_prevista) }) : t("Dal {inizio}", { inizio: formatDateIt(a.data_inizio) })}
                               </span>
                             )}
                           </div>
                         </div>
                         {canEdit && fonteAccesso(a) === "a_mano" && (
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
-                            aria-label={`Rimuovi assegnazione esplicita ${a.profile?.first_name ?? ""} ${a.profile?.last_name ?? ""}`}
+                            aria-label={t("Rimuovi assegnazione esplicita {nome}", { nome: `${a.profile?.first_name ?? ""} ${a.profile?.last_name ?? ""}` })}
                             onClick={() => setRemoveTarget(a)} disabled={rimuoviCampoMutation.isPending}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -433,7 +436,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
                 {/* Subappaltatori campo */}
                 {assegnazioniSub.filter((a) => !a.is_capocantiere).length > 0 && (
                   <>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mt-2">Subappaltatori</p>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mt-2">{t("Subappaltatori")}</p>
                     {assegnazioniSub.filter((a) => !a.is_capocantiere).map((a) => (
                       <div key={a.id} className="flex items-center justify-between p-2.5 bg-muted/40 rounded-lg border">
                         <div className="flex items-center gap-2">
@@ -441,17 +444,17 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
                             {a.profile?.first_name?.[0]}{a.profile?.last_name?.[0]}
                           </div>
                           <div>
-                            <p className="text-sm font-medium">{nomePersona(a.profile)}{a.da_squadra_id && <span className="ml-1.5 text-xs font-normal text-muted-foreground">con la squadra</span>}</p>
+                            <p className="text-sm font-medium">{nomePersona(a.profile, t)}{a.da_squadra_id && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{t("con la squadra")}</span>}</p>
                             {a.data_inizio && (
                               <span className="text-[10px] text-muted-foreground">
-                                Dal {formatDateIt(a.data_inizio)}{a.data_fine_prevista ? ` al ${formatDateIt(a.data_fine_prevista)}` : ""}
+                                {a.data_fine_prevista ? t("Dal {inizio} al {fine}", { inizio: formatDateIt(a.data_inizio), fine: formatDateIt(a.data_fine_prevista) }) : t("Dal {inizio}", { inizio: formatDateIt(a.data_inizio) })}
                               </span>
                             )}
                           </div>
                         </div>
                         {canEdit && fonteAccesso(a) === "a_mano" && (
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
-                            aria-label={`Rimuovi assegnazione esplicita ${a.profile?.first_name ?? ""} ${a.profile?.last_name ?? ""}`}
+                            aria-label={t("Rimuovi assegnazione esplicita {nome}", { nome: `${a.profile?.first_name ?? ""} ${a.profile?.last_name ?? ""}` })}
                             onClick={() => setRemoveTarget(a)} disabled={rimuoviCampoMutation.isPending}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -465,7 +468,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
 
             {canEdit && (
               <Button variant="outline" size="sm" className="w-full" disabled={loadingAssegnazioni || assignmentsError} onClick={() => openCampoDialog(false)}>
-                <UserPlus className="h-4 w-4 mr-2" /> Dai l'accesso a una persona
+                <UserPlus className="h-4 w-4 mr-2" /> {t("Dai l'accesso a una persona")}
               </Button>
             )}
           </TabsContent>
@@ -476,16 +479,16 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
         <Dialog open={campoDialogOpen} onOpenChange={open => { if (!assegnaCampoMutation.isPending) setCampoDialogOpen(open); }}>
           <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>{formCapocantiere ? "Nomina il capocantiere" : "Dai l'accesso al cantiere"}</DialogTitle>
+              <DialogTitle>{formCapocantiere ? t("Nomina il capocantiere") : t("Dai l'accesso al cantiere")}</DialogTitle>
               <DialogDescription>
-                Collega un account esistente a questo cantiere. La squadra esterna, il suo contratto e il referente Campo rimangono informazioni distinte.
+                {t("Collega un account esistente a questo cantiere. La squadra esterna, il suo contratto e il referente Campo rimangono informazioni distinte.")}
               </DialogDescription>
             </DialogHeader>
             <fieldset disabled={assegnaCampoMutation.isPending} className="min-w-0 space-y-4">
-              {usersError && <p role="alert" className="text-sm text-destructive">Impossibile caricare gli utenti Campo. Chiudi e riprova.</p>}
-              {!usersError && !loadingUsers && utentiCampo.length === 0 && <p className="text-sm text-muted-foreground">Nessun account operaio o subappaltatore disponibile. Configura prima l'account nella relativa anagrafica.</p>}
+              {usersError && <p role="alert" className="text-sm text-destructive">{t("Impossibile caricare gli utenti Campo. Chiudi e riprova.")}</p>}
+              {!usersError && !loadingUsers && utentiCampo.length === 0 && <p className="text-sm text-muted-foreground">{t("Nessun account operaio o subappaltatore disponibile. Configura prima l'account nella relativa anagrafica.")}</p>}
               <div>
-                <Label htmlFor="campo-user">Utente</Label>
+                <Label htmlFor="campo-user">{t("Utente")}</Label>
                 <Select value={formUserId} onValueChange={id => {
                   setFormUserId(id);
                   const existing = assegnazioni.find(a => a.user_id === id);
@@ -494,55 +497,55 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
                   setFormRoleType((previousRole === "employee" || previousRole === "subcontractor") && roles.includes(previousRole) ? previousRole : roles[0] ?? "employee");
                   setFormDataInizio(existing?.data_inizio ?? ""); setFormDataFine(existing?.data_fine_prevista ?? ""); setFormNote(existing?.note ?? "");
                 }}>
-                  <SelectTrigger id="campo-user" disabled={loadingUsers || usersError}><SelectValue placeholder={loadingUsers ? "Caricamento utenti…" : "Seleziona operaio o subappaltatore"} /></SelectTrigger>
+                  <SelectTrigger id="campo-user" disabled={loadingUsers || usersError}><SelectValue placeholder={loadingUsers ? t("Caricamento utenti…") : t("Seleziona operaio o subappaltatore")} /></SelectTrigger>
                   <SelectContent>
                     {utentiCampo.map((u) => {
-                      const roleLabel = u.roles?.includes("subcontractor") ? "Sub" : "Operaio";
+                      const roleLabel = u.roles?.includes("subcontractor") ? t("Sub") : t("Operaio");
                       return (
                       <SelectItem key={u.id} value={u.id}>
                         {[u.first_name, u.last_name].filter(Boolean).join(" ")}
                         <span className="ml-2 text-muted-foreground text-xs">({roleLabel})</span>
-                        {assegnazioni.some(a => a.user_id === u.id) && <span className="ml-1 text-xs">· già assegnato</span>}
+                        {assegnazioni.some(a => a.user_id === u.id) && <span className="ml-1 text-xs">· {t("già assegnato")}</span>}
                       </SelectItem>
                     )})}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="campo-role">Ruolo nell'app</Label>
+                <Label htmlFor="campo-role">{t("Ruolo nell'app")}</Label>
                 <Select value={formUserId ? formRoleType : ""} onValueChange={(v: "employee" | "subcontractor") => setFormRoleType(v)}>
-                  <SelectTrigger id="campo-role" disabled={allowedRoles.length < 2}><SelectValue placeholder="Seleziona prima l'utente" /></SelectTrigger>
+                  <SelectTrigger id="campo-role" disabled={allowedRoles.length < 2}><SelectValue placeholder={t("Seleziona prima l'utente")} /></SelectTrigger>
                   <SelectContent>
-                    {allowedRoles.includes("employee") && <SelectItem value="employee">Operaio / Dipendente</SelectItem>}
-                    {allowedRoles.includes("subcontractor") && <SelectItem value="subcontractor">Subappaltatore</SelectItem>}
+                    {allowedRoles.includes("employee") && <SelectItem value="employee">{t("Operaio / Dipendente")}</SelectItem>}
+                    {allowedRoles.includes("subcontractor") && <SelectItem value="subcontractor">{t("Subappaltatore")}</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="campo-start">Data inizio</Label>
+                  <Label htmlFor="campo-start">{t("Data inizio")}</Label>
                   <Input id="campo-start" type="date" value={formDataInizio} onChange={e => setFormDataInizio(e.target.value)} />
                 </div>
                 <div>
-                  <Label htmlFor="campo-end">Data fine prevista</Label>
+                  <Label htmlFor="campo-end">{t("Data fine prevista")}</Label>
                   <Input id="campo-end" type="date" value={formDataFine} onChange={e => setFormDataFine(e.target.value)} />
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Switch id="campo-capo" checked={formCapocantiere} onCheckedChange={setFormCapocantiere} disabled={!!capocantiere && capocantiere.user_id !== formUserId} />
-                <Label htmlFor="campo-capo" className="cursor-pointer">Capocantiere responsabile</Label>
+                <Label htmlFor="campo-capo" className="cursor-pointer">{t("Capocantiere responsabile")}</Label>
               </div>
               <div>
-                <Label htmlFor="campo-note">Note (opzionale)</Label>
-                <Input id="campo-note" value={formNote} onChange={e => setFormNote(e.target.value)} placeholder="Es: Responsabile posa serramenti" />
+                <Label htmlFor="campo-note">{t("Note (opzionale)")}</Label>
+                <Input id="campo-note" value={formNote} onChange={e => setFormNote(e.target.value)} placeholder={t("Es: Responsabile posa serramenti")} />
               </div>
               {formUserId && formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
-              {existingAssignment && formCapocantiere && !formError && <p className="text-xs text-muted-foreground">Verrà aggiornata la nomina sull'assegnazione esistente, senza creare una seconda riga.</p>}
+              {existingAssignment && formCapocantiere && !formError && <p className="text-xs text-muted-foreground">{t("Verrà aggiornata la nomina sull'assegnazione esistente, senza creare una seconda riga.")}</p>}
             </fieldset>
             <DialogFooter>
-              <Button variant="outline" disabled={assegnaCampoMutation.isPending} onClick={() => setCampoDialogOpen(false)}>Annulla</Button>
+              <Button variant="outline" disabled={assegnaCampoMutation.isPending} onClick={() => setCampoDialogOpen(false)}>{t("Annulla")}</Button>
               <Button onClick={() => assegnaCampoMutation.mutate()} disabled={!!formError || usersError || assignmentsError || loadingUsers || loadingAssegnazioni || assegnaCampoMutation.isPending}>
-                {assegnaCampoMutation.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Assegna"}
+                {assegnaCampoMutation.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : t("Assegna")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -550,15 +553,15 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
         <AlertDialog open={!!removeTarget} onOpenChange={open => { if (!open && !rimuoviCampoMutation.isPending) setRemoveTarget(null); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Rimuovere l'assegnazione esplicita?</AlertDialogTitle>
+              <AlertDialogTitle>{t("Rimuovere l'assegnazione esplicita?")}</AlertDialogTitle>
               <AlertDialogDescription>
-                {removeTarget?.profile?.first_name} {removeTarget?.profile?.last_name}: verrà rimossa solo questa assegnazione{removeTarget?.is_capocantiere ? " e la nomina di capocantiere" : ""}.
-                {" "}L'accesso tramite lavorazioni o contratti attivi può restare disponibile. Ore, costi e rapportini non vengono cancellati. Questa azione non è una revoca completa dell'accesso.
+                {t(removeTarget?.is_capocantiere ? "{nome}: verrà rimossa solo questa assegnazione e la nomina di capocantiere." : "{nome}: verrà rimossa solo questa assegnazione.", { nome: [removeTarget?.profile?.first_name, removeTarget?.profile?.last_name].filter(Boolean).join(" ") })}
+                {" "}{t("L'accesso tramite lavorazioni o contratti attivi può restare disponibile. Ore, costi e rapportini non vengono cancellati. Questa azione non è una revoca completa dell'accesso.")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={rimuoviCampoMutation.isPending}>Annulla</AlertDialogCancel>
-              <Button variant="destructive" disabled={!canEdit || rimuoviCampoMutation.isPending} onClick={() => removeTarget && rimuoviCampoMutation.mutate(removeTarget.id, { onSuccess: () => setRemoveTarget(null) })}>Rimuovi assegnazione</Button>
+              <AlertDialogCancel disabled={rimuoviCampoMutation.isPending}>{t("Annulla")}</AlertDialogCancel>
+              <Button variant="destructive" disabled={!canEdit || rimuoviCampoMutation.isPending} onClick={() => removeTarget && rimuoviCampoMutation.mutate(removeTarget.id, { onSuccess: () => setRemoveTarget(null) })}>{t("Rimuovi assegnazione")}</Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -572,7 +575,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
           <HardHat className="h-5 w-5" />
-          Manodopera
+          {t("Manodopera")}
         </CardTitle>
       </CardHeader>
       <CardContent>{body}</CardContent>

@@ -11,12 +11,13 @@ import {
   aPrestito, type ContiInvestitori, type NumeriOperazione,
 } from "@/lib/orders/generali/investitoriConti";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const COLORI = { propri: "#64748b", investitori: "#0284c7", debito: "rgb(var(--brand-accent, 249 115 22))", fabbisogno: "hsl(var(--foreground))", ipotesi: "#2563eb" };
 
 const punti = (n: number | null) =>
-  n === null || !Number.isFinite(n) ? "—" : `${n >= 0 ? "+" : "−"}${(Math.abs(n) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })} punti`;
-const migliaia = (v: unknown) => `${Math.round(Number(v) / 1000).toLocaleString("it-IT")}k`;
+  n === null || !Number.isFinite(n) ? "—" : `${n >= 0 ? "+" : "−"}${(Math.abs(n) * 100).toLocaleString(intlCampo(), { maximumFractionDigits: 1 })} punti`;
+const migliaia = (v: unknown) => `${Math.round(Number(v) / 1000).toLocaleString(intlCampo())}k`;
 
 interface Props {
   conti: ContiInvestitori;
@@ -25,35 +26,36 @@ interface Props {
 }
 
 export function RendimentoLeva({ conti, numeri, conScenario }: Props) {
+  const t = useT();
   const haDebito = conti.fonti.some(c => aPrestito(c.fonte.tipo));
 
   return (
     <div className="space-y-4">
-      <section aria-label="Rendimento e leva" className="rounded-lg border bg-card px-4 py-3">
-        <h3 className="text-sm font-semibold">Rendimento e leva</h3>
-        <p className="text-xs text-muted-foreground">Rendimento dell’operazione e dei mezzi propri dopo debito e investitori.</p>
+      <section aria-label={t("Rendimento e leva")} className="rounded-lg border bg-card px-4 py-3">
+        <h3 className="text-sm font-semibold">{t("Rendimento e leva")}</h3>
+        <p className="text-xs text-muted-foreground">{t("Rendimento dell’operazione e dei mezzi propri dopo debito e investitori.")}</p>
 
         {!numeri ? (
-          <p className="mt-2 text-sm text-muted-foreground">Con il piano economico qui vedrai ROI e TIR dell'operazione e quanto rendono i mezzi propri.</p>
+          <p className="mt-2 text-sm text-muted-foreground">{t("Con il piano economico qui vedrai ROI e TIR dell'operazione e quanto rendono i mezzi propri.")}</p>
         ) : (
           <>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
-              <Blocco titolo="L'operazione" nota={`margine prima del debito ${euro(conti.rendimenti.progetto.margine)} sul capitale massimo ${euro(conti.rendimenti.progetto.capitale)}`}>
+              <Blocco titolo={t("L'operazione")} nota={t("margine prima del debito {margine} sul capitale massimo {capitale}", { margine: euro(conti.rendimenti.progetto.margine), capitale: euro(conti.rendimenti.progetto.capitale) })}>
                 <Cifra etichetta="ROI" valore={percento(conti.rendimenti.progetto.roi)} />
-                <Cifra etichetta="TIR del progetto" valore={percento(conti.rendimenti.progetto.tir)} />
+                <Cifra etichetta={t("TIR del progetto")} valore={percento(conti.rendimenti.progetto.tir)} />
               </Blocco>
               <Blocco
-                titolo="I mezzi propri"
+                titolo={t("I mezzi propri")}
                 nota={conti.rendimenti.mezziPropri
-                  ? `utile ${euro(conti.rendimenti.mezziPropri.utile)} su ${euro(conti.rendimenti.mezziPropri.capitale)} messi`
-                  : "Aggiungi i mezzi propri tra le fonti per vedere quanto rendono."}
+                  ? t("utile {utile} su {capitale} messi", { utile: euro(conti.rendimenti.mezziPropri.utile), capitale: euro(conti.rendimenti.mezziPropri.capitale) })
+                  : t("Aggiungi i mezzi propri tra le fonti per vedere quanto rendono.")}
               >
                 <Cifra etichetta="ROE" valore={percento(conti.rendimenti.mezziPropri?.roe ?? null)} scenario={conScenario ? percento(conScenario.rendimenti.mezziPropri?.roe ?? null) : undefined} />
-                <Cifra etichetta="TIR dei mezzi propri" valore={percento(conti.rendimenti.mezziPropri?.tir ?? null)} scenario={conScenario ? percento(conScenario.rendimenti.mezziPropri?.tir ?? null) : undefined} />
+                <Cifra etichetta={t("TIR dei mezzi propri")} valore={percento(conti.rendimenti.mezziPropri?.tir ?? null)} scenario={conScenario ? percento(conScenario.rendimenti.mezziPropri?.tir ?? null) : undefined} />
               </Blocco>
-              <Blocco titolo="Effetto leva" nota="ROE meno ROI: positivo se il debito e gli investitori costano meno di quanto rende l'operazione.">
+              <Blocco titolo={t("Effetto leva")} nota={t("ROE meno ROI: positivo se il debito e gli investitori costano meno di quanto rende l'operazione.")}>
                 <Cifra
-                  etichetta="Leva"
+                  etichetta={t("Leva")}
                   valore={punti(conti.rendimenti.leva)}
                   tono={conti.rendimenti.leva === null ? undefined : conti.rendimenti.leva >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"}
                   scenario={conScenario ? punti(conScenario.rendimenti.leva) : undefined}
@@ -93,16 +95,17 @@ function Cifra({ etichetta, valore, tono, scenario }: { etichetta: string; valor
 }
 
 function CostoDebito({ conti, numeri, mostraCasoBase }: { conti: ContiInvestitori; numeri: NumeriOperazione | null; mostraCasoBase: boolean }) {
+  const tr = useT();
   const c = conti.costoDebito;
   const dati = c.mensile.map((m) => ({ etichetta: nomeMese(m.mese), interessi: m.interessi, spese: m.spese, reale: m.reale }));
-  const righe: [string, typeof c.interessi][] = [["Interessi", c.interessi], ["Spese", c.spese]];
+  const righe: [string, typeof c.interessi][] = [[tr("Interessi"), c.interessi], [tr("Spese"), c.spese]];
   return (
-    <section aria-label="Costo del debito" className="rounded-lg border bg-card px-4 py-3">
+    <section aria-label={tr("Costo del debito")} className="rounded-lg border bg-card px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold">Costo del debito {mostraCasoBase && <span className="text-xs font-normal text-muted-foreground">· Base</span>}</h3>
+        <h3 className="text-sm font-semibold">{tr("Costo del debito")} {mostraCasoBase && <span className="text-xs font-normal text-muted-foreground">· {tr("Base")}</span>}</h3>
         <p className="text-sm">
-          Totale stimato <span className="font-medium tabular-nums">{euro(c.totale)}</span>
-          {c.costoAnnuo !== null && <span className="text-xs text-muted-foreground"> · costo effettivo {percento(c.costoAnnuo)} l'anno</span>}
+          {tr("Totale stimato")} <span className="font-medium tabular-nums">{euro(c.totale)}</span>
+          {c.costoAnnuo !== null && <span className="text-xs text-muted-foreground"> {tr("· costo effettivo {perc} l'anno", { perc: percento(c.costoAnnuo) })}</span>}
         </p>
       </div>
       <table className="mt-2 w-full max-w-xl text-sm">
@@ -111,7 +114,7 @@ function CostoDebito({ conti, numeri, mostraCasoBase }: { conti: ContiInvestitor
             <th className="py-1 text-left font-normal" />
             {(["previsto", "reale", "aFinire"] as const).map((t) => (
               <th key={t} className="py-1 text-right font-normal">
-                <span className="inline-flex items-center gap-1.5"><span className={cn("h-2 w-2 rounded-full", TONI[t].punto)} />{t === "previsto" ? "Previsto" : t === "reale" ? "Pagato" : "A finire"}</span>
+                <span className="inline-flex items-center gap-1.5"><span className={cn("h-2 w-2 rounded-full", TONI[t].punto)} />{t === "previsto" ? tr("Previsto") : t === "reale" ? tr("Pagato") : tr("A finire")}</span>
               </th>
             ))}
           </tr>
@@ -128,13 +131,13 @@ function CostoDebito({ conti, numeri, mostraCasoBase }: { conti: ContiInvestitor
         </tbody>
       </table>
       {dati.length > 1 && (
-        <div className="mt-3 h-40" aria-label="Interessi e spese mese per mese">
+        <div className="mt-3 h-40" aria-label={tr("Interessi e spese mese per mese")}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={dati} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
               <XAxis dataKey="etichetta" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" minTickGap={16} />
               <YAxis tickLine={false} axisLine={false} fontSize={10} stroke="#94a3b8" width={48} tickFormatter={migliaia} />
-              <RechartsTooltip formatter={(v, n) => [euro(Number(v)), n === "interessi" ? "Interessi" : "Spese"]} contentStyle={{ borderRadius: 10, fontSize: 12 }} />
+              <RechartsTooltip formatter={(v, n) => [euro(Number(v)), n === "interessi" ? tr("Interessi") : tr("Spese")]} contentStyle={{ borderRadius: 10, fontSize: 12 }} />
               <Bar dataKey="interessi" stackId="c" fill="#f59e0b" />
               <Bar dataKey="spese" stackId="c" fill="#b45309" />
             </ComposedChart>
@@ -143,24 +146,25 @@ function CostoDebito({ conti, numeri, mostraCasoBase }: { conti: ContiInvestitor
       )}
       <p className="mt-2 text-xs text-muted-foreground">
         {numeri?.interessiNelPiano
-          ? `Il piano ha già una voce «Oneri finanziari» (${euro(numeri.oneriNelPiano?.stima ?? 0)} a finire): l'utile da dividere non li toglie una seconda volta. Se il costo qui è diverso, aggiorna quella voce del piano.`
+          ? tr("Il piano ha già una voce «Oneri finanziari» ({importo} a finire): l'utile da dividere non li toglie una seconda volta. Se il costo qui è diverso, aggiorna quella voce del piano.", { importo: euro(numeri.oneriNelPiano?.stima ?? 0) })
           : (numeri?.oneriRealiNelPiano ?? 0) > 0
-            ? `Il piano non ha una voce «Oneri finanziari», ma conta già ${euro(numeri!.oneriRealiNelPiano!)} di interessi e spese pagati: dal margine si toglie solo il resto, prima di dividere l'utile.`
-            : "Il piano non ha una voce «Oneri finanziari»: questo costo si toglie dal margine del piano prima di dividere l'utile."}
+            ? tr("Il piano non ha una voce «Oneri finanziari», ma conta già {importo} di interessi e spese pagati: dal margine si toglie solo il resto, prima di dividere l'utile.", { importo: euro(numeri!.oneriRealiNelPiano!) })
+            : tr("Il piano non ha una voce «Oneri finanziari»: questo costo si toglie dal margine del piano prima di dividere l'utile.")}
       </p>
     </section>
   );
 }
 
 function FontiNelTempo({ conti, conPiano, conScenario }: { conti: ContiInvestitori; conPiano: boolean; conScenario: ContiInvestitori | null }) {
+  const t = useT();
   const coperturaSimulata = new Map(conScenario?.composizione.filter(m => !m.reale).map(m => [m.mese, m.capitaleDalleFonti]));
   const dati = conti.composizione.map((m) => ({ ...m, etichetta: nomeMese(m.mese), ipotesi: coperturaSimulata.get(m.mese) ?? null }));
-  const nomi: Record<string, string> = { propri: "Mezzi propri", investitori: "Investitori", debito: "Banca e finanziamenti", fabbisogno: "Fabbisogno del piano", ipotesi: "Capitale con ipotesi" };
+  const nomi: Record<string, string> = { propri: t("Mezzi propri"), investitori: t("Investitori"), debito: t("Banca e finanziamenti"), fabbisogno: t("Fabbisogno del piano"), ipotesi: t("Capitale con ipotesi") };
   return (
-    <section aria-label="Fonti nel tempo" className="rounded-lg border bg-card px-4 py-3">
-      <h3 className="text-sm font-semibold">Fonti nel tempo</h3>
+    <section aria-label={t("Fonti nel tempo")} className="rounded-lg border bg-card px-4 py-3">
+      <h3 className="text-sm font-semibold">{t("Fonti nel tempo")}</h3>
       <p className="text-xs text-muted-foreground">
-        Il capitale dentro a fine mese per fonte{conPiano ? ", contro il capitale che il piano chiede (la linea)" : ""}. Fino a oggi i movimenti veri, poi la proiezione: erogazioni quando servono, rimborsi secondo il loro piano.
+        {conPiano ? t("Il capitale dentro a fine mese per fonte, contro il capitale che il piano chiede (la linea).") : t("Il capitale dentro a fine mese per fonte.")} {t("Fino a oggi i movimenti veri, poi la proiezione: erogazioni quando servono, rimborsi secondo il loro piano.")}
       </p>
       <div className="mt-3 h-56">
         <ResponsiveContainer width="100%" height="100%">

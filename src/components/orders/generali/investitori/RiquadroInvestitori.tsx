@@ -10,6 +10,7 @@ import type { PropsScheda } from "@/components/orders/generali/tipiScheda";
 import { euro, nomeMese } from "@/components/orders/generali/piano/formato";
 import { useGeneraleInvestitori } from "@/hooks/useGeneraleInvestitori";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function Numero({ etichetta, valore, nota, tono }: { etichetta: string; valore: string; nota?: string; tono?: string }) {
   return (
@@ -22,6 +23,7 @@ function Numero({ etichetta, valore, nota, tono }: { etichetta: string; valore: 
 }
 
 export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
+  const t = useT();
   const inv = useGeneraleInvestitori(riepilogo);
   const [parametri, setParametri] = useSearchParams();
   // Da telefono la scheda non c'è: il riquadro si legge e basta.
@@ -36,10 +38,10 @@ export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
 
   const intestazione = (
     <div className="flex items-center justify-between gap-2">
-      <h2 className="flex items-center gap-2 text-sm font-semibold"><span className="generale-section-icon"><Landmark aria-hidden="true" /></span>Investitori</h2>
+      <h2 className="flex items-center gap-2 text-sm font-semibold"><span className="generale-section-icon"><Landmark aria-hidden="true" /></span>{t("Investitori")}</h2>
       {!telefono && (
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={apri}>
-          Apri gli investitori <ArrowRight className="ml-1 h-3.5 w-3.5" />
+          {t("Apri gli investitori")} <ArrowRight className="ml-1 h-3.5 w-3.5" />
         </Button>
       )}
     </div>
@@ -60,7 +62,7 @@ export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
       <section className="rounded-lg border bg-card px-4 py-3">
         {intestazione}
         <p className="mt-1 text-sm text-muted-foreground">
-          Aggiungi le fonti (mezzi propri, investitori, banca) per vedere se coprono il capitale che l'operazione chiede.
+          {t("Aggiungi le fonti (mezzi propri, investitori, banca) per vedere se coprono il capitale che l'operazione chiede.")}
         </p>
       </section>
     );
@@ -69,20 +71,20 @@ export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
   const n = inv.numeri;
   const meseScoperto = c.scopertoCalendario.importo > c.scopertoImpegni ? c.scopertoCalendario.mese : null;
   return (
-    <section aria-label="Investitori" className="generale-panel px-4 py-4">
+    <section aria-label={t("Investitori")} className="generale-panel px-4 py-4">
       {intestazione}
       <div className="mt-2 grid grid-cols-2 gap-3">
-        <Numero etichetta="Capitale ancora dentro" valore={euro(c.totali.dentro)} nota={`impegni ${euro(c.totali.impegno)}`} />
-        <Numero etichetta="Ancora da versare" valore={euro(c.totali.daVersare)} nota="impegni non ancora versati" />
+        <Numero etichetta={t("Capitale ancora dentro")} valore={euro(c.totali.dentro)} nota={t("impegni {importo}", { importo: euro(c.totali.impegno) })} />
+        <Numero etichetta={t("Ancora da versare")} valore={euro(c.totali.daVersare)} nota={t("impegni non ancora versati")} />
       </div>
       <dl className="generale-mini-sources mt-3 border-t pt-3">{c.copertura.map(g => <div key={g.gruppo}><dt>{g.nome}</dt><dd>{euro(g.dentro)}</dd></div>)}</dl>
       {c.costoDebito.totale >= 1 && (
-        <p className="mt-2 text-xs text-muted-foreground">Costo del debito stimato: {euro(c.costoDebito.totale)} tra interessi e spese.</p>
+        <p className="mt-2 text-xs text-muted-foreground">{t("Costo del debito stimato: {importo} tra interessi e spese.", { importo: euro(c.costoDebito.totale) })}</p>
       )}
       {n && c.scoperto >= 1 && (
         <p className="mt-2 text-xs text-destructive">
-          {meseScoperto ? `Nel calendario mancano ${euro(c.scoperto)} a ${nomeMese(meseScoperto)}.`
-            : `Al picco di esposizione mancano ${euro(c.scoperto)}.`}
+          {meseScoperto ? t("Nel calendario mancano {scoperto} a {meseScoperto}.", { scoperto: euro(c.scoperto), meseScoperto: String(nomeMese(meseScoperto) ?? "") })
+            : t("Al picco di esposizione mancano {scoperto}.", { scoperto: euro(c.scoperto) })}
         </p>
       )}
     </section>

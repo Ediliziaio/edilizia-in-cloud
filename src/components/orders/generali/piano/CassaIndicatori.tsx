@@ -32,6 +32,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { asseEuro } from "@/lib/orders/generali/cassaLettura";
 import "./cassa-andamento.css";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PARTITE_NOMI: Record<string, string> = {
   previsto: "previsto",
@@ -103,6 +104,7 @@ export function CassaIndicatori({
   /** Il modulo Unità c'è: i m² mancanti sono un passo da fare, non un limite. */
   conUnita: boolean;
 }) {
+  const t = useT();
   const [tabella, setTabella] = useState(false);
   const [meseSelezionato, setMese] = useState<string | null>(null);
   const [periodo, setPeriodo] = useState<"tutto" | "futuro" | "passato">(
@@ -114,9 +116,7 @@ export function CassaIndicatori({
         role="status"
         className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100"
       >
-        Completa il mese delle voci nella scheda Voci. Finché manca una
-        scadenza, il fabbisogno di capitale e i rendimenti nel tempo non sono
-        disponibili.
+        {t("Completa il mese delle voci nella scheda Voci. Finché manca una scadenza, il fabbisogno di capitale e i rendimenti nel tempo non sono disponibili.")}
       </div>
     );
   const ind = piano.indicatori;
@@ -129,62 +129,62 @@ export function CassaIndicatori({
   const conMq = ind.stima.mq !== null;
 
   const righe: Riga[] = [
-    { etichetta: "Ricavi", valore: (i) => euro(i.ricavi) },
-    { etichetta: "Costi", valore: (i) => euro(i.costi) },
+    { etichetta: t("Ricavi"), valore: (i) => euro(i.ricavi) },
+    { etichetta: t("Costi"), valore: (i) => euro(i.costi) },
     {
-      etichetta: "Margine",
+      etichetta: t("Margine"),
       valore: (i) => euro(i.margine),
       tono: (i) => rosso(i.margine),
     },
     {
-      etichetta: "Margine sui ricavi",
+      etichetta: t("Margine sui ricavi"),
       valore: (i) => percento(i.marginePct),
       tono: (i) => rosso(i.marginePct),
     },
     {
-      etichetta: "ROI (margine sui costi)",
+      etichetta: t("ROI (margine sui costi)"),
       valore: (i) => percento(i.roi),
-      aiuto: "Quanto rende ogni euro speso.",
+      aiuto: t("Quanto rende ogni euro speso."),
       tono: (i) => rosso(i.roi),
     },
     {
-      etichetta: "Rendimento annuo (TIR)",
+      etichetta: t("Rendimento annuo (TIR)"),
       valore: (i) => percento(i.tir),
       aiuto:
-        "Il tasso annuo che rende i soldi messi pari a quelli che tornano, tenendo conto di quando.",
+        t("Il tasso annuo che rende i soldi messi pari a quelli che tornano, tenendo conto di quando."),
       tono: (i) => rosso(i.tir),
     },
     {
-      etichetta: "Durata",
+      etichetta: t("Durata"),
       valore: (i) =>
         i.durataMesi === null
           ? "—"
-          : `${i.durataMesi} mesi · ${nomeMese(i.inizio)} → ${nomeMese(i.fine)}`,
+          : t("{n} mesi · {inizio} → {fine}", { n: i.durataMesi, inizio: nomeMese(i.inizio), fine: nomeMese(i.fine) }),
     },
     {
-      etichetta: "Capitale massimo impegnato",
+      etichetta: t("Capitale massimo impegnato"),
       valore: (i) =>
         i.capitaleMassimo > 0
           ? `${euro(i.capitaleMassimo)} · ${nomeMese(i.meseCapitaleMassimo)}`
           : euro(0),
       aiuto:
-        "Il punto più basso della cassa: quanto serve tra mezzi propri, soci, investitori e banca.",
+        t("Il punto più basso della cassa: quanto serve tra mezzi propri, soci, investitori e banca."),
     },
     ...(conMq
       ? [
           {
-            etichetta: "Costo di costruzione al m²",
+            etichetta: t("Costo di costruzione al m²"),
             valore: (i: Indicatori) => euro(i.costoMq),
           },
           {
-            etichetta: "Prezzo medio al m²",
+            etichetta: t("Prezzo medio al m²"),
             valore: (i: Indicatori) => euro(i.prezzoMq),
           },
           {
-            etichetta: "Prezzo di pareggio al m²",
+            etichetta: t("Prezzo di pareggio al m²"),
             valore: (i: Indicatori) => euro(i.pareggioMq),
             aiuto:
-              "Il prezzo medio di vendita al m² sotto il quale l'operazione perde.",
+              t("Il prezzo medio di vendita al m² sotto il quale l'operazione perde."),
           },
         ]
       : []),
@@ -244,17 +244,17 @@ export function CassaIndicatori({
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h3 id="scenari-titolo" className="text-sm font-semibold">
-              Simula il piano
+              {t("Simula il piano")}
             </h3>
             <p className="text-xs text-muted-foreground">
-              Modifica importi e tempi degli incassi residui.
-              {conUnita && " I prezzi delle unità a compromesso o già vendute sono protetti."}
+              {t("Modifica importi e tempi degli incassi residui.")}
+              {conUnita && ` ${t("I prezzi delle unità a compromesso o già vendute sono protetti.")}`}
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-4">
             <CampoScenario
               id="sc-prezzo"
-              etichetta="Prezzi più bassi del"
+              etichetta={t("Prezzi più bassi del")}
               unita="%"
               max={90}
               valore={scenario.prezzoPct}
@@ -262,8 +262,8 @@ export function CassaIndicatori({
             />
             <CampoScenario
               id="sc-ritardo"
-              etichetta="Incassi in ritardo di"
-              unita="mesi"
+              etichetta={t("Incassi in ritardo di")}
+              unita={t("mesi")}
               max={60}
               valore={scenario.ritardoMesi}
               onCambia={(ritardoMesi) =>
@@ -275,7 +275,7 @@ export function CassaIndicatori({
             />
             <CampoScenario
               id="sc-costi"
-              etichetta="Costi più alti del"
+              etichetta={t("Costi più alti del")}
               unita="%"
               max={200}
               valore={scenario.costiPct}
@@ -289,7 +289,7 @@ export function CassaIndicatori({
                   onScenario({ prezzoPct: 0, ritardoMesi: 0, costiPct: 0 })
                 }
               >
-                Azzera
+                {t("Azzera")}
               </Button>
             )}
           </div>
@@ -304,11 +304,10 @@ export function CassaIndicatori({
           <div className="generale-panel-title">
             <div>
               <h3 id="indicatori-titolo">
-                Indicatori economici · importi netti
+                {t("Indicatori economici · importi netti")}
               </h3>
               <p>
-                Budget, stima finale ed eventuale scenario. Il capitale versato
-                dagli investitori si consulta nelle fonti.
+                {t("Budget, stima finale ed eventuale scenario. Il capitale versato dagli investitori si consulta nelle fonti.")}
               </p>
             </div>
           </div>
@@ -316,10 +315,10 @@ export function CassaIndicatori({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
-              <th className="px-4 py-2 font-medium">Indicatore</th>
+              <th className="px-4 py-2 font-medium">{t("Indicatore")}</th>
               {colonne.map((c) => (
                 <th key={c.nome} className="px-3 py-2 text-right font-medium">
-                  {c.nome}
+                  {t(c.nome)}
                 </th>
               ))}
             </tr>
@@ -351,9 +350,9 @@ export function CassaIndicatori({
             ))}
             <tr>
               <th scope="row" className="px-4 py-1.5 text-left font-normal">
-                Capitale investito a oggi
+                {t("Capitale investito a oggi")}
                 <span className="block text-[11px] text-muted-foreground">
-                  Costi registrati meno incassi.
+                  {t("Costi registrati meno incassi.")}
                 </span>
               </th>
               <td className="px-3 py-1.5 text-right text-muted-foreground">
@@ -373,8 +372,8 @@ export function CassaIndicatori({
         {!conMq && (
           <p className="border-t px-4 py-2 text-xs text-muted-foreground">
             {conUnita
-              ? "Scrivi i m² commerciali delle unità per vedere costo al m² e prezzo di pareggio al m²."
-              : "Costo al m² e prezzo di pareggio al m² compaiono quando le unità hanno i m² commerciali (modulo Unità e vendite)."}
+              ? t("Scrivi i m² commerciali delle unità per vedere costo al m² e prezzo di pareggio al m².")
+              : t("Costo al m² e prezzo di pareggio al m² compaiono quando le unità hanno i m² commerciali (modulo Unità e vendite).")}
           </p>
         )}
       </section>
@@ -385,54 +384,54 @@ export function CassaIndicatori({
       >
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 id="cassa-titolo" className="text-sm font-semibold">
-            Flusso di cassa del piano {conScenario ? "(scenario)" : "(stima)"}
+            {conScenario ? t("Flusso di cassa del piano (scenario)") : t("Flusso di cassa del piano (stima)")}
           </h3>
           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-sm bg-emerald-600" /> Entrate
+              <span className="h-2 w-2 rounded-sm bg-emerald-600" /> {t("Entrate")}
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-sm bg-rose-500" /> Uscite
+              <span className="h-2 w-2 rounded-sm bg-rose-500" /> {t("Uscite")}
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="h-0.5 w-3 bg-sky-700" /> Cassa cumulata
+              <span className="h-0.5 w-3 bg-sky-700" /> {t("Cassa cumulata")}
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="h-0 w-3 border-t-2 border-dashed border-slate-400" />{" "}
-              Cumulata prevista
+              {t("Cumulata prevista")}
             </span>
           </div>
         </div>
         <div className="generale-table-toolbar">
           <label>
-            Periodo
+            {t("Periodo")}
             <UniformSelect
-              aria-label="Periodo del flusso di cassa"
+              aria-label={t("Periodo del flusso di cassa")}
               value={periodo}
               onChange={(e) => {
                 setPeriodo(e.target.value as typeof periodo);
                 setMese(null);
               }}
             >
-              <option value="tutto">Intera operazione</option>
-              <option value="passato">Mesi precedenti · reale</option>
-              <option value="futuro">Da questo mese · reale e previsto</option>
+              <option value="tutto">{t("Intera operazione")}</option>
+              <option value="passato">{t("Mesi precedenti · reale")}</option>
+              <option value="futuro">{t("Da questo mese · reale e previsto")}</option>
             </UniformSelect>
           </label>
           <span className="text-xs text-muted-foreground">
             {picco.meseCapitaleMassimo
-              ? `Picco ${euro(picco.capitaleMassimo)} a ${nomeMese(picco.meseCapitaleMassimo)}`
-              : "Nessun picco di capitale previsto"}
+              ? t("Picco {importo} a {mese}", { importo: euro(picco.capitaleMassimo), mese: nomeMese(picco.meseCapitaleMassimo) })
+              : t("Nessun picco di capitale previsto")}
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          La stima usa i rogiti collegati alle singole vendite e le scadenze delle fatture. Il dettaglio del mese distingue incassi registrati, fatture da incassare e voci a finire.
+          {t("La stima usa i rogiti collegati alle singole vendite e le scadenze delle fatture. Il dettaglio del mese distingue incassi registrati, fatture da incassare e voci a finire.")}
         </p>
         {datiInVista.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             {datiGrafico.length === 0
-              ? "Dai un mese alle voci per vedere il flusso di cassa."
-              : "Nessun mese nel periodo selezionato."}
+              ? t("Dai un mese alle voci per vedere il flusso di cassa.")
+              : t("Nessun mese nel periodo selezionato.")}
           </p>
         ) : (
           <div className="mt-3 h-[260px]">
@@ -470,7 +469,7 @@ export function CassaIndicatori({
                     stroke="hsl(var(--muted-foreground))"
                     strokeDasharray="3 3"
                     label={{
-                      value: "Questo mese",
+                      value: t("Questo mese"),
                       position: "insideTopRight",
                       fontSize: 10,
                       fill: "hsl(var(--muted-foreground))",
@@ -486,7 +485,7 @@ export function CassaIndicatori({
                       stroke="rgb(var(--brand-accent, 249 115 22))"
                       strokeDasharray="4 4"
                       label={{
-                        value: "Picco",
+                        value: t("Picco"),
                         position: "insideBottomRight",
                         fontSize: 10,
                         fill: "rgb(var(--brand-accent-dark, 217 94 11))",
@@ -497,10 +496,10 @@ export function CassaIndicatori({
                   formatter={(value, name) => [
                     euro(Number(value)),
                     {
-                      entrate: "Entrate",
-                      uscite: "Uscite",
-                      cumulato: "Cassa cumulata",
-                      previsto: "Cumulata prevista",
+                      entrate: t("Entrate"),
+                      uscite: t("Uscite"),
+                      cumulato: t("Cassa cumulata"),
+                      previsto: t("Cumulata prevista"),
                     }[String(name)] ?? String(name),
                   ]}
                   contentStyle={{ borderRadius: 10, fontSize: 12 }}
@@ -544,7 +543,7 @@ export function CassaIndicatori({
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-xs"
-            onClick={() => setTabella((t) => !t)}
+            onClick={() => setTabella((v) => !v)}
             aria-expanded={tabella}
           >
             {tabella ? (
@@ -552,21 +551,21 @@ export function CassaIndicatori({
             ) : (
               <ChevronRight className="mr-1 h-3.5 w-3.5" />
             )}
-            Mese per mese
+            {t("Mese per mese")}
           </Button>
           {tabella && (
             <div className="mt-2 max-h-[50vh] overflow-auto rounded-md border">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-card">
                   <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="px-3 py-2 font-medium">Mese</th>
+                    <th className="px-3 py-2 font-medium">{t("Mese")}</th>
                     <th className="px-2 py-2 text-right font-medium">
-                      Entrate
+                      {t("Entrate")}
                     </th>
-                    <th className="px-2 py-2 text-right font-medium">Uscite</th>
-                    <th className="px-2 py-2 text-right font-medium">Netto</th>
+                    <th className="px-2 py-2 text-right font-medium">{t("Uscite")}</th>
+                    <th className="px-2 py-2 text-right font-medium">{t("Netto")}</th>
                     <th className="px-3 py-2 text-right font-medium">
-                      Cassa cumulata
+                      {t("Cassa cumulata")}
                     </th>
                   </tr>
                 </thead>
@@ -586,18 +585,18 @@ export function CassaIndicatori({
                           type="button"
                           className="generale-legend-link"
                           onClick={() => setMese(m.mese)}
-                          aria-label={`Apri dettaglio cassa di ${nomeMese(m.mese)}`}
+                          aria-label={t("Apri dettaglio cassa di {mese}", { mese: nomeMese(m.mese) })}
                         >
                           {nomeMese(m.mese)}
                         </button>
                         {m.passato && (
                           <span className="ml-1.5 text-[11px] text-muted-foreground">
-                            reale
+                            {t("reale")}
                           </span>
                         )}
                         {m.mese === piano.oggi && (
                           <span className="ml-1.5 text-[11px] text-sky-700 dark:text-sky-300">
-                            questo mese
+                            {t("questo mese")}
                           </span>
                         )}
                       </td>
@@ -633,7 +632,7 @@ export function CassaIndicatori({
             <div className="mt-2 rounded-md border bg-muted/20 p-3 text-sm">
               <div className="flex items-baseline justify-between">
                 <p className="font-medium">
-                  {nomeMese(mese.mese)}: da dove vengono i numeri
+                  {t("{mese}: da dove vengono i numeri", { mese: nomeMese(mese.mese) })}
                 </p>
                 <Button
                   variant="ghost"
@@ -641,7 +640,7 @@ export function CassaIndicatori({
                   className="h-7 px-2 text-xs"
                   onClick={() => setMese(null)}
                 >
-                  Chiudi
+                  {t("Chiudi")}
                 </Button>
               </div>
               <ul className="mt-1 max-h-60 divide-y overflow-auto">
@@ -650,10 +649,10 @@ export function CassaIndicatori({
                     key={i}
                     className="flex items-center justify-between gap-3 py-1"
                   >
-                    <span className="min-w-0 truncate">
+                    <span className="min-w-0 truncate" dir="auto">
                       {p.etichetta}{" "}
                       <span className="text-xs text-muted-foreground">
-                        · {PARTITE_NOMI[p.origine]}
+                        · {t(PARTITE_NOMI[p.origine])}
                       </span>
                     </span>
                     <span
@@ -671,7 +670,7 @@ export function CassaIndicatori({
                 ))}
                 {mese.partite.length === 0 && (
                   <li className="py-1 text-muted-foreground">
-                    Nessun movimento.
+                    {t("Nessun movimento.")}
                   </li>
                 )}
               </ul>

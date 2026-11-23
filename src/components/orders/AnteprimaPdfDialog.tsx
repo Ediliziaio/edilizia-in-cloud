@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   file: { blob: Blob; filename: string } | null;
@@ -15,6 +16,7 @@ interface Props {
 
 /** Il PDF com'è prima che esca: si vede, poi si decide. */
 export function AnteprimaPdfDialog({ file, titolo, descrizione, azione, inCorso, onConferma, onChiudi }: Props) {
+  const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!file) return;
@@ -33,7 +35,7 @@ export function AnteprimaPdfDialog({ file, titolo, descrizione, azione, inCorso,
         </DialogHeader>
         {file && url && <iframe src={url} title={file.filename} className="h-[65vh] w-full rounded border" />}
         <DialogFooter>
-          <Button variant="outline" onClick={onChiudi} disabled={inCorso}>Annulla</Button>
+          <Button variant="outline" onClick={onChiudi} disabled={inCorso}>{t("Annulla")}</Button>
           <Button onClick={onConferma} disabled={inCorso}>
             {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {azione}

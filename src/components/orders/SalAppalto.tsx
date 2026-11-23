@@ -49,6 +49,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface Sal {
   id: string; numero: number; stato: string;
@@ -95,6 +96,7 @@ const giornoIT = (iso: string) => {
 };
 
 export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModificare, vedeImporti, senzaCornice = false }: Props) {
+  const t = useT();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -173,11 +175,11 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
       setForm(null);
       queryClient.invalidateQueries({ queryKey: ["appalto-sal"] });
       queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
-      toast({ title: "Rendiconto composto", description: "Le righe sono raccolte nella bozza. Si congelano quando segni il rendiconto come mandato." });
+      toast({ title: t("Rendiconto composto"), description: t("Le righe sono raccolte nella bozza. Si congelano quando segni il rendiconto come mandato.") });
     },
     onError: (e) => {
       logger.error("appalto_sal_crea", e);
-      toast({ title: "Rendiconto non composto", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" });
+      toast({ title: t("Rendiconto non composto"), description: e instanceof Error ? e.message : t("Riprova"), variant: "destructive" });
     },
   });
 
@@ -190,7 +192,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
       queryClient.invalidateQueries({ queryKey: ["appalto-sal"] });
       queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
     },
-    onError: (e) => toast({ title: "Stato non cambiato", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+    onError: (e) => toast({ title: t("Stato non cambiato"), description: e instanceof Error ? e.message : t("Riprova"), variant: "destructive" }),
   });
 
   const annulla = useMutation({
@@ -202,9 +204,9 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
       setDaAnnullare(null);
       queryClient.invalidateQueries({ queryKey: ["appalto-sal"] });
       queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
-      toast({ title: "Rendiconto annullato", description: "Le righe sono tornate libere." });
+      toast({ title: t("Rendiconto annullato"), description: t("Le righe sono tornate libere.") });
     },
-    onError: (e) => toast({ title: "Non annullato", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+    onError: (e) => toast({ title: t("Non annullato"), description: e instanceof Error ? e.message : t("Riprova"), variant: "destructive" }),
   });
 
   /**
@@ -234,7 +236,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
       ]);
       if (righeRes.error) throw righeRes.error;
       const righe = (righeRes.data ?? []) as RigaDaStampare[];
-      if (righe.length === 0) throw new Error("Questo rendiconto non ha righe");
+      if (righe.length === 0) throw new Error(t("Questo rendiconto non ha righe"));
 
       const orderIds = [...new Set(righe.map((r) => r.order_id))];
       const { data: cantieriData } = await supabase
@@ -312,7 +314,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
     },
     onError: (e) => {
       logger.error("preparaFattura", e);
-      toast({ title: "Fattura non preparata", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" });
+      toast({ title: t("Fattura non preparata"), description: e instanceof Error ? e.message : t("Riprova"), variant: "destructive" });
     },
   });
 
@@ -363,9 +365,9 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
     onSuccess: () => {
       setDaCollegare(null);
       queryClient.invalidateQueries({ queryKey: ["appalto-sal"] });
-      toast({ title: "Fattura agganciata", description: "Il rendiconto passerà a «fatturato» quando la fattura viene emessa." });
+      toast({ title: t("Fattura agganciata"), description: t("Il rendiconto passerà a «fatturato» quando la fattura viene emessa.") });
     },
-    onError: (e) => toast({ title: "Non agganciata", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+    onError: (e) => toast({ title: t("Non agganciata"), description: e instanceof Error ? e.message : t("Riprova"), variant: "destructive" }),
   });
 
   const scollega = useMutation({
@@ -375,9 +377,9 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appalto-sal"] });
-      toast({ title: "Fattura staccata", description: "Lo stato del rendiconto non torna indietro: può averla emessa il committente." });
+      toast({ title: t("Fattura staccata"), description: t("Lo stato del rendiconto non torna indietro: può averla emessa il committente.") });
     },
-    onError: (e) => toast({ title: "Non staccata", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+    onError: (e) => toast({ title: t("Non staccata"), description: e instanceof Error ? e.message : t("Riprova"), variant: "destructive" }),
   });
 
   if (!vedeImporti || !committenteId) return null;
@@ -387,17 +389,17 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
   return (
     <QuoteCard
       className={senzaCornice ? "border-0 p-1 shadow-none hover:shadow-none sm:p-1" : undefined}
-      title="Rendiconti al committente"
+      title={t("Rendiconti al committente")}
       icon={<FileText className="h-4 w-4" />}
       subtitle={
         cumulativo
-          ? "Il contratto prevede un documento al mese con tutte le commesse di questo committente."
-          : "Il contratto prevede un rendiconto per commessa."
+          ? t("Il contratto prevede un documento al mese con tutte le commesse di questo committente.")
+          : t("Il contratto prevede un rendiconto per commessa.")
       }
       action={puoModificare ? (
         <Button size="sm" variant="outline"
           onClick={() => setForm({ dal: proposto.dal, al: proposto.al, soloQuesta: !cumulativo && !!orderId, note: "" })}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" /> Componi
+          <Plus className="mr-1.5 h-3.5 w-3.5" /> {t("Componi")}
         </Button>
       ) : undefined}
     >
@@ -405,8 +407,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
         <Skeleton className="h-20 w-full" />
       ) : (sal.data ?? []).length === 0 ? (
         <p className="text-sm text-slate-500">
-          Nessun rendiconto. Si compone da quello che è già <strong>confermato</strong>: le righe in
-          bozza restano fuori finché non le guardi.
+          {t("Nessun rendiconto. Si compone da quello che è già confermato: le righe in bozza restano fuori finché non le guardi.")}
         </p>
       ) : (
         <div className="space-y-2">
@@ -422,19 +423,18 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
                     {/* Un <div>, non un <p>: i Badge sono div e dentro un
                         paragrafo il browser chiude il paragrafo da solo. */}
                     <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-900">
-                      N. {s.numero}
-                      <Badge variant={s.stato === "bozza" ? "outline" : "secondary"}>{info.etichetta}</Badge>
+                      {t("N. {numero}", { numero: s.numero })}
+                      <Badge variant={s.stato === "bozza" ? "outline" : "secondary"}>{t(info.etichetta)}</Badge>
                       {s.order_id === null
-                        ? <Badge variant="outline" className="text-[10px]">tutte le commesse</Badge>
+                        ? <Badge variant="outline" className="text-[10px]">{t("tutte le commesse")}</Badge>
                         : <Badge variant="outline" className="max-w-[16rem] truncate text-[10px]"
                                  title={s.orders?.description ?? undefined}>
-                            {s.orders?.order_code ?? "una sola commessa"}
+                            {s.orders?.order_code ?? t("una sola commessa")}
                           </Badge>}
                       {s.stato !== "bozza" && <Lock className="h-3 w-3 text-slate-400" />}
                     </div>
                     <p className="text-xs text-slate-500">
-                      {giornoIT(s.periodo_dal)} → {giornoIT(s.periodo_al)} · {s.righe_contate}{" "}
-                      {s.righe_contate === 1 ? "riga" : "righe"} · {info.spiega}
+                      {giornoIT(s.periodo_dal)} → {giornoIT(s.periodo_al)} · {t(s.righe_contate === 1 ? "{n} riga" : "{n} righe", { n: s.righe_contate })} · {info.spiega ? t(info.spiega) : ""}
                     </p>
                     {s.note && <p className="mt-0.5 text-xs text-slate-600">{s.note}</p>}
                   </div>
@@ -442,7 +442,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
                     <p className="font-bold tabular-nums text-slate-900">{euro(s.netto, true)}</p>
                     {Number(s.ritenuta) > 0 && (
                       <p className="text-[11px] text-slate-500 tabular-nums">
-                        {euro(s.totale, true)} − {euro(s.ritenuta, true)} di ritenuta
+                        {t("{totale} − {ritenuta} di ritenuta", { totale: euro(s.totale, true), ritenuta: euro(s.ritenuta, true) })}
                       </p>
                     )}
                   </div>
@@ -456,9 +456,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
                     fattura» indicando il nulla. */}
                 {!s.documento_fiscale_id && s.stato === "fatturato" && (
                   <div className="mt-2 rounded-md border border-amber-200 bg-amber-50/60 px-2 py-1.5 text-xs text-amber-900">
-                    Nessuna fattura agganciata: o l'ha emessa il committente, o quella che c'era è
-                    stata staccata. Lo stato «fatturato» non torna indietro; se la fattura è tua,
-                    collegala.
+                    {t("Nessuna fattura agganciata: o l'ha emessa il committente, o quella che c'era è stata staccata. Lo stato «fatturato» non torna indietro; se la fattura è tua, collegala.")}
                   </div>
                 )}
 
@@ -470,12 +468,12 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
                       to={`/azienda/documenti/${s.documento_fiscale_id}/dettaglio`}
                       className="font-medium text-blue-700 underline-offset-2 hover:underline"
                     >
-                      Fattura {s.documenti_fiscali?.numero ?? "collegata"}
+                      {s.documenti_fiscali?.numero ? t("Fattura {numero}", { numero: s.documenti_fiscali.numero }) : t("Fattura collegata")}
                       <ExternalLink className="ml-1 inline h-3 w-3" />
                     </Link>
                     {s.documenti_fiscali?.stato === "bozza" && (
                       <span className="text-slate-500">
-                        è ancora una bozza: il rendiconto passa a «fatturato» quando la emetti
+                        {t("è ancora una bozza: il rendiconto passa a «fatturato» quando la emetti")}
                       </span>
                     )}
                     {puoModificare && (
@@ -488,7 +486,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
                           if (s.documenti_fiscali?.stato === "bozza") { scollega.mutate(s.id); return; }
                           setDaStaccare(s);
                         }}>
-                        <Unlink className="mr-1 h-3 w-3" /> Stacca
+                        <Unlink className="mr-1 h-3 w-3" /> {t("Stacca")}
                       </Button>
                     )}
                   </div>
@@ -503,26 +501,26 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
                     {isGenerating
                       ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                       : <Printer className="mr-1.5 h-3.5 w-3.5" />}
-                    Stampa
+                    {t("Stampa")}
                   </Button>
 
                   {puoModificare && s.stato === "bozza" && (
                     <>
                       <Button size="sm" variant="outline" onClick={() => cambiaStato.mutate({ id: s.id, stato: "inviato" })}>
-                        <Send className="mr-1.5 h-3.5 w-3.5" /> Mandato al committente
+                        <Send className="mr-1.5 h-3.5 w-3.5" /> {t("Mandato al committente")}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => setDaAnnullare(s)}>
-                        <Trash2 className="mr-1.5 h-3.5 w-3.5 text-destructive" /> Annulla
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5 text-destructive" /> {t("Annulla")}
                       </Button>
                     </>
                   )}
                   {puoModificare && s.stato === "inviato" && (
                     <>
                       <Button size="sm" variant="outline" onClick={() => setDaAccettare(s)}>
-                        <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Segna accettato
+                        <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> {t("Segna accettato")}
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => setDaFirmare(s)}>
-                        <Send className="mr-1.5 h-3.5 w-3.5" /> Manda da firmare
+                        <Send className="mr-1.5 h-3.5 w-3.5" /> {t("Manda da firmare")}
                       </Button>
                     </>
                   )}
@@ -541,17 +539,17 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
                           {preparaFattura.isPending
                             ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                             : <Receipt className="mr-1.5 h-3.5 w-3.5" />}
-                          Prepara la fattura
+                          {t("Prepara la fattura")}
                         </Button>
                       )}
-                      {permessi.canViewBilling && fatturazioneEsterna && s.stato !== "fatturato" && <p className="text-xs text-amber-800">Per usare l'editor serve la <Link className="underline" to="/azienda/impostazioni/fatturazione">fatturazione nativa</Link>. La modalità attuale è esterna.</p>}
+                      {permessi.canViewBilling && fatturazioneEsterna && s.stato !== "fatturato" && <p className="text-xs text-amber-800">{t("Per usare l'editor serve la")} <Link className="underline" to="/azienda/impostazioni/fatturazione">{t("fatturazione nativa")}</Link>. {t("La modalità attuale è esterna.")}</p>}
                       <Button size="sm" variant="ghost" onClick={() => setDaCollegare(s)}>
-                        <Link2 className="mr-1.5 h-3.5 w-3.5" /> Collega una fattura già fatta
+                        <Link2 className="mr-1.5 h-3.5 w-3.5" /> {t("Collega una fattura già fatta")}
                       </Button>
                       {s.stato === "approvato" && (
                         <Button size="sm" variant="ghost"
                           onClick={() => cambiaStato.mutate({ id: s.id, stato: "fatturato" })}>
-                          <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> L'ha fatturato lui
+                          <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> {t("L'ha fatturato lui")}
                         </Button>
                       )}
                     </>
@@ -567,46 +565,45 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
       <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
         <DialogContent ampiezza="modulo" struttura="scorrevole">
           <DialogHeader>
-            <DialogTitle>Componi il rendiconto</DialogTitle>
+            <DialogTitle>{t("Componi il rendiconto")}</DialogTitle>
             <DialogDescription>
-              Entrano le righe <strong>confermate</strong> del periodo che non sono già in un altro
-              rendiconto. Le righe si congelano quando il rendiconto è segnato come mandato.
+              {t("Entrano le righe confermate del periodo che non sono già in un altro rendiconto. Le righe si congelano quando il rendiconto è segnato come mandato.")}
             </DialogDescription>
           </DialogHeader>
           {form && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="s-dal">Dal</Label>
+                  <Label htmlFor="s-dal">{t("Dal")}</Label>
                   <Input id="s-dal" type="date" value={form.dal} onChange={(e) => setForm({ ...form, dal: e.target.value })} />
                 </div>
                 <div>
-                  <Label htmlFor="s-al">Al</Label>
+                  <Label htmlFor="s-al">{t("Al")}</Label>
                   <Input id="s-al" type="date" value={form.al} onChange={(e) => setForm({ ...form, al: e.target.value })} />
                 </div>
               </div>
               {orderId && (
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="min-w-0 pr-3">
-                    <Label className="cursor-pointer">Solo questa commessa</Label>
+                    <Label className="cursor-pointer">{t("Solo questa commessa")}</Label>
                     <p className="text-xs text-slate-500">
-                      Spento, il rendiconto prende tutte le commesse di questo committente nel periodo.
+                      {t("Spento, il rendiconto prende tutte le commesse di questo committente nel periodo.")}
                     </p>
                   </div>
                   <Switch checked={form.soloQuesta} onCheckedChange={(v) => setForm({ ...form, soloQuesta: v })} />
                 </div>
               )}
               <div>
-                <Label htmlFor="s-note">Note per il committente</Label>
+                <Label htmlFor="s-note">{t("Note per il committente")}</Label>
                 <Textarea id="s-note" rows={2} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setForm(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setForm(null)}>{t("Annulla")}</Button>
             <Button disabled={!form?.dal || !form?.al || componi.isPending} onClick={() => form && componi.mutate(form)}>
               {componi.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              Componi
+              {t("Componi")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -616,20 +613,17 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
       <Dialog open={!!daCollegare} onOpenChange={(o) => !o && setDaCollegare(null)}>
         <DialogContent ampiezza="spazio" struttura="scorrevole">
           <DialogHeader>
-            <DialogTitle>Collega una fattura al rendiconto n. {daCollegare?.numero}</DialogTitle>
+            <DialogTitle>{t("Collega una fattura al rendiconto n. {numero}", { numero: daCollegare?.numero ?? "" })}</DialogTitle>
             <DialogDescription>
-              Una fattura aggancia <strong>un solo</strong> rendiconto: lo stesso incasso non si conta
-              due volte. Se la fattura è ancora una bozza, il rendiconto passerà a «fatturato» quando
-              la emetti.
+              {t("Una fattura aggancia un solo rendiconto: lo stesso incasso non si conta due volte. Se la fattura è ancora una bozza, il rendiconto passerà a «fatturato» quando la emetti.")}
             </DialogDescription>
           </DialogHeader>
           {collegabili.isLoading ? (
             <Skeleton className="h-28 w-full" />
           ) : (collegabili.data ?? []).length === 0 ? (
             <p className="text-sm text-slate-500">
-              Nessuna fattura di questo committente da collegare. Usa{" "}
-              <strong>Prepara la fattura</strong>: nasce già con le righe del rendiconto e intestata
-              a lui.
+              {t("Nessuna fattura di questo committente da collegare. Usa")}{" "}
+              <strong>{t("Prepara la fattura")}</strong>: {t("nasce già con le righe del rendiconto e intestata a lui.")}
             </p>
           ) : (
             <div className="max-h-80 space-y-1 overflow-y-auto">
@@ -655,7 +649,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDaCollegare(null)}>Chiudi</Button>
+            <Button variant="outline" onClick={() => setDaCollegare(null)}>{t("Chiudi")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -664,25 +658,23 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
       <AlertDialog open={!!daAnnullare} onOpenChange={(o) => !o && setDaAnnullare(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Annullare il rendiconto n. {daAnnullare?.numero}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Annullare il rendiconto n. {numero}?", { numero: daAnnullare?.numero ?? "" })}</AlertDialogTitle>
             <AlertDialogDescription>
               {/* Diceva «il numero non verrà riusato», e non era vero: il
                   progressivo e' max(numero)+1, quindi il prossimo rendiconto
                   riprende quel numero. Ed e' giusto cosi' — si annulla solo una
                   BOZZA, che al committente non e' mai arrivata — ma la frase
                   prometteva il contrario. */}
-              Le {daAnnullare?.righe_contate} righe tornano libere e modificabili. Il numero{" "}
-              {daAnnullare?.numero} torna libero e lo prenderà il prossimo rendiconto: questa bozza
-              al committente non è mai arrivata, quindi nella sua numerazione non resta un buco.
+              {t("Le {righe} righe tornano libere e modificabili. Il numero {numero} torna libero e lo prenderà il prossimo rendiconto: questa bozza al committente non è mai arrivata, quindi nella sua numerazione non resta un buco.", { righe: daAnnullare?.righe_contate ?? "", numero: daAnnullare?.numero ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Lascia stare</AlertDialogCancel>
+            <AlertDialogCancel>{t("Lascia stare")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => daAnnullare && annulla.mutate(daAnnullare.id)}
             >
-              Annulla il rendiconto
+              {t("Annulla il rendiconto")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -693,23 +685,19 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Staccare la fattura {daStaccare?.documenti_fiscali?.numero} dal rendiconto n.{" "}
-              {daStaccare?.numero}?
+              {t("Staccare la fattura {fattura} dal rendiconto n. {numero}?", { fattura: daStaccare?.documenti_fiscali?.numero ?? "", numero: daStaccare?.numero ?? "" })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              La fattura non viene toccata: resta emessa, col suo numero e la sua data. Si stacca
-              solo il legame. Il rendiconto però <strong>resta «fatturato»</strong> — uno stato non
-              torna indietro — e finché non ne colleghi un'altra risulterà fatturato senza fattura.
-              Fallo se hai agganciato quella sbagliata.
+              {t("La fattura non viene toccata: resta emessa, col suo numero e la sua data. Si stacca solo il legame. Il rendiconto però resta «fatturato» — uno stato non torna indietro — e finché non ne colleghi un'altra risulterà fatturato senza fattura. Fallo se hai agganciato quella sbagliata.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Lascia stare</AlertDialogCancel>
+            <AlertDialogCancel>{t("Lascia stare")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => daStaccare && scollega.mutate(daStaccare.id)}
             >
-              Stacca la fattura
+              {t("Stacca la fattura")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

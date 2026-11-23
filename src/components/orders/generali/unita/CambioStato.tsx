@@ -18,6 +18,7 @@ import {
 } from "@/lib/orders/generali/unita";
 import { pagamentiUnita } from "@/lib/orders/generali/unitaConti";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   generaleId: string;
@@ -34,12 +35,13 @@ const VERBO: Record<StatoVendita, string> = {
 };
 
 export function CambioStato({ generaleId, unita: u, permessi, telefono }: Props) {
+  const t = useT();
   const [verso, setVerso] = useState<StatoVendita | null>(null);
   const puo = permessi.modifica && !u.divisaIl;
   const successivo = STATI_VENDITA[STATI_VENDITA.indexOf(u.stato) + 1];
   return (
     <div className="space-y-3">
-      <div role="group" aria-label="Stato di vendita" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div role="group" aria-label={t("Stato di vendita")} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {STATI_VENDITA.map((s) => {
           const attuale = u.stato === s;
           const scelto = verso === s;
@@ -61,7 +63,7 @@ export function CambioStato({ generaleId, unita: u, permessi, telefono }: Props)
               )}
             >
               {attuale && <Check className="size-3.5 shrink-0" aria-hidden="true" />}
-              {NOMI_STATO[s].una}
+              {t(NOMI_STATO[s].una)}
             </button>
           );
         })}
@@ -77,6 +79,7 @@ export function CambioStato({ generaleId, unita: u, permessi, telefono }: Props)
 function ModuloStato({ generaleId, u, verso, permessi, telefono, onFatto }: {
   generaleId: string; u: UnitaGenerale; verso: StatoVendita; permessi: PermessiUnita; telefono: boolean; onFatto: () => void;
 }) {
+  const t = useT();
   const cambia = useCambiaStatoUnita(generaleId);
   const r = requisitiStato(verso);
   const proposto = prezzoProposto(u, verso);
@@ -102,7 +105,7 @@ function ModuloStato({ generaleId, u, verso, permessi, telefono, onFatto }: {
   const importoCassa=leggiCampo(cassaTesto);
   const conPagamento=(caparra??0)>0 || (saldo??0)>0;
   const dati = { acquirenteId, data, prezzo, caparra, saldo, caparraCassa:r.caparra?importoCassa:null,saldoCassa:r.saldo?importoCassa:null,rogitoPrevisto: rogitoPrevisto || null };
-  const errori = numeriSbagliati ? ["Scrivi gli importi come 250.000 o 2500,50."] : [...erroriCambioStato(u, verso, dati, importi),...(conPagamento && (!importoCassa || !Number.isFinite(importoCassa) || importoCassa<=0)?['Conferma l’entrata effettiva in cassa.']:[])];
+  const errori = numeriSbagliati ? [t("Scrivi gli importi come 250.000 o 2500,50.")] : [...erroriCambioStato(u, verso, dati, importi),...(conPagamento && (!importoCassa || !Number.isFinite(importoCassa) || importoCassa<=0)?[t('Conferma l’entrata effettiva in cassa.')]:[])];
   const blocco = bloccoCambioStato(u, verso);
 
   const conferma = () => {
@@ -115,7 +118,7 @@ function ModuloStato({ generaleId, u, verso, permessi, telefono, onFatto }: {
       },
       {
         onSuccess: () => {
-          toast.success(verso === "libera" ? `${u.sigla} è di nuovo in vendita` : `${u.sigla}: ${NOMI_STATO[verso].una.toLowerCase()}`);
+          toast.success(verso === "libera" ? t("{sigla} è di nuovo in vendita", { sigla: u.sigla }) : `${u.sigla}: ${t(NOMI_STATO[verso].una).toLowerCase()}`);
           onFatto();
         },
         onError: (e) => toast.error(messaggioGenerale(e, "lo stato dell'unità")),
@@ -123,70 +126,70 @@ function ModuloStato({ generaleId, u, verso, permessi, telefono, onFatto }: {
     );
   };
 
-  if (blocco) return <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">{blocco}</p>;
+  if (blocco) return <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">{t(blocco)}</p>;
 
   const id = (n: string) => `stato-${u.orderId}-${n}`;
   return (
     <form className="space-y-3 rounded-md border bg-muted/30 p-3" onSubmit={(ev) => { ev.preventDefault(); conferma(); }}>
       {verso === "libera" ? (
-        <p className="text-sm">{u.sigla} torna in vendita: acquirente, date e prezzo trattato si tolgono.</p>
+        <p className="text-sm">{t("{sigla} torna in vendita: acquirente, date e prezzo trattato si tolgono.", { sigla: u.sigla })}</p>
       ) : (
         <>
           {r.acquirente && (
             <div className="space-y-1">
-              <Label htmlFor={id("acquirente")}>Acquirente</Label>
+              <Label htmlFor={id("acquirente")}>{t("Acquirente")}</Label>
               <ScegliCliente id={id("acquirente")} valore={acquirenteId} onCambia={setAcquirenteId} />
             </div>
           )}
           <div className="grid grid-cols-2 gap-2">
             {r.etichettaData && (
               <div className="space-y-1">
-                <Label htmlFor={id("data")}>{r.etichettaData}</Label>
+                <Label htmlFor={id("data")}>{t(r.etichettaData)}</Label>
                 <Input id={id("data")} type="date" value={data} onChange={(ev) => setData(ev.target.value)} />
               </div>
             )}
             {prezzoScrivibile && (
               <div className="space-y-1">
-                <Label htmlFor={id("prezzo")}>{r.etichettaPrezzo}{r.prezzo === "facoltativo" && <span className="font-normal text-muted-foreground"> (facolt.)</span>}</Label>
-                <Input id={id("prezzo")} inputMode="decimal" value={prezzoTesto} onChange={(ev) => setPrezzoTesto(ev.target.value)} placeholder="es. 250.000" />
+                <Label htmlFor={id("prezzo")}>{t(r.etichettaPrezzo)}{r.prezzo === "facoltativo" && <span className="font-normal text-muted-foreground"> {t("(facolt.)")}</span>}</Label>
+                <Input id={id("prezzo")} inputMode="decimal" value={prezzoTesto} onChange={(ev) => setPrezzoTesto(ev.target.value)} placeholder={t("es. 250.000")} />
               </div>
             )}
             {importi && r.caparra && (
               <div className="space-y-1">
-                <Label htmlFor={id("caparra")}>Caparra <span className="font-normal text-muted-foreground">(facolt.)</span></Label>
-                <Input id={id("caparra")} inputMode="decimal" value={caparraTesto} onChange={(ev) => setCaparraTesto(ev.target.value)} placeholder="es. 20.000" />
+                <Label htmlFor={id("caparra")}>{t("Caparra")} <span className="font-normal text-muted-foreground">{t("(facolt.)")}</span></Label>
+                <Input id={id("caparra")} inputMode="decimal" value={caparraTesto} onChange={(ev) => setCaparraTesto(ev.target.value)} placeholder={t("es. 20.000")} />
               </div>
             )}
             {importi && r.saldo && (
               <div className="space-y-1">
-                <Label htmlFor={id("saldo")}>Saldo incassato</Label>
+                <Label htmlFor={id("saldo")}>{t("Saldo incassato")}</Label>
                 <Input id={id("saldo")} inputMode="decimal" value={saldoTesto} onChange={(ev) => setSaldoTesto(ev.target.value)} />
               </div>
             )}
             {r.rogitoPrevisto && !telefono && (
               <div className="space-y-1">
-                <Label htmlFor={id("rogito")}>Rogito previsto <span className="font-normal text-muted-foreground">(facolt.)</span></Label>
+                <Label htmlFor={id("rogito")}>{t("Rogito previsto")} <span className="font-normal text-muted-foreground">{t("(facolt.)")}</span></Label>
                 <Input id={id("rogito")} type="date" value={rogitoPrevisto} onChange={(ev) => setRogitoPrevisto(ev.target.value)} />
               </div>
             )}
           </div>
-          {conPagamento && <div className="space-y-1"><Label htmlFor={id('cassa')}>Entrata effettiva in cassa (IVA inclusa, se dovuta)</Label><Input id={id('cassa')} inputMode="decimal" value={cassaTesto} onChange={ev=>setCassaTesto(ev.target.value)} required /><p className="text-xs text-muted-foreground">La caparra o il saldo coprono il prezzo senza IVA; qui confermi l’importo da registrare in prima nota.</p></div>}
+          {conPagamento && <div className="space-y-1"><Label htmlFor={id('cassa')}>{t("Entrata effettiva in cassa (IVA inclusa, se dovuta)")}</Label><Input id={id('cassa')} inputMode="decimal" value={cassaTesto} onChange={ev=>setCassaTesto(ev.target.value)} required /><p className="text-xs text-muted-foreground">{t("La caparra o il saldo coprono il prezzo senza IVA; qui confermi l’importo da registrare in prima nota.")}</p></div>}
           {importi && telefono && (proposto !== null || r.prezzo === "obbligatorio") && (
             <p className="text-xs text-muted-foreground">
-              {proposto !== null ? `${r.etichettaPrezzo}: ${euro(proposto)}. Si cambia dal computer.` : "Manca il prezzo: si scrive dal computer."}
+              {proposto !== null ? t("{etichetta}: {importo}. Si cambia dal computer.", { etichetta: t(r.etichettaPrezzo), importo: euro(proposto) }) : t("Manca il prezzo: si scrive dal computer.")}
             </p>
           )}
         </>
       )}
       {errori.length > 0 && verso !== "libera" && (acquirenteId || errori[0] !== "Scegli l'acquirente.") && (
-        <p className="text-xs text-destructive">{errori[0]}</p>
+        <p className="text-xs text-destructive">{t(errori[0])}</p>
       )}
       <div className="flex gap-2">
         <Button type="submit" size="sm" className="flex-1 sm:flex-none" disabled={errori.length > 0 || cambia.isPending}>
           {cambia.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-          {VERBO[verso]}
+          {t(VERBO[verso])}
         </Button>
-        {!telefono && <Button type="button" size="sm" variant="ghost" onClick={onFatto}>Annulla</Button>}
+        {!telefono && <Button type="button" size="sm" variant="ghost" onClick={onFatto}>{t("Annulla")}</Button>}
       </div>
     </form>
   );

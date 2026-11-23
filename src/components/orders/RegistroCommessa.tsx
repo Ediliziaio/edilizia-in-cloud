@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { Download, FilePlus2, History, Pencil, Search, Trash2, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { exportToCSV, exportToXLSX, type CsvColumn } from "@/lib/csvExport";
 import { filtraRegistro, perGiorno, personeRegistro, righeEsportazione, type TipoVoce, type VoceRegistro } from "@/lib/orders/registroCommessa";
 import { cn } from "@/lib/utils";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const TUTTI = "__tutti__";
 const PASSO = 200;
@@ -46,6 +46,7 @@ function IconaTipo({ tipo }: { tipo: TipoVoce }) {
 
 /** Una riga sola quando basta: ora, chi, cosa, su cosa. Le modifiche vanno sotto. */
 function RigaVoce({ voce }: { voce: VoceRegistro }) {
+  const t = useT();
   return (
     <li className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 px-3 py-1 text-xs hover:bg-muted/40 sm:grid-cols-[2.5rem_9.5rem_minmax(0,1fr)_auto]">
       <span className="tabular-nums leading-5 text-muted-foreground">{format(parseISO(voce.quando), "HH:mm")}</span>
@@ -55,7 +56,7 @@ function RigaVoce({ voce }: { voce: VoceRegistro }) {
         <div className="min-w-0 leading-5">
           <p className="truncate" title={voce.oggetto ? `${voce.titolo} · ${voce.oggetto}` : voce.titolo}>
             <span className={cn(voce.tipo === "eliminato" && "font-medium text-red-700")}>{voce.titolo}</span>
-            {voce.volte > 1 && <span className="text-muted-foreground"> ({voce.volte} volte)</span>}
+            {voce.volte > 1 && <span className="text-muted-foreground"> {t("({n} volte)", { n: voce.volte })}</span>}
             {voce.oggetto && <span className="text-muted-foreground"> · {voce.oggetto}</span>}
           </p>
           {voce.dettagli.length > 0 && <p className="break-words text-foreground/80">{voce.dettagli.join(" · ")}</p>}
@@ -74,6 +75,7 @@ interface Props {
 
 /** Sola lettura: da qui non si scrive e non si manda niente. */
 export function RegistroCommessa({ voci, nomeFile, titoloCommessa }: Props) {
+  const tr = useT();
   const [persona, setPersona] = useState<string | null>(null);
   const [area, setArea] = useState<string | null>(null);
   const [tipo, setTipo] = useState<TipoVoce | null>(null);
@@ -92,7 +94,7 @@ export function RegistroCommessa({ voci, nomeFile, titoloCommessa }: Props) {
 
   const esportaPdf = async () => {
     const rows = righeEsportazione(filtrate);
-    if (rows.length === 0) { toast.error("Nessuna voce da esportare"); return; }
+    if (rows.length === 0) { toast.error(tr("Nessuna voce da esportare")); return; }
     try {
       const jsPDFModule = await import("jspdf");
       const jsPDF = jsPDFModule.default ?? (jsPDFModule as typeof jsPDFModule & { jsPDF?: typeof jsPDFModule.default }).jsPDF!;
@@ -137,9 +139,9 @@ export function RegistroCommessa({ voci, nomeFile, titoloCommessa }: Props) {
         y += 8;
       });
       doc.save(`${nomeFile}.pdf`);
-      toast.success(`PDF esportato — ${rows.length} voci`);
+      toast.success(tr("PDF esportato — {n} voci", { n: rows.length }));
     } catch {
-      toast.error("Errore durante l'export PDF");
+      toast.error(tr("Errore durante l'export PDF"));
     }
   };
 
@@ -155,7 +157,7 @@ export function RegistroCommessa({ voci, nomeFile, titoloCommessa }: Props) {
             className={cn("inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors",
               persona === p.nome ? "border-primary bg-primary/10 font-medium text-primary" : "bg-background hover:bg-muted",
               p.senzaPersona && "italic text-muted-foreground")}
-            title={`Ultima azione: ${format(parseISO(p.ultima), "dd/MM/yyyy HH:mm")}`}
+            title={tr("Ultima azione: {quando}", { quando: format(parseISO(p.ultima), "dd/MM/yyyy HH:mm") })}
           >
             <UserRound className="h-3 w-3" />
             {p.nome}
@@ -167,41 +169,41 @@ export function RegistroCommessa({ voci, nomeFile, titoloCommessa }: Props) {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[180px] flex-1">
           <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input value={testo} onChange={(e) => { setTesto(e.target.value); setMostrate(PASSO); }} placeholder="Cerca: un articolo, un importo, un nome…" aria-label="Cerca nel registro" className="h-8 pl-7 text-xs" />
+          <Input value={testo} onChange={(e) => { setTesto(e.target.value); setMostrate(PASSO); }} placeholder={tr("Cerca: un articolo, un importo, un nome…")} aria-label={tr("Cerca nel registro")} className="h-8 pl-7 text-xs" />
         </div>
         <Select value={persona ?? TUTTI} onValueChange={(v) => setPersona(v === TUTTI ? null : v)}>
-          <SelectTrigger className="h-8 w-[150px] text-xs" aria-label="Persona"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 w-[150px] text-xs" aria-label={tr("Persona")}><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={TUTTI}>Tutte le persone</SelectItem>
+            <SelectItem value={TUTTI}>{tr("Tutte le persone")}</SelectItem>
             {persone.map((p) => <SelectItem key={p.nome} value={p.nome}>{p.nome}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={area ?? TUTTI} onValueChange={(v) => setArea(v === TUTTI ? null : v)}>
-          <SelectTrigger className="h-8 w-[160px] text-xs" aria-label="Area"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 w-[160px] text-xs" aria-label={tr("Area")}><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={TUTTI}>Tutte le aree</SelectItem>
+            <SelectItem value={TUTTI}>{tr("Tutte le aree")}</SelectItem>
             {areeUsate.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={tipo ?? TUTTI} onValueChange={(v) => setTipo(v === TUTTI ? null : (v as TipoVoce))}>
-          <SelectTrigger className="h-8 w-[140px] text-xs" aria-label="Azione"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 w-[140px] text-xs" aria-label={tr("Azione")}><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={TUTTI}>Tutte le azioni</SelectItem>
-            {TIPI.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+            <SelectItem value={TUTTI}>{tr("Tutte le azioni")}</SelectItem>
+            {TIPI.map((t) => <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Input type="date" value={dal} onChange={(e) => setDal(e.target.value)} aria-label="Dal giorno" className="h-8 w-[130px] text-xs" />
-        <Input type="date" value={al} onChange={(e) => setAl(e.target.value)} aria-label="Al giorno" className="h-8 w-[130px] text-xs" />
+        <Input type="date" value={dal} onChange={(e) => setDal(e.target.value)} aria-label={tr("Dal giorno")} className="h-8 w-[130px] text-xs" />
+        <Input type="date" value={al} onChange={(e) => setAl(e.target.value)} aria-label={tr("Al giorno")} className="h-8 w-[130px] text-xs" />
         {haFiltri && (
           <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={azzera}>
-            <X className="mr-1 h-3.5 w-3.5" />Azzera
+            <X className="mr-1 h-3.5 w-3.5" />{tr("Azzera")}
           </Button>
         )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">{filtrate.length}</span> {filtrate.length === 1 ? "azione" : "azioni"}{haFiltri ? ` su ${voci.length}` : ""}
+          <span className="font-medium text-foreground">{filtrate.length}</span> {filtrate.length === 1 ? tr("azione") : tr("azioni")}{haFiltri ? ` ${tr("su {totale}", { totale: voci.length })}` : ""}
         </p>
         <div className="flex gap-1.5">
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { exportToCSV(righeEsportazione(filtrate), COLONNE, `${nomeFile}.csv`); }}><Download className="mr-1 h-3 w-3" />CSV</Button>
@@ -212,14 +214,14 @@ export function RegistroCommessa({ voci, nomeFile, titoloCommessa }: Props) {
 
       {filtrate.length === 0 ? (
         <div className="rounded-lg border bg-background py-10 text-center text-sm text-muted-foreground">
-          {voci.length === 0 ? "Nessuna azione registrata su questa commessa." : "Nessuna azione con questi filtri."}
+          {voci.length === 0 ? tr("Nessuna azione registrata su questa commessa.") : tr("Nessuna azione con questi filtri.")}
         </div>
       ) : (
         <div className="rounded-lg border bg-background">
           {giorni.map((g) => (
             <section key={g.giorno}>
               <h3 className="sticky top-0 z-10 border-b bg-muted/60 px-3 py-1 text-xs font-medium capitalize backdrop-blur">
-                {format(parseISO(g.giorno), "EEEE d MMMM yyyy", { locale: it })}
+                {format(parseISO(g.giorno), "EEEE d MMMM yyyy", { locale: dateFnsCampo() })}
                 <span className="ml-1.5 font-normal text-muted-foreground">{g.voci.length}</span>
               </h3>
               <ul className="divide-y divide-border/50">
@@ -231,11 +233,11 @@ export function RegistroCommessa({ voci, nomeFile, titoloCommessa }: Props) {
       )}
       {filtrate.length > mostrate && (
         <div className="text-center">
-          <Button variant="outline" size="sm" onClick={() => setMostrate(mostrate + PASSO)}>Mostra altre {Math.min(PASSO, filtrate.length - mostrate)}</Button>
+          <Button variant="outline" size="sm" onClick={() => setMostrate(mostrate + PASSO)}>{tr("Mostra altre {n}", { n: Math.min(PASSO, filtrate.length - mostrate) })}</Button>
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">
-        I valori prima e dopo ci sono dal 2 novembre 2026; da quel giorno sono registrati anche articoli, rate, documenti e ditte. Prima si vede chi ha modificato e quali campi. Le azioni automatiche non hanno una persona.
+        {tr("I valori prima e dopo ci sono dal 2 novembre 2026; da quel giorno sono registrati anche articoli, rate, documenti e ditte. Prima si vede chi ha modificato e quali campi. Le azioni automatiche non hanno una persona.")}
       </p>
     </div>
   );

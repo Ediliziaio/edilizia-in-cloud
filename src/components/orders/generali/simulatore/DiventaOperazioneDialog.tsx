@@ -17,6 +17,7 @@ import { useDiventaOperazione, type IpotesiSalvata } from "@/hooks/useGeneraleSi
 import { DEFINIZIONI_MODELLI, type ModelloGenerale } from "@/lib/orders/commesseGenerali";
 import { motivoSenzaUnita, operazioneDaIpotesi } from "@/lib/orders/generali/simulatoreOperazione";
 import { unitaTotali } from "@/lib/orders/generali/simulatore";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export function DiventaOperazioneDialog({ open, onOpenChange, salvata, modelliAttivi }: Props) {
+  const t = useT();
   const [nome, setNome] = useState(salvata.nome);
   const [conUnita, setConUnita] = useState(true);
   const crea = useDiventaOperazione();
@@ -41,7 +43,7 @@ export function DiventaOperazioneDialog({ open, onOpenChange, salvata, modelliAt
     if (!nome.trim() || verificaAperta) return;
     crea.mutate({ ipotesiId: salvata.id, operazione: op, origine: ip.importazione?.originale, planimetria:ip.planimetria }, {
       onSuccess: ({id,avviso}) => {
-        toast.success("Operazione creata", { description: "Il piano economico è in bozza." });
+        toast.success(t("Operazione creata"), { description: t("Il piano economico è in bozza.") });
         if (avviso) toast.warning(avviso);
         onOpenChange(false);
         navigate(`/azienda/ordini/${id}`);
@@ -54,33 +56,33 @@ export function DiventaOperazioneDialog({ open, onOpenChange, salvata, modelliAt
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Diventa operazione</DialogTitle>
-          <DialogDescription>Nasce una commessa generale «{def.nome}» con i numeri di questa ipotesi.</DialogDescription>
+          <DialogTitle>{t("Diventa operazione")}</DialogTitle>
+          <DialogDescription>{t("Nasce una commessa generale «{modello}» con i numeri di questa ipotesi.", { modello: t(def.nome) })}</DialogDescription>
         </DialogHeader>
 
         {!acceso ? (
           <div className="space-y-3 text-sm">
-            <p>Le commesse generali «{def.nome}» non sono accese per la tua azienda. Accendile e torna qui: l'ipotesi resta salvata.</p>
-            <Button asChild><Link to="/azienda/impostazioni/commesse-generali">Vai a Impostazioni → Commesse generali</Link></Button>
+            <p>{t("Le commesse generali «{modello}» non sono accese per la tua azienda. Accendile e torna qui: l'ipotesi resta salvata.", { modello: t(def.nome) })}</p>
+            <Button asChild><Link to="/azienda/impostazioni/commesse-generali">{t("Vai a Impostazioni → Commesse generali")}</Link></Button>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="space-y-1">
-              <Label htmlFor="op-nome">Nome dell'operazione</Label>
-              <Input id="op-nome" value={nome} maxLength={200} className="text-sm" placeholder={def.esempio} onChange={(e) => setNome(e.target.value)} />
+              <Label htmlFor="op-nome">{t("Nome dell'operazione")}</Label>
+              <Input id="op-nome" value={nome} maxLength={200} className="text-sm" placeholder={t(def.esempio)} onChange={(e) => setNome(e.target.value)} />
             </div>
             <ul className="space-y-1 text-sm">
-              <li>Ricavi previsti: <span className="font-medium">{euro(op.valore)}</span></li>
-              <li>Piano economico in bozza con {op.voci.length} voci, coi loro mesi.</li>
-              {ip.planimetria && <li>Planimetria e fascicolo alla versione {ip.planimetria.versione}.</li>}
-              <li>{op.fonti.length ? `Fonti: ${op.fonti.map((f) => `${f.nome} ${euro(f.impegno)}`).join(", ")}.` : "Nessuna fonte: le aggiungi dopo."}</li>
+              <li>{t("Ricavi previsti:")} <span className="font-medium">{euro(op.valore)}</span></li>
+              <li>{t("Piano economico in bozza con {n} voci, coi loro mesi.", { n: op.voci.length })}</li>
+              {ip.planimetria && <li>{t("Planimetria e fascicolo alla versione {versione}.", { versione: ip.planimetria.versione })}</li>}
+              <li>{op.fonti.length ? t("Fonti: {elenco}.", { elenco: op.fonti.map((f) => `${f.nome} ${euro(f.impegno)}`).join(", ") }) : t("Nessuna fonte: le aggiungi dopo.")}</li>
             </ul>
             <div className="flex items-start gap-2">
               <Checkbox id="op-unita" checked={conUnita && !motivo} disabled={!!motivo} onCheckedChange={(v) => setConUnita(v === true)} />
               <div className="text-sm">
-                <Label htmlFor="op-unita">Crea anche le {unitaTotali(ip)} unità in serie</Label>
+                <Label htmlFor="op-unita">{t("Crea anche le {n} unità in serie", { n: unitaTotali(ip) })}</Label>
                 <p className="text-xs text-muted-foreground">
-                  {motivo ?? `Una per unità (${op.unita.slice(0, 3).map((u) => u.sigla).join(", ")}${op.unita.length > 3 ? "…" : ""}), con m² e listino.`}
+                  {motivo ?? t("Una per unità ({esempi}), con m² e listino.", { esempi: `${op.unita.slice(0, 3).map((u) => u.sigla).join(", ")}${op.unita.length > 3 ? "…" : ""}` })}
                 </p>
               </div>
             </div>
@@ -88,8 +90,8 @@ export function DiventaOperazioneDialog({ open, onOpenChange, salvata, modelliAt
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-          {acceso && <Button onClick={conferma} disabled={!nome.trim() || crea.isPending || verificaAperta}>{crea.isPending ? "Creazione…" : "Crea l'operazione"}</Button>}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
+          {acceso && <Button onClick={conferma} disabled={!nome.trim() || crea.isPending || verificaAperta}>{crea.isPending ? t("Creazione…") : t("Crea l'operazione")}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

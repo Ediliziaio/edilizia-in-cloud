@@ -41,8 +41,8 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { quantitaDaCampo } from "@/lib/orders/quantitaDaCampo";
 import { quantitaSommabili, trovaDoppione } from "@/lib/distinta/elencoArticoli";
 import { ETICHETTA_STATO_MATERIALE, quantitaLeggibile, statoMateriale } from "@/lib/distinta/statoMateriale";
@@ -306,6 +306,7 @@ export function OrderItemsList({
   azioneTestata,
 }: OrderItemsListProps) {
   const queryClient = useQueryClient();
+  const tr = useT();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   /** Sezione "Altri dettagli" del form articolo. Chiusa di default: su 328
@@ -468,10 +469,10 @@ export function OrderItemsList({
       });
       if (dbErr) throw dbErr;
       onAttachmentsRefresh?.();
-      toast({ title: "ODA caricato", description: `${file.name} allegato all'articolo.` });
+      toast({ title: tr("ODA caricato"), description: tr("{nome} allegato all'articolo.", { nome: file.name }) });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast({ variant: "destructive", title: "Upload ODA fallito", description: msg });
+      toast({ variant: "destructive", title: tr("Upload ODA fallito"), description: msg });
     }
   };
 
@@ -517,7 +518,8 @@ export function OrderItemsList({
 
   const getPaymentMethodLabel = (value?: string) => {
     if (!value) return null;
-    return PAYMENT_METHODS.find(m => m.value === value)?.label || value;
+    const metodo = PAYMENT_METHODS.find(m => m.value === value);
+    return metodo ? tr(metodo.label) : value;
   };
 
   const resetForm = () => {
@@ -695,7 +697,7 @@ export function OrderItemsList({
   const handleSaveItem = (): boolean => {
     setDialogError(null);
     if (!itemName.trim()) {
-      setDialogError("Inserisci il nome dell'articolo.");
+      setDialogError(tr("Inserisci il nome dell'articolo."));
       return false;
     }
 
@@ -709,15 +711,15 @@ export function OrderItemsList({
       : quantitaDaCampo(itemQuantity);
     const purchasePrice = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      setDialogError("La quantità deve essere maggiore di zero.");
+      setDialogError(tr("La quantità deve essere maggiore di zero."));
       return false;
     }
     if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
-      setDialogError("Il costo di acquisto non può essere negativo.");
+      setDialogError(tr("Il costo di acquisto non può essere negativo."));
       return false;
     }
     if (!Number.isFinite(itemVatRate) || itemVatRate < 0 || itemVatRate > 100) {
-      setDialogError("L'IVA acquisto deve essere compresa tra 0 e 100.");
+      setDialogError(tr("L'IVA acquisto deve essere compresa tra 0 e 100."));
       return false;
     }
     const totalCost = purchasePrice * quantity;
@@ -830,8 +832,8 @@ export function OrderItemsList({
       const tempKey = `${newItem.name}::${items.length}`;
       pendingUploadsRef.current.set(tempKey, pendingAttachment);
       toast({
-        title: "Allegato in attesa",
-        description: "Il PDF sarà caricato dopo il salvataggio della commessa.",
+        title: tr("Allegato in attesa"),
+        description: tr("Il PDF sarà caricato dopo il salvataggio della commessa."),
       });
     }
     onItemsChange([...items, newItem]);
@@ -906,8 +908,8 @@ export function OrderItemsList({
         if (Number(existingRow.quantity_received) > 0) {
           toast({
             variant: "destructive",
-            title: "Articolo già ricevuto",
-            description: "Su questo articolo è già stata registrata merce ricevuta: non si può spostare su un altro OdA.",
+            title: tr("Articolo già ricevuto"),
+            description: tr("Su questo articolo è già stata registrata merce ricevuta: non si può spostare su un altro OdA."),
           });
           return;
         }
@@ -916,7 +918,7 @@ export function OrderItemsList({
           .update({ purchase_order_id: poId })
           .eq("id", existingRow.id);
         if (error) throw error;
-        toast({ title: "ODA aggiornato", description: "L'articolo è stato spostato sull'OdA selezionato." });
+        toast({ title: tr("ODA aggiornato"), description: tr("L'articolo è stato spostato sull'OdA selezionato.") });
         return;
       }
 
@@ -931,10 +933,10 @@ export function OrderItemsList({
         vat_rate: item.vat_rate ?? 22,
       });
       if (error) throw error;
-      toast({ title: "ODA collegato", description: "L'articolo è ora associato all'ODA selezionato." });
+      toast({ title: tr("ODA collegato"), description: tr("L'articolo è ora associato all'ODA selezionato.") });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast({ variant: "destructive", title: "Collegamento ODA fallito", description: msg });
+      toast({ variant: "destructive", title: tr("Collegamento ODA fallito"), description: msg });
     } finally {
       refreshMaterialQueries(queryClient);
     }
@@ -951,14 +953,14 @@ export function OrderItemsList({
    */
   const handleSaveAndContinue = () => {
     setDialogError(null);
-    if (!itemName.trim()) { setDialogError("Inserisci il nome dell'articolo."); return; }
+    if (!itemName.trim()) { setDialogError(tr("Inserisci il nome dell'articolo.")); return; }
     const quantity = quantitaDaCampo(itemQuantity);
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      setDialogError("La quantità deve essere maggiore di zero."); return;
+      setDialogError(tr("La quantità deve essere maggiore di zero.")); return;
     }
     const purchasePrice = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
     if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
-      setDialogError("Il costo di acquisto non può essere negativo."); return;
+      setDialogError(tr("Il costo di acquisto non può essere negativo.")); return;
     }
 
     // Salva l'item (riusa la stessa logica di handleSaveItem).
@@ -1050,7 +1052,7 @@ export function OrderItemsList({
     }
     const indice = items.findIndex((i) => i.id === richiesta.id);
     if (indice < 0) {
-      toast({ variant: "destructive", title: "Articolo non trovato", description: "Ricarica la pagina e riprova." });
+      toast({ variant: "destructive", title: tr("Articolo non trovato"), description: tr("Ricarica la pagina e riprova.") });
       return;
     }
     if (richiesta.tipo === "modifica") openEditDialog(indice);
@@ -1080,11 +1082,11 @@ export function OrderItemsList({
       {/* ── Section 1: Articolo ─────────────────────────── */}
       <div className="space-y-3">
         <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
-          <Package className="h-4 w-4" /> Articolo
+          <Package className="h-4 w-4" /> {tr("Articolo")}
         </h4>
         <div className="space-y-2">
-          <Label>Nome Articolo *</Label>
-          <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Cerca articolo dal listino o digita…" fallbackCompanyId={fallbackCompanyId} includeListino salvaNuoviNelCatalogo={false} />
+          <Label>{tr("Nome Articolo *")}</Label>
+          <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder={tr("Cerca articolo dal listino o digita…")} fallbackCompanyId={fallbackCompanyId} includeListino salvaNuoviNelCatalogo={false} />
           {((itemStandardCost != null && itemStandardCost > 0) || itemImageUrl || (itemManodoperaCosto != null && itemManodoperaCosto > 0)) && (
             <div className="flex items-start gap-2.5 rounded-md bg-blue-50 border border-blue-100 p-2.5">
               {itemImageUrl ? (
@@ -1095,40 +1097,40 @@ export function OrderItemsList({
                 </div>
               )}
               <div className="text-xs text-blue-900 space-y-0.5 min-w-0">
-                <div className="font-medium">Dal listino{itemCategoria ? <span className="font-normal"> · {itemCategoria}</span> : null}</div>
+                <div className="font-medium">{tr("Dal listino")}{itemCategoria ? <span className="font-normal"> · {itemCategoria}</span> : null}</div>
                 {canViewCosts && itemStandardCost != null && itemStandardCost > 0 && (
-                  <div>Costo base materiale: <strong>{formatCurrency(itemStandardCost)}</strong>/u</div>
+                  <div>{tr("Costo base materiale:")} <strong>{formatCurrency(itemStandardCost)}</strong>/u</div>
                 )}
                 {itemManodoperaCosto != null && itemManodoperaCosto > 0 && (
                   <div className="space-y-1.5">
-                    <div>Posa (manodopera){canViewCosts && <>: <strong>{formatCurrency(itemManodoperaCosto)}</strong>/u</>}</div>
+                    <div>{tr("Posa (manodopera)")}{canViewCosts && <>: <strong>{formatCurrency(itemManodoperaCosto)}</strong>/u</>}</div>
                     {onAddLabor ? (
                       <div className="space-y-1.5">
                         <label className="flex items-center gap-2 cursor-pointer">
                           <Checkbox checked={addPosa} onCheckedChange={(c) => setAddPosa(c === true)} />
-                          <span>Aggiungi la posa alla <strong>Manodopera</strong>{canViewCosts && <> ({formatCurrency(itemManodoperaCosto * (quantitaDaCampo(itemQuantity) || 1))} tot.)</>}</span>
+                          <span>{tr("Aggiungi la posa alla")} <strong>{tr("Manodopera")}</strong>{canViewCosts && <> ({formatCurrency(itemManodoperaCosto * (quantitaDaCampo(itemQuantity) || 1))} {tr("tot.")})</>}</span>
                         </label>
                         {addPosa && (
                           <Select value={posaTeamId} onValueChange={setPosaTeamId}>
-                            <SelectTrigger className="h-8 text-xs bg-white"><SelectValue placeholder="Scegli squadra/subappaltatore…" /></SelectTrigger>
+                            <SelectTrigger className="h-8 text-xs bg-white"><SelectValue placeholder={tr("Scegli squadra/subappaltatore…")} /></SelectTrigger>
                             <SelectContent>
                               {externalTeams.length === 0 ? (
-                                <div className="px-2 py-1.5 text-xs text-muted-foreground">Nessuna squadra — creane una in Subappaltatori</div>
+                                <div className="px-2 py-1.5 text-xs text-muted-foreground">{tr("Nessuna squadra — creane una in Subappaltatori")}</div>
                               ) : externalTeams.map((t) => (
-                                <SelectItem key={t.id} value={t.id}>{t.name ?? "Squadra"}</SelectItem>
+                                <SelectItem key={t.id} value={t.id}>{t.name ?? tr("Squadra")}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         )}
                       </div>
                     ) : (
-                      <div className="text-blue-600">— da aggiungere a parte nella sezione Manodopera</div>
+                      <div className="text-blue-600">{tr("— da aggiungere a parte nella sezione Manodopera")}</div>
                     )}
                   </div>
                 )}
                 {itemPdfSchedaUrl && (
                   <a href={itemPdfSchedaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
-                    <ExternalLink className="h-3 w-3" /> Scheda tecnica (PDF)
+                    <ExternalLink className="h-3 w-3" /> {tr("Scheda tecnica (PDF)")}
                   </a>
                 )}
               </div>
@@ -1146,18 +1148,18 @@ export function OrderItemsList({
       <div className="space-y-2 rounded-lg border bg-muted/20 p-2.5">
         <div className="flex items-center justify-between">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Distinta / posizioni (opzionale)
+            {tr("Distinta / posizioni (opzionale)")}
           </Label>
           <Button
             type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs"
             onClick={() => setItemPosizioni((prev) => [...prev, { descrizione: "", misure: "", quantita: 1 }])}
           >
-            <Plus className="h-3.5 w-3.5" /> Posizione
+            <Plus className="h-3.5 w-3.5" /> {tr("Posizione")}
           </Button>
         </div>
         {itemPosizioni.length === 0 ? (
           <p className="text-xs text-muted-foreground max-sm:hidden">
-            Per ordini con piu' misure (es. serramenti): una riga per posizione, il fornitore le vedra' cosi' nell'ordine.
+            {tr("Per ordini con piu' misure (es. serramenti): una riga per posizione, il fornitore le vedra' cosi' nell'ordine.")}
           </p>
         ) : (
           <div className="space-y-1.5">
@@ -1166,7 +1168,7 @@ export function OrderItemsList({
                 <Input
                   value={po.descrizione}
                   onChange={(e) => setItemPosizioni((prev) => prev.map((x, j) => j === pi ? { ...x, descrizione: e.target.value } : x))}
-                  placeholder="Es. Finestra 2 ante"
+                  placeholder={tr("Es. Finestra 2 ante")}
                   className="h-8 flex-1 text-sm"
                 />
                 <Input
@@ -1180,11 +1182,11 @@ export function OrderItemsList({
                   value={po.quantita}
                   onChange={(e) => setItemPosizioni((prev) => prev.map((x, j) => j === pi ? { ...x, quantita: Math.max(1, Math.round(Number(e.target.value) || 1)) } : x))}
                   className="h-8 w-16 text-sm"
-                  aria-label="Quantita' posizione"
+                  aria-label={tr("Quantita' posizione")}
                 />
                 <Button
                   type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive"
-                  aria-label="Rimuovi posizione"
+                  aria-label={tr("Rimuovi posizione")}
                   onClick={() => setItemPosizioni((prev) => prev.filter((_, j) => j !== pi))}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -1192,7 +1194,7 @@ export function OrderItemsList({
               </div>
             ))}
             <p className="text-[11px] text-muted-foreground">
-              Quantita' articolo = somma posizioni ({itemPosizioni.reduce((t, x) => t + (x.quantita || 0), 0)} pz)
+              {tr("Quantita' articolo = somma posizioni ({n} pz)", { n: itemPosizioni.reduce((t, x) => t + (x.quantita || 0), 0) })}
             </p>
           </div>
         )}
@@ -1201,18 +1203,18 @@ export function OrderItemsList({
       {/* ── Section 2: Costi & IVA ─────────────────────────── */}
       <div className="space-y-3">
         <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
-          <Tag className="h-4 w-4" /> Costi
+          <Tag className="h-4 w-4" /> {tr("Costi")}
         </h4>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <Label>Quantità</Label>
-            <Input inputMode="decimal" aria-label="Quantità" value={itemPosizioni.length > 0 ? String(itemPosizioni.reduce((t, x) => t + (x.quantita || 0), 0)) : itemQuantity} disabled={itemPosizioni.length > 0} onChange={(e) => setItemQuantity(e.target.value)} />
+            <Label>{tr("Quantità")}</Label>
+            <Input inputMode="decimal" aria-label={tr("Quantità")} value={itemPosizioni.length > 0 ? String(itemPosizioni.reduce((t, x) => t + (x.quantita || 0), 0)) : itemQuantity} disabled={itemPosizioni.length > 0} onChange={(e) => setItemQuantity(e.target.value)} />
           </div>
           {/* Costo d'acquisto e listino solo a chi vede i costi: nascosti, i valori restano quelli salvati. */}
           {canViewCosts && (
           <div className="space-y-2">
             <Label>
-              Costo unitario previsto
+              {tr("Costo unitario previsto")}
             </Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
@@ -1226,7 +1228,7 @@ export function OrderItemsList({
               const over = delta > 0.005, under = delta < -0.005;
               return (
                 <p className={cn("text-[11px]", over ? "text-rose-600" : under ? "text-emerald-600" : "text-muted-foreground")}>
-                  Listino {formatCurrency(itemStandardCost!)} · {over ? "▲" : under ? "▼" : "="} {delta > 0 ? "+" : ""}{formatCurrency(delta)} ({pct > 0 ? "+" : ""}{pct.toFixed(0)}%)
+                  {tr("Listino {importo}", { importo: formatCurrency(itemStandardCost!) })} · {over ? "▲" : under ? "▼" : "="} {delta > 0 ? "+" : ""}{formatCurrency(delta)} ({pct > 0 ? "+" : ""}{pct.toFixed(0)}%)
                 </p>
               );
             })()}
@@ -1239,18 +1241,18 @@ export function OrderItemsList({
           if (!Number.isFinite(qty) || !Number.isFinite(price) || qty <= 0 || price <= 0) return null;
           return (
             <p className="text-xs text-right text-muted-foreground">
-              Totale riga: <span className="font-semibold text-foreground">{formatCurrency(qty * price)}</span>
+              {tr("Totale riga:")} <span className="font-semibold text-foreground">{formatCurrency(qty * price)}</span>
               <span className="ml-1">({qty} × {formatCurrency(price)})</span>
             </p>
           );
         })()}
         <div className="space-y-2">
-          <Label>IVA Acquisto</Label>
+          <Label>{tr("IVA Acquisto")}</Label>
           <Select value={itemVatRate.toString()} onValueChange={(v) => setItemVatRate(parseInt(v))}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {VAT_RATES.map((rate) => (
-                <SelectItem key={rate.value} value={rate.value.toString()}>{rate.label}</SelectItem>
+                <SelectItem key={rate.value} value={rate.value.toString()}>{tr(rate.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -1262,10 +1264,10 @@ export function OrderItemsList({
       {/* ── Section 3: Fornitore & Pagamento ─────────────────────────── */}
       <div className="space-y-3">
         <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
-          <Truck className="h-4 w-4" /> Fornitore
+          <Truck className="h-4 w-4" /> {tr("Fornitore")}
         </h4>
         <div className="space-y-2">
-          <Label>Fornitore <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
+          <Label>{tr("Fornitore")} <span className="text-xs text-muted-foreground font-normal">{tr("(opzionale)")}</span></Label>
           <SupplierSelect searchable inlineCreate value={itemSupplierId} onValueChange={handleSupplierChange} fallbackCompanyId={fallbackCompanyId} />
         </div>
       </div>
@@ -1280,22 +1282,22 @@ export function OrderItemsList({
         aria-expanded={showAltriDettagli}
       >
         {showAltriDettagli ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        Altri dettagli (descrizione, stato, pagamento, arrivo, OdA)
+        {tr("Altri dettagli (descrizione, stato, pagamento, arrivo, OdA)")}
       </button>
 
       {showAltriDettagli && (
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label>Descrizione <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
-          <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Es. dimensioni, finitura, codice fornitore…" />
+          <Label>{tr("Descrizione")} <span className="text-xs text-muted-foreground font-normal">{tr("(opzionale)")}</span></Label>
+          <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder={tr("Es. dimensioni, finitura, codice fornitore…")} />
         </div>
         <div className="space-y-2">
-          <Label>Stato Articolo</Label>
+          <Label>{tr("Stato Articolo")}</Label>
           <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                <SelectItem key={status} value={status}>{config.label}</SelectItem>
+                <SelectItem key={status} value={status}>{tr(config.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -1303,13 +1305,13 @@ export function OrderItemsList({
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
             <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
-            Modalità Pagamento
+            {tr("Modalità Pagamento")}
           </Label>
           <Select value={itemPaymentMethod} onValueChange={setItemPaymentMethod}>
-            <SelectTrigger><SelectValue placeholder="Seleziona modalità…" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={tr("Seleziona modalità…")} /></SelectTrigger>
             <SelectContent>
               {PAYMENT_METHODS.map((m) => (
-                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                <SelectItem key={m.value} value={m.value}>{tr(m.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -1319,12 +1321,12 @@ export function OrderItemsList({
         {itemPaymentMethod && itemPaymentMethod !== "50_50" && itemPaymentMethod !== "30_70" && (
           <>
             <div className="flex items-center justify-between">
-              <Label>Pagato</Label>
+              <Label>{tr("Pagato")}</Label>
               <Switch checked={itemIsPaid} onCheckedChange={setItemIsPaid} />
             </div>
             {itemIsPaid && (
               <div className="space-y-2">
-                <Label>Data Pagamento</Label>
+                <Label>{tr("Data Pagamento")}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -1333,11 +1335,11 @@ export function OrderItemsList({
                       type="button"
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {itemPaidDate ? format(itemPaidDate, "dd/MM/yyyy", { locale: it }) : "Seleziona data..."}
+                      {itemPaidDate ? format(itemPaidDate, "dd/MM/yyyy", { locale: dateFnsCampo() }) : tr("Seleziona data...")}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={itemPaidDate} onSelect={setItemPaidDate} locale={it} />
+                    <Calendar mode="single" selected={itemPaidDate} onSelect={setItemPaidDate} locale={dateFnsCampo()} />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -1358,38 +1360,38 @@ export function OrderItemsList({
               {/* Acconto */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="font-semibold text-sm">Acconto ({itemPaymentMethod === "50_50" ? "50%" : "30%"})</Label>
+                  <Label className="font-semibold text-sm">{tr("Acconto ({percentuale})", { percentuale: itemPaymentMethod === "50_50" ? "50%" : "30%" })}</Label>
                   {canViewCosts && <span className="text-sm font-medium">{formatCurrency(depositAmt)}</span>}
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm">Pagato</Label>
+                  <Label className="text-sm">{tr("Pagato")}</Label>
                   <Switch checked={itemDepositPaid} onCheckedChange={setItemDepositPaid} />
                 </div>
                 {itemDepositPaid && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Data Pagamento Acconto</Label>
+                    <Label className="text-xs">{tr("Data Pagamento Acconto")}</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-sm h-9", !itemDepositPaidDate && "text-muted-foreground")} type="button">
                           <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                          {itemDepositPaidDate ? format(itemDepositPaidDate, "dd/MM/yyyy", { locale: it }) : "Seleziona data..."}
+                          {itemDepositPaidDate ? format(itemDepositPaidDate, "dd/MM/yyyy", { locale: dateFnsCampo() }) : tr("Seleziona data...")}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemDepositPaidDate} onSelect={setItemDepositPaidDate} locale={it} className="pointer-events-auto" /></PopoverContent>
+                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemDepositPaidDate} onSelect={setItemDepositPaidDate} locale={dateFnsCampo()} className="pointer-events-auto" /></PopoverContent>
                     </Popover>
                   </div>
                 )}
                 {!itemDepositPaid && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Data Prevista Acconto</Label>
+                    <Label className="text-xs">{tr("Data Prevista Acconto")}</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-sm h-9", !itemDepositExpectedDate && "text-muted-foreground")} type="button">
                           <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                          {itemDepositExpectedDate ? format(itemDepositExpectedDate, "dd/MM/yyyy", { locale: it }) : "Data prevista..."}
+                          {itemDepositExpectedDate ? format(itemDepositExpectedDate, "dd/MM/yyyy", { locale: dateFnsCampo() }) : tr("Data prevista...")}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemDepositExpectedDate} onSelect={setItemDepositExpectedDate} locale={it} className="pointer-events-auto" /></PopoverContent>
+                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemDepositExpectedDate} onSelect={setItemDepositExpectedDate} locale={dateFnsCampo()} className="pointer-events-auto" /></PopoverContent>
                     </Popover>
                   </div>
                 )}
@@ -1397,38 +1399,38 @@ export function OrderItemsList({
               {/* Saldo */}
               <div className="space-y-2 border-t pt-3">
                 <div className="flex items-center justify-between">
-                  <Label className="font-semibold text-sm">Saldo ({itemPaymentMethod === "50_50" ? "50%" : "70%"})</Label>
+                  <Label className="font-semibold text-sm">{tr("Saldo ({percentuale})", { percentuale: itemPaymentMethod === "50_50" ? "50%" : "70%" })}</Label>
                   {canViewCosts && <span className="text-sm font-medium">{formatCurrency(balanceAmt)}</span>}
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm">Pagato</Label>
+                  <Label className="text-sm">{tr("Pagato")}</Label>
                   <Switch checked={itemBalancePaid} onCheckedChange={setItemBalancePaid} />
                 </div>
                 {itemBalancePaid && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Data Pagamento Saldo</Label>
+                    <Label className="text-xs">{tr("Data Pagamento Saldo")}</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-sm h-9", !itemBalancePaidDate && "text-muted-foreground")} type="button">
                           <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                          {itemBalancePaidDate ? format(itemBalancePaidDate, "dd/MM/yyyy", { locale: it }) : "Seleziona data..."}
+                          {itemBalancePaidDate ? format(itemBalancePaidDate, "dd/MM/yyyy", { locale: dateFnsCampo() }) : tr("Seleziona data...")}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemBalancePaidDate} onSelect={setItemBalancePaidDate} locale={it} /></PopoverContent>
+                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemBalancePaidDate} onSelect={setItemBalancePaidDate} locale={dateFnsCampo()} /></PopoverContent>
                     </Popover>
                   </div>
                 )}
                 {!itemBalancePaid && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Data Prevista Saldo</Label>
+                    <Label className="text-xs">{tr("Data Prevista Saldo")}</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-sm h-9", !itemBalanceExpectedDate && "text-muted-foreground")} type="button">
                           <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                          {itemBalanceExpectedDate ? format(itemBalanceExpectedDate, "dd/MM/yyyy", { locale: it }) : "Data prevista..."}
+                          {itemBalanceExpectedDate ? format(itemBalanceExpectedDate, "dd/MM/yyyy", { locale: dateFnsCampo() }) : tr("Data prevista...")}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemBalanceExpectedDate} onSelect={setItemBalanceExpectedDate} locale={it} /></PopoverContent>
+                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemBalanceExpectedDate} onSelect={setItemBalanceExpectedDate} locale={dateFnsCampo()} /></PopoverContent>
                     </Popover>
                   </div>
                 )}
@@ -1440,14 +1442,14 @@ export function OrderItemsList({
       {/* ── Section 4: Tracking & ODA (v8.6.35) ─────────────────────────── */}
       <div className="space-y-3">
         <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
-          <FileText className="h-4 w-4" /> Tracking & Ordine di Acquisto
+          <FileText className="h-4 w-4" /> {tr("Tracking & Ordine di Acquisto")}
         </h4>
 
         {/* Data Arrivo Prevista */}
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
             <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
-            Data Arrivo Prevista <span className="text-xs text-muted-foreground font-normal">(opzionale)</span>
+            {tr("Data Arrivo Prevista")} <span className="text-xs text-muted-foreground font-normal">{tr("(opzionale)")}</span>
           </Label>
           <div className="flex gap-2">
             <Popover>
@@ -1458,11 +1460,11 @@ export function OrderItemsList({
                   className={cn("flex-1 justify-start text-left font-normal", !itemDeliveryDate && "text-muted-foreground")}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {itemDeliveryDate ? format(itemDeliveryDate, "dd/MM/yyyy", { locale: it }) : "Quando arriva la merce…"}
+                  {itemDeliveryDate ? format(itemDeliveryDate, "dd/MM/yyyy", { locale: dateFnsCampo() }) : tr("Quando arriva la merce…")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={itemDeliveryDate} onSelect={setItemDeliveryDate} locale={it} />
+                <Calendar mode="single" selected={itemDeliveryDate} onSelect={setItemDeliveryDate} locale={dateFnsCampo()} />
               </PopoverContent>
             </Popover>
             {itemDeliveryDate && (
@@ -1471,7 +1473,7 @@ export function OrderItemsList({
                 variant="ghost"
                 size="icon"
                 onClick={() => setItemDeliveryDate(undefined)}
-                title="Rimuovi data"
+                title={tr("Rimuovi data")}
                 className="shrink-0"
               >
                 <X className="h-4 w-4" />
@@ -1483,21 +1485,21 @@ export function OrderItemsList({
         {/* ODA: link esistente */}
         {purchaseOrders.length > 0 && (
           <div className="space-y-2">
-            <Label>Collega ODA esistente <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
+            <Label>{tr("Collega ODA esistente")} <span className="text-xs text-muted-foreground font-normal">{tr("(opzionale)")}</span></Label>
             <Select
               value={itemLinkedPoId || "none"}
               onValueChange={(v) => setItemLinkedPoId(v === "none" ? undefined : v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Nessun ODA collegato" />
+                <SelectValue placeholder={tr("Nessun ODA collegato")} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">
-                  <span className="text-muted-foreground">Nessun ODA collegato</span>
+                  <span className="text-muted-foreground">{tr("Nessun ODA collegato")}</span>
                 </SelectItem>
                 {purchaseOrders.map((po: { id: string; oda_number?: string | null; status?: string | null; total?: number | null; created_at?: string | null; suppliers?: { name?: string | null } | null }) => {
                   const fornitore = po.suppliers?.name?.trim();
-                  const data = po.created_at ? new Date(po.created_at).toLocaleDateString("it-IT") : null;
+                  const data = po.created_at ? new Date(po.created_at).toLocaleDateString(intlCampo()) : null;
                   const meta = [fornitore, canViewCosts && po.total != null ? formatCurrency(Number(po.total)) : null, data].filter(Boolean).join(" · ");
                   return (
                     <SelectItem key={po.id} value={po.id}>
@@ -1516,7 +1518,7 @@ export function OrderItemsList({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Solo ODA di {itemSupplierId ? "questo fornitore" : "tutti i fornitori"} (max 50 più recenti).
+              {itemSupplierId ? tr("Solo ODA di questo fornitore (max 50 più recenti).") : tr("Solo ODA di tutti i fornitori (max 50 più recenti).")}
             </p>
           </div>
         )}
@@ -1525,7 +1527,7 @@ export function OrderItemsList({
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
             <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
-            Allega PDF ordine di acquisto <span className="text-xs text-muted-foreground font-normal">(opzionale)</span>
+            {tr("Allega PDF ordine di acquisto")} <span className="text-xs text-muted-foreground font-normal">{tr("(opzionale)")}</span>
           </Label>
           {pendingAttachment ? (
             <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
@@ -1539,7 +1541,7 @@ export function OrderItemsList({
                 variant="ghost"
                 size="icon"
                 onClick={() => setPendingAttachment(null)}
-                title="Rimuovi"
+                title={tr("Rimuovi")}
                 className="h-6 w-6 shrink-0"
               >
                 <X className="h-3.5 w-3.5" />
@@ -1548,7 +1550,7 @@ export function OrderItemsList({
           ) : (
             <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-muted/30">
               <Upload className="h-4 w-4" />
-              <span>Clicca per scegliere file (PDF/JPG/PNG, max 10MB)</span>
+              <span>{tr("Clicca per scegliere file (PDF/JPG/PNG, max 10MB)")}</span>
               <input
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png,.webp"
@@ -1557,7 +1559,7 @@ export function OrderItemsList({
                   const file = e.target.files?.[0];
                   if (!file) return;
                   if (file.size > 10 * 1024 * 1024) {
-                    toast({ variant: "destructive", title: "File troppo grande", description: "Massimo 10 MB. Comprimi il PDF e riprova." });
+                    toast({ variant: "destructive", title: tr("File troppo grande"), description: tr("Massimo 10 MB. Comprimi il PDF e riprova.") });
                     e.target.value = "";
                     return;
                   }
@@ -1568,7 +1570,7 @@ export function OrderItemsList({
             </label>
           )}
           <p className="text-xs text-muted-foreground">
-            Caricato come allegato all'articolo dopo il salvataggio.
+            {tr("Caricato come allegato all'articolo dopo il salvataggio.")}
           </p>
         </div>
       </div>
@@ -1616,7 +1618,7 @@ export function OrderItemsList({
               {renderNewArticleForm()}
               <DialogFooter className="mt-4 flex-col sm:flex-row gap-2 max-sm:flex-row">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1 max-sm:hidden">
-                  Annulla
+                  {tr("Annulla")}
                 </Button>
                 {/* "Aggiungi e continua" solo in creazione (non in edit) */}
                 {editingIndex === null && (
@@ -1629,45 +1631,47 @@ export function OrderItemsList({
                           onClick={handleSaveAndContinue}
                           disabled={!itemName.trim()}
                           className="sm:order-2 gap-1.5"
-                          aria-label="Aggiungi e continua"
+                          aria-label={tr("Aggiungi e continua")}
                         >
                           <Plus className="h-3.5 w-3.5" />
-                          <span aria-hidden="true" className="max-sm:hidden">Aggiungi e continua</span>
-                          <span aria-hidden="true" className="sm:hidden">Salva e un altro</span>
+                          <span aria-hidden="true" className="max-sm:hidden">{tr("Aggiungi e continua")}</span>
+                          <span aria-hidden="true" className="sm:hidden">{tr("Salva e un altro")}</span>
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs">
-                        Salva l'articolo e riapre subito il form col fornitore, IVA e stato già compilati. Utile per inserire più articoli simili in fila.
+                        {tr("Salva l'articolo e riapre subito il form col fornitore, IVA e stato già compilati. Utile per inserire più articoli simili in fila.")}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 )}
                 <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3 max-sm:flex-1">
-                  {editingIndex !== null ? "Salva modifiche" : "Aggiungi"}
+                  {editingIndex !== null ? tr("Salva modifiche") : tr("Aggiungi")}
                 </Button>
               </DialogFooter>
             </>
           )}
 </div> : undefined}
         confermaDoppione={doppione ? <div>            <div className="space-y-2">
-              <h3 className="text-lg font-semibold">«{doppione?.esistente.name}» c'è già</h3>
+              <h3 className="text-lg font-semibold">{tr("«{nome}» c'è già", { nome: doppione?.esistente.name ?? "" })}</h3>
               <div className="text-sm text-muted-foreground">
                 {doppione && <>
-                  Nella commessa{doppione.esistente.phase_id ? ", nella stessa fase," : ""} c'è già questo articolo
-                  ({doppione.esistente.quantity.toLocaleString("it-IT")} {doppione.esistente.unita_misura || "pz"}).
+                  {doppione.esistente.phase_id
+                    ? tr("Nella commessa, nella stessa fase, c'è già questo articolo ({quantita} {unita}).", { quantita: doppione.esistente.quantity.toLocaleString(intlCampo()), unita: doppione.esistente.unita_misura || "pz" })
+                    : tr("Nella commessa c'è già questo articolo ({quantita} {unita}).", { quantita: doppione.esistente.quantity.toLocaleString(intlCampo()), unita: doppione.esistente.unita_misura || "pz" })}
+                  {" "}
                   {sommabile
-                    ? ` Sommando, la riga passa a ${(doppione.esistente.quantity + doppione.nuovo.quantity).toLocaleString("it-IT")}: una riga sola da ordinare e da ricevere.`
+                    ? tr("Sommando, la riga passa a {quantita}: una riga sola da ordinare e da ricevere.", { quantita: (doppione.esistente.quantity + doppione.nuovo.quantity).toLocaleString(intlCampo()) })
                     : !stessoPrezzo
-                      ? " Prezzo o fornitore sono diversi da quelli della riga che c'è: aggiungilo come riga a parte, così il costo resta giusto."
-                      : " Le quantità non si sommano (riga già avviata, unità diversa, posizioni o prelievo dal magazzino): se serve davvero, aggiungilo come riga a parte."}
+                      ? tr("Prezzo o fornitore sono diversi da quelli della riga che c'è: aggiungilo come riga a parte, così il costo resta giusto.")
+                      : tr("Le quantità non si sommano (riga già avviata, unità diversa, posizioni o prelievo dal magazzino): se serve davvero, aggiungilo come riga a parte.")}
                 </>}
               </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Button type="button" variant="ghost" onClick={() => setDoppione(null)}>Annulla</Button>
-              <Button type="button" variant="outline" onClick={() => risolviDoppione("separata")}>Aggiungi come riga a parte</Button>
+              <Button type="button" variant="ghost" onClick={() => setDoppione(null)}>{tr("Annulla")}</Button>
+              <Button type="button" variant="outline" onClick={() => risolviDoppione("separata")}>{tr("Aggiungi come riga a parte")}</Button>
               {sommabile && (
-                <Button type="button" onClick={() => risolviDoppione("somma")}>Somma la quantità</Button>
+                <Button type="button" onClick={() => risolviDoppione("somma")}>{tr("Somma la quantità")}</Button>
               )}
             </div>
 </div> : undefined}
@@ -1684,14 +1688,14 @@ export function OrderItemsList({
         <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 pb-3 max-sm:p-3 max-sm:pb-2">
           <CardTitle className="flex min-w-0 items-center gap-2 text-base">
             <Package className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="truncate">Articoli e Materiali</span>
+            <span className="truncate">{tr("Articoli e Materiali")}</span>
             {items.length > 0 && <span className="text-sm font-normal text-muted-foreground tabular-nums">{raggruppaRighe(items).length}</span>}
           </CardTitle>
           {editable && (
             <div className="flex shrink-0 items-center gap-2">
               {azioneTestata}
               <Button type="button" size="sm" onClick={openAddDialog} className="tap-compact shrink-0">
-                <Plus className="mr-1 h-4 w-4" aria-hidden />Aggiungi
+                <Plus className="mr-1 h-4 w-4" aria-hidden />{tr("Aggiungi")}
               </Button>
             </div>
           )}
@@ -1699,7 +1703,7 @@ export function OrderItemsList({
         <CardContent className="p-0">
           {items.length === 0 ? (
             <p className="border-t px-4 py-6 text-center text-sm text-muted-foreground">
-              Nessun materiale.
+              {tr("Nessun materiale.")}
             </p>
           ) : (
             <ul className="divide-y border-t">
@@ -1707,7 +1711,7 @@ export function OrderItemsList({
                 if (voce.tipo === "gruppo") {
                   const aperto = gruppiAperti.has(voce.gruppoId);
                   const prima = voce.righe[0];
-                  const titoloPezzi = `${voce.pezzi} pz`;
+                  const titoloPezzi = tr("{n} pz", { n: voce.pezzi });
                   return (
                     <li key={voce.gruppoId}>
                       <div className="flex items-center gap-3 px-4 py-2 max-sm:px-3">
@@ -1716,28 +1720,28 @@ export function OrderItemsList({
                           <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", aperto && "rotate-90")} aria-hidden />
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-medium">{voce.nome}</span>
-                            <span className="block truncate text-xs text-muted-foreground">Su misura · {voce.righe.length} {voce.righe.length === 1 ? "posizione" : "posizioni"}</span>
+                            <span className="block truncate text-xs text-muted-foreground">{tr(voce.righe.length === 1 ? "Su misura · {n} posizione" : "Su misura · {n} posizioni", { n: voce.righe.length })}</span>
                           </span>
                         </button>
                         <span className="shrink-0 whitespace-nowrap text-right text-sm tabular-nums">{titoloPezzi}</span>
                         {canViewCosts && (
                           <span className="w-24 shrink-0 text-right text-sm tabular-nums max-sm:hidden">
-                            {voce.costo > 0 ? formatCurrency(voce.costo) : <span className="text-xs text-muted-foreground">da definire</span>}
+                            {voce.costo > 0 ? formatCurrency(voce.costo) : <span className="text-xs text-muted-foreground">{tr("da definire")}</span>}
                           </span>
                         )}
                         {(editable || allowEdit) && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button type="button" variant="ghost" size="icon" className="tap-compact h-7 w-7 shrink-0" aria-label={`Azioni su ${voce.nome}`}>
+                              <Button type="button" variant="ghost" size="icon" className="tap-compact h-7 w-7 shrink-0" aria-label={tr("Azioni su {nome}", { nome: voce.nome })}>
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={() => openEditDialog(prima.indice)}><Pencil className="mr-2 h-4 w-4" />Modifica le posizioni</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => openEditDialog(prima.indice)}><Pencil className="mr-2 h-4 w-4" />{tr("Modifica le posizioni")}</DropdownMenuItem>
                               {editable && allowDelete && (
                                 <>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem className="text-red-700" onSelect={() => onItemsChange(items.filter((i) => i.gruppo_id !== voce.gruppoId).map((i, n) => ({ ...i, position: n })))}><Trash2 className="mr-2 h-4 w-4" />Togli tutte</DropdownMenuItem>
+                                  <DropdownMenuItem className="text-red-700" onSelect={() => onItemsChange(items.filter((i) => i.gruppo_id !== voce.gruppoId).map((i, n) => ({ ...i, position: n })))}><Trash2 className="mr-2 h-4 w-4" />{tr("Togli tutte")}</DropdownMenuItem>
                                 </>
                               )}
                             </DropdownMenuContent>
@@ -1749,10 +1753,10 @@ export function OrderItemsList({
                           {voce.righe.map(({ riga }) => (
                             <li key={riga.id ?? riga.riferimento ?? riga.position} className="flex items-center gap-3 py-1.5 pl-10 pr-4 max-sm:pl-9 max-sm:pr-3">
                               <span className="min-w-0 flex-1 truncate">{riga.riferimento || "—"}</span>
-                              <span className="shrink-0 tabular-nums text-muted-foreground">{misureLeggibili(riga.misure_preventivo) ?? "misure da scrivere"}</span>
-                              <span className="w-10 shrink-0 text-right tabular-nums">{riga.quantity} pz</span>
-                              {canViewCosts && <span className="w-24 shrink-0 text-right tabular-nums max-sm:hidden">{riga.purchase_price ? formatCurrency(riga.purchase_price * riga.quantity) : <span className="text-xs text-muted-foreground">da definire</span>}</span>}
-                              {riga.measure_status && <span className="shrink-0 text-xs text-muted-foreground max-sm:hidden">{ETICHETTA_STATO_MISURE[riga.measure_status as StatoMisure]}</span>}
+                              <span className="shrink-0 tabular-nums text-muted-foreground">{misureLeggibili(riga.misure_preventivo) ?? tr("misure da scrivere")}</span>
+                              <span className="w-10 shrink-0 text-right tabular-nums">{tr("{n} pz", { n: riga.quantity })}</span>
+                              {canViewCosts && <span className="w-24 shrink-0 text-right tabular-nums max-sm:hidden">{riga.purchase_price ? formatCurrency(riga.purchase_price * riga.quantity) : <span className="text-xs text-muted-foreground">{tr("da definire")}</span>}</span>}
+                              {riga.measure_status && <span className="shrink-0 text-xs text-muted-foreground max-sm:hidden">{tr(ETICHETTA_STATO_MISURE[riga.measure_status as StatoMisure])}</span>}
                             </li>
                           ))}
                         </ul>
@@ -1765,7 +1769,7 @@ export function OrderItemsList({
                 const stato = statoMateriale({ quantity: item.quantity, status: item.status, unita_misura: item.unita_misura }, []).stato;
                 const qta = quantitaLeggibile(item.quantity, item.unita_misura);
                 const fornitore = item.supplier_name || getSupplierName(item.supplier_id);
-                const sotto = [item.stock_item_id ? "Da giacenza" : fornitore, item.description].filter(Boolean).join(" · ");
+                const sotto = [item.stock_item_id ? tr("Da giacenza") : fornitore, item.description].filter(Boolean).join(" · ");
                 return (
                   <li key={item.id || index} className="flex items-center gap-3 px-4 py-2 max-sm:px-3">
                     <div className="min-w-0 flex-1">
@@ -1781,22 +1785,22 @@ export function OrderItemsList({
                       </span>
                     )}
                     <span className={cn("shrink-0 whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium", COLORE_STATO[stato])}>
-                      {ETICHETTA_STATO_MATERIALE[stato]}
+                      {tr(ETICHETTA_STATO_MATERIALE[stato])}
                     </span>
                     {(editable || allowEdit) && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button type="button" variant="ghost" size="icon" className="tap-compact h-7 w-7 shrink-0" aria-label={`Azioni su ${item.name}`}>
+                          <Button type="button" variant="ghost" size="icon" className="tap-compact h-7 w-7 shrink-0" aria-label={tr("Azioni su {nome}", { nome: item.name })}>
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onSelect={() => openEditDialog(index)}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
-                          {editable && <DropdownMenuItem onSelect={() => handleDuplicateItem(index)}><Copy className="mr-2 h-4 w-4" />Duplica</DropdownMenuItem>}
+                          <DropdownMenuItem onSelect={() => openEditDialog(index)}><Pencil className="mr-2 h-4 w-4" />{tr("Modifica")}</DropdownMenuItem>
+                          {editable && <DropdownMenuItem onSelect={() => handleDuplicateItem(index)}><Copy className="mr-2 h-4 w-4" />{tr("Duplica")}</DropdownMenuItem>}
                           {editable && allowDelete && (
                             <>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-red-700" onSelect={() => handleDeleteItem(index)}><Trash2 className="mr-2 h-4 w-4" />Togli</DropdownMenuItem>
+                              <DropdownMenuItem className="text-red-700" onSelect={() => handleDeleteItem(index)}><Trash2 className="mr-2 h-4 w-4" />{tr("Togli")}</DropdownMenuItem>
                             </>
                           )}
                         </DropdownMenuContent>
@@ -1809,7 +1813,7 @@ export function OrderItemsList({
           )}
           {canViewCosts && totaleCosti > 0 && (
             <p className="border-t px-4 py-2 text-right text-sm text-muted-foreground">
-              Costo dei materiali <strong className="font-semibold tabular-nums text-foreground">{formatCurrency(totaleCosti)}</strong>
+              {tr("Costo dei materiali")} <strong className="font-semibold tabular-nums text-foreground">{formatCurrency(totaleCosti)}</strong>
             </p>
           )}
           {finestra}
@@ -1824,12 +1828,12 @@ export function OrderItemsList({
         <div className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 min-w-0 max-sm:text-base">
             <Package className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-            <span className="truncate">Articoli e Materiali</span>
+            <span className="truncate">{tr("Articoli e Materiali")}</span>
           </CardTitle>
           {editable && (
-            <Button type="button" size="sm" onClick={openAddDialog} className="tap-compact shrink-0 max-sm:h-8 max-sm:w-8 max-sm:p-0" aria-label="Aggiungi articolo">
+            <Button type="button" size="sm" onClick={openAddDialog} className="tap-compact shrink-0 max-sm:h-8 max-sm:w-8 max-sm:p-0" aria-label={tr("Aggiungi articolo")}>
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline ml-1.5">Aggiungi</span>
+              <span className="hidden sm:inline ml-1.5">{tr("Aggiungi")}</span>
             </Button>
           )}
         </div>
@@ -1846,7 +1850,7 @@ export function OrderItemsList({
                 key={status}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig(status).badgeColor}`}
               >
-                {count} {statusConfig(status).label}
+                {count} {tr(statusConfig(status).label)}
               </span>
             ))}
           </div>
@@ -1856,21 +1860,21 @@ export function OrderItemsList({
         {/* Source filter — mobile no: le righe dicono già giacenza o fornitore. */}
         {items.length > 0 && (
           <div className="flex items-center gap-2 mb-4 overflow-x-auto scrollbar-none pb-1 max-sm:hidden">
-            <span className="text-sm text-muted-foreground shrink-0">Filtra:</span>
+            <span className="text-sm text-muted-foreground shrink-0">{tr("Filtra:")}</span>
             <div className="flex gap-1">
-              <Button type="button" variant={sourceFilter === "all" ? "default" : "outline"} size="sm" className="h-7 text-xs shrink-0" onClick={() => setSourceFilter("all")}>Tutti</Button>
+              <Button type="button" variant={sourceFilter === "all" ? "default" : "outline"} size="sm" className="h-7 text-xs shrink-0" onClick={() => setSourceFilter("all")}>{tr("Tutti")}</Button>
               <Button type="button" variant={sourceFilter === "stock" ? "default" : "outline"} size="sm" className="h-7 text-xs gap-1 shrink-0" onClick={() => setSourceFilter("stock")}>
-                <Warehouse className="h-3 w-3" />Da Giacenza
+                <Warehouse className="h-3 w-3" />{tr("Da Giacenza")}
               </Button>
               <Button type="button" variant={sourceFilter === "supplier" ? "default" : "outline"} size="sm" className="h-7 text-xs gap-1 shrink-0" onClick={() => setSourceFilter("supplier")}>
-                <Package className="h-3 w-3" />Da Fornitore
+                <Package className="h-3 w-3" />{tr("Da Fornitore")}
               </Button>
             </div>
           </div>
         )}
         {items.length === 0 ? (
           <p className="text-muted-foreground text-center py-6">
-            Nessun articolo aggiunto. {editable && "Clicca su 'Aggiungi' per inserire articoli."}
+            {tr("Nessun articolo aggiunto.")} {editable && tr("Clicca su 'Aggiungi' per inserire articoli.")}
           </p>
         ) : (
           <div className="space-y-3 max-sm:space-y-2">
@@ -1895,14 +1899,14 @@ export function OrderItemsList({
                       )}>
                         {/* Etichetta esplicita: <SelectValue> da solo resta muto
                             se lo stato non ha una voce nell'elenco. */}
-                        <span className="truncate">{statusConfig(item.status).label}</span>
+                        <span className="truncate">{tr(statusConfig(item.status).label)}</span>
                       </SelectTrigger>
                       <SelectContent>
                         {Object.entries(STATUS_CONFIG).map(([status, config]) => (
                           <SelectItem key={status} value={status}>
                             <span className="flex items-center gap-2">
                               <span className={cn("w-2 h-2 rounded-full", config.badgeColor.split(' ')[0])} />
-                              {config.label}
+                              {tr(config.label)}
                             </span>
                           </SelectItem>
                         ))}
@@ -1910,7 +1914,7 @@ export function OrderItemsList({
                     </Select>
                   ) : (
                     <Badge className={statusConfig(item.status).badgeColor}>
-                      {statusConfig(item.status).label}
+                      {tr(statusConfig(item.status).label)}
                     </Badge>
                   );
                 return (
@@ -1928,13 +1932,13 @@ export function OrderItemsList({
                       {item.quantity > 1 && <span className="font-normal text-muted-foreground"> ×{item.quantity}</span>}
                     </p>
                     {(editable || allowEdit) && (
-                      <Button type="button" variant="ghost" size="icon" className="tap-compact -my-1 h-7 w-7 shrink-0" onClick={() => openEditDialog(index)} aria-label="Modifica">
+                      <Button type="button" variant="ghost" size="icon" className="tap-compact -my-1 h-7 w-7 shrink-0" onClick={() => openEditDialog(index)} aria-label={tr("Modifica")}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                     )}
                     {/* Anche in «Nuova commessa» e «Modifica»: una riga sbagliata si toglie da qui. */}
                     {editable && allowDelete && (
-                      <Button type="button" variant="ghost" size="icon" className="tap-compact -my-1 h-7 w-7 shrink-0" onClick={() => handleDeleteItem(index)} aria-label="Elimina">
+                      <Button type="button" variant="ghost" size="icon" className="tap-compact -my-1 h-7 w-7 shrink-0" onClick={() => handleDeleteItem(index)} aria-label={tr("Elimina")}>
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     )}
@@ -1943,9 +1947,9 @@ export function OrderItemsList({
                     <p className="min-w-0 flex-1 truncate text-[11px] leading-tight text-muted-foreground">
                       {[
                         item.stock_item_id
-                          ? "Da giacenza"
-                          : item.supplier_name || getSupplierName(item.supplier_id) || "Da fornitore",
-                        item.delivery_date ? `arrivo ${format(new Date(item.delivery_date), "dd/MM", { locale: it })}` : null,
+                          ? tr("Da giacenza")
+                          : item.supplier_name || getSupplierName(item.supplier_id) || tr("Da fornitore"),
+                        item.delivery_date ? tr("arrivo {data}", { data: format(new Date(item.delivery_date), "dd/MM", { locale: dateFnsCampo() }) }) : null,
                       ].filter(Boolean).join(" · ")}
                     </p>
                     {controlloStato("tap-compact h-7 w-auto max-w-[140px] shrink-0 gap-1 px-2 text-[11px] font-medium border")}
@@ -1966,18 +1970,18 @@ export function OrderItemsList({
                       <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
                         {item.stock_item_id ? (
                           <span className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400">
-                            <Warehouse className="h-3.5 w-3.5" />Da giacenza
+                            <Warehouse className="h-3.5 w-3.5" />{tr("Da giacenza")}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1">
                             <Package className="h-3.5 w-3.5" />
                             {item.supplier_id || item.supplier_name
-                              ? `Fornitore: ${item.supplier_name || getSupplierName(item.supplier_id) || "Anagrafica da verificare"}`
-                              : "Da fornitore"}
+                              ? tr("Fornitore: {nome}", { nome: item.supplier_name || getSupplierName(item.supplier_id) || tr("Anagrafica da verificare") })
+                              : tr("Da fornitore")}
                           </span>
                         )}
                         {item.stock_item_id && (item.supplier_id || item.supplier_name) && (
-                          <span>Fornitore: {item.supplier_name || getSupplierName(item.supplier_id) || "Anagrafica da verificare"}</span>
+                          <span>{tr("Fornitore: {nome}", { nome: item.supplier_name || getSupplierName(item.supplier_id) || tr("Anagrafica da verificare") })}</span>
                         )}
                       </p>
                       {item.description && (
@@ -2001,7 +2005,7 @@ export function OrderItemsList({
                       {showOdaCoverage && item.id && poItemMap.has(item.id) && (
                         <Badge className="text-xs bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-950 dark:text-violet-400 dark:border-violet-700 gap-1">
                           <Link2 className="h-3 w-3" />
-                          {poItemMap.get(item.id)!.map(p => `${p.oda_number} · ${ODA_STATUS_LABELS[p.status] ?? p.status}`).join(", ")}
+                          {poItemMap.get(item.id)!.map(p => `${p.oda_number} · ${tr(ODA_STATUS_LABELS[p.status] ?? p.status)}`).join(", ")}
                         </Badge>
                       )}
                       {/* Il controllo "260 su 200": quantita' ordinata ai fornitori
@@ -2020,10 +2024,10 @@ export function OrderItemsList({
                                 ? "bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-400 dark:border-red-700"
                                 : "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700"
                             }`}
-                            title="Quantita' ordinata ai fornitori (OdA emessi) rispetto alla quantita' prevista in commessa"
+                            title={tr("Quantita' ordinata ai fornitori (OdA emessi) rispetto alla quantita' prevista in commessa")}
                           >
                             {oltre && <AlertTriangle className="h-3 w-3" />}
-                            Ordinato {ordinata.toLocaleString("it-IT")}/{prevista.toLocaleString("it-IT")}
+                            {tr("Ordinato {ordinata}/{prevista}", { ordinata: ordinata.toLocaleString(intlCampo()), prevista: prevista.toLocaleString(intlCampo()) })}
                             {oltre && ` (+${pct}%)`}
                           </Badge>
                         );
@@ -2031,7 +2035,7 @@ export function OrderItemsList({
                       {showOdaCoverage && item.id && !coverage.isPending && !coverage.isError && !poItemMap.has(item.id) && !item.stock_item_id && (
                         <Badge variant="outline" className="text-xs text-muted-foreground gap-1 border-dashed">
                           <Link2 className="h-3 w-3" />
-                          Senza OdA
+                          {tr("Senza OdA")}
                         </Badge>
                       )}
                       {/* v8.6.35 — Badge data arrivo prevista */}
@@ -2053,14 +2057,14 @@ export function OrderItemsList({
                             ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700"
                             : "bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-950 dark:text-sky-400 dark:border-sky-700";
                         const title = isPast && !isInArrival
-                          ? `Arrivo previsto ${format(arr, "dd/MM/yyyy", { locale: it })} — già passata. Aggiorna stato a 'In Arrivo' o 'In Magazzino'.`
+                          ? tr("Arrivo previsto {data} — già passata. Aggiorna stato a 'In Arrivo' o 'In Magazzino'.", { data: format(arr, "dd/MM/yyyy", { locale: dateFnsCampo() }) })
                           : isImminent && !isInArrival
-                            ? `Arrivo previsto in ${diffDays === 0 ? "oggi" : `${diffDays} gg`}`
-                            : `Arrivo previsto ${format(arr, "dd/MM/yyyy", { locale: it })}`;
+                            ? (diffDays === 0 ? tr("Arrivo previsto in oggi") : tr("Arrivo previsto in {n} gg", { n: diffDays }))
+                            : tr("Arrivo previsto {data}", { data: format(arr, "dd/MM/yyyy", { locale: dateFnsCampo() }) });
                         return (
                           <Badge className={`text-xs gap-1 ${colorClass}`} title={title}>
                             <CalendarIcon className="h-3 w-3" />
-                            Arrivo {format(arr, "dd/MM", { locale: it })}
+                            {tr("Arrivo {data}", { data: format(arr, "dd/MM", { locale: dateFnsCampo() }) })}
                             {isPast && !isInArrival && " ⚠"}
                           </Badge>
                         );
@@ -2070,7 +2074,7 @@ export function OrderItemsList({
                         <Badge
                           variant="outline"
                           className="text-xs gap-1 cursor-pointer hover:bg-muted/50"
-                          title="Allegato ODA disponibile — click per scaricare"
+                          title={tr("Allegato ODA disponibile — click per scaricare")}
                           onClick={async () => {
                             const odaAtt = item.attachments?.find(
                               (a) => a.file_name.startsWith("ODA") || a.file_name.toLowerCase().includes("oda")
@@ -2087,36 +2091,36 @@ export function OrderItemsList({
                               const { data, error } = await supabase.storage
                                 .from("order-attachments")
                                 .createSignedUrl(filePath, 3600);
-                              if (error || !data?.signedUrl) throw error ?? new Error("URL non disponibile");
+                              if (error || !data?.signedUrl) throw error ?? new Error(tr("URL non disponibile"));
                               window.open(data.signedUrl, "_blank", "noopener,noreferrer");
                             } catch (err) {
                               const msg = err instanceof Error ? err.message : String(err);
-                              toast({ variant: "destructive", title: "Apertura ODA fallita", description: msg });
+                              toast({ variant: "destructive", title: tr("Apertura ODA fallita"), description: msg });
                             }
                           }}
                         >
                           <Paperclip className="h-3 w-3" />
-                          ODA allegato
+                          {tr("ODA allegato")}
                         </Badge>
                       )}
                       {showOdaCoverage && item.id && !coverage.isPending && !coverage.isError && (() => {
                         const plan = planMaterial(item, poItemCoverage);
                         if (plan.covered === 0) return null;
                         return <span className="basis-full text-xs text-muted-foreground">
-                          {plan.drafted > 0 && `In bozza ${plan.drafted.toLocaleString("it-IT")} · `}
-                          Ricevuto {plan.received.toLocaleString("it-IT")} · Residuo da acquistare {plan.remaining.toLocaleString("it-IT")}
+                          {plan.drafted > 0 && <>{tr("In bozza {n}", { n: plan.drafted.toLocaleString(intlCampo()) })}{" · "}</>}
+                          {tr("Ricevuto {ricevuto} · Residuo da acquistare {residuo}", { ricevuto: plan.received.toLocaleString(intlCampo()), residuo: plan.remaining.toLocaleString(intlCampo()) })}
                         </span>;
                       })()}
                     </div>
 
-                    {item.ddt_riga_origine_id && <p className="text-xs text-muted-foreground">Materiale da DDT · ricevuto {Number(item.quantity_received ?? 0).toLocaleString("it-IT")} {item.unita_misura || ""}</p>}
+                    {item.ddt_riga_origine_id && <p className="text-xs text-muted-foreground">{tr("Materiale da DDT · ricevuto {quantita} {unita}", { quantita: Number(item.quantity_received ?? 0).toLocaleString(intlCampo()), unita: item.unita_misura || "" })}</p>}
                     {/* Colonna 3 — costo e pagamento, allineati a destra */}
                     <div className="flex min-w-0 flex-col gap-1 text-sm lg:items-end lg:text-right">
-                      {canViewCosts && item.prezzo_da_definire && <p className="text-xs font-medium text-amber-700">Prezzo da definire con il fornitore</p>}
+                      {canViewCosts && item.prezzo_da_definire && <p className="text-xs font-medium text-amber-700">{tr("Prezzo da definire con il fornitore")}</p>}
                       {canViewCosts && item.purchase_price != null && item.purchase_price > 0 && (
                         <p className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
                           {formatCurrency(item.purchase_price * item.quantity)}
-                          <span className="ml-1 text-xs font-normal text-muted-foreground">IVA {item.vat_rate ?? 22}%</span>
+                          <span className="ml-1 text-xs font-normal text-muted-foreground">{tr("IVA {aliquota}%", { aliquota: item.vat_rate ?? 22 })}</span>
                         </p>
                       )}
                       {canViewCosts && item.standard_cost != null && item.standard_cost > 0 && (() => {
@@ -2127,8 +2131,8 @@ export function OrderItemsList({
                         const over = deltaLine > 0.005;
                         const under = deltaLine < -0.005;
                         return (
-                          <span className="text-xs text-muted-foreground" title="Costo da listino (standard) vs costo realmente pagato">
-                            Listino: {formatCurrency(item.standard_cost! * item.quantity)}
+                          <span className="text-xs text-muted-foreground" title={tr("Costo da listino (standard) vs costo realmente pagato")}>
+                            {tr("Listino: {importo}", { importo: formatCurrency(item.standard_cost! * item.quantity) })}
                             {(over || under) && (
                               <span className={`ml-1 font-medium ${over ? "text-red-600" : "text-emerald-600"}`}>
                                 {over ? "▲" : "▼"} {deltaLine > 0 ? "+" : ""}{formatCurrency(deltaLine)} ({pct > 0 ? "+" : ""}{pct.toFixed(0)}%)
@@ -2143,35 +2147,35 @@ export function OrderItemsList({
                           <>
                             {item.deposit_paid && item.balance_paid ? (
                               <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
-                                <CheckCircle className="h-3 w-3" />Tutto pagato
+                                <CheckCircle className="h-3 w-3" />{tr("Tutto pagato")}
                               </Badge>
                             ) : item.deposit_paid ? (
                               <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
-                                <Clock className="h-3 w-3" />Acconto pagato
+                                <Clock className="h-3 w-3" />{tr("Acconto pagato")}
                               </Badge>
                             ) : (
                               <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
-                                <Clock className="h-3 w-3" />Non pagato
+                                <Clock className="h-3 w-3" />{tr("Non pagato")}
                               </Badge>
                             )}
                           </>
                         ) : item.is_paid ? (
                           <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
-                            <CheckCircle className="h-3 w-3" />Pagato
+                            <CheckCircle className="h-3 w-3" />{tr("Pagato")}
                           </Badge>
                         ) : (
                           <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
-                            <Clock className="h-3 w-3" />Non pagato
+                            <Clock className="h-3 w-3" />{tr("Non pagato")}
                           </Badge>
                         )}
                         {item.payment_method && (
-                          <span className="text-xs text-muted-foreground">Modalità: {getPaymentMethodLabel(item.payment_method)}</span>
+                          <span className="text-xs text-muted-foreground">{tr("Modalità: {modalita}", { modalita: getPaymentMethodLabel(item.payment_method) ?? "" })}</span>
                         )}
                       </div>
                       {canViewCosts && (item.payment_method === "50_50" || item.payment_method === "30_70") && (item.deposit_amount || item.balance_amount) && (
                         <div className="flex flex-col gap-0.5 text-xs text-muted-foreground lg:items-end">
-                          <span>Acconto: {formatCurrency(item.deposit_amount || 0)} {item.deposit_paid ? "✓" : "—"}</span>
-                          <span>Saldo: {formatCurrency(item.balance_amount || 0)} {item.balance_paid ? "✓" : item.balance_expected_date ? `prev. ${item.balance_expected_date}` : "—"}</span>
+                          <span>{tr("Acconto: {importo}", { importo: formatCurrency(item.deposit_amount || 0) })} {item.deposit_paid ? "✓" : "—"}</span>
+                          <span>{tr("Saldo: {importo}", { importo: formatCurrency(item.balance_amount || 0) })} {item.balance_paid ? "✓" : item.balance_expected_date ? tr("prev. {data}", { data: item.balance_expected_date }) : "—"}</span>
                         </div>
                       )}
                     </div>
@@ -2184,16 +2188,16 @@ export function OrderItemsList({
                     {controlloStato("flex-1 sm:flex-none sm:w-36 h-8 text-xs font-medium border")}
                     {(editable || allowEdit) && (
                       <div className="flex items-center gap-1 shrink-0">
-                        <Button type="button" variant="ghost" size="icon" onClick={() => openEditDialog(index)} title="Modifica">
+                        <Button type="button" variant="ghost" size="icon" onClick={() => openEditDialog(index)} title={tr("Modifica")}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         {editable && (
-                          <Button type="button" variant="ghost" size="icon" onClick={() => handleDuplicateItem(index)} title="Duplica">
+                          <Button type="button" variant="ghost" size="icon" onClick={() => handleDuplicateItem(index)} title={tr("Duplica")}>
                             <Copy className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         )}
                         {editable && allowDelete && (
-                          <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteItem(index)} title="Elimina">
+                          <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteItem(index)} title={tr("Elimina")}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         )}

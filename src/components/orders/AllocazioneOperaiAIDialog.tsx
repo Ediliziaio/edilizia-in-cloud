@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { Sparkles, Wand2, Loader2, AlertTriangle, Users, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Suggerimento {
   employee_id: string;
@@ -44,6 +45,7 @@ const RUOLO_BADGE: Record<string, string> = {
 };
 
 export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori, onOpenChange }: Props) {
+  const t = useT();
   const [openDentro, setOpenDentro] = useState(false);
   const controllato = openFuori !== undefined;
   const open = controllato ? openFuori : openDentro;
@@ -59,17 +61,17 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori,
         body: { order_id: orderId, company_id: companyId, num_richiesti: num },
       });
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error ?? "Suggerimento fallito");
+      if (!data?.success) throw new Error(data?.error ?? t("Suggerimento fallito"));
       return data;
     },
     onSuccess: (data) => {
       setSuggerimenti(data.suggerimenti ?? []);
       setWarnings(data.warning ?? []);
       setAlternative(data.alternative ?? null);
-      toast.success(`AI: ${data.suggerimenti?.length ?? 0} operai suggeriti`);
+      toast.success(t("AI: {n} operai suggeriti", { n: data.suggerimenti?.length ?? 0 }));
     },
     onError: (err) => {
-      toast.error(`AI: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(t("AI: {errore}", { errore: err instanceof Error ? err.message : String(err) }));
     },
   });
 
@@ -77,8 +79,8 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori,
     mutationFn: async (employeeId: string) => {
       await assignOfficeEmployee(orderId, { employeeId });
     },
-    onSuccess: () => toast.success("Operaio assegnato all'ordine"),
-    onError: (err) => toast.error(`Errore: ${err instanceof Error ? err.message : String(err)}`),
+    onSuccess: () => toast.success(t("Operaio assegnato all'ordine")),
+    onError: (err) => toast.error(t("Errore: {errore}", { errore: err instanceof Error ? err.message : String(err) })),
   });
 
   return (
@@ -86,27 +88,26 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori,
       {!controllato && <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Sparkles className="h-4 w-4 text-violet-600" />
-          Suggerisci Operai AI
+          {t("Suggerisci Operai AI")}
         </Button>
       </DialogTrigger>}
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            AI Allocazione Operai
+            {t("AI Allocazione Operai")}
             <Badge variant="outline" className="ml-2 text-xs bg-violet-50 text-violet-700 border-violet-300">
               <Sparkles className="h-3 w-3 mr-1" /> Silvio AI
             </Badge>
           </DialogTitle>
           <DialogDescription>
-            Silvio guarda chi è libero nelle date del cantiere, il ruolo e le ore dell'ultimo mese,
-            e ti propone chi assegnare.
+            {t("Silvio guarda chi è libero nelle date del cantiere, il ruolo e le ore dell'ultimo mese, e ti propone chi assegnare.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-sm">
-            <label>Numero operai richiesti:</label>
+            <label>{t("Numero operai richiesti:")}</label>
             <input
               type="number"
               min={1} max={10}
@@ -123,14 +124,14 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori,
               {generaMutation.isPending
                 ? <Loader2 className="h-4 w-4 animate-spin" />
                 : <Wand2 className="h-4 w-4" />}
-              Genera suggerimento
+              {t("Genera suggerimento")}
             </Button>
           </div>
 
           {warnings.length > 0 && (
             <Alert>
               <AlertTriangle className="h-4 w-4" />
-              <AlertTitle className="text-sm">Avvisi</AlertTitle>
+              <AlertTitle className="text-sm">{t("Avvisi")}</AlertTitle>
               <AlertDescription className="text-xs">
                 <ul className="list-disc pl-4 space-y-0.5">
                   {warnings.map((w, i) => <li key={i}>{w}</li>)}
@@ -148,7 +149,7 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori,
 
           {suggerimenti && suggerimenti.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Nessun operaio suggerito (verifica i warnings sopra).
+              {t("Nessun operaio suggerito (verifica i warnings sopra).")}
             </p>
           )}
 
@@ -170,7 +171,7 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori,
                       </Badge>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-muted-foreground">Score AI</div>
+                      <div className="text-xs text-muted-foreground">{t("Score AI")}</div>
                       <div className="font-mono font-semibold text-violet-700">{s.score}/100</div>
                     </div>
                   </div>
@@ -182,7 +183,7 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori,
                     disabled={assegnaMutation.isPending}
                     className="w-full gap-1 h-7 text-xs"
                   >
-                    <CheckCircle2 className="h-3 w-3" /> Assegna a questo ordine
+                    <CheckCircle2 className="h-3 w-3" /> {t("Assegna a questo ordine")}
                   </Button>
                 </div>
               ))}
@@ -191,7 +192,7 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori,
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>Chiudi</Button>
+          <Button variant="ghost" onClick={() => setOpen(false)}>{t("Chiudi")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

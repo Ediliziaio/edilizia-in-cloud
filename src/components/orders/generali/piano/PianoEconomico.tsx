@@ -98,6 +98,7 @@ import { meseCorrente } from "@/lib/orders/generali/avvio";
 import { avvisoSenzaMese, avvisoStimeMancanti, type RigaReale, type Scenario } from "@/lib/orders/generali/pianoConti";
 import type { VersionePiano } from "@/lib/orders/generali/pianoLettura";
 import { cn } from "@/lib/utils";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { controllaBudget, stimaMancante } from "@/lib/orders/generali/budgetCompletezza";
 import { CompletezzaBudget } from "./CompletezzaBudget";
 import { StoricoBusinessPlan } from "./StoricoBusinessPlan";
@@ -107,8 +108,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 type Vista = "voci" | "cassa" | "comuni" | "andamento";
 
-const nomeVersione = (v: VersionePiano) =>
-  `Versione ${v.numero} · ${v.stato === "bozza" ? "bozza" : v.stato === "approvata" ? `approvata${v.approvataIl ? ` il ${dataBreve(v.approvataIl)}` : ""}` : "superata"}`;
+const nomeVersione = (v: VersionePiano, tr: ReturnType<typeof useT>) =>
+  v.stato === "bozza"
+    ? tr("Versione {numero} · bozza", { numero: v.numero })
+    : v.stato === "approvata"
+      ? v.approvataIl
+        ? tr("Versione {numero} · approvata il {data}", { numero: v.numero, data: dataBreve(v.approvataIl) })
+        : tr("Versione {numero} · approvata", { numero: v.numero })
+      : tr("Versione {numero} · superata", { numero: v.numero });
 
 export function PianoEconomico(props: PropsScheda) {
   const telefono = useIsMobile();
@@ -126,6 +133,7 @@ export function PianoEconomico(props: PropsScheda) {
 }
 
 function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
+  const tr = useT();
   const g = riepilogo.generale;
   const tabellaRef = useRef<HTMLDivElement>(null);
   const [parametri, setParametri] = useSearchParams();
@@ -226,8 +234,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
   if (!riepilogo.permessi.margini) {
     return (
       <div className="rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground">
-        Il piano economico mostra costi e margini: lo vede chi ha il permesso di
-        vedere i margini. Se ti serve, chiedilo al titolare.
+        {tr("Il piano economico mostra costi e margini: lo vede chi ha il permesso di vedere i margini. Se ti serve, chiedilo al titolare.")}
       </div>
     );
   }
@@ -237,9 +244,9 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
         role="alert"
         className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 text-sm"
       >
-        Non riesco a leggere il piano economico.
+        {tr("Non riesco a leggere il piano economico.")}
         <Button size="sm" variant="outline" onClick={n.refetch}>
-          Riprova
+          {tr("Riprova")}
         </Button>
       </div>
     );
@@ -258,8 +265,8 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
       <>
         <IntestazioneScheda
           icona={ChartNoAxesCombined}
-          titolo="Piano economico"
-          descrizione="Imposta il budget dell'intera operazione o importa il business plan."
+          titolo={tr("Piano economico")}
+          descrizione={tr("Imposta il budget dell'intera operazione o importa il business plan.")}
         />
         <PrimoPiano
           riepilogo={riepilogo}
@@ -318,7 +325,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
       onSuccess: (id) => {
         setVersioneId(id);
         toast.success(
-          "Nuova revisione aperta: l'approvato resta in vigore finché non approvi questa",
+          tr("Nuova revisione aperta: l'approvato resta in vigore finché non approvi questa"),
         );
       },
       onError: (e) => toast.error(messaggioPiano(e, "la revisione")),
@@ -327,15 +334,15 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
   const spiegazione =
     v.stato === "bozza"
       ? n.approvata
-        ? `Stai rivedendo il piano: la versione ${n.approvata.numero} approvata resta il riferimento finché non approvi questa.`
-        : "Bozza: si modifica tutto. «Approva» la blocca e diventa il riferimento per il confronto."
+        ? tr("Stai rivedendo il piano: la versione {numero} approvata resta il riferimento finché non approvi questa.", { numero: n.approvata.numero })
+        : tr("Bozza: si modifica tutto. «Approva» la blocca e diventa il riferimento per il confronto.")
       : v.stato === "approvata"
-        ? "Approvata: il previsto è bloccato. Puoi aggiornare l'a finire; per cambiare il previsto apri una nuova revisione."
-        : "Versione superata: si guarda soltanto.";
+        ? tr("Approvata: il previsto è bloccato. Puoi aggiornare l'a finire; per cambiare il previsto apri una nuova revisione.")
+        : tr("Versione superata: si guarda soltanto.");
 
   return (
     <div className="generale-sheet generale-piano space-y-4">
-      <h2 className="sr-only">Piano economico</h2>
+      <h2 className="sr-only">{tr("Piano economico")}</h2>
       <Tabs
         className="space-y-4"
         value={vista}
@@ -344,26 +351,26 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
         <div className="commessa-section-toolbar generale-plan-navigation">
         <TabsList
           className="generale-subtabs generale-section-navigation"
-          aria-label="Sezioni del piano economico"
+          aria-label={tr("Sezioni del piano economico")}
         >
           <TabsTrigger value="voci">
             <ClipboardList aria-hidden="true" />
-            Voci
+            {tr("Voci")}
           </TabsTrigger>
           <TabsTrigger value="cassa">
             <Wallet aria-hidden="true" />
-            Cassa e indicatori
+            {tr("Cassa e indicatori")}
           </TabsTrigger>
           <TabsTrigger value="comuni">
             <FileSpreadsheet aria-hidden="true" />
-            Costi di commessa
+            {tr("Costi di commessa")}
           </TabsTrigger>
           <TabsTrigger value="andamento">
             <History aria-hidden="true" />
-            Andamento
+            {tr("Andamento")}
           </TabsTrigger>
         </TabsList>
-        {riepilogo.permessi.costi && <Button variant="ghost" size="sm" onClick={() => apriCantiere("controllo")}><ShieldCheck className="h-4 w-4" /> Verifica documenti e costi</Button>}
+        {riepilogo.permessi.costi && <Button variant="ghost" size="sm" onClick={() => apriCantiere("controllo")}><ShieldCheck className="h-4 w-4" /> {tr("Verifica documenti e costi")}</Button>}
         </div>
         {/* Versione e azioni */}
         <div className="generale-version-toolbar flex flex-wrap items-center justify-between gap-3">
@@ -372,32 +379,32 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
               <Select value={v.id} onValueChange={(id) => setVersioneId(id)}>
                 <SelectTrigger
                   className="h-9 w-auto min-w-[16rem]"
-                  aria-label="Versione del piano"
+                  aria-label={tr("Versione del piano")}
                 >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {n.versioni.map((x) => (
                     <SelectItem key={x.id} value={x.id}>
-                      {nomeVersione(x)}
+                      {nomeVersione(x, tr)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {v.stato === "approvata" && (
                 <Badge variant="secondary" className="gap-1 font-normal">
-                  <Lock className="h-3 w-3" /> bloccata
+                  <Lock className="h-3 w-3" /> {tr("bloccata")}
                 </Badge>
               )}
               {v.stato === "bozza" && (
                 <Badge variant="outline" className="font-normal">
-                  bozza
+                  {tr("bozza")}
                 </Badge>
               )}
             </div>
             <details className="generale-version-details">
-              <summary>Dettagli e note della versione</summary>
-              <div><p>{spiegazione}</p>{v.nota && <p className="mt-2">Nota: {v.nota}</p>}</div>
+              <summary>{tr("Dettagli e note della versione")}</summary>
+              <div><p>{spiegazione}</p>{v.nota && <p className="mt-2">{tr("Nota: {nota}", { nota: v.nota })}</p>}</div>
             </details>
           </div>
           {puoModificare && (
@@ -409,16 +416,14 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                     size="sm"
                     onClick={() => setImportaFile(true)}
                   >
-                    <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5" /> Importa
-                    business plan
+                    <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5" /> {tr("Importa business plan")}
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setIncolla(true)}
                   >
-                    <ClipboardPaste className="mr-1.5 h-3.5 w-3.5" /> Incolla da
-                    Excel
+                    <ClipboardPaste className="mr-1.5 h-3.5 w-3.5" /> {tr("Incolla da Excel")}
                   </Button>
                   <Button
                     variant="outline"
@@ -426,7 +431,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                     onClick={() => setCalendario(true)}
                     disabled={n.voci.length === 0}
                   >
-                    <CalendarDays className="mr-1.5 h-3.5 w-3.5" /> Calendario
+                    <CalendarDays className="mr-1.5 h-3.5 w-3.5" /> {tr("Calendario")}
                   </Button>
                   {n.approvata && (
                     <Button
@@ -438,7 +443,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                           onSuccess: () => {
                             setVersioneId(null);
                             toast.success(
-                              "Revisione buttata via: resta l'approvato",
+                              tr("Revisione buttata via: resta l'approvato"),
                             );
                           },
                           onError: (e) =>
@@ -446,8 +451,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                         })
                       }
                     >
-                      <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Butta via la
-                      revisione
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" /> {tr("Butta via la revisione")}
                     </Button>
                   )}
                   <Button
@@ -456,7 +460,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                     onClick={() => setApprova(true)}
                     disabled={!budget.completo}
                   >
-                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Approva
+                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> {tr("Approva")}
                   </Button>
                 </>
               )}
@@ -467,8 +471,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                   size="sm"
                   onClick={() => setVersioneId(n.bozza!.id)}
                 >
-                  <GitBranch className="mr-1.5 h-3.5 w-3.5" /> Vai alla
-                  revisione in corso
+                  <GitBranch className="mr-1.5 h-3.5 w-3.5" /> {tr("Vai alla revisione in corso")}
                 </Button>
               )}
               {v.stato !== "bozza" && !n.bozza && (
@@ -483,7 +486,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                   ) : (
                     <GitBranch className="mr-1.5 h-3.5 w-3.5" />
                   )}
-                  Nuova revisione
+                  {tr("Nuova revisione")}
                 </Button>
               )}
             </div>
@@ -492,57 +495,57 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
 
         {/* Riepilogo economico; Cassa e Costi hanno i propri indicatori. */}
         {vista === "voci" && <>
-          <section className="generale-indicators" aria-label="Indicatori del piano economico">
+          <section className="generale-indicators" aria-label={tr("Indicatori del piano economico")}>
             <Numero
-              etichetta="Ricavi stimati"
-              valore={riepilogo.permessi.importi ? euro(piano.confronto.totali.ricavi.stima) : "Riservato"}
-              nota={riepilogo.permessi.importi ? `Previsto ${euro(piano.confronto.totali.ricavi.previsto)}` : undefined}
+              etichetta={tr("Ricavi stimati")}
+              valore={riepilogo.permessi.importi ? euro(piano.confronto.totali.ricavi.stima) : tr("Riservato")}
+              nota={riepilogo.permessi.importi ? tr("Previsto {importo}", { importo: euro(piano.confronto.totali.ricavi.previsto) }) : undefined}
             />
             <Numero
-              etichetta="Costi finali stimati"
+              etichetta={tr("Costi finali stimati")}
               provvisorio={incompleto}
-              valore={riepilogo.permessi.costi ? euro(piano.confronto.totali.costi.stima) : "Riservato"}
+              valore={riepilogo.permessi.costi ? euro(piano.confronto.totali.costi.stima) : tr("Riservato")}
               nota={riepilogo.permessi.costi ? <>
-                Registrati {euro(piano.confronto.totali.costi.reale)}
-                {incompleto && <> <span aria-hidden="true">·</span> {daStimare === 1 ? "1 voce da stimare" : `${daStimare} voci da stimare`}</>}
+                {tr("Registrati {importo}", { importo: euro(piano.confronto.totali.costi.reale) })}
+                {incompleto && <> <span aria-hidden="true">·</span> {tr(daStimare === 1 ? "{n} voce da stimare" : "{n} voci da stimare", { n: daStimare })}</>}
               </> : undefined}
             />
             <Numero
-              etichetta="Margine stimato a fine lavori"
+              etichetta={tr("Margine stimato a fine lavori")}
               provvisorio={incompleto}
               valore={euro(t.stima)}
               evidenza={incompleto ? undefined : t.stima < 0 ? "rosso" : "verde"}
               nota={incompleto
-                ? `${quotaTesto(t.stima, piano.confronto.totali.ricavi.stima)} sui ricavi, prima delle voci da stimare`
-                : <><span>Previsto {euro(t.previsto)}</span>{" · "}<span className={tonoScostamento(t.scostamento, "margine")}>{euroSegno(t.scostamento)}</span></>}
+                ? tr("{quota} sui ricavi, prima delle voci da stimare", { quota: quotaTesto(t.stima, piano.confronto.totali.ricavi.stima) })
+                : <><span>{tr("Previsto {importo}", { importo: euro(t.previsto) })}</span>{" · "}<span className={tonoScostamento(t.scostamento, "margine")}>{euroSegno(t.scostamento)}</span></>}
             />
             <Numero
-              etichetta="Capitale massimo impegnato"
+              etichetta={tr("Capitale massimo impegnato")}
               provvisorio={incompleto && budget.calendario.length === 0}
               valore={euro(budget.calendario.length > 0 ? null : piano.capitale.massimoStima)}
               nota={budget.calendario.length > 0
-                ? "Completa il calendario del piano"
-                : piano.capitale.meseMassimoStima ? `Picco a ${nomeMese(piano.capitale.meseMassimoStima)}` : `Previsto ${euro(piano.capitale.massimoPrevisto)}`}
+                ? tr("Completa il calendario del piano")
+                : piano.capitale.meseMassimoStima ? tr("Picco a {mese}", { mese: nomeMese(piano.capitale.meseMassimoStima) }) : tr("Previsto {importo}", { importo: euro(piano.capitale.massimoPrevisto) })}
             />
           </section>
           <p className="generale-plan-context">
-            Importi del piano al netto dell’IVA <span aria-hidden="true">·</span> Capitale investito a oggi <strong>{euro(piano.capitale.investitoOggi)}</strong>
-            {conApprovato && t.approvato !== null && <> <span aria-hidden="true">·</span> Margine approvato {euro(t.approvato)}</>}
-            {piano.chiusa && <> <span aria-hidden="true">·</span> <strong>Operazione chiusa</strong>: la stima finale è il registrato, niente più «a finire»</>}
-            {!g.inizio && !piano.chiusa && <> <span aria-hidden="true">·</span> Inizio lavori non indicato, i mesi sono ipotesi{" "}
-              <button type="button" className="generale-plan-context-link" onClick={apriDati}>Indicalo</button></>}
+            {tr("Importi del piano al netto dell’IVA")} <span aria-hidden="true">·</span> {tr("Capitale investito a oggi")} <strong>{euro(piano.capitale.investitoOggi)}</strong>
+            {conApprovato && t.approvato !== null && <> <span aria-hidden="true">·</span> {tr("Margine approvato {importo}", { importo: euro(t.approvato) })}</>}
+            {piano.chiusa && <> <span aria-hidden="true">·</span> <strong>{tr("Operazione chiusa")}</strong>: {tr("la stima finale è il registrato, niente più «a finire»")}</>}
+            {!g.inizio && !piano.chiusa && <> <span aria-hidden="true">·</span> {tr("Inizio lavori non indicato, i mesi sono ipotesi")}{" "}
+              <button type="button" className="generale-plan-context-link" onClick={apriDati}>{tr("Indicalo")}</button></>}
           </p>
         </>}
 
         {(avvisiSenzaBudget.length > 0 ||
           (n.reale &&
             (!n.reale.permessi.costi || !n.reale.permessi.importi))) && (
-          <section aria-label="Cosa manca" className="space-y-1.5">
+          <section aria-label={tr("Cosa manca")} className="space-y-1.5">
             {n.reale && !n.reale.permessi.costi && (
-              <Avviso testo="Non hai il permesso di vedere i costi: la colonna «Reale a oggi» dei costi resta vuota." />
+              <Avviso testo={tr("Non hai il permesso di vedere i costi: la colonna «Reale a oggi» dei costi resta vuota.")} />
             )}
             {n.reale && !n.reale.permessi.importi && (
-              <Avviso testo="Non hai il permesso di vedere gli importi delle commesse: le fatture emesse non compaiono nel reale." />
+              <Avviso testo={tr("Non hai il permesso di vedere gli importi delle commesse: le fatture emesse non compaiono nel reale.")} />
             )}
             {avvisiSenzaBudget.map((a) => (
               <Avviso key={a} testo={a} />
@@ -607,9 +610,9 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
         <TabsContent value="voci" className="mt-3">
           <div ref={tabellaRef} className="generale-table-toolbar scroll-mt-24">
             <label>
-              Categoria costi
+              {tr("Categoria costi")}
               <UniformSelect
-                aria-label="Filtra voci per categoria costo"
+                aria-label={tr("Filtra voci per categoria costo")}
                 value={categorie.length > 1 ? "__gruppo" : (categorie[0] ?? "")}
                 onChange={(e) => {
                   const p = new URLSearchParams(parametri);
@@ -618,19 +621,19 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                   setParametri(p, { replace: true });
                 }}
               >
-                <option value="">Tutte le voci del piano</option>
+                <option value="">{tr("Tutte le voci del piano")}</option>
                 {categorie.length > 1 && (
                   <option value="__gruppo">
-                    Categorie raggruppate dal grafico
+                    {tr("Categorie raggruppate dal grafico")}
                   </option>
                 )}
                 {[
                   ...new Set(piano.confronto.costi.map((r) => r.categoria)),
                 ].map((c) => (
                   <option key={c} value={c}>
-                    {CATEGORIE_PIANO[c as CategoriaPiano]?.nome ??
+                    {tr(CATEGORIE_PIANO[c as CategoriaPiano]?.nome ??
                       CHIAVI_REALI[c] ??
-                      c}
+                      c)}
                   </option>
                 ))}
               </UniformSelect>
@@ -638,22 +641,22 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
           </div>
           {categorie.length > 0 && (
             <FiltroAttivo onReset={rimuoviFiltro}>
-              Costi:{" "}
+              {tr("Costi:")}{" "}
               {categorie
                 .map(
                   (c) =>
-                    CATEGORIE_PIANO[c as CategoriaPiano]?.nome ??
+                    tr(CATEGORIE_PIANO[c as CategoriaPiano]?.nome ??
                     CHIAVI_REALI[c] ??
-                    c,
+                    c),
                 )
                 .join(", ")}{" "}
               ·{" "}
               {parametri.get("base-costi") === "stima"
-                ? "dal grafico della stima finale"
+                ? tr("dal grafico della stima finale")
                 : parametri.get("base-costi") === "reale"
-                  ? "dal grafico dei costi registrati"
-                  : "confronto del piano"}
-              . I totali generali restano nel riepilogo.
+                  ? tr("dal grafico dei costi registrati")
+                  : tr("confronto del piano")}
+              . {tr("I totali generali restano nel riepilogo.")}
             </FiltroAttivo>
           )}
           <TabellaVoci
@@ -670,11 +673,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
             onApriRighe={apriRighe}
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            Importi al netto dell'IVA; l'IVA che non recuperi va nella voce «IVA
-            non detraibile». Il reale viene dalle commesse dentro la generale e
-            dalle spese portate sulla generale: consuntivo, ordini d'acquisto,
-            fatture ricevute, fatture emesse. Caparre e acconti delle unità sono incassi:
-            diventano ricavo con la fattura o con il rogito.
+            {tr("Importi al netto dell'IVA; l'IVA che non recuperi va nella voce «IVA non detraibile». Il reale viene dalle commesse dentro la generale e dalle spese portate sulla generale: consuntivo, ordini d'acquisto, fatture ricevute, fatture emesse. Caparre e acconti delle unità sono incassi: diventano ricavo con la fattura o con il rogito.")}
           </p>
           <StoricoBusinessPlan generaleId={g.id} versioneId={v.id} />
         </TabsContent>
@@ -692,21 +691,21 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
           )}
           <IntestazioneScheda
             icona={Wallet}
-            titolo="Previsione completa e indicatori del piano"
-            descrizione="Budget e stima finale al netto dell’IVA, inclusi i lavori ancora da ordinare. Il fabbisogno del piano è distinto dal residuo delle sole scadenze aperte."
+            titolo={tr("Previsione completa e indicatori del piano")}
+            descrizione={tr("Budget e stima finale al netto dell’IVA, inclusi i lavori ancora da ordinare. Il fabbisogno del piano è distinto dal residuo delle sole scadenze aperte.")}
           >
             <Button
               variant="outline"
               size="sm"
               onClick={() => apriInvestitori()}
             >
-              Verifica copertura con le fonti
+              {tr("Verifica copertura con le fonti")}
             </Button>
           </IntestazioneScheda>
-          {n.scadenzeCaricamento && <p role="status" className="text-sm text-muted-foreground">Lettura delle scadenze delle fatture…</p>}
+          {n.scadenzeCaricamento && <p role="status" className="text-sm text-muted-foreground">{tr("Lettura delle scadenze delle fatture…")}</p>}
           {n.scadenzeErrore && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
-            Uso date stimate per le fatture. Le scadenze registrate sono momentaneamente indisponibili.
-            <Button type="button" variant="outline" size="sm" onClick={() => void n.rileggiScadenze()}>Riprova</Button>
+            {tr("Uso date stimate per le fatture. Le scadenze registrate sono momentaneamente indisponibili.")}
+            <Button type="button" variant="outline" size="sm" onClick={() => void n.rileggiScadenze()}>{tr("Riprova")}</Button>
           </div>}
           <CassaIndicatori
             piano={piano}
@@ -771,16 +770,17 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
 
 /** «Chiudi l'operazione» / «Riapri», con conferma: da chiusa il piano non prevede più nulla «a finire». */
 function ChiusuraOperazione({ generaleId, chiusa }: { generaleId: string; chiusa: boolean }) {
+  const t = useT();
   const chiusura = useChiusuraGenerale(generaleId);
   const cambia = (valore: boolean) =>
     chiusura.mutate(valore, {
-      onSuccess: () => toast.success(valore ? "Operazione chiusa: la stima finale è il registrato" : "Operazione riaperta"),
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Non riesco a cambiare lo stato dell'operazione"),
+      onSuccess: () => toast.success(valore ? t("Operazione chiusa: la stima finale è il registrato") : t("Operazione riaperta")),
+      onError: (e) => toast.error(e instanceof Error ? e.message : t("Non riesco a cambiare lo stato dell'operazione")),
     });
   if (chiusa) {
     return (
       <Button variant="ghost" size="sm" disabled={chiusura.isPending} onClick={() => cambia(false)}>
-        <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Riapri l'operazione
+        <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> {t("Riapri l'operazione")}
       </Button>
     );
   }
@@ -788,20 +788,19 @@ function ChiusuraOperazione({ generaleId, chiusa }: { generaleId: string; chiusa
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button variant="outline" size="sm" disabled={chiusura.isPending}>
-          <Flag className="mr-1.5 h-3.5 w-3.5" /> Chiudi l'operazione
+          <Flag className="mr-1.5 h-3.5 w-3.5" /> {t("Chiudi l'operazione")}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Chiudere l'operazione?</AlertDialogTitle>
+          <AlertDialogTitle>{t("Chiudere l'operazione?")}</AlertDialogTitle>
           <AlertDialogDescription>
-            Il piano smette di prevedere costi e ricavi «a finire»: la stima finale diventa quello che è
-            registrato, e così il margine nel Dossier e nei rendiconti. Si può riaprire in ogni momento.
+            {t("Il piano smette di prevedere costi e ricavi «a finire»: la stima finale diventa quello che è registrato, e così il margine nel Dossier e nei rendiconti. Si può riaprire in ogni momento.")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Annulla</AlertDialogCancel>
-          <AlertDialogAction onClick={() => cambia(true)}>Chiudi l'operazione</AlertDialogAction>
+          <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+          <AlertDialogAction onClick={() => cambia(true)}>{t("Chiudi l'operazione")}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -822,11 +821,12 @@ function Numero({
   /** Il budget ha ancora voci da stimare: il numero c'è, ma può cambiare. */
   provvisorio?: boolean;
 }) {
+  const t = useT();
   return (
     <div className={cn("generale-indicator", evidenza && `generale-indicator--${evidenza}`, provvisorio && "generale-indicator--provvisorio")}>
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         {etichetta}
-        {provvisorio && <span className="generale-indicator-tag">provvisorio</span>}
+        {provvisorio && <span className="generale-indicator-tag">{t("provvisorio")}</span>}
       </p>
       <p
         className="generale-indicator-value font-semibold tabular-nums"
@@ -845,7 +845,7 @@ function Numero({
 /** «18,2%» del margine sui ricavi; lineetta se i ricavi sono zero. */
 function quotaTesto(parte: number, base: number) {
   if (Math.abs(base) < 0.005) return "—";
-  return `${((parte / base) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`;
+  return `${((parte / base) * 100).toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`;
 }
 
 function Avviso({ testo }: { testo: string }) {
@@ -870,32 +870,32 @@ function ApprovaDialog({
   margine: number;
   onClose: () => void;
 }) {
+  const t = useT();
   const [nota, setNota] = useState("");
   const approva = useApprovaPiano(generaleId);
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Approvare la versione {versione.numero}?</DialogTitle>
+          <DialogTitle>{t("Approvare la versione {numero}?", { numero: versione.numero })}</DialogTitle>
           <DialogDescription>
-            Il previsto si blocca e diventa il riferimento (margine previsto{" "}
-            {euro(margine)}).
+            {t("Il previsto si blocca e diventa il riferimento (margine previsto {importo}).", { importo: euro(margine) })}
             {precedente
-              ? ` La versione ${precedente.numero} resta nello storico come superata.`
+              ? " " + t("La versione {numero} resta nello storico come superata.", { numero: precedente.numero })
               : ""}{" "}
-            Per cambiarlo dopo si apre una nuova revisione.
+            {t("Per cambiarlo dopo si apre una nuova revisione.")}
           </DialogDescription>
         </DialogHeader>
         <Textarea
           value={nota}
           onChange={(e) => setNota(e.target.value)}
-          placeholder="Nota facoltativa: perché cambia, chi l'ha decisa…"
-          aria-label="Nota dell'approvazione"
+          placeholder={t("Nota facoltativa: perché cambia, chi l'ha decisa…")}
+          aria-label={t("Nota dell'approvazione")}
           maxLength={500}
         />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             disabled={approva.isPending}
@@ -904,7 +904,7 @@ function ApprovaDialog({
                 { versioneId: versione.id, nota: nota.trim() || null },
                 {
                   onSuccess: () => {
-                    toast.success(`Versione ${versione.numero} approvata`);
+                    toast.success(t("Versione {numero} approvata", { numero: versione.numero }));
                     onClose();
                   },
                   onError: (e) =>
@@ -916,7 +916,7 @@ function ApprovaDialog({
             {approva.isPending && (
               <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
             )}
-            Approva e blocca
+            {t("Approva e blocca")}
           </Button>
         </DialogFooter>
       </DialogContent>

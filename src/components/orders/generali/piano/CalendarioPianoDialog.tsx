@@ -21,6 +21,7 @@ import { leggiMese } from "@/lib/orders/generali/pianoExcel";
 import { cn } from "@/lib/utils";
 import { DialogContentOperativo as DialogContent } from "../design/ContestoOperativo";
 import { euro, nomeMese } from "./formato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -46,6 +47,7 @@ export function CalendarioPianoDialog({ open, onOpenChange, ...resto }: Props) {
 const meseCorto = (mese: string) => nomeMese(mese).replace(/ (\d{2})(\d{2})$/, " $2");
 
 function Modulo({ onOpenChange, generaleId, versioneId, modello, voci }: Omit<Props, "open">) {
+  const tr = useT();
   const salva = useCalendarioPiano(generaleId, versioneId);
   const gruppi = useMemo(() => gruppiCalendario(voci, modello), [voci, modello]);
   const [inizioTesto, setInizioTesto] = useState("");
@@ -76,9 +78,9 @@ function Modulo({ onOpenChange, generaleId, versioneId, modello, voci }: Omit<Pr
   const aZero = modifiche.filter((m) => { const v = perId.get(m.id); return !!v && !v.mese && !(v.importo > 0); }).length;
   const giaConMese = modifiche.length - bloccanti - aZero;
   const dettaglio = [
-    bloccanti > 0 && `${bloccanti} con un importo`,
-    aZero > 0 && `${aZero} ancora a zero`,
-    giaConMese > 0 && `${giaConMese} che avevano già un mese`,
+    bloccanti > 0 && tr("{n} con un importo", { n: bloccanti }),
+    aZero > 0 && tr("{n} ancora a zero", { n: aZero }),
+    giaConMese > 0 && tr("{n} che avevano già un mese", { n: giaConMese }),
   ].filter(Boolean).join(", ");
 
   const scrivi = (c: CategoriaPiano, campo: "dopo" | "durata", valore: string) =>
@@ -88,8 +90,8 @@ function Modulo({ onOpenChange, generaleId, versioneId, modello, voci }: Omit<Pr
     if (!inizio || modifiche.length === 0 || sbagliati > 0 || salva.isPending) return;
     salva.mutate(modifiche, {
       onSuccess: (n) => {
-        toast.success(n === 1 ? "Mese messo a 1 voce" : `Mesi messi a ${n} voci`, {
-          description: `Da ${nomeMese(inizio)} a ${nomeMese(aggiungiMesi(inizio, durata - 1))}. Ogni voce si corregge anche dalla tabella.`,
+        toast.success(n === 1 ? tr("Mese messo a 1 voce") : tr("Mesi messi a {n} voci", { n }), {
+          description: tr("Da {inizio} a {fine}. Ogni voce si corregge anche dalla tabella.", { inizio: nomeMese(inizio), fine: nomeMese(aggiungiMesi(inizio, durata - 1)) }),
         });
         onOpenChange(false);
       },
@@ -104,21 +106,21 @@ function Modulo({ onOpenChange, generaleId, versioneId, modello, voci }: Omit<Pr
   return (
     <>
       <DialogHeader>
-        <DialogTitle className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-primary" aria-hidden="true" /> Calendario del piano</DialogTitle>
+        <DialogTitle className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-primary" aria-hidden="true" /> {tr("Calendario del piano")}</DialogTitle>
         <DialogDescription>
-          I mesi si contano dall'inizio dell'operazione: ogni gruppo di voci parte al suo mese e il suo importo si distribuisce sui mesi indicati.
-          Le proposte sono i tempi tipici di «{DEFINIZIONI_MODELLI[modello].nome}»: mettici i tuoi.
+          {tr("I mesi si contano dall'inizio dell'operazione: ogni gruppo di voci parte al suo mese e il suo importo si distribuisce sui mesi indicati.")}{" "}
+          {tr("Le proposte sono i tempi tipici di «{modello}»: mettici i tuoi.", { modello: tr(DEFINIZIONI_MODELLI[modello].nome) })}
         </DialogDescription>
       </DialogHeader>
 
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2.5">
         <div className="space-y-1">
-          <Label htmlFor="calendario-inizio">L'operazione parte a</Label>
+          <Label htmlFor="calendario-inizio">{tr("L'operazione parte a")}</Label>
           <Input
             id="calendario-inizio"
             autoFocus
             className={cn("h-9 w-36", inizioSbagliato && "border-destructive")}
-            placeholder="mm/aaaa"
+            placeholder={tr("mm/aaaa")}
             value={inizioTesto}
             onChange={(e) => setInizioTesto(e.target.value)}
             aria-invalid={inizioSbagliato}
@@ -127,10 +129,10 @@ function Modulo({ onOpenChange, generaleId, versioneId, modello, voci }: Omit<Pr
         </div>
         <p id="calendario-inizio-aiuto" className="pb-1.5 text-sm" aria-live="polite">
           {inizioSbagliato
-            ? <span className="text-destructive">Scrivi il mese come 11/2026.</span>
+            ? <span className="text-destructive">{tr("Scrivi il mese come 11/2026.")}</span>
             : inizio
-              ? <>Dura <span className="font-medium tabular-nums">{durata} mesi</span>: da {nomeMese(inizio)} a {nomeMese(aggiungiMesi(inizio, durata - 1))}.</>
-              : <span className="text-muted-foreground">Dura {durata} mesi. Scegli il mese d'inizio per avere le date.</span>}
+              ? <span className="tabular-nums">{tr("Dura {durata} mesi: da {inizio} a {fine}.", { durata, inizio: nomeMese(inizio), fine: nomeMese(aggiungiMesi(inizio, durata - 1)) })}</span>
+              : <span className="text-muted-foreground">{tr("Dura {durata} mesi. Scegli il mese d'inizio per avere le date.", { durata })}</span>}
         </p>
       </div>
 
@@ -138,15 +140,15 @@ function Modulo({ onOpenChange, generaleId, versioneId, modello, voci }: Omit<Pr
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-background">
             <tr className="border-b text-left text-xs text-muted-foreground">
-              <th className="px-3 py-2 font-medium">Gruppo</th>
-              <th className="px-2 py-2 text-right font-medium">Importo</th>
-              <th className="px-1 py-2 font-medium">Dal mese</th>
-              <th className="px-1 py-2 font-medium">Per mesi</th>
+              <th className="px-3 py-2 font-medium">{tr("Gruppo")}</th>
+              <th className="px-2 py-2 text-right font-medium">{tr("Importo")}</th>
+              <th className="px-1 py-2 font-medium">{tr("Dal mese")}</th>
+              <th className="px-1 py-2 font-medium">{tr("Per mesi")}</th>
               <th className="w-[38%] px-3 py-2 font-medium">
                 <div className="relative h-4" aria-hidden="true">
                   {tacche.map((m) => (
                     <span key={m} className="absolute -translate-x-1/2 whitespace-nowrap text-[10px] font-normal" style={{ left: `${((m + 0.5) / scala) * 100}%` }}>
-                      {inizio ? meseCorto(aggiungiMesi(inizio, m)) : `M${m + 1}`}
+                      {inizio ? meseCorto(aggiungiMesi(inizio, m)) : tr("M{n}", { n: m + 1 })}
                     </span>
                   ))}
                 </div>
@@ -161,16 +163,16 @@ function Modulo({ onOpenChange, generaleId, versioneId, modello, voci }: Omit<Pr
               return (
                 <tr key={g.categoria} className={cn("border-b last:border-0", !ok && "bg-destructive/5")}>
                   <td className="px-3 py-1.5">
-                    <p className="font-medium leading-tight">{g.nome}</p>
+                    <p className="font-medium leading-tight">{tr(g.nome)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {g.voci === 1 ? "1 voce" : `${g.voci} voci`}
-                      {g.senzaMese > 0 && <span className="text-amber-700 dark:text-amber-400"> · {g.senzaMese} senza mese</span>}
+                      {g.voci === 1 ? tr("1 voce") : tr("{n} voci", { n: g.voci })}
+                      {g.senzaMese > 0 && <span className="text-amber-700 dark:text-amber-400"> · {tr("{n} senza mese", { n: g.senzaMese })}</span>}
                     </p>
                   </td>
                   <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">{g.importo > 0 ? euro(g.importo) : "—"}</td>
                   <td className="px-1 py-1.5">
                     <Input
-                      aria-label={`Dal mese, ${g.nome}`}
+                      aria-label={tr("Dal mese, {nome}", { nome: tr(g.nome) })}
                       className="h-8 w-16 text-right"
                       inputMode="numeric"
                       value={valoreTempi?.dopo ?? ""}
@@ -179,7 +181,7 @@ function Modulo({ onOpenChange, generaleId, versioneId, modello, voci }: Omit<Pr
                   </td>
                   <td className="px-1 py-1.5">
                     <Input
-                      aria-label={`Per mesi, ${g.nome}`}
+                      aria-label={tr("Per mesi, {nome}", { nome: tr(g.nome) })}
                       className="h-8 w-16 text-right"
                       inputMode="numeric"
                       value={valoreTempi?.durata ?? ""}
@@ -206,26 +208,34 @@ function Modulo({ onOpenChange, generaleId, versioneId, modello, voci }: Omit<Pr
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         {conMese > 0 ? (
           <label className="flex cursor-pointer items-center gap-2">
-            <Checkbox checked={ancheConMese} onCheckedChange={(v) => setAncheConMese(v === true)} aria-label={`Riscrivi anche le ${conMese} voci che hanno già un mese`} />
-            <span>Riscrivi anche {conMese === 1 ? "la voce che ha" : `le ${conMese} voci che hanno`} già un mese</span>
+            <Checkbox checked={ancheConMese} onCheckedChange={(v) => setAncheConMese(v === true)} aria-label={tr("Riscrivi anche le {n} voci che hanno già un mese", { n: conMese })} />
+            <span>{conMese === 1 ? tr("Riscrivi anche la voce che ha già un mese") : tr("Riscrivi anche le {n} voci che hanno già un mese", { n: conMese })}</span>
           </label>
         ) : <span />}
         <span className={cn("text-muted-foreground", sbagliati > 0 && "text-destructive")} aria-live="polite">
           {sbagliati > 0
-            ? `${sbagliati === 1 ? "Un gruppo ha" : `${sbagliati} gruppi hanno`} tempi da correggere: il mese parte da 1, la durata va da 1 a ${DURATA_MASSIMA}.`
+            ? sbagliati === 1
+              ? tr("Un gruppo ha tempi da correggere: il mese parte da 1, la durata va da 1 a {max}.", { max: DURATA_MASSIMA })
+              : tr("{n} gruppi hanno tempi da correggere: il mese parte da 1, la durata va da 1 a {max}.", { n: sbagliati, max: DURATA_MASSIMA })
             : !inizio
-              ? "Scegli il mese d'inizio."
+              ? tr("Scegli il mese d'inizio.")
               : modifiche.length === 0
-                ? "Niente da cambiare: le voci hanno già questi mesi."
-                : `Cambiano ${modifiche.length === 1 ? "1 voce" : `${modifiche.length} voci`}${dettaglio.includes(",") ? `: ${dettaglio}` : ""}.`}
+                ? tr("Niente da cambiare: le voci hanno già questi mesi.")
+                : dettaglio.includes(",")
+                  ? modifiche.length === 1
+                    ? tr("Cambiano 1 voce: {dettaglio}.", { dettaglio })
+                    : tr("Cambiano {n} voci: {dettaglio}.", { n: modifiche.length, dettaglio })
+                  : modifiche.length === 1
+                    ? tr("Cambiano 1 voce.")
+                    : tr("Cambiano {n} voci.", { n: modifiche.length })}
         </span>
       </div>
 
       <DialogFooter className="gap-2 sm:gap-0">
-        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
+        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>{tr("Annulla")}</Button>
         <Button type="button" variant="brand" onClick={conferma} disabled={!inizio || modifiche.length === 0 || sbagliati > 0 || salva.isPending}>
           {salva.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {modifiche.length > 0 ? `Metti i mesi a ${modifiche.length} voci` : "Metti i mesi"}
+          {modifiche.length > 0 ? tr("Metti i mesi a {n} voci", { n: modifiche.length }) : tr("Metti i mesi")}
         </Button>
       </DialogFooter>
     </>

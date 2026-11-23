@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { messaggioErroreNumeroOda } from "@/lib/acquisti/numerazioneOda";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function NumeroOdaModificabile({ odaId, companyId, numero, puoModificare }: {
   odaId: string;
@@ -17,6 +18,7 @@ export function NumeroOdaModificabile({ odaId, companyId, numero, puoModificare 
   numero: string;
   puoModificare: boolean;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [inModifica, setInModifica] = useState(false);
   const [bozza, setBozza] = useState(numero);
@@ -29,8 +31,8 @@ export function NumeroOdaModificabile({ odaId, companyId, numero, puoModificare 
   const salva = async (e: FormEvent) => {
     e.preventDefault();
     const nuovo = bozza.trim();
-    if (!nuovo) { setErrore("Scrivi il numero dell'ordine"); return; }
-    if (nuovo.length > 60) { setErrore("Al massimo 60 caratteri"); return; }
+    if (!nuovo) { setErrore(t("Scrivi il numero dell'ordine")); return; }
+    if (nuovo.length > 60) { setErrore(t("Al massimo 60 caratteri")); return; }
     if (nuovo === numero) { setInModifica(false); return; }
     setSalvataggio(true);
     setErrore(null);
@@ -47,7 +49,7 @@ export function NumeroOdaModificabile({ odaId, companyId, numero, puoModificare 
       return;
     }
     setInModifica(false);
-    toast.success(`Numero dell'ordine cambiato in ${nuovo}`);
+    toast.success(t("Numero dell'ordine cambiato in {numero}", { numero: nuovo }));
     void queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
     void queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(odaId) });
   };
@@ -58,7 +60,7 @@ export function NumeroOdaModificabile({ odaId, companyId, numero, puoModificare 
         OdA {numero}
         {puoModificare && (
           <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
-            aria-label="Cambia il numero dell'ordine" title="Cambia il numero" onClick={apri}>
+            aria-label={t("Cambia il numero dell'ordine")} title={t("Cambia il numero")} onClick={apri}>
             <Pencil className="h-3.5 w-3.5" />
           </Button>
         )}
@@ -67,12 +69,12 @@ export function NumeroOdaModificabile({ odaId, companyId, numero, puoModificare 
   }
 
   return (
-    <form onSubmit={salva} className="inline-flex flex-col gap-1" aria-label="Numero dell'ordine">
+    <form onSubmit={salva} className="inline-flex flex-col gap-1" aria-label={t("Numero dell'ordine")}>
       <span className="inline-flex items-center gap-1">
         <span>OdA</span>
         <Input
           autoFocus
-          aria-label="Numero dell'ordine"
+          aria-label={t("Numero dell'ordine")}
           aria-invalid={!!errore}
           className="h-8 w-44 text-base font-semibold"
           value={bozza}
@@ -81,10 +83,10 @@ export function NumeroOdaModificabile({ odaId, companyId, numero, puoModificare 
           onChange={(e) => { setBozza(e.target.value); setErrore(null); }}
           onKeyDown={(e) => { if (e.key === "Escape") chiudi(); }}
         />
-        <Button type="submit" size="icon" variant="ghost" className="h-8 w-8" aria-label="Salva il numero" disabled={salvataggio}>
+        <Button type="submit" size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Salva il numero")} disabled={salvataggio}>
           {salvataggio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
         </Button>
-        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label="Annulla" disabled={salvataggio} onClick={chiudi}>
+        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Annulla")} disabled={salvataggio} onClick={chiudi}>
           <X className="h-4 w-4" />
         </Button>
       </span>

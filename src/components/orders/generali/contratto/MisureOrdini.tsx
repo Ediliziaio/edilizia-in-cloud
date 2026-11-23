@@ -25,26 +25,28 @@ import { leggiNumero } from "@/lib/orders/generali/contrattoElenco";
 import { cn } from "@/lib/utils";
 import { Campo, CampoNumero, ProssimoPasso } from "./campi";
 import { dataIt, euro, numeroIt } from "./formato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const etichettaVoce = (v: VoceElenco) => `${v.codice ? `${v.codice} · ` : ""}${v.descrizione}`;
 
 /** Scegli una voce dell'elenco cercandola per codice o descrizione (gli elenchi hanno centinaia di voci). */
 function ScegliVoce({ elenco, valore, onChange, etichetta }: { elenco: VoceElenco[]; valore: string | null; onChange: (id: string) => void; etichetta: string }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   const scelta = elenco.find((v) => v.id === valore);
   return (
     <Popover open={aperto} onOpenChange={setAperto}>
       <PopoverTrigger asChild>
         <Button type="button" variant="outline" role="combobox" aria-expanded={aperto} aria-label={etichetta} className="h-10 w-full justify-between font-normal">
-          <span className="truncate">{scelta ? etichettaVoce(scelta) : "Scegli la voce dell'elenco"}</span>
+          <span className="truncate">{scelta ? etichettaVoce(scelta) : t("Scegli la voce dell'elenco")}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[min(32rem,90vw)] p-0" align="start">
         <Command>
-          <CommandInput placeholder="Cerca codice o descrizione" />
+          <CommandInput placeholder={t("Cerca codice o descrizione")} />
           <CommandList>
-            <CommandEmpty>Nessuna voce trovata.</CommandEmpty>
+            <CommandEmpty>{t("Nessuna voce trovata.")}</CommandEmpty>
             {elenco.map((v) => (
               <CommandItem key={v.id} value={`${v.codice ?? ""} ${v.descrizione} ${v.id}`} onSelect={() => { onChange(v.id); setAperto(false); }}>
                 <Check className={cn("mr-2 h-4 w-4", v.id === valore ? "opacity-100" : "opacity-0")} />
@@ -62,6 +64,7 @@ function ScegliVoce({ elenco, valore, onChange, etichetta }: { elenco: VoceElenc
 export function MisureOrdini({ generaleId, figlie, ribassoPct, sal, puoModificare }: {
   generaleId: string; figlie: FigliaGenerale[]; ribassoPct: number; sal: SalContratto[]; puoModificare: boolean;
 }) {
+  const t = useT();
   const elenco = useElencoPrezzi(generaleId);
   const computo = useComputo(generaleId);
   const misure = useMisure(generaleId);
@@ -70,24 +73,24 @@ export function MisureOrdini({ generaleId, figlie, ribassoPct, sal, puoModificar
 
   if (elenco.isLoading || computo.isLoading || misure.isLoading) return <Skeleton className="h-48 w-full rounded-lg" />;
   if (elenco.isError || computo.isError || misure.isError) {
-    return <p role="alert" className="rounded-lg border p-4 text-sm">Non riesco a leggere elenco e misure. Ricarica la pagina.</p>;
+    return <p role="alert" className="rounded-lg border p-4 text-sm">{t("Non riesco a leggere elenco e misure. Ricarica la pagina.")}</p>;
   }
   const voci = elenco.data ?? [];
-  if (voci.length === 0) return <ProssimoPasso testo="Prima incolla l'elenco prezzi: le misure si scrivono sulle sue voci." />;
-  if (figlie.length === 0) return <ProssimoPasso testo="Aggiungi gli ordini di lavoro: le misure si scrivono ordine per ordine." />;
+  if (voci.length === 0) return <ProssimoPasso testo={t("Prima incolla l'elenco prezzi: le misure si scrivono sulle sue voci.")} />;
+  if (figlie.length === 0) return <ProssimoPasso testo={t("Aggiungi gli ordini di lavoro: le misure si scrivono ordine per ordine.")} />;
 
   return (
     <section aria-labelledby="misure-titolo" className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 id="misure-titolo" className="text-sm font-semibold">Ordini prezzati dall'elenco e misure</h3>
-          <p className="text-xs text-muted-foreground">Un ordine con voci dell'elenco va a misure nel SAL; gli altri vanno ad avanzamento.</p>
+          <h3 id="misure-titolo" className="text-sm font-semibold">{t("Ordini prezzati dall'elenco e misure")}</h3>
+          <p className="text-xs text-muted-foreground">{t("Un ordine con voci dell'elenco va a misure nel SAL; gli altri vanno ad avanzamento.")}</p>
         </div>
         <div className="w-72">
-          <Campo etichetta="Ordine di lavoro">
+          <Campo etichetta={t("Ordine di lavoro")}>
             {(id) => (
               <Select value={figliaId ?? undefined} onValueChange={setFigliaId}>
-                <SelectTrigger id={id}><SelectValue placeholder="Scegli l'ordine" /></SelectTrigger>
+                <SelectTrigger id={id}><SelectValue placeholder={t("Scegli l'ordine")} /></SelectTrigger>
                 <SelectContent>
                   {figlie.map((f) => <SelectItem key={f.id} value={f.id}>{f.codice ? `${f.codice} · ${f.nome}` : f.nome}</SelectItem>)}
                 </SelectContent>
@@ -118,6 +121,7 @@ function Ordine({ generaleId, figlia, elenco, computo, misure, ribassoPct, numer
   computo: { voceId: string; quantita: number }[]; misure: { id: string; voceId: string; data: string; quantita: number; descrizione: string | null; salId: string | null }[];
   ribassoPct: number; numeroSal: Map<string, number>; puoModificare: boolean;
 }) {
+  const t = useT();
   const perId = useMemo(() => new Map(elenco.map((v) => [v.id, v])), [elenco]);
   const avanzamento = avanzamentoMisure(computo, misure);
   const importo = importoDaElenco(computo, perId, ribassoPct);
@@ -140,7 +144,7 @@ function Ordine({ generaleId, figlia, elenco, computo, misure, ribassoPct, numer
   const aggiungiMisura = () => {
     if (!misura.voceId || misura.quantita === null || Number.isNaN(misura.quantita) || misura.quantita === 0) return;
     aggiungi.mutate({ figliaId: figlia.id, voceId: misura.voceId, data: misura.data, quantita: misura.quantita, descrizione: misura.descrizione.trim() || null }, {
-      onSuccess: () => { toast.success("Misura aggiunta"); setMisura((m) => ({ ...m, quantita: null, descrizione: "" })); setChiaveMisura((k) => k + 1); },
+      onSuccess: () => { toast.success(t("Misura aggiunta")); setMisura((m) => ({ ...m, quantita: null, descrizione: "" })); setChiaveMisura((k) => k + 1); },
       onError: (e) => toast.error(messaggioContratto(e, "la misura")),
     });
   };
@@ -151,35 +155,35 @@ function Ordine({ generaleId, figlia, elenco, computo, misure, ribassoPct, numer
         <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
           <div>
             <h4 className="text-sm font-semibold">
-              <Link to={`/azienda/ordini/${figlia.id}`} className="hover:underline">{figlia.codice ?? figlia.nome}</Link> · voci e quantità previste
+              <Link to={`/azienda/ordini/${figlia.id}`} className="hover:underline">{figlia.codice ?? figlia.nome}</Link> {t("· voci e quantità previste")}
             </h4>
             <p className="text-xs text-muted-foreground">
-              Dall'elenco: <strong className="tabular-nums">{euro(importo)}</strong> · importo dell'ordine {euro(figlia.importo)}
+              {t("Dall'elenco: {importo} · importo dell'ordine {ordine}", { importo: euro(importo), ordine: euro(figlia.importo) })}
             </p>
           </div>
           {puoModificare && disallineato && (
             <Button size="sm" variant="outline" disabled={prezza.isPending} onClick={() => prezza.mutate(figlia.id, {
-              onSuccess: (v) => toast.success(`Importo dell'ordine: ${euro(v)}`),
+              onSuccess: (v) => toast.success(t("Importo dell'ordine: {importo}", { importo: euro(v) })),
               onError: (e) => toast.error(messaggioContratto(e, "l'importo dell'ordine")),
             })}>
               {prezza.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              Usa {euro(importo)} come importo dell'ordine
+              {t("Usa {importo} come importo dell'ordine", { importo: euro(importo) })}
             </Button>
           )}
         </header>
         {voceIds.length === 0 ? (
-          <p className="px-4 py-4 text-sm text-muted-foreground">Nessuna voce: questo ordine va ad avanzamento. Aggiungi le voci dell'elenco per prezzarlo e misurarlo.</p>
+          <p className="px-4 py-4 text-sm text-muted-foreground">{t("Nessuna voce: questo ordine va ad avanzamento. Aggiungi le voci dell'elenco per prezzarlo e misurarlo.")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="px-4 py-2 font-medium">Voce</th>
-                  <th className="px-2 py-2 text-right font-medium">Previsto</th>
-                  <th className="px-2 py-2 text-right font-medium">Eseguito</th>
-                  <th className="px-2 py-2 text-right font-medium">A finire</th>
-                  <th className="px-2 py-2 text-right font-medium">Importo previsto</th>
-                  {puoModificare && <th className="w-10 px-2 py-2"><span className="sr-only">Azioni</span></th>}
+                  <th className="px-4 py-2 font-medium">{t("Voce")}</th>
+                  <th className="px-2 py-2 text-right font-medium">{t("Previsto")}</th>
+                  <th className="px-2 py-2 text-right font-medium">{t("Eseguito")}</th>
+                  <th className="px-2 py-2 text-right font-medium">{t("A finire")}</th>
+                  <th className="px-2 py-2 text-right font-medium">{t("Importo previsto")}</th>
+                  {puoModificare && <th className="w-10 px-2 py-2"><span className="sr-only">{t("Azioni")}</span></th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -189,21 +193,21 @@ function Ordine({ generaleId, figlia, elenco, computo, misure, ribassoPct, numer
                   const nelComputo = computo.some((r) => r.voceId === id);
                   return (
                     <tr key={id}>
-                      <td className="max-w-[24rem] px-4 py-1.5">{v ? etichettaVoce(v) : "Voce tolta dall'elenco"} <span className="text-xs text-muted-foreground">{v?.unitaMisura}</span></td>
+                      <td className="max-w-[24rem] px-4 py-1.5">{v ? etichettaVoce(v) : t("Voce tolta dall'elenco")} <span className="text-xs text-muted-foreground">{v?.unitaMisura}</span></td>
                       <td className="px-2 py-1.5 text-right">
                         {puoModificare && v ? (
-                          <QuantitaInLinea etichetta={`Quantità prevista di ${etichettaVoce(v)}`} valore={nelComputo ? a.prevista : null} onSalva={(q) => salvaRiga(id, q)} />
+                          <QuantitaInLinea etichetta={t("Quantità prevista di {voce}", { voce: etichettaVoce(v) })} valore={nelComputo ? a.prevista : null} onSalva={(q) => salvaRiga(id, q)} />
                         ) : <span className="tabular-nums">{numeroIt(a.prevista, 3)}</span>}
                       </td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{numeroIt(a.eseguita, 3) || "0"}</td>
                       <td className={cn("px-2 py-1.5 text-right tabular-nums", a.aFinire < 0 && "text-destructive")}>
-                        {a.aFinire < 0 ? `oltre di ${numeroIt(-a.aFinire, 3)}` : numeroIt(a.aFinire, 3) || "0"}
+                        {a.aFinire < 0 ? t("oltre di {n}", { n: numeroIt(-a.aFinire, 3) }) : numeroIt(a.aFinire, 3) || "0"}
                       </td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{v && nelComputo ? euro(importoVoce(a.prevista, v, ribassoPct)) : "—"}</td>
                       {puoModificare && (
                         <td className="px-2 py-1.5">
                           {nelComputo && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" aria-label="Togli la voce dall'ordine" onClick={() => salvaRiga(id, null)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" aria-label={t("Togli la voce dall'ordine")} onClick={() => salvaRiga(id, null)}><Trash2 className="h-3.5 w-3.5" /></Button>
                           )}
                         </td>
                       )}
@@ -225,33 +229,33 @@ function Ordine({ generaleId, figlia, elenco, computo, misure, ribassoPct, numer
               setNuovaQuantita(null);
             }}
           >
-            <div className="min-w-[16rem] flex-1"><ScegliVoce elenco={elenco} valore={nuovaVoce} onChange={setNuovaVoce} etichetta="Voce da aggiungere all'ordine" /></div>
-            <div className="w-36"><QuantitaInLinea key={nuovaVoce ?? "nessuna"} etichetta="Quantità prevista" valore={nuovaQuantita} onSalva={setNuovaQuantita} grande /></div>
-            <Button type="submit" size="sm" className="h-10" disabled={!nuovaVoce || nuovaQuantita === null || salvaComputo.isPending}><Plus className="mr-1.5 h-3.5 w-3.5" /> Aggiungi all'ordine</Button>
+            <div className="min-w-[16rem] flex-1"><ScegliVoce elenco={elenco} valore={nuovaVoce} onChange={setNuovaVoce} etichetta={t("Voce da aggiungere all'ordine")} /></div>
+            <div className="w-36"><QuantitaInLinea key={nuovaVoce ?? "nessuna"} etichetta={t("Quantità prevista")} valore={nuovaQuantita} onSalva={setNuovaQuantita} grande /></div>
+            <Button type="submit" size="sm" className="h-10" disabled={!nuovaVoce || nuovaQuantita === null || salvaComputo.isPending}><Plus className="mr-1.5 h-3.5 w-3.5" /> {t("Aggiungi all'ordine")}</Button>
           </form>
         )}
       </div>
 
       <div className="rounded-lg border bg-card">
         <header className="border-b px-4 py-3">
-          <h4 className="text-sm font-semibold">Misure di {figlia.codice ?? figlia.nome}</h4>
-          <p className="text-xs text-muted-foreground">Le quantità eseguite, come nel libretto delle misure. Una detrazione si scrive col meno.</p>
+          <h4 className="text-sm font-semibold">{t("Misure di {nome}", { nome: figlia.codice ?? figlia.nome })}</h4>
+          <p className="text-xs text-muted-foreground">{t("Le quantità eseguite, come nel libretto delle misure. Una detrazione si scrive col meno.")}</p>
         </header>
         {puoModificare && (
           <form key={chiaveMisura} className="grid gap-2 border-b px-4 py-3 sm:grid-cols-[1fr_9rem_8rem] lg:grid-cols-[1fr_9rem_8rem_1fr_auto]" onSubmit={(e) => { e.preventDefault(); aggiungiMisura(); }}>
-            <Campo etichetta="Voce">{() => <ScegliVoce elenco={elenco} valore={misura.voceId} onChange={(id) => setMisura((m) => ({ ...m, voceId: id }))} etichetta="Voce misurata" />}</Campo>
-            <Campo etichetta="Data">{(id) => <Input id={id} type="date" value={misura.data} onChange={(e) => setMisura((m) => ({ ...m, data: e.target.value }))} />}</Campo>
-            <CampoNumero etichetta="Quantità" valore={misura.quantita} decimali={3} segno onChange={(q) => setMisura((m) => ({ ...m, quantita: q }))} />
-            <Campo etichetta="Dove o come">{(id) => <Input id={id} value={misura.descrizione} onChange={(e) => setMisura((m) => ({ ...m, descrizione: e.target.value }))} placeholder="Aula 3, piano terra" />}</Campo>
+            <Campo etichetta={t("Voce")}>{() => <ScegliVoce elenco={elenco} valore={misura.voceId} onChange={(id) => setMisura((m) => ({ ...m, voceId: id }))} etichetta={t("Voce misurata")} />}</Campo>
+            <Campo etichetta={t("Data")}>{(id) => <Input id={id} type="date" value={misura.data} onChange={(e) => setMisura((m) => ({ ...m, data: e.target.value }))} />}</Campo>
+            <CampoNumero etichetta={t("Quantità")} valore={misura.quantita} decimali={3} segno onChange={(q) => setMisura((m) => ({ ...m, quantita: q }))} />
+            <Campo etichetta={t("Dove o come")}>{(id) => <Input id={id} value={misura.descrizione} onChange={(e) => setMisura((m) => ({ ...m, descrizione: e.target.value }))} placeholder={t("Aula 3, piano terra")} />}</Campo>
             <div className="flex items-end">
               <Button type="submit" className="h-10" disabled={aggiungi.isPending || !misura.voceId || misura.quantita === null || Number.isNaN(misura.quantita) || misura.quantita === 0}>
-                {aggiungi.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plus className="mr-1.5 h-4 w-4" />} Aggiungi
+                {aggiungi.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plus className="mr-1.5 h-4 w-4" />} {t("Aggiungi")}
               </Button>
             </div>
           </form>
         )}
         {misure.length === 0 ? (
-          <p className="px-4 py-4 text-sm text-muted-foreground">Nessuna misura per questo ordine.</p>
+          <p className="px-4 py-4 text-sm text-muted-foreground">{t("Nessuna misura per questo ordine.")}</p>
         ) : (
           <ul className="divide-y text-sm">
             {misure.map((m) => {
@@ -260,13 +264,13 @@ function Ordine({ generaleId, figlia, elenco, computo, misure, ribassoPct, numer
               return (
                 <li key={m.id} className="flex items-center gap-3 px-4 py-2">
                   <span className="w-20 shrink-0 text-xs text-muted-foreground">{dataIt(m.data)}</span>
-                  <span className="min-w-0 flex-1 truncate">{v ? etichettaVoce(v) : "Voce"}{m.descrizione && <span className="text-xs text-muted-foreground"> · {m.descrizione}</span>}</span>
+                  <span className="min-w-0 flex-1 truncate">{v ? etichettaVoce(v) : t("Voce")}{m.descrizione && <span className="text-xs text-muted-foreground"> · {m.descrizione}</span>}</span>
                   <span className={cn("shrink-0 tabular-nums", m.quantita < 0 && "text-destructive")}>{numeroIt(m.quantita, 3)} {v?.unitaMisura}</span>
                   {m.salId ? (
-                    <Badge variant="secondary" className="shrink-0 font-normal">{nelSal ? `nel SAL n. ${nelSal}` : "in un SAL"}</Badge>
+                    <Badge variant="secondary" className="shrink-0 font-normal">{nelSal ? t("nel SAL n. {n}", { n: nelSal }) : t("in un SAL")}</Badge>
                   ) : puoModificare ? (
-                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-destructive" aria-label="Togli la misura" disabled={elimina.isPending} onClick={async () => {
-                      if (!(await confirm({ title: "Togliere questa misura?", confirmLabel: "Togli", variant: "destructive" }))) return;
+                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-destructive" aria-label={t("Togli la misura")} disabled={elimina.isPending} onClick={async () => {
+                      if (!(await confirm({ title: t("Togliere questa misura?"), confirmLabel: t("Togli"), variant: "destructive" }))) return;
                       elimina.mutate(m.id, { onError: (e) => toast.error(messaggioContratto(e, "la misura")) });
                     }}><Trash2 className="h-3.5 w-3.5" /></Button>
                   ) : null}

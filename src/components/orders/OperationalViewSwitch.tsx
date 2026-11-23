@@ -1,5 +1,6 @@
 import { Columns3, List } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function OperationalViewSwitch({
   value,
@@ -10,11 +11,12 @@ export function OperationalViewSwitch({
   onChange: (value: "pipeline" | "elenco") => void;
   label?: string;
 }) {
+  const t = useT();
   return (
     <div
       className="inline-flex shrink-0 gap-0.5 rounded-lg bg-muted/50 p-0.5"
       role="group"
-      aria-label={label}
+      aria-label={t(label)}
     >
       {(
         [
@@ -37,7 +39,7 @@ export function OperationalViewSwitch({
           )}
         >
           <Icona className="h-3.5 w-3.5" aria-hidden="true" />
-          <span className="max-sm:sr-only">{nome}</span>
+          <span className="max-sm:sr-only">{t(nome)}</span>
         </button>
       ))}
     </div>

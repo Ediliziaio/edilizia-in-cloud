@@ -29,6 +29,7 @@ import {
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_COLORS as STATUS_COLORS,
 } from "@/lib/odaStatus";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Bolle arrivate: ricevute, già controllate, con merce non conforme o parziali (comunque arrivate).
@@ -59,6 +60,7 @@ interface LinkedPurchaseOrdersCardProps {
 }
 
 export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo }: LinkedPurchaseOrdersCardProps) {
+  const t = useT();
   const aspetto = useAspettoOperativo();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
@@ -74,7 +76,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
   // Unlink mutation
   const unlinkMutation = useMutation({
     mutationFn: async (poId: string) => {
-      if (!canEditOrders || !companyId) throw new Error("Permessi insufficienti");
+      if (!canEditOrders || !companyId) throw new Error(t("Permessi insufficienti"));
       const { error } = await supabase
         .from("purchase_orders")
         .update({ order_id: null })
@@ -98,11 +100,11 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
       queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
       queryClient.invalidateQueries({ queryKey: ["unlinked-purchase-orders", companyId] });
       queryClient.invalidateQueries({ queryKey: ["oes-oda", orderId] });
-      toast.success("OdA scollegato dalla commessa");
+      toast.success(t("OdA scollegato dalla commessa"));
       setUnlinkTarget(null);
     },
     onError: (e: Error) => {
-      toast.error("Errore nello scollegamento", { description: e.message });
+      toast.error(t("Errore nello scollegamento"), { description: e.message });
       setUnlinkTarget(null);
     },
   });
@@ -125,47 +127,47 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
   const { data: ddtCounts = {} } = useDDTCountsByPO();
 
   const colonne: ColonnaTabella<OrdineCollegato>[] = [
-    { titolo: "Ordine", principale: true, cella: (po) => (
-      <Link to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${po.id}`, aspetto?.generaleId)} className="font-mono font-medium underline-offset-2 hover:underline" aria-label={`Apri l'ordine d'acquisto ${po.oda_number}`}>
+    { titolo: t("Ordine"), principale: true, cella: (po) => (
+      <Link to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${po.id}`, aspetto?.generaleId)} className="font-mono font-medium underline-offset-2 hover:underline" aria-label={t("Apri l'ordine d'acquisto {numero}", { numero: po.oda_number })}>
         {po.oda_number}
       </Link>
     ) },
-    { titolo: "Data", cella: (po) => <span className="whitespace-nowrap">{dataIt(po.issue_date)}</span> },
-    { titolo: "Fornitore", cella: (po) => po.suppliers?.name || "—" },
-    { titolo: "Stato", cella: (po) => (
-      <Link to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${po.id}`, aspetto?.generaleId)} title="Apri per cambiare lo stato" aria-label={`Cambia lo stato dell'ordine ${po.oda_number}`}>
-        <Badge className={`whitespace-nowrap border-0 text-xs ${STATUS_COLORS[po.status] || ""}`}>{STATUS_LABELS[po.status] || po.status}<ChevronDown className="ml-1 h-3 w-3" aria-hidden="true" /></Badge>
+    { titolo: t("Data"), cella: (po) => <span className="whitespace-nowrap">{dataIt(po.issue_date)}</span> },
+    { titolo: t("Fornitore"), cella: (po) => po.suppliers?.name || "—" },
+    { titolo: t("Stato"), cella: (po) => (
+      <Link to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${po.id}`, aspetto?.generaleId)} title={t("Apri per cambiare lo stato")} aria-label={t("Cambia lo stato dell'ordine {numero}", { numero: po.oda_number })}>
+        <Badge className={`whitespace-nowrap border-0 text-xs ${STATUS_COLORS[po.status] || ""}`}>{STATUS_LABELS[po.status] ? t(STATUS_LABELS[po.status]) : po.status}<ChevronDown className="ml-1 h-3 w-3" aria-hidden="true" /></Badge>
       </Link>
     ) },
-    { titolo: "Arrivato", cella: (po) => {
+    { titolo: t("Arrivato"), cella: (po) => {
       const a = avanzamentoOrdine(po, oggi);
       const ddt = ddtCounts[po.id];
       return (
-        <button type="button" className="text-left text-xs text-muted-foreground underline-offset-2 hover:underline" aria-label={`Bolle e fatture dell'ordine ${po.oda_number}`}
+        <button type="button" className="text-left text-xs text-muted-foreground underline-offset-2 hover:underline" aria-label={t("Bolle e fatture dell'ordine {numero}", { numero: po.oda_number })}
           onClick={() => setOdaAperto({ id: po.id, oda_number: po.oda_number, status: po.status, total: po.total, fornitore: po.suppliers?.name ?? null })}>
-          {a.righeTotali > 0 && <p className="whitespace-nowrap">{a.righeArrivate}/{a.righeTotali} righe</p>}
-          {ddt && ddt.total > 0 && <p className={`whitespace-nowrap ${ddt.parziali > 0 || ddt.non_conformi > 0 ? "text-amber-700" : ""}`} title={ddt.non_conformi > 0 ? `${ddt.non_conformi} non conformi` : undefined}>{ddtArrivati(ddt)}/{ddt.total} DDT</p>}
+          {a.righeTotali > 0 && <p className="whitespace-nowrap">{t("{arrivate}/{totali} righe", { arrivate: a.righeArrivate, totali: a.righeTotali })}</p>}
+          {ddt && ddt.total > 0 && <p className={`whitespace-nowrap ${ddt.parziali > 0 || ddt.non_conformi > 0 ? "text-amber-700" : ""}`} title={ddt.non_conformi > 0 ? t("{n} non conformi", { n: ddt.non_conformi }) : undefined}>{ddtArrivati(ddt)}/{ddt.total} DDT</p>}
         </button>
       );
     } },
-    { titolo: "Consegna", cella: (po) => {
+    { titolo: t("Consegna"), cella: (po) => {
       const a = avanzamentoOrdine(po, oggi);
       if (!a.aperto || !po.expected_delivery_date) return <span className="text-muted-foreground">—</span>;
-      return <span className={a.inRitardo ? "whitespace-nowrap font-medium text-amber-700 dark:text-amber-400" : "whitespace-nowrap"}>{a.inRitardo ? "In ritardo, " : ""}{dataIt(po.expected_delivery_date)}</span>;
+      return <span className={a.inRitardo ? "whitespace-nowrap font-medium text-amber-700 dark:text-amber-400" : "whitespace-nowrap"}>{a.inRitardo ? `${t("In ritardo")}, ` : ""}{dataIt(po.expected_delivery_date)}</span>;
     } },
-    ...(letturaSenzaPrezzi() ? [] : [{ titolo: "Importo", destra: true, cella: (po: (typeof linkedPOs)[number]) => <span className="font-medium">{formatCurrency(Number(po.total))}</span> }]),
-    { titolo: "Azioni", destra: true, senzaEtichetta: true, cella: (po) => (
+    ...(letturaSenzaPrezzi() ? [] : [{ titolo: t("Importo"), destra: true, cella: (po: (typeof linkedPOs)[number]) => <span className="font-medium">{formatCurrency(Number(po.total))}</span> }]),
+    { titolo: t("Azioni"), destra: true, senzaEtichetta: true, cella: (po) => (
       <div className="flex items-center justify-end gap-1">
         {avanzamentoOrdine(po, oggi).aperto && canEditOrders && (
           <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs">
             {/* L'arrivo si registra dentro l'ordine: si apre già pronto. */}
-            <Link to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${po.id}?arrivo=1`, aspetto?.generaleId)} aria-label={`Merce arrivata per l'ordine ${po.oda_number}`}>
-              <PackageCheck className="h-3.5 w-3.5" /><span className="max-sm:hidden">Merce arrivata</span>
+            <Link to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${po.id}?arrivo=1`, aspetto?.generaleId)} aria-label={t("Merce arrivata per l'ordine {numero}", { numero: po.oda_number })}>
+              <PackageCheck className="h-3.5 w-3.5" /><span className="max-sm:hidden">{t("Merce arrivata")}</span>
             </Link>
           </Button>
         )}
         <Button variant="ghost" size="icon" className="h-8 w-8 max-sm:hidden" disabled={!canEditOrders}
-          onClick={() => setUnlinkTarget({ id: po.id, oda_number: po.oda_number })} aria-label={`Scollega OdA ${po.oda_number}`}>
+          onClick={() => setUnlinkTarget({ id: po.id, oda_number: po.oda_number })} aria-label={t("Scollega OdA {numero}", { numero: po.oda_number })}>
           <Unlink className="h-3.5 w-3.5 text-muted-foreground" />
         </Button>
       </div>
@@ -176,27 +178,27 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
     <>
     <RiquadroCommessa
       icona={<Package className="h-5 w-5 text-primary" aria-hidden="true" />}
-      descrizione="Acquisti della commessa, consegne previste e documenti collegati."
-      titolo="Ordini ai fornitori" conteggio={linkedPOs.length}
+      descrizione={t("Acquisti della commessa, consegne previste e documenti collegati.")}
+      titolo={t("Ordini ai fornitori")} conteggio={linkedPOs.length}
       azioni={<>
         <Button variant="outline" size="sm" disabled={!canEditOrders} onClick={() => setLinkDialogOpen(true)}>
-          <Link2 className="mr-1.5 h-4 w-4" />Collega OdA
+          <Link2 className="mr-1.5 h-4 w-4" />{t("Collega OdA")}
         </Button>
         {canEditOrders && canViewCosts && (
-          <Button size="sm" onClick={() => setNuovoOpen(true)}><Plus className="mr-1.5 h-4 w-4" />Nuovo ordine</Button>
+          <Button size="sm" onClick={() => setNuovoOpen(true)}><Plus className="mr-1.5 h-4 w-4" />{t("Nuovo ordine")}</Button>
         )}
       </>}
       numeri={riepilogo}
     >
       <NuovoOdaCommessaDialog open={nuovoOpen} onOpenChange={setNuovoOpen} orderId={orderId} orderCode={orderCode} items={items} />
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Caricamento...</p>
+        <p className="text-sm text-muted-foreground">{t("Caricamento...")}</p>
       ) : isError ? (
-        <div role="alert" className="flex flex-wrap items-center gap-3 text-sm">Impossibile caricare gli ordini collegati.<Button size="sm" variant="outline" disabled={isFetching} onClick={() => refetch()}>Riprova</Button></div>
+        <div role="alert" className="flex flex-wrap items-center gap-3 text-sm">{t("Impossibile caricare gli ordini collegati.")}<Button size="sm" variant="outline" disabled={isFetching} onClick={() => refetch()}>{t("Riprova")}</Button></div>
       ) : linkedPOs.length === 0 ? (
-        <p className="commessa-empty text-sm text-muted-foreground">Nessun ordine d'acquisto collegato.</p>
+        <p className="commessa-empty text-sm text-muted-foreground">{t("Nessun ordine d'acquisto collegato.")}</p>
       ) : (
-        <TabellaCommessa etichetta="Ordini ai fornitori" colonne={colonne} righe={linkedPOs} chiave={(po) => po.id} />
+        <TabellaCommessa etichetta={t("Ordini ai fornitori")} colonne={colonne} righe={linkedPOs} chiave={(po) => po.id} />
       )}
     </RiquadroCommessa>
 
@@ -216,20 +218,19 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
       <AlertDialog open={!!unlinkTarget} onOpenChange={(open) => !open && setUnlinkTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Scollega OdA</AlertDialogTitle>
+            <AlertDialogTitle>{t("Scollega OdA")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Sei sicuro di voler scollegare l'ordine d'acquisto{" "}
-              <strong>{unlinkTarget?.oda_number}</strong> da questa commessa?
-              L'OdA non verrà eliminato, ma non sarà più associato a questa commessa.
+              {t("Sei sicuro di voler scollegare l'ordine d'acquisto")}{" "}
+              <strong>{unlinkTarget?.oda_number}</strong> {t("da questa commessa? L'OdA non verrà eliminato, ma non sarà più associato a questa commessa.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={unlinkMutation.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={unlinkMutation.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => unlinkTarget && unlinkMutation.mutate(unlinkTarget.id)}
               disabled={unlinkMutation.isPending}
             >
-              {unlinkMutation.isPending ? "Scollegamento..." : "Scollega"}
+              {unlinkMutation.isPending ? t("Scollegamento...") : t("Scollega")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

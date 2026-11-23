@@ -13,7 +13,7 @@ import { verificaCostoSuPiano, modalitaCostoFinanziaria, costoDaSottrarreAlSaldo
 import { verificaSupportoModalitaFinanziaria } from "@/lib/finanziamenti/verificaSupportoModalita";
 import { ContractOfficeAssignments } from "@/components/orders/ContractOfficeAssignments";
 import { useContractWorkflowProfile } from "@/hooks/useContractWorkflowProfile";
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { Fragment, useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react";
 import { logger } from "@/utils/logger";
 import { friendlyPostgresError } from "@/lib/postgresErrors";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
@@ -115,6 +115,7 @@ import { rateDaModello, ricalcolaRatePercentuali, type ModelloPagamento } from "
 import { conSaldoFinale, importoSaldoFinale, senzaRateVuote, sommaRateNonSaldo } from "@/lib/orders/saldoFinale";
 import { datiLavoroDaEmessa, riconciliaEmessa } from "@/lib/fatturazione/collegamentiImportate";
 import { isNotaCredito } from "@/lib/fatturazione/registroVendite";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Le rate con cui si apre il modulo: quelle del modello scelto dall'azienda per le commesse nuove (importi a zero finché non c'è il totale), o le due di sempre. */
 const rateDiPartenza = (modello: ModelloPagamento | null): Installment[] =>
@@ -123,7 +124,12 @@ const rateDiPartenza = (modello: ModelloPagamento | null): Installment[] =>
 // Spostata in src/lib/orders/quantitaIntera.ts (la usa anche Silvio): resta esportata da qui.
 export { rigaConQuantitaIntera };
 
+/** Una frase tradotta con dentro degli elementi (grassetto, link): i {segnaposto} diventano quegli elementi. */
+const conElementi = (testo: string, elementi: Record<string, ReactNode>): ReactNode[] =>
+  testo.split(/\{(\w+)\}/).map((pezzo, i) => i % 2 === 1 && pezzo in elementi ? <Fragment key={i}>{elementi[pezzo]}</Fragment> : <Fragment key={i}>{i % 2 === 1 ? `{${pezzo}}` : pezzo}</Fragment>);
+
 function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamento | null }) {
+  const t = useT();
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const { vertical } = useVertical();
@@ -144,7 +150,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         .eq("id",invoiceId!).eq("company_id",effectiveCompany!.id).is("deleted_at",null).not("external_provider","is",null).single();
       if (error) throw error;
       const match = await riconciliaEmessa(effectiveCompany!.id,invoiceId!);
-      if (match.status !== "ok" || !match.customer_id) throw new Error(match.motivo || "Crea o collega prima il cliente dal dettaglio della fattura.");
+      if (match.status !== "ok" || !match.customer_id) throw new Error(match.motivo || t("Crea o collega prima il cliente dal dettaglio della fattura."));
       return { ...data, customerId: match.customer_id };
     },
   });
@@ -457,7 +463,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     let cancelled = false;
     void supabase.storage.from(contractSource.bucket).download(contractSource.path).then(({data,error}) => {
       if (cancelled) return;
-      if (error || !data) { toast.error("Contratto della bozza non recuperato", { description: "Ricarica il contratto prima di creare la commessa." }); return; }
+      if (error || !data) { toast.error(t("Contratto della bozza non recuperato"), { description: t("Ricarica il contratto prima di creare la commessa.") }); return; }
       const file = new File([data], contractSource.name, {type: contractSource.mime});
       setPendingFiles(prev => prev.some(p => p.file.name === file.name) ? prev : [...prev, {file, visibleToCustomer:false}]);
     });
@@ -498,7 +504,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     if (quotePrefill.client.name.trim()) setShowCreateCustomer(true);
     // Preventivo con computo: le voci ci sono già, i materiali da ordinare li propone l'AI appena creata.
     if (quotePrefill.computoDraftId && !materialiAITolti.current) {
-      setComputoDaCollegare({ id: null, nome: `computo del preventivo${quotePrefill.quoteNumber ? ` ${quotePrefill.quoteNumber}` : ""}`, dalPreventivo: true });
+      setComputoDaCollegare({ id: null, nome: quotePrefill.quoteNumber ? t("computo del preventivo {numero}", { numero: quotePrefill.quoteNumber }) : t("computo del preventivo"), dalPreventivo: true });
     }
   }, [quotePrefill, selectedQuoteId, setValue]);
 
@@ -507,7 +513,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const handleImportQuote = (qid: string) => {
     if (
       orderItems.length > 0 &&
-      !window.confirm("Sostituire le righe attuali con quelle del preventivo selezionato?")
+      !window.confirm(t("Sostituire le righe attuali con quelle del preventivo selezionato?"))
     ) {
       return;
     }
@@ -565,7 +571,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   // AI: applica i dati estratti dal contratto / copia commissione alla commessa.
   const applyContractExtract = (ex: ContractExtract, sourceFile?: File | null, source?: StoredContractFile | null) => {
-    if (!workflowProfilo.data) { toast.error("Configurazione aziendale non disponibile. Riprova prima di applicare il contratto."); return; }
+    if (!workflowProfilo.data) { toast.error(t("Configurazione aziendale non disponibile. Riprova prima di applicare il contratto.")); return; }
     setContractSource(source ?? null);
     setContrattoImportato(ex);
     standardApplicatoRef.current = null;
@@ -740,13 +746,13 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         if (aggancio.esito === "trovato") {
           const c = aggancio.cliente;
           setValue("customer_id", c.id);
-          toast.success(`Cliente agganciato all'anagrafica esistente: ${`${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.business_name || c.email || ""}`.trim(),
-            { description: aggancio.per === "codice" ? "Stesso codice fiscale o partita IVA." : aggancio.per === "email" ? "Stessa email." : "Stesso nome." });
+          toast.success(t("Cliente agganciato all'anagrafica esistente: {nome}", { nome: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.business_name || c.email || "" }).trim(),
+            { description: aggancio.per === "codice" ? t("Stesso codice fiscale o partita IVA.") : aggancio.per === "email" ? t("Stessa email.") : t("Stesso nome.") });
           return;
         }
         if (aggancio.esito === "ambiguo") {
           // Più clienti uguali: nessuno è scelto a caso, e non se ne crea un altro.
-          toast.warning(`${aggancio.candidati.length} clienti corrispondono a «${ex.cliente.nome_completo}»`, { description: "Scegli quello giusto dall'elenco Cliente.", duration: 10000 });
+          toast.warning(t("{n} clienti corrispondono a «{nome}»", { n: aggancio.candidati.length, nome: ex.cliente.nome_completo }), { description: t("Scegli quello giusto dall'elenco Cliente."), duration: 10000 });
           return;
         }
         setAiCustomerInitial({
@@ -921,7 +927,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setOrderItems(righeCopiate.data);
     const totale = totaleDelleRighe(righeCopiate.data);
     if (totale > 0 && !parseDecimalIT(getValues("total_amount") ?? "")) setValue("total_amount", formatDecimalIT(totale));
-    toast.success(`${righeCopiate.data.length} righe riprese`, { description: "Correggi quantità e prezzi se serve." });
+    toast.success(t("{n} righe riprese", { n: righeCopiate.data.length }), { description: t("Correggi quantità e prezzi se serve.") });
   }, [righeCopiate.data, getValues, setValue]);
 
   // Clienti appena creati dal dialog inline. La query `useCompanyCustomers` viene
@@ -1142,19 +1148,19 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       }
       if (!effectiveCompany?.id) throw new Error("Company not found");
 
-      if (contrattoImportato && !workflowProfilo.data) throw new Error("Attendi il caricamento della configurazione aziendale prima di salvare.");
+      if (contrattoImportato && !workflowProfilo.data) throw new Error(t("Attendi il caricamento della configurazione aziendale prima di salvare."));
       const values = getValues();
       const sceltaPipeline={pipelineId:values.pipeline_id,faseId:values.pipeline_id===PIPELINE_PRINCIPALE?values.status_id:values.pipeline_stage_id};
-      if (!principale && sceltaPipeline.pipelineId === PIPELINE_PRINCIPALE) throw new Error("Scegli la tipologia della commessa prima di salvare.");
+      if (!principale && sceltaPipeline.pipelineId === PIPELINE_PRINCIPALE) throw new Error(t("Scegli la tipologia della commessa prima di salvare."));
       if(sceltaPipeline.pipelineId!==PIPELINE_PRINCIPALE){
         const attuale=await richiestaPipelineLocale<{pipeline:PipelineLocale[]}>(effectiveCompany.id);
         const errore=verificaPipelineCreazione(sceltaPipeline,attuale.pipeline,statuses);
         if(errore)throw new Error(errore);
-      } else if(values.status_id && !statuses.some(s=>s.id===values.status_id))throw new Error("Lo stato iniziale non è più disponibile. Scegli uno stato dall’elenco.");
+      } else if(values.status_id && !statuses.some(s=>s.id===values.status_id))throw new Error(t("Lo stato iniziale non è più disponibile. Scegli uno stato dall’elenco."));
       if (contractSource) await verificaAnalisiPerNuovaCommessa(effectiveCompany.id, contractSource);
 
       if (options?.contractDraft) {
-        if (!pianoContratto || pianoContratto.organizzazione !== "interventi_su_ordine" || values.description.trim().length < 3) throw new Error("Importa e verifica il contratto prima di salvarlo in bozza.");
+        if (!pianoContratto || pianoContratto.organizzazione !== "interventi_su_ordine" || values.description.trim().length < 3) throw new Error(t("Importa e verifica il contratto prima di salvarlo in bozza."));
         contractDraftIdRef.current ??= crypto.randomUUID();
         const draftId = contractDraftIdRef.current;
         const {error} = await (supabase as any).from("orders").insert({id:draftId,company_id:effectiveCompany.id,created_by:user!.id,
@@ -1173,19 +1179,19 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         if (contractSource) await collegaAnalisiAllaCommessa(effectiveCompany.id, draftId, contractSource);
 
         try { await saveContractOfficeTasks(effectiveCompany.id,draftId,user!.id,pianoContratto.ufficio,officeAssignments); }
-        catch { toast.warning("Bozza salvata: verifica gli adempimenti d’ufficio nel dettaglio prima di proseguire."); }
+        catch { toast.warning(t("Bozza salvata: verifica gli adempimenti d’ufficio nel dettaglio prima di proseguire.")); }
         return {id:draftId,success:true};
       }
       if (invoiceId) {
-        if (!invoiceSource.data || isNotaCredito(invoiceSource.data.document_type)) throw new Error("Questa fattura non può generare una nuova commessa.");
+        if (!invoiceSource.data || isNotaCredito(invoiceSource.data.document_type)) throw new Error(t("Questa fattura non può generare una nuova commessa."));
         const fresh = await riconciliaEmessa(effectiveCompany.id,invoiceId);
-        if (fresh.status !== "ok" || fresh.order_id || fresh.customer_id !== values.customer_id) throw new Error("Verifica il cliente e la commessa già collegata prima di creare un nuovo lavoro.");
-        if (!cantiereAddress.trim()) throw new Error("Conferma l’indirizzo effettivo del cantiere: non viene dedotto dalla fattura.");
+        if (fresh.status !== "ok" || fresh.order_id || fresh.customer_id !== values.customer_id) throw new Error(t("Verifica il cliente e la commessa già collegata prima di creare un nuovo lavoro."));
+        if (!cantiereAddress.trim()) throw new Error(t("Conferma l’indirizzo effettivo del cantiere: non viene dedotto dalla fattura."));
       }
       const totalVal = parseDecimalIT(values.total_amount);
-      if (!values.vat_rate.trim()) throw new Error("Conferma l’IVA prima di salvare.");
-      if (contrattoImportato && !salPayment && !installments.length) throw new Error("Conferma il piano dei pagamenti prima di salvare.");
-      if (contrattoImportato && values.pipeline_id===PIPELINE_PRINCIPALE && !values.status_id) throw new Error("Conferma lo stato iniziale della commessa: la lettura del documento non prova che sia firmato.");
+      if (!values.vat_rate.trim()) throw new Error(t("Conferma l’IVA prima di salvare."));
+      if (contrattoImportato && !salPayment && !installments.length) throw new Error(t("Conferma il piano dei pagamenti prima di salvare."));
+      if (contrattoImportato && values.pipeline_id===PIPELINE_PRINCIPALE && !values.status_id) throw new Error(t("Conferma lo stato iniziale della commessa: la lettura del documento non prova che sia firmato."));
       const fiscalForSave = calcolaIvaContratto(values.total_amount, values.vat_rate, values.vat_split);
       if (fiscalForSave.error) throw new Error(fiscalForSave.error);
       if (values.vat_rate === IVA_MISTA) await verificaSupportoIvaMista();
@@ -1197,7 +1203,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       const vatValue = fiscalForSave.effectiveRate;
       const fCost = parseDecimalIT(values.financing_cost || "");
       if (values.payment_type === "financing" && fCost > 0 && !financingCostMode) {
-        throw new Error("Scegli se il costo della finanziaria è trattenuto o pagato separatamente.");
+        throw new Error(t("Scegli se il costo della finanziaria è trattenuto o pagato separatamente."));
       }
       if (financingCostMode) {
         verificaCostoSuPiano(fCost, financingCostMode, installments);
@@ -1349,7 +1355,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       saveDraft({ ...datiBozza, commessaCreataId: result.id,pipelineDaCompletare:values.pipeline_id!==PIPELINE_PRINCIPALE });
       if (contractSource) {
         try { await collegaAnalisiAllaCommessa(effectiveCompany.id, result.id, contractSource); }
-        catch (e) { toast.warning("Commessa creata: analisi da collegare", { description: e instanceof Error ? e.message : "Riprova il completamento.", duration: 12000 }); return { ...result, fasiDaVerificare: true }; }
+        catch (e) { toast.warning(t("Commessa creata: analisi da collegare"), { description: e instanceof Error ? e.message : t("Riprova il completamento."), duration: 12000 }); return { ...result, fasiDaVerificare: true }; }
       }
 
 
@@ -1365,8 +1371,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           customerId: values.customer_id || null,
         });
         if (!collegata) {
-          toast.warning("La commessa è stata creata, ma non risulta collegata al preventivo", {
-            description: "Dal preventivo potresti rivedere «Crea commessa»: controlla di non farne una seconda.",
+          toast.warning(t("La commessa è stata creata, ma non risulta collegata al preventivo"), {
+            description: t("Dal preventivo potresti rivedere «Crea commessa»: controlla di non farne una seconda."),
             duration: 12000,
           });
         }
@@ -1380,7 +1386,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         });
         if (dateErr) {
           console.warn("[CreateOrder] date delle fasi dal preventivo non scritte:", dateErr);
-          toast.warning("Fasi senza date", { description: "La commessa è stata creata: le date delle fasi si mettono dal Cantiere.", duration: 10000 });
+          toast.warning(t("Fasi senza date"), { description: t("La commessa è stata creata: le date delle fasi si mettono dal Cantiere."), duration: 10000 });
         }
       }
 
@@ -1396,7 +1402,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           // Viaggia con l'esito fino a onSuccess: la copia in coda dello stesso file non si carica una seconda volta.
           result.originaleInCommessa = originaleInCommessa;
         } catch (e) {
-          toast.warning("Commessa creata, ma l'originale del contratto non è nei documenti", { description: e instanceof Error ? e.message : String(e), duration: 12000 });
+          toast.warning(t("Commessa creata, ma l'originale del contratto non è nei documenti"), { description: e instanceof Error ? e.message : String(e), duration: 12000 });
         }
       }
       const firmaConfermata = dataFirmaVerificata(contractSource, new Date().toLocaleDateString("en-CA"));
@@ -1412,7 +1418,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           p_firmato_il: firmaConfermata,
         });
         if (erroreContratto) {
-          toast.warning("Commessa creata, ma il contratto non è stato registrato", { description: erroreContratto.message, duration: 12000 });
+          toast.warning(t("Commessa creata, ma il contratto non è stato registrato"), { description: erroreContratto.message, duration: 12000 });
         }
       }
 
@@ -1436,7 +1442,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           .eq("id", result.id);
         if (sedeErr) {
           console.warn("[CreateOrder] update sede/magazzino fallito (ordine creato comunque):", sedeErr.message);
-          toast.warning("Commessa creata, ma sede e magazzino non sono stati salvati: impostali dalla commessa.");
+          toast.warning(t("Commessa creata, ma sede e magazzino non sono stati salvati: impostali dalla commessa."));
         }
       }
 
@@ -1454,8 +1460,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         const { error: bonusErr } = await (supabase as any).from("order_bonus_lines").insert(payload);
         if (bonusErr) {
           console.warn("[CreateOrder] salvataggio ripartizione bonus fallito:", bonusErr.message);
-          toast.error("Ripartizione bonus non salvata", {
-            description: "La commessa è stata creata: riapri la scheda e reinserisci la divisione tra agevolazioni.",
+          toast.error(t("Ripartizione bonus non salvata"), {
+            description: t("La commessa è stata creata: riapri la scheda e reinserisci la divisione tra agevolazioni."),
           });
         }
       }
@@ -1471,12 +1477,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: cantErr } = await (supabase as any).from("orders").update(patch).eq("id", result.id);
-        if (cantErr) { console.warn("[CreateOrder] update indirizzo cantiere fallito (ordine creato comunque):", cantErr.message); toast.warning("Commessa creata, ma l'indirizzo del cantiere non è stato salvato: impostalo dalla commessa."); }
+        if (cantErr) { console.warn("[CreateOrder] update indirizzo cantiere fallito (ordine creato comunque):", cantErr.message); toast.warning(t("Commessa creata, ma l'indirizzo del cantiere non è stato salvato: impostalo dalla commessa.")); }
       }
 
       if (pianoContratto?.organizzazione === "interventi_su_ordine" && result.id) {
         const {error: contractKindError} = await (supabase as any).from("orders").update({workflow_kind:"contratto"}).eq("id",result.id).eq("company_id",effectiveCompany.id);
-        if(contractKindError) toast.warning("Commessa creata: usa «Organizza come contratto con interventi» nel dettaglio per completare il collegamento.");
+        if(contractKindError) toast.warning(t("Commessa creata: usa «Organizza come contratto con interventi» nel dettaglio per completare il collegamento."));
       }
       // Le fasi scelte nel modulo (o quelle di partenza dell'azienda): fasi e sottofasi in un colpo
       // solo, dal server. Come le altre scritture dopo la RPC, un errore non fa sparire la commessa.
@@ -1484,7 +1490,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         try {
           await saveContractOfficeTasks(effectiveCompany.id, result.id, user!.id, pianoContratto.ufficio, officeAssignments);
         } catch (error) {
-          toast.error("Commessa creata, adempimenti di ufficio da completare", { description: "Non creare una seconda commessa. Il riepilogo è nelle note interne: verifica le attività della commessa.", duration: 15000 });
+          toast.error(t("Commessa creata, adempimenti di ufficio da completare"), { description: t("Non creare una seconda commessa. Il riepilogo è nelle note interne: verifica le attività della commessa."), duration: 15000 });
           logger.error("Salvataggio adempimenti contratto", error);
         }
       }
@@ -1494,7 +1500,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           await salvaPianoOperativoContratto({ companyId: effectiveCompany.id, orderId: result.id, piano: pianoOperativoContratto(contrattoImportato),
             fasi: fasiColPiano(fasiDaCreare, pianoFasi), articoli: orderItems.map((a, position) => ({ ...a, position })) });
         } catch (e) {
-          toast.warning("Commessa creata: collegamenti del piano da completare", { description: e instanceof Error ? e.message : "Riprova dalla commessa già creata.", duration: 12000 });
+          toast.warning(t("Commessa creata: collegamenti del piano da completare"), { description: e instanceof Error ? e.message : t("Riprova dalla commessa già creata."), duration: 12000 });
           return { ...result, fasiDaVerificare: true };
         }
       } else if (fasiDalModello && fasiDaCreare.length && result.id) {
@@ -1504,7 +1510,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         if (fasiErr) {
           console.warn("[CreateOrder] fasi di partenza non aggiunte (ordine creato comunque):", fasiErr);
           toast.error("Fasi non aggiunte", {
-            description: "La commessa è stata creata. Verifica le fasi nel Cantiere prima di aggiungerle di nuovo.",
+            description: t("La commessa è stata creata. Verifica le fasi nel Cantiere prima di aggiungerle di nuovo."),
             duration: 15000,
           });
           return { ...result, fasiDaVerificare: true };
@@ -1518,12 +1524,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         if (sorgente) {
           try {
             const esito = await computoInCommessa(result.id, effectiveCompany!.id, user?.id, sorgente);
-            toast.success(`Computo salvato nella commessa: ${esito.lavorazioni} lavorazioni in ${esito.fasi} fasi`, {
-              description: "Con gli importi del computo. I materiali si generano dalla scheda Materiali con «Genera dal computo», senza ricaricarlo.",
+            toast.success(t("Computo salvato nella commessa: {lavorazioni} lavorazioni in {fasi} fasi", { lavorazioni: esito.lavorazioni, fasi: esito.fasi }), {
+              description: t("Con gli importi del computo. I materiali si generano dalla scheda Materiali con «Genera dal computo», senza ricaricarlo."),
               duration: 10000,
             });
           } catch (e) {
-            toast.warning("Commessa creata, computo da caricare nella scheda Computo", { description: e instanceof Error ? e.message : String(e), duration: 15000 });
+            toast.warning(t("Commessa creata, computo da caricare nella scheda Computo"), { description: e instanceof Error ? e.message : String(e), duration: 15000 });
           }
         }
       }
@@ -1538,14 +1544,14 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           queryClient.invalidateQueries({queryKey:["fatture-emesse-importate",effectiveCompany.id]});
           queryClient.invalidateQueries({queryKey:["collegamenti-emessa",effectiveCompany.id,invoiceId]});
         } catch {
-          toast.error("Commessa creata, collegamento fattura da completare", { description:"Non creare un'altra commessa. Apri il dettaglio della fattura e collega quella appena salvata.", duration:15000 });
+          toast.error(t("Commessa creata, collegamento fattura da completare"), { description:t("Non creare un'altra commessa. Apri il dettaglio della fattura e collega quella appena salvata."), duration:15000 });
         }
       }
       if (generaleDaUrl && generaleDaUrlNome) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: generaleErr } = await (supabase as any).rpc("commessa_generale_collega", { p_generale_id: generaleDaUrl, p_commesse: [order.id] });
         if (generaleErr) {
-          toast.error("Commessa creata, ma non è entrata nella commessa generale", { description: "Non crearne un'altra: aprila dalla generale con «Collega commesse».", duration: 15000 });
+          toast.error(t("Commessa creata, ma non è entrata nella commessa generale"), { description: t("Non crearne un'altra: aprila dalla generale con «Collega commesse»."), duration: 15000 });
         } else {
           queryClient.invalidateQueries({ queryKey: ["commessa-generale-riepilogo", generaleDaUrl] });
         }
@@ -1555,14 +1561,14 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           // Il cliente PA accende la sezione da sé (trigger sul database): qui solo l'interruttore a mano.
           await salvaRiferimentiPa(order.id, bozzeRiferimentiPa, [], riferimentiPaAttivi ? true : undefined);
         } catch (e) {
-          toast.error("Commessa creata, dati appalto da completare", { description: `Non creare un'altra commessa: inseriscili dalla Panoramica. ${e instanceof Error ? e.message : ""}`, duration: 15000 });
+          toast.error(t("Commessa creata, dati appalto da completare"), { description: t("Non creare un'altra commessa: inseriscili dalla Panoramica. {errore}", { errore: e instanceof Error ? e.message : "" }), duration: 15000 });
         }
       }
       let pipelineNonAssegnata=false;
       const sceltaPipeline={pipelineId:getValues("pipeline_id"),faseId:getValues("pipeline_stage_id")};
       if(sceltaPipeline.pipelineId!==PIPELINE_PRINCIPALE){
         try {await assegnaPipelineNuovaCommessa(sceltaPipeline,order.id,pipelineCommessa.assegnaFase);setPipelineDaCompletare(false);}
-        catch(error){pipelineNonAssegnata=true;setPipelineDaCompletare(true);saveDraft({...datiBozza,commessaCreataId:order.id,pipelineDaCompletare:true});toast.error("Commessa creata, assegnazione alla pipeline da completare",{description:"La commessa esiste già: usa Riprova assegnazione, senza crearne un’altra. "+(error instanceof Error?error.message:""),duration:15000});}
+        catch(error){pipelineNonAssegnata=true;setPipelineDaCompletare(true);saveDraft({...datiBozza,commessaCreataId:order.id,pipelineDaCompletare:true});toast.error(t("Commessa creata, assegnazione alla pipeline da completare"),{description:t("La commessa esiste già: usa Riprova assegnazione, senza crearne un’altra. {errore}",{errore:error instanceof Error?error.message:""}),duration:15000});}
       }
       if (!pipelineNonAssegnata) {
         if("fasiDaVerificare" in order && order.fasiDaVerificare)saveDraft({...datiBozza,commessaCreataId:order.id,pipelineDaCompletare:false});
@@ -1647,14 +1653,14 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             uploaded++;
           } catch (err) {
             logger.error("File upload error:", err);
-            toast.error("Errore caricamento", { description: `Errore nel caricare "${pf.file.name}".` });
+            toast.error(t("Errore caricamento"), { description: t("Errore nel caricare \"{nome}\".", { nome: pf.file.name }) });
           }
         }
         setPendingFiles([]);
         queryClient.invalidateQueries({ queryKey: ["order-attachments", order.id] });
-        if (!("fasiDaVerificare" in order && order.fasiDaVerificare)) toast.success("Commessa creata", { description: `${uploaded} di ${pendingFiles.length} documenti caricati.` });
+        if (!("fasiDaVerificare" in order && order.fasiDaVerificare)) toast.success(t("Commessa creata"), { description: t("{caricati} di {totale} documenti caricati.", { caricati: uploaded, totale: pendingFiles.length }) });
       } else {
-        if (!("fasiDaVerificare" in order && order.fasiDaVerificare)) toast.success("Commessa creata", { description: "La commessa è stata creata con successo." });
+        if (!("fasiDaVerificare" in order && order.fasiDaVerificare)) toast.success(t("Commessa creata"), { description: t("La commessa è stata creata con successo.") });
       }
 
       if(pipelineNonAssegnata)return;
@@ -1665,7 +1671,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         // Il computo si aggancia alla commessa appena nata e si apre l'anteprima dei materiali.
         if (computoDaCollegare.id) {
           const { error: erroreComputo } = await supabase.from("computo_uploads").update({ order_id: order.id }).eq("id", computoDaCollegare.id).is("order_id", null);
-          if (erroreComputo) toast.warning("Commessa creata, ma il computo non si è collegato", { description: "Lo ricarichi dal dettaglio della commessa." });
+          if (erroreComputo) toast.warning(t("Commessa creata, ma il computo non si è collegato"), { description: t("Lo ricarichi dal dettaglio della commessa.") });
         }
         navigate(`/azienda/ordini/${order.id}?tab=articoli&genera=1`);
         return;
@@ -1676,8 +1682,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     },
     onError: (error) => {
       if (createdOrderIdRef.current) {
-        toast.warning("Commessa creata: alcuni dettagli sono da verificare", {
-          description: "Apri la commessa già creata. Non è necessario crearne un’altra.", duration: 15000,
+        toast.warning(t("Commessa creata: alcuni dettagli sono da verificare"), {
+          description: t("Apri la commessa già creata. Non è necessario crearne un’altra."), duration: 15000,
         });
         logger.error("[CreateOrder] completamento successivo alla creazione fallito", error);
         return;
@@ -1698,43 +1704,43 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     // Enter sul form bypassa il disabled del bottone submit: guardia esplicita
     if (createOrderMutation.isPending || createdOrderIdRef.current) return;
     if (!principale && values.pipeline_id === PIPELINE_PRINCIPALE) {
-      toast.error("Scegli la tipologia della commessa prima di salvare.");
+      toast.error(t("Scegli la tipologia della commessa prima di salvare."));
       return;
     }
     if ((clientePa || riferimentiPaAttivi) && bozzeRiferimentiPa.some(bozzaHaErrori)) {
-      toast.error("Dati appalto da correggere", { description: "Un CIG, un CUP o un codice ufficio non ha il formato giusto: correggilo o svuotalo." });
+      toast.error(t("Dati appalto da correggere"), { description: t("Un CIG, un CUP o un codice ufficio non ha il formato giusto: correggilo o svuotalo.") });
       return;
     }
     if (contrattoImportato && !salPayment && !installments.length) {
-      toast.error("Pagamenti da confermare", { description: "Il contratto non dichiara un piano di rate. Definiscilo esplicitamente prima di salvare." });
+      toast.error(t("Pagamenti da confermare"), { description: t("Il contratto non dichiara un piano di rate. Definiscilo esplicitamente prima di salvare.") });
       return;
     }
     if (contrattoImportato && values.pipeline_id===PIPELINE_PRINCIPALE && !values.status_id) {
-      toast.error("Conferma lo stato iniziale",{description:"La lettura del documento non prova che sia firmato. Scegli lo stato corretto prima di salvare."});
+      toast.error(t("Conferma lo stato iniziale"),{description:t("La lettura del documento non prova che sia firmato. Scegli lo stato corretto prima di salvare.")});
       return;
     }
     const rateContrattoIncomplete = contrattoImportato && !salPayment ? contractInstallmentWarning(conSaldoFinale(installments, balance, i => !!i.amount_from_contract), totalWithVat) : null;
     if (rateContrattoIncomplete) {
-      toast.error("Pagamenti da verificare", {description:rateContrattoIncomplete});
+      toast.error(t("Pagamenti da verificare"), {description:rateContrattoIncomplete});
       return;
     }
     if (fasiDalModello && fasiDaCreare.some((fase) => !fase.nome.trim() || fase.sottofasi.some((sotto) => !sotto.nome.trim()))) {
-      toast.error("Completa i nomi delle fasi", { description: "Dai un nome a ogni fase oppure rimuovi quelle che non servono." });
+      toast.error(t("Completa i nomi delle fasi"), { description: t("Dai un nome a ogni fase oppure rimuovi quelle che non servono.") });
       return;
     }
     const totalVal = parseDecimalIT(values.total_amount);
     if (totalVal <= 0) {
-      toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
+      toast.error(t("Importo non valido"), { description: t("L'importo totale deve essere maggiore di zero.") });
       return;
     }
 
     if (invalidOrderItems.length > 0) {
-      toast.error("Articoli non validi", { description: "Verifica nome, quantità, costo d'acquisto e IVA di tutte le righe." });
+      toast.error(t("Articoli non validi"), { description: t("Verifica nome, quantità, costo d'acquisto e IVA di tutte le righe.") });
       return;
     }
 
     if (overAllocatedPayments) {
-      toast.error("Scadenze non coerenti", { description: "Acconti, finanziamento e costi finanziaria superano il totale IVA inclusa." });
+      toast.error(t("Scadenze non coerenti"), { description: t("Acconti, finanziamento e costi finanziaria superano il totale IVA inclusa.") });
       return;
     }
 
@@ -1743,7 +1749,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     now.setHours(0, 0, 0, 0);
     installments.forEach(inst => {
       if (inst.expected_date && new Date(inst.expected_date) < now) {
-        toast.info("Attenzione", { description: `La data prevista di "${inst.label}" è nel passato.` });
+        toast.info(t("Attenzione"), { description: t("La data prevista di \"{rata}\" è nel passato.", { rata: inst.label }) });
       }
     });
 
@@ -1759,7 +1765,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const onFormError = (formErrors: object) => {
     const primo = primoErroreForm(formErrors);
     if (!primo) return;
-    toast.error("Commessa non salvata", { description: `${primo.campo}: ${primo.messaggio}` });
+    toast.error(t("Commessa non salvata"), { description: `${primo.campo}: ${primo.messaggio}` });
   };
 
   const handleCustomerCreated = (newCustomerId: string, _customerName?: string, customer?: CompanyCustomer) => {
@@ -1771,7 +1777,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       setExtraCustomers((prev) =>
         prev.some((c) => c.id === newCustomerId)
           ? prev
-          : [...prev, { id: newCustomerId, first_name: _customerName ?? "Nuovo cliente", last_name: null, email: null }],
+          : [...prev, { id: newCustomerId, first_name: _customerName ?? t("Nuovo cliente"), last_name: null, email: null }],
       );
     }
     setValue("customer_id", newCustomerId, { shouldValidate: true });
@@ -1781,8 +1787,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // (non solo Scopri). Esempio: render-only / render-serramenti con max_orders=3.
   if (invoiceId && !createdOrderId) {
     if (invoiceSource.isPending) return <Skeleton className="h-48" />;
-    if (invoiceSource.isError) return <Alert variant="destructive"><AlertDescription>{invoiceSource.error instanceof Error ? invoiceSource.error.message : "Fattura non disponibile."} <Button variant="link" onClick={() => navigate("/azienda/documenti/emesse-importate")}>Torna alle fatture</Button></AlertDescription></Alert>;
-    if (invoiceSource.data?.order_id || isNotaCredito(invoiceSource.data?.document_type)) return <Alert><AlertDescription>Il documento è già collegato oppure è una nota di credito: non genera un nuovo cantiere. <Button variant="link" onClick={() => navigate(invoiceSource.data?.order_id ? `/azienda/ordini/${invoiceSource.data.order_id}` : "/azienda/documenti/emesse-importate")}>Apri collegamento</Button></AlertDescription></Alert>;
+    if (invoiceSource.isError) return <Alert variant="destructive"><AlertDescription>{invoiceSource.error instanceof Error ? invoiceSource.error.message : t("Fattura non disponibile.")} <Button variant="link" onClick={() => navigate("/azienda/documenti/emesse-importate")}>{t("Torna alle fatture")}</Button></AlertDescription></Alert>;
+    if (invoiceSource.data?.order_id || isNotaCredito(invoiceSource.data?.document_type)) return <Alert><AlertDescription>{t("Il documento è già collegato oppure è una nota di credito: non genera un nuovo cantiere.")} <Button variant="link" onClick={() => navigate(invoiceSource.data?.order_id ? `/azienda/ordini/${invoiceSource.data.order_id}` : "/azienda/documenti/emesse-importate")}>{t("Apri collegamento")}</Button></AlertDescription></Alert>;
   }
   if (!canCreateOrder && !createdOrderId) {
     return (
@@ -1794,13 +1800,14 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             <div className="text-4xl">🏗️</div>
             <div>
               <h3 className="font-semibold text-base text-gray-900 mb-1">
-                Hai raggiunto il limite di commesse attive
+                {t("Hai raggiunto il limite di commesse attive")}
               </h3>
               <p className="text-sm text-gray-600 max-w-md mx-auto leading-relaxed">
-                Il piano <strong>{currentPlan?.name ?? "corrente"}</strong> include un massimo
-                di <strong>{currentPlan?.max_orders ?? 3} commesse attive</strong> contemporaneamente.
-                Completa o archivia una commessa esistente per crearne di nuove,
-                oppure passa a un piano superiore.
+                {conElementi(t("Il piano {piano} include un massimo di {massimo} contemporaneamente."), {
+                  piano: <strong>{currentPlan?.name ?? t("corrente")}</strong>,
+                  massimo: <strong>{t("{n} commesse attive", { n: currentPlan?.max_orders ?? 3 })}</strong>,
+                })}{" "}
+                {t("Completa o archivia una commessa esistente per crearne di nuove, oppure passa a un piano superiore.")}
               </p>
             </div>
             <div className="flex items-center justify-center gap-3 flex-wrap">
@@ -1810,20 +1817,20 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                 className="gap-2 bg-[#E8521A] hover:bg-[#d44714] text-white max-md:hidden"
               >
                 <Sparkles className="h-4 w-4" />
-                Gestisci abbonamento
+                {t("Gestisci abbonamento")}
                 <ArrowRight className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
                 onClick={() => navigate("/azienda/ordini")}
               >
-                Vai alle commesse
+                {t("Vai alle commesse")}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
               {remainingOrders <= 0
-                ? "0 commesse rimanenti su questo piano"
-                : `${remainingOrders} commesse rimanenti`}
+                ? t("0 commesse rimanenti su questo piano")
+                : t("{n} commesse rimanenti", { n: remainingOrders })}
             </p>
           </div>
         )}
@@ -1834,12 +1841,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   return (
     <div className="space-y-6">
       {generaleDaUrl && generaleDaUrlNome && <GeneraleNellaNuovaCommessa generaleId={generaleDaUrl} importo={totalAmount ? parseDecimalIT(totalAmount) : null} />}
-      {invoiceId && <Alert><AlertDescription>Lavoro da fattura importata {invoiceSource.data?.invoice_number}. Conferma indirizzo cantiere e importo del contratto: il documento può essere un acconto. Nessun incasso o avanzamento viene presunto.</AlertDescription></Alert>}
+      {invoiceId && <Alert><AlertDescription>{t("Lavoro da fattura importata {numero}. Conferma indirizzo cantiere e importo del contratto: il documento può essere un acconto. Nessun incasso o avanzamento viene presunto.", { numero: invoiceSource.data?.invoice_number ?? "" })}</AlertDescription></Alert>}
       {/* Header */}
       <QuotePageHeader
         icon={<ClipboardList className="h-5 w-5" />}
-        title="Nuova Commessa"
-        subtitle={selectedQuoteId ? "Dal preventivo: rivedi righe e misure qui sotto." : undefined}
+        title={t("Nuova Commessa")}
+        subtitle={selectedQuoteId ? t("Dal preventivo: rivedi righe e misure qui sotto.") : undefined}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {/* Le due partenze più usate stanno in testa, non in un riquadro con la spiegazione (14/11/2026). */}
@@ -1856,7 +1863,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
               disabled={createOrderMutation.isPending || !!createdOrderId}
             >
               <Sparkles className="h-3.5 w-3.5 text-orange-600" />
-              Carica contratto (AI)
+              {t("Carica contratto (AI)")}
             </Button>
             {/* Lotto 1.5: lo stesso lavoro con Silvio, che legge le fonti. Il modulo classico resta qui sotto. */}
             {!createdOrderId && (
@@ -1870,7 +1877,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
               className="text-xs max-md:hidden"
             >
               <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-              Indietro
+              {t("Indietro")}
             </Button>
           </div>
         }
@@ -1879,7 +1886,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       {createdOrderId && !createOrderMutation.isPending && <Alert className="border-blue-200 bg-blue-50">
         <CheckCircle2 className="h-4 w-4 text-blue-700" />
         <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-sm text-blue-900">Questa commessa è già stata creata. Aprila per verificare o completare i dettagli.</span>
+          <span className="text-sm text-blue-900">{t("Questa commessa è già stata creata. Aprila per verificare o completare i dettagli.")}</span>
           <div className="flex flex-wrap gap-2">
           {pipelineDaCompletare && <Button type="button" size="sm" disabled={assegnazioneInCorso} onClick={async()=>{
             if(assegnazioneInCorso||!createdOrderId)return;
@@ -1890,12 +1897,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
               setPipelineDaCompletare(false);
               // Conserva il recupero della commessa e delle eventuali altre operazioni già in bozza.
               saveDraft({...datiBozza,commessaCreataId:createdOrderId,pipelineDaCompletare:false});
-              toast.success("Pipeline assegnata alla commessa esistente");
-            }catch(error){toast.error("Assegnazione non completata",{description:error instanceof Error?error.message:"Riprova o verifica la pipeline dalla bacheca."});}
+              toast.success(t("Pipeline assegnata alla commessa esistente"));
+            }catch(error){toast.error(t("Assegnazione non completata"),{description:error instanceof Error?error.message:t("Riprova o verifica la pipeline dalla bacheca.")});}
             finally{setAssegnazioneInCorso(false);}
-          }}>{assegnazioneInCorso?"Assegnazione…":"Riprova assegnazione pipeline"}</Button>}
-          <Button type="button" variant="outline" size="sm" className="h-9 bg-white text-xs" onClick={() => navigate(`/azienda/ordini/${createdOrderId}?tab=cantiere&vista_cantiere=lavorazioni`)}>Apri commessa</Button>
-          {contrattoImportato && <Button type="button" variant="outline" size="sm" className="h-9 bg-white text-xs" disabled={createOrderMutation.isPending} onClick={() => createOrderMutation.mutate({})}>Completa collegamenti</Button>}
+          }}>{assegnazioneInCorso?t("Assegnazione…"):t("Riprova assegnazione pipeline")}</Button>}
+          <Button type="button" variant="outline" size="sm" className="h-9 bg-white text-xs" onClick={() => navigate(`/azienda/ordini/${createdOrderId}?tab=cantiere&vista_cantiere=lavorazioni`)}>{t("Apri commessa")}</Button>
+          {contrattoImportato && <Button type="button" variant="outline" size="sm" className="h-9 bg-white text-xs" disabled={createOrderMutation.isPending} onClick={() => createOrderMutation.mutate({})}>{t("Completa collegamenti")}</Button>}
           </div>
 
         </AlertDescription>
@@ -1907,7 +1914,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           <AlertTriangle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-amber-900 font-medium">
-              Bozza recuperata — i dati precedenti sono stati ripristinati.
+              {t("Bozza recuperata — i dati precedenti sono stati ripristinati.")}
             </span>
             <Button
               type="button"
@@ -1917,21 +1924,21 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
               onClick={handleClearDraft}
             >
               <Trash2 className="h-3 w-3 mr-1" />
-              Cancella bozza
+              {t("Cancella bozza")}
             </Button>
           </AlertDescription>
         </Alert>
       )}
 
       <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6 md:pb-20">
-        {contrattoImportato && !workflowProfilo.data && <p role="status">{workflowProfilo.isError ? "Configurazione aziendale non disponibile: riprova prima di salvare il contratto." : "Caricamento configurazione aziendale…"}</p>}
+        {contrattoImportato && !workflowProfilo.data && <p role="status">{workflowProfilo.isError ? t("Configurazione aziendale non disponibile: riprova prima di salvare il contratto.") : t("Caricamento configurazione aziendale…")}</p>}
         {pianoContratto && <ContractPreparationCard piano={pianoContratto} confermati={{ cliente: !!customerId, importo: total > 0, iva: !!vatRate?.trim(), rate: installments.length > 0 }} nascondi={["cliente", "importo", "iva", "rate"]} />}
-        {pianoContratto?.organizzazione === "interventi_su_ordine" && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm"><p>Puoi salvare il contratto in bozza e completare cliente, quota economica, IVA e pagamenti dopo la conferma. La bozza non genera ricavi o rate.</p><Button type="button" className="mt-3" variant="outline" disabled={createOrderMutation.isPending || !!createdOrderId} onClick={()=>createOrderMutation.mutate({contractDraft:true})}>Salva bozza del contratto da verificare</Button></div>}
+        {pianoContratto?.organizzazione === "interventi_su_ordine" && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm"><p>{t("Puoi salvare il contratto in bozza e completare cliente, quota economica, IVA e pagamenti dopo la conferma. La bozza non genera ricavi o rate.")}</p><Button type="button" className="mt-3" variant="outline" disabled={createOrderMutation.isPending || !!createdOrderId} onClick={()=>createOrderMutation.mutate({contractDraft:true})}>{t("Salva bozza del contratto da verificare")}</Button></div>}
         {pianoContratto?.ufficio.length ? <ContractOfficeAssignments companyId={effectiveCompany?.id} steps={pianoContratto.ufficio} value={officeAssignments} onChange={setOfficeAssignments} /> : null}
         <fieldset disabled={createOrderMutation.isPending || !!createdOrderId} className="min-w-0 space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Main Form */}
-          <QuoteCard title="Dettagli Commessa" icon={<ClipboardList className="h-4 w-4" />}>
+          <QuoteCard title={t("Dettagli Commessa")} icon={<ClipboardList className="h-4 w-4" />}>
             <div className="space-y-4">
               {/* Order Code */}
               <Controller
@@ -1939,11 +1946,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                 name="order_code"
                 render={({ field }) => (
                   <div className="space-y-2">
-                    <Label htmlFor="orderCode">Codice Commessa</Label>
+                    <Label htmlFor="orderCode">{t("Codice Commessa")}</Label>
                     <Input
                       id="orderCode"
                       {...field}
-                      placeholder={suggestedOrderCode || "es. O-0001"}
+                      placeholder={suggestedOrderCode || t("es. O-0001")}
                       maxLength={50}
                     />
                   </div>
@@ -1952,7 +1959,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
               {/* Customer with inline creation */}
               <div className="space-y-2">
-                <Label htmlFor="customer">Cliente *</Label>
+                <Label htmlFor="customer">{t("Cliente *")}</Label>
                 <div className="flex gap-2">
                   <Controller
                     control={control}
@@ -1980,7 +1987,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                     variant="outline"
                     size="icon"
                     onClick={() => { setNuovoDaRicerca(undefined); setShowCreateCustomer(true); }}
-                    title="Nuovo cliente"
+                    title={t("Nuovo cliente")}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -1995,16 +2002,17 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                     committente puo' anche comprarti qualcosa), ma si dice. */}
                 {idCommittenti.has(customerId || "") && (
                   <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-900">
-                    Questo è un <strong>committente</strong>: un'impresa che ti passa lavori. Se il
-                    lavoro te lo passa lui, aprilo come{" "}
-                    <Link
-                      to={`/azienda/ordini/nuovo-lavoro-appaltatore?committente=${customerId}`}
-                      className="font-medium underline underline-offset-2"
-                    >
-                      lavoro in appalto
-                    </Link>
-                    : avrà il suo listino, il rendiconto e la fattura col loro numero d'ordine.
-                    Da qui nasce una commessa normale, senza niente di tutto questo.
+                    {conElementi(t("Questo è un {committente}: un'impresa che ti passa lavori. Se il lavoro te lo passa lui, aprilo come {link}: avrà il suo listino, il rendiconto e la fattura col loro numero d'ordine. Da qui nasce una commessa normale, senza niente di tutto questo."), {
+                      committente: <strong>{t("committente")}</strong>,
+                      link: (
+                        <Link
+                          to={`/azienda/ordini/nuovo-lavoro-appaltatore?committente=${customerId}`}
+                          className="font-medium underline underline-offset-2"
+                        >
+                          {t("lavoro in appalto")}
+                        </Link>
+                      ),
+                    })}
                   </div>
                 )}
               </div>
@@ -2012,8 +2020,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
               {/* Indirizzo cantiere (luogo dei lavori) — precompilato dal cliente */}
               <div className="space-y-2">
                 <AddressAutocomplete
-                  label="Indirizzo cantiere / luogo dei lavori"
-                  searchPlaceholder="Cerca via, civico o città..."
+                  label={t("Indirizzo cantiere / luogo dei lavori")}
+                  searchPlaceholder={t("Cerca via, civico o città...")}
                   editableSearch
                   disabled={createOrderMutation.isPending}
                   value={cantiereAddressData ?? indirizzoCantiereDaTesto(cantiereAddress)}
@@ -2032,11 +2040,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                 name="description"
                 render={({ field }) => (
                   <div className="space-y-2">
-                    <Label htmlFor="description">Descrizione Lavoro *</Label>
+                    <Label htmlFor="description">{t("Descrizione Lavoro *")}</Label>
                     <Textarea
                       id="description"
                       {...field}
-                      placeholder="Descrivi il lavoro da eseguire..."
+                      placeholder={t("Descrivi il lavoro da eseguire...")}
                       rows={4}
                       maxLength={1000}
                     />
@@ -2074,11 +2082,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                 name="internal_notes"
                 render={({ field }) => (
                   <div className="space-y-2">
-                    <Label htmlFor="notes">Note Interne</Label>
+                    <Label htmlFor="notes">{t("Note Interne")}</Label>
                     <Textarea
                       id="notes"
                       {...field}
-                      placeholder="Note visibili solo all'azienda..."
+                      placeholder={t("Note visibili solo all'azienda...")}
                       rows={3}
                       maxLength={20000}
                     />
@@ -2097,8 +2105,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
               <details className="group" open={altriDettagliAperti} onToggle={(e) => setAltriDettagliAperti(e.currentTarget.open)}>
                 <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-slate-700 [&::-webkit-details-marker]:hidden">
                   <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
-                  Altri dettagli
-                  <span className="text-xs font-normal text-muted-foreground">venditore, magazzino, sede</span>
+                  {t("Altri dettagli")}
+                  <span className="text-xs font-normal text-muted-foreground">{t("venditore, magazzino, sede")}</span>
                 </summary>
                 <div className="mt-3 space-y-4">
               {/* Salesperson Select */}
@@ -2116,20 +2124,20 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
               {/* Magazzino destinazione materiali */}
               <div className="space-y-2">
-                <Label>Magazzino Destinazione Materiali</Label>
+                <Label>{t("Magazzino Destinazione Materiali")}</Label>
                 <WarehouseSelect
                   value={destinationWarehouseId}
                   onChange={(id) => setValue("destination_warehouse_id", id)}
                   nullable
-                  placeholder="Magazzino predefinito"
+                  placeholder={t("Magazzino predefinito")}
                 />
               </div>
 
               {/* v8.6.42 — Sede operativa (showroom/magazzino/ufficio) per
                   analytics disaggregati su cruscotto e marginalità. */}
               <SedeSelect
-                label="Sede operativa"
-                placeholder="Sede operativa (opzionale)"
+                label={t("Sede operativa")}
+                placeholder={t("Sede operativa (opzionale)")}
                 value={sedeId}
                 onChange={(id) => setValue("sede_id", id)}
                 className="space-y-2"
@@ -2155,7 +2163,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             azioniTestata={
               <Button type="button" variant="outline" size="sm" onClick={() => setScegliPiano(true)}>
                 <Banknote className="mr-1.5 h-4 w-4" />
-                {installments.length > 0 ? "Cambia come si paga" : "Come si paga"}
+                {installments.length > 0 ? t("Cambia come si paga") : t("Come si paga")}
               </Button>
             }
             daContratto={!!contrattoImportato}
@@ -2187,7 +2195,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
               setInstallments((prev) => ricalcolaRatePercentuali(prev, calcolaIvaContratto(val, getValues("vat_rate"), getValues("vat_split")).gross));
             }}
             notaIva={ivaDaAbitudine && aliquotaProposta && vatRate === String(aliquotaProposta.aliquota)
-              ? `Usata in ${aliquotaProposta.commesse} delle ultime ${aliquotaProposta.totale} commesse.`
+              ? t("Usata in {commesse} delle ultime {totale} commesse.", { commesse: aliquotaProposta.commesse, totale: aliquotaProposta.totale })
               : undefined}
             onVatRateChange={(val) => {
               ivaToccataRef.current = true;
@@ -2222,7 +2230,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         />
 
         <QuoteCard
-          title="Pianificazione lavori"
+          title={t("Pianificazione lavori")}
           icon={<CalendarIcon className="h-4 w-4" />}
         >
           <div className="grid gap-5 lg:grid-cols-2 lg:gap-6">
@@ -2242,12 +2250,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         </QuoteCard>
 
         {/* Order Items */}
-        {quotePrefill && quotePrefill.workLines.length > 0 && <div className="mb-4 rounded-lg border bg-muted/20 p-4 text-sm"><strong>{quotePrefill.workLines.length} lavorazioni dal preventivo</strong><p className="mt-1 text-muted-foreground">Verranno create come fasi in Cantiere{inizioLavori ? ", una dopo l'altra dall'inizio dei lavori" : ""}. Qui sotto trovi soltanto i materiali; il totale contrattuale resta quello del preventivo.</p><ul className="mt-2 list-inside list-disc">{quotePrefill.workLines.map((r,i)=><li key={i}>{r.name}</li>)}</ul></div>}
+        {quotePrefill && quotePrefill.workLines.length > 0 && <div className="mb-4 rounded-lg border bg-muted/20 p-4 text-sm"><strong>{t("{n} lavorazioni dal preventivo", { n: quotePrefill.workLines.length })}</strong><p className="mt-1 text-muted-foreground">{inizioLavori ? t("Verranno create come fasi in Cantiere, una dopo l'altra dall'inizio dei lavori. Qui sotto trovi soltanto i materiali; il totale contrattuale resta quello del preventivo.") : t("Verranno create come fasi in Cantiere. Qui sotto trovi soltanto i materiali; il totale contrattuale resta quello del preventivo.")}</p><ul className="mt-2 list-inside list-disc">{quotePrefill.workLines.map((r,i)=><li key={i}>{r.name}</li>)}</ul></div>}
         {computoDaCollegare ? (
           <p className="mb-3 flex items-center justify-between gap-2 rounded-md border border-violet-200 bg-violet-50/60 px-3 py-2 text-sm">
             <span className="min-w-0"><Sparkles className="mr-1.5 inline h-3.5 w-3.5 text-violet-700" aria-hidden />
-              Materiali da ordinare dal {computoDaCollegare.nome}: appena la commessa è creata li genero, fase per fase, e l'AI propone quelli delle voci che le regole non riconoscono. Li rivedi prima di salvarli.</span>
-            <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => { materialiAITolti.current = true; setComputoDaCollegare(null); }}>Togli</Button>
+              {t("Materiali da ordinare dal {nome}: appena la commessa è creata li genero, fase per fase, e l'AI propone quelli delle voci che le regole non riconoscono. Li rivedi prima di salvarli.", { nome: computoDaCollegare.nome })}</span>
+            <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => { materialiAITolti.current = true; setComputoDaCollegare(null); }}>{t("Togli")}</Button>
           </p>
         ) : null}
         <OrderItemsList
@@ -2262,10 +2270,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           ) : undefined}
           altreFonti={
             <>
-              <span className="text-xs text-muted-foreground">Oppure</span>
+              <span className="text-xs text-muted-foreground">{t("Oppure")}</span>
               <PulsanteMaterialiAI quoteNumber={quotePrefill?.quoteNumber} conComputo={!!quotePrefill?.computoDraftId} onScegli={setComputoDaCollegare} />
               <PulsanteDalComputo companyId={effectiveCompany?.id} onScegli={setComputoDaCollegare} />
-              <PulsanteCreaConSilvio size="sm" variant="outline" etichetta="Chiedi a Silvio" iniziale={selectedQuoteId ? { tipo: "preventivo", id: selectedQuoteId } : null} />
+              <PulsanteCreaConSilvio size="sm" variant="outline" etichetta={t("Chiedi a Silvio")} iniziale={selectedQuoteId ? { tipo: "preventivo", id: selectedQuoteId } : null} />
             </>
           }
         />
@@ -2285,7 +2293,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           onCancel={() => navigate("/azienda/ordini")}
           onOpenCreated={() => navigate(`/azienda/ordini/${createdOrderId}`)}
           checks={completionChecks}
-          totale={total > 0 ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(total * (1 + vat / 100)) : undefined}
+          totale={total > 0 ? new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(total * (1 + vat / 100)) : undefined}
         />
       </form>
 
@@ -2330,8 +2338,9 @@ function CreateOrderConPartenza() {
 
 export default function CreateOrder() {
   const {effectiveCompany}=useAuth();
+  const t = useT();
   return (
-    <ErrorBoundary title="Errore nella creazione commessa">
+    <ErrorBoundary title={t("Errore nella creazione commessa")}>
       <CreateOrderConPartenza key={effectiveCompany?.id} />
     </ErrorBoundary>
   );

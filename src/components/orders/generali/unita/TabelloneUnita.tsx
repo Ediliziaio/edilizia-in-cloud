@@ -5,6 +5,7 @@ import { NOMI_STATO, raggruppaTabellone, prezzoCorrente, type UnitaGenerale } fr
 import { formattaNumero } from "@/lib/orders/generali/unitaConti";
 import { STILE_STATO, euroBreve } from "@/components/orders/generali/unita/aspetto";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   unita: UnitaGenerale[];
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function TabelloneUnita({ unita, vedeImporti, onApri, telefono }: Props) {
+  const t = useT();
   const edifici = raggruppaTabellone(unita);
   const conEdifici = edifici.some((e) => e.edificio !== null);
   return (
@@ -23,8 +25,8 @@ export function TabelloneUnita({ unita, vedeImporti, onApri, telefono }: Props) 
         // Un solo piano non indicato: niente etichetta del piano, solo le caselle.
         const conPiani = e.piani.length > 1 || e.piani[0]?.piano !== null;
         return (
-          <section key={e.edificio ?? "-"} aria-label={e.edificio ? `Edificio ${e.edificio}` : "Unità"} className="space-y-2">
-            {conEdifici && <h3 className="text-sm font-semibold">{e.edificio ?? "Senza edificio"}</h3>}
+          <section key={e.edificio ?? "-"} aria-label={e.edificio ? t("Edificio {nome}", { nome: e.edificio }) : t("Unità")} className="space-y-2">
+            {conEdifici && <h3 className="text-sm font-semibold" dir="auto">{e.edificio ?? t("Senza edificio")}</h3>}
             <div className={cn(telefono ? "space-y-2" : "space-y-1.5")}>
               {e.piani.map((p) => (
                 <div key={p.piano ?? "-"} className={cn(!telefono && "flex items-start gap-3")}>
@@ -49,13 +51,14 @@ export function TabelloneUnita({ unita, vedeImporti, onApri, telefono }: Props) 
 }
 
 function Casella({ u, vedeImporti, telefono, onApri }: { u: UnitaGenerale; vedeImporti: boolean; telefono: boolean; onApri: (id: string) => void }) {
+  const t = useT();
   const prezzo = vedeImporti ? prezzoCorrente(u) : null;
   const dettagli = [u.tipologia, u.mq !== null ? `${formattaNumero(u.mq)} m²` : null].filter(Boolean).join(" · ");
   return (
     <button
       type="button"
       onClick={() => onApri(u.orderId)}
-      aria-label={`${u.sigla}, ${NOMI_STATO[u.stato].una}${u.acquirente ? `, ${u.acquirente}` : ""}`}
+      aria-label={`${u.sigla}, ${t(NOMI_STATO[u.stato].una)}${u.acquirente ? `, ${u.acquirente}` : ""}`}
       className={cn(
         "tap-compact flex w-full flex-col items-start rounded-md border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         STILE_STATO[u.stato].casella,
@@ -63,7 +66,7 @@ function Casella({ u, vedeImporti, telefono, onApri }: { u: UnitaGenerale; vedeI
       )}
     >
       <span className="w-full truncate text-sm font-semibold leading-tight">{u.sigla}</span>
-      {!telefono && <span className="w-full truncate text-[11px] leading-tight opacity-80">{dettagli || NOMI_STATO[u.stato].una}</span>}
+      {!telefono && <span className="w-full truncate text-[11px] leading-tight opacity-80">{dettagli || t(NOMI_STATO[u.stato].una)}</span>}
       <span className="mt-auto w-full truncate text-[11px] leading-tight tabular-nums opacity-90">
         {telefono ? euroBreve(prezzo) : u.stato !== "libera" && u.acquirente ? u.acquirente : euroBreve(prezzo)}
       </span>

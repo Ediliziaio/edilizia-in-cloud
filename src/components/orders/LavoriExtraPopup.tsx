@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { OdVSection } from "./OdVSection";
 import type { VariationContext } from "./VariationEditor";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function LavoriExtraPopup({ orderId, companyId, context, onOpenDocuments, className }: {
   orderId: string;
@@ -17,18 +18,19 @@ export function LavoriExtraPopup({ orderId, companyId, context, onOpenDocuments,
   onOpenDocuments?: () => void;
   className?: string;
 }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   return (
     <>
       <Button size="sm" variant="outline" className={className ?? "min-h-9 font-semibold"} onClick={() => setAperto(true)}>
-        <GitBranch className="mr-1 h-4 w-4" />Lavori extra
+        <GitBranch className="mr-1 h-4 w-4" />{t("Lavori extra")}
       </Button>
       <Dialog open={aperto} onOpenChange={setAperto}>
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-5xl">
           <DialogHeader>
-            <DialogTitle>Lavori extra e varianti</DialogTitle>
+            <DialogTitle>{t("Lavori extra e varianti")}</DialogTitle>
             <DialogDescription>
-              Prepari il lavoro extra, lo mandi al cliente da firmare; quando lo accetta diventa una fase delle Lavorazioni, con le sue sottofasi, e il contratto della commessa sale dell'importo.
+              {t("Prepari il lavoro extra, lo mandi al cliente da firmare; quando lo accetta diventa una fase delle Lavorazioni, con le sue sottofasi, e il contratto della commessa sale dell'importo.")}
             </DialogDescription>
           </DialogHeader>
           {aperto && <OdVSection key={orderId} orderId={orderId} companyId={companyId} context={context} onOpenDocuments={onOpenDocuments ? () => { setAperto(false); onOpenDocuments(); } : undefined} />}

@@ -32,6 +32,7 @@ import { nomeVersionePiano, type VersionePiano } from "@/lib/orders/generali/pia
 import { TIPO_XLSX } from "@/lib/orders/generali/rendicontoExcel";
 import { cn } from "@/lib/utils";
 import { logger } from "@/utils/logger";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 let moduloPdf: Promise<{
   pdf: typeof import("@react-pdf/renderer").pdf;
@@ -65,11 +66,12 @@ function scarica(blob: Blob, nome: string) {
 
 /** Il bottone della testata. Da telefono apre solo lo storico. */
 export function BottoneRendiconto({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
   return (
     <div className="ml-auto">
       <Button variant="outline" size="sm" onClick={() => setAperto(true)}>
-        <FileText className="mr-1.5 h-3.5 w-3.5" /> Rendiconto
+        <FileText className="mr-1.5 h-3.5 w-3.5" /> {t("Rendiconto")}
       </Button>
       <Dialog open={aperto} onOpenChange={setAperto}>
         <DialogContent ampiezza="spazio" className="flex max-h-[94vh] max-w-6xl flex-col overflow-hidden">
@@ -81,13 +83,14 @@ export function BottoneRendiconto({ riepilogo }: { riepilogo: RiepilogoGenerale 
 }
 
 function Contenuto({ riepilogo, onChiudi }: { riepilogo: RiepilogoGenerale; onChiudi: () => void }) {
+  const t = useT();
   const isMobile = useIsMobile();
   if (isMobile) {
     return (
       <>
         <DialogHeader>
-          <DialogTitle>Storico dei rendiconti</DialogTitle>
-          <DialogDescription>Da telefono puoi riscaricare quelli già fatti, inviati o scaricati. Per prepararne uno nuovo usa un tablet o un computer.</DialogDescription>
+          <DialogTitle>{t("Storico dei rendiconti")}</DialogTitle>
+          <DialogDescription>{t("Da telefono puoi riscaricare quelli già fatti, inviati o scaricati. Per prepararne uno nuovo usa un tablet o un computer.")}</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto"><StoricoDossier generaleId={riepilogo.generale.id} /></div>
       </>
@@ -96,11 +99,11 @@ function Contenuto({ riepilogo, onChiudi }: { riepilogo: RiepilogoGenerale; onCh
   return (
     <Tabs defaultValue="prepara" className="flex min-h-0 flex-1 flex-col">
       <DialogHeader className="space-y-2">
-        <DialogTitle>Rendiconto di «{riepilogo.generale.nome}»</DialogTitle>
-        <DialogDescription>Un dossier unico per banca, soci o commercialista. Parte solo quando premi «Invia».</DialogDescription>
+        <DialogTitle dir="auto">{t("Rendiconto di «{nome}»", { nome: riepilogo.generale.nome })}</DialogTitle>
+        <DialogDescription>{t("Un dossier unico per banca, soci o commercialista. Parte solo quando premi «Invia».")}</DialogDescription>
         <TabsList className="w-fit">
-          <TabsTrigger value="prepara">Prepara</TabsTrigger>
-          <TabsTrigger value="storico">Storico</TabsTrigger>
+          <TabsTrigger value="prepara">{t("Prepara")}</TabsTrigger>
+          <TabsTrigger value="storico">{t("Storico")}</TabsTrigger>
         </TabsList>
       </DialogHeader>
       <TabsContent value="prepara" className="mt-3 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
@@ -130,6 +133,7 @@ const oggi = () => {
 };
 
 function Prepara({ riepilogo, onChiudi }: { riepilogo: RiepilogoGenerale; onChiudi: () => void }) {
+  const t = useT();
   // null = la versione del piano che la scheda guarda di solito (l'approvata, se c'è).
   const [versioneId, setVersioneId] = useState<string | null>(null);
   const { input, isLoading, versioni, versionePiano } = useDatiDossier(riepilogo, { versioneId });
@@ -145,7 +149,7 @@ function Prepara({ riepilogo, onChiudi }: { riepilogo: RiepilogoGenerale; onChiu
   if (!input || (!pronto && (isLoading || fotoQ.isLoading))) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Raccolgo i numeri dei moduli…
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("Raccolgo i numeri dei moduli…")}
       </div>
     );
   }
@@ -170,6 +174,7 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
   caricoNumeri: boolean;
   scegliVersione: (id: string) => void;
 }) {
+  const t = useT();
   const permissions = usePermissions();
   const puoInviare = !!permissions.canEditOrders;
   const invia = useInviaDossier(riepilogo.generale.id);
@@ -214,12 +219,12 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
       const blob = await pdf(<Doc d={dati} />).toBlob();
       if (giro !== ultimo.current) return;
       if (scelteFoto.length > foto.length && s.sezioni.includes("foto")) {
-        toast.warning(`${scelteFoto.length - foto.length} foto non si sono scaricate e restano fuori dal dossier.`);
+        toast.warning(t("{n} foto non si sono scaricate e restano fuori dal dossier.", { n: scelteFoto.length - foto.length }));
       }
       setAnteprima({ scelte: JSON.stringify(s), dati, blob, url: URL.createObjectURL(blob) });
     } catch (e) {
       logger.error("RendicontoGenerale", e);
-      if (giro === ultimo.current) setErrore("Non sono riuscito a preparare il PDF. Riprova.");
+      if (giro === ultimo.current) setErrore(t("Non sono riuscito a preparare il PDF. Riprova."));
     } finally {
       if (giro === ultimo.current) setPreparo(false);
     }
@@ -280,14 +285,14 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
       scarica(await creaExcel(anteprima.dati), nomeFileDossier(anteprima.dati, "xlsx"));
     } catch (e) {
       logger.error("RendicontoGenerale excel", e);
-      toast.error("Non sono riuscito a preparare l'Excel. Riprova.");
+      toast.error(t("Non sono riuscito a preparare l'Excel. Riprova."));
     }
   };
 
   /** Salva i PDF scaricati nello storico (stato «scaricato»), a chi può modificare la commessa. */
   const archiviaFile = async (files: { blob: Blob; dati: DatiDossier }[]) => {
     if (!puoInviare) {
-      toast.success(files.length > 1 ? `${files.length} PDF scaricati` : "PDF scaricato");
+      toast.success(files.length > 1 ? t("{n} PDF scaricati", { n: files.length }) : t("PDF scaricato"));
       return;
     }
     const esiti = await Promise.allSettled(files.map(({ blob, dati: d }) => archivia.mutateAsync({
@@ -297,8 +302,8 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
       numeri: { ...d, foto: d.foto.map((f) => ({ didascalia: f.didascalia, data: f.data })) },
     })));
     const salvati = esiti.filter((e) => e.status === "fulfilled").length;
-    if (salvati === files.length) toast.success(`${files.length > 1 ? `${files.length} PDF scaricati` : "PDF scaricato"} e salvati nello storico`);
-    else toast.warning("Scaricato, ma non salvato nello storico", { description: "Il file è sul tuo computer; riprova più tardi per averlo anche nello storico." });
+    if (salvati === files.length) toast.success(files.length > 1 ? t("{n} PDF scaricati e salvati nello storico", { n: files.length }) : t("PDF scaricato e salvati nello storico"));
+    else toast.warning(t("Scaricato, ma non salvato nello storico"), { description: t("Il file è sul tuo computer; riprova più tardi per averlo anche nello storico.") });
   };
 
   const scaricaPdf = async () => {
@@ -332,7 +337,7 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
       await archiviaFile(files);
     } catch (e) {
       logger.error("RendicontoGenerale modelli", e);
-      toast.error("Non sono riuscito a preparare i PDF. Riprova.");
+      toast.error(t("Non sono riuscito a preparare i PDF. Riprova."));
     } finally {
       setScarico(false);
     }
@@ -346,7 +351,7 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
       try {
         excel = { filename: nomeFileDossier(d, "xlsx"), dati: await creaExcel(d) };
       } catch {
-        toast.error("Non sono riuscito a preparare l'Excel: niente è partito.");
+        toast.error(t("Non sono riuscito a preparare l'Excel: niente è partito."));
         return;
       }
     }
@@ -361,11 +366,11 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
       {
         onSuccess: (r) => {
           const falliti = r?.esiti?.filter((e) => !e.ok) ?? [];
-          if (falliti.length > 0) toast.warning(`Inviato, ma non a ${falliti.map((e) => e.a).join(", ")}`, { description: "Lo trovi nella scheda «Inviati»." });
-          else toast.success(`Rendiconto inviato a ${indirizzi.validi.join(", ")}`);
+          if (falliti.length > 0) toast.warning(t("Inviato, ma non a {destinatari}", { destinatari: falliti.map((e) => e.a).join(", ") }), { description: t("Lo trovi nella scheda «Inviati».") });
+          else toast.success(t("Rendiconto inviato a {destinatari}", { destinatari: indirizzi.validi.join(", ") }));
           onChiudi();
         },
-        onError: (e) => toast.error("Rendiconto non inviato", { description: e instanceof Error ? e.message : "Riprova tra poco." }),
+        onError: (e) => toast.error(t("Rendiconto non inviato"), { description: e instanceof Error ? e.message : t("Riprova tra poco.") }),
       },
     );
   };
@@ -375,7 +380,7 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
       <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto lg:grid-cols-[22rem_minmax(0,1fr)]">
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); prepara(scelte); }}>
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Per chi è</legend>
+            <legend className="text-sm font-medium">{t("Per chi è")}</legend>
             <div className="grid grid-cols-3 gap-2">
               {MODELLI_DOSSIER_ORDINE.map((m) => (
                 <button
@@ -385,17 +390,17 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
                   onClick={() => scegliModello(m)}
                   className={cn("rounded-md border px-2 py-2 text-sm transition-colors", scelte.modello === m ? "border-primary bg-primary/10 font-medium" : "hover:bg-muted")}
                 >
-                  {MODELLI_DOSSIER[m].nome}
+                  {t(MODELLI_DOSSIER[m].nome)}
                 </button>
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              {scelte.modello === "personalizzato" ? "Su misura: hai cambiato le sezioni a mano." : MODELLI_DOSSIER[scelte.modello].aiuto}
+              {scelte.modello === "personalizzato" ? t("Su misura: hai cambiato le sezioni a mano.") : t(MODELLI_DOSSIER[scelte.modello].aiuto)}
             </p>
           </fieldset>
 
           <fieldset className="space-y-1.5">
-            <legend className="mb-1 text-sm font-medium">Cosa entra <span className="font-normal text-muted-foreground">(la copertina c'è sempre)</span></legend>
+            <legend className="mb-1 text-sm font-medium">{t("Cosa entra")} <span className="font-normal text-muted-foreground">{t("(la copertina c'è sempre)")}</span></legend>
             {disponibili.map((d) => (
               <div key={d.sezione} className="flex items-start gap-2">
                 <Checkbox
@@ -406,8 +411,8 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
                   className="mt-0.5"
                 />
                 <Label htmlFor={`dossier-${d.sezione}`} className={cn("text-sm font-normal leading-tight", !d.disponibile && "text-muted-foreground")}>
-                  {NOMI_SEZIONE[d.sezione].nome}
-                  <span className="block text-xs text-muted-foreground">{d.motivo ?? NOMI_SEZIONE[d.sezione].aiuto}</span>
+                  {t(NOMI_SEZIONE[d.sezione].nome)}
+                  <span className="block text-xs text-muted-foreground">{t(d.motivo ?? NOMI_SEZIONE[d.sezione].aiuto)}</span>
                 </Label>
               </div>
             ))}
@@ -415,36 +420,36 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
 
           {versioni.length > 1 && scelte.sezioni.some((x) => x === "piano" || x === "cassa" || x === "andamento" || x === "fonti" || x === "investitori") && (
             <div className="space-y-1.5">
-              <Label htmlFor="dossier-versione" className="text-sm font-medium">Versione del piano</Label>
+              <Label htmlFor="dossier-versione" className="text-sm font-medium">{t("Versione del piano")}</Label>
               <Select value={versionePiano?.id ?? ""} onValueChange={cambiaVersione}>
-                <SelectTrigger id="dossier-versione" className="h-8 text-sm"><SelectValue placeholder="Scegli la versione" /></SelectTrigger>
+                <SelectTrigger id="dossier-versione" className="h-8 text-sm"><SelectValue placeholder={t("Scegli la versione")} /></SelectTrigger>
                 <SelectContent>
                   {versioni.map((v) => <SelectItem key={v.id} value={v.id}>{nomeVersionePiano(v)}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">I numeri del piano, della cassa e degli investitori vengono da questa versione.</p>
+              <p className="text-xs text-muted-foreground">{t("I numeri del piano, della cassa e degli investitori vengono da questa versione.")}</p>
             </div>
           )}
 
           <fieldset className="grid grid-cols-2 gap-2">
-            <legend className="mb-1 text-sm font-medium">Periodo</legend>
+            <legend className="mb-1 text-sm font-medium">{t("Periodo")}</legend>
             <div className="space-y-1">
-              <Label htmlFor="dossier-dal" className="text-xs">Dal</Label>
+              <Label htmlFor="dossier-dal" className="text-xs">{t("Dal")}</Label>
               <Input id="dossier-dal" type="date" className="text-sm" value={scelte.dal} onChange={(e) => cambia({ dal: e.target.value })} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="dossier-al" className="text-xs">Al</Label>
+              <Label htmlFor="dossier-al" className="text-xs">{t("Al")}</Label>
               <Input id="dossier-al" type="date" className="text-sm" value={scelte.al} onChange={(e) => cambia({ al: e.target.value })} />
             </div>
             <p className="col-span-2 text-xs text-muted-foreground">
-              {periodoSbagliato ? <span className="text-destructive">La data di inizio viene dopo quella di fine.</span> : "Vale per foto e andamento; gli altri numeri sono a oggi."}
+              {periodoSbagliato ? <span className="text-destructive">{t("La data di inizio viene dopo quella di fine.")}</span> : t("Vale per foto e andamento; gli altri numeri sono a oggi.")}
             </p>
           </fieldset>
 
           {scelte.sezioni.includes("foto") && candidate.length > 0 && (
             <fieldset className="space-y-1.5">
-              <legend className="text-sm font-medium">Foto <span className="font-normal text-muted-foreground">({scelte.foto.length} scelte)</span></legend>
-              <p className="text-xs text-muted-foreground">Guardale prima di mandarle: una foto può mostrare un difetto o un incidente.</p>
+              <legend className="text-sm font-medium">{t("Foto")} <span className="font-normal text-muted-foreground">{t("({n} scelte)", { n: scelte.foto.length })}</span></legend>
+              <p className="text-xs text-muted-foreground">{t("Guardale prima di mandarle: una foto può mostrare un difetto o un incidente.")}</p>
               <div className="grid grid-cols-4 gap-1.5">
                 {candidate.map((f) => {
                   const scelta = scelte.foto.includes(f.id);
@@ -467,51 +472,51 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
           )}
 
           <div className="space-y-1.5">
-              <Label htmlFor="dossier-note">Note del titolare <span className="font-normal text-muted-foreground">(facoltative)</span></Label>
+              <Label htmlFor="dossier-note">{t("Note del titolare")} <span className="font-normal text-muted-foreground">{t("(facoltative)")}</span></Label>
               <Textarea id="dossier-note" rows={4} className="text-sm" value={scelte.note} maxLength={3000}
                 onChange={(e) => cambia({ note: e.target.value, sezioni: e.target.value.trim() && !scelte.sezioni.includes("note") ? SEZIONI_DOSSIER.filter((x) => x === "note" || scelte.sezioni.includes(x)) : scelte.sezioni })} />
           </div>
 
           <Button type="submit" variant={daAggiornare ? "default" : "outline"} size="sm" disabled={preparo || periodoSbagliato || scelte.sezioni.length === 0} className="w-full">
             {preparo ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
-            {anteprima ? "Aggiorna l'anteprima" : "Prepara l'anteprima"}
+            {anteprima ? t("Aggiorna l'anteprima") : t("Prepara l'anteprima")}
           </Button>
-          {anteprima && daAggiornare && !preparo && <p className="text-xs text-amber-700 dark:text-amber-400">Hai cambiato le scelte: aggiorna l'anteprima prima di scaricare o inviare.</p>}
+          {anteprima && daAggiornare && !preparo && <p className="text-xs text-amber-700 dark:text-amber-400">{t("Hai cambiato le scelte: aggiorna l'anteprima prima di scaricare o inviare.")}</p>}
 
           {puoInviare ? (
             <fieldset className="space-y-3 border-t pt-4">
-              <legend className="sr-only">Invio per email</legend>
+              <legend className="sr-only">{t("Invio per email")}</legend>
               <div className="space-y-1.5">
-                <Label htmlFor="dossier-a">Invia a</Label>
+                <Label htmlFor="dossier-a">{t("Invia a")}</Label>
                 <Textarea id="dossier-a" rows={2} className="text-sm" placeholder="banca@esempio.it, socio@esempio.it" value={destinatari} onChange={(e) => setDestinatari(e.target.value)}
                   aria-invalid={indirizzi.sbagliati.length > 0 || troppi || undefined} />
-                {indirizzi.sbagliati.length > 0 && <p className="text-xs text-destructive">Non sembrano indirizzi email: {indirizzi.sbagliati.join(", ")}</p>}
-                {troppi && <p className="text-xs text-destructive">Al massimo {MAX_DESTINATARI} destinatari per invio.</p>}
-                <p className="text-xs text-muted-foreground">Uno o più indirizzi. Ognuno riceve la sua email e non vede gli altri.</p>
+                {indirizzi.sbagliati.length > 0 && <p className="text-xs text-destructive">{t("Non sembrano indirizzi email: {indirizzi}", { indirizzi: indirizzi.sbagliati.join(", ") })}</p>}
+                {troppi && <p className="text-xs text-destructive">{t("Al massimo {n} destinatari per invio.", { n: MAX_DESTINATARI })}</p>}
+                <p className="text-xs text-muted-foreground">{t("Uno o più indirizzi. Ognuno riceve la sua email e non vede gli altri.")}</p>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="dossier-oggetto">Oggetto</Label>
+                <Label htmlFor="dossier-oggetto">{t("Oggetto")}</Label>
                 <Input id="dossier-oggetto" className="text-sm" value={oggetto} onChange={(e) => setOggetto(e.target.value)} maxLength={200} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="dossier-messaggio">Messaggio</Label>
+                <Label htmlFor="dossier-messaggio">{t("Messaggio")}</Label>
                 <Textarea id="dossier-messaggio" rows={5} className="text-sm" value={messaggio} onChange={(e) => setMessaggio(e.target.value)} maxLength={4000} />
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox id="dossier-excel" checked={conExcel} onCheckedChange={(v) => setConExcel(v === true)} />
-                <Label htmlFor="dossier-excel" className="text-sm font-normal">Allega anche l'Excel con i dati</Label>
+                <Label htmlFor="dossier-excel" className="text-sm font-normal">{t("Allega anche l'Excel con i dati")}</Label>
               </div>
             </fieldset>
           ) : (
-            <p className="border-t pt-4 text-xs text-muted-foreground">Puoi scaricare PDF ed Excel; per inviarli, e per salvarli nello storico, serve il permesso di modificare le commesse.</p>
+            <p className="border-t pt-4 text-xs text-muted-foreground">{t("Puoi scaricare PDF ed Excel; per inviarli, e per salvarli nello storico, serve il permesso di modificare le commesse.")}</p>
           )}
         </form>
 
         <div className="relative min-h-[70vh] rounded-md border bg-muted/30">
-          {anteprima && <iframe title="Anteprima del rendiconto" src={anteprima.url} className="h-full min-h-[70vh] w-full rounded-md" />}
+          {anteprima && <iframe title={t("Anteprima del rendiconto")} src={anteprima.url} className="h-full min-h-[70vh] w-full rounded-md" />}
           {preparo && (
             <div className="absolute inset-0 flex items-center justify-center gap-2 bg-background/60 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Preparo il PDF…
+              <Loader2 className="h-4 w-4 animate-spin" /> {t("Preparo il PDF…")}
             </div>
           )}
           {errore && <p className="p-4 text-sm text-destructive">{errore}</p>}
@@ -519,12 +524,12 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
       </div>
 
       <DialogFooter className="mt-3 gap-2 sm:gap-0">
-        <Button type="button" variant="ghost" onClick={onChiudi}>Chiudi</Button>
+        <Button type="button" variant="ghost" onClick={onChiudi}>{t("Chiudi")}</Button>
         <Button type="button" variant="outline" disabled={!anteprima || daAggiornare || preparo || scarico} onClick={() => void scaricaPdf()}>
           {scarico ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />} PDF
         </Button>
-        <Button type="button" variant="outline" title="Completo, per la banca e per i soci: tre PDF con lo stesso periodo, note e foto" disabled={!anteprima || daAggiornare || preparo || scarico} onClick={() => void scaricaModelli()}>
-          <Files className="mr-1.5 h-4 w-4" /> Tutti i modelli
+        <Button type="button" variant="outline" title={t("Completo, per la banca e per i soci: tre PDF con lo stesso periodo, note e foto")} disabled={!anteprima || daAggiornare || preparo || scarico} onClick={() => void scaricaModelli()}>
+          <Files className="mr-1.5 h-4 w-4" /> {t("Tutti i modelli")}
         </Button>
         <Button type="button" variant="outline" disabled={!anteprima || daAggiornare || preparo} onClick={() => void scaricaExcel()}>
           <FileSpreadsheet className="mr-1.5 h-4 w-4" /> Excel
@@ -532,7 +537,7 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, 
         {puoInviare && (
           <Button type="button" onClick={() => void manda()} disabled={!puoMandare}>
             {invia.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Mail className="mr-1.5 h-4 w-4" />}
-            {indirizzi.validi.length > 1 ? `Invia a ${indirizzi.validi.length} destinatari` : indirizzi.validi.length === 1 ? `Invia a ${indirizzi.validi[0]}` : "Invia"}
+            {indirizzi.validi.length > 1 ? t("Invia a {n} destinatari", { n: indirizzi.validi.length }) : indirizzi.validi.length === 1 ? t("Invia a {indirizzo}", { indirizzo: indirizzi.validi[0] }) : t("Invia")}
           </Button>
         )}
       </DialogFooter>

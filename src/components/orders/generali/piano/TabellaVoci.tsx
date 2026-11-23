@@ -66,6 +66,7 @@ import {
 } from "@/lib/orders/generali/pianoConti";
 import type { CategoriaAzienda } from "@/lib/orders/generali/pianoLettura";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { stimaMancante } from "@/lib/orders/generali/budgetCompletezza";
 import { totaliRigheFiltrate } from "@/lib/orders/generali/filtriGrafici";
 
@@ -174,6 +175,7 @@ function Intestazione({
 }
 
 export function TabellaVoci(p: PropsTabellaVoci) {
+  const tr = useT();
   const { piano, modificabile, conApprovato, figlie } = p;
   const conFiglie = figlie.length > 0;
   const colonne = 9 + (conFiglie ? 1 : 0) + (conApprovato ? 1 : 0) + 1;
@@ -226,7 +228,7 @@ export function TabellaVoci(p: PropsTabellaVoci) {
           scope="rowgroup"
           className="px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
         >
-          {tipo === "ricavo" ? "Ricavi" : "Costi"}
+          {tipo === "ricavo" ? tr("Ricavi") : tr("Costi")}
         </th>
       </tr>
       {righe.length === 0 && (
@@ -236,8 +238,8 @@ export function TabellaVoci(p: PropsTabellaVoci) {
             className="px-3 py-3 text-sm text-muted-foreground"
           >
             {tipo === "ricavo"
-              ? "Nessun ricavo nel piano: aggiungi quanto pensi di incassare e quando."
-              : "Nessun costo nel piano."}
+              ? tr("Nessun ricavo nel piano: aggiungi quanto pensi di incassare e quando.")
+              : tr("Nessun costo nel piano.")}
           </td>
         </tr>
       )}
@@ -280,10 +282,11 @@ export function TabellaVoci(p: PropsTabellaVoci) {
                   onClick={() => setConVuote((x) => ({ ...x, [chiave]: !vuoteVisibili }))}
                 >
                   <ChevronRight aria-hidden="true" />
-                  {vuoteVisibili ? "Nascondi" : "Mostra"}{" "}
-                  {g.vuote.length === 1 ? "1 voce senza importo" : `${g.vuote.length} voci senza importo`}
+                  {vuoteVisibili
+                    ? tr(g.vuote.length === 1 ? "Nascondi {n} voce senza importo" : "Nascondi {n} voci senza importo", { n: g.vuote.length })
+                    : tr(g.vuote.length === 1 ? "Mostra {n} voce senza importo" : "Mostra {n} voci senza importo", { n: g.vuote.length })}
                   {g.daStimare > 0 && !vuoteVisibili && (
-                    <span className="generale-plan-pill">{g.daStimare} da stimare</span>
+                    <span className="generale-plan-pill">{tr("{n} da stimare", { n: g.daStimare })}</span>
                   )}
                 </button>
               </td>
@@ -303,7 +306,7 @@ export function TabellaVoci(p: PropsTabellaVoci) {
               disabled={aggiungi.isPending}
             >
               <Plus className="mr-1 h-3.5 w-3.5" />{" "}
-              {tipo === "ricavo" ? "Aggiungi un ricavo" : "Aggiungi un costo"}
+              {tipo === "ricavo" ? tr("Aggiungi un ricavo") : tr("Aggiungi un costo")}
             </Button>
           </td>
         </tr>
@@ -311,10 +314,10 @@ export function TabellaVoci(p: PropsTabellaVoci) {
       <RigaTotale
         etichetta={
           tipo === "ricavo"
-            ? "Totale ricavi"
+            ? tr("Totale ricavi")
             : p.categorieFiltrate?.length
-              ? "Totale costi filtrati"
-              : "Totale costi"
+              ? tr("Totale costi filtrati")
+              : tr("Totale costi")
         }
         t={totali}
         tipo={tipo}
@@ -331,70 +334,70 @@ export function TabellaVoci(p: PropsTabellaVoci) {
     : piano.confronto.costi;
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="generale-plan-table overflow-x-auto rounded-lg border bg-card" role="region" aria-label="Voci del piano" tabIndex={0}>
+      <div className="generale-plan-table overflow-x-auto rounded-lg border bg-card" role="region" aria-label={tr("Voci del piano")} tabIndex={0}>
         <table className="w-full min-w-[68rem] text-sm">
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
-              <Intestazione testo="Voce" className="min-w-[15rem] px-3" />
+              <Intestazione testo={tr("Voce")} className="min-w-[15rem] px-3" />
               <Intestazione
-                testo="Categoria"
+                testo={tr("Categoria")}
                 className="min-w-[9.5rem]"
-                aiuto="La categoria decide quali costi e ricavi registrati finiscono in questa voce."
+                aiuto={tr("La categoria decide quali costi e ricavi registrati finiscono in questa voce.")}
               />
               <Intestazione
-                testo="Mese"
+                testo={tr("Mese")}
                 className="min-w-[6.5rem]"
-                aiuto="Il mese in cui il denaro entra o esce. Serve al flusso di cassa e al rendimento."
+                aiuto={tr("Il mese in cui il denaro entra o esce. Serve al flusso di cassa e al rendimento.")}
               />
               <Intestazione
-                testo="Mesi"
+                testo={tr("Mesi")}
                 className="w-14 text-right"
-                aiuto="Su quanti mesi si divide l'importo, in parti uguali."
+                aiuto={tr("Su quanti mesi si divide l'importo, in parti uguali.")}
               />
               {conFiglie && (
                 <Intestazione
-                  testo="Commessa"
+                  testo={tr("Commessa")}
                   className="min-w-[7rem]"
-                  aiuto="Facoltativa: la voce raccoglie solo il reale di quella commessa."
+                  aiuto={tr("Facoltativa: la voce raccoglie solo il reale di quella commessa.")}
                 />
               )}
               {conApprovato && (
                 <Intestazione
-                  testo="Approvato"
+                  testo={tr("Approvato")}
                   className="text-right"
-                  aiuto="L'importo nella versione approvata, per confronto."
+                  aiuto={tr("L'importo nella versione approvata, per confronto.")}
                 />
               )}
               <Intestazione
-                testo="Previsto"
+                testo={tr("Previsto")}
                 tono="previsto"
                 className="text-right"
               />
               <Intestazione
-                testo="Reale a oggi"
+                testo={tr("Reale a oggi")}
                 tono="reale"
                 className="text-right"
-                aiuto="Costi e fatture già registrati sulla generale e sulle sue commesse. Tocca il numero per vedere le righe."
+                aiuto={tr("Costi e fatture già registrati sulla generale e sulle sue commesse. Tocca il numero per vedere le righe.")}
               />
               <Intestazione
-                testo="A finire"
+                testo={tr("A finire")}
                 tono="aFinire"
                 className="text-right"
-                aiuto="Quanto manca. Vuoto = previsto meno reale; scrivilo tu se sai che sarà diverso."
+                aiuto={tr("Quanto manca. Vuoto = previsto meno reale; scrivilo tu se sai che sarà diverso.")}
               />
               <Intestazione
-                testo="Stima finale"
+                testo={tr("Stima finale")}
                 tono="stima"
                 className="text-right"
-                aiuto="Reale a oggi più a finire."
+                aiuto={tr("Reale a oggi più a finire.")}
               />
               <Intestazione
-                testo="Scostamento"
+                testo={tr("Scostamento")}
                 className="text-right"
-                aiuto="Stima finale meno previsto."
+                aiuto={tr("Stima finale meno previsto.")}
               />
               <th className="w-10 px-1">
-                <span className="sr-only">Azioni</span>
+                <span className="sr-only">{tr("Azioni")}</span>
               </th>
             </tr>
           </thead>
@@ -408,7 +411,7 @@ export function TabellaVoci(p: PropsTabellaVoci) {
           {!filtro.length && (
             <tfoot>
               <RigaTotale
-                etichetta="Margine"
+                etichetta={tr("Margine")}
                 t={totali.margine}
                 tipo="margine"
                 conFiglie={conFiglie}
@@ -420,11 +423,11 @@ export function TabellaVoci(p: PropsTabellaVoci) {
         </table>
         {piano.confronto.vociTolte.length > 0 && (
           <p className="border-t px-3 py-2 text-xs text-muted-foreground">
-            Rispetto all'approvato questa revisione toglie:{" "}
+            {tr("Rispetto all'approvato questa revisione toglie:")}{" "}
             {piano.confronto.vociTolte
               .map(
                 (v) =>
-                  `${v.descrizione || CATEGORIE_PIANO[v.categoria].nome} (${euro(v.importo)})`,
+                  `${v.descrizione || tr(CATEGORIE_PIANO[v.categoria].nome)} (${euro(v.importo)})`,
               )
               .join(", ")}
             .
@@ -441,7 +444,7 @@ export function TabellaVoci(p: PropsTabellaVoci) {
                 {
                   onSuccess: () => {
                     toast.success(
-                      "Categorie agganciate: il reale è stato riclassificato",
+                      tr("Categorie agganciate: il reale è stato riclassificato"),
                     );
                     setAggancia(null);
                   },
@@ -524,6 +527,7 @@ function RigaGruppo({
   conApprovato: boolean;
   tipo: TipoVoce;
 }) {
+  const tr = useT();
   const t = totaliRigheFiltrate(gruppo.righe);
   const n = gruppo.righe.length;
   return (
@@ -531,12 +535,12 @@ function RigaGruppo({
       <th scope="rowgroup" colSpan={conFiglie ? 5 : 4} className="text-left">
         <button type="button" aria-expanded={aperto} onClick={onApri}>
           <ChevronRight aria-hidden="true" />
-          <span className="generale-plan-cat-name">{nomeCategoria(gruppo.categoria)}</span>
+          <span className="generale-plan-cat-name">{tr(nomeCategoria(gruppo.categoria))}</span>
           <span className="generale-plan-cat-count">
-            {n === 1 ? "1 voce" : `${n} voci`}
+            {tr(n === 1 ? "{n} voce" : "{n} voci", { n })}
           </span>
           {gruppo.daStimare > 0 && (
-            <span className="generale-plan-pill">{gruppo.daStimare} da stimare</span>
+            <span className="generale-plan-pill">{tr("{n} da stimare", { n: gruppo.daStimare })}</span>
           )}
         </button>
       </th>
@@ -572,6 +576,7 @@ function RigaVoce({
     descrizione?: string,
   ) => void;
 }) {
+  const tr = useT();
   const modifica = useModificaVoce(p.generaleId, p.versioneId);
   const elimina = useEliminaVoce(p.generaleId, p.versioneId);
   const v = r.voce;
@@ -590,7 +595,7 @@ function RigaVoce({
   };
   const apriReale = () =>
     r.righe.length > 0 &&
-    p.onApriRighe(`${r.etichetta} · reale a oggi`, r.righe);
+    p.onApriRighe(tr("{voce} · reale a oggi", { voce: r.etichetta }), r.righe);
   const reale = (
     <td className="px-2 py-1 text-right tabular-nums">
       {r.righe.length > 0 ? (
@@ -630,7 +635,7 @@ function RigaVoce({
     return (
       <tr className="bg-sky-50/40 dark:bg-sky-500/5">
         <td
-          className="px-3 py-1.5 text-muted-foreground"
+          className="px-3 py-1.5 text-muted-foreground" dir="auto"
           colSpan={conFiglie ? 5 : 4}
         >
           {r.etichetta}
@@ -657,7 +662,7 @@ function RigaVoce({
     return (
       <tr className="bg-amber-50/40 dark:bg-amber-500/5">
         <td
-          className="px-3 py-1.5 italic text-muted-foreground"
+          className="px-3 py-1.5 italic text-muted-foreground" dir="auto"
           colSpan={conFiglie ? 5 : 4}
         >
           {r.etichetta}
@@ -677,7 +682,7 @@ function RigaVoce({
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
-                  aria-label={`Crea una voce per ${r.etichetta}`}
+                  aria-label={tr("Crea una voce per {voce}", { voce: r.etichetta })}
                   onClick={() =>
                     onNuovaDaFuori(
                       r.tipo,
@@ -690,7 +695,7 @@ function RigaVoce({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                Crea una voce che raccolga queste righe
+                {tr("Crea una voce che raccolga queste righe")}
               </TooltipContent>
             </Tooltip>
           )}
@@ -702,10 +707,10 @@ function RigaVoce({
   const nome = r.etichetta;
   const scelteCategoria = categorieDelTipo(v.tipo).map((c) => ({
     valore: c.id,
-    nome: c.nome,
+    nome: tr(c.nome),
   }));
   const scelteFiglia = [
-    { valore: "__tutte", nome: "Tutte" },
+    { valore: "__tutte", nome: tr("Tutte") },
     ...p.figlie.map((f) => ({ valore: f.id, nome: nomeFiglia(f) })),
   ];
   const agganciate = v.categorieCosto.length;
@@ -717,19 +722,19 @@ function RigaVoce({
         {p.modificabile ? (
           <CellaTesto
             valore={v.descrizione}
-            etichetta={`Descrizione di ${nome}`}
-            placeholder={CATEGORIE_PIANO[v.categoria].nome}
+            etichetta={tr("Descrizione di {voce}", { voce: nome })}
+            placeholder={tr(CATEGORIE_PIANO[v.categoria].nome)}
             onSalva={(descrizione) => salva({ descrizione })}
           />
         ) : (
-          <span className="px-1.5">{nome}</span>
+          <span className="px-1.5" dir="auto">{nome}</span>
         )}
         {agganciate > 0 && (
           <p className="px-1.5 text-[11px] text-muted-foreground">
             <Link2 className="mr-0.5 inline h-3 w-3" aria-hidden="true" />
-            {agganciate === 1
-              ? "1 categoria agganciata"
-              : `${agganciate} categorie agganciate`}
+            {tr(agganciate === 1
+              ? "{n} categoria agganciata"
+              : "{n} categorie agganciate", { n: agganciate })}
           </p>
         )}
       </td>
@@ -738,12 +743,12 @@ function RigaVoce({
           <CellaScelta
             valore={v.categoria}
             scelte={scelteCategoria}
-            etichetta={`Categoria di ${nome}`}
+            etichetta={tr("Categoria di {voce}", { voce: nome })}
             className="max-w-[9.5rem]"
             onSalva={(categoria) => salva({ categoria })}
           />
         ) : (
-          <span className="px-1.5">{CATEGORIE_PIANO[v.categoria].nome}</span>
+          <span className="px-1.5">{tr(CATEGORIE_PIANO[v.categoria].nome)}</span>
         )}
       </td>
       <td className="px-1 py-1">
@@ -751,7 +756,7 @@ function RigaVoce({
           <CellaMese
             valore={v.mese}
             partenza={p.piano.oggi}
-            etichetta={`Mese di ${nome}`}
+            etichetta={tr("Mese di {voce}", { voce: nome })}
             onSalva={(mese) => salva({ mese })}
           />
         ) : (
@@ -766,8 +771,8 @@ function RigaVoce({
             {v.mese
               ? nomeMese(v.mese)
               : meseNonNecessario
-                ? "Non necessario"
-                : "manca"}
+                ? tr("Non necessario")
+                : tr("manca")}
           </span>
         )}
       </td>
@@ -775,7 +780,7 @@ function RigaVoce({
         {p.modificabile ? (
           <CellaDurata
             valore={v.durataMesi}
-            etichetta={`Durata in mesi di ${nome}`}
+            etichetta={tr("Durata in mesi di {voce}", { voce: nome })}
             onSalva={(durataMesi) => salva({ durataMesi })}
           />
         ) : (
@@ -790,14 +795,14 @@ function RigaVoce({
             <CellaScelta
               valore={v.figliaId ?? "__tutte"}
               scelte={scelteFiglia}
-              etichetta={`Commessa di ${nome}`}
+              etichetta={tr("Commessa di {voce}", { voce: nome })}
               className="max-w-[12rem]"
               onSalva={(x) => salva({ figliaId: x === "__tutte" ? null : x })}
             />
           ) : (
             <span className="px-1.5 text-muted-foreground">
               {p.figlie.find((f) => f.id === v.figliaId)?.codice ??
-                (v.figliaId ? "—" : "Tutte")}
+                (v.figliaId ? "—" : tr("Tutte"))}
             </span>
           )}
         </td>
@@ -805,7 +810,7 @@ function RigaVoce({
       {p.conApprovato && (
         <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">
           {r.approvato === null ? (
-            <span className="text-xs">nuova</span>
+            <span className="text-xs">{tr("nuova")}</span>
           ) : (
             euro(r.approvato)
           )}
@@ -816,23 +821,23 @@ function RigaVoce({
           <>
             <CellaImporto
               valore={stimaMancante(v) || v.importo === 0 ? null : v.importo}
-              etichetta={`Previsto di ${nome}`}
+              etichetta={tr("Previsto di {voce}", { voce: nome })}
               onSalva={(importo) => {
                 if (importo !== null) salva({ importo });
               }}
             />
             {senzaPrevisto ? (
-              <span className="generale-plan-cell-note">senza previsto</span>
+              <span className="generale-plan-cell-note">{tr("senza previsto")}</span>
             ) : stimaMancante(v) ? (
-              <span className="generale-plan-cell-note">da stimare</span>
+              <span className="generale-plan-cell-note">{tr("da stimare")}</span>
             ) : null}
           </>
         ) : (
           <>
             <span className="block px-1.5 text-right tabular-nums">
-              {stimaMancante(v) ? "Da stimare" : cifra(v.importo)}
+              {stimaMancante(v) ? tr("Da stimare") : cifra(v.importo)}
             </span>
-            {senzaPrevisto && <span className="generale-plan-cell-note">senza previsto</span>}
+            {senzaPrevisto && <span className="generale-plan-cell-note">{tr("senza previsto")}</span>}
           </>
         )}
       </td>
@@ -844,14 +849,14 @@ function RigaVoce({
               valore={v.aFinire}
               vuotoPermesso
               suggerito={Math.abs(r.aFinire) < 0.005 ? undefined : r.aFinire}
-              etichetta={`A finire di ${nome}`}
+              etichetta={tr("A finire di {voce}", { voce: nome })}
               className={TONI.aFinire.testo}
               onSalva={(aFinire) => salva({ aFinire })}
             />
             {r.aFinireManuale && r.reale > 0 && r.aFinire > 0 && (
               <span className="block px-1 text-right text-[11px] leading-tight text-amber-800 dark:text-amber-300"
-                title={`Verifica se i ${euro(r.reale)} già registrati sono compresi nel residuo manuale.`}>
-                Manuale · verifica
+                title={tr("Verifica se i {importo} già registrati sono compresi nel residuo manuale.", { importo: euro(r.reale) })}>
+                {tr("Manuale · verifica")}
               </span>
             )}
           </>
@@ -874,7 +879,7 @@ function RigaVoce({
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              aria-label={`Azioni per ${nome}`}
+              aria-label={tr("Azioni per {voce}", { voce: nome })}
             >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
@@ -884,17 +889,16 @@ function RigaVoce({
               onClick={apriReale}
               disabled={r.righe.length === 0}
             >
-              Vedi le righe del reale
+              {tr("Vedi le righe del reale")}
             </DropdownMenuItem>
             {p.modificabile && v.tipo === "costo" && (
               <DropdownMenuItem onClick={() => onAggancia(v)}>
-                <Link2 className="mr-2 h-4 w-4" /> Aggancia categorie di costo…
+                <Link2 className="mr-2 h-4 w-4" /> {tr("Aggancia categorie di costo…")}
               </DropdownMenuItem>
             )}
             {p.aFinireModificabile && v.aFinire !== null && (
               <DropdownMenuItem onClick={() => salva({ aFinire: null })}>
-                <RotateCcw className="mr-2 h-4 w-4" /> A finire calcolato
-                (previsto − reale)
+                <RotateCcw className="mr-2 h-4 w-4" /> {tr("A finire calcolato (previsto − reale)")}
               </DropdownMenuItem>
             )}
             {p.modificabile && (
@@ -906,12 +910,12 @@ function RigaVoce({
                   onClick={() =>
                     elimina.mutate(v.id, {
                       onSuccess: () =>
-                        toast.success(`«${nome}» tolta dal piano`),
+                        toast.success(tr("«{voce}» tolta dal piano", { voce: nome })),
                       onError: (e) => toast.error(messaggioPiano(e, "la voce")),
                     })
                   }
                 >
-                  <Trash2 className="mr-2 h-4 w-4" /> Togli dal piano
+                  <Trash2 className="mr-2 h-4 w-4" /> {tr("Togli dal piano")}
                 </DropdownMenuItem>
               </>
             )}

@@ -4,9 +4,10 @@ import { formatCurrency } from "@/lib/formatters";
 import { formatDecimalIT, parseDecimalIT } from "@/lib/parseDecimalIT";
 import type { EconomiaFase, VociCosto } from "@/lib/orders/economiaFasi";
 import { Input } from "@/components/ui/input";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const eur = { format: formatCurrency };
-const pct = (v: number | null) => (v == null ? "—" : `${v.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`);
+const pct = (v: number | null) => (v == null ? "—" : `${v.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%`);
 
 /** «manodopera 1.140,00 € · materiali e forniture 320,00 €»: solo le voci che ci sono. */
 export function dettaglioVoci(voci: VociCosto): string {
@@ -80,6 +81,7 @@ export function CampoVenduto({
   /** In una tabella il campo sembra testo finché non ci si passa sopra o lo si usa. */
   inTabella?: boolean;
 }) {
+  const tr = useT();
   const scritto = economia.fonteVenduto === "fase" ? economia.venduto : null;
   const testoDi = (v: number | null) => (v == null ? "" : formatDecimalIT(v));
   const [testo, setTesto] = useState(() => testoDi(scritto));
@@ -117,10 +119,10 @@ export function CampoVenduto({
         value={testo}
         inputMode="decimal"
         autoComplete="off"
-        aria-label={`Venduto di ${nomeFase}`}
+        aria-label={tr("Venduto di {fase}", { fase: nomeFase })}
         aria-invalid={errore || undefined}
-        title={errore ? "Scrivi un importo, per esempio 8.500 o 8.500,50" : undefined}
-        placeholder={economia.fonteVenduto === "righe" ? formatDecimalIT(economia.vendutoRighe) : "da inserire"}
+        title={errore ? tr("Scrivi un importo, per esempio 8.500 o 8.500,50") : undefined}
+        placeholder={economia.fonteVenduto === "righe" ? formatDecimalIT(economia.vendutoRighe) : tr("da inserire")}
         onFocus={() => { inScrittura.current = true; }}
         onChange={(e) => { setTesto(e.target.value); setErrore(false); }}
         onBlur={esci}
@@ -179,6 +181,7 @@ export function EconomiaFaseRiga({
   /** Chi può scrivere il venduto della fase. */
   onSalvaVenduto?: (importo: number | null) => void;
 }) {
+  const tr = useT();
   if (!vedeVenduto && !vedeCosti) return null;
   const sforato = vedeCosti && costoSforato(economia);
   const conVenduto = economia.fonteVenduto !== null;
@@ -186,38 +189,38 @@ export function EconomiaFaseRiga({
   const mostraMargine = vedeVenduto && vedeMargini && conVenduto && margine.pct != null;
   const notaVenduto =
     economia.fonteVenduto === "righe"
-      ? "dalle righe del contratto"
+      ? tr("dalle righe del contratto")
       : economia.fonteVenduto === "fase" && economia.vendutoRighe > 0 && economia.vendutoRighe !== economia.venduto
-        ? `righe del contratto ${eur.format(economia.vendutoRighe)}`
+        ? tr("righe del contratto {importo}", { importo: eur.format(economia.vendutoRighe) })
         : null;
 
   return (
     <div className="flex flex-wrap items-start gap-2">
-      <span className="w-24 shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full">Economia</span>
+      <span className="w-24 shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full">{tr("Economia")}</span>
       <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-8 gap-y-3 lg:grid-cols-4">
         {vedeVenduto && (
-          <Cifra titolo="Venduto" nota={notaVenduto}>
+          <Cifra titolo={tr("Venduto")} nota={notaVenduto}>
             {onSalvaVenduto
               ? <CampoVenduto economia={economia} nomeFase={nomeFase} onSalva={onSalvaVenduto} />
               : conVenduto ? eur.format(economia.venduto) : <span className="font-normal text-muted-foreground">—</span>}
           </Cifra>
         )}
         {vedeCosti && (
-          <Cifra titolo="Costo previsto" nota={fontePrevistoTesto(economia)}>
-            <span title={dettaglioVoci(economia.previsto)}>{!completata && economia.costoPrevisto === 0 && economia.costoConsuntivo === 0 ? "Da pianificare" : eur.format(economia.costoPrevisto)}</span>
+          <Cifra titolo={tr("Costo previsto")} nota={fontePrevistoTesto(economia)}>
+            <span title={dettaglioVoci(economia.previsto)}>{!completata && economia.costoPrevisto === 0 && economia.costoConsuntivo === 0 ? tr("Da pianificare") : eur.format(economia.costoPrevisto)}</span>
           </Cifra>
         )}
         {vedeCosti && (
-          <Cifra titolo="Costo consuntivo">
+          <Cifra titolo={tr("Costo consuntivo")}>
             <span className={sforato ? "text-rose-700" : undefined} title={dettaglioVoci(economia.consuntivo)}>{eur.format(economia.costoConsuntivo)}</span>
             {sforato && <span className="text-xs font-medium text-rose-700">+{eur.format(economia.scostamento)}</span>}
           </Cifra>
         )}
         {mostraMargine && (
           <Cifra
-            titolo="Margine"
+            titolo={tr("Margine")}
             className={margine.pct != null && margine.pct < 0 ? "text-rose-700" : undefined}
-            nota={margine.su === "consuntivo" ? `previsto ${pct(economia.marginePrevistoPct)}` : "previsto, a lavori non finiti"}
+            nota={margine.su === "consuntivo" ? tr("previsto {percentuale}", { percentuale: pct(economia.marginePrevistoPct) }) : tr("previsto, a lavori non finiti")}
           >
             {pct(margine.pct)}
           </Cifra>

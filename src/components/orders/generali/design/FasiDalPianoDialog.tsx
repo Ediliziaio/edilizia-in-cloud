@@ -22,6 +22,7 @@ import { leggiMese } from "@/lib/orders/generali/pianoExcel";
 import { cn } from "@/lib/utils";
 import { DialogContentOperativo as DialogContent } from "./ContestoOperativo";
 import { euro, testoMese } from "../piano/formato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const db = supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string; code?: string } | null }> };
 
@@ -54,13 +55,15 @@ interface Riga {
 }
 
 function Modulo(p: Omit<Props, "open">) {
+  const t = useT();
   const n = useGeneralePianoNumeri(p.riepilogo);
-  if (n.isLoading) return <p className="py-8 text-center text-sm text-muted-foreground">Leggo il piano…</p>;
+  if (n.isLoading) return <p className="py-8 text-center text-sm text-muted-foreground">{t("Leggo il piano…")}</p>;
   // La proposta nasce quando il piano è letto: il modulo la prende come stato di partenza.
   return <Contenuto {...p} proposta={proponiFasi(n.voci)} />;
 }
 
 function Contenuto({ onOpenChange, riepilogo, fasiEsistenti, proposta }: Omit<Props, "open"> & { proposta: PropostaFasi }) {
+  const tr = useT();
   const generaleId = riepilogo.generale.id;
   const vedeCosti = riepilogo.permessi.costi;
   const qc = useQueryClient();
@@ -93,38 +96,38 @@ function Contenuto({ onOpenChange, riepilogo, fasiEsistenti, proposta }: Omit<Pr
       const fasi = fasiPerIlDatabase(scelte.map((r) => ({ nome: r.nome, inizio: mese(r.inizio), fine: mese(r.fine), voci: vociDi(r.chiave) })));
       const { data, error } = await db.rpc("generale_fasi_dal_piano", { p_generale_id: generaleId, p_fasi: fasi });
       if (error) {
-        if (error.code === "PGRST202" || error.code === "42883") throw new Error("La funzione non è ancora attiva: serve un aggiornamento del database.");
+        if (error.code === "PGRST202" || error.code === "42883") throw new Error(tr("La funzione non è ancora attiva: serve un aggiornamento del database."));
         throw new Error(error.message);
       }
       return data as { aggiunte: number; saltate: number; voci: number; con_costi: boolean };
     },
     onSuccess: (r) => {
-      const parti = [`${r.aggiunte === 1 ? "1 fase creata" : `${r.aggiunte} fasi create`} con ${r.voci === 1 ? "1 lavorazione" : `${r.voci} lavorazioni`}`];
-      if (r.saltate) parti.push(`${r.saltate} già presenti, saltate`);
+      const parti = [`${tr(r.aggiunte === 1 ? "1 fase creata" : "{n} fasi create", { n: r.aggiunte })} ${tr(r.voci === 1 ? "con 1 lavorazione" : "con {n} lavorazioni", { n: r.voci })}`];
+      if (r.saltate) parti.push(tr("{n} già presenti, saltate", { n: r.saltate }));
       toast.success(parti.join(" · "), {
-        description: r.con_costi ? "Gli importi del piano sono il costo previsto delle lavorazioni." : "Senza il permesso sui costi le lavorazioni nascono senza costo previsto.",
+        description: r.con_costi ? tr("Gli importi del piano sono il costo previsto delle lavorazioni.") : tr("Senza il permesso sui costi le lavorazioni nascono senza costo previsto."),
       });
       void qc.invalidateQueries({ predicate: (q) => q.queryKey.includes(generaleId) });
       onOpenChange(false);
     },
-    onError: (e) => toast.error("Fasi non create", { description: e instanceof Error ? e.message : "Riprova." }),
+    onError: (e) => toast.error(tr("Fasi non create"), { description: e instanceof Error ? e.message : tr("Riprova.") }),
   });
 
   return (
     <>
       <DialogHeader>
-        <DialogTitle className="flex items-center gap-2"><ListPlus className="h-4 w-4 text-primary" aria-hidden="true" /> Le fasi del cantiere dal piano</DialogTitle>
+        <DialogTitle className="flex items-center gap-2"><ListPlus className="h-4 w-4 text-primary" aria-hidden="true" /> {tr("Le fasi del cantiere dal piano")}</DialogTitle>
         <DialogDescription>
-          Le voci di costruzione del piano diventano le lavorazioni delle fasi, con il loro importo come costo previsto.
+          {tr("Le voci di costruzione del piano diventano le lavorazioni delle fasi, con il loro importo come costo previsto.")}
           {proposta.finestra
-            ? <> Le date dividono la costruzione del calendario ({testoMese(proposta.finestra.inizio)} – {testoMese(proposta.finestra.fine)}) nell'ordine dei lavori: si correggono qui o dopo.</>
-            : " Il piano non ha i mesi della costruzione: le date si mettono qui o dopo."}
+            ? ` ${tr("Le date dividono la costruzione del calendario ({inizio} – {fine}) nell'ordine dei lavori: si correggono qui o dopo.", { inizio: testoMese(proposta.finestra.inizio), fine: testoMese(proposta.finestra.fine) })}`
+            : ` ${tr("Il piano non ha i mesi della costruzione: le date si mettono qui o dopo.")}`}
         </DialogDescription>
       </DialogHeader>
 
       {fasiEsistenti > 0 && (
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-          Il cantiere ha già {fasiEsistenti === 1 ? "1 fase" : `${fasiEsistenti} fasi`}: queste si aggiungono dopo, e quelle con lo stesso nome si saltano.
+          {tr(fasiEsistenti === 1 ? "Il cantiere ha già 1 fase: queste si aggiungono dopo, e quelle con lo stesso nome si saltano." : "Il cantiere ha già {n} fasi: queste si aggiungono dopo, e quelle con lo stesso nome si saltano.", { n: fasiEsistenti })}
         </p>
       )}
 
@@ -132,12 +135,12 @@ function Contenuto({ onOpenChange, riepilogo, fasiEsistenti, proposta }: Omit<Pr
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-background">
             <tr className="border-b text-left text-xs text-muted-foreground">
-              <th className="w-8 px-3 py-2"><span className="sr-only">Crea</span></th>
-              <th className="px-2 py-2 font-medium">Fase</th>
-              <th className="px-1 py-2 font-medium">Dal</th>
-              <th className="px-1 py-2 font-medium">Al</th>
-              <th className="px-2 py-2 text-right font-medium">Lavorazioni</th>
-              {vedeCosti && <th className="px-3 py-2 text-right font-medium">Costo previsto</th>}
+              <th className="w-8 px-3 py-2"><span className="sr-only">{tr("Crea")}</span></th>
+              <th className="px-2 py-2 font-medium">{tr("Fase")}</th>
+              <th className="px-1 py-2 font-medium">{tr("Dal")}</th>
+              <th className="px-1 py-2 font-medium">{tr("Al")}</th>
+              <th className="px-2 py-2 text-right font-medium">{tr("Lavorazioni")}</th>
+              {vedeCosti && <th className="px-3 py-2 text-right font-medium">{tr("Costo previsto")}</th>}
             </tr>
           </thead>
           <tbody>
@@ -149,16 +152,16 @@ function Contenuto({ onOpenChange, riepilogo, fasiEsistenti, proposta }: Omit<Pr
                 <Fragment key={r.chiave}>
                   <tr className={cn("border-b", !r.scelta && "text-muted-foreground", errata && "bg-destructive/5")}>
                     <td className="px-3 py-1.5">
-                      <Checkbox checked={r.scelta} onCheckedChange={(v) => scrivi(r.chiave, "scelta", v === true)} aria-label={`Crea la fase ${r.nome}`} />
+                      <Checkbox checked={r.scelta} onCheckedChange={(v) => scrivi(r.chiave, "scelta", v === true)} aria-label={tr("Crea la fase {nome}", { nome: r.nome })} />
                     </td>
                     <td className="px-2 py-1.5">
-                      <Input value={r.nome} onChange={(e) => scrivi(r.chiave, "nome", e.target.value)} className="h-8" aria-label="Nome della fase" disabled={!r.scelta} />
+                      <Input value={r.nome} onChange={(e) => scrivi(r.chiave, "nome", e.target.value)} className="h-8" aria-label={tr("Nome della fase")} disabled={!r.scelta} />
                     </td>
                     <td className="px-1 py-1.5">
-                      <Input value={r.inizio} onChange={(e) => scrivi(r.chiave, "inizio", e.target.value)} placeholder="mm/aaaa" className="h-8 w-24" aria-label={`Dal mese, ${r.nome}`} disabled={!r.scelta} />
+                      <Input value={r.inizio} onChange={(e) => scrivi(r.chiave, "inizio", e.target.value)} placeholder={tr("mm/aaaa")} className="h-8 w-24" aria-label={tr("Dal mese, {nome}", { nome: r.nome })} disabled={!r.scelta} />
                     </td>
                     <td className="px-1 py-1.5">
-                      <Input value={r.fine} onChange={(e) => scrivi(r.chiave, "fine", e.target.value)} placeholder="mm/aaaa" className="h-8 w-24" aria-label={`Al mese, ${r.nome}`} disabled={!r.scelta} />
+                      <Input value={r.fine} onChange={(e) => scrivi(r.chiave, "fine", e.target.value)} placeholder={tr("mm/aaaa")} className="h-8 w-24" aria-label={tr("Al mese, {nome}", { nome: r.nome })} disabled={!r.scelta} />
                     </td>
                     <td className="px-2 py-1.5 text-right">
                       <button
@@ -168,7 +171,7 @@ function Contenuto({ onOpenChange, riepilogo, fasiEsistenti, proposta }: Omit<Pr
                         aria-expanded={espansa}
                         disabled={voci.length === 0}
                       >
-                        {voci.length === 0 ? "nessuna" : voci.length}
+                        {voci.length === 0 ? tr("nessuna") : voci.length}
                         {voci.length > 0 && <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", espansa && "rotate-180")} aria-hidden="true" />}
                       </button>
                     </td>
@@ -192,9 +195,9 @@ function Contenuto({ onOpenChange, riepilogo, fasiEsistenti, proposta }: Omit<Pr
       {restano.length > 0 && (
         <details className="rounded-md border px-3 py-2 text-sm">
           <summary className="cursor-pointer">
-            <span className="font-medium">{restano.length === 1 ? "1 costo resta" : `${restano.length} costi restano`} sulla generale, senza fase</span>
+            <span className="font-medium">{tr(restano.length === 1 ? "1 costo resta sulla generale, senza fase" : "{n} costi restano sulla generale, senza fase", { n: restano.length })}</span>
             {vedeCosti && <span className="text-muted-foreground"> · {euro(somma(restano))}</span>}
-            <span className="block text-xs text-muted-foreground">Non sono un lavoro di una fase: magazzini, assicurazioni, operai su tutto il cantiere… Se uno lo è, spostalo.</span>
+            <span className="block text-xs text-muted-foreground">{tr("Non sono un lavoro di una fase: magazzini, assicurazioni, operai su tutto il cantiere… Se uno lo è, spostalo.")}</span>
           </summary>
           <div className="mt-2"><ElencoVoci voci={restano} righe={righe} dove={dove} setDove={setDove} vedeCosti={vedeCosti} /></div>
         </details>
@@ -203,14 +206,14 @@ function Contenuto({ onOpenChange, riepilogo, fasiEsistenti, proposta }: Omit<Pr
       <DialogFooter className="items-center gap-2 sm:justify-between">
         <span className={cn("text-xs text-muted-foreground", sbagliate.length > 0 && "text-destructive")} aria-live="polite">
           {sbagliate.length > 0
-            ? "Una fase ha le date da correggere: scrivi il mese come 03/2027, la fine non prima dell'inizio."
-            : `${scelte.length === 1 ? "1 fase" : `${scelte.length} fasi`}, ${lavorazioni === 1 ? "1 lavorazione" : `${lavorazioni} lavorazioni`}.`}
+            ? tr("Una fase ha le date da correggere: scrivi il mese come 03/2027, la fine non prima dell'inizio.")
+            : `${tr(scelte.length === 1 ? "1 fase" : "{n} fasi", { n: scelte.length })}, ${tr(lavorazioni === 1 ? "1 lavorazione" : "{n} lavorazioni", { n: lavorazioni })}.`}
         </span>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>{tr("Annulla")}</Button>
           <Button type="button" variant="brand" disabled={scelte.length === 0 || sbagliate.length > 0 || crea.isPending} onClick={() => crea.mutate()}>
             {crea.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {scelte.length === 1 ? "Crea 1 fase" : `Crea ${scelte.length} fasi`}
+            {tr(scelte.length === 1 ? "Crea 1 fase" : "Crea {n} fasi", { n: scelte.length })}
           </Button>
         </div>
       </DialogFooter>
@@ -225,6 +228,7 @@ function ElencoVoci({ voci, righe, dove, setDove, vedeCosti }: {
   setDove: (f: (d: Record<string, string>) => Record<string, string>) => void;
   vedeCosti: boolean;
 }) {
+  const t = useT();
   return (
     <ul className="space-y-1">
       {voci.map((v) => (
@@ -232,13 +236,13 @@ function ElencoVoci({ voci, righe, dove, setDove, vedeCosti }: {
           <span className="min-w-0 flex-1 truncate" title={v.descrizione}>{v.descrizione}</span>
           {vedeCosti && <span className="shrink-0 tabular-nums text-muted-foreground">{euro(v.importo)}</span>}
           <UniformSelect
-            aria-label={`Fase di ${v.descrizione}`}
+            aria-label={t("Fase di {voce}", { voce: v.descrizione })}
             value={dove[v.id] ?? RESTA}
             onChange={(e) => setDove((d) => ({ ...d, [v.id]: e.target.value }))}
             className="h-7 shrink-0 rounded-md border bg-background px-1.5 text-xs"
           >
             {righe.map((r) => <option key={r.chiave} value={r.chiave}>{r.nome}</option>)}
-            <option value={RESTA}>Resta sulla generale</option>
+            <option value={RESTA}>{t("Resta sulla generale")}</option>
           </UniformSelect>
         </li>
       ))}
@@ -251,6 +255,7 @@ function ElencoVoci({ voci, righe, dove, setDove, vedeCosti }: {
  * guida «Scegli le fasi» di sempre (che resta per farle a mano o da un computo).
  */
 export function InvitoFasiDalPiano({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
+  const tr = useT();
   const [aperto, setAperto] = useState(false);
   const n = useGeneralePianoNumeri(riepilogo);
   const fasi = useQuery({
@@ -269,12 +274,12 @@ export function InvitoFasiDalPiano({ riepilogo }: { riepilogo: RiepilogoGenerale
     <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-orange-200 bg-orange-50/60 px-4 py-3 text-sm dark:border-orange-500/30 dark:bg-orange-500/5">
       <ListPlus className="h-4 w-4 shrink-0 text-orange-700 dark:text-orange-300" aria-hidden="true" />
       <span className="min-w-0 flex-1">
-        <span className="font-medium">Il piano economico ha già i lavori della costruzione</span>
+        <span className="font-medium">{tr("Il piano economico ha già i lavori della costruzione")}</span>
         <span className="block text-xs text-muted-foreground">
-          {lavori === 1 ? "1 voce" : `${lavori} voci`} da dividere in fasi, con le date del calendario e l'importo come costo previsto.
+          {tr(lavori === 1 ? "1 voce da dividere in fasi, con le date del calendario e l'importo come costo previsto." : "{n} voci da dividere in fasi, con le date del calendario e l'importo come costo previsto.", { n: lavori })}
         </span>
       </span>
-      <Button size="sm" variant="brand" onClick={() => setAperto(true)}>Proponi le fasi dal piano</Button>
+      <Button size="sm" variant="brand" onClick={() => setAperto(true)}>{tr("Proponi le fasi dal piano")}</Button>
       {aperto && <FasiDalPianoDialog open onOpenChange={setAperto} riepilogo={riepilogo} fasiEsistenti={0} />}
     </div>
   );

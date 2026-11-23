@@ -8,8 +8,10 @@ import { useUnitaGenerale } from "@/hooks/useGeneraleUnita";
 import { NOMI_STATO, STATI_VENDITA, type StatoVendita } from "@/lib/orders/generali/unita";
 import { riepilogoVendite } from "@/lib/orders/generali/unitaConti";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function RiquadroUnita({ riepilogo }: PropsScheda) {
+  const t = useT();
   const [parametri] = useSearchParams();
   const telefono = useIsMobile();
   const { data } = useUnitaGenerale(riepilogo.generale.id);
@@ -31,20 +33,20 @@ export function RiquadroUnita({ riepilogo }: PropsScheda) {
     <section aria-labelledby="riquadro-unita-titolo" className="generale-panel flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 sm:px-4">
       <h2 id="riquadro-unita-titolo" className="flex items-center gap-2 text-sm font-semibold">
         <span className="generale-section-icon"><Building2 aria-hidden="true" /></span>
-        Unità e vendite <span className="generale-count">{quante}</span>
+        {t("Unità e vendite")} <span className="generale-count">{quante}</span>
       </h2>
-      {vendite && <ul aria-label="Stati di vendita" className="flex flex-wrap gap-1.5">
+      {vendite && <ul aria-label={t("Stati di vendita")} className="flex flex-wrap gap-1.5">
         {STATI_VENDITA.filter(s => vendite.conteggi[s] > 0).map(s => (
           <li key={s}>
             <Link to={destinazione(s)} className="inline-flex min-h-8 items-center gap-1.5 rounded-md border px-2 text-xs hover:bg-muted">
               <span className={cn("size-2 rounded-full", STILE_STATO[s].punto)} aria-hidden="true" />
-              {NOMI_STATO[s].tante} <strong className="tabular-nums">{vendite.conteggi[s]}</strong>
+              {t(NOMI_STATO[s].tante)} <strong className="tabular-nums">{vendite.conteggi[s]}</strong>
             </Link>
           </li>
         ))}
       </ul>}
       <Button asChild variant="ghost" size="sm" className="ml-auto">
-        <Link to={destinazione()}>Apri le unità <ArrowRight className="size-4" aria-hidden="true" /></Link>
+        <Link to={destinazione()}>{t("Apri le unità")} <ArrowRight className="size-4" aria-hidden="true" /></Link>
       </Button>
     </section>
   );

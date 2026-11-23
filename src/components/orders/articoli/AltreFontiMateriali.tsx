@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FileText, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export interface ComputoDaCollegare {
@@ -23,17 +24,19 @@ export interface ComputoDaCollegare {
  * e fa proporre all'AI i materiali delle voci che le regole non riconoscono.
  */
 export function PulsanteMaterialiAI({ quoteNumber, conComputo, onScegli }: { quoteNumber?: string | null; conComputo: boolean; onScegli: (c: ComputoDaCollegare) => void }) {
+  const t = useT();
   return (
     <Button type="button" variant="outline" size="sm" className="gap-1.5 border-violet-200 text-violet-800 hover:bg-violet-50"
       onClick={() => onScegli(conComputo
         ? { id: null, nome: `computo del preventivo${quoteNumber ? ` ${quoteNumber}` : ""}`, dalPreventivo: true }
         : { id: null, nome: "file da caricare" })}>
-      <Sparkles className="h-3.5 w-3.5" aria-hidden />Materiali con l'AI
+      <Sparkles className="h-3.5 w-3.5" aria-hidden />{t("Materiali con l'AI")}
     </Button>
   );
 }
 
 export function PulsanteDalComputo({ companyId, onScegli }: { companyId: string | undefined; onScegli: (c: ComputoDaCollegare) => void }) {
+  const t = useT();
   const { data: computi = [] } = useQuery({
     queryKey: ["computi-senza-commessa", companyId],
     enabled: !!companyId,
@@ -54,17 +57,17 @@ export function PulsanteDalComputo({ companyId, onScegli }: { companyId: string 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="gap-1.5"><FileText className="h-3.5 w-3.5" aria-hidden />Dal computo</Button>
+        <Button type="button" variant="outline" size="sm" className="gap-1.5"><FileText className="h-3.5 w-3.5" aria-hidden />{t("Dal computo")}</Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-w-[min(24rem,calc(100vw-2rem))]">
-        {computi.length > 0 && <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Computi non ancora collegati</DropdownMenuLabel>}
+        {computi.length > 0 && <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">{t("Computi non ancora collegati")}</DropdownMenuLabel>}
         {computi.map((c) => (
           <DropdownMenuItem key={c.id} onSelect={() => onScegli({ id: c.id, nome: c.titolo || c.file_name })}>
             <span className="truncate">{c.titolo || c.file_name}</span>
           </DropdownMenuItem>
         ))}
         {computi.length > 0 && <DropdownMenuSeparator />}
-        <DropdownMenuItem onSelect={() => onScegli({ id: null, nome: "file da caricare" })}>Carico il file dopo la creazione</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onScegli({ id: null, nome: "file da caricare" })}>{t("Carico il file dopo la creazione")}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

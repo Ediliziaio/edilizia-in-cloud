@@ -29,6 +29,7 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface PipelineTarget {
   id: string;
@@ -150,12 +151,13 @@ export function PipelineDrop({
   className?: string;
   children: ReactNode;
 }) {
+  const tr = useT();
   const { enabled } = useContext(MoveContext);
   const { setNodeRef, isOver } = useDroppable({ id, disabled: !enabled });
   return (
     <section
       ref={setNodeRef}
-      aria-label={`Colonna ${label}`}
+      aria-label={tr("Colonna {nome}", { nome: label })}
       className={cn(
         className,
         enabled && "transition-shadow",
@@ -183,6 +185,7 @@ export function PipelineMoveCard({
   onOpen?: () => void;
   actions?: ReactNode;
 }) {
+  const tr = useT();
   const { enabled, move } = useContext(MoveContext);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const body = (controls: ReactNode) => (
@@ -224,10 +227,10 @@ export function PipelineMoveCard({
       {...(enabled ? listeners : {})}
       role={enabled || onOpen ? "group" : undefined}
       aria-label={
-        enabled ? `Trascina ${label}` : onOpen ? `Apri ${label}` : undefined
+        enabled ? tr("Trascina {nome}", { nome: label }) : onOpen ? tr("Apri {nome}", { nome: label }) : undefined
       }
       tabIndex={enabled || onOpen ? 0 : undefined}
-      aria-roledescription={enabled ? "scheda trascinabile" : undefined}
+      aria-roledescription={enabled ? tr("scheda trascinabile") : undefined}
       onClick={(event) => {
         if (
           !isDragging &&
@@ -282,8 +285,8 @@ export function PipelineMoveCard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  aria-label={`Sposta ${label}`}
-                  title="Sposta in un’altra fase"
+                  aria-label={tr("Sposta {nome}", { nome: label })}
+                  title={tr("Sposta in un’altra fase")}
                   className={cn(
                     moveButtonClass,
                     "hover:bg-white hover:text-primary focus-visible:ring-2 focus-visible:ring-primary",
@@ -294,7 +297,7 @@ export function PipelineMoveCard({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>
-                  Scegli la fase di destinazione
+                  {tr("Scegli la fase di destinazione")}
                 </DropdownMenuLabel>
                 {targets
                   .filter((t) => t.id !== stage)

@@ -5,6 +5,7 @@ import { messaggioPiano, useImportaBusinessPlanPiano } from "@/hooks/useGenerale
 import { ImportaBusinessPlan } from "./ImportaBusinessPlan";
 import { useAuth } from "@/contexts/AuthContext";
 import type { VocePiano } from "@/lib/orders/generali/pianoConti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ImportaBusinessPlanDialog({
   open,
@@ -21,6 +22,7 @@ export function ImportaBusinessPlanDialog({
   vociEsistenti?: readonly VocePiano[];
   onImportato?: (versioneId: string) => void;
 }) {
+  const t = useT();
   const aggiungi = useImportaBusinessPlanPiano(generaleId, versioneId);
   const { effectiveCompany } = useAuth();
   return (
@@ -32,10 +34,9 @@ export function ImportaBusinessPlanDialog({
     >
       <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Importa business plan</DialogTitle>
+          <DialogTitle>{t("Importa business plan")}</DialogTitle>
           <DialogDescription>
-            Scegli un solo scenario, controlla le voci e aggiungile alla bozza. Gli importi restano sulla
-            commessa generale.
+            {t("Scegli un solo scenario, controlla le voci e aggiungile alla bozza. Gli importi restano sulla commessa generale.")}
           </DialogDescription>
         </DialogHeader>
         {open && (
@@ -49,9 +50,9 @@ export function ImportaBusinessPlanDialog({
                 { voci, origine },
                 {
                   onSuccess: ({ ids, versioneId: id }) => {
-                    toast.success(`${ids.length} voci aggiunte alla bozza`, {
+                    toast.success(t("{n} voci aggiunte alla bozza", { n: ids.length }), {
                       description:
-                        "Completa gli importi mancanti e il calendario prima di approvare il piano.",
+                        t("Completa gli importi mancanti e il calendario prima di approvare il piano."),
                     });
                     onImportato?.(id);
                     onOpenChange(false);

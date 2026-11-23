@@ -42,6 +42,7 @@ import {
   type AcceptanceContent,
 } from "../../../supabase/functions/collaudo-commessa/model";
 import { OfficeSelect } from "./OfficeSelect";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Report {
   id: string;
@@ -75,6 +76,7 @@ export function OrderAcceptanceReports({
   customer = "",
   onOpenTasks,
 }: Props) {
+  const t = useT();
   const qc = useQueryClient();
   const { canEditOrders } = usePermissions();
   const key = ["order-acceptance-reports", companyId, orderId];
@@ -94,16 +96,16 @@ export function OrderAcceptanceReports({
     [preview, setPreview] = useState<string | null>(null),
     [reviewed, setReviewed] = useState(false);
   const previewBlob = useCallback(async () => {
-    if (!preview) throw new Error("Apri prima il PDF");
+    if (!preview) throw new Error(t("Apri prima il PDF"));
     const response = await fetch(preview, {
       signal: AbortSignal.timeout(20000),
     });
     if (!response.ok)
       throw new Error(
-        "Anteprima scaduta o non disponibile. Premi Apri PDF per rinnovarla.",
+        t("Anteprima scaduta o non disponibile. Premi Apri PDF per rinnovarla."),
       );
     return createPdfPreviewUrl(await response.blob());
-  }, [preview]);
+  }, [preview, t]);
   useEffect(() => {
     setOpen(false);
     setReport(null);
@@ -178,7 +180,7 @@ export function OrderAcceptanceReports({
         throw new Error(message);
       }
       if (data?.error || !data?.report)
-        throw new Error(data?.error ?? "Risposta non valida");
+        throw new Error(data?.error ?? t("Risposta non valida"));
       setReport(data.report);
       setContent(data.report.content);
       setDirty(false);
@@ -186,21 +188,21 @@ export function OrderAcceptanceReports({
       if (action === "save") {
         setPreview(null);
         setReviewed(false);
-        toast.success("Bozza salvata");
+        toast.success(t("Bozza salvata"));
       }
       if (action === "finalize") {
         setReviewed(false);
-        toast.success("Edizione congelata. Non è una firma del cliente.");
+        toast.success(t("Edizione congelata. Non è una firma del cliente."));
       }
       if (action === "sign") {
         setReviewed(false);
         setFirmaAperta(false);
         setPreview(null);
-        toast.success("Verbale firmato e congelato.");
+        toast.success(t("Verbale firmato e congelato."));
       }
       await qc.invalidateQueries({ queryKey: key });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Operazione non riuscita");
+      toast.error(e instanceof Error ? e.message : t("Operazione non riuscita"));
     } finally {
       setBusy(false);
     }
@@ -210,7 +212,7 @@ export function OrderAcceptanceReports({
     if (
       !next &&
       dirty &&
-      !window.confirm("Chiudere senza salvare le modifiche al verbale?")
+      !window.confirm(t("Chiudere senza salvare le modifiche al verbale?"))
     )
       return;
     setOpen(next);
@@ -221,10 +223,10 @@ export function OrderAcceptanceReports({
         <div>
           <CardTitle className="flex items-center gap-2 text-base">
             <ClipboardCheck className="h-5 w-5 text-orange-500" />
-            Collaudo e consegna
+            {t("Collaudo e consegna")}
           </CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">
-            Verifiche, riserve e interventi da completare, in un solo verbale.
+            {t("Verifiche, riserve e interventi da completare, in un solo verbale.")}
           </p>
         </div>
         {canEditOrders && (
@@ -233,14 +235,14 @@ export function OrderAcceptanceReports({
             disabled={query.isLoading || query.isError}
           >
             <Plus className="mr-2 h-4 w-4" />
-            Nuovo verbale
+            {t("Nuovo verbale")}
           </Button>
         )}
       </CardHeader>
       <CardContent className="space-y-3">
         {scegliModello && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-slate-50 p-3">
-            <span className="text-sm font-medium">Quale modello?</span>
+            <span className="text-sm font-medium">{t("Quale modello?")}</span>
             {modelli.map((m) => (
               <Button key={m.id} variant="outline" size="sm" onClick={() => start(null, m)}>
                 {m.nome}
@@ -249,19 +251,17 @@ export function OrderAcceptanceReports({
           </div>
         )}
         {query.isLoading ? (
-          <p role="status">Caricamento verbali…</p>
+          <p role="status">{t("Caricamento verbali…")}</p>
         ) : query.isError ? (
           <div role="alert">
-            Non riesco a caricare i verbali.{" "}
+            {t("Non riesco a caricare i verbali.")}{" "}
             <Button variant="outline" onClick={() => query.refetch()}>
-              Riprova
+              {t("Riprova")}
             </Button>
           </div>
         ) : !query.data?.length ? (
           <p className="rounded-lg bg-slate-50 p-4 text-sm text-muted-foreground">
-            Nessun verbale. Parti dai controlli e registra ciò che è stato
-            effettivamente verificato. Le fasi completate non valgono come
-            accettazione del cliente.
+            {t("Nessun verbale. Parti dai controlli e registra ciò che è stato effettivamente verificato. Le fasi completate non valgono come accettazione del cliente.")}
           </p>
         ) : (
           query.data.map((row) => (
@@ -280,16 +280,16 @@ export function OrderAcceptanceReports({
                     variant="outline"
                     className={cn("font-medium", ESITO_CLASSE[row.content.outcome])}
                   >
-                    Esito: {outcomes[row.content.outcome]}
+                    {t("Esito: {esito}", { esito: t(outcomes[row.content.outcome]) })}
                   </Badge>
                 </span>
               </span>
               <Badge variant="outline">
                 {row.status !== "finalized"
-                  ? "Bozza"
+                  ? t("Bozza")
                   : row.firma_cliente_nome
-                    ? `Firmato da ${row.firma_cliente_nome}`
-                    : "Congelato · non firmato"}
+                    ? t("Firmato da {nome}", { nome: row.firma_cliente_nome })
+                    : t("Congelato · non firmato")}
               </Badge>
             </button>
           ))
@@ -298,18 +298,18 @@ export function OrderAcceptanceReports({
       <Dialog open={open} onOpenChange={close}>
         <DialogContent className="flex max-h-[92dvh] w-[calc(100%-1rem)] max-w-4xl flex-col overflow-hidden p-0">
           <DialogHeader className="border-b p-5 pr-10">
-            <DialogTitle>Verbale di verifica e consegna</DialogTitle>
+            <DialogTitle>{t("Verbale di verifica e consegna")}</DialogTitle>
             <DialogDescription>
-              1. Compila · 2. Controlla il PDF · 3. Congela l’edizione
+              {t("1. Compila · 2. Controlla il PDF · 3. Congela l’edizione")}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 space-y-6 overflow-y-auto p-5">
             {report?.status === "finalized" && (
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
                 <LockKeyhole className="mb-2 h-4 w-4" />
-                Edizione conservata e non modificabile.{" "}
-                {report.firma_cliente_nome ? `Firmata da ${report.firma_cliente_nome}.` : "Non firmata dal cliente."}{" "}
-                Per correggerla, crea una nuova bozza.
+                {t("Edizione conservata e non modificabile.")}{" "}
+                {report.firma_cliente_nome ? t("Firmata da {nome}.", { nome: report.firma_cliente_nome }) : t("Non firmata dal cliente.")}{" "}
+                {t("Per correggerla, crea una nuova bozza.")}
               </div>
             )}
         {report?.status === "finalized" && (
@@ -325,7 +325,7 @@ export function OrderAcceptanceReports({
             >
               <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
                 <div>
-                  <Label htmlFor="acceptance-title">Titolo</Label>
+                  <Label htmlFor="acceptance-title">{t("Titolo")}</Label>
                   <Input
                     id="acceptance-title"
                     maxLength={200}
@@ -336,7 +336,7 @@ export function OrderAcceptanceReports({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="acceptance-date">Data verifica</Label>
+                  <Label htmlFor="acceptance-date">{t("Data verifica")}</Label>
                   <Input
                     id="acceptance-date"
                     type="date"
@@ -350,8 +350,8 @@ export function OrderAcceptanceReports({
                   <div key={field}>
                     <Label htmlFor={"acceptance-" + field}>
                       {field === "inspector"
-                        ? "Verificatore / referente impresa"
-                        : "Cliente"}
+                        ? t("Verificatore / referente impresa")
+                        : t("Cliente")}
                     </Label>
                     <Input
                       id={"acceptance-" + field}
@@ -366,21 +366,20 @@ export function OrderAcceptanceReports({
               </div>
               <div>
                 <Label htmlFor="acceptance-scope">
-                  Quali lavori sono stati verificati?
+                  {t("Quali lavori sono stati verificati?")}
                 </Label>
                 <Textarea
                   id="acceptance-scope"
                   maxLength={4000}
                   value={content.scope}
                   onChange={(e) => edit({ ...content, scope: e.target.value })}
-                  placeholder="Ambienti, lavorazioni e limiti della verifica"
+                  placeholder={t("Ambienti, lavorazioni e limiti della verifica")}
                 />
               </div>
               <section className="space-y-3">
-                <h3 className="font-semibold">Controlli effettuati</h3>
+                <h3 className="font-semibold">{t("Controlli effettuati")}</h3>
                 <p className="text-sm text-muted-foreground">
-                  Nessun controllo viene confermato automaticamente. Motiva le
-                  riserve e le voci non applicabili.
+                  {t("Nessun controllo viene confermato automaticamente. Motiva le riserve e le voci non applicabili.")}
                 </p>
                 {content.checks.map((check, i) => (
                   <div
@@ -389,7 +388,7 @@ export function OrderAcceptanceReports({
                   >
                     <div className="grid gap-2 sm:grid-cols-[1fr_170px]">
                       <Input
-                        aria-label={`Verifica ${i + 1}`}
+                        aria-label={t("Verifica {n}", { n: i + 1 })}
                         value={check.label}
                         maxLength={200}
                         onChange={(e) =>
@@ -402,7 +401,7 @@ export function OrderAcceptanceReports({
                         }
                       />
                       <OfficeSelect
-                        label={`Esito verifica ${i + 1}`}
+                        label={t("Esito verifica {n}", { n: i + 1 })}
                         value={check.result}
                         onValueChange={(value) =>
                           edit({
@@ -416,13 +415,13 @@ export function OrderAcceptanceReports({
                         }
                         options={Object.entries(results).map(([v, l]) => ({
                           value: v,
-                          label: l,
+                          label: t(l),
                         }))}
                       />
                     </div>
                     <Textarea
-                      aria-label={`Note verifica ${i + 1}`}
-                      placeholder="Note e riscontri"
+                      aria-label={t("Note verifica {n}", { n: i + 1 })}
+                      placeholder={t("Note e riscontri")}
                       maxLength={2000}
                       value={check.note}
                       onChange={(e) =>
@@ -445,7 +444,7 @@ export function OrderAcceptanceReports({
                           })
                         }
                       >
-                        Rimuovi verifica {i + 1}
+                        {t("Rimuovi verifica {n}", { n: i + 1 })}
                       </Button>
                     )}
                   </div>
@@ -467,12 +466,12 @@ export function OrderAcceptanceReports({
                     })
                   }
                 >
-                  Aggiungi verifica
+                  {t("Aggiungi verifica")}
                 </Button>
               </section>
               {(content.campi?.length ?? 0) > 0 && (
                 <section className="space-y-3">
-                  <h3 className="font-semibold">Dati del collaudo</h3>
+                  <h3 className="font-semibold">{t("Dati del collaudo")}</h3>
                   <CampiModulo
                     campi={content.campi ?? []}
                     valori={valoriCampi}
@@ -486,10 +485,10 @@ export function OrderAcceptanceReports({
                 </section>
               )}
               <div>
-                <Label htmlFor="acceptance-outcome">Esito complessivo</Label>
+                <Label htmlFor="acceptance-outcome">{t("Esito complessivo")}</Label>
                 <OfficeSelect
                   id="acceptance-outcome"
-                  label="Esito del verbale"
+                  label={t("Esito del verbale")}
                   value={content.outcome}
                   onValueChange={(value) =>
                     edit({
@@ -499,13 +498,13 @@ export function OrderAcceptanceReports({
                   }
                   options={Object.entries(outcomes).map(([v, l]) => ({
                     value: v,
-                    label: l,
+                    label: t(l),
                   }))}
                 />
               </div>
               <div>
                 <Label htmlFor="acceptance-reserves">
-                  Riserve e difetti riscontrati
+                  {t("Riserve e difetti riscontrati")}
                 </Label>
                 <Textarea
                   id="acceptance-reserves"
@@ -517,14 +516,14 @@ export function OrderAcceptanceReports({
                 />
               </div>
               <section className="space-y-3">
-                <h3 className="font-semibold">Interventi da completare</h3>
+                <h3 className="font-semibold">{t("Interventi da completare")}</h3>
                 {content.actions.map((action, i) => (
                   <div key={i} className="space-y-3 rounded-lg border p-3">
                     <Textarea
-                      aria-label={`Intervento ${i + 1}`}
+                      aria-label={t("Intervento {n}", { n: i + 1 })}
                       maxLength={2000}
                       value={action.work}
-                      placeholder="Cosa resta da fare"
+                      placeholder={t("Cosa resta da fare")}
                       onChange={(e) =>
                         edit({
                           ...content,
@@ -536,10 +535,10 @@ export function OrderAcceptanceReports({
                     />
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Input
-                        aria-label={`Responsabile intervento ${i + 1}`}
+                        aria-label={t("Responsabile intervento {n}", { n: i + 1 })}
                         maxLength={200}
                         value={action.owner}
-                        placeholder="Responsabile"
+                        placeholder={t("Responsabile")}
                         onChange={(e) =>
                           edit({
                             ...content,
@@ -550,7 +549,7 @@ export function OrderAcceptanceReports({
                         }
                       />
                       <Input
-                        aria-label={`Scadenza intervento ${i + 1}`}
+                        aria-label={t("Scadenza intervento {n}", { n: i + 1 })}
                         type="date"
                         min={content.date}
                         value={action.due}
@@ -574,7 +573,7 @@ export function OrderAcceptanceReports({
                         })
                       }
                     >
-                      Rimuovi intervento {i + 1}
+                      {t("Rimuovi intervento {n}", { n: i + 1 })}
                     </Button>
                   </div>
                 ))}
@@ -591,12 +590,12 @@ export function OrderAcceptanceReports({
                     })
                   }
                 >
-                  Aggiungi intervento
+                  {t("Aggiungi intervento")}
                 </Button>
               </section>
               <div>
                 <Label htmlFor="acceptance-documents">
-                  Documenti e istruzioni consegnati
+                  {t("Documenti e istruzioni consegnati")}
                 </Label>
                 <Textarea
                   id="acceptance-documents"
@@ -605,12 +604,12 @@ export function OrderAcceptanceReports({
                   onChange={(e) =>
                     edit({ ...content, documents: e.target.value })
                   }
-                  placeholder="Elenca documenti, riferimenti e ciò che manca. Se non previsti, specificalo."
+                  placeholder={t("Elenca documenti, riferimenti e ciò che manca. Se non previsti, specificalo.")}
                 />
               </div>
               <div>
                 <Label htmlFor="acceptance-notes">
-                  Note condivise con il cliente
+                  {t("Note condivise con il cliente")}
                 </Label>
                 <Textarea
                   id="acceptance-notes"
@@ -623,7 +622,7 @@ export function OrderAcceptanceReports({
             {!readonly && errors.length > 0 && (
               <details className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
                 <summary className="cursor-pointer font-medium">
-                  Da completare prima di congelare ({errors.length})
+                  {t("Da completare prima di congelare ({n})", { n: errors.length })}
                 </summary>
                 <ul className="mt-2 list-disc space-y-1 pl-5">
                   {errors.map((e, i) => (
@@ -640,7 +639,7 @@ export function OrderAcceptanceReports({
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Apri il PDF in una nuova scheda
+                  {t("Apri il PDF in una nuova scheda")}
                 </a>
                 <div className="h-[55dvh] min-h-64">
                   <PdfBlobLivePreviewPanel
@@ -650,8 +649,7 @@ export function OrderAcceptanceReports({
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Link riservato valido 5 minuti. Se scade, premi di nuovo “Apri
-                  PDF”.
+                  {t("Link riservato valido 5 minuti. Se scade, premi di nuovo “Apri PDF”.")}
                 </p>
                 {!readonly && (
                   <label className="flex items-start gap-3 rounded-lg bg-blue-50 p-3 text-sm">
@@ -661,22 +659,19 @@ export function OrderAcceptanceReports({
                       checked={reviewed}
                       onChange={(e) => setReviewed(e.target.checked)}
                     />
-                    Ho controllato il PDF. Dopo non potrò più modificare questa
-                    edizione.
+                    {t("Ho controllato il PDF. Dopo non potrò più modificare questa edizione.")}
                   </label>
                 )}
               </section>
             )}
             <p className="rounded-lg bg-slate-50 p-3 text-sm text-muted-foreground">
-              Il cliente può firmare qui sullo schermo; congelando senza firma il
-              verbale resta non firmato. Il verbale non sostituisce certificazioni
-              tecniche e non approva eventuali costi extra.
+              {t("Il cliente può firmare qui sullo schermo; congelando senza firma il verbale resta non firmato. Il verbale non sostituisce certificazioni tecniche e non approva eventuali costi extra.")}
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-white p-4">
             {busy && (
               <Loader2
-                aria-label="Operazione in corso"
+                aria-label={t("Operazione in corso")}
                 className="h-4 w-4 animate-spin"
               />
             )}
@@ -685,7 +680,7 @@ export function OrderAcceptanceReports({
               disabled={busy}
               onClick={() => close(false)}
             >
-              Chiudi
+              {t("Chiudi")}
             </Button>
             {!readonly && (
               <Button
@@ -693,7 +688,7 @@ export function OrderAcceptanceReports({
                 disabled={busy || !dirty}
                 onClick={() => invoke("save")}
               >
-                Salva bozza
+                {t("Salva bozza")}
               </Button>
             )}
             <Button
@@ -707,7 +702,7 @@ export function OrderAcceptanceReports({
               onClick={() => invoke(report?.pdf_path ? "open" : "preview")}
             >
               <FileText className="mr-2 h-4 w-4" />
-              {report?.pdf_path ? "Apri PDF" : "Genera anteprima"}
+              {report?.pdf_path ? t("Apri PDF") : t("Genera anteprima")}
             </Button>
             {!readonly && (
               <Button
@@ -718,7 +713,7 @@ export function OrderAcceptanceReports({
                 onClick={() => invoke("finalize")}
               >
                 <LockKeyhole className="mr-2 h-4 w-4" />
-                Congela edizione
+                {t("Congela edizione")}
               </Button>
             )}
             {!readonly && (
@@ -729,7 +724,7 @@ export function OrderAcceptanceReports({
                 onClick={() => setFirmaAperta(true)}
               >
                 <PenLine className="mr-2 h-4 w-4" />
-                Fai firmare al cliente
+                {t("Fai firmare al cliente")}
               </Button>
             )}
           </div>

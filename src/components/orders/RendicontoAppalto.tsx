@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/table";
 import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
 import { SalAppalto } from "@/components/orders/SalAppalto";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /* ─── Tipi ─────────────────────────────────────────────────────────── */
 
@@ -107,6 +108,7 @@ export function RendicontoAppalto({
   orderId, contrattoId, committenteId, modoFatturazione, valorizzazione,
   tettoImporto, importoCommessa, puoModificare, vedeImporti,
 }: Props) {
+  const tr = useT();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -219,7 +221,7 @@ export function RendicontoAppalto({
     () => new Map((eccezioni.data ?? []).map((o) => [o.tariffa_id, o])),
     [eccezioni.data],
   );
-  const mappaFasi = useMemo(() => new Map((fasi.data ?? []).map((f) => [f.id, f.name ?? "Fase"])), [fasi.data]);
+  const mappaFasi = useMemo(() => new Map((fasi.data ?? []).map((f) => [f.id, f.name ?? tr("Fase")])), [fasi.data, tr]);
   const mappaOperai = useMemo(() => new Map((operai.data ?? []).map((o) => [o.id, o.nome])), [operai.data]);
   const mappaTariffe = useMemo(() => new Map((listino.data ?? []).map((t) => [t.id, t])), [listino.data]);
 
@@ -249,13 +251,13 @@ export function RendicontoAppalto({
   const prezzoNumero = parseDecimalITStrict(prezzoGrezzo);
   const maggiorazioneNumero = Number(form?.maggiorazione_pct ?? 0);
   const erroreRiga = !Number.isFinite(quantitaNumero) || quantitaNumero <= 0
-    ? "Inserisci una quantità valida, maggiore di zero."
+    ? tr("Inserisci una quantità valida, maggiore di zero.")
     : !form?.tariffa_id && (!form?.descrizione?.trim() || !Number.isFinite(prezzoNumero) || prezzoNumero <= 0)
-      ? "Compila descrizione e prezzo unitario, maggiore di zero."
+      ? tr("Compila descrizione e prezzo unitario, maggiore di zero.")
       : costoNumero !== null && (!Number.isFinite(costoNumero) || costoNumero < 0)
-        ? "Il costo deve essere un numero maggiore o uguale a zero. Lascia vuoto se non lo conosci."
+        ? tr("Il costo deve essere un numero maggiore o uguale a zero. Lascia vuoto se non lo conosci.")
         : !Number.isFinite(maggiorazioneNumero) || maggiorazioneNumero < -100 || maggiorazioneNumero > 200
-          ? "La maggiorazione deve essere tra −100 e 200%." : null;
+          ? tr("La maggiorazione deve essere tra −100 e 200%.") : null;
 
   /* ── Scritture ── */
 
@@ -269,7 +271,7 @@ export function RendicontoAppalto({
       queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
       queryClient.invalidateQueries({ queryKey: ["appalto-rapportini-da-rendicontare", orderId] });
     },
-    onError: (e: unknown) => toast({ title: e instanceof Error ? e.message : "Riga non creata", variant: "destructive" }),
+    onError: (e: unknown) => toast({ title: e instanceof Error ? e.message : tr("Riga non creata"), variant: "destructive" }),
   });
 
   const salva = useMutation({
@@ -313,11 +315,11 @@ export function RendicontoAppalto({
       setForm(null); setQtaGrezza(""); setPrezzoGrezzo(""); setCostoGrezzo("");
       queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
       queryClient.invalidateQueries({ queryKey: ["appalto-rapportini-da-rendicontare", orderId] });
-      toast({ title: "Riga salvata" });
+      toast({ title: tr("Riga salvata") });
     },
     onError: (e) => {
       logger.error("rendiconto salva", e);
-      toast({ title: "Riga non salvata", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" });
+      toast({ title: tr("Riga non salvata"), description: e instanceof Error ? e.message : tr("Riprova"), variant: "destructive" });
     },
   });
 
@@ -327,7 +329,7 @@ export function RendicontoAppalto({
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] }),
-    onError: (e) => toast({ title: "Stato non cambiato", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+    onError: (e) => toast({ title: tr("Stato non cambiato"), description: e instanceof Error ? e.message : tr("Riprova"), variant: "destructive" }),
   });
 
   const elimina = useMutation({
@@ -339,9 +341,9 @@ export function RendicontoAppalto({
       setDaEliminare(null);
       queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
       queryClient.invalidateQueries({ queryKey: ["appalto-rapportini-da-rendicontare", orderId] });
-      toast({ title: "Riga eliminata" });
+      toast({ title: tr("Riga eliminata") });
     },
-    onError: (e) => toast({ title: "Non eliminata", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+    onError: (e) => toast({ title: tr("Non eliminata"), description: e instanceof Error ? e.message : tr("Riprova"), variant: "destructive" }),
   });
 
   const salvaEccezione = useMutation({
@@ -357,9 +359,9 @@ export function RendicontoAppalto({
     onSuccess: () => {
       setOverrideForm(null);
       queryClient.invalidateQueries({ queryKey: ["appalto-eccezioni", orderId] });
-      toast({ title: "Prezzo di cantiere salvato", description: "Vale per le righe nuove, non per quelle già inserite." });
+      toast({ title: tr("Prezzo di cantiere salvato"), description: tr("Vale per le righe nuove, non per quelle già inserite.") });
     },
-    onError: (e) => toast({ title: "Non salvato", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+    onError: (e) => toast({ title: tr("Non salvato"), description: e instanceof Error ? e.message : tr("Riprova"), variant: "destructive" }),
   });
 
   const togliEccezione = useMutation({
@@ -369,7 +371,7 @@ export function RendicontoAppalto({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appalto-eccezioni", orderId] });
-      toast({ title: "Torna al prezzo di listino" });
+      toast({ title: tr("Torna al prezzo di listino") });
     },
   });
 
@@ -377,10 +379,10 @@ export function RendicontoAppalto({
 
   if (!vedeImporti) {
     return (
-      <QuoteCard title="Rendiconto" icon={<Euro className="h-4 w-4" />}>
+      <QuoteCard title={tr("Rendiconto")} icon={<Euro className="h-4 w-4" />}>
         <p className="flex items-center gap-2 text-sm text-slate-500">
           <Lock className="h-4 w-4 shrink-0" />
-          Il rendiconto sono importi: lo vede chi ha il permesso «Importi delle commesse».
+          {tr("Il rendiconto sono importi: lo vede chi ha il permesso «Importi delle commesse».")}
         </p>
       </QuoteCard>
     );
@@ -394,31 +396,31 @@ export function RendicontoAppalto({
   return (
     <div className="space-y-4">
       <QuoteCard
-        title="Rendiconto"
+        title={tr("Rendiconto")}
         icon={<Euro className="h-4 w-4" />}
-        subtitle={aMisura ? "Qui sta il valore vero di questa commessa." : "Quello che hai fatto, oltre o dentro l'importo concordato."}
+        subtitle={aMisura ? tr("Qui sta il valore vero di questa commessa.") : tr("Quello che hai fatto, oltre o dentro l'importo concordato.")}
         action={puoModificare ? (
           <Button size="sm" onClick={() => { setForm({ data: new Date().toLocaleDateString("en-CA"), maggiorazione_pct: 0 }); setQtaGrezza(""); setPrezzoGrezzo(""); setCostoGrezzo(""); }}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" /> Riga
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> {tr("Riga")}
           </Button>
         ) : undefined}
       >
         {/* Totali. Le bozze si contano a parte: non sono ancora soldi. */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Totale t="Confermato" v={euro(totali.confermato, true)} forte />
-          <Totale t="In bozza" v={euro(totali.inBozza, true)} nota={totali.inBozza > 0 ? "da controllare" : undefined} />
+          <Totale t={tr("Confermato")} v={euro(totali.confermato, true)} forte />
+          <Totale t={tr("In bozza")} v={euro(totali.inBozza, true)} nota={totali.inBozza > 0 ? tr("da controllare") : undefined} />
           {/* Costi e margini non si vedono con il permesso sugli importi: sono
               due permessi loro, e un commerciale può avere l'uno e non l'altro. */}
           <Totale
-            t="Costo"
-            v={!vedeCosti ? "riservato" : totali.costo === null ? "—" : euro(totali.costo, true)}
+            t={tr("Costo")}
+            v={!vedeCosti ? tr("riservato") : totali.costo === null ? "—" : euro(totali.costo, true)}
           />
           <Totale
-            t="Margine"
-            v={!vedeMargini ? "riservato" : totali.margine === null ? "—" : euro(totali.margine, true)}
+            t={tr("Margine")}
+            v={!vedeMargini ? tr("riservato") : totali.margine === null ? "—" : euro(totali.margine, true)}
             nota={
               !vedeMargini
-                ? "serve il permesso «Margini»"
+                ? tr("serve il permesso «Margini»")
                 : totali.margine === null
                   /* Tre motivi diversi, e dirne uno per l'altro fa cercare un
                      costo che c'e' gia'. Questi riquadri rispondono a «cosa mi
@@ -427,10 +429,10 @@ export function RendicontoAppalto({
                      manca. Il margine del cantiere intero sta in testa alla
                      pagina. */
                   ? (totali.confermato === 0 && totali.inBozza === 0 && (righe.data ?? []).length > 0
-                      ? "tutto in un rendiconto"
+                      ? tr("tutto in un rendiconto")
                       : totali.confermato === 0 && totali.inBozza > 0
-                        ? "nessuna riga confermata"
-                        : "nessun costo noto")
+                        ? tr("nessuna riga confermata")
+                        : tr("nessun costo noto"))
                   // La percentuale sul ricavo di cui si conosce il costo: sul
                   // confermato intero uscirebbe più bassa del vero.
                   : totali.marginePct !== null
@@ -442,8 +444,8 @@ export function RendicontoAppalto({
 
         {totali.righeSenzaCosto > 0 && totali.margine !== null && (
           <p className="mt-2 text-xs text-muted-foreground">
-            Il margine copre solo le righe di cui si conosce il costo:{" "}
-            {totali.righeSenzaCosto} {totali.righeSenzaCosto === 1 ? "riga confermata non lo ha" : "righe confermate non lo hanno"}.
+            {tr("Il margine copre solo le righe di cui si conosce il costo:")}{" "}
+            {tr(totali.righeSenzaCosto === 1 ? "{n} riga confermata non lo ha." : "{n} righe confermate non lo hanno.", { n: totali.righeSenzaCosto })}
           </p>
         )}
 
@@ -451,21 +453,21 @@ export function RendicontoAppalto({
           <Alert variant="destructive" className="mt-3">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Rendicontato {euro(totaleRendicontato, true)} su un tetto concordato di {euro(tettoImporto!, true)}.
-              Oltre il tetto il committente può rifiutare: va rinegoziato prima di fatturare.
+              {tr("Rendicontato {rendicontato} su un tetto concordato di {tetto}.", { rendicontato: euro(totaleRendicontato, true), tetto: euro(tettoImporto!, true) })}{" "}
+              {tr("Oltre il tetto il committente può rifiutare: va rinegoziato prima di fatturare.")}
             </AlertDescription>
           </Alert>
         )}
 
         {aMisura && typeof importoCommessa === "number" && importoCommessa > 0 && (
           <p className="mt-2 text-xs text-muted-foreground">
-            Stima iniziale {euro(importoCommessa, true)} · rendicontato finora {euro(totaleRendicontato, true)}.
+            {tr("Stima iniziale {stima} · rendicontato finora {rendicontato}.", { stima: euro(importoCommessa, true), rendicontato: euro(totaleRendicontato, true) })}
           </p>
         )}
 
         {totali.extra > 0 && (
           <p className="mt-2 text-xs text-amber-700">
-            Di cui {euro(totali.extra, true)} fuori contratto: sono le righe che si discutono a fine lavori.
+            {tr("Di cui {importo} fuori contratto: sono le righe che si discutono a fine lavori.", { importo: euro(totali.extra, true) })}
           </p>
         )}
 
@@ -476,20 +478,20 @@ export function RendicontoAppalto({
           ) : (righe.data ?? []).length === 0 ? (
             <p className="text-sm text-slate-500">
               {contrattoId
-                ? "Nessuna riga. Aggiungi quello che hai fatto: le giornate, i viaggi, le misure."
-                : "Questa commessa non ha un contratto agganciato, quindi non ha un listino da cui prendere i prezzi. Puoi comunque inserire righe libere, che nascono fuori contratto."}
+                ? tr("Nessuna riga. Aggiungi quello che hai fatto: le giornate, i viaggi, le misure.")
+                : tr("Questa commessa non ha un contratto agganciato, quindi non ha un listino da cui prendere i prezzi. Puoi comunque inserire righe libere, che nascono fuori contratto.")}
             </p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-20">Data</TableHead>
-                    <TableHead>Voce</TableHead>
-                    <TableHead className="text-right">Q.tà</TableHead>
-                    <TableHead className="text-right">Prezzo</TableHead>
-                    <TableHead className="text-right">Importo</TableHead>
-                    <TableHead className="text-right">Margine</TableHead>
+                    <TableHead className="w-20">{tr("Data")}</TableHead>
+                    <TableHead>{tr("Voce")}</TableHead>
+                    <TableHead className="text-right">{tr("Q.tà")}</TableHead>
+                    <TableHead className="text-right">{tr("Prezzo")}</TableHead>
+                    <TableHead className="text-right">{tr("Importo")}</TableHead>
+                    <TableHead className="text-right">{tr("Margine")}</TableHead>
                     <TableHead className="w-28" />
                   </TableRow>
                 </TableHeader>
@@ -507,17 +509,17 @@ export function RendicontoAppalto({
                             r.origine !== "manuale" ? r.origine : null,
                           ].filter(Boolean).join(" · ")}
                         </span>
-                        {r.extra_contratto && <Badge variant="outline" className="mt-1 text-[10px]">fuori contratto</Badge>}
+                        {r.extra_contratto && <Badge variant="outline" className="mt-1 text-[10px]">{tr("fuori contratto")}</Badge>}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {formatDecimalIT(r.quantita, { minDecimals: 0, maxDecimals: 2 })}
-                        <span className="ml-1 text-xs text-slate-500">{etichettaUnita(r.unita_misura)}</span>
+                        <span className="ml-1 text-xs text-slate-500">{tr(etichettaUnita(r.unita_misura))}</span>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{euro(r.prezzo_unitario, true)}</TableCell>
                       <TableCell className="text-right font-semibold tabular-nums">{euro(r.importo, true)}</TableCell>
                       <TableCell className="text-right tabular-nums text-slate-600">
                         {!vedeMargini
-                          ? <span className="text-slate-400">riservato</span>
+                          ? <span className="text-slate-400">{tr("riservato")}</span>
                           : r.margine === null ? <span className="text-slate-400">—</span> : euro(r.margine, true)}
                       </TableCell>
                       <TableCell>
@@ -525,7 +527,7 @@ export function RendicontoAppalto({
                           {puoModificare && r.stato !== "in_sal" ? (
                             <Button
                               variant="ghost" size="icon"
-                              aria-label={r.stato === "confermata" ? "Riporta in bozza" : "Conferma la riga"}
+                              aria-label={r.stato === "confermata" ? tr("Riporta in bozza") : tr("Conferma la riga")}
                               onClick={() => cambiaStato.mutate({ id: r.id, stato: r.stato === "confermata" ? "bozza" : "confermata" })}
                             >
                               {r.stato === "confermata"
@@ -537,13 +539,13 @@ export function RendicontoAppalto({
                               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                           )}
                           {puoModificare && r.stato === "in_sal" && (
-                            <span title="È in un rendiconto al committente: si libera solo annullando una bozza">
+                            <span title={tr("È in un rendiconto al committente: si libera solo annullando una bozza")}>
                               <Lock className="h-3.5 w-3.5 text-slate-400" />
                             </span>
                           )}
                           {puoModificare && r.stato !== "in_sal" && (
                             <>
-                              <Button variant="ghost" size="icon" aria-label="Modifica la riga"
+                              <Button variant="ghost" size="icon" aria-label={tr("Modifica la riga")}
                                 onClick={() => {
                                   setForm(r);
                                   setQtaGrezza(formatDecimalIT(r.quantita, { minDecimals: 0, maxDecimals: 2 }));
@@ -552,7 +554,7 @@ export function RendicontoAppalto({
                                 }}>
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
-                              <Button variant="ghost" size="icon" aria-label="Elimina la riga" onClick={() => setDaEliminare(r)}>
+                              <Button variant="ghost" size="icon" aria-label={tr("Elimina la riga")} onClick={() => setDaEliminare(r)}>
                                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
                               </Button>
                             </>
@@ -573,9 +575,9 @@ export function RendicontoAppalto({
           che nessuno fattura, e senza questo elenco non lo scopri. */}
       {(daRendicontare.data ?? []).length > 0 && (
         <QuoteCard
-          title="Giornate di campo non rendicontate"
+          title={tr("Giornate di campo non rendicontate")}
           icon={<FileWarning className="h-4 w-4 text-amber-600" />}
-          subtitle="Rapportini approvati che il sistema non ha potuto tradurre in un importo."
+          subtitle={tr("Rapportini approvati che il sistema non ha potuto tradurre in un importo.")}
         >
           <div className="space-y-2">
             {(daRendicontare.data ?? []).map((x, i) => (
@@ -585,17 +587,17 @@ export function RendicontoAppalto({
                     {giornoIT(x.data_lavoro)}{x.persona ? ` · ${x.persona}` : ""}
                   </p>
                   {/* Motivo vuoto: adesso il listino basta, la riga si può creare. */}
-                  <p className="text-xs text-amber-800">{x.motivo ?? "Il listino adesso basta: si può creare la riga."}</p>
+                  <p className="text-xs text-amber-800">{x.motivo ?? tr("Il listino adesso basta: si può creare la riga.")}</p>
                 </div>
                 {!x.motivo && (
                   <Button size="sm" variant="outline" className="shrink-0" disabled={recupera.isPending} onClick={() => recupera.mutate(x.rapportino_id)}>
-                    Crea riga
+                    {tr("Crea riga")}
                   </Button>
                 )}
               </div>
             ))}
             <p className="text-xs text-muted-foreground">
-              Se manca un prezzo, sistema il listino del contratto: comparirà «Crea riga». Oppure scrivi la riga a mano qui sopra.
+              {tr("Se manca un prezzo, sistema il listino del contratto: comparirà «Crea riga». Oppure scrivi la riga a mano qui sopra.")}
             </p>
           </div>
         </QuoteCard>
@@ -604,41 +606,39 @@ export function RendicontoAppalto({
       {/* Eccezioni di prezzo di questo cantiere */}
       {contrattoId && (
         <QuoteCard
-          title="Prezzi diversi su questo cantiere"
+          title={tr("Prezzi diversi su questo cantiere")}
           icon={<Tags className="h-4 w-4" />}
           action={
             <Button variant="outline" size="sm" onClick={() => setEccezioniAperte((v) => !v)}>
-              {eccezioniAperte ? "Chiudi" : `Apri${(eccezioni.data ?? []).length > 0 ? ` (${(eccezioni.data ?? []).length})` : ""}`}
+              {eccezioniAperte ? tr("Chiudi") : `${tr("Apri")}${(eccezioni.data ?? []).length > 0 ? ` (${(eccezioni.data ?? []).length})` : ""}`}
             </Button>
           }
         >
           {!eccezioniAperte ? (
             <p className="text-sm text-slate-500">
               {(eccezioni.data ?? []).length === 0
-                ? "Nessuna: si usa il listino del contratto."
-                : `${(eccezioni.data ?? []).length} ${(eccezioni.data ?? []).length === 1 ? "tariffa" : "tariffe"} con un prezzo diverso solo qui.`}
+                ? tr("Nessuna: si usa il listino del contratto.")
+                : tr((eccezioni.data ?? []).length === 1 ? "{n} tariffa con un prezzo diverso solo qui." : "{n} tariffe con un prezzo diverso solo qui.", { n: (eccezioni.data ?? []).length })}
             </p>
           ) : (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                «Su questo lavoro il trasporto me lo paga 80». Vale solo per questa commessa e
-                solo per le righe che inserirai da adesso: quelle già scritte tengono il prezzo
-                che avevano.
+                {tr("«Su questo lavoro il trasporto me lo paga 80». Vale solo per questa commessa e solo per le righe che inserirai da adesso: quelle già scritte tengono il prezzo che avevano.")}
               </p>
               {(eccezioni.data ?? []).map((o) => {
                 const t = mappaTariffe.get(o.tariffa_id);
                 return (
                   <div key={o.id} className="flex items-center justify-between gap-3 rounded-lg border p-2.5">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{t?.descrizione ?? "Tariffa"}</p>
+                      <p className="truncate text-sm font-medium">{t?.descrizione ?? tr("Tariffa")}</p>
                       <p className="text-xs text-slate-500">
-                        Listino {t ? euro(t.prezzo_unitario, true) : "—"} → qui{" "}
+                        {tr("Listino {prezzo} → qui", { prezzo: t ? euro(t.prezzo_unitario, true) : "—" })}{" "}
                         <strong>{euro(o.prezzo_unitario, true)}</strong>
                         {o.nota ? ` · ${o.nota}` : ""}
                       </p>
                     </div>
                     {puoModificare && (
-                      <Button variant="ghost" size="icon" aria-label="Torna al prezzo di listino" onClick={() => togliEccezione.mutate(o.id)}>
+                      <Button variant="ghost" size="icon" aria-label={tr("Torna al prezzo di listino")} onClick={() => togliEccezione.mutate(o.id)}>
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     )}
@@ -647,7 +647,7 @@ export function RendicontoAppalto({
               })}
               {puoModificare && (
                 <Button variant="outline" size="sm" onClick={() => setOverrideForm({ tariffa_id: "", prezzo: "", nota: "" })}>
-                  <Plus className="mr-1.5 h-3.5 w-3.5" /> Prezzo diverso
+                  <Plus className="mr-1.5 h-3.5 w-3.5" /> {tr("Prezzo diverso")}
                 </Button>
               )}
             </div>
@@ -669,26 +669,26 @@ export function RendicontoAppalto({
       <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
         <DialogContent ampiezza="modulo" struttura="scorrevole">
           <DialogHeader>
-            <DialogTitle>{form?.id ? "Modifica riga" : "Nuova riga di rendiconto"}</DialogTitle>
+            <DialogTitle>{form?.id ? tr("Modifica riga") : tr("Nuova riga di rendiconto")}</DialogTitle>
             <DialogDescription>
-              Il prezzo lo prende il sistema dal listino del contratto, con l'eventuale prezzo di questo cantiere.
+              {tr("Il prezzo lo prende il sistema dal listino del contratto, con l'eventuale prezzo di questo cantiere.")}
             </DialogDescription>
           </DialogHeader>
           {form && (
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="r-data">Giorno</Label>
+                <Label htmlFor="r-data">{tr("Giorno")}</Label>
                 <Input id="r-data" type="date" value={form.data ?? ""} onChange={(e) => setForm({ ...form, data: e.target.value })} />
               </div>
               <div>
-                <Label htmlFor="r-qta">Quantità</Label>
+                <Label htmlFor="r-qta">{tr("Quantità")}</Label>
                 <Input id="r-qta" inputMode="decimal" value={qtaGrezza}
                   onChange={(e) => setQtaGrezza(e.target.value)}
                   onBlur={() => { const v = parseDecimalITStrict(qtaGrezza); if (Number.isFinite(v) && v > 0) setQtaGrezza(formatDecimalIT(v, { minDecimals: 0, maxDecimals: 2 })); }}
                   placeholder="3" />
               </div>
               <div className="sm:col-span-2">
-                <Label htmlFor="r-tariffa">Voce di listino</Label>
+                <Label htmlFor="r-tariffa">{tr("Voce di listino")}</Label>
                 <Select
                   value={form.tariffa_id ?? "libera"}
                   onValueChange={(v) => setForm({ ...form, tariffa_id: v === "libera" ? null : v })}
@@ -699,22 +699,22 @@ export function RendicontoAppalto({
                       const ecc = mappaEccezioni.get(t.id);
                       return (
                         <SelectItem key={t.id} value={t.id}>
-                          {t.descrizione} · {euro(ecc?.prezzo_unitario ?? t.prezzo_unitario, true)}/{etichettaUnita(t.unita_misura)}
-                          {ecc ? " (prezzo di questo cantiere)" : ""}
+                          {t.descrizione} · {euro(ecc?.prezzo_unitario ?? t.prezzo_unitario, true)}/{tr(etichettaUnita(t.unita_misura))}
+                          {ecc ? ` (${tr("prezzo di questo cantiere")})` : ""}
                         </SelectItem>
                       );
                     })}
-                    <SelectItem value="libera">Riga libera — fuori contratto</SelectItem>
+                    <SelectItem value="libera">{tr("Riga libera — fuori contratto")}</SelectItem>
                   </SelectContent>
                 </Select>
                 {!contrattoId && (
                   <p className="mt-1 text-[11px] text-amber-700">
-                    Senza contratto agganciato si possono scrivere solo righe libere.
+                    {tr("Senza contratto agganciato si possono scrivere solo righe libere.")}
                   </p>
                 )}
                 {contrattoId && tariffeDisponibili.length === 0 && (
                   <p className="mt-1 text-[11px] text-amber-700">
-                    Nessuna tariffa del listino è in vigore il giorno scelto.
+                    {tr("Nessuna tariffa del listino è in vigore il giorno scelto.")}
                   </p>
                 )}
               </div>
@@ -723,16 +723,16 @@ export function RendicontoAppalto({
               {!form.tariffa_id && (
                 <>
                   <div className="sm:col-span-2">
-                    <Label htmlFor="r-desc">Descrizione</Label>
+                    <Label htmlFor="r-desc">{tr("Descrizione")}</Label>
                     <Input id="r-desc" value={form.descrizione ?? ""} onChange={(e) => setForm({ ...form, descrizione: e.target.value })}
-                      placeholder="Smaltimento non previsto" />
+                      placeholder={tr("Smaltimento non previsto")} />
                   </div>
                   <div>
-                    <Label htmlFor="r-um">Unità</Label>
+                    <Label htmlFor="r-um">{tr("Unità")}</Label>
                     <Input id="r-um" value={form.unita_misura ?? "cad"} onChange={(e) => setForm({ ...form, unita_misura: e.target.value })} />
                   </div>
                   <div>
-                    <Label htmlFor="r-prezzo">Prezzo unitario</Label>
+                    <Label htmlFor="r-prezzo">{tr("Prezzo unitario")}</Label>
                     <Input id="r-prezzo" inputMode="decimal" value={prezzoGrezzo}
                       onChange={(e) => setPrezzoGrezzo(e.target.value)}
                       onBlur={() => { const v = parseDecimalITStrict(prezzoGrezzo); if (Number.isFinite(v) && v > 0) setPrezzoGrezzo(formatDecimalIT(v)); }}
@@ -744,26 +744,26 @@ export function RendicontoAppalto({
               {/* Il costo vale per TUTTE le righe, non solo per quelle libere:
                   il listino e' il prezzo del committente, il costo e' tuo. */}
               <div className="sm:col-span-2">
-                <Label htmlFor="r-costo">Costo tuo (facoltativo)</Label>
+                <Label htmlFor="r-costo">{tr("Costo tuo (facoltativo)")}</Label>
                 <Input id="r-costo" inputMode="decimal" value={costoGrezzo}
                   onChange={(e) => setCostoGrezzo(e.target.value)}
                   onBlur={() => { const v = parseDecimalITStrict(costoGrezzo); if (Number.isFinite(v) && v >= 0) setCostoGrezzo(formatDecimalIT(v)); }}
                   placeholder="0,00" />
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Quanto ti costa questa riga <strong>in tutto</strong>, non al pezzo.
-                  Senza costo il margine resta vuoto, invece di sembrare pari all'incasso.
-                  {form.tariffa_id ? " Se la voce è agganciata a una tariffa aziendale, vale il costo di quella." : ""}
+                  {tr("Quanto ti costa questa riga in tutto, non al pezzo.")}{" "}
+                  {tr("Senza costo il margine resta vuoto, invece di sembrare pari all'incasso.")}
+                  {form.tariffa_id ? ` ${tr("Se la voce è agganciata a una tariffa aziendale, vale il costo di quella.")}` : ""}
                 </p>
               </div>
 
               <div>
-                <Label htmlFor="r-magg">Maggiorazione %</Label>
+                <Label htmlFor="r-magg">{tr("Maggiorazione %")}</Label>
                 <Input id="r-magg" type="number" step="0.01" min={-100} max={200}
                   value={form.maggiorazione_pct ?? 0}
                   onChange={(e) => setForm({ ...form, maggiorazione_pct: Number(e.target.value) })} />
                 {tariffaScelta?.maggiorazione_straordinario_pct != null && (
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Straordinario su questa voce: +{formatDecimalIT(tariffaScelta.maggiorazione_straordinario_pct, { minDecimals: 0 })} %
+                    {tr("Straordinario su questa voce: +{pct} %", { pct: formatDecimalIT(tariffaScelta.maggiorazione_straordinario_pct, { minDecimals: 0 }) })}
                   </p>
                 )}
               </div>
@@ -774,10 +774,9 @@ export function RendicontoAppalto({
               {form.tariffa_id && (
                 <div className="flex items-center justify-between rounded-lg border p-3 sm:col-span-2">
                   <div className="min-w-0 pr-3">
-                    <Label className="cursor-pointer">Fuori contratto</Label>
+                    <Label className="cursor-pointer">{tr("Fuori contratto")}</Label>
                     <p className="text-xs text-slate-500">
-                      Il prezzo resta quello del listino, ma la riga si vede a parte: è lavoro che il
-                      committente non aveva ordinato.
+                      {tr("Il prezzo resta quello del listino, ma la riga si vede a parte: è lavoro che il committente non aveva ordinato.")}
                     </p>
                   </div>
                   <Switch checked={!!form.extra_contratto}
@@ -786,39 +785,39 @@ export function RendicontoAppalto({
               )}
 
               <div>
-                <Label htmlFor="r-fase">Fase</Label>
+                <Label htmlFor="r-fase">{tr("Fase")}</Label>
                 <Select value={form.fase_id ?? "nessuna"} onValueChange={(v) => setForm({ ...form, fase_id: v === "nessuna" ? null : v })}>
                   <SelectTrigger id="r-fase"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="nessuna">Nessuna</SelectItem>
-                    {(fasi.data ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name ?? "Fase"}</SelectItem>)}
+                    <SelectItem value="nessuna">{tr("Nessuna")}</SelectItem>
+                    {(fasi.data ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name ?? tr("Fase")}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="sm:col-span-2">
-                <Label htmlFor="r-operaio">Chi ha lavorato</Label>
+                <Label htmlFor="r-operaio">{tr("Chi ha lavorato")}</Label>
                 <Select value={form.employee_id ?? "nessuno"} onValueChange={(v) => setForm({ ...form, employee_id: v === "nessuno" ? null : v })}>
                   <SelectTrigger id="r-operaio"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="nessuno">Non specificato</SelectItem>
+                    <SelectItem value="nessuno">{tr("Non specificato")}</SelectItem>
                     {(operai.data ?? []).map((o) => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 {(operai.data ?? []).length === 0 && (
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Nessun operaio assegnato a questa commessa: si assegnano dalla scheda Cantiere.
+                    {tr("Nessun operaio assegnato a questa commessa: si assegnano dalla scheda Cantiere.")}
                   </p>
                 )}
               </div>
               <div className="sm:col-span-2">
-                <Label htmlFor="r-note">Note</Label>
+                <Label htmlFor="r-note">{tr("Note")}</Label>
                 <Textarea id="r-note" rows={2} value={form.note ?? ""} onChange={(e) => setForm({ ...form, note: e.target.value })} />
               </div>
 
               {erroreRiga && <p role="alert" className="sm:col-span-2 text-sm text-destructive">{erroreRiga}</p>}
               {anteprima && (
                 <div className="sm:col-span-2 rounded-lg border bg-slate-50 p-3 text-sm">
-                  <span className="text-slate-500">Importo della riga: </span>
+                  <span className="text-slate-500">{tr("Importo della riga:")} </span>
                   <strong className="tabular-nums">{euro(anteprima.importo, true)}</strong>
                   <span className="text-xs text-slate-500">
                     {" "}({formatDecimalIT(parseDecimalITStrict(qtaGrezza), { minDecimals: 0, maxDecimals: 2 })} × {euro(anteprima.prezzo, true)}
@@ -829,7 +828,7 @@ export function RendicontoAppalto({
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setForm(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setForm(null)}>{tr("Annulla")}</Button>
             <Button
               disabled={
                 salva.isPending
@@ -838,7 +837,7 @@ export function RendicontoAppalto({
               onClick={() => form && salva.mutate(form)}
             >
               {salva.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              Salva
+              {tr("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -848,47 +847,47 @@ export function RendicontoAppalto({
       <Dialog open={!!overrideForm} onOpenChange={(o) => !o && setOverrideForm(null)}>
         <DialogContent ampiezza="modulo" struttura="scorrevole">
           <DialogHeader>
-            <DialogTitle>Prezzo diverso su questo cantiere</DialogTitle>
-            <DialogDescription>Il listino del contratto non cambia: cambia solo qui.</DialogDescription>
+            <DialogTitle>{tr("Prezzo diverso su questo cantiere")}</DialogTitle>
+            <DialogDescription>{tr("Il listino del contratto non cambia: cambia solo qui.")}</DialogDescription>
           </DialogHeader>
           {overrideForm && (
             <div className="space-y-3">
               <div>
-                <Label htmlFor="o-tariffa">Tariffa</Label>
+                <Label htmlFor="o-tariffa">{tr("Tariffa")}</Label>
                 <Select value={overrideForm.tariffa_id} onValueChange={(v) => setOverrideForm({ ...overrideForm, tariffa_id: v })}>
-                  <SelectTrigger id="o-tariffa"><SelectValue placeholder="Scegli la tariffa" /></SelectTrigger>
+                  <SelectTrigger id="o-tariffa"><SelectValue placeholder={tr("Scegli la tariffa")} /></SelectTrigger>
                   <SelectContent>
                     {/* Solo le voci in uso: dopo una sostituzione del listino i nomi comparirebbero doppi. */}
                     {(listino.data ?? []).filter((t) => t.attivo).map((t) => (
                       <SelectItem key={t.id} value={t.id}>
-                        {t.descrizione} · listino {euro(t.prezzo_unitario, true)}
+                        {t.descrizione} · {tr("listino {prezzo}", { prezzo: euro(t.prezzo_unitario, true) })}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="o-prezzo">Prezzo su questo cantiere</Label>
+                <Label htmlFor="o-prezzo">{tr("Prezzo su questo cantiere")}</Label>
                 <Input id="o-prezzo" inputMode="decimal" value={overrideForm.prezzo}
                   onChange={(e) => setOverrideForm({ ...overrideForm, prezzo: e.target.value })}
                   onBlur={() => { const v = parseDecimalITStrict(overrideForm.prezzo); if (Number.isFinite(v) && v > 0) setOverrideForm({ ...overrideForm, prezzo: formatDecimalIT(v) }); }}
                   placeholder="80,00" />
               </div>
               <div>
-                <Label htmlFor="o-nota">Perché</Label>
+                <Label htmlFor="o-nota">{tr("Perché")}</Label>
                 <Input id="o-nota" value={overrideForm.nota} onChange={(e) => setOverrideForm({ ...overrideForm, nota: e.target.value })}
-                  placeholder="Concordato col capocantiere il 12/10" />
+                  placeholder={tr("Concordato col capocantiere il 12/10")} />
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOverrideForm(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setOverrideForm(null)}>{tr("Annulla")}</Button>
             <Button
               disabled={!overrideForm?.tariffa_id || !(parseDecimalITStrict(overrideForm?.prezzo ?? "") > 0) || salvaEccezione.isPending}
               onClick={() => overrideForm && salvaEccezione.mutate(overrideForm)}
             >
               {salvaEccezione.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              Salva
+              {tr("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -898,19 +897,19 @@ export function RendicontoAppalto({
       <AlertDialog open={!!daEliminare} onOpenChange={(o) => !o && setDaEliminare(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questa riga?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminare questa riga?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {daEliminare && `${daEliminare.descrizione} — ${euro(daEliminare.importo, true)} del ${giornoIT(daEliminare.data)}.`}
-              {daEliminare?.stato === "confermata" && " La riga era confermata."}
+              {daEliminare && tr("{descrizione} — {importo} del {giorno}.", { descrizione: daEliminare.descrizione, importo: euro(daEliminare.importo, true), giorno: giornoIT(daEliminare.data) })}
+              {daEliminare?.stato === "confermata" && ` ${tr("La riga era confermata.")}`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => daEliminare && elimina.mutate(daEliminare.id)}
             >
-              Elimina
+              {tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

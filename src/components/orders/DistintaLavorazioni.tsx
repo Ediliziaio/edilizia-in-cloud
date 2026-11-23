@@ -30,6 +30,7 @@ import { conAliquota, saldoIva, type IvaCommessa } from "@/lib/orders/ivaCommess
 import { percentualeDaQuantita, quantitaEseguita, type GiornoLavorativo, type Sottofase } from "@/lib/orders/sottofasi";
 import { cn } from "@/lib/utils";
 import { OfficeSelect } from "./OfficeSelect";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ChiLavora {
   squadre: string[];
@@ -46,7 +47,7 @@ export type FaseTabella = FaseDistinta & { start_date?: string | null; end_date?
 const COLONNE = "md:grid-cols-[1.25rem_minmax(0,1fr)_4.5rem_4.25rem_5.75rem_1.25rem] xl:grid-cols-[1.25rem_minmax(0,1fr)_4.5rem_4.25rem_4rem_4rem_5.75rem_5.75rem_1.25rem]";
 
 const breve = (d: string | null | undefined) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}` : "");
-const quantita = (n: number | null, u: string | null) => (n === null ? "" : `${n.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${u ? ` ${u}` : ""}`);
+const quantita = (n: number | null, u: string | null) => (n === null ? "" : `${n.toLocaleString(intlCampo(), { maximumFractionDigits: 2 })}${u ? ` ${u}` : ""}`);
 
 /** Una data che sembra testo: si clicca e si cambia. */
 function CellaData({ valore, etichetta, modificabile, rossa, onSalva }: {
@@ -80,6 +81,7 @@ function CellaData({ valore, etichetta, modificabile, rossa, onSalva }: {
 
 /** Aggiornamento rapido: il totale fatto (quantità se la voce ne ha una, altrimenti %), salvato uscendo dal campo. */
 function CampoRapido({ riga: r, onAvanza }: { riga: RigaDistinta; onAvanza: Props["onAvanza"] }) {
+  const t = useT();
   const misurabile = !!r.quantita && r.quantita > 0;
   const attuale = misurabile ? quantitaEseguita(r) ?? 0 : r.percentuale;
   const [valore, setValore] = useState(attuale ? String(attuale) : "");
@@ -94,8 +96,8 @@ function CampoRapido({ riga: r, onAvanza }: { riga: RigaDistinta; onAvanza: Prop
   };
   return (
     <input type="text" inputMode="decimal" data-rapido value={valore} onChange={(e) => setValore(e.target.value)} onBlur={salva}
-      placeholder={misurabile ? r.unita ?? "q.tà" : "%"} aria-label={`${r.descrizione}: ${misurabile ? `fatti su ${r.quantita}` : "percentuale"}`}
-      title={misurabile ? `Fatti su ${r.quantita?.toLocaleString("it-IT")}${r.unita ? ` ${r.unita}` : ""}` : "Percentuale fatta"}
+      placeholder={misurabile ? r.unita ?? t("q.tà") : "%"} aria-label={`${r.descrizione}: ${misurabile ? t("fatti su {quantita}", { quantita: r.quantita ?? "" }) : t("percentuale")}`}
+      title={misurabile ? t("Fatti su {quantita}", { quantita: `${r.quantita?.toLocaleString(intlCampo())}${r.unita ? ` ${r.unita}` : ""}` }) : t("Percentuale fatta")}
       onKeyDown={(e) => {
         if (e.key !== "Enter") return;
         e.preventDefault();
@@ -115,33 +117,34 @@ const dataBreve = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
  * quanto è fatto, e la tacca di oggi fra la prima data d'inizio e l'ultima di fine delle fasi.
  */
 export function BarraAndamento({ a, sintesi = false }: { a: Andamento; sintesi?: boolean }) {
+  const t = useT();
   const ritardo = a.stato === "in_ritardo";
   const colore = a.fatto >= 100 ? "bg-emerald-500" : ritardo ? "bg-amber-500" : "bg-sky-600";
-  const testo = a.stato === "in_ritardo" ? `in ritardo di ${a.punti} punti`
-    : a.stato === "in_anticipo" ? `in anticipo di ${a.punti} punti`
-    : a.fatto >= 100 ? "lavori finiti" : a.stato === "in_linea" ? "in linea coi tempi" : "senza date sulle fasi";
+  const testo = a.stato === "in_ritardo" ? t("in ritardo di {punti} punti", { punti: a.punti })
+    : a.stato === "in_anticipo" ? t("in anticipo di {punti} punti", { punti: a.punti })
+    : a.fatto >= 100 ? t("lavori finiti") : a.stato === "in_linea" ? t("in linea coi tempi") : t("senza date sulle fasi");
   return (
     <div className={cn("min-w-0", !sintesi && "flex-1 basis-56 self-center")} data-testid="barra-andamento">
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-2 text-xs">
         <span className={sintesi ? "text-2xl font-semibold leading-none tracking-tight tabular-nums" : "text-muted-foreground"}>
-          {sintesi ? `${a.fatto}%` : "Stato avanzamento lavori"}
+          {sintesi ? `${a.fatto}%` : t("Stato avanzamento lavori")}
         </span>
         <span className={cn("font-medium", ritardo ? "text-amber-800 dark:text-amber-200" : "text-muted-foreground")}>
           {!sintesi && <><span className="font-semibold tabular-nums text-foreground">{a.fatto}%</span> · </>}{testo}
         </span>
       </div>
-      <div className="relative h-2.5 rounded-full bg-muted" role="progressbar" aria-label="Stato avanzamento lavori" aria-valuenow={a.fatto} aria-valuemin={0} aria-valuemax={100}
-        aria-valuetext={`${a.fatto}% fatto${a.tempo !== null ? `, ${a.tempo}% del tempo trascorso` : ""}, ${testo}`}>
+      <div className="relative h-2.5 rounded-full bg-muted" role="progressbar" aria-label={t("Stato avanzamento lavori")} aria-valuenow={a.fatto} aria-valuemin={0} aria-valuemax={100}
+        aria-valuetext={`${t("{percentuale}% fatto", { percentuale: a.fatto })}${a.tempo !== null ? `, ${t("{percentuale}% del tempo trascorso", { percentuale: a.tempo })}` : ""}, ${testo}`}>
         <div className={cn("h-full rounded-full transition-all", colore)} style={{ width: `${a.fatto}%` }} />
         {a.tempo !== null && a.fatto < 100 && (
           <div className="absolute -top-1 h-[18px] w-0.5 -translate-x-1/2 rounded bg-slate-900" style={{ left: `${a.tempo}%` }}
-            title={`Oggi: è passato il ${a.tempo}% del tempo previsto`} aria-hidden="true" />
+            title={t("Oggi: è passato il {percentuale}% del tempo previsto", { percentuale: a.tempo })} aria-hidden="true" />
         )}
       </div>
       {a.inizio && a.fine && (
         <div className="mt-0.5 flex justify-between text-[10px] tabular-nums text-muted-foreground">
           <span>{dataBreve(a.inizio)}</span>
-          {a.tempo !== null && a.fatto < 100 && <span className={cn(a.tempo >= 100 && "font-medium text-amber-800")}>{a.tempo >= 100 ? "fine prevista superata" : `oggi ${a.tempo}% del tempo`}</span>}
+          {a.tempo !== null && a.fatto < 100 && <span className={cn(a.tempo >= 100 && "font-medium text-amber-800")}>{a.tempo >= 100 ? t("fine prevista superata") : t("oggi {percentuale}% del tempo", { percentuale: a.tempo })}</span>}
           <span>{dataBreve(a.fine)}</span>
         </div>
       )}
@@ -230,6 +233,7 @@ export function DistintaLavorazioni({
   orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, onCostiSenzaFase, apriSottofase, onSottofaseAperta, chiSottofasi, onAggiungiChi, onTogliChi, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
   onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onAggiungiTante, onAvanzaTante, onSalvaVoce, onRisorse, onParallelo, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda, onOrganizza, renderOrganizza, soloOrganizza,
 }: Props) {
+  const tr = useT();
   // Si parte dalla prima fase ancora da finire: con decine di voci, una fase alla volta.
   const [faseId, setFaseId] = useState<string | null>(() => {
     const voci = fasi.reduce((n, f) => n + (sottofasiDi.get(f.id)?.length ?? 0), 0);
@@ -249,8 +253,8 @@ export function DistintaLavorazioni({
   useEffect(() => {
     if (!nuovaIn) return undefined;
     // Dopo la chiusura del menu e dopo che la riga è entrata nell'elenco.
-    const t = window.setTimeout(() => campoNuova.current?.focus(), 80);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => campoNuova.current?.focus(), 80);
+    return () => window.clearTimeout(timer);
   }, [nuovaIn]);
   const [nuova, setNuova] = useState("");
   const [daEliminare, setDaEliminare] = useState<RigaDistinta | null>(null);
@@ -360,48 +364,48 @@ export function DistintaLavorazioni({
   const fineAzioneDate = () => { azzeraScelte(); setBloccoInizio(""); setBloccoFine(""); setBloccoGiorni(""); };
 
   // Dopo un'azione su tante righe, qualche secondo per tornare indietro.
-  const conAnnulla = (testo: string, indietro: () => void) => toast.success(testo, { action: { label: "Annulla", onClick: indietro }, duration: 8000 });
+  const conAnnulla = (testo: string, indietro: () => void) => toast.success(testo, { action: { label: tr("Annulla"), onClick: indietro }, duration: 8000 });
   const dateDiPrima = () => conSottofase.map((r) => ({ id: r.sottofaseId!, data_inizio: r.inizio, data_fine: r.fine, giorni: r.giorni }));
   const applicaDate = () => {
     if (!bloccoInizio && !bloccoFine) return;
     const { passi, incoerenti } = pianoInBlocco(conSottofase, bloccoInizio || null, bloccoFine || null);
-    if (incoerenti.length > 0) { toast.error(`Su ${incoerenti.length === 1 ? "1 riga" : `${incoerenti.length} righe`} la fine verrebbe prima dell'inizio: nessuna data salvata.`); return; }
+    if (incoerenti.length > 0) { toast.error(tr(incoerenti.length === 1 ? "Su 1 riga la fine verrebbe prima dell'inizio: nessuna data salvata." : "Su {n} righe la fine verrebbe prima dell'inizio: nessuna data salvata.", { n: incoerenti.length })); return; }
     const prima = dateDiPrima();
     onPianificaTutte(passi);
-    conAnnulla(`Date su ${passi.length} ${passi.length === 1 ? "riga" : "righe"}`, () => onPianificaTutte(prima));
+    conAnnulla(tr(passi.length === 1 ? "Date su {n} riga" : "Date su {n} righe", { n: passi.length }), () => onPianificaTutte(prima));
     fineAzioneDate();
   };
   const spostaDate = () => {
     const n = Number(bloccoSposta);
-    if (!Number.isInteger(n) || n === 0 || Math.abs(n) > 3650) { toast.error("Scrivi di quanti giorni, anche negativo."); return; }
+    if (!Number.isInteger(n) || n === 0 || Math.abs(n) > 3650) { toast.error(tr("Scrivi di quanti giorni, anche negativo.")); return; }
     const passi = dateSpostate(conSottofase, n);
-    if (passi.length === 0) { toast.error("Nessuna riga con date da spostare: quelle fatte restano dove sono."); return; }
+    if (passi.length === 0) { toast.error(tr("Nessuna riga con date da spostare: quelle fatte restano dove sono.")); return; }
     const prima = dateDiPrima();
     onPianificaTutte(passi);
-    conAnnulla(`${passi.length} ${passi.length === 1 ? "riga spostata" : "righe spostate"} di ${n} giorni`, () => onPianificaTutte(prima));
+    conAnnulla(tr(passi.length === 1 ? "{n} riga spostata di {giorni} giorni" : "{n} righe spostate di {giorni} giorni", { n: passi.length, giorni: n }), () => onPianificaTutte(prima));
     setBloccoSposta("");
     azzeraScelte();
   };
   const avanzaBlocco = () => {
     const p = Number(bloccoPct);
-    if (!onAvanzaTante || !Number.isInteger(p) || p < 0 || p > 100) { toast.error("Scrivi una percentuale da 0 a 100."); return; }
+    if (!onAvanzaTante || !Number.isInteger(p) || p < 0 || p > 100) { toast.error(tr("Scrivi una percentuale da 0 a 100.")); return; }
     const righe = conSottofase.filter((r) => !r.fatta || p < 100);
     if (righe.length === 0) return;
     const prima = righe.map((r) => ({ id: r.sottofaseId!, percentuale: r.percentuale, quantita_fatta: r.quantitaFatta }));
     onAvanzaTante(righe.map((r) => ({ id: r.sottofaseId!, percentuale: p, quantita_fatta: r.quantita ? Math.round((r.quantita * p) / 100 * 1000) / 1000 : null })));
-    conAnnulla(`${righe.length} ${righe.length === 1 ? "riga" : "righe"} al ${p}%`, () => onAvanzaTante(prima));
+    conAnnulla(tr(righe.length === 1 ? "{n} riga al {percentuale}%" : "{n} righe al {percentuale}%", { n: righe.length, percentuale: p }), () => onAvanzaTante(prima));
     setBloccoPct("");
     azzeraScelte();
   };
   const mettiInFila = () => {
     const giorni = bloccoGiorni === "" ? null : Number(bloccoGiorni);
-    if (giorni !== null && (!Number.isInteger(giorni) || giorni < 1 || giorni > 3650)) { toast.error("Scrivi i giorni con un numero intero."); return; }
+    if (giorni !== null && (!Number.isInteger(giorni) || giorni < 1 || giorni > 3650)) { toast.error(tr("Scrivi i giorni con un numero intero.")); return; }
     const { passi, senzaGiorni } = dateInFila(conSottofase, bloccoInizio || oggi, giorni, lavorativo ?? (() => true));
-    if (senzaGiorni.length > 0) { toast.error(`${senzaGiorni.length === 1 ? "1 riga non ha" : `${senzaGiorni.length} righe non hanno`} i giorni: scrivili qui.`); return; }
-    if (passi.length === 0) { toast.error("Nessuna riga da mettere in fila: quelle fatte restano dove sono."); return; }
+    if (senzaGiorni.length > 0) { toast.error(tr(senzaGiorni.length === 1 ? "1 riga non ha i giorni: scrivili qui." : "{n} righe non hanno i giorni: scrivili qui.", { n: senzaGiorni.length })); return; }
+    if (passi.length === 0) { toast.error(tr("Nessuna riga da mettere in fila: quelle fatte restano dove sono.")); return; }
     const prima = dateDiPrima();
     onPianificaTutte(passi);
-    conAnnulla(`${passi.length} ${passi.length === 1 ? "riga messa" : "righe messe"} in fila`, () => onPianificaTutte(prima));
+    conAnnulla(tr(passi.length === 1 ? "{n} riga messa in fila" : "{n} righe messe in fila", { n: passi.length }), () => onPianificaTutte(prima));
     fineAzioneDate();
   };
   const segnaBlocco = (fatta: boolean) => {
@@ -411,7 +415,7 @@ export function DistintaLavorazioni({
       // Indietro: ognuna torna al suo punto, non solo «da fare».
       const prima = cambiano.map((r) => ({ id: r.sottofaseId!, percentuale: r.percentuale, quantita_fatta: r.quantitaFatta }));
       onSegnaTutte(ids, fatta);
-      conAnnulla(`${ids.length} ${ids.length === 1 ? "riga" : "righe"} ${fatta ? "segnate fatte" : "da fare"}`, () => (onAvanzaTante ? onAvanzaTante(prima) : onSegnaTutte(ids, !fatta)));
+      conAnnulla(tr(ids.length === 1 ? (fatta ? "{n} riga segnate fatte" : "{n} riga da fare") : (fatta ? "{n} righe segnate fatte" : "{n} righe da fare"), { n: ids.length }), () => (onAvanzaTante ? onAvanzaTante(prima) : onSegnaTutte(ids, !fatta)));
     }
     azzeraScelte();
   };
@@ -419,14 +423,14 @@ export function DistintaLavorazioni({
     const inizio = campo === "inizio" ? v : r.inizio;
     const fine = campo === "fine" ? v : r.fine;
     if (!r.sottofaseId) return;
-    if (!dateValide(inizio, fine)) { toast.error("La fine viene prima dell'inizio."); return; }
+    if (!dateValide(inizio, fine)) { toast.error(tr("La fine viene prima dell'inizio.")); return; }
     // Togliendo la fine si tolgono anche i giorni: con quelli il database la ricalcolerebbe.
     onPianifica(r.sottofaseId, { data_inizio: inizio, data_fine: fine, giorni: fine ? r.giorni : null });
   };
   const salvaDataFase = (f: FaseTabella, campo: "inizio" | "fine", v: string | null) => {
     const start = campo === "inizio" ? v : f.start_date ?? null;
     const end = campo === "fine" ? v : f.end_date ?? null;
-    if (!dateValide(start, end)) { toast.error("La fine viene prima dell'inizio."); return; }
+    if (!dateValide(start, end)) { toast.error(tr("La fine viene prima dell'inizio.")); return; }
     onDateFase(f.id, { start_date: start, end_date: end });
   };
   const sposta = (r: RigaDistinta, verso: -1 | 1) => {
@@ -460,52 +464,52 @@ export function DistintaLavorazioni({
     return (
       <>
         <div className="flex items-center">
-          {puoModificare && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={`Seleziona ${f.name}`} />}
+          {puoModificare && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={tr("Seleziona {nome}", { nome: f.name })} />}
         </div>
         <div className="min-w-0">
           <div className="flex max-w-full items-center gap-1">
             {!faseId && (
-              <button type="button" onClick={() => apriChiudi(f.id)} aria-expanded={aperta} aria-label={`${aperta ? "Chiudi" : "Apri"} le voci di ${f.name}`} className="tap-compact shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <button type="button" onClick={() => apriChiudi(f.id)} aria-expanded={aperta} aria-label={aperta ? tr("Chiudi le voci di {nome}", { nome: f.name }) : tr("Apri le voci di {nome}", { nome: f.name })} className="tap-compact shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 {aperta ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
               </button>
             )}
-            <button type="button" onClick={() => onApriScheda(f.id)} aria-label={`Scheda di ${f.name}`} title={f.name} className="tap-compact line-clamp-2 min-w-0 rounded text-left text-[13px] font-semibold leading-tight max-md:text-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{f.name}</button>
+            <button type="button" onClick={() => onApriScheda(f.id)} aria-label={tr("Scheda di {nome}", { nome: f.name })} title={f.name} className="tap-compact line-clamp-2 min-w-0 rounded text-left text-[13px] font-semibold leading-tight max-md:text-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{f.name}</button>
           </div>
           <div className="flex flex-wrap items-center gap-x-2 max-md:flex-nowrap max-md:overflow-hidden max-md:[&_*]:text-xs">
             {puoModificare || puoSquadre ? (
-              <button type="button" onClick={() => apriAssegnazione([f.id])} title={nomi.join(", ") || "Assegna chi la fa"} aria-label={`Chi fa ${f.name}`}
+              <button type="button" onClick={() => apriAssegnazione([f.id])} title={nomi.join(", ") || tr("Assegna chi la fa")} aria-label={tr("Chi fa {fase}", { fase: f.name })}
                 className={cn("tap-compact min-w-0 max-w-full truncate rounded text-left text-[11px] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", nomi.length === 0 && !finita ? "font-medium text-amber-700" : "text-muted-foreground")}>
-                {nomi.length ? `${nomi[0]}${nomi.length > 1 ? ` +${nomi.length - 1}` : ""}` : finita ? "Nessuno" : "+ Assegna chi la fa"}
+                {nomi.length ? `${nomi[0]}${nomi.length > 1 ? ` +${nomi.length - 1}` : ""}` : finita ? tr("Nessuno") : tr("+ Assegna chi la fa")}
               </button>
-            ) : <span className="min-w-0 truncate text-[11px] text-muted-foreground" title={nomi.join(", ")}>{nomi.join(", ") || "Nessuno"}</span>}
+            ) : <span className="min-w-0 truncate text-[11px] text-muted-foreground" title={nomi.join(", ")}>{nomi.join(", ") || tr("Nessuno")}</span>}
             {/* Sotto i 1280px la colonna «Fine» è nascosta: senza questo una fase scaduta
                 non si distingueva dalle altre da telefono e tablet (collaudo 23/11/2026). */}
-            {ritardo && <span title={`Doveva finire il ${dataBreve(f.end_date!)}`} className="shrink-0 whitespace-nowrap text-[11px] font-medium text-rose-700 xl:hidden">In ritardo {dataBreve(f.end_date!)}</span>}
+            {ritardo && <span title={tr("Doveva finire il {data}", { data: dataBreve(f.end_date!) })} className="shrink-0 whitespace-nowrap text-[11px] font-medium text-rose-700 xl:hidden">{tr("In ritardo {data}", { data: dataBreve(f.end_date!) })}</span>}
             {!!chi?.mezzi.length && <span title={chi.mezzi.join(", ")} className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground"><Truck className="h-3 w-3" aria-hidden="true" />{chi.mezzi.length}</span>}
-            {!!chi?.articoli && <span title={`${chi.articoli} articoli`} className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground"><Package className="h-3 w-3" aria-hidden="true" />{chi.articoli}</span>}
-            {vedeCosti && !!e?.costoConsuntivo && <span className={cn("shrink-0 text-[11px] tabular-nums text-muted-foreground", e.costoPrevisto > 0 && e.costoConsuntivo > e.costoPrevisto && "font-medium text-rose-700")}>Consuntivo {formatCurrency(e.costoConsuntivo)}</span>}
+            {!!chi?.articoli && <span title={tr("{n} articoli", { n: chi.articoli })} className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground"><Package className="h-3 w-3" aria-hidden="true" />{chi.articoli}</span>}
+            {vedeCosti && !!e?.costoConsuntivo && <span className={cn("shrink-0 text-[11px] tabular-nums text-muted-foreground", e.costoPrevisto > 0 && e.costoConsuntivo > e.costoPrevisto && "font-medium text-rose-700")}>{tr("Consuntivo {importo}", { importo: formatCurrency(e.costoConsuntivo) })}</span>}
           </div>
         </div>
-        <div className="whitespace-nowrap text-right text-[11px] tabular-nums text-muted-foreground max-md:hidden">{dellaFase.length} voci</div>
-        <div className="flex items-center justify-end gap-1 max-md:col-start-3 max-md:row-start-1" title={(sottofasiDi.get(f.id)?.length ?? 0) > 0 ? `Avanzamento ${pct}%: dalle sottofasi, pesate sull'importo` : `Avanzamento ${pct}%: scritto a mano o dai rapportini (la fase non ha sottofasi)`}>
+        <div className="whitespace-nowrap text-right text-[11px] tabular-nums text-muted-foreground max-md:hidden">{tr("{n} voci", { n: dellaFase.length })}</div>
+        <div className="flex items-center justify-end gap-1 max-md:col-start-3 max-md:row-start-1" title={(sottofasiDi.get(f.id)?.length ?? 0) > 0 ? tr("Avanzamento {percentuale}%: dalle sottofasi, pesate sull'importo", { percentuale: pct }) : tr("Avanzamento {percentuale}%: scritto a mano o dai rapportini (la fase non ha sottofasi)", { percentuale: pct })}>
           <span className="h-1 w-6 overflow-hidden rounded-full bg-muted max-md:hidden"><span className={cn("block h-full", finita ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
           <span className="text-[11px] font-medium tabular-nums max-md:text-xs">{pct}%</span>
         </div>
-        <div className="max-xl:hidden"><CellaData valore={f.start_date} etichetta={`Inizio di ${f.name}`} modificabile={puoModificare} onSalva={(v) => salvaDataFase(f, "inizio", v)} /></div>
-        <div className="max-xl:hidden"><CellaData valore={f.end_date} etichetta={`Fine di ${f.name}`} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataFase(f, "fine", v)} /></div>
+        <div className="max-xl:hidden"><CellaData valore={f.start_date} etichetta={tr("Inizio di {nome}", { nome: f.name })} modificabile={puoModificare} onSalva={(v) => salvaDataFase(f, "inizio", v)} /></div>
+        <div className="max-xl:hidden"><CellaData valore={f.end_date} etichetta={tr("Fine di {nome}", { nome: f.name })} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataFase(f, "fine", v)} /></div>
         <div className="text-right text-xs font-semibold tabular-nums max-md:hidden">{vedeVenduto ? importo(e?.venduto) : ""}</div>
         <div className="text-right text-xs font-semibold tabular-nums max-xl:hidden">{vedeCosti ? (e?.costoPrevisto ? formatCurrency(e.costoPrevisto) : "—") : ""}</div>
         <div className="flex items-center justify-end max-md:col-start-4 max-md:row-start-1">
           {puoModificare && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="tap-compact h-5 w-5 text-muted-foreground max-md:h-8 max-md:w-8" aria-label={`Altro per ${f.name}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="tap-compact h-5 w-5 text-muted-foreground max-md:h-8 max-md:w-8" aria-label={tr("Altro per {nome}", { nome: f.name })}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
               </DropdownMenuTrigger>
               {/* Il menu, chiudendosi, rimetterebbe il cursore su di sé: il nome scritto andava perso. */}
               <DropdownMenuContent align="end" onCloseAutoFocus={(ev) => { if (campoNuova.current) ev.preventDefault(); }}>
-                <DropdownMenuItem onClick={() => { setAperte((a) => new Set(a).add(f.id)); setNuovaIn(f.id); }}><Plus className="mr-2 h-3.5 w-3.5" />Aggiungi sottofase</DropdownMenuItem>
-                {senzaSottofase > 0 && <DropdownMenuItem onClick={() => (pct > 0 ? setDivisione(f.id) : onDalleVoci(f.id))}><ListChecks className="mr-2 h-3.5 w-3.5" />Crea {senzaSottofase} sottofasi dalle voci</DropdownMenuItem>}
-                <DropdownMenuItem onClick={() => onApriScheda(f.id)}><ExternalLink className="mr-2 h-3.5 w-3.5" />Apri la scheda</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setAperte((a) => new Set(a).add(f.id)); setNuovaIn(f.id); }}><Plus className="mr-2 h-3.5 w-3.5" />{tr("Aggiungi sottofase")}</DropdownMenuItem>
+                {senzaSottofase > 0 && <DropdownMenuItem onClick={() => (pct > 0 ? setDivisione(f.id) : onDalleVoci(f.id))}><ListChecks className="mr-2 h-3.5 w-3.5" />{tr("Crea {n} sottofasi dalle voci", { n: senzaSottofase })}</DropdownMenuItem>}
+                <DropdownMenuItem onClick={() => onApriScheda(f.id)}><ExternalLink className="mr-2 h-3.5 w-3.5" />{tr("Apri la scheda")}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -522,17 +526,17 @@ export function DistintaLavorazioni({
     return (
       <>
         <div className="flex items-center">
-          {puoModificare && <Checkbox checked={scelteRighe.has(r.key)} onCheckedChange={() => inverti(setScelteRighe, r.key)} aria-label={`Seleziona ${r.descrizione}`} />}
+          {puoModificare && <Checkbox checked={scelteRighe.has(r.key)} onCheckedChange={() => inverti(setScelteRighe, r.key)} aria-label={tr("Seleziona {nome}", { nome: r.descrizione })} />}
         </div>
         <div className="flex min-w-0 items-center gap-1.5 pl-3">
           {r.sottofaseId ? (
-            <button type="button" role="checkbox" aria-checked={r.fatta} disabled={!puoModificare} onClick={() => onSegna(r.sottofaseId!, !r.fatta)} aria-label={`${r.descrizione}: ${r.fatta ? "fatta" : "da fare"}`} className="tap-compact shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default">
+            <button type="button" role="checkbox" aria-checked={r.fatta} disabled={!puoModificare} onClick={() => onSegna(r.sottofaseId!, !r.fatta)} aria-label={`${r.descrizione}: ${r.fatta ? tr("fatta") : tr("da fare")}`} className="tap-compact shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default">
               {r.fatta ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground/50 hover:text-foreground" aria-hidden="true" />}
             </button>
-          ) : <span title="Non ha ancora una sottofase" className="h-3.5 w-3.5 shrink-0" />}
+          ) : <span title={tr("Non ha ancora una sottofase")} className="h-3.5 w-3.5 shrink-0" />}
           {inModifica && inModifica.id === r.sottofaseId ? (
             <Input
-              autoFocus value={inModifica.testo} maxLength={160} aria-label={`Nuovo nome di ${r.descrizione}`}
+              autoFocus value={inModifica.testo} maxLength={160} aria-label={tr("Nuovo nome di {nome}", { nome: r.descrizione })}
               onChange={(e) => setInModifica({ ...inModifica, testo: e.target.value })}
               onBlur={() => confermaNome(r)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confermaNome(r); } else if (e.key === "Escape") setInModifica(null); }}
@@ -545,7 +549,7 @@ export function DistintaLavorazioni({
               {r.codice && <span className="ml-1 font-mono text-[10px] text-muted-foreground">{r.codice}</span>}
             {chiDellaSottofase(r.sottofaseId).length > 0 && <span className="block truncate text-[10px] text-sky-800 max-md:text-[11px]">{chiDellaSottofase(r.sottofaseId).map((c) => c.nome).join(", ")}</span>}
             {/* Solo con date proprie: senza sottofase la voce eredita quelle della fase, già segnalate sopra. */}
-            {ritardo && r.sottofaseId && <span className="block text-[10px] font-medium text-rose-700 max-md:text-[11px] xl:hidden">In ritardo {dataBreve(r.fine!)}</span>}
+            {ritardo && r.sottofaseId && <span className="block text-[10px] font-medium text-rose-700 max-md:text-[11px] xl:hidden">{tr("In ritardo {data}", { data: dataBreve(r.fine!) })}</span>}
             </button>
           )}
         </div>
@@ -554,22 +558,22 @@ export function DistintaLavorazioni({
         </div>
         {rapido && r.sottofaseId && !r.fatta && puoModificare
           ? <div className="max-md:hidden"><CampoRapido riga={r} onAvanza={onAvanza} /></div>
-          : <div className={cn("whitespace-nowrap text-[11px] tabular-nums max-md:hidden", stato.tono === "fatta" ? "font-medium text-emerald-700" : stato.tono === "corso" ? "font-medium text-primary" : "text-muted-foreground")}>{r.sottofaseId ? stato.testo : ""}</div>}
-        <div className="max-xl:hidden">{r.sottofaseId ? <CellaData valore={r.inizio} etichetta={`Inizio di ${r.descrizione}`} modificabile={puoModificare} onSalva={(v) => salvaDataRiga(r, "inizio", v)} /> : null}</div>
-        <div className="max-xl:hidden">{r.sottofaseId ? <CellaData valore={r.fine} etichetta={`Fine di ${r.descrizione}`} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataRiga(r, "fine", v)} /> : null}</div>
+          : <div className={cn("whitespace-nowrap text-[11px] tabular-nums max-md:hidden", stato.tono === "fatta" ? "font-medium text-emerald-700" : stato.tono === "corso" ? "font-medium text-primary" : "text-muted-foreground")}>{r.sottofaseId ? (stato.testo === "Fatta" || stato.testo === "Da fare" ? tr(stato.testo) : stato.testo) : ""}</div>}
+        <div className="max-xl:hidden">{r.sottofaseId ? <CellaData valore={r.inizio} etichetta={tr("Inizio di {nome}", { nome: r.descrizione })} modificabile={puoModificare} onSalva={(v) => salvaDataRiga(r, "inizio", v)} /> : null}</div>
+        <div className="max-xl:hidden">{r.sottofaseId ? <CellaData valore={r.fine} etichetta={tr("Fine di {nome}", { nome: r.descrizione })} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataRiga(r, "fine", v)} /> : null}</div>
         <div className="text-right text-xs tabular-nums text-muted-foreground max-md:hidden">{vedeVenduto && r.venduto ? importo(r.venduto) : ""}</div>
         <div className="text-right text-xs tabular-nums text-muted-foreground max-xl:hidden">{vedeCosti && r.previsto !== null ? formatCurrency(r.previsto) : ""}</div>
         <div className="flex items-center justify-end max-md:col-start-4 max-md:row-start-1">
           {puoModificare && r.sottofaseId && !inModifica && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="tap-compact h-5 w-5 text-muted-foreground max-md:h-8 max-md:w-8" aria-label={`Altro per ${r.descrizione}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="tap-compact h-5 w-5 text-muted-foreground max-md:h-8 max-md:w-8" aria-label={tr("Altro per {nome}", { nome: r.descrizione })}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setInModifica({ id: r.sottofaseId!, testo: r.descrizione.slice(0, 160) })}><Pencil className="mr-2 h-3.5 w-3.5" />Rinomina</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => sposta(r, -1)}><ArrowUp className="mr-2 h-3.5 w-3.5" />Sposta su</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => sposta(r, 1)}><ArrowDown className="mr-2 h-3.5 w-3.5" />Sposta giù</DropdownMenuItem>
-                <DropdownMenuItem className="text-rose-700" onClick={() => setDaEliminare(r)}><Trash2 className="mr-2 h-3.5 w-3.5" />Elimina</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setInModifica({ id: r.sottofaseId!, testo: r.descrizione.slice(0, 160) })}><Pencil className="mr-2 h-3.5 w-3.5" />{tr("Rinomina")}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => sposta(r, -1)}><ArrowUp className="mr-2 h-3.5 w-3.5" />{tr("Sposta su")}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => sposta(r, 1)}><ArrowDown className="mr-2 h-3.5 w-3.5" />{tr("Sposta giù")}</DropdownMenuItem>
+                <DropdownMenuItem className="text-rose-700" onClick={() => setDaEliminare(r)}><Trash2 className="mr-2 h-3.5 w-3.5" />{tr("Elimina")}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -586,14 +590,14 @@ export function DistintaLavorazioni({
       return (
         <div className="border-b px-2 py-0.5 pl-9">
           <button type="button" onClick={() => setNuovaIn(e.faseId)} className="flex items-center gap-1 rounded text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Plus className="h-3 w-3" aria-hidden="true" />Aggiungi sottofase
+            <Plus className="h-3 w-3" aria-hidden="true" />{tr("Aggiungi sottofase")}
           </button>
         </div>
       );
     }
     return (
       <div className="border-b px-2 py-1 pl-9">
-        <Input ref={campoNuova} autoFocus value={nuova} maxLength={160} onChange={(ev) => setNuova(ev.target.value)} placeholder="Nome e Invio, Esc per chiudere. Puoi incollare un elenco." aria-label="Nuova sottofase"
+        <Input ref={campoNuova} autoFocus value={nuova} maxLength={160} onChange={(ev) => setNuova(ev.target.value)} placeholder={tr("Nome e Invio, Esc per chiudere. Puoi incollare un elenco.")} aria-label={tr("Nuova sottofase")}
           onPaste={(ev) => {
             const nomi = ev.clipboardData.getData("text").split(/\r?\n/).map((x) => x.trim().slice(0, 160)).filter(Boolean);
             if (nomi.length > 1 && onAggiungiTante) { ev.preventDefault(); onAggiungiTante(e.faseId, nomi); setNuova(""); }
@@ -638,23 +642,23 @@ export function DistintaLavorazioni({
   };
 
   return (
-    <section aria-label="Lavorazioni della commessa" className={soloOrganizza ? undefined : "space-y-3"}>
+    <section aria-label={tr("Lavorazioni della commessa")} className={soloOrganizza ? undefined : "space-y-3"}>
       {!soloOrganizza && <>
       <dl className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border bg-card p-3">
         {andamento && <div className="min-w-[min(100%,14rem)] flex-1 basis-[15rem] rounded-lg bg-muted/50 px-3 py-2 lg:max-w-[21rem]">
-          <dt className="mb-1.5 text-xs font-medium text-muted-foreground">Avanzamento</dt>
+          <dt className="mb-1.5 text-xs font-medium text-muted-foreground">{tr("Avanzamento")}</dt>
           <dd><BarraAndamento a={andamento} sintesi /></dd>
         </div>}
-        {vedeVenduto && <Stat etichetta="Imponibile" nota={daRipartire > 0.5 && vendutoFasi > 0 ? `${formatCurrency(daRipartire)} da ripartire` : undefined}>{formatCurrency(venduto)}</Stat>}
-        {vedeVenduto && iva && <Stat etichetta={`Con IVA ${aliquota.toLocaleString("it-IT")}%`}>{formatCurrency(conIvaTot.totale)}</Stat>}
-        {vedeCosti && <Stat etichetta="Previsto" nota={economia.senzaCosto ? `${economia.senzaCosto} ${economia.senzaCosto === 1 ? "voce senza costo" : "voci senza costo"}` : undefined}>{economia.previsto > 0 ? formatCurrency(economia.previsto) : "—"}</Stat>}
-        {vedeCosti && <Stat etichetta="Consuntivo" nota={consuntivoSenzaFase > 0 ? (onCostiSenzaFase
-          ? <button type="button" onClick={onCostiSenzaFase} className="rounded font-medium text-amber-800 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">+ {formatCurrency(consuntivoSenzaFase)} senza fase</button>
-          : `+ ${formatCurrency(consuntivoSenzaFase)} senza fase`) : undefined}>{formatCurrency(economia.consuntivo)}</Stat>}
-        {vedeMargini && vedeVenduto && vedeCosti && <Stat etichetta="Margine previsto">{margine === null ? "—" : `${margine}%`}</Stat>}
+        {vedeVenduto && <Stat etichetta={tr("Imponibile")} nota={daRipartire > 0.5 && vendutoFasi > 0 ? tr("{importo} da ripartire", { importo: formatCurrency(daRipartire) }) : undefined}>{formatCurrency(venduto)}</Stat>}
+        {vedeVenduto && iva && <Stat etichetta={tr("Con IVA {aliquota}%", { aliquota: aliquota.toLocaleString(intlCampo()) })}>{formatCurrency(conIvaTot.totale)}</Stat>}
+        {vedeCosti && <Stat etichetta={tr("Previsto")} nota={economia.senzaCosto ? tr(economia.senzaCosto === 1 ? "{n} voce senza costo" : "{n} voci senza costo", { n: economia.senzaCosto }) : undefined}>{economia.previsto > 0 ? formatCurrency(economia.previsto) : "—"}</Stat>}
+        {vedeCosti && <Stat etichetta={tr("Consuntivo")} nota={consuntivoSenzaFase > 0 ? (onCostiSenzaFase
+          ? <button type="button" onClick={onCostiSenzaFase} className="rounded font-medium text-amber-800 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{tr("+ {importo} senza fase", { importo: formatCurrency(consuntivoSenzaFase) })}</button>
+          : tr("+ {importo} senza fase", { importo: formatCurrency(consuntivoSenzaFase) })) : undefined}>{formatCurrency(economia.consuntivo)}</Stat>}
+        {vedeMargini && vedeVenduto && vedeCosti && <Stat etichetta={tr("Margine previsto")}>{margine === null ? "—" : `${margine}%`}</Stat>}
         {vedeVenduto && vedeCosti && iva && daVersare && (
-          <div className="shrink-0 max-md:hidden" title={`Vendite ${formatCurrency(Math.max(iva.debito_previsto, iva.debito_fatturato))} · credito acquisti ${formatCurrency(iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte)}${iva.reverse_charge_imponibile > 0 ? ` · reverse charge ${formatCurrency(iva.reverse_charge_imponibile)}` : ""}`}>
-            <dt className="whitespace-nowrap text-xs text-muted-foreground">{daVersare.verso === "credito" ? "IVA a credito" : "IVA da versare"}</dt>
+          <div className="shrink-0 max-md:hidden" title={`${tr("Vendite {importo}", { importo: formatCurrency(Math.max(iva.debito_previsto, iva.debito_fatturato)) })} · ${tr("credito acquisti {importo}", { importo: formatCurrency(iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte) })}${iva.reverse_charge_imponibile > 0 ? ` · ${tr("reverse charge {importo}", { importo: formatCurrency(iva.reverse_charge_imponibile) })}` : ""}`}>
+            <dt className="whitespace-nowrap text-xs text-muted-foreground">{daVersare.verso === "credito" ? tr("IVA a credito") : tr("IVA da versare")}</dt>
             <dd className="whitespace-nowrap text-sm font-semibold tabular-nums">{daVersare.verso === "pari" ? "—" : formatCurrency(daVersare.importo)}</dd>
           </div>
         )}
@@ -664,15 +668,15 @@ export function DistintaLavorazioni({
       {/* Sotto i 1024px niente selettore «Tutte le fasi»: le fasi sono già l'elenco qui
           sotto e si aprono con un tocco. Era il terzo menu impilato sotto «Lavorazioni» e
           sopra i filtri, con un conteggio (fasi) diverso da quello dei filtri (voci). */}
-      <nav aria-label="Fasi" className="hidden max-h-[78vh] self-start overflow-y-auto rounded-xl border bg-card lg:block">
+      <nav aria-label={tr("Fasi")} className="hidden max-h-[78vh] self-start overflow-y-auto rounded-xl border bg-card lg:block">
         <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-card px-3 py-2.5 text-xs font-semibold">
-          <span className="flex items-center gap-2"><Layers3 className="size-4 text-muted-foreground" aria-hidden="true" />Fasi</span>
+          <span className="flex items-center gap-2"><Layers3 className="size-4 text-muted-foreground" aria-hidden="true" />{tr("Fasi")}</span>
           <span className="font-normal tabular-nums text-muted-foreground">{fasi.length}</span>
         </div>
         <div className="space-y-1 p-1.5">
           <button type="button" aria-current={faseId === null ? "true" : undefined} onClick={() => { setFaseId(null); azzeraScelte(); }}
             className={cn("flex min-h-9 w-full items-center justify-between gap-1 rounded-lg px-2.5 py-1.5 text-left text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring", faseId === null && "bg-primary/10 text-primary hover:bg-primary/15")}>
-            Tutte le fasi <span className="shrink-0 text-[11px] font-normal tabular-nums text-muted-foreground">{tutte.length} voci</span>
+            {tr("Tutte le fasi")} <span className="shrink-0 text-[11px] font-normal tabular-nums text-muted-foreground">{tr("{n} voci", { n: tutte.length })}</span>
           </button>
         {fasi.map((f) => {
           const pct = Number(f.percentuale) || 0;
@@ -681,13 +685,13 @@ export function DistintaLavorazioni({
           const v = economiaDi?.get(f.id)?.venduto ?? 0;
           return (
             <div key={f.id} className={cn("flex items-start gap-2 rounded-lg px-2.5 py-2 hover:bg-muted", faseId === f.id && "bg-primary/10 hover:bg-primary/15")}>
-              {puoModificare && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={`Seleziona ${f.name}`} className="mt-0.5" />}
+              {puoModificare && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={tr("Seleziona {nome}", { nome: f.name })} className="mt-0.5" />}
               <button type="button" aria-current={faseId === f.id ? "true" : undefined} onClick={() => { setFaseId(f.id); setFiltro("tutte"); setScelteRighe(new Set()); }} className="min-w-0 flex-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <span className={cn("line-clamp-2 text-[13px] font-medium leading-tight", faseId === f.id && "text-primary")} title={f.name}>{f.name}</span>
                 <span className="mt-1 flex items-center gap-1 text-[11px] tabular-nums text-muted-foreground">
                   <span className="h-1 w-6 shrink-0 overflow-hidden rounded-full bg-muted-foreground/15"><span className={cn("block h-full", pct >= 100 ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
                   {pct}%
-                  {senzaNessuno && <span title="Da assegnare" className="ml-0.5 size-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />}
+                  {senzaNessuno && <span title={tr("Da assegnare")} className="ml-0.5 size-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />}
                   {vedeVenduto && v > 0 && <span className="ml-auto truncate">{formatCurrency(conIva ? conAliquota(v, aliquota).totale : v)}</span>}
                 </span>
               </button>
@@ -700,17 +704,17 @@ export function DistintaLavorazioni({
       <div className="flex flex-wrap items-center gap-2 border-b p-2.5">
         <div className="relative min-w-[min(100%,12rem)] flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
-          <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder="Cerca voce o codice…" aria-label="Cerca nella distinta" className="h-9 pl-8 pr-8" />
-          {testo && <button type="button" aria-label="Cancella ricerca" className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setTesto("")}>
+          <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder={tr("Cerca voce o codice…")} aria-label={tr("Cerca nella distinta")} className="h-9 pl-8 pr-8" />
+          {testo && <button type="button" aria-label={tr("Cancella ricerca")} className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setTesto("")}>
             <X className="size-3.5" aria-hidden="true" />
           </button>}
         </div>
         {/* Con il solo «Tutte» non c'è niente da scegliere: niente riga di filtri (a lavori finiti
             restava un bottone «Tutte» da solo). */}
-        {filtriDistinta.length > 1 && <div role="group" aria-label="Filtri" className="flex flex-wrap items-center gap-1 max-md:-mx-1 max-md:w-full max-md:flex-nowrap max-md:overflow-x-auto max-md:px-1 max-md:[scrollbar-width:none]">
+        {filtriDistinta.length > 1 && <div role="group" aria-label={tr("Filtri")} className="flex flex-wrap items-center gap-1 max-md:-mx-1 max-md:w-full max-md:flex-nowrap max-md:overflow-x-auto max-md:px-1 max-md:[scrollbar-width:none]">
           {filtriDistinta.map((f) => (
             <Button key={f.value} type="button" size="sm" variant="ghost" className={cn("h-8 shrink-0 gap-1 rounded-md px-2 text-xs", filtro === f.value ? "bg-primary/10 font-semibold text-primary hover:bg-primary/15" : "text-muted-foreground")} aria-pressed={filtro === f.value} onClick={() => setFiltro(f.value)}>
-              {f.label}{f.value !== "tutte" && <span className={cn("rounded px-1 text-[10px] tabular-nums", filtro === f.value ? "bg-primary/10" : "bg-muted")}>{conti[f.value]}</span>}
+              {tr(f.label)}{f.value !== "tutte" && <span className={cn("rounded px-1 text-[10px] tabular-nums", filtro === f.value ? "bg-primary/10" : "bg-muted")}>{conti[f.value]}</span>}
             </Button>
           ))}
         </div>}
@@ -718,31 +722,31 @@ export function DistintaLavorazioni({
           <Button type="button" size="sm" variant={rapido ? "default" : "outline"} className="h-8 px-2 text-xs max-md:hidden" aria-pressed={rapido}
             onClick={() => { const si = !rapido; setRapido(si); if (si && filtro === "tutte") setFiltro(conti.settimana > 0 ? "settimana" : "da_fare"); }}>
             <ListChecks className="size-3.5" aria-hidden="true" />
-            {rapido ? "Fine aggiornamento" : "Aggiorna avanzamento"}
+            {rapido ? tr("Fine aggiornamento") : tr("Aggiorna avanzamento")}
           </Button>
         )}
         {!faseId && <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs text-muted-foreground max-md:hidden" onClick={() => setAperte(tutteAperte ? new Set() : new Set(fasi.map((f) => f.id)))}>
-          <ChevronsUpDown className="size-3.5" aria-hidden="true" />{tutteAperte ? "Chiudi tutte" : "Apri tutte"}
+          <ChevronsUpDown className="size-3.5" aria-hidden="true" />{tutteAperte ? tr("Chiudi tutte") : tr("Apri tutte")}
         </Button>}
       </div>
 
-      {rapido && <p role="status" className="border-b bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:bg-sky-950/40 dark:text-sky-200">Inserisci il totale fatto nella colonna Stato. Premi Invio per salvare e passare alla riga successiva.</p>}
+      {rapido && <p role="status" className="border-b bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:bg-sky-950/40 dark:text-sky-200">{tr("Inserisci il totale fatto nella colonna Stato. Premi Invio per salvare e passare alla riga successiva.")}</p>}
       <div ref={scrollRef} className={cn("max-h-[78vh] overflow-y-auto", !virtuale && "max-md:max-h-none")}>
         <div>
         <div className={cn("sticky top-0 z-10 hidden items-center gap-x-2 border-b bg-card px-2.5 py-2 text-[11px] font-semibold text-muted-foreground md:grid", COLONNE)}>
-          <div /><div>Voce</div><div className="text-right">Quantità</div><div>Stato</div><div className="max-xl:hidden">Dal</div><div className="max-xl:hidden">Al</div>
+          <div /><div>{tr("Voce")}</div><div className="text-right">{tr("Quantità")}</div><div>{tr("Stato")}</div><div className="max-xl:hidden">{tr("Dal")}</div><div className="max-xl:hidden">{tr("Al")}</div>
           <div className="text-right">
             {vedeVenduto && (iva && aliquota > 0
-              ? <button type="button" onClick={() => setConIva((v) => !v)} title="Cambia tra imponibile e con IVA" className="rounded underline decoration-dotted underline-offset-2 hover:text-foreground">{conIva ? "Con IVA" : "Imponibile"}</button>
-              : "Imponibile")}
+              ? <button type="button" onClick={() => setConIva((v) => !v)} title={tr("Cambia tra imponibile e con IVA")} className="rounded underline decoration-dotted underline-offset-2 hover:text-foreground">{conIva ? tr("Con IVA") : tr("Imponibile")}</button>
+              : tr("Imponibile"))}
           </div>
-          <div className="text-right max-xl:hidden">{vedeCosti && "Previsto"}</div>
+          <div className="text-right max-xl:hidden">{vedeCosti && tr("Previsto")}</div>
           <div />
         </div>
         {elementi.length === 0 ? (
           <div className="space-y-1.5 p-6 text-center">
-            <p role="status" className="text-sm text-muted-foreground">Nessuna voce con questi filtri.</p>
-            {filtrando && <Button type="button" size="sm" variant="ghost" onClick={() => { setTesto(""); setFiltro("tutte"); }}>Azzera filtri</Button>}
+            <p role="status" className="text-sm text-muted-foreground">{tr("Nessuna voce con questi filtri.")}</p>
+            {filtrando && <Button type="button" size="sm" variant="ghost" onClick={() => { setTesto(""); setFiltro("tutte"); }}>{tr("Azzera filtri")}</Button>}
           </div>
         ) : virtuale ? (
           <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
@@ -758,51 +762,51 @@ export function DistintaLavorazioni({
       </div>
 
       {inSelezione && (
-        <div role="group" aria-label="Azioni sulle righe scelte" className="sticky bottom-3 z-20 mx-auto flex w-fit max-w-full flex-wrap items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-xs text-background shadow-lg">
-          <span className="font-medium">{[scelteFasi.size ? `${scelteFasi.size} ${scelteFasi.size === 1 ? "fase" : "fasi"}` : null, scelteRighe.size ? `${scelteRighe.size} ${scelteRighe.size === 1 ? "voce" : "voci"}` : null].filter(Boolean).join(", ")}</span>
-          {(scelteFasi.size > 0 || (onOrganizza && scelteRighe.size > 0)) && <Button type="button" size="sm" variant="secondary" className="h-6 gap-1 text-xs" onClick={() => apriAssegnazione([...scelteFasi, ...(onOrganizza ? scelteRighe : [])])}><Users className="h-3 w-3" aria-hidden="true" />Assegna</Button>}
+        <div role="group" aria-label={tr("Azioni sulle righe scelte")} className="sticky bottom-3 z-20 mx-auto flex w-fit max-w-full flex-wrap items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-xs text-background shadow-lg">
+          <span className="font-medium">{[scelteFasi.size ? tr(scelteFasi.size === 1 ? "{n} fase" : "{n} fasi", { n: scelteFasi.size }) : null, scelteRighe.size ? tr(scelteRighe.size === 1 ? "{n} voce" : "{n} voci", { n: scelteRighe.size }) : null].filter(Boolean).join(", ")}</span>
+          {(scelteFasi.size > 0 || (onOrganizza && scelteRighe.size > 0)) && <Button type="button" size="sm" variant="secondary" className="h-6 gap-1 text-xs" onClick={() => apriAssegnazione([...scelteFasi, ...(onOrganizza ? scelteRighe : [])])}><Users className="h-3 w-3" aria-hidden="true" />{tr("Assegna")}</Button>}
           {scelteRighe.size > 0 && <>
-            {conSottofase.length < righeScelte.length && <span className="text-amber-300">{righeScelte.length - conSottofase.length} senza sottofase</span>}
-            <Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0} onClick={() => segnaBlocco(true)}>Segna fatte</Button>
-            <Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0} onClick={() => segnaBlocco(false)}>Da fare</Button>
+            {conSottofase.length < righeScelte.length && <span className="text-amber-300">{tr("{n} senza sottofase", { n: righeScelte.length - conSottofase.length })}</span>}
+            <Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0} onClick={() => segnaBlocco(true)}>{tr("Segna fatte")}</Button>
+            <Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0} onClick={() => segnaBlocco(false)}>{tr("Da fare")}</Button>
             <Popover>
-              <PopoverTrigger asChild><Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0}>Date</Button></PopoverTrigger>
+              <PopoverTrigger asChild><Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0}>{tr("Date")}</Button></PopoverTrigger>
               <PopoverContent className="w-64 space-y-2 text-xs">
-                <label className="flex items-center justify-between gap-2">Dal<Input type="date" value={bloccoInizio} onChange={(e) => setBloccoInizio(e.target.value)} aria-label="Inizio per le righe scelte" className="h-7 w-36 px-1 text-xs" /></label>
-                <label className="flex items-center justify-between gap-2">Al<Input type="date" value={bloccoFine} onChange={(e) => setBloccoFine(e.target.value)} aria-label="Fine per le righe scelte" className="h-7 w-36 px-1 text-xs" /></label>
-                <Button type="button" size="sm" className="h-7 w-full text-xs" disabled={!bloccoInizio && !bloccoFine} onClick={applicaDate}>Applica le date</Button>
+                <label className="flex items-center justify-between gap-2">{tr("Dal")}<Input type="date" value={bloccoInizio} onChange={(e) => setBloccoInizio(e.target.value)} aria-label={tr("Inizio per le righe scelte")} className="h-7 w-36 px-1 text-xs" /></label>
+                <label className="flex items-center justify-between gap-2">{tr("Al")}<Input type="date" value={bloccoFine} onChange={(e) => setBloccoFine(e.target.value)} aria-label={tr("Fine per le righe scelte")} className="h-7 w-36 px-1 text-xs" /></label>
+                <Button type="button" size="sm" className="h-7 w-full text-xs" disabled={!bloccoInizio && !bloccoFine} onClick={applicaDate}>{tr("Applica le date")}</Button>
                 <div className="border-t pt-2">
-                  <label className="flex items-center justify-between gap-2">Giorni ognuna<Input type="number" inputMode="numeric" min={1} max={3650} value={bloccoGiorni} onChange={(e) => setBloccoGiorni(e.target.value)} aria-label="Giorni per ogni riga scelta" className="h-7 w-20 px-1 text-xs" /></label>
-                  <Button type="button" size="sm" variant="outline" className="mt-2 h-7 w-full text-xs" title="Una dopo l'altra, dalla data «dal» o da oggi, contando i giorni di lavoro" onClick={mettiInFila}>Metti in fila</Button>
+                  <label className="flex items-center justify-between gap-2">{tr("Giorni ognuna")}<Input type="number" inputMode="numeric" min={1} max={3650} value={bloccoGiorni} onChange={(e) => setBloccoGiorni(e.target.value)} aria-label={tr("Giorni per ogni riga scelta")} className="h-7 w-20 px-1 text-xs" /></label>
+                  <Button type="button" size="sm" variant="outline" className="mt-2 h-7 w-full text-xs" title={tr("Una dopo l'altra, dalla data «dal» o da oggi, contando i giorni di lavoro")} onClick={mettiInFila}>{tr("Metti in fila")}</Button>
                 </div>
                 <div className="border-t pt-2">
-                  <label className="flex items-center justify-between gap-2">Sposta di giorni<Input type="number" inputMode="numeric" min={-3650} max={3650} value={bloccoSposta} onChange={(e) => setBloccoSposta(e.target.value)} aria-label="Giorni di cui spostare le righe scelte" placeholder="es. 7 o -3" className="h-7 w-20 px-1 text-xs" /></label>
-                  <Button type="button" size="sm" variant="outline" className="mt-2 h-7 w-full text-xs" disabled={!bloccoSposta} onClick={spostaDate}>Sposta le date</Button>
+                  <label className="flex items-center justify-between gap-2">{tr("Sposta di giorni")}<Input type="number" inputMode="numeric" min={-3650} max={3650} value={bloccoSposta} onChange={(e) => setBloccoSposta(e.target.value)} aria-label={tr("Giorni di cui spostare le righe scelte")} placeholder={tr("es. 7 o -3")} className="h-7 w-20 px-1 text-xs" /></label>
+                  <Button type="button" size="sm" variant="outline" className="mt-2 h-7 w-full text-xs" disabled={!bloccoSposta} onClick={spostaDate}>{tr("Sposta le date")}</Button>
                 </div>
               </PopoverContent>
             </Popover>
             {chiSottofasi?.disponibile && onAggiungiChi && (
-              <OfficeSelect label="Chi fa le righe scelte" value={bloccoChi} disabled={conSottofase.length === 0}
+              <OfficeSelect label={tr("Chi fa le righe scelte")} value={bloccoChi} disabled={conSottofase.length === 0}
                 onValueChange={(v) => { scegliChi(v, conSottofase.map((x) => x.sottofaseId!)); setBloccoChi(""); azzeraScelte(); }}
                 className="h-6 max-w-40 rounded-lg border-0 bg-secondary px-1 text-xs text-secondary-foreground"
-                placeholder="Chi la fa…"
+                placeholder={tr("Chi la fa…")}
                 options={[
-                  ...squadre.map((o) => ({ value: `d:${o.id}`, label: o.nome, group: "Squadre" })),
-                  ...persone.map((o) => ({ value: `p:${o.id}`, label: o.nome, group: "Persone" })),
-                  ...ditte.map((o) => ({ value: `d:${o.id}`, label: o.nome, group: "Ditte" })),
+                  ...squadre.map((o) => ({ value: `d:${o.id}`, label: o.nome, group: tr("Squadre") })),
+                  ...persone.map((o) => ({ value: `p:${o.id}`, label: o.nome, group: tr("Persone") })),
+                  ...ditte.map((o) => ({ value: `d:${o.id}`, label: o.nome, group: tr("Ditte") })),
                 ]} />
             )}
             {onAvanzaTante && (
               <Popover>
-                <PopoverTrigger asChild><Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0}>Avanzamento</Button></PopoverTrigger>
+                <PopoverTrigger asChild><Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0}>{tr("Avanzamento")}</Button></PopoverTrigger>
                 <PopoverContent className="w-56 space-y-2 text-xs">
-                  <label className="flex items-center justify-between gap-2">Tutte al<span className="flex items-center gap-1"><Input type="number" inputMode="numeric" min={0} max={100} value={bloccoPct} onChange={(e) => setBloccoPct(e.target.value)} aria-label="Percentuale per le righe scelte" className="h-7 w-16 px-1 text-xs" />%</span></label>
-                  <Button type="button" size="sm" className="h-7 w-full text-xs" disabled={bloccoPct === ""} onClick={avanzaBlocco}>Applica</Button>
+                  <label className="flex items-center justify-between gap-2">{tr("Tutte al")}<span className="flex items-center gap-1"><Input type="number" inputMode="numeric" min={0} max={100} value={bloccoPct} onChange={(e) => setBloccoPct(e.target.value)} aria-label={tr("Percentuale per le righe scelte")} className="h-7 w-16 px-1 text-xs" />%</span></label>
+                  <Button type="button" size="sm" className="h-7 w-full text-xs" disabled={bloccoPct === ""} onClick={avanzaBlocco}>{tr("Applica")}</Button>
                 </PopoverContent>
               </Popover>
             )}
           </>}
-          <Button type="button" size="icon" variant="ghost" className="h-6 w-6 text-background hover:bg-background/20 hover:text-background" aria-label="Togli la selezione" onClick={azzeraScelte}><X className="h-3.5 w-3.5" /></Button>
+          <Button type="button" size="icon" variant="ghost" className="h-6 w-6 text-background hover:bg-background/20 hover:text-background" aria-label={tr("Togli la selezione")} onClick={azzeraScelte}><X className="h-3.5 w-3.5" /></Button>
         </div>
       )}
 
@@ -821,12 +825,12 @@ export function DistintaLavorazioni({
       <AlertDialog open={!!daEliminare} onOpenChange={(aperto) => { if (!aperto) setDaEliminare(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare la sottofase?</AlertDialogTitle>
-            <AlertDialogDescription>{daEliminare?.descrizione.slice(0, 160)}{daEliminare?.voceId ? ". La voce con quantità e importo resta nella fase." : ""}</AlertDialogDescription>
+            <AlertDialogTitle>{tr("Eliminare la sottofase?")}</AlertDialogTitle>
+            <AlertDialogDescription>{daEliminare?.descrizione.slice(0, 160)}{daEliminare?.voceId ? tr(". La voce con quantità e importo resta nella fase.") : ""}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (daEliminare?.sottofaseId) onElimina(daEliminare.sottofaseId); setDaEliminare(null); }}>Elimina</AlertDialogAction>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (daEliminare?.sottofaseId) onElimina(daEliminare.sottofaseId); setDaEliminare(null); }}>{tr("Elimina")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -834,12 +838,12 @@ export function DistintaLavorazioni({
       <AlertDialog open={!!divisione} onOpenChange={(aperto) => { if (!aperto) setDivisione(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>La fase è già avviata</AlertDialogTitle>
-            <AlertDialogDescription>Con le sottofasi l'avanzamento si calcola da quelle spuntate: la fase ripartirebbe da zero finché non segni quelle già fatte.</AlertDialogDescription>
+            <AlertDialogTitle>{tr("La fase è già avviata")}</AlertDialogTitle>
+            <AlertDialogDescription>{tr("Con le sottofasi l'avanzamento si calcola da quelle spuntate: la fase ripartirebbe da zero finché non segni quelle già fatte.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (divisione) onDalleVoci(divisione); setDivisione(null); }}>Crea le sottofasi</AlertDialogAction>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (divisione) onDalleVoci(divisione); setDivisione(null); }}>{tr("Crea le sottofasi")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

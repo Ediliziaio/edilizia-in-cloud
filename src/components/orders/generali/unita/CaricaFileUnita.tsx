@@ -14,6 +14,7 @@ import { messaggioDocumenti, useCaricaDocumentoVoce, useVociDocumentiAzienda } f
 import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
 import { abbinaFile, type FileAbbinato, type UnitaAbbinabile } from "@/lib/orders/generali/abbinaFile";
 import { vociDelModello } from "@/lib/orders/generali/documenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const NESSUNA = "__nessuna__";
 const chiaveFile = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
@@ -26,6 +27,7 @@ export function CaricaFileUnita({ generaleId, modello, unita, onClose }: {
   unita: UnitaAbbinabile[];
   onClose: () => void;
 }) {
+  const t = useT();
   const azienda = useVociDocumentiAzienda();
   const voci = useMemo(() => vociDelModello(modello, azienda.righe).filter((v) => v.ambito === "figlia"), [modello, azienda.righe]);
   const [voceId, setVoceId] = useState<string>("planimetria");
@@ -61,10 +63,10 @@ export function CaricaFileUnita({ generaleId, modello, unita, onClose }: {
     }
     setInCorso(null);
     if (falliti.length > 0) {
-      toast.error(falliti.length === 1 ? "Un file non è andato" : `${falliti.length} file non sono andati`, { description: falliti.slice(0, 3).join(" · ") });
+      toast.error(falliti.length === 1 ? t("Un file non è andato") : t("{n} file non sono andati", { n: falliti.length }), { description: falliti.slice(0, 3).join(" · ") });
       return;
     }
-    toast.success(n === 1 ? "1 file caricato" : `${n} file caricati`);
+    toast.success(n === 1 ? t("1 file caricato") : t("{n} file caricati", { n }));
     if (dopo.every((r) => r.stato === "fatto")) onClose();
   };
 
@@ -72,14 +74,14 @@ export function CaricaFileUnita({ generaleId, modello, unita, onClose }: {
     <Dialog open onOpenChange={(aperta) => { if (!aperta && inCorso === null) onClose(); }}>
       <DialogContent ampiezza="spazio" className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Carica i file delle unità</DialogTitle>
-          <DialogDescription>Scegli più file insieme: quelli con la sigla nel nome («A1.pdf») vanno da soli sull'unità giusta.</DialogDescription>
+          <DialogTitle>{t("Carica i file delle unità")}</DialogTitle>
+          <DialogDescription>{t("Scegli più file insieme: quelli con la sigla nel nome («A1.pdf») vanno da soli sull'unità giusta.")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
             <div className="space-y-1.5">
-              <Label htmlFor="carica-voce">Che documenti sono</Label>
+              <Label htmlFor="carica-voce">{t("Che documenti sono")}</Label>
               <Select value={voce?.id} onValueChange={setVoceId}>
                 <SelectTrigger id="carica-voce"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -88,10 +90,10 @@ export function CaricaFileUnita({ generaleId, modello, unita, onClose }: {
               </Select>
             </div>
             <Button type="button" variant="outline" onClick={() => scelta.current?.click()} disabled={inCorso !== null}>
-              <FolderUp className="mr-1.5 h-4 w-4" /> Scegli i file
+              <FolderUp className="mr-1.5 h-4 w-4" /> {t("Scegli i file")}
             </Button>
             <input
-              ref={scelta} type="file" multiple accept="image/*,application/pdf,.pdf" className="hidden" aria-label="Scegli i file"
+              ref={scelta} type="file" multiple accept="image/*,application/pdf,.pdf" className="hidden" aria-label={t("Scegli i file")}
               onChange={(ev) => {
                 const nuovi = Array.from(ev.target.files ?? []);
                 ev.target.value = "";
@@ -110,18 +112,18 @@ export function CaricaFileUnita({ generaleId, modello, unita, onClose }: {
               {righe.map((r, i) => (
                 <li key={`${r.file.name}-${i}`} className="flex items-center gap-2 px-3 py-1.5 text-sm">
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate">{r.file.name}</span>
+                    <span className="block truncate" dir="auto">{r.file.name}</span>
                     {r.errore && <span className="block truncate text-xs text-destructive" title={r.errore}>{r.errore}</span>}
                   </span>
-                  {r.stato === "fatto" && <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-label="Caricato" />}
+                  {r.stato === "fatto" && <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-label={t("Caricato")} />}
                   <Select
                     value={r.orderId ?? NESSUNA}
                     disabled={inCorso !== null || r.stato === "fatto"}
                     onValueChange={(v) => setRighe((prima) => prima.map((x, j) => (j === i ? { ...x, orderId: v === NESSUNA ? null : v } : x)))}
                   >
-                    <SelectTrigger className="h-8 w-36 text-xs" aria-label={`Unità di ${r.file.name}`}><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 w-36 text-xs" aria-label={t("Unità di {file}", { file: r.file.name })}><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NESSUNA} className="text-xs">Scegli l'unità</SelectItem>
+                      <SelectItem value={NESSUNA} className="text-xs">{t("Scegli l'unità")}</SelectItem>
                       {unita.map((u) => <SelectItem key={u.orderId} value={u.orderId} className="text-xs">{u.sigla}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -131,16 +133,16 @@ export function CaricaFileUnita({ generaleId, modello, unita, onClose }: {
           )}
           {senzaUnita > 0 && (
             <p className="text-xs text-amber-700 dark:text-amber-400">
-              {senzaUnita === 1 ? "Un file non ha un'unità: scegli la sua, o resta fuori." : `${senzaUnita} file non hanno un'unità: scegli la loro, o restano fuori.`}
+              {senzaUnita === 1 ? t("Un file non ha un'unità: scegli la sua, o resta fuori.") : t("{n} file non hanno un'unità: scegli la loro, o restano fuori.", { n: senzaUnita })}
             </p>
           )}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="ghost" onClick={onClose} disabled={inCorso !== null}>Annulla</Button>
+          <Button variant="ghost" onClick={onClose} disabled={inCorso !== null}>{t("Annulla")}</Button>
           <Button onClick={() => void conferma()} disabled={pronti.length === 0 || !voce || inCorso !== null}>
             {inCorso !== null && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {inCorso !== null ? `Carico ${inCorso} di ${pronti.length}` : pronti.length === 1 ? "Carica 1 file" : `Carica ${pronti.length} file`}
+            {inCorso !== null ? t("Carico {n} di {totale}", { n: inCorso, totale: pronti.length }) : pronti.length === 1 ? t("Carica 1 file") : t("Carica {n} file", { n: pronti.length })}
           </Button>
         </DialogFooter>
       </DialogContent>

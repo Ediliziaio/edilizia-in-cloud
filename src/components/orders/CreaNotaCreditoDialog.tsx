@@ -18,6 +18,7 @@ import { useCreateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useLinkFatturaOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import type { ClienteSnapshot } from "@/types/fatturazione";
 import { useRigheComposer, type RigaComposerItem } from "@/components/orders/RigheComposer";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -38,7 +39,7 @@ interface CreaNotaCreditoDialogProps {
 // ── Helpers ──────────────────────────────────────────────────────
 
 function fmt(value: number): string {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(value);
+  return new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" }).format(value);
 }
 
 // ── Component ────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ export function CreaNotaCreditoDialog({
   customerId,
   customerName,
 }: CreaNotaCreditoDialogProps) {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -106,7 +108,7 @@ export function CreaNotaCreditoDialog({
 
   // ── Composizione righe flessibile (articoli selezionabili + righe libere) ──
   const { righe: previewRighe, totals, node: composerNode } = useRigheComposer({
-    orderItems, defaultVat, itemsLoading, open, label: "Righe nota di credito",
+    orderItems, defaultVat, itemsLoading, open, label: t("Righe nota di credito"),
   });
   const totaleLordo = totals.lordo;
 
@@ -117,8 +119,8 @@ export function CreaNotaCreditoDialog({
   const handleCreaNotaCredito = () => {
     // Blocca la creazione di una nota di credito senza righe.
     if (previewRighe.length === 0) {
-      toast.error("Nessuna riga da fatturare", {
-        description: "Aggiungi almeno un articolo alla commessa prima di generare la nota di credito.",
+      toast.error(t("Nessuna riga da fatturare"), {
+        description: t("Aggiungi almeno un articolo alla commessa prima di generare la nota di credito."),
       });
       return;
     }
@@ -167,9 +169,9 @@ export function CreaNotaCreditoDialog({
                 companyId,
               });
             } catch (err) {
-              toast.error("Nota di credito creata ma collegamento commessa fallito", {
+              toast.error(t("Nota di credito creata ma collegamento commessa fallito"), {
                 description:
-                  err instanceof Error ? err.message : "Apri il documento e riprova dal dettaglio.",
+                  err instanceof Error ? err.message : t("Apri il documento e riprova dal dettaglio."),
               });
               onOpenChange(false);
               navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);
@@ -190,10 +192,10 @@ export function CreaNotaCreditoDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileWarning className="h-5 w-5 text-destructive" />
-            Crea nota di credito da commessa {orderCode}
+            {t("Crea nota di credito da commessa {codice}", { codice: orderCode ?? "" })}
           </DialogTitle>
           <DialogDescription>
-            Scegli quali articoli stornare (o nessuno) e aggiungi righe descrittive libere. Potrai modificarla nell'editor prima di emetterla.
+            {t("Scegli quali articoli stornare (o nessuno) e aggiungi righe descrittive libere. Potrai modificarla nell'editor prima di emetterla.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -206,13 +208,13 @@ export function CreaNotaCreditoDialog({
               <div className="flex items-center gap-1.5 mt-0.5">
                 <Check className="h-3 w-3 text-green-600" />
                 <span className="text-xs text-green-700">
-                  Anagrafica trovata
+                  {t("Anagrafica trovata")}
                   {matchedAnagrafica.partita_iva && ` · P.IVA ${matchedAnagrafica.partita_iva}`}
                 </span>
               </div>
             ) : (
               <span className="text-xs text-amber-600">
-                Anagrafica non trovata — potrai selezionarla nell'editor
+                {t("Anagrafica non trovata — potrai selezionarla nell'editor")}
               </span>
             )}
           </div>
@@ -225,7 +227,7 @@ export function CreaNotaCreditoDialog({
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             variant="destructive"
@@ -238,8 +240,8 @@ export function CreaNotaCreditoDialog({
               <FileWarning className="h-4 w-4 mr-1.5" />
             )}
             {createMutation.isPending
-              ? "Creazione in corso..."
-              : `Crea nota di credito · ${fmt(totaleLordo)}`}
+              ? t("Creazione in corso...")
+              : t("Crea nota di credito · {importo}", { importo: fmt(totaleLordo) })}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -18,6 +18,7 @@ import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { classificaDirezione, espandiXmlDaFiles } from "@/lib/fatturazione/bulkXmlImport";
 import { bytesToBase64 } from "../../../supabase/functions/_shared/base64";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -99,6 +100,7 @@ async function importaDocumento(file: File, companyId: string, userId: string): 
 }
 
 export function CaricaFatturaCommessaButton({ orderId }: { orderId: string }) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -108,7 +110,7 @@ export function CaricaFatturaCommessaButton({ orderId }: { orderId: string }) {
   const carica = async (file: File) => {
     if (!companyId || !user?.id) return;
     const tipo = tipoFileFattura(file);
-    if (tipo === "non_valido") { toast.error("Carica l'XML della fattura (anche .p7m), un PDF o una foto."); return; }
+    if (tipo === "non_valido") { toast.error(t("Carica l'XML della fattura (anche .p7m), un PDF o una foto.")); return; }
     setInCorso(true);
     try {
       let fatturaId: string;
@@ -119,9 +121,9 @@ export function CaricaFatturaCommessaButton({ orderId }: { orderId: string }) {
         fatturaId = await importaDocumento(file, companyId, user.id);
       }
       await collegaFatturaACommessa(fatturaId, orderId);
-      toast.success("Fattura caricata e messa fra i costi della commessa");
+      toast.success(t("Fattura caricata e messa fra i costi della commessa"));
     } catch (e) {
-      toast.error("Fattura non caricata", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Fattura non caricata"), { description: e instanceof Error ? t(e.message) : String(e) });
     } finally {
       setInCorso(false);
       refreshFinancialQueries(queryClient);
@@ -136,12 +138,12 @@ export function CaricaFatturaCommessaButton({ orderId }: { orderId: string }) {
         type="file"
         accept=".xml,.p7m,application/pdf,image/*"
         className="hidden"
-        aria-label="Fattura del fornitore da caricare"
+        aria-label={t("Fattura del fornitore da caricare")}
         onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void carica(f); }}
       />
       <Button size="sm" variant="outline" onClick={() => input.current?.click()} disabled={inCorso || !companyId}>
         {inCorso ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />}
-        {inCorso ? "Carico…" : "Carica fattura"}
+        {inCorso ? t("Carico…") : t("Carica fattura")}
       </Button>
     </>
   );

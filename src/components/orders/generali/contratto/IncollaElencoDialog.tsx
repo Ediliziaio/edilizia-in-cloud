@@ -14,6 +14,7 @@ import { useImportaElenco } from "@/hooks/useGeneraleContrattoElenco";
 import { messaggioContratto } from "@/lib/orders/generali/contratto";
 import { NOMI_COLONNE, leggiCelle, leggiElencoIncollato, type ColonnaElenco } from "@/lib/orders/generali/contrattoElenco";
 import { euro, numeroIt } from "./formato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ANTEPRIMA_RIGHE = 50;
 
@@ -28,6 +29,7 @@ export function IncollaElencoDialog({ open, onOpenChange, generaleId }: { open: 
 }
 
 function Incolla({ generaleId, chiudi }: { generaleId: string; chiudi: () => void }) {
+  const t = useT();
   const importa = useImportaElenco(generaleId);
   const [testo, setTesto] = useState("");
   const [colonne, setColonne] = useState<ColonnaElenco[] | undefined>(undefined);
@@ -48,7 +50,7 @@ function Incolla({ generaleId, chiudi }: { generaleId: string; chiudi: () => voi
     if (!letto || letto.righe.length === 0) return;
     importa.mutate(letto.righe, {
       onSuccess: ({ nuove, aggiornate }) => {
-        toast.success([nuove > 0 && `${nuove} voci aggiunte`, aggiornate > 0 && `${aggiornate} aggiornate`].filter(Boolean).join(", ") || "Elenco salvato");
+        toast.success([nuove > 0 && t("{n} voci aggiunte", { n: nuove }), aggiornate > 0 && t("{n} aggiornate", { n: aggiornate })].filter(Boolean).join(", ") || t("Elenco salvato"));
         chiudi();
       },
       onError: (e) => toast.error(messaggioContratto(e, "l'elenco prezzi")),
@@ -58,13 +60,13 @@ function Incolla({ generaleId, chiudi }: { generaleId: string; chiudi: () => voi
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Incolla l'elenco prezzi da Excel</DialogTitle>
+        <DialogTitle>{t("Incolla l'elenco prezzi da Excel")}</DialogTitle>
         <DialogDescription>
-          Seleziona le righe nel foglio (codice, descrizione, unità di misura, prezzo), copia e incolla qui. I prezzi sono quelli di elenco: il ribasso lo applichiamo noi.
+          {t("Seleziona le righe nel foglio (codice, descrizione, unità di misura, prezzo), copia e incolla qui. I prezzi sono quelli di elenco: il ribasso lo applichiamo noi.")}
         </DialogDescription>
       </DialogHeader>
       <Textarea
-        aria-label="Righe copiate da Excel"
+        aria-label={t("Righe copiate da Excel")}
         rows={6}
         className="font-mono text-xs"
         placeholder={"A.01.001\tScavo di sbancamento\tm³\t12,50\nA.01.002\tRinterro\tm³\t8,20"}
@@ -75,12 +77,12 @@ function Incolla({ generaleId, chiudi }: { generaleId: string; chiudi: () => voi
       {letto && (
         <div className="space-y-3">
           <p className="text-sm">
-            <strong>{letto.righe.length}</strong> {letto.righe.length === 1 ? "voce pronta" : "voci pronte"}
-            {letto.scartate.length > 0 && <>, <span className="text-amber-700 dark:text-amber-400">{letto.scartate.length} righe lasciate fuori</span></>}
-            {letto.intestazione && <span className="text-muted-foreground"> · la prima riga è l'intestazione</span>}
+            {t(letto.righe.length === 1 ? "{n} voce pronta" : "{n} voci pronte", { n: letto.righe.length })}
+            {letto.scartate.length > 0 && <>, <span className="text-amber-700 dark:text-amber-400">{t("{n} righe lasciate fuori", { n: letto.scartate.length })}</span></>}
+            {letto.intestazione && <span className="text-muted-foreground"> {t("· la prima riga è l'intestazione")}</span>}
           </p>
-          {manca && <p role="alert" className="text-sm text-destructive">Indica quale colonna è la descrizione e quale il prezzo.</p>}
-          <p className="text-xs text-muted-foreground">Le colonne del foglio, come le abbiamo riconosciute: se una è sbagliata, cambiala qui sopra le voci.</p>
+          {manca && <p role="alert" className="text-sm text-destructive">{t("Indica quale colonna è la descrizione e quale il prezzo.")}</p>}
+          <p className="text-xs text-muted-foreground">{t("Le colonne del foglio, come le abbiamo riconosciute: se una è sbagliata, cambiala qui sopra le voci.")}</p>
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-xs">
               <thead>
@@ -88,9 +90,9 @@ function Incolla({ generaleId, chiudi }: { generaleId: string; chiudi: () => voi
                   {sceltaColonne.map((c, i) => (
                     <th key={i} className="min-w-[7rem] px-2 py-1.5 text-left font-normal">
                       <Select value={c} onValueChange={(v) => cambiaColonna(i, v as ColonnaElenco)}>
-                        <SelectTrigger className="h-8" aria-label={`Colonna ${i + 1}${primaRiga[i] ? ` (${primaRiga[i]})` : ""}`}><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8" aria-label={primaRiga[i] ? t("Colonna {n} ({testo})", { n: i + 1, testo: primaRiga[i] }) : t("Colonna {n}", { n: i + 1 })}><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {(Object.keys(NOMI_COLONNE) as ColonnaElenco[]).map((k) => <SelectItem key={k} value={k}>{NOMI_COLONNE[k]}</SelectItem>)}
+                          {(Object.keys(NOMI_COLONNE) as ColonnaElenco[]).map((k) => <SelectItem key={k} value={k}>{t(NOMI_COLONNE[k])}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </th>
@@ -101,11 +103,11 @@ function Incolla({ generaleId, chiudi }: { generaleId: string; chiudi: () => voi
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="px-2 py-1.5 font-medium">Codice</th>
-                  <th className="px-2 py-1.5 font-medium">Descrizione</th>
-                  <th className="px-2 py-1.5 font-medium">U.M.</th>
-                  <th className="px-2 py-1.5 text-right font-medium">Quantità</th>
-                  <th className="px-2 py-1.5 text-right font-medium">Prezzo</th>
+                  <th className="px-2 py-1.5 font-medium">{t("Codice")}</th>
+                  <th className="px-2 py-1.5 font-medium">{t("Descrizione")}</th>
+                  <th className="px-2 py-1.5 font-medium">{t("U.M.")}</th>
+                  <th className="px-2 py-1.5 text-right font-medium">{t("Quantità")}</th>
+                  <th className="px-2 py-1.5 text-right font-medium">{t("Prezzo")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -121,28 +123,28 @@ function Incolla({ generaleId, chiudi }: { generaleId: string; chiudi: () => voi
               </tbody>
             </table>
             {letto.righe.length > ANTEPRIMA_RIGHE && (
-              <p className="border-t px-2 py-1.5 text-xs text-muted-foreground">… e altre {letto.righe.length - ANTEPRIMA_RIGHE} voci.</p>
+              <p className="border-t px-2 py-1.5 text-xs text-muted-foreground">{t("… e altre {n} voci.", { n: letto.righe.length - ANTEPRIMA_RIGHE })}</p>
             )}
           </div>
           {letto.scartate.length > 0 && (
             <details className="text-xs text-muted-foreground">
-              <summary className="cursor-pointer">Righe lasciate fuori</summary>
+              <summary className="cursor-pointer">{t("Righe lasciate fuori")}</summary>
               <ul className="mt-1 space-y-0.5">
-                {letto.scartate.slice(0, 30).map((s) => <li key={s.riga}>Riga {s.riga}: {s.motivo}</li>)}
+                {letto.scartate.slice(0, 30).map((s) => <li key={s.riga}>{t("Riga {n}: {motivo}", { n: s.riga, motivo: s.motivo })}</li>)}
               </ul>
             </details>
           )}
           {letto.doppioni.length > 0 && (
-            <p className="text-xs text-muted-foreground">Codici ripetuti nel foglio (vale l'ultima riga): {letto.doppioni.slice(0, 10).join(", ")}{letto.doppioni.length > 10 ? "…" : ""}</p>
+            <p className="text-xs text-muted-foreground">{t("Codici ripetuti nel foglio (vale l'ultima riga):")} {letto.doppioni.slice(0, 10).join(", ")}{letto.doppioni.length > 10 ? "…" : ""}</p>
           )}
         </div>
       )}
 
       <DialogFooter className="gap-2 sm:gap-0">
-        <Button type="button" variant="ghost" onClick={chiudi}>Annulla</Button>
+        <Button type="button" variant="ghost" onClick={chiudi}>{t("Annulla")}</Button>
         <Button type="button" onClick={salva} disabled={!letto || letto.righe.length === 0 || !!manca || importa.isPending}>
           {importa.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {letto && letto.righe.length > 0 ? `Salva ${letto.righe.length} voci` : "Salva"}
+          {letto && letto.righe.length > 0 ? t("Salva {n} voci", { n: letto.righe.length }) : t("Salva")}
         </Button>
       </DialogFooter>
     </>

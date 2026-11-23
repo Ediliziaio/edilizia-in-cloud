@@ -19,6 +19,7 @@ import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
 import { nomeBreve } from "@/lib/acquisti/fabbisogno";
 import { quantitaLeggibile } from "@/lib/distinta/statoMateriale";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import type { OrigineRiga } from "@/lib/distinta/generaDistinta";
 import { verificaDaOrigini } from "@/lib/distinta/verificaAcquisto";
 
@@ -77,6 +78,7 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
   aperto: boolean;
   onAperto: (a: boolean) => void;
 }) {
+  const t = useT();
   const proposti = useMaterialiProposti(orderId, true);
   const qc = useQueryClient();
   // Le spunte scelte a mano; senza, vale «consigliata» (le proposte dell'AI da controllare partono spente).
@@ -126,7 +128,7 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
       .map(([k, rr]) => [k, [...rr].sort((a, b) => nomeBreve(a.descrizione).titolo.localeCompare(nomeBreve(b.descrizione).titolo, "it"))] as const)
       .sort(([a], [b]) => (ordine.get(a) ?? 999) - (ordine.get(b) ?? 999));
   }, [righe, fasi]);
-  const nomeFase = (k: string) => (k === "_senza" ? "Senza fase" : fasi.find((f) => f.id === k)?.nome ?? "Fase");
+  const nomeFase = (k: string) => (k === "_senza" ? t("Senza fase") : fasi.find((f) => f.id === k)?.nome ?? t("Fase"));
   const attiva = perFase.find(([k]) => k === faseScelta) ?? perFase[0];
   // Le fasi chiavi in mano non comprano niente: i loro materiali non si inseriscono.
   const scelti = righe.filter((m) => spuntato(m) && !chiaviInMano(faseDi(m)));
@@ -150,7 +152,7 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
         if (k === "_senza" || !chiScelto[k] || chiScelto[k] === esecuzioni.data?.get(k)) continue;
         const { data: fatte, error } = await db.from("order_work_phases").update({ esecuzione: chiScelto[k] }).eq("id", k).select("id");
         if (error) throw error;
-        if (!fatte?.length) throw new Error("non hai il permesso di modificare le fasi della commessa");
+        if (!fatte?.length) throw new Error(t("non hai il permesso di modificare le fasi della commessa"));
       }
       // 2. Le fasi chiavi in mano: la ditta col suo costo previsto (la stessa funzione di «Assegna ditta»),
       //    e i materiali proposti scartati col motivo, così rigenerando non tornano.
@@ -180,10 +182,10 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
       return { inserite, fasiDitta: fasiDitta.length, ditteAssegnate };
     },
     onSuccess: (d) => {
-      toast.success(`${d.inserite} ${d.inserite === 1 ? "materiale inserito" : "materiali inseriti"} negli articoli`, {
-        description: [d.fasiDitta ? `${d.fasiDitta} ${d.fasiDitta === 1 ? "fase va" : "fasi vanno"} alla ditta chiavi in mano, senza acquisti` : null,
-          d.ditteAssegnate ? `${d.ditteAssegnate} ${d.ditteAssegnate === 1 ? "ditta assegnata" : "ditte assegnate"} col costo previsto` : null].filter(Boolean).join(" · ")
-          || "Li trovi nelle loro fasi. Il piano acquisti mantiene in verifica le quantità e le specifiche incomplete.",
+      toast.success(t(d.inserite === 1 ? "{n} materiale inserito negli articoli" : "{n} materiali inseriti negli articoli", { n: d.inserite }), {
+        description: [d.fasiDitta ? t(d.fasiDitta === 1 ? "{n} fase va alla ditta chiavi in mano, senza acquisti" : "{n} fasi vanno alla ditta chiavi in mano, senza acquisti", { n: d.fasiDitta }) : null,
+          d.ditteAssegnate ? t(d.ditteAssegnate === 1 ? "{n} ditta assegnata col costo previsto" : "{n} ditte assegnate col costo previsto", { n: d.ditteAssegnate }) : null].filter(Boolean).join(" · ")
+          || t("Li trovi nelle loro fasi. Il piano acquisti mantiene in verifica le quantità e le specifiche incomplete."),
       });
       aggiorna();
       void qc.invalidateQueries({ queryKey: ["fasi-esecuzione", orderId] });
@@ -192,7 +194,7 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
       setChiScelto({});
       onAperto(false);
     },
-    onError: (e) => toast.error("Materiali non inseriti", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Materiali non inseriti"), { description: e instanceof Error ? e.message : String(e) }),
   });
   const scarta = useMutation({
     mutationFn: async (ids: string[]) => {
@@ -201,10 +203,10 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
       return Number(data ?? 0);
     },
     onSuccess: (n) => {
-      toast.success(`${n} ${n === 1 ? "proposta scartata" : "proposte scartate"}`, { description: "Rigenerando dal computo non tornano." });
+      toast.success(t(n === 1 ? "{n} proposta scartata" : "{n} proposte scartate", { n }), { description: t("Rigenerando dal computo non tornano.") });
       aggiorna();
     },
-    onError: (e) => toast.error("Proposte non scartate", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Proposte non scartate"), { description: e instanceof Error ? e.message : String(e) }),
   });
 
   if (!righe.length) return null;
@@ -217,28 +219,28 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
       {/* Nella pagina: una riga sola. */}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm dark:border-amber-800 dark:bg-amber-950/40">
         <FileSearch className="h-4 w-4 text-amber-800 dark:text-amber-200" aria-hidden />
-        <span className="font-semibold text-amber-900 dark:text-amber-100">Dal computo: {righe.length} {righe.length === 1 ? "proposta" : "proposte"} da inserire</span>
-        <span className="text-xs text-amber-800 dark:text-amber-200">in {perFase.length} {perFase.length === 1 ? "fase" : "fasi"}</span>
-        <Button size="sm" className="ml-auto h-8 text-xs" onClick={() => onAperto(true)}>Scegli e inserisci</Button>
+        <span className="font-semibold text-amber-900 dark:text-amber-100">{t(righe.length === 1 ? "Dal computo: {n} proposta da inserire" : "Dal computo: {n} proposte da inserire", { n: righe.length })}</span>
+        <span className="text-xs text-amber-800 dark:text-amber-200">{t(perFase.length === 1 ? "in {n} fase" : "in {n} fasi", { n: perFase.length })}</span>
+        <Button size="sm" className="ml-auto h-8 text-xs" onClick={() => onAperto(true)}>{t("Scegli e inserisci")}</Button>
       </div>
 
       <Dialog open={aperto} onOpenChange={onAperto}>
         <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><FileSearch className="h-5 w-5" aria-hidden /> Materiali dal computo</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><FileSearch className="h-5 w-5" aria-hidden /> {t("Materiali dal computo")}</DialogTitle>
             <DialogDescription>
-              Spunta, fase per fase, quelli da comprare: con «Inserisci» entrano negli articoli, nelle loro fasi.
+              {t("Spunta, fase per fase, quelli da comprare: con «Inserisci» entrano negli articoli, nelle loro fasi.")}
             </DialogDescription>
           </DialogHeader>
 
           {righe.some((m) => !m.consigliata) && (
             <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-              Le proposte AI contengono quantità e rese stimate; anche le altre righe da completare partono senza spunta. Inserirle negli articoli conserva i dati da verificare: restano escluse dagli acquisti finché quantità, rese e specifiche non sono verificate.
+              {t("Le proposte AI contengono quantità e rese stimate; anche le altre righe da completare partono senza spunta. Inserirle negli articoli conserva i dati da verificare: restano escluse dagli acquisti finché quantità, rese e specifiche non sono verificate.")}
             </p>
           )}
 
           <div className="grid gap-3 rounded-lg border sm:grid-cols-[14rem_minmax(0,1fr)]">
-            <nav aria-label="Fasi" className="flex gap-1 overflow-x-auto border-b p-2 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r">
+            <nav aria-label={t("Fasi")} className="flex gap-1 overflow-x-auto border-b p-2 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r">
               {perFase.map(([k, rr]) => {
                 const sel = k === attiva?.[0];
                 const n = rr.filter(spuntato).length;
@@ -247,10 +249,10 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
                     className={cn("w-48 shrink-0 rounded-md px-2.5 py-2 text-left text-sm transition-colors sm:w-full", sel ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-muted")}>
                     <span className={cn("block font-medium", sel && "text-primary")}>{nomeFase(k)}</span>
                     {chiaviInMano(k) ? (
-                      <span className="block text-[11px] text-primary">Ditta chiavi in mano · niente da comprare</span>
+                      <span className="block text-[11px] text-primary">{t("Ditta chiavi in mano · niente da comprare")}</span>
                     ) : (
                       <span className={cn("block text-[11px]", n === rr.length ? "text-muted-foreground" : "text-amber-700 dark:text-amber-300")}>
-                        {n} su {rr.length} da inserire{chiDi(k) === "subappalto_posa" ? " · ditta solo posa" : ""}
+                        {t("{n} su {totale} da inserire", { n, totale: rr.length })}{chiDi(k) === "subappalto_posa" ? ` · ${t("ditta solo posa")}` : ""}
                       </span>
                     )}
                   </button>
@@ -259,44 +261,44 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
             </nav>
 
             {attiva && (
-              <section aria-label={`Materiali proposti: ${nomeFase(attiva[0])}`} className="min-w-0 space-y-2 p-3 sm:pl-0">
+              <section aria-label={t("Materiali proposti: {fase}", { fase: nomeFase(attiva[0]) })} className="min-w-0 space-y-2 p-3 sm:pl-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-sm font-semibold">{nomeFase(attiva[0])}</h3>
-                  <span className="text-xs text-muted-foreground">{attiva[1].length} materiali</span>
+                  <span className="text-xs text-muted-foreground">{t("{n} materiali", { n: attiva[1].length })}</span>
                   {!chiaviInMano(attiva[0]) && (
                     <Button size="sm" variant="outline" className="ml-auto h-7 text-xs"
                       onClick={() => cambiaGruppo(attiva[1], !attiva[1].every(spuntato))}>
-                      {attiva[1].every(spuntato) ? "Togli la fase" : "Seleziona la fase"}
+                      {attiva[1].every(spuntato) ? t("Togli la fase") : t("Seleziona la fase")}
                     </Button>
                   )}
                 </div>
                 {attiva[0] !== "_senza" && (
-                  <div role="radiogroup" aria-label={`Chi fa la fase ${nomeFase(attiva[0])}`} className="flex flex-wrap items-center gap-1.5 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
-                    <span className="mr-1 font-medium">Chi la fa</span>
+                  <div role="radiogroup" aria-label={t("Chi fa la fase {fase}", { fase: nomeFase(attiva[0]) })} className="flex flex-wrap items-center gap-1.5 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
+                    <span className="mr-1 font-medium">{t("Chi la fa")}</span>
                     {CHI_FA.map((c) => (
                       <button key={c} type="button" role="radio" aria-checked={chiDi(attiva[0]) === c}
                         onClick={() => setChiScelto((p) => ({ ...p, [attiva[0]]: c }))}
                         className={cn("rounded-md border px-2.5 py-1 transition-colors", chiDi(attiva[0]) === c ? "border-primary/40 bg-primary/10 font-medium text-primary" : "bg-background hover:bg-muted")}>
-                        {ETICHETTA_CHI[c]}
+                        {t(ETICHETTA_CHI[c])}
                       </button>
                     ))}
-                    <span className="text-muted-foreground">{SPIEGA_CHI[chiDi(attiva[0])]}</span>
+                    <span className="text-muted-foreground">{t(SPIEGA_CHI[chiDi(attiva[0])])}</span>
                   </div>
                 )}
                 {chiaviInMano(attiva[0]) ? (
                   <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
-                    <p>Niente da comprare: i {attiva[1].length} materiali li porta la ditta. Al loro posto, il <strong>costo previsto della ditta</strong>; la sua fattura e i pagamenti si legano a questa fase.</p>
+                    <p>{t("Niente da comprare: i {n} materiali li porta la ditta. Al loro posto, il costo previsto della ditta; la sua fattura e i pagamenti si legano a questa fase.", { n: attiva[1].length })}</p>
                     <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem]">
-                      <label className="space-y-1 text-xs"><span className="text-muted-foreground">Ditta</span>
-                        <UniformSelect className="h-9 w-full rounded-md border bg-background px-2 text-sm" aria-label={`Ditta della fase ${nomeFase(attiva[0])}`}
+                      <label className="space-y-1 text-xs"><span className="text-muted-foreground">{t("Ditta")}</span>
+                        <UniformSelect className="h-9 w-full rounded-md border bg-background px-2 text-sm" aria-label={t("Ditta della fase {fase}", { fase: nomeFase(attiva[0]) })}
                           value={ditte[attiva[0]]?.subappaltatore ?? ""}
                           onChange={(e) => setDitte((p) => ({ ...p, [attiva[0]]: { costo: p[attiva[0]]?.costo ?? "", subappaltatore: e.target.value } }))}>
-                          <option value="">Scegli dopo, da «Ditte e contratti»</option>
+                          <option value="">{t("Scegli dopo, da «Ditte e contratti»")}</option>
                           {(subappaltatori.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.ragione_sociale}</option>)}
                         </UniformSelect>
                       </label>
-                      <label className="space-y-1 text-xs"><span className="text-muted-foreground">Costo previsto €</span>
-                        <Input inputMode="decimal" placeholder="come da suo preventivo" aria-label={`Costo previsto della ditta per ${nomeFase(attiva[0])}`}
+                      <label className="space-y-1 text-xs"><span className="text-muted-foreground">{t("Costo previsto €")}</span>
+                        <Input inputMode="decimal" placeholder={t("come da suo preventivo")} aria-label={t("Costo previsto della ditta per {fase}", { fase: nomeFase(attiva[0]) })}
                           value={ditte[attiva[0]]?.costo ?? ""} disabled={!ditte[attiva[0]]?.subappaltatore}
                           onChange={(e) => setDitte((p) => ({ ...p, [attiva[0]]: { subappaltatore: p[attiva[0]]?.subappaltatore ?? "", costo: e.target.value } }))} />
                       </label>
@@ -310,7 +312,7 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
                     return (
                       <li key={m.id}>
                         <label className={cn("grid cursor-pointer grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 text-sm hover:bg-muted/40", !spuntato(m) && "text-muted-foreground")}>
-                          <Checkbox checked={spuntato(m)} onCheckedChange={(v) => setSpunte((s) => ({ ...s, [m.id]: v === true }))} aria-label={`Seleziona ${titolo}`} />
+                          <Checkbox checked={spuntato(m)} onCheckedChange={(v) => setSpunte((s) => ({ ...s, [m.id]: v === true }))} aria-label={t("Seleziona {nome}", { nome: titolo })} />
                           <span className="min-w-0">
                             <span className="block truncate font-medium" title={accorciato ? m.descrizione : undefined}>{titolo}</span>
                             {m.specifiche && (
@@ -318,7 +320,7 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
                             )}
                             {(m.fornitore || !m.consigliata) && (
                               <span className="block truncate text-[11px] text-muted-foreground">
-                                {[!m.consigliata ? "proposta da controllare" : null, m.fornitore].filter(Boolean).join(" · ")}
+                                {[!m.consigliata ? t("proposta da controllare") : null, m.fornitore].filter(Boolean).join(" · ")}
                               </span>
                             )}
                             {verificaDaOrigini(m.origini)?.stato === "da_verificare" && <span className="block text-[11px] text-amber-800">{verificaDaOrigini(m.origini)!.motivi.join(" ")}</span>}
@@ -336,21 +338,21 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
 
           {/* La barra delle azioni resta in fondo alla finestra mentre si scorre. */}
           <div className="sticky -bottom-6 -mx-6 -mb-6 flex flex-wrap items-center gap-2 border-t bg-background px-6 py-2.5">
-            <span className="text-sm text-muted-foreground">{scelti.length} su {righe.length} selezionati</span>
+            <span className="text-sm text-muted-foreground">{t("{n} su {totale} selezionati", { n: scelti.length, totale: righe.length })}</span>
             <Button size="sm" variant="ghost" className="h-8 text-xs" disabled={occupato}
               onClick={() => setSpunte(Object.fromEntries(righe.map((m) => [m.id, !tutti])))}>
-              {tutti ? "Togli tutti" : "Seleziona tutti"}
+              {tutti ? t("Togli tutti") : t("Seleziona tutti")}
             </Button>
             {altri.length > 0 && (
               <Button size="sm" variant="ghost" className="h-8 text-xs text-muted-foreground" disabled={occupato}
-                onClick={() => scarta.mutate(altri.map((m) => m.id))} title="Non si comprano: rigenerando dal computo non tornano">
-                {altri.length === 1 ? "Scarta quello non spuntato" : `Scarta i ${altri.length} non spuntati`}
+                onClick={() => scarta.mutate(altri.map((m) => m.id))} title={t("Non si comprano: rigenerando dal computo non tornano")}>
+                {altri.length === 1 ? t("Scarta quello non spuntato") : t("Scarta i {n} non spuntati", { n: altri.length })}
               </Button>
             )}
             <Button size="sm" className="ml-auto h-8" disabled={occupato || (scelti.length === 0 && fasiDitta.length === 0)} onClick={() => conferma.mutate(scelti.map((m) => m.id))}>
               {conferma.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden />}
-              {[scelti.length || !fasiDitta.length ? `Inserisci ${scelti.length} negli articoli` : "Conferma",
-                fasiDitta.length ? `${fasiDitta.length} ${fasiDitta.length === 1 ? "fase" : "fasi"} alla ditta` : null].filter(Boolean).join(" · ")}
+              {[scelti.length || !fasiDitta.length ? t("Inserisci {n} negli articoli", { n: scelti.length }) : t("Conferma"),
+                fasiDitta.length ? t(fasiDitta.length === 1 ? "{n} fase alla ditta" : "{n} fasi alla ditta", { n: fasiDitta.length }) : null].filter(Boolean).join(" · ")}
             </Button>
           </div>
         </DialogContent>

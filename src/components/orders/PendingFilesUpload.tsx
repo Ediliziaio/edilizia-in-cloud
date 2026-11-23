@@ -22,6 +22,7 @@ import {
   problemaFile,
 } from "@/lib/commesse/documentiCommessa";
 import { fmtBytes } from "./filePreviewUtils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface PendingFile {
   file: File;
@@ -37,6 +38,7 @@ interface PendingFilesUploadProps {
 }
 
 export function PendingFilesUpload({ files, onFilesChange, disabled = false }: PendingFilesUploadProps) {
+  const t = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
@@ -60,7 +62,7 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
     for (const file of selected) {
       const problema = problemaFile(file);
       if (problema) {
-        toast.error("File escluso", { description: problema });
+        toast.error(t("File escluso"), { description: problema });
         continue;
       }
       const key = `${file.name}:${file.size}`;
@@ -77,7 +79,7 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
       });
     }
     if (valid.length > 0) onFilesChange([...files, ...valid]);
-  }, [disabled, isLoading, error, files, onFilesChange, cartelle, selezioneAttiva, cartellaAperta]);
+  }, [disabled, isLoading, error, files, onFilesChange, cartelle, selezioneAttiva, cartellaAperta, t]);
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -111,7 +113,7 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 p-4 pb-3 sm:p-6 sm:pb-3">
         <CardTitle className="flex min-w-0 items-center gap-2 text-base sm:text-lg">
           <Paperclip className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
-          <span>Documenti commessa</span>
+          <span>{t("Documenti commessa")}</span>
           {files.length > 0 && <span className="text-sm font-normal tabular-nums text-muted-foreground">{files.length}</span>}
         </CardTitle>
         <div>
@@ -130,7 +132,7 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
           />
           <Button type="button" size="sm" variant="outline" className="min-h-10 shrink-0" disabled={disabled || isLoading || !!error} onClick={() => fileInputRef.current?.click()}>
             <Upload className="h-4 w-4 mr-2" />
-            Carica file
+            {t("Carica file")}
           </Button>
         </div>
       </CardHeader>
@@ -138,14 +140,14 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
         {isDragging && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-lg bg-primary/5 border-2 border-dashed border-primary/50 pointer-events-none">
             <Upload className="h-10 w-10 text-primary/60 mb-2" />
-            <p className="text-sm font-medium text-primary/70">Trascina i file qui</p>
+            <p className="text-sm font-medium text-primary/70">{t("Trascina i file qui")}</p>
           </div>
         )}
 
-        {error && <p role="alert" className="text-sm text-destructive">Cartelle non disponibili. Ricarica la pagina prima di aggiungere i documenti.</p>}
+        {error && <p role="alert" className="text-sm text-destructive">{t("Cartelle non disponibili. Ricarica la pagina prima di aggiungere i documenti.")}</p>}
         {/* A pagina vuota erano un quarto del modulo: si aprono col primo file, o per scegliere prima dove metterlo. */}
         {files.length === 0 && !cartelleAperte && (
-          <button type="button" onClick={() => setCartelleAperte(true)} className="text-xs font-medium text-primary hover:underline">Mostra cartelle</button>
+          <button type="button" onClick={() => setCartelleAperte(true)} className="text-xs font-medium text-primary hover:underline">{t("Mostra cartelle")}</button>
         )}
         {(files.length > 0 || cartelleAperte) && <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(180px,240px)_minmax(0,1fr)]">
           <DocumentFoldersNavigation
@@ -160,7 +162,7 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
           <div className="min-w-0 space-y-2">
           {visibili.length === 0 ? (
             <div className="rounded-md border border-dashed px-4 py-6 text-center text-xs text-muted-foreground sm:py-8 sm:text-sm">
-              {cartellaAperta ? `Nessun documento in «${cartelle.find((c) => c.id === cartellaAperta)?.nome}». Carica o trascina qui i file.` : "Nessun documento. Scegli o trascina qui i file: puoi selezionarne tanti insieme."}
+              {cartellaAperta ? t("Nessun documento in «{cartella}». Carica o trascina qui i file.", { cartella: cartelle.find((c) => c.id === cartellaAperta)?.nome ?? "" }) : t("Nessun documento. Scegli o trascina qui i file: puoi selezionarne tanti insieme.")}
             </div>
           ) : visibili.map(({ pf, index, folder_id: cartella }) => {
               return (
@@ -184,23 +186,23 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
                           });
                         }}
                       >
-                        <SelectTrigger aria-label={`Cartella di ${pf.file.name}`} className={`h-10 w-full sm:w-[180px] text-xs ${cartella ? "" : "text-muted-foreground"}`}>
-                          <SelectValue placeholder="Scegli la cartella" />
+                        <SelectTrigger aria-label={t("Cartella di {nome}", { nome: pf.file.name })} className={`h-10 w-full sm:w-[180px] text-xs ${cartella ? "" : "text-muted-foreground"}`}>
+                          <SelectValue placeholder={t("Scegli la cartella")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={SENZA_CARTELLA}>Senza cartella</SelectItem>
+                          <SelectItem value={SENZA_CARTELLA}>{t("Senza cartella")}</SelectItem>
                           {cartelle.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     )}
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0" title="Visibile al cliente nella sua area">
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0" title={t("Visibile al cliente nella sua area")}>
                       {pf.visibleToCustomer ? <Eye className="h-3.5 w-3.5 text-emerald-600" /> : <EyeOff className="h-3.5 w-3.5" />}
-                      Cliente
+                      {t("Cliente")}
                       <Switch
                         checked={pf.visibleToCustomer}
                         disabled={disabled}
                         onCheckedChange={(v) => aggiorna(index, { visibleToCustomer: v })}
-                        aria-label={`Visibile al cliente: ${pf.file.name}`}
+                        aria-label={t("Visibile al cliente: {nome}", { nome: pf.file.name })}
                       />
                     </label>
                     <Button
@@ -210,7 +212,7 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
                       disabled={disabled}
                       className="ml-auto h-10 w-10 shrink-0 text-destructive"
                       onClick={() => onFilesChange(files.filter((_, i) => i !== index))}
-                      aria-label={`Togli ${pf.file.name}`}
+                      aria-label={t("Togli {nome}", { nome: pf.file.name })}
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -220,7 +222,7 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
             })}
           </div>
         </div>}
-        <p className="text-xs text-muted-foreground">{files.length ? `${files.length} file · ` : ""}Massimo {MAX_MB_PER_FILE} MB per file.</p>
+        <p className="text-xs text-muted-foreground">{files.length ? t("{n} file · Massimo {mb} MB per file.", { n: files.length, mb: MAX_MB_PER_FILE }) : t("Massimo {mb} MB per file.", { mb: MAX_MB_PER_FILE })}</p>
       </CardContent>
     </Card>
   );
