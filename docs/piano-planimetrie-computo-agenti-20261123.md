@@ -263,3 +263,19 @@ tempi e spesa del lavoro.
 Dipende dai lotti B e C. I costi restano dietro i permessi (`puo_vedere_costi`).
 **Fatto quando:** sul progetto di collaudo una variante mostra costo scomposto, extra,
 durata per fase e margine, e cambiando una parete cambiano tutti insieme.
+
+## 8 quater. Stato al 24/11/2026
+
+- **Controllore delle piante AI, misurato dal vivo** sulle stesse 4 descrizioni: prima 3 piante
+  su 4 con difetti (8 in tutto), dopo 2 su 4 (4 in tutto), in 9–30 secondi. Il trilocale ne
+  teneva 3 perché la prima chiamata era andata persa per un errore di geometria e la pianta
+  rifatta non passava dal correttore: ora in quel caso c'è una terza chiamata (`genera.ts`).
+- **Lotto F — una sola chat.** La chat del disegno prova prima le regole (gratis); se non
+  capiscono la frase, Silvio la riscrive nei comandi che le regole eseguono
+  (`shared/planimetrie/interpreteComandi.ts`, assistenza `comando` di `planimetria-genera`).
+  L'AI non disegna: geometria, vincoli, anteprima e costi restano quelli della chat. Si paga a
+  consumo, non un credito render. Se manca un dato, fa una domanda sola.
+  Non fatto: fondere anche la chat di Silvio sulla scheda (ha un'anteprima sua, per ambiente).
+- **Lotto I — telefono.** Scheda e studio della variante stanno in 375 px senza scorrere di
+  lato; la previsione dei lavori ha una disposizione a righe per il telefono. L'editor sul
+  telefono non è stato rivisto.

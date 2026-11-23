@@ -196,7 +196,11 @@ export async function generaPlanimetria(
     else if (corretta) pianta.generazione.avvisi.push("Ho ricontrollato porte, finestre e superfici e corretto la prima versione.");
     return consegna(pianta);
   };
-  for (let n = 1; n <= 2; n++) {
+  // Di norma due chiamate. La terza c'è solo quando la prima è andata persa per un errore di
+  // geometria: senza, la pianta rifatta arriverebbe all'utente senza passare dal correttore
+  // (successo dal vivo il 23/11: trilocale consegnato con tre difetti e un solo giro).
+  let chiamateMassime = 2;
+  for (let n = 1; n <= chiamateMassime; n++) {
     const t0 = ora();
     let r: Awaited<ReturnType<ChiamaModello>>;
     try { r = await chiama(messaggi, n); } catch (e) {
@@ -213,8 +217,10 @@ export async function generaPlanimetria(
     }
     if (disposizioneDaControllare && lettura.pianta && !lettura.errori.length) {
       const problemi = controllaDisposizione(lettura.pianta.planimetria, req.attese);
-      const tempoPerCorreggere = !opzioni.tempoMassimoMs || ora() - inizio <= opzioni.tempoMassimoMs / 2;
-      if (n === 1 && problemi.length && tempoPerCorreggere) {
+      const dopoUnErrore = n === 2 && !conDifetti;
+      const tempoPerCorreggere = !opzioni.tempoMassimoMs || ora() - inizio <= opzioni.tempoMassimoMs * (dopoUnErrore ? 2 / 3 : 1 / 2);
+      if ((n === 1 || dopoUnErrore) && problemi.length && tempoPerCorreggere) {
+        if (dopoUnErrore) chiamateMassime = 3;
         conDifetti = { pianta: lettura.pianta, problemi };
         tentativi[tentativi.length - 1].errori.push(...problemi.map((x) => x.codice));
         messaggi.push({ role: "assistant", content: r.testo.slice(0, 30_000) });
@@ -225,7 +231,7 @@ export async function generaPlanimetria(
       if (problemi.length) return consegnaConDifetti({ pianta: lettura.pianta, problemi }, false);
     }
     // La correzione ha rotto la geometria: meglio la prima versione, con i suoi difetti detti chiaramente.
-    if (conDifetti && n === 2) return consegnaConDifetti(conDifetti, false);
+    if (conDifetti && n >= 2) return consegnaConDifetti(conDifetti, false);
     if (lettura.pianta && !lettura.errori.length) {
       // Pianta valida ma scala sospetta: una seconda lettura, se c'è tempo, con l'invito a cercare una misura scritta.
       const sospetta = lettura.pianta.generazione.avvisi.find((a) => a.startsWith("La scala letta dal disegno non sembra giusta"));

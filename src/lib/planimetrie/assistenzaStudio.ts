@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { leggiRispostaInterprete, type RispostaInterprete } from "../../../shared/planimetrie/interpreteComandi.ts";
 import { leggiRispostaChatProgetto, type ContestoChatProgetto, type MessaggioChatProgetto } from "../../../shared/planimetrie/chatProgetto.ts";
 import {
   leggiRispostaFrazionamento, leggiRispostaUrbanistica, type AlternativaFrazionamento,
@@ -31,4 +32,10 @@ export async function chiediSulProgetto(companyId: string, richiesta: string, co
   // per la stessa stanza): meglio dirlo così che chiedere «una richiesta più breve» (23/11/2026).
   if (!risposta) throw new Error("Silvio ha proposto una modifica che non posso applicare così com'è. Chiedi una modifica alla volta: prima la divisione con il tramezzo, poi i nomi delle nuove stanze.");
   return risposta;
+}
+
+/** Una frase che le regole della chat non capiscono, riscritta da Silvio nei comandi che la chat esegue. */
+export async function interpretaComando(companyId: string, richiesta: string, ambienti: readonly string[], vista: "fatto" | "progetto"): Promise<RispostaInterprete> {
+  const data = await invocaAssistenza({company_id:companyId,assistenza:"comando",richiesta,ambienti,vista});
+  return leggiRispostaInterprete(data.interpretazione) ?? { comandi: [], domanda: "Non ho capito la richiesta. Prova a dirla con il nome della stanza e la misura." };
 }

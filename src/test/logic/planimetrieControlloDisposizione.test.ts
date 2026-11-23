@@ -90,6 +90,16 @@ describe("coordinatore della generazione: disegnatore, controllore, correttore",
     expect(avvisi).toMatch(/5,04 m²/);
   });
 
+  it("prima chiamata persa per un errore di geometria: la pianta rifatta passa comunque dal correttore", async () => {
+    const incrociata = JSON.stringify({ ...JSON.parse(risposta(DENTRO)), locali: [{ nome: "Soggiorno", destinazione: "soggiorno", contorno: [[0, 0], [5, 4], [5, 0], [0, 4]], misure_lette: false }] });
+    const chiamate: number[] = [];
+    const chiama: Chiama = async (_m, n) => { chiamate.push(n); return { testo: n === 1 ? incrociata : n === 2 ? risposta(FUORI) : risposta(DENTRO), modello: "finto" }; };
+    const esito = await generaPlanimetria(req, chiama);
+    expect(chiamate).toEqual([1, 2, 3]);
+    expect(esito.ok).toBe(true);
+    if (esito.ok) expect(esito.pianta.generazione.controllo_disposizione).toEqual({ giri: 2, rimasti: 0 });
+  });
+
   it("se la correzione rompe la pianta, resta la prima versione invece di un errore", async () => {
     const chiama: Chiama = async (_m, n) => ({ testo: n === 1 ? risposta(FUORI) : "non è json", modello: "finto" });
     const esito = await generaPlanimetria(req, chiama);
