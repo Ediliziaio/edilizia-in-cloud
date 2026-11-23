@@ -123,3 +123,16 @@
   .commessa-cost-workspace .commessa-filter-counters button,
   .commessa-cost-workspace .commessa-payment-filters button { min-height: 44px; }
 }
+
+/* Telefono (collaudo 23/11/2026): i filtri dei pagamenti e i contatori su una riga sola che scorre
+   di lato. Prima andavano a capo in tre righe di bottoni da 44 px. */
+@media (max-width: 639px) {
+  .commessa-cost-workspace .commessa-filter-counters,
+  .commessa-cost-workspace .commessa-payment-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .commessa-cost-workspace .commessa-filter-counters button,
+  .commessa-cost-workspace .commessa-payment-filters button { flex-shrink: 0; white-space: nowrap; min-height: 36px; }
+}

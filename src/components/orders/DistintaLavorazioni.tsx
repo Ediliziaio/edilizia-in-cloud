@@ -14,7 +14,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogAssegna, type Opzione } from "@/components/orders/AssegnazioniFasi";
 import { SchedaVoce } from "@/components/orders/SchedaVoce";
 import type { DatiVoce } from "@/hooks/useSottofasi";
@@ -270,6 +269,7 @@ export function DistintaLavorazioni({
   const tutte = useMemo(() => righeDistinta(fasi, sottofasiDi, voci), [fasi, sottofasiDi, voci]);
   const dellaScelta = useMemo(() => (faseId ? tutte.filter((r) => r.faseId === faseId) : tutte), [tutte, faseId]);
   const conti = useMemo(() => contaFiltri(dellaScelta, oggi), [dellaScelta, oggi]);
+  const filtriDistinta = FILTRI_DISTINTA.filter((f) => (!f.soloCosti || vedeCosti) && (f.value === "tutte" || conti[f.value] > 0 || filtro === f.value));
   const righe = useMemo(() => filtraDistinta(dellaScelta, { testo, filtro, oggi }), [dellaScelta, testo, filtro, oggi]);
   const filtrando = !!testo.trim() || filtro !== "tutte";
 
@@ -469,15 +469,18 @@ export function DistintaLavorazioni({
                 {aperta ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
               </button>
             )}
-            <button type="button" onClick={() => onApriScheda(f.id)} aria-label={`Scheda di ${f.name}`} title={f.name} className="tap-compact line-clamp-2 min-w-0 rounded text-left text-[13px] font-semibold leading-tight hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{f.name}</button>
+            <button type="button" onClick={() => onApriScheda(f.id)} aria-label={`Scheda di ${f.name}`} title={f.name} className="tap-compact line-clamp-2 min-w-0 rounded text-left text-[13px] font-semibold leading-tight max-md:text-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{f.name}</button>
           </div>
-          <div className="flex flex-wrap items-center gap-x-2">
+          <div className="flex flex-wrap items-center gap-x-2 max-md:flex-nowrap max-md:overflow-hidden max-md:[&_*]:text-xs">
             {puoModificare || puoSquadre ? (
               <button type="button" onClick={() => apriAssegnazione([f.id])} title={nomi.join(", ") || "Assegna chi la fa"} aria-label={`Chi fa ${f.name}`}
                 className={cn("tap-compact min-w-0 max-w-full truncate rounded text-left text-[11px] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", nomi.length === 0 && !finita ? "font-medium text-amber-700" : "text-muted-foreground")}>
                 {nomi.length ? `${nomi[0]}${nomi.length > 1 ? ` +${nomi.length - 1}` : ""}` : finita ? "Nessuno" : "+ Assegna chi la fa"}
               </button>
             ) : <span className="min-w-0 truncate text-[11px] text-muted-foreground" title={nomi.join(", ")}>{nomi.join(", ") || "Nessuno"}</span>}
+            {/* Sotto i 1280px la colonna «Fine» è nascosta: senza questo una fase scaduta
+                non si distingueva dalle altre da telefono e tablet (collaudo 23/11/2026). */}
+            {ritardo && <span title={`Doveva finire il ${dataBreve(f.end_date!)}`} className="shrink-0 whitespace-nowrap text-[11px] font-medium text-rose-700 xl:hidden">In ritardo {dataBreve(f.end_date!)}</span>}
             {!!chi?.mezzi.length && <span title={chi.mezzi.join(", ")} className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground"><Truck className="h-3 w-3" aria-hidden="true" />{chi.mezzi.length}</span>}
             {!!chi?.articoli && <span title={`${chi.articoli} articoli`} className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground"><Package className="h-3 w-3" aria-hidden="true" />{chi.articoli}</span>}
             {vedeCosti && !!e?.costoConsuntivo && <span className={cn("shrink-0 text-[11px] tabular-nums text-muted-foreground", e.costoPrevisto > 0 && e.costoConsuntivo > e.costoPrevisto && "font-medium text-rose-700")}>Consuntivo {formatCurrency(e.costoConsuntivo)}</span>}
@@ -486,7 +489,7 @@ export function DistintaLavorazioni({
         <div className="whitespace-nowrap text-right text-[11px] tabular-nums text-muted-foreground max-md:hidden">{dellaFase.length} voci</div>
         <div className="flex items-center justify-end gap-1 max-md:col-start-3 max-md:row-start-1" title={(sottofasiDi.get(f.id)?.length ?? 0) > 0 ? `Avanzamento ${pct}%: dalle sottofasi, pesate sull'importo` : `Avanzamento ${pct}%: scritto a mano o dai rapportini (la fase non ha sottofasi)`}>
           <span className="h-1 w-6 overflow-hidden rounded-full bg-muted max-md:hidden"><span className={cn("block h-full", finita ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
-          <span className="text-[11px] font-medium tabular-nums">{pct}%</span>
+          <span className="text-[11px] font-medium tabular-nums max-md:text-xs">{pct}%</span>
         </div>
         <div className="max-xl:hidden"><CellaData valore={f.start_date} etichetta={`Inizio di ${f.name}`} modificabile={puoModificare} onSalva={(v) => salvaDataFase(f, "inizio", v)} /></div>
         <div className="max-xl:hidden"><CellaData valore={f.end_date} etichetta={`Fine di ${f.name}`} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataFase(f, "fine", v)} /></div>
@@ -537,14 +540,16 @@ export function DistintaLavorazioni({
             />
           ) : (
             <button type="button" onClick={() => apriVoce(r.key)} title={r.descrizione}
-              className={cn("tap-compact min-w-0 flex-1 rounded text-left text-xs leading-snug hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring line-clamp-2", r.fatta && "text-muted-foreground")}>
+              className={cn("tap-compact min-w-0 flex-1 rounded text-left text-xs leading-snug max-md:text-[13px] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring line-clamp-2", r.fatta && "text-muted-foreground")}>
               {r.descrizione}
               {r.codice && <span className="ml-1 font-mono text-[10px] text-muted-foreground">{r.codice}</span>}
-            {chiDellaSottofase(r.sottofaseId).length > 0 && <span className="block truncate text-[10px] text-sky-800">{chiDellaSottofase(r.sottofaseId).map((c) => c.nome).join(", ")}</span>}
+            {chiDellaSottofase(r.sottofaseId).length > 0 && <span className="block truncate text-[10px] text-sky-800 max-md:text-[11px]">{chiDellaSottofase(r.sottofaseId).map((c) => c.nome).join(", ")}</span>}
+            {/* Solo con date proprie: senza sottofase la voce eredita quelle della fase, già segnalate sopra. */}
+            {ritardo && r.sottofaseId && <span className="block text-[10px] font-medium text-rose-700 max-md:text-[11px] xl:hidden">In ritardo {dataBreve(r.fine!)}</span>}
             </button>
           )}
         </div>
-        <div className="min-w-0 text-right text-xs tabular-nums [overflow-wrap:anywhere] max-md:col-start-3 max-md:row-start-1 max-md:max-w-20" title={q || undefined}>
+        <div className="min-w-0 text-right text-xs tabular-nums [overflow-wrap:anywhere] max-md:text-[13px] max-md:col-start-3 max-md:row-start-1 max-md:max-w-20" title={q || undefined}>
           {unitaLunga ? <>{quantita(r.quantita, null)}<span className="block truncate text-[10px] text-muted-foreground">{r.unita}</span></> : q}
         </div>
         {rapido && r.sottofaseId && !r.fatta && puoModificare
@@ -656,15 +661,9 @@ export function DistintaLavorazioni({
       </dl>
 
       <div className="grid gap-3 lg:grid-cols-[12.5rem_minmax(0,1fr)] 2xl:grid-cols-[14rem_minmax(0,1fr)]">
-      <div className="lg:hidden">
-        <Select value={faseId ?? "tutte"} onValueChange={(v) => { setFaseId(v === "tutte" ? null : v); azzeraScelte(); }}>
-          <SelectTrigger aria-label="Scegli la fase" className="h-10 min-w-0 bg-background text-sm [&>span]:truncate"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="tutte">Tutte le fasi ({fasi.length})</SelectItem>
-            {fasi.map((f) => <SelectItem key={f.id} value={f.id}>{f.name} ({Number(f.percentuale) || 0}%)</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Sotto i 1024px niente selettore «Tutte le fasi»: le fasi sono già l'elenco qui
+          sotto e si aprono con un tocco. Era il terzo menu impilato sotto «Lavorazioni» e
+          sopra i filtri, con un conteggio (fasi) diverso da quello dei filtri (voci). */}
       <nav aria-label="Fasi" className="hidden max-h-[78vh] self-start overflow-y-auto rounded-xl border bg-card lg:block">
         <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-card px-3 py-2.5 text-xs font-semibold">
           <span className="flex items-center gap-2"><Layers3 className="size-4 text-muted-foreground" aria-hidden="true" />Fasi</span>
@@ -706,13 +705,15 @@ export function DistintaLavorazioni({
             <X className="size-3.5" aria-hidden="true" />
           </button>}
         </div>
-        <div role="group" aria-label="Filtri" className="flex flex-wrap items-center gap-1">
-          {FILTRI_DISTINTA.filter((f) => (!f.soloCosti || vedeCosti) && (f.value === "tutte" || conti[f.value] > 0 || filtro === f.value)).map((f) => (
-            <Button key={f.value} type="button" size="sm" variant="ghost" className={cn("h-8 gap-1 rounded-md px-2 text-xs", filtro === f.value ? "bg-primary/10 font-semibold text-primary hover:bg-primary/15" : "text-muted-foreground")} aria-pressed={filtro === f.value} onClick={() => setFiltro(f.value)}>
+        {/* Con il solo «Tutte» non c'è niente da scegliere: niente riga di filtri (a lavori finiti
+            restava un bottone «Tutte» da solo). */}
+        {filtriDistinta.length > 1 && <div role="group" aria-label="Filtri" className="flex flex-wrap items-center gap-1 max-md:-mx-1 max-md:w-full max-md:flex-nowrap max-md:overflow-x-auto max-md:px-1 max-md:[scrollbar-width:none]">
+          {filtriDistinta.map((f) => (
+            <Button key={f.value} type="button" size="sm" variant="ghost" className={cn("h-8 shrink-0 gap-1 rounded-md px-2 text-xs", filtro === f.value ? "bg-primary/10 font-semibold text-primary hover:bg-primary/15" : "text-muted-foreground")} aria-pressed={filtro === f.value} onClick={() => setFiltro(f.value)}>
               {f.label}{f.value !== "tutte" && <span className={cn("rounded px-1 text-[10px] tabular-nums", filtro === f.value ? "bg-primary/10" : "bg-muted")}>{conti[f.value]}</span>}
             </Button>
           ))}
-        </div>
+        </div>}
         {puoModificare && (
           <Button type="button" size="sm" variant={rapido ? "default" : "outline"} className="h-8 px-2 text-xs max-md:hidden" aria-pressed={rapido}
             onClick={() => { const si = !rapido; setRapido(si); if (si && filtro === "tutte") setFiltro(conti.settimana > 0 ? "settimana" : "da_fare"); }}>

@@ -162,7 +162,8 @@ export function UsciteCommessa({ orderId, onApriSubappalti, onApriMezzi }: {
                 totali.impegnato > 0 ? `+ ${formatCurrency(totali.impegnato)} ordinati senza fattura` : null].filter(Boolean).join(" · ") || undefined} />
           </dl>
           {uscite.length > 0 && (
-            <div className="commessa-payment-filters flex flex-wrap gap-1.5" role="group" aria-label="Filtra i pagamenti">
+            // Telefono: una riga che scorre di lato, non tre righe di bottoni.
+            <div className="commessa-payment-filters flex flex-wrap gap-1.5 max-sm:-mx-3 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-3 max-sm:[scrollbar-width:none]" role="group" aria-label="Filtra i pagamenti">
               <Filtro attivo={filtro === "aperte"} onClick={() => setFiltro("aperte")}>Da pagare</Filtro>
               {scaduteUscite > 0 && <Filtro attivo={filtro === "scadute"} onClick={() => setFiltro("scadute")}>Scaduti ({scaduteUscite})</Filtro>}
               {categorie.map((c) => (
@@ -183,13 +184,13 @@ export function UsciteCommessa({ orderId, onApriSubappalti, onApriMezzi }: {
           ) : (
             <TabellaCommessa etichetta="Pagamenti della commessa" righe={righe} chiave={(u) => u.chiave} colonne={[
               { titolo: "A chi", principale: true, cella: (u) => <CellaUscita u={u} /> },
-              { titolo: "Documento", cella: (u) => <span className="text-xs">{documentoUscita(u)}{u.ha_ricevuta && !u.senza_fattura && <span className="block text-muted-foreground"><Paperclip className="mr-1 inline h-3 w-3" aria-hidden="true" />Ricevuta allegata</span>}</span> },
+              { titolo: "Documento", soloComputer: true, cella: (u) => <span className="text-xs">{documentoUscita(u)}{u.ha_ricevuta && !u.senza_fattura && <span className="block text-muted-foreground"><Paperclip className="mr-1 inline h-3 w-3" aria-hidden="true" />Ricevuta allegata</span>}</span> },
               { titolo: "Scadenza", cella: (u) => <CellaScadenza u={u} oggi={data.oggi} /> },
-              { titolo: "Importo", destra: true, cella: (u) => formatCurrency(u.importo) },
-              { titolo: "Pagato", destra: true, cella: (u) => (u.pagato > 0 ? formatCurrency(u.pagato) : "—") },
+              { titolo: "Importo", destra: true, soloComputer: true, cella: (u) => formatCurrency(u.importo) },
+              { titolo: "Pagato", destra: true, soloComputer: true, cella: (u) => (u.pagato > 0 ? formatCurrency(u.pagato) : "—") },
               { titolo: "Da pagare", destra: true, cella: (u) => <span className="font-medium">{u.stato === "fattura_da_arrivare" ? "—" : formatCurrency(u.residuo)}</span> },
-              { titolo: "Stato", cella: (u) => <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATO_USCITA[u.stato].classe}`}>{STATO_USCITA[u.stato].label}</span> },
-              { titolo: "Azioni", destra: true, cella: (u) => { const fai = azione(u); return fai ? (
+              { titolo: "Stato", soloComputer: true, cella: (u) => <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATO_USCITA[u.stato].classe}`}>{STATO_USCITA[u.stato].label}</span> },
+              { titolo: "Azioni", destra: true, senzaEtichetta: true, cella: (u) => { const fai = azione(u); return fai ? (
                 <Button size="sm" variant="outline" onClick={fai}>{u.origine_tipo === "subappalto" ? "Apri SAL" : u.stato === "pagato" ? "Pagamenti" : "Registra pagamento"}</Button>
               ) : null; } },
             ]} />
@@ -219,11 +220,24 @@ function NumeroUscite({ titolo, valore, nota, evidenza }: { titolo: string; valo
   );
 }
 
+/** «Fattura X - Fornitore» quando il fornitore è già scritto prima: si toglie la coda ripetuta. */
+export function descrizioneSenzaControparte(descrizione: string | null | undefined, controparte: string | null | undefined): string {
+  const d = (descrizione ?? "").trim();
+  const c = (controparte ?? "").trim();
+  if (!c) return d;
+  const coda = new RegExp(`\\s*[-–·]\\s*${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "i");
+  return d.replace(coda, "").trim() || d;
+}
+
 function CellaUscita({ u }: { u: Uscita }) {
   const categoria = CATEGORIE.find((c) => c.value === u.categoria)?.label ?? u.categoria;
+  const descrizione = descrizioneSenzaControparte(u.descrizione, u.controparte);
   return (
     <div className="min-w-0">
-      <p className="font-medium">{u.controparte ?? "Senza fornitore"} <span className="font-normal text-muted-foreground">· {u.descrizione}</span></p>
+      <p className="font-medium">{u.controparte ?? "Senza fornitore"} {descrizione && <span className="font-normal text-muted-foreground">· {descrizione}</span>}
+        {/* Telefono: lo stato sta qui, non su una riga «Stato» a sé. */}
+        <span className={`ml-1.5 inline-block whitespace-nowrap rounded-full px-2 py-0.5 align-middle text-[11px] font-medium sm:hidden ${STATO_USCITA[u.stato].classe}`}>{STATO_USCITA[u.stato].label}</span>
+      </p>
       <p className="text-xs text-muted-foreground">
         {categoria}{u.riferimento ? ` · ${u.riferimento}` : ""}{u.ripartito ? ` · quota ${u.quota_pct.toLocaleString("it-IT")}%` : ""}
       </p>
@@ -317,7 +331,7 @@ function Kpi({ icona, titolo, valore, nota, tono }: { icona: ReactNode; titolo: 
 function Filtro({ attivo, onClick, children }: { attivo: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={attivo}
-      className={`min-h-8 rounded-full border px-3 text-xs font-medium ${attivo ? "border-primary bg-primary text-primary-foreground" : "bg-white text-slate-700 hover:bg-muted"}`}>
+      className={`min-h-8 shrink-0 whitespace-nowrap rounded-full border px-3 text-xs font-medium ${attivo ? "border-primary bg-primary text-primary-foreground" : "bg-white text-slate-700 hover:bg-muted"}`}>
       {children}
     </button>
   );

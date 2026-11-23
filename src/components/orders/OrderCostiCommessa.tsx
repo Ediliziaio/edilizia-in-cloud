@@ -313,7 +313,7 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
               <span className="font-medium">{formatCurrency(lordoCosto(c))}</span>
               {!!c.vat_rate && <span className="block whitespace-nowrap text-xs text-muted-foreground">{formatCurrency(c.amount)} + IVA {c.vat_rate}%</span>}
             </> },
-            { titolo: "Azioni", destra: true, cella: (c) => puoModificare && !c.is_paid && c.documento !== "fattura" ? (
+            { titolo: "Azioni", destra: true, senzaEtichetta: true, cella: (c) => puoModificare && !c.is_paid && c.documento !== "fattura" ? (
               /* Un costo pagato ha già scritto in cassa: si toglie da Economia → Costi, che storna il pagamento. */
               <div className="flex justify-end gap-0.5">
                 <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Modifica ${c.name}`} onClick={() => setModulo({ costo: c })}>

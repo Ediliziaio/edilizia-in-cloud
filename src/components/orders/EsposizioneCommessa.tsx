@@ -287,8 +287,17 @@ export function EsposizioneCommessa({
           </div>
         )}
 
+        {/* Telefono: la frase sopra dice già incassato e pagato; qui solo quello che manca, in
+            una riga (prima quattro riquadri che ripetevano la frase). */}
+        {(daPagare > 0 || (picco && picco.value < 0)) && (
+          <p className="text-[13px] text-muted-foreground sm:hidden">
+            {daPagare > 0 && <>Ancora da pagare <strong className="text-foreground">{formatCurrencyCompact(daPagare)}</strong></>}
+            {daPagare > 0 && picco && picco.value < 0 && " · "}
+            {picco && picco.value < 0 && <>picco <strong className="text-red-600">−{formatCurrencyCompact(Math.abs(picco.value))}</strong> il {fmtData(picco.date)}</>}
+          </p>
+        )}
         {/* Numeri chiave */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 max-sm:hidden">
           <Mini label="Incassato" value={formatCurrencyCompact(incassato)} valueClass="text-emerald-600" />
           <Mini label="Pagato" value={formatCurrencyCompact(uscite)} valueClass="text-rose-600" />
           <Mini
@@ -324,7 +333,7 @@ export function EsposizioneCommessa({
             </span>
           </p>
         )}
-        <p className="text-[11px] text-muted-foreground">{recorded ? "Movimenti di prima nota registrati. I costi della squadra non sono automaticamente pagamenti." : "Pagamenti manuali con data effettiva. Verifica i movimenti in prima nota."}</p>
+        <p className="text-[11px] text-muted-foreground max-sm:hidden">{recorded ? "Movimenti di prima nota registrati. I costi della squadra non sono automaticamente pagamenti." : "Pagamenti manuali con data effettiva. Verifica i movimenti in prima nota."}</p>
       </CardContent>
     </Card>
   );

@@ -724,7 +724,7 @@ function Kpi({
 }) {
   return (
     <div className="rounded-lg border bg-muted/30 p-2 sm:p-2.5 min-w-0">
-      <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground truncate">{label}</p>
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">{label}</p>
       <p className={`text-sm sm:text-base font-bold leading-tight tabular-nums truncate ${valueClass ?? ""}`} title={value}>
         {valueCompact ? (
           <>
@@ -733,7 +733,7 @@ function Kpi({
           </>
         ) : value}
       </p>
-      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }

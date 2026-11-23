@@ -24,6 +24,20 @@ describe("righeDistinta", () => {
     const righe = righeDistinta(fasi, new Map([["f1", [sottofase("s1")]]]), [voce("v1")]);
     expect(righe.map((r) => [r.voceId, r.sottofaseId])).toEqual([[null, "s1"], ["v1", null]]);
   });
+  it("una riga senza date proprie segue la fase nei filtri, ma le scritture usano solo le sue", () => {
+    const fasiConDate = [{ id: "f1", name: "Posa", start_date: "2026-10-16", end_date: "2026-11-01" }];
+    const righe = righeDistinta(fasiConDate, new Map([["f1", [sottofase("s1"), sottofase("s2", { data_fine: "2026-12-01" })]]]), [voce("v1"), voce("v2", { subphase_id: "s1" })]);
+    const v1 = righe.find((r) => r.voceId === "v1")!;
+    const v2 = righe.find((r) => r.voceId === "v2")!;
+    expect(v1).toMatchObject({ inizio: null, fine: null, fineFase: "2026-11-01" });
+    expect(rispettaFiltro(v1, "in_ritardo", OGGI)).toBe(true);
+    expect(rispettaFiltro(v2, "senza_date", OGGI)).toBe(false);
+    expect(rispettaFiltro(v2, "in_ritardo", OGGI)).toBe(true);
+    // Una data propria vince su quella della fase.
+    expect(rispettaFiltro(righe.find((r) => r.sottofaseId === "s2")!, "in_ritardo", OGGI)).toBe(false);
+    // Le date della fase non finiscono addosso alle sottofasi.
+    expect(pianoInBlocco(righe, null, null).passi.find((p) => p.id === "s1")).toMatchObject({ data_inizio: null, data_fine: null });
+  });
   it("una voce senza costi non ha previsto zero: è da definire", () => {
     expect(righeDistinta(fasi, new Map(), [voce("v1")])[0].previsto).toBeNull();
   });

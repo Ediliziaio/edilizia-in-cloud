@@ -543,7 +543,9 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   const azioniCommessa = (canEditOrders || puoSquadre) ? (
           <>
             {canEditOrders && showWork && (
-              <Button size="sm" className={cn("bg-orange-700 px-3 font-semibold text-white hover:bg-orange-800 max-sm:flex-1", paginaLavorazioni ? "min-h-10" : telefono ? "tap-compact h-9" : "max-sm:min-h-11")} onClick={() => setNewPhaseOpen(true)}>
+              // Da telefono, con le fasi già fatte, si viene a controllare e aggiornare:
+              // l'arancione pieno resta per la commessa ancora vuota (collaudo 23/11/2026).
+              <Button size="sm" variant={telefono && phases.length > 0 ? "outline" : "default"} className={cn(telefono && phases.length > 0 ? "px-3 font-semibold max-sm:flex-1" : "bg-orange-700 px-3 font-semibold text-white hover:bg-orange-800 max-sm:flex-1", paginaLavorazioni ? "min-h-10" : telefono ? "tap-compact h-9" : "max-sm:min-h-11")} onClick={() => setNewPhaseOpen(true)}>
                 <ListPlus className="h-4 w-4" aria-hidden="true" />Aggiungi fasi
               </Button>
             )}
@@ -1085,9 +1087,33 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 </p>}
               </div>
             </div>
-            {(canEditOrders || puoSquadre) && <div className="flex flex-wrap items-center gap-2 sm:justify-end">{azioniCommessa}</div>}
+            {(canEditOrders || puoSquadre || telefono) && <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              {azioniCommessa}
+              {/* Telefono (collaudo 23/11/2026): gli strumenti occasionali in un solo «Altro»
+                  accanto alle due azioni, invece di una riga in più sopra le fasi. */}
+              {telefono && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" size="sm" variant="outline" className="min-h-10 px-3" aria-label="Altro sulle lavorazioni">
+                      <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    {canEditOrders && showWork && <DropdownMenuItem onSelect={() => setImportaAperto(true)}><FileUp className="mr-2 h-4 w-4" aria-hidden="true" />Importa fasi</DropdownMenuItem>}
+                    <DropdownMenuItem onSelect={() => {
+                      const apri = !responsabiliAperti;
+                      setResponsabiliAperti(apri);
+                      if (apri) window.setTimeout(() => document.getElementById("section-squadra")?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 50);
+                    }}><ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />{responsabiliAperti ? "Nascondi squadra e sicurezza" : "Squadra e sicurezza"}</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => document.getElementById("section-mezzi")?.scrollIntoView({ block: "start", behavior: "smooth" })}>
+                      <Truck className="mr-2 h-4 w-4" aria-hidden="true" />{canViewMezzi || isAdmin ? "Mezzi e viaggi" : "Indirizzo cantiere"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>}
           </div>
-          <div role="group" aria-label="Strumenti delle lavorazioni" className="flex flex-wrap items-center gap-1 border-t pt-2 text-muted-foreground">
+          {!telefono && <div role="group" aria-label="Strumenti delle lavorazioni" className="flex flex-wrap items-center gap-1 border-t pt-2 text-muted-foreground">
             {azioneImporta}
             {ditteContratti}
             {!telefono && lavoriExtra}
@@ -1102,7 +1128,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               </a>
             </Button>
             {(aiutoFasi || azioneVerifica) && <div className="flex flex-wrap items-center gap-1 sm:ml-auto">{azioneVerifica}{aiutoFasi}</div>}
-          </div>
+          </div>}
         </> : <>
         <div className={cn("flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between", view && "contents")}>
           {/* Dentro le schede della commessa il titolo ripeterebbe la scheda stessa

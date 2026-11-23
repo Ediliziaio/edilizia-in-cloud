@@ -154,7 +154,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
       return <span className={a.inRitardo ? "whitespace-nowrap font-medium text-amber-700 dark:text-amber-400" : "whitespace-nowrap"}>{a.inRitardo ? "In ritardo, " : ""}{dataIt(po.expected_delivery_date)}</span>;
     } },
     ...(letturaSenzaPrezzi() ? [] : [{ titolo: "Importo", destra: true, cella: (po: (typeof linkedPOs)[number]) => <span className="font-medium">{formatCurrency(Number(po.total))}</span> }]),
-    { titolo: "Azioni", destra: true, cella: (po) => (
+    { titolo: "Azioni", destra: true, senzaEtichetta: true, cella: (po) => (
       <div className="flex items-center justify-end gap-1">
         {avanzamentoOrdine(po, oggi).aperto && canEditOrders && (
           <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs">

@@ -160,7 +160,17 @@
 .commessa-counterparty-summary > span:nth-child(3) { margin-top: 0; }
 .commessa-counterparty-summary > a { margin-top: 0; justify-self: end; }
 @media (max-width: 767px) {
-  .commessa-workspace .commessa-summary-value { font-size: 17px; }
+  /* Telefono (collaudo 23/11/2026): a 17px i numeri erano quasi il doppio delle
+     etichette (9px) e il riquadro occupava metà schermo. Stessa scala del resto. */
+  .commessa-workspace .commessa-summary-value { font-size: 14px; letter-spacing: -.01em; }
+  /* Una scala sola per tutte le schede della commessa da telefono: titoli dei riquadri a
+     15px (come QuoteCard), pulsanti nelle intestazioni a 34px. Prima c'erano titoli a 16px,
+     pulsanti «Modifica» e «Nuovo» alti 40px accanto a testi da 14px. */
+  .commessa-workspace [data-ui="card-title"],
+  .commessa-workspace [role="tabpanel"] h3:not(.sr-only) { font-size: 15px; line-height: 1.3; }
+  .commessa-workspace [role="tabpanel"] h4 { font-size: 14px; line-height: 1.3; }
+  .commessa-workspace [data-ui="card-header"] [data-ui="button"] { min-height: 34px; height: 34px; padding-inline: 10px; font-size: 13px; }
+  .commessa-heading-title { font-size: 17px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .commessa-counterparty-summary { grid-template-columns: 1fr; gap: 7px; }
   .commessa-counterparty-summary > a { justify-self: start; }
 }

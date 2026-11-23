@@ -70,3 +70,19 @@
 .income-unified .income-document-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 @media(max-width:900px) { .income-linked-document { grid-template-columns: 1fr auto; }.income-linked-document-money { grid-column:1/-1;grid-row:2;justify-content:space-between; }.income-linked-document-actions {grid-column:2;grid-row:1;} }
 @media(max-width:639px) { .income-unified-totals { grid-template-columns: repeat(2,minmax(0,1fr)); }.income-unified-totals > div + div {border-left:0;}.income-unified-totals > div:nth-child(even) {border-left:1px solid hsl(var(--border));}.income-linked-document-money {gap:8px;}.income-unified-list {margin:0 10px;}.income-linked-document-money dd {text-align:left;} }
+
+/* Telefono (collaudo 23/11/2026): i quattro numeri senza le righe di spiegazione sotto (restano da
+   computer) e i filtri su una riga che scorre di lato, non su due righe. */
+@media (max-width: 639px) {
+  .income-documents-totals small { display: none; }
+  .income-documents-totals > div { padding: 8px 10px; }
+  .income-documents-totals dd { font-size: 15px; }
+  .income-document-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .income-document-tabs button { flex-shrink: 0; white-space: nowrap; }
+}
+
+/* Telefono: una fattura saldata non ripete «Importo / Incassato / Residuo 0,00»: lo dice già la
+   pillola «Incassata» della rata. Con un residuo la riga resta. */
+@media (max-width: 639px) {
+  .income-linked-document-money[data-saldata] { display: none; }
+}

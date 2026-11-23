@@ -937,7 +937,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         <MaterialiDaRegolarizzare orderId={orderId} />
         {permessi.canEditOrders && <MaterialiDaConfermare orderId={orderId} fasi={fasi.map((f) => ({ id: f.id, nome: f.nome }))} aperto={confermaProposti} onAperto={setConfermaProposti} />}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-2">
-          <h3 className="text-sm font-semibold text-foreground">Articoli e materiali</h3>
+          <h3 className="text-sm font-semibold text-foreground max-md:sr-only">Articoli e materiali</h3>
           {tuttiMateriali.length > 0 && (
             <div className="flex flex-wrap items-center gap-1 max-md:hidden" role="group" aria-label="Filtra per stato">
               <button type="button" className={chip(filtroStato === null)} aria-pressed={filtroStato === null} onClick={() => { setFiltroStato(null); setSelezione(new Set()); }}>
@@ -952,7 +952,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
               ))}
             </div>
           )}
-          <div className="flex flex-wrap gap-1.5 sm:ml-auto">
+          <div className="flex flex-wrap gap-1.5 max-md:w-full max-md:flex-nowrap sm:ml-auto">
             {effectiveCompany?.id && <StrumentiComputo key={"strumenti:" + orderId} companyId={effectiveCompany.id} orderId={orderId} leggiQuery nomeFase={id => fasi.find(f => f.id === id)?.nome ?? "Senza fase"} onSelezionaArticoli={puoComprare ? gestisciDalPiano : undefined} />}
             {/* Da telefono solo «Aggiungi articolo»: computo, tavole e filtri sono lavoro da scrivania. */}
             <span className="contents max-md:hidden">{silvio}</span>
@@ -970,8 +970,9 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
               <Layers className="mr-1 h-3.5 w-3.5" aria-hidden /> Tavole
             </Button>
             {/* Cosa ordinare ed entro quando, solo di questa commessa (17/11/2026). */}
-            <Button size="sm" variant="outline" className="tap-compact h-8 px-2.5 text-xs" onClick={() => setFabbisogno(true)}>
-              <CalendarClock className="mr-1 h-3.5 w-3.5" aria-hidden /> Fabbisogno
+            {/* Telefono: solo l'icona, così le tre azioni stanno su una riga (collaudo 23/11/2026). */}
+            <Button size="sm" variant="outline" className="tap-compact h-8 px-2.5 text-xs max-md:w-9 max-md:px-0" onClick={() => setFabbisogno(true)} aria-label="Fabbisogno: cosa ordinare ed entro quando" title="Fabbisogno">
+              <CalendarClock className="h-3.5 w-3.5 md:mr-1" aria-hidden /><span className="max-md:sr-only">Fabbisogno</span>
             </Button>
             <Suggerimento testo="Scomposizioni: da una voce di computo ai suoi materiali">
               <Button size="icon" variant="ghost" className="tap-compact h-8 w-8 max-md:hidden" asChild>
@@ -1049,7 +1050,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
               <span>
                 <strong>{unitaDaVerificare.length} {unitaDaVerificare.length === 1 ? "riga" : "righe"} con l'unità dell'ordine da verificare</strong>
-                {" "}— finché non coincide, il residuo da ordinare non si calcola.
+                <span className="max-sm:hidden">{" "}— finché non coincide, il residuo da ordinare non si calcola.</span>
               </span>
               <button type="button" className="tap-compact underline underline-offset-2" aria-expanded={dettaglioUnita} onClick={() => setDettaglioUnita(!dettaglioUnita)}>
                 {dettaglioUnita ? "Nascondi" : "Quali sono"}
@@ -1148,8 +1149,10 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         {invitoGenera && fasi.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2 text-sm" role="note">
             <Sparkles className="h-4 w-4 shrink-0 text-violet-600" aria-hidden />
-            <span className="min-w-0 flex-1">Il computo «{nomeComputo}» è letto, ma i suoi materiali non sono ancora nella commessa.</span>
-            <Button size="sm" className="h-7 text-xs" onClick={() => setGenera(true)}>Genera i materiali</Button>
+            <span className="min-w-0 flex-1 max-sm:hidden">Il computo «{nomeComputo}» è letto, ma i suoi materiali non sono ancora nella commessa.</span>
+            {/* Telefono: una riga, e il bottone non pieno: l'azione principale della pagina è «Aggiungi articolo». */}
+            <span className="min-w-0 flex-1 sm:hidden">Materiali del computo da portare qui</span>
+            <Button size="sm" className="h-7 text-xs max-sm:border max-sm:border-violet-300 max-sm:bg-white max-sm:text-violet-800 max-sm:hover:bg-violet-50" onClick={() => setGenera(true)}>Genera i materiali</Button>
           </div>
         )}
 

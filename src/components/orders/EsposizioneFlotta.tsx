@@ -68,7 +68,7 @@ export function EsposizioneFlotta({
     // (toccabili) che scorrono di lato. Era un riquadro di 120px sopra l'elenco.
     <div className="mt-2 rounded-lg border border-red-400/30 bg-red-500/10 p-2.5 max-sm:mt-0 max-sm:flex max-sm:items-center max-sm:gap-2 max-sm:p-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 max-sm:shrink-0 max-sm:flex-col max-sm:gap-0">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-red-200 max-sm:text-[10px]">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-red-200 max-sm:text-[11px]">
           <span className="max-sm:hidden">Cantieri che stai finanziando tu</span>
           <span className="sm:hidden">Finanzi tu</span>
         </span>

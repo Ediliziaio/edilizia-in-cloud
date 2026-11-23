@@ -405,6 +405,9 @@ function SidebarContent({
       {/* Scrollable filter content */}
       <div className="flex-1 overflow-y-auto">
         {/* ── Ricerca ──────────────────────────────────────── */}
+        {/* Sotto 1024 px la pagina ha già la sua ricerca («Cerca commesse») sopra l'elenco:
+            due caselle di ricerca diverse per la stessa lista confondevano. Da computer resta questa. */}
+        <div className="max-lg:hidden">
         <CollapsibleSection title="Cerca">
           <Input
             type="text"
@@ -414,6 +417,7 @@ function SidebarContent({
             className="text-sm"
           />
         </CollapsibleSection>
+        </div>
 
         {/* ── Stato commessa ───────────────────────────────── */}
         {statuses.length > 0 && (

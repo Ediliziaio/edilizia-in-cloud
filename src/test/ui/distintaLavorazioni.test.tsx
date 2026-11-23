@@ -87,14 +87,14 @@ describe("Tabella delle lavorazioni", () => {
   });
   it("i filtri senza righe non si vedono", () => {
     mostra();
-    expect(screen.getByRole("button", { name: /In ritardo/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^In ritardo/ })).toBeInTheDocument();
     cleanup();
     mostra({ oggi: "2025-01-01" });
-    expect(screen.queryByRole("button", { name: /In ritardo/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^In ritardo/ })).toBeNull();
   });
   it("il filtro «in ritardo» apre le fasi e lascia solo le righe scadute", () => {
     mostra();
-    fireEvent.click(screen.getByRole("button", { name: /In ritardo/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^In ritardo/ }));
     expect(screen.getByRole("button", { name: /^Controparete/ })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /^Impianti/ }).every((b) => b.closest("nav"))).toBe(true);
   });

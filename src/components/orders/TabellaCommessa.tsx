@@ -16,6 +16,10 @@ export interface ColonnaTabella<T> {
   destra?: boolean;
   /** Da telefono è il titolo della scheda: senza etichetta, a tutta larghezza. */
   principale?: boolean;
+  /** Da telefono la colonna non si mostra (detto già dal titolo o dai totali in cima). */
+  soloComputer?: boolean;
+  /** Da telefono senza etichetta a sinistra (per i bottoni: «Azioni» accanto a «Registra pagamento» non dice niente). */
+  senzaEtichetta?: boolean;
 }
 
 export function TabellaCommessa<T>({ etichetta, colonne, righe, chiave }: {
@@ -41,7 +45,10 @@ export function TabellaCommessa<T>({ etichetta, colonne, righe, chiave }: {
                     c.destra && "text-right tabular-nums",
                     c.principale
                       ? "max-sm:block max-sm:px-0 max-sm:py-0.5 max-sm:text-left max-sm:font-semibold"
-                      : "max-sm:flex max-sm:items-start max-sm:justify-between max-sm:gap-3 max-sm:px-0 max-sm:py-0.5 max-sm:text-right max-sm:before:shrink-0 max-sm:before:text-xs max-sm:before:font-normal max-sm:before:text-muted-foreground max-sm:before:content-[attr(data-etichetta)] max-sm:empty:hidden")}>
+                      : "max-sm:flex max-sm:items-start max-sm:justify-between max-sm:gap-3 max-sm:px-0 max-sm:py-0.5 max-sm:text-right max-sm:before:shrink-0 max-sm:before:text-xs max-sm:before:font-normal max-sm:before:text-muted-foreground max-sm:before:content-[attr(data-etichetta)] max-sm:empty:hidden",
+                    // Dopo la regola sopra: cn() tiene l'ultima classe in conflitto (max-sm:flex / max-sm:hidden).
+                    c.senzaEtichetta && "max-sm:justify-end max-sm:before:hidden",
+                    c.soloComputer && "max-sm:hidden")}>
                   {c.cella(r)}
                 </td>
               ))}

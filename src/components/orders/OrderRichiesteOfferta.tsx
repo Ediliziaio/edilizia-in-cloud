@@ -60,7 +60,7 @@ export function OrderRichiesteOfferta({ orderId, orderCode }: { orderId: string;
     ) },
     { titolo: "Risposta entro", cella: (r) => <span className="whitespace-nowrap">{r.scadenza_offerte && r.status !== "aggiudicata" ? dataIt(r.scadenza_offerte) : "—"}</span> },
     ...(perm.canViewCosts ? [{ titolo: "Migliore offerta", destra: true, cella: (r: SupplierRfq) => <span className="font-medium" title="Migliore offerta">{contatori[r.id]?.migliore != null ? formatCurrency(contatori[r.id].migliore!) : "—"}</span> }] : []),
-    { titolo: "Azioni", destra: true, cella: (r) => r.purchase_order_id ? <Link to={`/azienda/ordini-acquisto/${r.purchase_order_id}`} className="whitespace-nowrap text-xs underline underline-offset-2">Vedi l’ordine</Link> : null },
+    { titolo: "Azioni", destra: true, senzaEtichetta: true, cella: (r) => r.purchase_order_id ? <Link to={`/azienda/ordini-acquisto/${r.purchase_order_id}`} className="whitespace-nowrap text-xs underline underline-offset-2">Vedi l’ordine</Link> : null },
   ];
 
   return (

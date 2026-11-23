@@ -90,7 +90,7 @@ export function OrdineEconomico({
         salPayment={salPayment}
         totalAmount={totalAmount}
         totaliIncassi={totaliIncassi}
-        elencoUnificato={fatture ? piano => <FattureIncassiElenco {...fatture} actions={<>{fatture.actions}{permissions.canViewBilling && !permissions.solaLettura && <Button variant="outline" size="sm" onClick={()=>setQuoteTarget({})}>Ripartisci fattura su più rate</Button>}</>} piano={piano} /> : undefined}
+        elencoUnificato={fatture ? piano => <FattureIncassiElenco {...fatture} actions={<>{fatture.actions}{permissions.canViewBilling && !permissions.solaLettura && <Button variant="outline" size="sm" onClick={()=>setQuoteTarget({})}><span className="max-sm:hidden">Ripartisci fattura su più rate</span><span className="sm:hidden">Ripartisci</span></Button>}</>} piano={piano} /> : undefined}
         vatRate={vatRate}
         paymentType={paymentType}
         installments={installments}

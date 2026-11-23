@@ -28,14 +28,16 @@ export function OperationalViewSwitch({
           aria-pressed={value === id}
           onClick={() => onChange(id)}
           className={cn(
-            "inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            // Telefono: solo l'icona (il nome resta per i lettori di schermo), così la barra dei
+            // filtri sta nello schermo senza scorrere di lato (collaudo 23/11/2026).
+            "inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-sm:h-8 max-sm:px-2",
             value === id
               ? "bg-orange-50 text-orange-800 ring-1 ring-inset ring-orange-100"
               : "text-slate-500 hover:text-slate-900",
           )}
         >
-          <Icona className="h-3.5 w-3.5" />
-          {nome}
+          <Icona className="h-3.5 w-3.5" aria-hidden="true" />
+          <span className="max-sm:sr-only">{nome}</span>
         </button>
       ))}
     </div>

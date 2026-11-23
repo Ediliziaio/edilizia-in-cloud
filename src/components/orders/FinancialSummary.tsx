@@ -1145,13 +1145,21 @@ export function FinancialSummaryReadOnly({
               </p>
             )}
             {quotaRipartita && <p className="mt-1 text-xs text-muted-foreground">Quota della fattura: {formatCurrency(inst.documento_quota_lorda!)} · incassato {formatCurrency(partialPaid)} · residuo {formatCurrency(inst.quota_fattura_residua ?? 0)}{Number(inst.quota_fattura_non_esigibile)>0 && ` · non da incassare ora ${formatCurrency(inst.quota_fattura_non_esigibile!)}`}. Gli incassi si registrano sulla fattura.</p>}
-            {inst.id && onManageInvoice && <button type="button" className="mt-1 inline-flex min-h-8 items-center gap-1.5 rounded-md border bg-background px-2 text-xs font-medium text-primary hover:bg-muted" aria-label={`${inst.documento_fiscale_id ? 'Gestisci fattura' : 'Collega fattura'} · ${inst.label}`} onClick={() => onManageInvoice(inst, amount)}><FileText className="h-3.5 w-3.5" aria-hidden />{inst.documento_fiscale_id ? 'Gestisci fattura' : 'Collega fattura'}</button>}
+            {inst.id && onManageInvoice && <button type="button" className={cn("mt-1 inline-flex min-h-8 items-center gap-1.5 rounded-md border bg-background px-2 text-xs font-medium text-primary hover:bg-muted", inst.documento_fiscale_id && dettaglioDocumento && "max-sm:hidden")} aria-label={`${inst.documento_fiscale_id ? 'Gestisci fattura' : 'Collega fattura'} · ${inst.label}`} onClick={() => onManageInvoice(inst, amount)}><FileText className="h-3.5 w-3.5" aria-hidden />{inst.documento_fiscale_id ? 'Gestisci fattura' : 'Collega fattura'}</button>}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 pl-5 sm:justify-end sm:gap-2 sm:pl-0">
           {!dettaglioDocumento && <span className={cn("text-base font-semibold tabular-nums max-sm:hidden", stato === "incassata" ? "text-emerald-700" : "text-foreground")}>{formatCurrency(amount)}</span>}
+          {/* Telefono: lo stato è già la pillola accanto al nome; qui solo l'azione che serve. Prima
+              c'era anche l'interruttore «Da incassare / Incassata», un secondo selettore dello stesso stato. */}
+          {amount > 0 && onInstallmentPaidToggle && !quotaRipartita && !inst.is_paid && (
+            <button type="button" onClick={() => onInstallmentPaidToggle(inst, true)}
+              className="inline-flex min-h-8 items-center gap-1 rounded-md border bg-background px-2.5 text-xs font-medium text-emerald-800 hover:bg-emerald-50 sm:hidden">
+              <Check className="h-3.5 w-3.5" aria-hidden />Segna incassata
+            </button>
+          )}
           {amount > 0 && onInstallmentPaidToggle && !quotaRipartita && (
-            <div className="inline-flex rounded-lg border bg-background p-0.5" role="radiogroup" aria-label={`Stato incasso ${inst.label}`}>
+            <div className="inline-flex rounded-lg border bg-background p-0.5 max-sm:hidden" role="radiogroup" aria-label={`Stato incasso ${inst.label}`}>
               <button
                 type="button" role="radio" aria-checked={!inst.is_paid}
                 disabled={!!incassoRegistrato}

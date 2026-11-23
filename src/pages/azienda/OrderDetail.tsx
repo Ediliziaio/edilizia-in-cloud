@@ -29,7 +29,8 @@ import { useParams, useNavigate, Link, useLocation, useSearchParams } from "reac
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, BellRing, ChevronRight, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, ArrowRight } from "lucide-react";
+import { AlertTriangle, BellRing, ChevronRight, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, ArrowRight, MoreHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderMaterialUsageCard } from "@/components/orders/OrderMaterialUsageCard";
 import { OrderWarehouseExitsCard } from "@/components/orders/OrderWarehouseExitsCard";
@@ -1522,6 +1523,7 @@ function OrderDetailInner() {
                     variant="outline"
                     size="sm"
                     disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
+                    className="max-sm:hidden"
                     onClick={() => setCreaProformaOpen(true)}
                   >
                     <FileText className="h-3.5 w-3.5 mr-1" />
@@ -1533,6 +1535,7 @@ function OrderDetailInner() {
                     variant="outline"
                     size="sm"
                     disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
+                    className="max-sm:hidden"
                     onClick={() => setCreaDDTOpen(true)}
                   >
                     <Truck className="h-3.5 w-3.5 mr-1" />
@@ -1544,11 +1547,27 @@ function OrderDetailInner() {
                     variant="outline"
                     size="sm"
                     disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
+                    className="max-sm:hidden"
                     onClick={() => setCreaNotaCreditoOpen(true)}
                   >
                     <FileWarning className="h-3.5 w-3.5 mr-1" />
                     N. Credito
                   </Button>
+                  )}
+                  {/* Telefono: in vista solo «Fattura»; proforma, DDT e nota di credito nel menu. */}
+                  {(permissions.canViewBilling || permissions.canEditOrders || permissions.canViewWarehouse) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="sm:hidden" disabled={documentiBloccati} aria-label="Altri documenti">
+                        <MoreHorizontal className="h-3.5 w-3.5 mr-1" />Altro
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {permissions.canViewBilling && <DropdownMenuItem onSelect={() => setCreaProformaOpen(true)}><FileText className="mr-2 h-3.5 w-3.5" />Proforma</DropdownMenuItem>}
+                      <DropdownMenuItem onSelect={() => setCreaDDTOpen(true)}><Truck className="mr-2 h-3.5 w-3.5" />DDT</DropdownMenuItem>
+                      {permissions.canViewBilling && <DropdownMenuItem onSelect={() => setCreaNotaCreditoOpen(true)}><FileWarning className="mr-2 h-3.5 w-3.5" />Nota di credito</DropdownMenuItem>}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   )}
                 </div>
                 </div>);
@@ -1729,7 +1748,10 @@ function OrderDetailInner() {
       {/* Da telefono niente px-3: <main> ha già il suo margine (prima i riquadri
           stavano a 24px dal bordo dello schermo). */}
       <div className="px-0 py-2 sm:px-6 sm:py-6 space-y-3 sm:space-y-6">
-        {inAppalto ? (
+        {/* Da telefono i numeri della commessa solo in Panoramica ed Economia: nelle schede di
+            lavoro (Cantiere, Materiali, Costi) erano 220px ripetuti prima di ciò che si cerca
+            (collaudo 23/11/2026). Da tablet e computer restano ovunque. */}
+        {(!isMobile || activeTab === "panoramica" || activeTab === "finanza") && (inAppalto ? (
           <RiepilogoAppaltoCommessa
             totali={totaliAppalto}
             valorizzazione={order.valorizzazione ?? null}
@@ -1764,7 +1786,7 @@ function OrderDetailInner() {
           canViewCosts={permissions.canViewCosts}
           onOpenEconomics={() => navigateTo({ tab: "finanza", section: "section-conto-economico" })}
           onOpenPayments={() => vaiAllaFinanza()}
-        />}
+        />)}
         {/* Da telefono niente quattro riquadri: bastano la parte blu e le schede. */}
         {!isMobile && <OrderCommessaSummary
           statusName={statuses.find(status => status.id === order.current_status_id)?.name}
@@ -1802,7 +1824,7 @@ function OrderDetailInner() {
             {isMobile && <div className="rounded-xl border bg-card px-3 py-2">{statoCommessa}</div>}
             {contractLink.data?.workflow_kind !== "intervento" && <ContractInterventions key={id} orderId={id!} />}
             {orderAlerts.length > 0 && <section aria-labelledby="order-attention-title" className="rounded-xl border border-orange-200 bg-white">
-              <h2 id="order-attention-title" className="border-b border-orange-100 bg-orange-50 px-4 py-3 text-base font-semibold text-orange-950">Da controllare</h2>
+              <h2 id="order-attention-title" className="border-b border-orange-100 bg-orange-50 px-4 py-3 text-base font-semibold text-orange-950 max-md:px-3.5 max-md:py-2.5 max-md:text-[15px]">Da controllare</h2>
               <div className="divide-y divide-slate-100">
                 {orderAlerts.map(alert => isMobile ? <button key={alert.title} type="button" className="flex w-full items-center gap-2 px-3 py-2.5 text-left active:bg-muted"
                   onClick={() => navigateTo({ tab: alert.section === "section-pagamenti" ? "finanza" : "articoli", section: alert.section ?? "section-materiali" })}>

@@ -783,7 +783,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
       { titolo: "Pagato", destra: true, cella: (f: RigaFattura) => (f.legame === "suggerita" ? "—" : importo(f.pagato)) },
       { titolo: "Da pagare", destra: true, cella: (f: RigaFattura) => (f.legame === "suggerita" ? "—" : <span className={f.residuo ? "font-medium text-amber-700 dark:text-amber-400" : undefined}>{importo(f.residuo)}</span>) },
     ] : []),
-    { titolo: "Azioni", destra: true, cella: (f) => (
+    { titolo: "Azioni", destra: true, senzaEtichetta: true, cella: (f) => (
       <div className="flex flex-wrap justify-end gap-1">
         {puoModificare && f.legame !== "oda" && <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => setDaDividere(f)}>{f.legame === "suggerita" ? "Dividi su più commesse" : "Commesse"}</Button>}
         {puoModificare && f.legame === "suggerita" && <>

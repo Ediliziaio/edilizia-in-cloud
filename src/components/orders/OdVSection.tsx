@@ -127,7 +127,7 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
           {creaFase.isPending && creaFase.variables === odv.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}Crea la fase nelle Lavorazioni</Button>}
         {odv.status === "in_attesa" && <p className="mt-0.5 text-xs text-muted-foreground">Quando il cliente accetta diventa una fase delle Lavorazioni</p>}</>;
     } },
-    { titolo: "Azioni", intestazione: <span className="sr-only">Azioni</span>, destra: true, cella: odv => {
+    { titolo: "Azioni", intestazione: <span className="sr-only">Azioni</span>, destra: true, senzaEtichetta: true, cella: odv => {
       const linkAttivo = odv.status === "in_attesa" && odv.firma_token && !odv.link_revoked_at && (!odv.link_expires_at || new Date(odv.link_expires_at).getTime() > Date.now());
       return (
         <div className="flex flex-wrap items-center justify-end gap-1">

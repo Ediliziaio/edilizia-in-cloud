@@ -49,6 +49,9 @@ function BloccoCantiere({ indirizzo }: { indirizzo?: string | null }) {
   );
 }
 
+const normalizzaIndirizzo = (v?: string | null) => (v ?? "").toLocaleLowerCase("it-IT").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+const stessoIndirizzo = (a?: string | null, b?: string | null) => !!normalizzaIndirizzo(a) && normalizzaIndirizzo(a) === normalizzaIndirizzo(b);
+
 export function OrdineCliente({ customer, snapshot, indirizzoLavori, ruolo = "cliente" }: OrdineClienteProps) {
   if (!customer) {
     return (
@@ -74,7 +77,7 @@ export function OrdineCliente({ customer, snapshot, indirizzoLavori, ruolo = "cl
         </div>
         <Link
           to={`/azienda/clienti/${customer.id}`}
-          className="font-semibold text-slate-900 hover:text-orange-600 hover:underline leading-tight"
+          className="text-sm font-semibold text-slate-900 hover:text-orange-600 hover:underline leading-tight"
         >
           {fullName}
         </Link>
@@ -91,7 +94,8 @@ export function OrdineCliente({ customer, snapshot, indirizzoLavori, ruolo = "cl
             <span>{customer.phone}</span>
           </div>
         )}
-        {customer.address && (
+        {/* Uguale al cantiere: lo dice già il blocco «Cantiere» sotto, con «Naviga». */}
+        {customer.address && !stessoIndirizzo(customer.address, indirizzoLavori) && (
           <div className="flex items-start gap-2 text-slate-500">
             <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
             <span>{customer.address}</span>

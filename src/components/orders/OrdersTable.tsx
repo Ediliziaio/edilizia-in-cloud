@@ -315,7 +315,9 @@ export const OrdersTable = React.memo(function OrdersTable({
                     <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label="Lavoro per appaltatore" />
                   )}
                   {riga.livello === 0 && <SegnoGenerale order={order} mappa={mappaGenerali} compatto />}
-                  {visibleColumns.has("pipeline") && <span className="max-w-full truncate text-xs text-muted-foreground">Pipeline · {riferimentiPipeline?.get(order.id) ?? pipelineFallback}</span>}
+                  {/* «Pipeline · Principale» su ogni scheda non distingue niente: da telefono solo
+                      quando la commessa sta in un'altra pipeline (collaudo 23/11/2026). */}
+                  {visibleColumns.has("pipeline") && (riferimentiPipeline?.get(order.id) ?? pipelineFallback) !== pipelineFallback && <span className="max-w-full truncate text-[11px] text-muted-foreground">{riferimentiPipeline?.get(order.id)}</span>}
                   {stato && (
                     <span className="flex min-w-0 items-center gap-1 text-[11px]" style={{ color: stato.color }}>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: stato.color }} />
@@ -323,9 +325,9 @@ export const OrdersTable = React.memo(function OrdersTable({
                     </span>
                   )}
                 </div>
-                <p className="truncate text-[13px] font-medium leading-snug">{order.description || "—"}</p>
+                <p className="truncate text-sm font-semibold leading-snug">{order.description || "—"}</p>
                 {order.customer && (
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     {order.customer.first_name} {order.customer.last_name}
                   </p>
                 )}

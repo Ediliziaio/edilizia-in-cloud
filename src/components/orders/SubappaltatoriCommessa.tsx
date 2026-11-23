@@ -143,7 +143,7 @@ export function SubappaltatoriCommessa({ orderId, onApriCantiere }: { orderId: s
             { titolo: "Pagato", destra: true, cella: (r) => formatCurrency(r.uscita.pagato) },
             { titolo: "Da pagare", destra: true, cella: (r) => <span className="font-medium">{formatCurrency(r.uscita.residuo)}</span> },
             { titolo: "Stato", cella: (r) => { const s = statoDi(r); return <StatoPill tono={TONO[s.chiave]}>{s.testo}</StatoPill>; } },
-            { titolo: "Azioni", destra: true, cella: (r) => r.subappaltatoreId ? (
+            { titolo: "Azioni", destra: true, senzaEtichetta: true, cella: (r) => r.subappaltatoreId ? (
               permessi.canViewSubappaltatori ? <Button size="sm" variant="outline" onClick={() => apri(r)}>SAL e pagamenti</Button> : null
             ) : r.uscita.origine_tipo === "costo" ? (
               <Button size="sm" variant="outline" onClick={() => setCostoAperto(r.uscita.origine_id)}>Pagamenti</Button>

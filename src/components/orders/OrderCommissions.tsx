@@ -373,12 +373,13 @@ export function OrderCommissions({
               </CardTitle>
               {!readOnly && (
                 <Button variant="outline" size="sm" className="text-xs" onClick={() => setAddDialogOpen(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1" />Aggiungi Commerciale
+                  <Plus className="h-3.5 w-3.5 mr-1" /><span className="max-sm:hidden">Aggiungi Commerciale</span><span className="sm:hidden">Aggiungi</span>
                 </Button>
               )}
             </div>
           </CardHeader>
-          <CardContent>
+          {/* Telefono: senza commerciali il riquadro è una riga sola (titolo e «Aggiungi»). */}
+          <CardContent className="max-sm:hidden">
             <p className="text-sm text-muted-foreground">Nessun commerciale assegnato a questa commessa.</p>
           </CardContent>
         </Card>

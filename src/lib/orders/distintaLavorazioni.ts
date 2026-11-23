@@ -14,6 +14,9 @@ export interface FaseDistinta {
   /** L'avanzamento vero della fase: da sottofasi, a mano o dai SAL. Le righe spuntate non lo dicono. */
   percentuale?: number | null;
   status?: string | null;
+  /** Le date della fase: valgono per le sue righe che non hanno date proprie (filtri e avvisi). */
+  start_date?: string | null;
+  end_date?: string | null;
 }
 
 /** I numeri della fase, già al netto di sconti e IVA (economiaFasi). */
@@ -50,8 +53,16 @@ export interface RigaDistinta {
   descrizione: string;
   quantita: number | null;
   unita: string | null;
+  /** Date proprie della riga (della sottofase): le sole che si scrivono. */
   inizio: string | null;
   fine: string | null;
+  /**
+   * Date della fase. Una riga senza date proprie segue la sua fase: prima risultava «senza
+   * date» e mai «in ritardo» anche con la fase scaduta (collaudo 23/11/2026). Servono solo a
+   * filtri e avvisi, mai alle scritture, che passano da `inizio`/`fine`.
+   */
+  inizioFase?: string | null;
+  fineFase?: string | null;
   giorni: number | null;
   /** Giorni di lavoro dichiarati dai rapportini approvati. */
   giorniLavorati: number;
@@ -127,6 +138,8 @@ export function righeDistinta(
         unita: v.unita,
         inizio: s?.data_inizio ?? null,
         fine: s?.data_fine ?? null,
+        inizioFase: fase.start_date ?? null,
+        fineFase: fase.end_date ?? null,
         giorni: s?.giorni ?? null,
         giorniLavorati: s?.giorni_lavorati ?? 0,
         iniziata: !!s?.iniziata_il,
@@ -155,6 +168,8 @@ export function righeDistinta(
       unita: null,
       inizio: s.data_inizio ?? null,
       fine: s.data_fine ?? null,
+      inizioFase: fase.start_date ?? null,
+      fineFase: fase.end_date ?? null,
       giorni: s.giorni ?? null,
       giorniLavorati: s.giorni_lavorati ?? 0,
       iniziata: !!s.iniziata_il,
@@ -193,14 +208,20 @@ export function dateSpostate(
     .map((r) => ({ id: r.sottofaseId!, data_inizio: r.inizio ? piuGiorni(r.inizio, giorni) : null, data_fine: r.fine ? piuGiorni(r.fine, giorni) : null, giorni: r.giorni }));
 }
 
+/** La fine che vale per la riga: la sua, altrimenti quella della fase. */
+export const fineEffettiva = (r: Pick<RigaDistinta, "fine" | "fineFase">): string | null => r.fine ?? r.fineFase ?? null;
+const inizioEffettivo = (r: Pick<RigaDistinta, "inizio" | "inizioFase">): string | null => r.inizio ?? r.inizioFase ?? null;
+
 export function rispettaFiltro(r: RigaDistinta, filtro: FiltroDistinta, oggi: string): boolean {
+  const fine = fineEffettiva(r);
+  const inizio = inizioEffettivo(r);
   switch (filtro) {
     case "da_fare": return !r.fatta;
     // Da fare e già cominciata, oppure in programma entro sette giorni: quello su cui si lavora adesso.
-    case "settimana": return !r.fatta && (r.percentuale > 0 || r.iniziata || (!!r.inizio && r.inizio <= piuGiorni(oggi, 7)));
-    case "senza_date": return !r.fatta && !r.fine;
+    case "settimana": return !r.fatta && (r.percentuale > 0 || r.iniziata || (!!inizio && inizio <= piuGiorni(oggi, 7)));
+    case "senza_date": return !r.fatta && !fine;
     case "senza_previsto": return r.voceId !== null && r.previsto === null;
-    case "in_ritardo": return !r.fatta && !!r.fine && r.fine < oggi;
+    case "in_ritardo": return !r.fatta && !!fine && fine < oggi;
     default: return true;
   }
 }
