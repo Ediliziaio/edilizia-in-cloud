@@ -38,6 +38,7 @@ export interface AzioniPannello {
   altezzaParete: (id: string, cm: number) => void;
   spessoreParete: (id: string, cm: number) => void;
   funzioneParete: (id: string, funzione: TipoMuro | "da_verificare") => void;
+  bloccaParete: (id: string, bloccato: boolean) => void;
   modificaApertura: (id: string, campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "ante" | "sistema" | "manovra" | "oscurante" | "cassonetto" | "altezzaCassonetto" | "motore" | "zanzariera">>) => void;
   giraApertura: (id: string) => void;
   elimina: (sel: Selezione) => void;
@@ -636,6 +637,10 @@ function DettaglioParete({ vista, muro, azioni, essenziale }: { vista: Vista; mu
           </Select>
         </div>
       )}
+      {muro.stato === "esistente" && <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-muted/30 p-2 text-xs">
+        <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-primary" checked={!!muro.bloccato} onChange={(e) => azioni.bloccaParete(muro.id, e.target.checked)} />
+        <span><span className="block font-medium">Parete bloccata</span><span className="block text-muted-foreground">Strutturale, cavedio o colonne degli impianti: nessuna modifica la sposta o la demolisce, nemmeno chiesta a Silvio.</span></span>
+      </label>}
       {(!essenziale || funzioneIncerta) && <div className="space-y-1">
         <Label>Funzione della parete</Label>
         <Select value={funzioneIncerta ? "da_verificare" : muro.tipo} disabled={!misurabile}

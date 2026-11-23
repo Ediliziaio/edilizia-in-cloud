@@ -78,6 +78,8 @@ export interface Muro extends ConOrigine {
   stato: StatoLavori;
   /** Il tipo grafico del muro richiede ancora un riscontro. */
   funzioneDaVerificare?: boolean;
+  /** Dichiarata intoccabile dall'utente: non si sposta, non si demolisce. */
+  bloccato?: boolean;
 }
 
 export function funzionePareteDaVerificare(muro: Pick<Muro, "id" | "funzioneDaVerificare">) {
@@ -822,6 +824,7 @@ function validaStato(
     if (o.funzioneDaVerificare !== undefined && typeof o.funzioneDaVerificare !== "boolean") {
       errori.push(`${e}: il riscontro della funzione non è valido.`);
     }
+    if (o.bloccato !== undefined && typeof o.bloccato !== "boolean") errori.push(`${e}: il blocco della parete non è valido.`);
     statoLavori(o, e, true);
     origini(o, e);
   }, nomeDi("parete"));

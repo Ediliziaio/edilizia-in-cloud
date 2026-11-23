@@ -1,3 +1,4 @@
+import { messaggioParetiBloccate, paretiBloccateToccate } from "../../../shared/planimetrie/vincoli.ts";
 import { areaPoligono } from "../../../shared/planimetrie/geometria.ts";
 import { PAVIMENTI_STANZA } from "../../../shared/planimetrie/finiture.ts";
 import { ambitiDi, origineMisura, scalaModelloDaVerificare, type Locale, type Planimetria, type Proposta, type Punto, type StatoPianta } from "../../../shared/planimetrie/modello.ts";
@@ -283,6 +284,9 @@ export function anteprimaDaChatProgetto(documento: Planimetria, selezione: Ambit
     aggiornati.set(piano.id,{proposta:cambi.proposta,piano:{livelloId:piano.id,nome:piano.nome,evidenzaLocali,evidenzaMuri,accessi:[]},parti,base:corrente?.base ?? stato});
   }
   if (!modifiche.length) return null;
+  // Una parete che l'utente ha bloccato non la tocca nemmeno Silvio: la proposta si ferma qui, con il motivo.
+  const bloccate=[...aggiornati.values()].flatMap(v=>paretiBloccateToccate(v.base.muri,v.proposta.muri));
+  if (bloccate.length) throw new Error(messaggioParetiBloccate(bloccate));
   const piani=[...aggiornati.values()].map(v=>({...v.piano,accessi:accessiDopoLaDivisione(v.base,v.proposta,v.parti)}));
   const primo=piani.find(p=>p.livelloId===selezione.livelloId) ?? piani[0];
 

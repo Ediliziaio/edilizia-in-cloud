@@ -77,6 +77,8 @@ export interface Muro {
   origine: Origine;
   origineAltezza?: Origine;
   funzioneDaVerificare?: boolean;
+  /** Dichiarata intoccabile dall'utente. */
+  bloccato?: boolean;
 }
 
 export type TipoApertura = "porta" | "finestra" | "portafinestra" | "varco";
@@ -373,6 +375,7 @@ function muroDaModello(m: MuroModello): Muro {
   const origineAltezza = origineMisura(m, "altezza");
   return { id: m.id, p1: capovolgi(m.p1), p2: capovolgi(m.p2), spessore: m.spessore, altezza: m.altezza, tipo: m.tipo, stato: m.stato, origine,
     funzioneDaVerificare: m.funzioneDaVerificare,
+    ...(m.bloccato ? { bloccato: true } : {}),
     ...(origineAltezza !== origine || m.origineMisure?.altezza ? { origineAltezza } : {}) };
 }
 
@@ -632,6 +635,7 @@ function muroAModello(m: Muro, stato: StatoLavori, prima?: MuroModello): MuroMod
     tipo: m.tipo,
     stato,
     ...(m.funzioneDaVerificare !== undefined ? { funzioneDaVerificare: m.funzioneDaVerificare } : {}),
+    ...(m.bloccato ? { bloccato: true } : {}),
     ...provenienza,
     ...(altezzaCambiata ? { origineMisure: { ...provenienza.origineMisure, altezza: m.origineAltezza } } : {}),
   };

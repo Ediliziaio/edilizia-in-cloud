@@ -32,6 +32,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { messaggioParetiBloccate, paretiBloccateToccate } from "../../../../shared/planimetrie/vincoli.ts";
 import {
   DESTINAZIONI,
   aPlanimetria,
@@ -523,7 +525,14 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     setAnimazioneChat(null);
     setMostraFonteChat(false);
     const confermata = aggiornaQuote(nuova);
-    setStoria(s => esegui(s, confermata));
+    // Una parete bloccata non si sposta né si demolisce, da qualunque comando arrivi la modifica:
+    // si confronta con la pianta di adesso e, se la tocca, non entra nella storia.
+    setStoria(s => {
+      const bloccate = paretiBloccateToccate(s.presente.muri, confermata.muri);
+      if (!bloccate.length) return esegui(s, confermata);
+      queueMicrotask(() => { toast.error(messaggioParetiBloccate(bloccate), { id: "parete-bloccata" }); setApplicazioneChat(null); });
+      return s;
+    });
     if (daChat) setApplicazioneChat({ pianta: confermata, annullabile: daChat.annullabile });
   }, []);
 
@@ -1659,6 +1668,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
       spessoreParete: (id, cm) => applica(C.modificaMuro(p(), id, { spessore: cm })),
       funzioneParete: (id, tipo) => applica(C.modificaMuro(p(), id, tipo === "da_verificare"
         ? { funzioneDaVerificare: true } : { tipo, funzioneDaVerificare: false })),
+      bloccaParete: (id, bloccato) => applica(C.modificaMuro(p(), id, { bloccato: bloccato || undefined })),
       altezzaParete: (id, cm) => applica(C.modificaMuro(p(), id, { altezza: cm, origineAltezza: "rilevata" })),
       modificaApertura: (id, campi) => applica("zanzariera" in campi
         ? C.impostaZanzariera(p(), id, stato.current.vista, campi.zanzariera)

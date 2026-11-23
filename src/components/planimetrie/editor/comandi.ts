@@ -231,7 +231,7 @@ export function aggiungiParete(
   return { pianta: { ...pianta, muri: [...pianta.muri, muro] }, id: muro.id };
 }
 
-export function modificaMuro(pianta: Pianta, id: string, campi: Partial<Pick<Muro, "spessore" | "altezza" | "tipo" | "stato" | "origine" | "origineAltezza" | "funzioneDaVerificare">>): Pianta {
+export function modificaMuro(pianta: Pianta, id: string, campi: Partial<Pick<Muro, "spessore" | "altezza" | "tipo" | "stato" | "origine" | "origineAltezza" | "funzioneDaVerificare" | "bloccato">>): Pianta {
   return { ...pianta, muri: pianta.muri.map((m) => (m.id === id ? { ...m, ...campi } : m)) };
 }
 
