@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { descriviProgrammazione, fineStimata, formatoData } from "@/lib/importazione/programmata";
-import { annullaImportazione, testoAnnullamento } from "@/lib/importazione/registro";
+import { annullaImportazione, motivoAnnullamentoFallito, testoAnnullamento } from "@/lib/importazione/registro";
 import { csvRigheProgrammate, scaricaCsv, type RigaProgrammataFallita } from "./scaricaRighe";
 
 interface Riga {
@@ -15,6 +15,8 @@ interface Riga {
   totale: number; fatte: number; creati: number; aggiornati: number; saltati: number; errori: number;
   per_giro: number; ogni_minuti: number; inizio: string; prossimo_giro: string;
   fascia_da: string | null; fascia_a: string | null; giorni: number[]; ultimo_errore: string | null; updated_at: string;
+  /** Il registro per annullarla: manca per le importazioni di prima o se non si è potuto scrivere. */
+  registro: { annullata_at: string | null; created_at: string } | null;
 }
 
 const ora = (t: string | null) => (t ? t.slice(0, 5) : undefined);
@@ -45,10 +47,22 @@ export function ImportazioniProgrammate({ companyId, oggetto, onAnnullata }: {
         .select("id, nome_file, stato, totale, fatte, creati, aggiornati, saltati, errori, per_giro, ogni_minuti, inizio, prossimo_giro, fascia_da, fascia_a, giorni, ultimo_errore, updated_at")
         .eq("company_id", companyId).eq("oggetto", oggetto)
         .or(`stato.in.(attiva,in_pausa),updated_at.gte.${settimana}`)
-        .neq("stato", "annullata")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as Riga[];
+      const lavori = (data ?? []) as Omit<Riga, "registro">[];
+      const registri = new Map<string, Riga["registro"]>();
+      if (lavori.length) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: reg } = await (supabase as any).from("importazioni_registro")
+          .select("id, annullata_at, created_at").in("id", lavori.map((l) => l.id));
+        for (const r of (reg ?? []) as { id: string; annullata_at: string | null; created_at: string }[]) {
+          registri.set(r.id, { annullata_at: r.annullata_at, created_at: r.created_at });
+        }
+      }
+      return lavori
+        .map((l) => ({ ...l, registro: registri.get(l.id) ?? null }))
+        // Una fermata resta in vista solo finché c'è qualcosa da togliere.
+        .filter((l) => l.stato !== "annullata" || (l.creati > 0 && l.registro && !l.registro.annullata_at));
     },
   });
   // L'ultima importazione fatta subito, nelle ultime 24 ore: si può ancora annullare con un clic.
@@ -77,7 +91,7 @@ export function ImportazioniProgrammate({ companyId, oggetto, onAnnullata }: {
       queryClient.invalidateQueries({ queryKey: chiaveUltima });
       onAnnullata?.();
     },
-    onError: (e) => toast.error(userErrorMessage(e, "Non sono riuscito ad annullare l'importazione")),
+    onError: (e) => toast.error(motivoAnnullamentoFallito(e)),
   });
   const chiediAnnulla = (id: string, testo: string) => { if (window.confirm(testo)) annulla.mutate(id); };
 
@@ -90,7 +104,7 @@ export function ImportazioniProgrammate({ companyId, oggetto, onAnnullata }: {
       if (error) throw error;
     },
     onSuccess: (_d, v) => {
-      toast.success(v.stato === "in_pausa" ? "Importazione in pausa" : v.stato === "attiva" ? "Importazione ripresa" : "Importazione annullata: le righe non ancora entrate non entreranno");
+      toast.success(v.stato === "in_pausa" ? "Importazione in pausa" : v.stato === "attiva" ? "Importazione ripresa" : "Importazione fermata: le righe non ancora entrate non entreranno");
       queryClient.invalidateQueries({ queryKey: chiave });
     },
     onError: (e) => toast.error(userErrorMessage(e, "Non sono riuscito a cambiare l'importazione")),
@@ -131,7 +145,7 @@ export function ImportazioniProgrammate({ companyId, oggetto, onAnnullata }: {
             {" "}il {new Date(ultima.created_at).toLocaleString("it-IT", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
           </p>
           <Button size="sm" variant="outline" disabled={annulla.isPending}
-            onClick={() => chiediAnnulla(ultima.id, `Annullare l'importazione? Quello che ha creato va nel cestino. I ${nome} che c'erano già e sono stati solo aggiornati restano come sono.`)}>
+            onClick={() => chiediAnnulla(ultima.id, `Annullare l'importazione? Quello che ha creato va nel cestino, anche le opportunità spostate di fase nel frattempo. I contatti che c'erano già e sono stati solo aggiornati restano come sono.`)}>
             <Undo2 className="mr-1 h-3.5 w-3.5" /> Annulla questa importazione
           </Button>
         </div>
@@ -150,7 +164,7 @@ export function ImportazioniProgrammate({ companyId, oggetto, onAnnullata }: {
               <CalendarClock className="h-4 w-4 shrink-0 text-primary" />
               <p className="min-w-0 flex-1 font-medium">
                 Importazione a scaglioni{r.nome_file ? ` · ${r.nome_file}` : ""}:{" "}
-                {r.stato === "completata" ? "conclusa" : r.stato === "in_pausa" ? "in pausa" : "in corso"}
+                {r.stato === "completata" ? "conclusa" : r.stato === "in_pausa" ? "in pausa" : r.stato === "annullata" ? "fermata" : "in corso"}
               </p>
               {r.stato === "attiva" && (
                 <Button size="sm" variant="outline" disabled={cambiaStato.isPending} onClick={() => cambiaStato.mutate({ id: r.id, stato: "in_pausa" })}>
@@ -164,8 +178,8 @@ export function ImportazioniProgrammate({ companyId, oggetto, onAnnullata }: {
               )}
               {(r.stato === "attiva" || r.stato === "in_pausa") && (
                 <Button size="sm" variant="ghost" disabled={cambiaStato.isPending}
-                  onClick={() => { if (window.confirm(`Annullare l'importazione? I ${restanti} ${nome} non ancora entrati non entreranno più.`)) cambiaStato.mutate({ id: r.id, stato: "annullata" }); }}>
-                  <X className="mr-1 h-3.5 w-3.5" /> Annulla
+                  onClick={() => { if (window.confirm(`Fermare l'importazione? I ${restanti} ${nome} non ancora entrati non entreranno più. Quelli già entrati restano.`)) cambiaStato.mutate({ id: r.id, stato: "annullata" }); }}>
+                  <X className="mr-1 h-3.5 w-3.5" /> Ferma
                 </Button>
               )}
             </div>
@@ -178,10 +192,10 @@ export function ImportazioniProgrammate({ companyId, oggetto, onAnnullata }: {
               {r.errori ? ` · ${r.errori} con errore` : ""}
             </p>
             {r.ultimo_errore && <p className="mt-1 text-xs text-amber-800">{r.ultimo_errore}</p>}
-            {(r.creati > 0 || r.stato === "attiva" || r.stato === "in_pausa") && new Date(r.inizio).getTime() > settimanaFa && (
+            {r.registro && !r.registro.annullata_at && new Date(r.registro.created_at).getTime() > settimanaFa && r.creati > 0 && (
               <Button size="sm" variant="ghost" className="mt-2 mr-2" disabled={annulla.isPending}
-                onClick={() => chiediAnnulla(r.id, `Annullare tutta l'importazione? Le righe non ancora entrate non entreranno, e i ${nome} già creati vanno nel cestino. Quelli che c'erano già restano come sono.`)}>
-                <Undo2 className="mr-1 h-3.5 w-3.5" /> Annulla e togli quelli già entrati
+                onClick={() => chiediAnnulla(r.id, `Annullare tutta l'importazione? Le righe non ancora entrate non entreranno, e quello che è già stato creato va nel cestino (anche le opportunità spostate di fase nel frattempo). I contatti che c'erano già restano come sono.`)}>
+                <Undo2 className="mr-1 h-3.5 w-3.5" /> {r.stato === "annullata" || r.stato === "completata" ? "Togli quelli già entrati" : "Annulla e togli quelli già entrati"}
               </Button>
             )}
             {r.errori > 0 && (

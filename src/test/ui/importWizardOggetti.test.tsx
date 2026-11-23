@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ImportWizard } from "@/components/shared/ImportWizard";
 import { useImportaDaUrl } from "@/components/shared/import-wizard/useImportaDaUrl";
@@ -12,6 +13,7 @@ const Indirizzo = () => {
   return <output data-testid="indirizzo">{l.pathname + l.search}</output>;
 };
 const apri = (tipo: "contacts" | "opportunities", da = "/azienda/marketing/contatti", destinazione?: string) => render(
+  <QueryClientProvider client={new QueryClient()}>
   <MemoryRouter initialEntries={[da]}>
     <ImportWizard
       open
@@ -24,7 +26,8 @@ const apri = (tipo: "contacts" | "opportunities", da = "/azienda/marketing/conta
       onImportOpportunities={vi.fn()}
     />
     <Indirizzo />
-  </MemoryRouter>,
+  </MemoryRouter>
+  </QueryClientProvider>,
 );
 const indirizzo = () => screen.getByTestId("indirizzo").textContent;
 

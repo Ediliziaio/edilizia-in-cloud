@@ -154,7 +154,8 @@ export async function importaOpportunita(ctx: ContestoOpportunita, rows: Record<
       const job = await creaImportazioneProgrammata(ctx.db, {
         companyId: ctx.companyId, oggetto: "opportunita", nomeFile: opzioni.nomeFile, modalita: "create",
         pipelineId: ctx.pipelineId, faseId: ctx.faseId, automazioni: opzioni.automazioni ?? [], programmazione: p,
-        righe: pronte.map(({ riga, row, contatto, valore }, i) => ({
+        assegnatari: (opzioni.assegnatari ?? []).map((a) => a.id),
+        righe: pronte.map(({ riga, row, contatto, valore }) => ({
           riga,
           contatto: { ...contatto, first_name: row.contact_first_name?.trim() || "", ...datiContattoDaRiga(row) },
           forme: contatto.phone ? formeTelefono(contatto.phone) : [],
@@ -162,7 +163,6 @@ export async function importaOpportunita(ctx: ContestoOpportunita, rows: Record<
           opportunita: {
             name: row.name?.trim() || `Opportunità riga ${riga}`, value: valore, source: row.source?.trim() || "importazione",
             tags: tagsDi(row), notes: row.notes?.trim() || null,
-            ...(assegnaATurno(i, opzioni.assegnatari) ? { assigned_to: assegnaATurno(i, opzioni.assegnatari) } : {}),
           },
           custom: customOpp(row),
         })),
@@ -184,12 +184,23 @@ export async function importaOpportunita(ctx: ContestoOpportunita, rows: Record<
   }
   const creatiOra = new Map<string, string>();
   const registro = await apriRegistro(ctx.db, { companyId: ctx.companyId, oggetto: "opportunita", nomeFile: opzioni.nomeFile });
-  const contattiCreati: string[] = [];
-  const opportunitaCreate: string[] = [];
-  for (const [i, p] of pronte.entries()) {
+  let contattiCreati: string[] = [];
+  let opportunitaCreate: string[] = [];
+  let registroCompleto = !!registro;
+  // Cosa ha creato, per poterla annullare: a blocchi, così se la pagina si chiude a metà
+  // quello che è già entrato si può comunque togliere.
+  const segnaFinora = async () => {
+    if (!(await segnaCreati(ctx.db, registro, "opportunita", opportunitaCreate))) registroCompleto = false;
+    if (!(await segnaCreati(ctx.db, registro, "contatto", contattiCreati))) registroCompleto = false;
+    opportunitaCreate = [];
+    contattiCreati = [];
+  };
+  let turno = 0;
+  for (const p of pronte) {
     const r = p.row;
-    // L'opportunità va al venditore scelto (a turno se più d'uno); un contatto nuovo va alla stessa persona.
-    const assegnato = assegnaATurno(i, opzioni.assegnatari);
+    // L'opportunità va al venditore scelto (a turno se più d'uno); un contatto nuovo va alla stessa
+    // persona. Il turno passa solo se l'opportunità entra.
+    const assegnato = assegnaATurno(turno, opzioni.assegnatari);
     const conAssegnato = assegnato ? { assigned_to: assegnato } : {};
     try {
       const chiave = p.contatto.email ?? p.contatto.phone ?? "";
@@ -212,6 +223,8 @@ export async function importaOpportunita(ctx: ContestoOpportunita, rows: Record<
       if (oErr) throw oErr;
       success++;
       opportunitaCreate.push(opp.id as string);
+      turno++;
+      if (opportunitaCreate.length >= 200) await segnaFinora();
       contattiImportati.push(contactId);
       // Dopo l'opportunità, uno alla volta: un valore rifiutato non deve far perdere gli altri.
       if (contattoNuovo) {
@@ -230,10 +243,7 @@ export async function importaOpportunita(ctx: ContestoOpportunita, rows: Record<
     }
   }
 
-  // Cosa ha creato, per poterla annullare: a blocchi alla fine, non una scrittura per riga.
-  const registroCompleto = !!registro
-    && await segnaCreati(ctx.db, registro, "opportunita", opportunitaCreate)
-    && await segnaCreati(ctx.db, registro, "contatto", contattiCreati);
+  await segnaFinora();
   if (opzioni.assegnatari?.length && success) fatto.push(testoAssegnazione(opzioni.assegnatari, success, "opportunità"));
   if (success && !registroCompleto) nonRiuscito.push("Questa importazione non si potrà annullare con un clic: se serve, le opportunità vanno tolte a mano.");
   if (etichetteExtra.length && success) {

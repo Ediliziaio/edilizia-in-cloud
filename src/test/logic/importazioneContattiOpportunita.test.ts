@@ -12,6 +12,10 @@ function dbFinto(esistenti: { id: string; email?: string | null; phone?: string 
   let insertContatti = 0;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rpc = vi.fn(async (nome: string, arg: any): Promise<{ data: any; error: null }> => {
+    if (nome === "registra_creati_importazione") {
+      (inseriti.importazioni_registro_creati ??= []).push((arg.p_ids as string[]).map((id) => ({ registro_id: arg.p_registro, tipo: arg.p_tipo, elemento_id: id })));
+      return { data: (arg.p_ids as string[]).length, error: null };
+    }
     if (nome === "contatti_per_email") {
       const cercate = (arg.p_emails as string[]).map((e) => e.trim().toLowerCase());
       return { data: esistenti.filter((e) => e.email && cercate.includes(e.email.toLowerCase())), error: null };
@@ -263,13 +267,25 @@ describe("assegnare i contatti importati", () => {
     expect(f.inseriti.marketing_contacts[0][0]).not.toHaveProperty("assigned_to");
   });
 
-  it("a scaglioni il venditore viaggia nella riga", async () => {
+  it("a scaglioni le persone stanno sull'importazione: il turno lo decide il giro, solo su ciò che crea", async () => {
     const f = dbFinto();
     const programmazione: Programmazione = { perGiro: 10, ogniMinuti: 10, inizio: new Date(), giorni: [1, 2, 3, 4, 5, 6, 7] };
-    await importaContatti(ctx(f.db), [{ first_name: "A", phone: "3331112222" }, { first_name: "B", phone: "3331112223" }],
-      { mode: "create", programmazione, assegnatari: persone });
-    const righe = f.inseriti.importazioni_programmate_righe[0] as { dati: { contatto: { assigned_to: string } } }[];
-    expect(righe.map((r) => r.dati.contatto.assigned_to)).toEqual(["mario", "sara"]);
+    const esito = await importaContatti(ctx(f.db), [{ first_name: "A", phone: "3331112222" }, { first_name: "B", phone: "3331112223" }],
+      { mode: "upsert", programmazione, assegnatari: persone });
+    expect(f.inseriti.importazioni_programmate[0][0]).toMatchObject({ assegnatari: ["mario", "sara"] });
+    const righe = f.inseriti.importazioni_programmate_righe[0] as { dati: { contatto: Record<string, unknown> } }[];
+    expect(righe.every((r) => !("assigned_to" in r.dati.contatto))).toBe(true);
+    expect(f.inseriti.importazioni_registro[0][0]).toMatchObject({ programmata: true });
+    expect(esito.importazioneId).toBeTruthy();
+  });
+
+  it("un blocco andato male non consuma il turno", async () => {
+    const f = dbFinto([], { falliscoInsertDopo: 1 });
+    const righe = Array.from({ length: 503 }, (_, i) => ({ first_name: `C${i}`, email: `c${i}@example.test` }));
+    await importaContatti(ctx(f.db), righe, { mode: "create", assegnatari: persone });
+    // Il primo blocco (500) entra, il secondo (3) no: chi viene dopo riparte da dove si era arrivati.
+    const secondo = f.inseriti.marketing_contacts[1] as { assigned_to: string }[];
+    expect(secondo.map((c) => c.assigned_to)).toEqual(["mario", "sara", "mario"]);
   });
 
   it("opportunità: a turno, e il contatto nuovo va alla stessa persona", async () => {

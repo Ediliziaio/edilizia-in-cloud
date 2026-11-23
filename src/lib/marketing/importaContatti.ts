@@ -213,14 +213,14 @@ export async function importaContatti(ctx: ContestoContatti, rows: Record<string
       nomeFile: opzioni.nomeFile,
       modalita: mode,
       automazioni: opzioni.automazioni ?? [],
+      // A turno lo decide il giro sul server: solo i contatti davvero creati prendono il turno.
+      assegnatari: (opzioni.assegnatari ?? []).map((a) => a.id),
       programmazione: p,
-      righe: pronti.map(({ riga, row, nomeVero, data }, i) => {
+      righe: pronti.map(({ riga, row, nomeVero, data }) => {
         const { company_id: _azienda, ...contatto } = data;
-        // Il venditore vale solo se il contatto viene creato: uno già presente tiene il suo.
-        const assegnato = assegnaATurno(i, opzioni.assegnatari);
         return {
           riga,
-          contatto: { ...contatto, first_name: nomeVero ? contatto.first_name : "", ...(assegnato ? { assigned_to: assegnato } : {}) },
+          contatto: { ...contatto, first_name: nomeVero ? contatto.first_name : "" },
           forme: data.phone ? formeTelefono(data.phone) : [],
           custom: valoriCustom(ctx, row),
         };
@@ -246,6 +246,8 @@ export async function importaContatti(ctx: ContestoContatti, rows: Record<string
       });
       const { data, error } = await ctx.db.from("marketing_contacts").insert(righe).select("id");
       if (error) {
+        // Il blocco non è entrato: il turno torna indietro, così la rotazione resta pari.
+        nuoviAssegnati -= lotto.length;
         // Un blocco andato male non ferma gli altri: le sue righe si possono scaricare e riprovare.
         for (const p of lotto) errori.push({ riga: p.riga, motivo: `non importato (${error.message})` });
         continue;

@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { Button } from "@/components/ui/button";
@@ -135,6 +136,9 @@ export function ImportWizard({
   const [etichette, setEtichette] = useState<string[]>([]);
   const [automazioni, setAutomazioni] = useState<AutomazioneScelta[]>([]);
   const [assegnatari, setAssegnatari] = useState<PersonaScelta[]>([]);
+  // L'ultimo file scelto: le colonne ricordate di un file precedente, arrivate tardi, non lo sovrascrivono.
+  const fileCorrente = useRef<File | null>(null);
+  const queryClient = useQueryClient();
   const [programmazione, setProgrammazione] = useState<Programmazione | null>(null);
   const [anteprima, setAnteprima] = useState<{ dati: AnteprimaImport | null; errore: boolean } | null>(null);
 
@@ -152,6 +156,7 @@ export function ImportWizard({
 
   const handleFileChange = useCallback(async (f: File | null) => {
     setFile(f);
+    fileCorrente.current = f;
     if (!f) { setFileHeaders([]); setFileRows([]); setFileNumeri([]); setMapping({}); return; }
     try {
       const { headers, rows, numeri } = await parseFileData(f);
@@ -163,7 +168,9 @@ export function ImportWizard({
       // Le colonne come l'azienda le ha collegate l'ultima volta vincono su quelle indovinate.
       if (companyId) {
         const ricordate = await caricaColonne(supabase, companyId, objectType === "contacts" ? "contatti" : "opportunita");
-        setMapping(applicaColonneRicordate(headers, automatico, ricordate, fields.map((f) => f.key)));
+        if (fileCorrente.current !== f) return;
+        // Solo se nel frattempo nessuno ha toccato il collegamento a mano.
+        setMapping((attuale) => (attuale === automatico ? applicaColonneRicordate(headers, automatico, ricordate, fields.map((c) => c.key)) : attuale));
       }
     } catch {
       setFile(null);
@@ -298,6 +305,8 @@ export function ImportWizard({
             onAnnulla={result?.importazioneId
               ? async () => {
                 const testo = testoAnnullamento(await annullaImportazione(supabase, result.importazioneId!));
+                queryClient.invalidateQueries({ queryKey: ["importazione-ultima"] });
+                queryClient.invalidateQueries({ queryKey: ["importazioni-programmate"] });
                 onAnnullata?.();
                 return testo;
               }

@@ -11,6 +11,7 @@ import type { ImportMode } from "./StepUpload";
 import type { AnteprimaImport, EsitoImportazione, PersonaScelta } from "@/lib/importazione/tipi";
 import type { Programmazione } from "@/lib/importazione/programmata";
 import { OpzioniImportazione, type AutomazioneScelta } from "./OpzioniImportazione";
+import { motivoAnnullamentoFallito } from "@/lib/importazione/registro";
 
 interface StepReviewProps {
   objectType: ObjectType;
@@ -52,20 +53,20 @@ function AnnullaImportazione({ onAnnulla, programmata }: { onAnnulla: () => Prom
         variant="outline" className="w-full" disabled={stato.fase === "in_corso"}
         onClick={async () => {
           const domanda = programmata
-            ? "Annullare l'importazione? Le righe non ancora entrate non entreranno, e quello che è già entrato come nuovo va nel cestino."
-            : "Annullare l'importazione? Quello che è stato creato va nel cestino. I contatti che c'erano già e sono stati solo aggiornati restano come sono.";
+            ? "Annullare l'importazione? Le righe non ancora entrate non entreranno, e quello che è già entrato come nuovo va nel cestino (anche le opportunità spostate di fase nel frattempo)."
+            : "Annullare l'importazione? Quello che è stato creato va nel cestino, anche le opportunità spostate di fase nel frattempo. I contatti che c'erano già e sono stati solo aggiornati restano come sono.";
           if (!window.confirm(domanda)) return;
           setStato({ fase: "in_corso" });
           try {
             setStato({ fase: "fatto", testo: await onAnnulla() });
           } catch (e) {
-            setStato({ fase: "errore", testo: (e as { message?: string })?.message });
+            setStato({ fase: "errore", testo: motivoAnnullamentoFallito(e) });
           }
         }}
       >
         <Undo2 className="mr-2 h-4 w-4" /> {stato.fase === "in_corso" ? "Annullo…" : "Ho sbagliato file: annulla questa importazione"}
       </Button>
-      {stato.fase === "errore" && <p className="text-xs text-destructive">Non sono riuscito ad annullarla{stato.testo ? `: ${stato.testo}` : ""}. Riprova.</p>}
+      {stato.fase === "errore" && <p className="text-xs text-destructive">{stato.testo}</p>}
       {stato.fase === "pronto" && <p className="text-xs text-muted-foreground">Si può fare anche dopo, per 7 giorni, dall'elenco.</p>}
     </div>
   );

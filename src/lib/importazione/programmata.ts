@@ -102,6 +102,8 @@ export async function creaImportazioneProgrammata(db: ClientDb, dati: {
   pipelineId?: string;
   faseId?: string;
   automazioni: { id: string; nome: string }[];
+  /** Le persone a cui assegnare, a turno: il turno passa solo quando qualcosa viene creato. */
+  assegnatari?: string[];
   programmazione: Programmazione;
   righe: Record<string, unknown>[];
 }): Promise<{ id: string; annullabile: boolean }> {
@@ -114,6 +116,7 @@ export async function creaImportazioneProgrammata(db: ClientDb, dati: {
     pipeline_id: dati.pipelineId ?? null,
     fase_id: dati.faseId ?? null,
     automazioni: dati.automazioni,
+    assegnatari: dati.assegnatari ?? [],
     per_giro: p.perGiro,
     ogni_minuti: p.ogniMinuti,
     inizio: p.inizio.toISOString(),
