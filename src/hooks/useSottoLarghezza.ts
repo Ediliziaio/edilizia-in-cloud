@@ -13,6 +13,9 @@
  * corregge appena arriva. Serve ascoltare ANCHE il resize: se si parte da 0, il
  * media query non cambia stato quando arriva la larghezza vera di un telefono
  * (era «sotto 768» e resta «sotto 768»), e si resterebbe su computer per sempre.
+ *
+ * La larghezza si legge mentre si disegna (`useSyncExternalStore`), non in un
+ * effect che corregge lo stato dopo: così il primo disegno è già quello giusto.
  */
 import * as React from "react";
 
@@ -29,28 +32,24 @@ export function sottoLarghezza(px: number): boolean {
   return w === null ? false : w < px;
 }
 
+/** Sul server non c'è finestra: si disegna la versione da computer. */
+const sulServer = () => false;
+
 /** Come `sottoLarghezza`, ma si aggiorna quando la finestra cambia (o quando la si misura). */
 export function useSottoLarghezza(px: number | undefined): boolean {
-  const [sotto, setSotto] = React.useState<boolean>(() => (px === undefined ? false : sottoLarghezza(px)));
-
-  React.useEffect(() => {
-    if (px === undefined) {
-      setSotto(false);
-      return;
-    }
-    const aggiorna = () => setSotto(sottoLarghezza(px));
+  const iscriviti = React.useCallback((avvisa: () => void) => {
+    if (px === undefined || typeof window === "undefined") return () => {};
     const mql = window.matchMedia(`(max-width: ${px - 1}px)`);
     // Compatibilità Safari < 14: addListener come fallback.
-    if (mql.addEventListener) mql.addEventListener("change", aggiorna);
-    else if (mql.addListener) mql.addListener(aggiorna);
-    window.addEventListener("resize", aggiorna);
-    aggiorna();
+    if (mql.addEventListener) mql.addEventListener("change", avvisa);
+    else if (mql.addListener) mql.addListener(avvisa);
+    window.addEventListener("resize", avvisa);
     return () => {
-      if (mql.removeEventListener) mql.removeEventListener("change", aggiorna);
-      else if (mql.removeListener) mql.removeListener(aggiorna);
-      window.removeEventListener("resize", aggiorna);
+      if (mql.removeEventListener) mql.removeEventListener("change", avvisa);
+      else if (mql.removeListener) mql.removeListener(avvisa);
+      window.removeEventListener("resize", avvisa);
     };
   }, [px]);
-
-  return sotto;
+  const leggi = React.useCallback(() => (px === undefined ? false : sottoLarghezza(px)), [px]);
+  return React.useSyncExternalStore(iscriviti, leggi, sulServer);
 }
