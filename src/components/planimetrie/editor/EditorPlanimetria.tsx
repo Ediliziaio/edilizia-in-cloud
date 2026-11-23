@@ -89,6 +89,7 @@ import { Anteprima3DEditor } from "./Anteprima3DEditor";
 import { DivisoreAnteprima3D, QUOTA_PIANTA_INIZIALE } from "./DivisoreAnteprima3D";
 import { NordPianta } from "./NordPianta";
 import "./anteprima-3d.css";
+import { useSottoLarghezza } from "@/hooks/useSottoLarghezza";
 
 const NESSUN_LATO_MODIFICABILE: ReadonlySet<string> = new Set();
 const VISTE_CONFRONTO_CHAT = [["prima", "Prima"], ["differenze", "Differenze"], ["dopo", "Dopo"]] as const;
@@ -209,14 +210,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   const telefono = useIsMobile();
   // Tablet (sotto 1280 px, iPad in orizzontale compreso): gli strumenti restano tutti, ma la barra scorre su una riga e il pannello delle stanze
   // sta sopra al disegno solo quando serve, invece di toglierne un terzo.
-  const [compatto, setCompatto] = useState(() => typeof window !== "undefined" && window.innerWidth < 1280);
-  useEffect(() => {
-    const mql = window.matchMedia("(max-width: 1279px)");
-    const aggiorna = () => setCompatto(mql.matches);
-    aggiorna();
-    mql.addEventListener("change", aggiorna);
-    return () => mql.removeEventListener("change", aggiorna);
-  }, []);
+  const compatto = useSottoLarghezza(1280);
   const [pannelloAperto, setPannelloAperto] = useState(false);
   const anteprimaAffiancata = !!(anteprima3DAperta && onChiudiAnteprima3D);
   const idPianta2D = useId();

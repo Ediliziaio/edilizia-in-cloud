@@ -1,6 +1,5 @@
 import {
   forwardRef,
-  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -80,6 +79,7 @@ import { duplicateSurveyElement } from "@/lib/surveys/duplicateElement";
 import { useSurveyAccess } from "@/contexts/SurveyAccessContext";
 import { SurveyOfficeReview } from "./SurveyOfficeReview";
 import { SurveyFieldHandoff } from "./SurveyFieldHandoff";
+import { useSottoLarghezza } from "@/hooks/useSottoLarghezza";
 
 function Fields({ fields }: { fields: ReportField[] }) {
   return (
@@ -192,15 +192,8 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
       ),
       [savedNotice, setSavedNotice] = useState(false);
     const content = useRef<HTMLDivElement>(null);
-    const [small, setSmall] = useState(
-        () => typeof window !== "undefined" && window.innerWidth < 640,
-      ),
-      [metadataOpen, setMetadataOpen] = useState(false);
-    useEffect(() => {
-      const resize = () => setSmall(window.innerWidth < 640);
-      window.addEventListener("resize", resize, { passive: true });
-      return () => window.removeEventListener("resize", resize);
-    }, []);
+    const small = useSottoLarghezza(640);
+    const [metadataOpen, setMetadataOpen] = useState(false);
     const routeTo = useNavigate();
     function navigate(action: () => void) {
       if (editState.saving) return;

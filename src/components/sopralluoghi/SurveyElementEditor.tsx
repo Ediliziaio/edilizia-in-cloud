@@ -45,6 +45,7 @@ import {
 } from "@/lib/surveys/elementDraft";
 import { useSurveyElementDraft } from "@/hooks/useSurveyElementDraft";
 import { SurveyDraftRecovery } from "./SurveyDraftRecovery";
+import { useSottoLarghezza } from "@/hooks/useSottoLarghezza";
 import {
   SurveyElementPhotos,
   type SurveyPhotoState,
@@ -99,16 +100,10 @@ export const SurveyElementEditor = forwardRef<
     [resumeAnnotation, setResumeAnnotation] =
       useState<PendingSurveyAnnotation | null>(null),
     [visualEpoch, setVisualEpoch] = useState(0);
-  const [compact, setCompact] = useState(
-    () => typeof window !== "undefined" && window.innerWidth < 1024,
-  );
+  const compact = useSottoLarghezza(1024);
   const [mobileStep, setMobileStep] = useState(0),
     [previewOpen, setPreviewOpen] = useState(false);
-  useEffect(() => {
-    const resize = () => setCompact(window.innerWidth < 1024);
-    window.addEventListener("resize", resize, { passive: true });
-    return () => window.removeEventListener("resize", resize);
-  }, []);
+
   const modified =
     JSON.stringify(draft) !== JSON.stringify(initial) || pendingNote;
   const needsSave = modified || uploadedMedia.length > 0;

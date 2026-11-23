@@ -58,6 +58,7 @@ import { messaggioDaLeggere, useBozzaSilvio, type FonteDaAggiungere } from "./us
 import { serviziVeri, type ServiziSilvioCommessa } from "./servizi";
 import { VisoreFonte, type DocumentoDelVisore } from "./VisoreFonte";
 import { comeSiApre, paginaCitata, tipoDelDocumento } from "./documentoCitato";
+import { sottoLarghezza } from "@/hooks/useSottoLarghezza";
 
 type Scheda = "fonti" | "chat" | "commessa";
 
@@ -95,7 +96,7 @@ function useAltezzaVisibile(attivo: boolean): number | null {
   useEffect(() => {
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
     if (!attivo || !vv) return;
-    const aggiorna = () => setAltezza(window.innerWidth < 1024 && vv.height < window.innerHeight - 80 ? Math.round(vv.height) : null);
+    const aggiorna = () => setAltezza(sottoLarghezza(1024) && vv.height < window.innerHeight - 80 ? Math.round(vv.height) : null);
     aggiorna();
     vv.addEventListener("resize", aggiorna);
     return () => vv.removeEventListener("resize", aggiorna);

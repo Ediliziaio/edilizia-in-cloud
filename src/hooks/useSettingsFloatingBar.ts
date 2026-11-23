@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { sottoLarghezza } from "@/hooks/useSottoLarghezza";
 
 /** Su desktop il layout azienda scorre nel documento, ma i suoi contenitori
  * overflow impediscono a sticky di seguirlo. Fissa solo questa barra quando
@@ -14,7 +15,7 @@ export function useSettingsFloatingBar() {
       frame = 0;
       if (!contenitore.current || !barra.current) return;
       const rect = contenitore.current.getBoundingClientRect();
-      const next = window.innerWidth >= 768 && rect.top < 8
+      const next = !sottoLarghezza(768) && rect.top < 8
         ? { left: rect.left, width: rect.width, height: barra.current.getBoundingClientRect().height }
         : null;
       setPosizione(previous => {

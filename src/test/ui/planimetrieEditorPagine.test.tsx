@@ -79,6 +79,9 @@ function monta(ui: React.ReactNode, percorso: string, rotta: string) {
 }
 
 beforeEach(() => {
+  // L'editor sceglie la versione compatta sotto i 1280 px, e la larghezza vera
+  // è `window.innerWidth` (in jsdom 1024). Queste prove sono quelle da computer.
+  Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 1440 });
   vi.clearAllMocks();
   (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = ResizeObserverFinto;
 });

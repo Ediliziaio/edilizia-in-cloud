@@ -79,6 +79,7 @@ import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { shouldSendSilvioOnEnter } from "@/lib/silvio/composerKeyboard";
 import { cn } from "@/lib/utils";
+import { sottoLarghezza } from "@/hooks/useSottoLarghezza";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const MAX_ATTACHMENTS = 5;
@@ -232,9 +233,10 @@ export default function SilvioAIPage() {
   const [requestPhase, setRequestPhase] = useState<SilvioRequestPhase>("sending");
   // Aperta di default solo da md in su: su mobile è un drawer a tutta altezza
   // che coprirebbe l'hero al primo ingresso nella pagina.
-  const [sidebarOpen, setSidebarOpen] = useState(
-    () => typeof window === "undefined" || window.innerWidth >= 768,
-  );
+  // Larghezza non ancora nota = computer, non telefono: altrimenti l'elenco
+  // partiva chiuso sul computer e niente lo riapriva, perché è lo stato
+  // iniziale, letto una volta sola. Vedi useSottoLarghezza.
+  const [sidebarOpen, setSidebarOpen] = useState(() => !sottoLarghezza(768));
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -868,7 +870,7 @@ export default function SilvioAIPage() {
     setActiveId(null);
     setDraft("");
     setLastFailed(null);
-    if (typeof window !== "undefined" && window.innerWidth < 768) setSidebarOpen(false);
+    if (sottoLarghezza(768)) setSidebarOpen(false);
   };
 
   // Scorciatoia: Cmd/Ctrl+K → nuova conversazione (dopo handleNuova per evitare TDZ)
@@ -935,7 +937,7 @@ export default function SilvioAIPage() {
         )}
         onClick={() => {
           setActiveId(c.id);
-          if (typeof window !== "undefined" && window.innerWidth < 768) setSidebarOpen(false);
+          if (sottoLarghezza(768)) setSidebarOpen(false);
         }}
       >
         <MessageSquare className={cn("h-4 w-4 shrink-0", activeId === c.id ? "text-orange-500" : "text-slate-400")} />

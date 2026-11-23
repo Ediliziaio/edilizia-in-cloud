@@ -74,6 +74,7 @@ import {
   Paperclip, Mic, Trash2, AlertCircle, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sottoLarghezza } from "@/hooks/useSottoLarghezza";
 import {
   filterChatProfiles,
   isAllowedSilvioUpload,
@@ -1481,7 +1482,9 @@ export default function InternalChat({ companyIdOverride, embedded, areaCampo = 
     if (selectedChannelId || channels.length === 0) return;
     const params = new URLSearchParams(location.search);
     if (params.get("channel")) return; // gestito dall'effect sopra
-    if (window.innerWidth >= 768) {
+    // Larghezza non ancora nota = computer: con `innerWidth >= 768` il primo
+    // canale non si apriva più da solo, perché questo effect non torna.
+    if (!sottoLarghezza(768)) {
       handleSelectChannel(channels[0].id);
     }
   }, [channels, selectedChannelId, handleSelectChannel, location.search]);

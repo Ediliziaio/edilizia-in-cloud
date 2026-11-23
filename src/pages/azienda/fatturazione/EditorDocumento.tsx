@@ -64,6 +64,7 @@ import { EditorSendEmailDialog } from "./editor/EditorSendEmailDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import type { TipoDocumento, DocumentoFiscale } from "@/types/fatturazione";
+import { sottoLarghezza } from "@/hooks/useSottoLarghezza";
 
 // Un'istanza per documento: l'editor si inizializza una volta sola, e passando da
 // un documento all'altro (Duplica, Converti) sarebbe rimasto sul primo, salvando lì.
@@ -478,7 +479,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
       const salvata = localStorage.getItem("editor-fattura-anteprima");
       if (salvata !== null) return salvata === "1";
     } catch { /* senza memoria si usa la larghezza */ }
-    return typeof window !== "undefined" && window.innerWidth >= 1500;
+    return !sottoLarghezza(1500);
   });
   // Due anteprime: il PDF che legge il cliente e il contenuto del file XML che parte allo
   // SDI. La scelta si ricorda, come l'apertura del pannello.

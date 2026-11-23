@@ -82,6 +82,7 @@ import { OpportunitiesPanel } from "@/components/marketing/contacts/Opportunitie
 import { ContactQuotesPanel } from "@/components/marketing/contacts/ContactQuotesPanel";
 import { getDateLabel, RIGHT_TABS, type RightTab } from "@/components/marketing/contacts/activityHelpers";
 import { getAvatarColor } from "@/lib/contactUtils";
+import { sottoLarghezza, useSottoLarghezza } from "@/hooks/useSottoLarghezza";
 
 // 2026-05-27 (richiesta utente CC/CCN): parser email CSV/space-separated,
 // lowercase, dedup, validazione basica. Restituisce undefined se input vuoto
@@ -108,14 +109,8 @@ function parseEmailList(raw: string): string[] | undefined {
  * di icone e il pannello Note finivano impilati in mezzo alla pagina.
  */
 function useSchedaCompatta() {
-  const [compatta, setCompatta] = useState(() => typeof window !== "undefined" && window.innerWidth < 1024);
-  useEffect(() => {
-    const mql = window.matchMedia("(max-width: 1023px)");
-    const aggiorna = () => setCompatta(mql.matches);
-    mql.addEventListener("change", aggiorna);
-    return () => mql.removeEventListener("change", aggiorna);
-  }, []);
-  return compatta;
+  // Una regola sola per la larghezza: ignota = computer, non telefono.
+  return useSottoLarghezza(1024);
 }
 
 // La fonte arriva come codice («google_ads», «meta_lead»): prima si leggeva così.
@@ -157,7 +152,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   // copriva la pagina (sul computer è la colonna di destra, lì aperto ha senso).
   const [rightTab, setRightTab] = useState<RightTab | null>(() =>
     searchParams.get("pannello") === "chiamate" ? "calls"
-      : typeof window !== "undefined" && window.innerWidth < 1024 ? null : "notes",
+      : sottoLarghezza(1024) ? null : "notes",
   );
   // Mobile: una sezione per volta (Attività, Dati, Collegati) invece di
   // timeline, anagrafica e pannelli impilati in una pagina lunghissima.

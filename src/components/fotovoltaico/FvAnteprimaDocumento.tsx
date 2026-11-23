@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Printer, ZoomIn, ZoomOut } from "lucide-react";
 import { useGoogleMapsDocumentoFv } from "@/hooks/useGoogleMapsDocumentoFv";
+import { sottoLarghezza } from "@/hooks/useSottoLarghezza";
 
 /** Legge lo stesso documento emesso, senza popup e senza reimpaginarlo. */
 export function FvAnteprimaDocumento({ html, numero, onClose, onPrint, loading }: {
@@ -17,7 +18,7 @@ export function FvAnteprimaDocumento({ html, numero, onClose, onPrint, loading }
   const cleanup = useRef<(() => void) | null>(null);
   const [viewport, setViewport] = useState({ width: 794, height: 600 });
   const [zoom, setZoom] = useState<number | null>(null);
-  const [fit, setFit] = useState<"width" | "page">(() => window.innerWidth < 768 ? "width" : "page");
+  const [fit, setFit] = useState<"width" | "page">(() => sottoLarghezza(768) ? "width" : "page");
   const [pagine, setPagine] = useState<string[]>([]);
   const [pagina, setPagina] = useState(0);
   const paginaCorrente = useRef(0);
