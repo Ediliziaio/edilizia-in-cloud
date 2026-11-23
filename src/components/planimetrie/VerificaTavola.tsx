@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Check, Crosshair, Layers2, Plus, Ruler, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -65,8 +65,14 @@ export function VerificaTavola({documento,livello,ambito,planimetriaId,versione,
   const [inLettura,setInLettura]=useState<boolean | undefined>();
   const [localeRiscontro, setLocaleRiscontro] = useState<string>();
   const [params, setParams] = useSearchParams();
-  const idRiscontroDwg = livello.controlloDwg?.find(r => r.id === params.get("riscontroDwg"))?.id ?? livello.controlloDwg?.[0]?.id;
+  const selezioneDwgUrl = livello.controlloDwg?.find(r => r.id === params.get("riscontroDwg"))?.id;
+  const [idRiscontroDwg, setIdRiscontroDwg] = useState(() => selezioneDwgUrl ?? livello.controlloDwg?.[0]?.id);
   const [erroreDwg, setErroreDwg] = useState("");
+  useEffect(() => {
+    if (!selezioneDwgUrl) return;
+    const frame = requestAnimationFrame(() => setIdRiscontroDwg(selezioneDwgUrl));
+    return () => cancelAnimationFrame(frame);
+  }, [selezioneDwgUrl]);
   const riquadroTavola = useRef<HTMLDivElement>(null);
   const salvaVersione=useSalvaVersionePlanimetria();
   const invio=useRef(false);
@@ -125,11 +131,7 @@ export function VerificaTavola({documento,livello,ambito,planimetriaId,versione,
   const scegliRiscontroDwg = (id: string) => {
     prepara(null);
     setErroreDwg("");
-    setParams(precedenti => {
-      const prossimi = new URLSearchParams(precedenti);
-      prossimi.set("riscontroDwg", id);
-      return prossimi;
-    }, { replace: true });
+    setIdRiscontroDwg(id);
     riquadroTavola.current?.scrollIntoView?.({ block: "nearest" });
   };
   const decidiRiscontroDwg = async (r: RiscontroDwg, decisione: EsitoRiscontroDwg) => {
