@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+import { useSlotAzioniSezione } from "@/hooks/useSlotAzioniSezione";
 import { OperationalDateRange } from "@/components/orders/OperationalDateRange";
 import { useOperationalDeletion } from "@/hooks/useOperationalDeletion";
 import { OperationalExtraFilters } from "@/components/orders/OperationalExtraFilters";
@@ -389,6 +391,7 @@ export default function PurchaseOrdersList() {
   // Sul telefono le colonne affiancate non ci stanno: sempre l'elenco (a righe, vedi più sotto),
   // anche quando l'indirizzo chiede «vista=pipeline» (es. «Acquisti da fare»).
   const telefono = useIsMobile(640);
+  const slotAzioni = useSlotAzioniSezione(640);
   const vistaPrincipale = telefono ? "elenco" : filtri.vista;
   const archive = useOperationalArchive(
     "oda_ambito",
@@ -1041,7 +1044,12 @@ export default function PurchaseOrdersList() {
     <div className="space-y-6 max-sm:space-y-3">
       {odaMovement.dialog}
       {rfqMovement.dialog}
-      <QuotePageHeader
+      {/* Telefono: «+» tondo sulla riga delle sezioni di Commesse, niente barra arancio a tutta riga. */}
+      {slotAzioni && createPortal(
+        <QuotePrimaryButton disabled={!puoAgire} onClick={() => setNewOpen(true)} size="sm" aria-label="Nuovo ordine d'acquisto" className="h-9 w-9 justify-center rounded-full p-0">
+          <Plus className="h-4 w-4" />
+        </QuotePrimaryButton>, slotAzioni)}
+      {!slotAzioni && <QuotePageHeader
         title="Acquisti"
         subtitle="Dai materiali validati all'arrivo in cantiere: offerte, ordini e consegne, commessa per commessa."
         icon={<ShoppingCart className="h-5 w-5" />}
@@ -1049,8 +1057,9 @@ export default function PurchaseOrdersList() {
         titoloSoloDaComputer
         actions={
           <>
-            {/* Cosa manca da ordinare ed entro quando, in tutte le commesse. */}
-            <Button asChild variant="outline" size="sm">
+            {/* Cosa manca da ordinare ed entro quando, in tutte le commesse. Dal telefono no
+                (decisione del founder, 23/11/2026): si usa da tablet e computer. */}
+            <Button asChild variant="outline" size="sm" className="max-sm:hidden">
               <Link to="/azienda/fabbisogno-materiali">
                 <CalendarClock className="h-4 w-4 mr-1.5" />
                 Fabbisogno
@@ -1098,7 +1107,7 @@ export default function PurchaseOrdersList() {
             </QuotePrimaryButton>
           </>
         }
-      />
+      />}
 
       {/* KPI — cliccabili: ognuno filtra la lista sotto, cosi' il numero
           porta direttamente agli ordini che lo compongono. */}
@@ -1166,8 +1175,8 @@ export default function PurchaseOrdersList() {
       )}
 
       {/* Vista e filtri comuni: valgono per la pipeline e per l'elenco, e stanno nell'URL. */}
-      <section aria-label="Filtri acquisti" className="rounded-xl border bg-white p-2.5 shadow-sm">
-        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:flex-wrap"><div className="relative min-w-[180px] flex-1 max-sm:min-w-0 max-sm:basis-full sm:max-w-xs">
+      <section aria-label="Filtri acquisti" className="rounded-xl border bg-white p-2.5 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:overflow-visible"><div className="relative min-w-[180px] flex-1 max-sm:min-w-0 sm:max-w-xs">
             <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder={
@@ -1178,9 +1187,9 @@ export default function PurchaseOrdersList() {
               aria-label="Cerca negli acquisti"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8 border-slate-200 pl-8 text-xs shadow-none"
+              className="h-8 border-slate-200 pl-8 text-xs shadow-none max-sm:h-9 max-sm:text-sm"
             />
-          </div>{(vistaPrincipale === "elenco" || ["tutte", "ordini"].includes(fonte)) && <Select value={tab} onValueChange={setTab}><SelectTrigger aria-label="Stato degli OdA" className="h-8 w-[180px] max-w-full text-xs max-sm:w-auto max-sm:shrink-0"><SelectValue /></SelectTrigger><SelectContent>{hubTabs.map(item => <SelectItem key={item.key} value={item.key}>{item.key === "tutti" ? "Tutti gli stati" : item.label}</SelectItem>)}</SelectContent></Select>}{!telefono && <OperationalViewSwitch
+          </div>{(vistaPrincipale === "elenco" || ["tutte", "ordini"].includes(fonte)) && <Select value={tab} onValueChange={setTab}><SelectTrigger aria-label="Stato degli OdA" className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:shrink-0 max-sm:text-sm"><SelectValue /></SelectTrigger><SelectContent>{hubTabs.map(item => <SelectItem key={item.key} value={item.key}>{item.key === "tutti" ? "Tutti gli stati" : item.label}</SelectItem>)}</SelectContent></Select>}{!telefono && <OperationalViewSwitch
             value={vistaPrincipale}
             onChange={(v) =>
               setParams(

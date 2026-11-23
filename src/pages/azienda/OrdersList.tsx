@@ -16,6 +16,8 @@ import { readAllOrderRows, orderMarginKind, orderMarginGroups, ORDER_FOCUS_LABEL
 import { leggiEconomiaCommesse, COLONNE_MARGINI_COMMESSE } from "@/lib/economiaCommesse";
 import "./OrdersList/orders-list.css";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
+import { PILLOLA, PILLOLA_ATTIVA, PILLOLA_SPENTA, RIGA_PILLOLE } from "@/lib/ui/pillole";
 import { CercaConFiltri, PannelloFiltri, SelettoreSezione } from "@/components/mobile/FiltriMobile";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -222,8 +224,9 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   const [customerSheetsOpen, setCustomerSheetsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [filtriCompattiAperti, setFiltriCompattiAperti] = useState(false);
-  const [riepilogoCompattoAperto, setRiepilogoCompattoAperto] = useState(false);
-  const riepilogoVisibile = !vistaCompatta || riepilogoCompattoAperto;
+  // Il riepilogo blu è sempre aperto, anche da telefono (decisione del founder, 23/11/2026):
+  // prima da telefono stava dietro un bottone «Riepilogo» chiuso.
+  const riepilogoVisibile = true;
   // Visibile al primo accesso; conserva la scelta esplicita di nasconderlo.
   const [analisiAperta, setAnalisiAperta] = useState(() => {
     try { return localStorage.getItem("orders-analisi-aperta") !== "0"; } catch { return true; }
@@ -1563,7 +1566,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
         onOpenChange={setSceltaRiepilogoAperta} companyId={effectiveCompany.id} scelta={sceltaRiepilogo}
         gruppi={{ appalti: modelliGenerali.includes("appalto"), operazioni: modelliGenerali.includes("sviluppo") || modelliGenerali.includes("compravendita") }} />}
       {canDeleteOrders && effectiveCompany?.id && <OrdersTrashDialog open={trashOpen} onOpenChange={setTrashOpen} companyId={effectiveCompany.id} onChanged={refreshOrderScope} />}
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 max-lg:gap-2 max-lg:rounded-none max-lg:border-0 max-lg:bg-none max-lg:p-0 max-lg:shadow-none">
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm max-lg:rounded-none max-lg:border-0 max-lg:bg-none max-lg:p-0 max-lg:shadow-none flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 max-lg:gap-2 max-lg:rounded-none max-lg:border-0 max-lg:bg-none max-lg:p-0 max-lg:shadow-none">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           {navigazioneCompatta}
           <div className="hidden h-9 w-9 lg:flex rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber text-white items-center justify-center shrink-0 shadow-[0_3px_10px_rgba(249,115,22,0.28)]">
@@ -1610,7 +1613,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
           {(!isMobile || !telefonoStretto || canDeleteOrders) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="size-11 lg:size-8" aria-label="Altre azioni commesse">
+                <Button variant="outline" size="icon" className="size-9 rounded-full lg:size-8 lg:rounded-md" aria-label="Altre azioni commesse">
                   <MoreHorizontal aria-hidden="true" className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -1670,7 +1673,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
               disabled
               title={!canCreateOrders ? createOrdersBlockedTitle : NIENTE_DA_CREARE}
               aria-label={`Nuova Commessa — ${!canCreateOrders ? createOrdersBlockedTitle : NIENTE_DA_CREARE}`}
-              className="h-8 px-3 text-xs font-semibold max-lg:min-h-11"
+              className="h-8 px-3 text-xs font-semibold max-lg:h-9 max-lg:rounded-full max-lg:px-3.5 max-lg:text-sm max-sm:w-9 max-sm:px-0 max-sm:[&_svg]:mr-0"
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden lg:inline">Nuova Commessa</span>
@@ -1681,7 +1684,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
               onClick={() => setShowOrderTypeDialog(true)}
               aria-label="Nuova commessa"
               size="sm"
-              className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-lg:min-h-11"
+              className="tap-compact h-8 px-3 text-xs font-semibold max-lg:h-9 max-lg:rounded-full max-lg:px-3.5 max-lg:text-sm max-sm:w-9 max-sm:px-0 max-sm:[&_svg]:mr-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-lg:min-h-11"
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden lg:inline">Nuova Commessa</span>
@@ -1691,7 +1694,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             <Button
               asChild
               size="sm"
-              className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-lg:min-h-11"
+              className="tap-compact h-8 px-3 text-xs font-semibold max-lg:h-9 max-lg:rounded-full max-lg:px-3.5 max-lg:text-sm max-sm:w-9 max-sm:px-0 max-sm:[&_svg]:mr-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-lg:min-h-11"
             >
               <Link to="/azienda/ordini/nuovo" aria-label="Nuova commessa">
                 <Plus className="h-3.5 w-3.5 mr-1" />
@@ -1737,26 +1740,22 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
         </FiltriCommesseCompatti>
       </PannelloFiltri>
 
-      <div className="grid grid-cols-2 gap-2 lg:hidden">
-        <Button
-          type="button"
-          variant={hideCompleted && statusFilter === "all" ? "secondary" : "outline"}
-          aria-pressed={hideCompleted && statusFilter === "all"}
-          className="min-h-11 justify-start px-3 text-sm"
-          onClick={() => {
-            const onlyOpen = !(hideCompleted && statusFilter === "all");
-            setURLParams(onlyOpen ? { hideCompleted: true, statusFilter: "all" } : { hideCompleted: false });
-          }}
-        >
-          Solo aperte
-        </Button>
-        <Button type="button" variant="ghost" className="min-h-11 w-full justify-between rounded-lg border px-3 text-sm"
-          aria-expanded={riepilogoCompattoAperto} aria-controls="riepilogo-commesse"
-          onClick={() => setRiepilogoCompattoAperto(v => !v)}>
-          Riepilogo
-          <ChevronDown aria-hidden="true" className={`size-4 text-muted-foreground ${riepilogoCompattoAperto ? "rotate-180" : ""}`} />
-        </Button>
-      </div>
+      {/* Telefono e tablet: le commesse attive e lo stato a un tocco (per il titolare, 23/11/2026). Al posto
+          di «Solo aperte» + «Riepilogo»: «Attive» nasconde le completate, ogni stato filtra solo quello, il
+          riepilogo resta sempre aperto. */}
+      {statuses.length > 0 && <div role="group" aria-label="Stato delle commesse" className={cn(RIGA_PILLOLE, "-mx-1 px-1 lg:hidden")}>
+        <button type="button" aria-pressed={statusFilter === "all" && hideCompleted} onClick={() => setURLParams({ hideCompleted: true, statusFilter: "all" })}
+          className={cn(PILLOLA, statusFilter === "all" && hideCompleted ? PILLOLA_ATTIVA : PILLOLA_SPENTA)}>Attive</button>
+        <button type="button" aria-pressed={statusFilter === "all" && !hideCompleted} onClick={() => setURLParams({ hideCompleted: false, statusFilter: "all" })}
+          className={cn(PILLOLA, statusFilter === "all" && !hideCompleted ? PILLOLA_ATTIVA : PILLOLA_SPENTA)}>Tutte</button>
+        {statuses.map((st: { id: string; name: string; color?: string | null }) => (
+          <button key={st.id} type="button" aria-pressed={statusFilter === st.id}
+            onClick={() => setURLParams(statusFilter === st.id ? { hideCompleted: false, statusFilter: "all" } : { hideCompleted: false, statusFilter: st.id })}
+            className={cn(PILLOLA, statusFilter === st.id ? PILLOLA_ATTIVA : PILLOLA_SPENTA)}>
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: st.color ?? "#94a3b8" }} aria-hidden="true" />{st.name}
+          </button>
+        ))}
+      </div>}
       <section id="riepilogo-commesse" aria-labelledby="titolo-riepilogo-commesse" hidden={!riepilogoVisibile} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         {riepilogoVisibile && <div className={`grid gap-0 ${analisiAperta && orderPerms.canViewOrderAmounts && !isMobile ? "xl:grid-cols-2" : ""}`}>
           <div className="flex flex-col bg-eic-navy-deep px-3 py-2 text-white">
@@ -1950,7 +1949,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                     </Button>
                   ) : (
                     <Button asChild>
-                      <Link to="/azienda/ordini/nuovo">
+                      <Link to="/azienda/ordini/nuovo" aria-label="Nuova commessa">
                         <Plus className="h-4 w-4 mr-2" />
                         Crea la prima commessa
                       </Link>
@@ -2122,7 +2121,9 @@ export default function OrdersList() {
   }, [activeTab, navigate, requestedTab, setSearchParams]);
 
   const navigazioneCompatta = (
-    <SelettoreSezione nome="Sezioni commesse" valore={activeTab} sezioni={tabs} onScegli={handleTabChange} className="flex-1 lg:hidden" />
+    <SelettoreSezione nome="Sezioni commesse" valore={activeTab} sezioni={tabs} onScegli={handleTabChange} className="flex-1 lg:hidden"
+      // Le altre sezioni (rapportini, sopralluoghi, acquisti, DDT) mettono qui «⋯» e «+» (useSlotAzioniSezione).
+      azione={activeTab !== "ordini" ? <div id="slot-azioni-sezione" className="flex items-center gap-1.5 empty:hidden" /> : undefined} />
   );
 
   return (

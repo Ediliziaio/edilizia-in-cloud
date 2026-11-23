@@ -307,30 +307,31 @@ export const OrdersTable = React.memo(function OrdersTable({
                 to={`/azienda/ordini/${order.id}`}
                 className="flex min-h-[52px] min-w-0 flex-1 items-center gap-2 px-3 py-2.5 transition-colors hover:bg-muted/50 active:bg-muted"
               >
+              {/* Per il titolare (23/11/2026): prima il nome del lavoro, poi lo stato in una pillola
+                  colorata e il cliente; il codice in fondo, piccolo. Prima il codice era la prima cosa. */}
               <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                  <span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground">{order.order_code || "—"}</span>
-                  {previousReasons[order.id]?.length > 0 && <span className="text-[10px] text-amber-800">Anno {new Date(order.created_at).getFullYear()} · {previousReasons[order.id].join(" · ")}</span>}
-                  {order.order_type === "appaltatore_lavoro" && (
-                    <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label="Lavoro per appaltatore" />
-                  )}
-                  {riga.livello === 0 && <SegnoGenerale order={order} mappa={mappaGenerali} compatto />}
-                  {/* «Pipeline · Principale» su ogni scheda non distingue niente: da telefono solo
-                      quando la commessa sta in un'altra pipeline (collaudo 23/11/2026). */}
-                  {visibleColumns.has("pipeline") && (riferimentiPipeline?.get(order.id) ?? pipelineFallback) !== pipelineFallback && <span className="max-w-full truncate text-[11px] text-muted-foreground">{riferimentiPipeline?.get(order.id)}</span>}
+                <p className="truncate text-sm font-semibold leading-snug">{order.description || "—"}</p>
+                <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
                   {stato && (
-                    <span className="flex min-w-0 items-center gap-1 text-[11px]" style={{ color: stato.color }}>
+                    <span className="inline-flex max-w-[55%] shrink-0 items-center gap-1 rounded-full px-2 py-px text-[11px] font-medium"
+                      style={{ color: stato.color, backgroundColor: `${stato.color}1a` }}>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: stato.color }} />
                       <span className="truncate">{stato.name}</span>
                     </span>
                   )}
+                  <span className="min-w-0 truncate text-xs text-muted-foreground">
+                    {order.customer ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() : ""}
+                  </span>
                 </div>
-                <p className="truncate text-sm font-semibold leading-snug">{order.description || "—"}</p>
-                {order.customer && (
-                  <p className="truncate text-xs text-muted-foreground">
-                    {order.customer.first_name} {order.customer.last_name}
-                  </p>
-                )}
+                <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11px] text-muted-foreground">
+                  <span className="shrink-0 font-mono">{order.order_code || "—"}</span>
+                  {previousReasons[order.id]?.length > 0 && <span className="text-amber-800">Anno {new Date(order.created_at).getFullYear()} · {previousReasons[order.id].join(" · ")}</span>}
+                  {order.order_type === "appaltatore_lavoro" && (
+                    <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label="Lavoro per appaltatore" />
+                  )}
+                  {riga.livello === 0 && <SegnoGenerale order={order} mappa={mappaGenerali} compatto />}
+                  {visibleColumns.has("pipeline") && (riferimentiPipeline?.get(order.id) ?? pipelineFallback) !== pipelineFallback && <span className="max-w-full truncate">{riferimentiPipeline?.get(order.id)}</span>}
+                </div>
               </div>
               {mostraImporti && <div className="max-w-[45%] shrink-0 break-words text-right tabular-nums">
                 {libera ? (

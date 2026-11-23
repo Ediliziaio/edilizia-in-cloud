@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+import { useSlotAzioniSezione } from "@/hooks/useSlotAzioniSezione";
 import { OperationalDateRange } from "@/components/orders/OperationalDateRange";
 import { useOperationalDeletion } from "@/hooks/useOperationalDeletion";
 import { OperationalExtraFilters } from "@/components/orders/OperationalExtraFilters";
@@ -61,8 +63,7 @@ import {
   X,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown,
-} from "lucide-react";
+  ArrowDown, MoreHorizontal } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
@@ -382,6 +383,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
   const setSearch = (v: string) => update({ cerca: v });
   // Sul telefono le colonne affiancate non ci stanno: sempre l'elenco, a righe.
   const telefono = useIsMobile(640);
+  const slotAzioni = useSlotAzioniSezione(640);
   const view = !telefono && params.get("ddt_vista") === "pipeline" ? "pipeline" : "elenco";
   const archive = useOperationalArchive(
     "ddt_ambito",
@@ -866,9 +868,34 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
 
   return (
     <div className="space-y-5 max-sm:space-y-3">
+      {/* Telefono: «⋯» e «+» tondi sulla riga delle sezioni di Commesse; niente titolo né barra. */}
+      {slotAzioni && createPortal(
+        <>
+          {canCreate && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Altre azioni DDT">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {(pendingBase.length > 0 || ingresso.invii.length > 0 || !!invioSelezionato) && (
+                  <DropdownMenuItem onSelect={() => setTab(tab === "da_registrare" ? "tutti" : "da_registrare")}>
+                    {tab === "da_registrare" ? "Tutti i DDT" : `Documenti in ingresso (${pendingBase.length})`}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={() => setBloccoOpen(true)}>Carica più bolle</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <Button size="icon" disabled={!canCreate} aria-label="Nuovo DDT" onClick={() => { if (canCreate) setNewOpen(true); }}
+            className="h-9 w-9 rounded-full bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </>, slotAzioni)}
       {/* ─── Header ── telefono: il titolo lo dice già la scheda «DDT»; restano
           filtri e «Nuovo», senza esportazioni. ─────────────────────── */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className={cn("flex flex-wrap items-start justify-between gap-3", slotAzioni && "hidden")}>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">DDT fornitori</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -955,17 +982,17 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
         })}
       </OperationalSummary>
 
-      <section aria-label="Filtri DDT" className="rounded-xl border bg-white p-2.5 shadow-sm">
-        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:flex-wrap max-sm:overflow-visible"><div className="relative min-w-[200px] flex-1 max-sm:basis-full">
+      <section aria-label="Filtri DDT" className="rounded-xl border bg-white p-2.5 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:overflow-visible"><div className="relative min-w-[200px] flex-1 max-sm:min-w-0">
             <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               aria-label="Cerca DDT"
               placeholder="Cerca DDT, OdA, commessa o corriere…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8 pl-9 text-xs"
+              className="h-8 pl-9 text-xs max-sm:h-9 max-sm:text-sm"
             />
-          </div><Select value={tab} onValueChange={value => setTab(value as FilterKey)}><SelectTrigger aria-label="Stato DDT" className="h-8 w-[180px] max-w-full text-xs max-sm:flex-1"><SelectValue /></SelectTrigger><SelectContent>{FILTERS.map(f => <SelectItem key={f.key} value={f.key}>{f.key === "tutti" ? "Tutti gli stati" : f.label}</SelectItem>)}</SelectContent></Select>{!telefono && <OperationalViewSwitch
+          </div><Select value={tab} onValueChange={value => setTab(value as FilterKey)}><SelectTrigger aria-label="Stato DDT" className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:shrink-0 max-sm:text-sm"><SelectValue /></SelectTrigger><SelectContent>{FILTERS.map(f => <SelectItem key={f.key} value={f.key}>{f.key === "tutti" ? "Tutti gli stati" : f.label}</SelectItem>)}</SelectContent></Select>{!telefono && <OperationalViewSwitch
             value={view}
             onChange={(v) => update({ vista: v, ambito: archive.scope })}
           />}<OperationalExtraFilters count={Number(filterOrder !== "all") + Number(filterSupplier !== "all") + Number(filterPeriodo !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">

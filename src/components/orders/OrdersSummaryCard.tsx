@@ -26,7 +26,8 @@ export function OrdersSummaryCard({ id, title, value, note, icon: Icon, loading,
           </button></TooltipTrigger>
           <TooltipContent side="top" className="max-w-72 text-xs font-normal leading-5">{info}</TooltipContent>
         </Tooltip> : <p className="break-words text-base font-semibold tabular-nums tracking-tight text-white">{value}</p>}
-        <div className="flex flex-wrap gap-x-2 text-[11px] leading-4"><p className="text-blue-100/80">{note}</p>
+        {/* Telefono (riepilogo sempre aperto, 23/11/2026): cifra e dettaglio sotto; nota e IVA inclusa da tablet. */}
+        <div className="flex flex-wrap gap-x-2 text-[11px] leading-4 max-sm:hidden"><p className="text-blue-100/80">{note}</p>
         {!loading && alternateValue && <p className="text-blue-100/90">IVA inclusa <span className="ml-1 font-medium tabular-nums text-white">{alternateValue}</span></p>}</div>
       </div>
       {!loading && ring && Number.isFinite(ring.value) && <div role="img" aria-label={`${ring.label}: ${ring.value.toLocaleString("it-IT", {maximumFractionDigits:1})}%`} className="relative h-10 w-10 shrink-0">

@@ -42,6 +42,7 @@ import { linkFileRiservato } from "@/lib/storage/fileRiservati";
 import { toast } from "sonner";
 import { METEO } from "@/lib/campo/rapportiniUfficio";
 import { cn } from "@/lib/utils";
+import { PILLOLA, PILLOLA_ATTIVA, PILLOLA_SPENTA, RIGA_PILLOLE } from "@/lib/ui/pillole";
 import {
   andamentoMese, COLONNE_CSV, feriali, filtraRapportini, giorniDelMese, giornoFeriale, intensita, mappaMese, meseValido, nomeCantiere,
   oreDi, perCantiere, perGiorno, perPersona, personeDi, righeCsv, spostaMese, statoDi, totaliRapportini,
@@ -115,6 +116,7 @@ function Pagina({ companyId }: { companyId?: string }) {
   const [personaAperta, setPersonaAperta] = useState<string | null>(null);
   const [segna, setSegna] = useState<{ employeeId?: string } | null>(null);
   const isMobile = useIsMobile();
+  const telefonoRap = useIsMobile(640);
   const pdf = useScaricaPdf();
   const [params, setParams] = useSearchParams();
   const oggi = campoWorkDay();
@@ -230,18 +232,25 @@ function Pagina({ companyId }: { companyId?: string }) {
     <div className="space-y-3">
       {/* Testata: titolo e mese */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Rapportini</h1>
-        <div className="flex max-w-full flex-wrap items-center gap-1.5">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 max-sm:sr-only sm:text-2xl">Rapportini</h1>
+        <div className="flex max-w-full flex-wrap items-center gap-1.5 max-sm:w-full">
           {isFetching && !isLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" aria-label="Aggiornamento" />}
           {!isMobile && !isLoading && !isError && documenti.length > 0 && (
             <Button variant="outline" size="sm" className="h-9" onClick={() => tipo !== "rapportino" ? exportToCSV(righeCsvDocumenti(documenti), COLONNE_DOCUMENTI_CANTIERE, `documenti-cantiere-${giorno || (periodo === "mese" ? mese : intervallo?.da ? `${intervallo.da}_${intervallo.a}` : "tutti")}.csv`) : exportToCSV(righeCsv(filtrate, canViewCosts), COLONNE_CSV.filter((c) => canViewCosts || c.key !== "costo"), `rapportini-${giorno || (periodo === "mese" ? mese : intervallo?.da ? `${intervallo.da}_${intervallo.a}` : "tutti")}.csv`)}>
               <FileDown className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />Esporta
             </Button>
           )}
-          {puoLeggereGiornali && <OfficeSelect label="Tipo documento" value={tipo} onValueChange={(v) => imposta({ rap_tipo: v, rap_vista: null, rap_persona: null, rap_stato: null })}
+          {/* Telefono: il tipo a pillole tonde come le sezioni; periodo e mese sulla riga sotto. */}
+          {puoLeggereGiornali && telefonoRap && <div role="group" aria-label="Tipo documento" className={cn(RIGA_PILLOLE, "w-full")}>
+            {([["tutti", "Tutti"], ["rapportino", "Rapportini"], ["giornale", "Giornali lavori"]] as const).map(([v, etichetta]) => (
+              <button key={v} type="button" aria-pressed={tipo === v} className={cn(PILLOLA, tipo === v ? PILLOLA_ATTIVA : PILLOLA_SPENTA)}
+                onClick={() => imposta({ rap_tipo: v, rap_vista: null, rap_persona: null, rap_stato: null })}>{etichetta}</button>
+            ))}
+          </div>}
+          {puoLeggereGiornali && !telefonoRap && <OfficeSelect label="Tipo documento" value={tipo} onValueChange={(v) => imposta({ rap_tipo: v, rap_vista: null, rap_persona: null, rap_stato: null })}
             options={[{ value: "tutti", label: "Tutti i documenti" }, { value: "rapportino", label: "Rapportini" }, { value: "giornale", label: "Giornali lavori" }]} className="h-9 w-48" />}
           <OfficeSelect label="Periodo" value={periodo} onValueChange={(v) => imposta({ rap_periodo: v, rap_giorno: null, rap_da: null, rap_a: null })}
-            options={[{ value: "tutti", label: "Tutti i periodi" }, { value: "ultimi30", label: "Ultimi 30 giorni" }, { value: "mese", label: "Mese" }, { value: "anno", label: "Quest’anno" }, { value: "personalizzato", label: "Periodo personalizzato" }]} className="h-9 w-48" />
+            options={[{ value: "tutti", label: "Tutti i periodi" }, { value: "ultimi30", label: "Ultimi 30 giorni" }, { value: "mese", label: "Mese" }, { value: "anno", label: "Quest’anno" }, { value: "personalizzato", label: "Periodo personalizzato" }]} className="h-9 w-48 max-sm:w-auto max-sm:flex-1" />
           {periodo === "personalizzato" && <div className="flex flex-wrap items-center gap-2">
             <Input type="date" aria-label="Dal giorno" className="h-9 w-36" value={params.get("rap_da") ?? ""} onChange={(e) => imposta({ rap_da: e.target.value, rap_giorno: null })} />
             <span className="text-xs text-slate-500">al</span>
@@ -250,12 +259,12 @@ function Pagina({ companyId }: { companyId?: string }) {
           {periodo === "mese" && mese !== meseCorrente && (
             <Button variant="ghost" size="sm" onClick={() => imposta({ rap_periodo: "mese", rap_mese: null, rap_giorno: null })}>Questo mese</Button>
           )}
-          {periodo === "mese" && <div className="flex items-center rounded-lg border border-slate-200 bg-white">
+          {periodo === "mese" && <div className="flex items-center rounded-lg border border-slate-200 bg-white max-sm:shrink-0">
             <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Mese precedente"
               onClick={() => imposta({ rap_mese: spostaMese(mese, -1), rap_giorno: null })}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="min-w-[8.5rem] text-center text-sm font-semibold text-slate-900" aria-live="polite">{etichettaMese(mese)}</span>
+            <span className="min-w-[8.5rem] text-center text-sm font-semibold text-slate-900 max-sm:min-w-[7rem]" aria-live="polite">{etichettaMese(mese)}</span>
             <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Mese successivo" disabled={mese >= meseCorrente}
               onClick={() => imposta({ rap_mese: spostaMese(mese, 1), rap_giorno: null })}>
               <ChevronRight className="h-4 w-4" />

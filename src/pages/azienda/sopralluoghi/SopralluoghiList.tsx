@@ -12,6 +12,9 @@ import { OperationalHelp } from "@/components/orders/OperationalHelp";
 import { OperationalArchive } from "@/components/orders/OperationalArchive";
 import { OperationalTable } from "@/components/orders/OperationalTable";
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useSlotAzioniSezione } from "@/hooks/useSlotAzioniSezione";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { listaSopralluoghiBacheca } from "@/lib/api/surveysBoard";
@@ -273,7 +276,10 @@ export default function SopralluoghiList() {
     "sop_ferme",
   ], { restoreView: false });
   const filtri = useMemo(() => leggiFiltriBacheca(params), [params]);
-  const vista = params.get("sop_vista") === "pipeline" ? "pipeline" : "elenco";
+  // Telefono: sempre l'elenco a righe (la bacheca a colonne è da tablet in su).
+  const telefono = useIsMobile(640);
+  const slotAzioni = useSlotAzioniSezione(640);
+  const vista = !telefono && params.get("sop_vista") === "pipeline" ? "pipeline" : "elenco";
   const [pagina, setPagina] = useState(1);
   const [daPianificare, setDaPianificare] = useState<SopralluogoBacheca | null>(
     null,
@@ -361,8 +367,13 @@ export default function SopralluoghiList() {
     Number(!!filtri.soloBozzeFerme);
 
   return (
-    <div className="min-w-0 space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+    <div className="min-w-0 space-y-4 max-sm:space-y-3">
+      {/* Telefono: «+» tondo sulla riga delle sezioni di Commesse, niente titolo (lo dice la pillola). */}
+      {slotAzioni && puoCreare && createPortal(
+        <Button asChild size="icon" className="h-9 w-9 rounded-full bg-orange-600 hover:bg-orange-700">
+          <Link to="/azienda/sopralluoghi/nuovo" aria-label="Nuovo sopralluogo"><Plus className="h-4 w-4" /></Link>
+        </Button>, slotAzioni)}
+      <header className={cn("flex flex-wrap items-center justify-between gap-3", slotAzioni && "hidden")}>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 max-md:text-xl">
             Sopralluoghi
@@ -453,20 +464,20 @@ export default function SopralluoghiList() {
           )}
         </OperationalSummary>
       )}
-      <section aria-label="Filtri sopralluoghi" className="rounded-xl border bg-white p-2.5 shadow-sm">
-        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto"><div className="relative min-w-[180px] max-w-sm flex-1">
+      <section aria-label="Filtri sopralluoghi" className="rounded-xl border bg-white p-2.5 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:overflow-visible"><div className="relative min-w-[180px] max-w-sm flex-1 max-sm:min-w-0 max-sm:max-w-none">
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
             <Input
               aria-label="Cerca per cliente, telefono, indirizzo o codice"
               placeholder="Cliente, indirizzo, codice o telefono…"
-              className="h-8 pl-8 text-xs"
+              className="h-8 pl-8 text-xs max-sm:h-9 max-sm:text-sm"
               value={filtri.testo}
               onChange={(e) => imposta({ testo: e.target.value })}
             />
           </div><Select value={filtri.fase} onValueChange={value => imposta({fase:value as FasePratica | "tutte"})}>
-          <SelectTrigger aria-label="Fase dei sopralluoghi" className="h-8 w-[180px] max-w-full text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label="Fase dei sopralluoghi" className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:text-sm"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="tutte">Tutte le fasi</SelectItem>{FASI.map(f => <SelectItem key={f.fase} value={f.fase}>{f.etichetta}</SelectItem>)}</SelectContent>
-        </Select><OperationalViewSwitch
+        </Select>{!telefono && <OperationalViewSwitch
             value={vista}
             label="Vista sopralluoghi"
             onChange={(v) =>
@@ -480,7 +491,7 @@ export default function SopralluoghiList() {
                 { replace: true },
               )
             }
-          /><OperationalExtraFilters count={Number(filtri.periodo !== "tutti") + Number(filtri.tecnico !== "tutti") + Number(!!filtri.soloSenzaPreventivo) + Number(!!filtri.soloBozzeFerme) + Number(archive.scope !== "all")}>      <div className="space-y-3">
+          />}<OperationalExtraFilters count={Number(filtri.periodo !== "tutti") + Number(filtri.tecnico !== "tutti") + Number(!!filtri.soloSenzaPreventivo) + Number(!!filtri.soloBozzeFerme) + Number(archive.scope !== "all")}>      <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
 
           <OperationalHelp>
@@ -638,9 +649,28 @@ export default function SopralluoghiList() {
         />
       ) : (
         <>
-          {selection.toolbar}
-          {selection.confirmation}
-          <OperationalTable label="Elenco sopralluoghi">
+          {telefono && (
+            <ul aria-label="Elenco sopralluoghi" className="divide-y overflow-hidden rounded-lg border bg-card">
+              {elenco.slice((paginaAttuale - 1) * 24, paginaAttuale * 24).map((s) => {
+                const fase = fasePratica(s)!;
+                const data = quando(s.scheduled_at, adesso, ["completato", "firmato", "preventivo"].includes(fase));
+                return (
+                  <li key={s.id}>
+                    <Link to={`/azienda/sopralluoghi/${s.id}`} className="flex items-center gap-3 px-3 py-2.5">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{s.cliente_nome || "Cliente non indicato"}</span>
+                        <span className={cn("block truncate text-xs", TONO[data.tono])}>{s.code} · {data.testo}</span>
+                      </span>
+                      <Badge className={cn("shrink-0 whitespace-nowrap", COLORI[fase].badge)}>{FASI.find((f) => f.fase === fase)?.etichetta}</Badge>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {!telefono && selection.toolbar}
+          {!telefono && selection.confirmation}
+          {!telefono && <OperationalTable label="Elenco sopralluoghi">
             <thead>
               <tr>
                 {selection.enabled && <th scope="col">{selection.header}</th>}
@@ -765,7 +795,7 @@ export default function SopralluoghiList() {
                   );
                 })}
             </tbody>
-          </OperationalTable>
+          </OperationalTable>}
           {pagine > 1 && (
             <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
               <span>
