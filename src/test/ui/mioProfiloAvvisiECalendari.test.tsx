@@ -103,7 +103,8 @@ describe("Il mio profilo: gli avvisi si regolano in un posto solo", () => {
   it("nell'ufficio la scheda Notifiche non c'è", async () => {
     apri("/azienda/impostazioni/mio-profilo");
     await screen.findByRole("tab", { name: /Profilo/ });
-    expect(schede()).toEqual(["Profilo", "Sicurezza", "Calendari", "Email"]);
+    // Dal 23/11/2026 la scheda Lingua c'è anche in ufficio (traduzioni a blocchi).
+    expect(schede()).toEqual(["Profilo", "Sicurezza", "Calendari", "Email", "Lingua"]);
   });
 
   it("nell'ufficio un vecchio indirizzo ?tab=notifiche porta alla pagina Notifiche, da computer", async () => {

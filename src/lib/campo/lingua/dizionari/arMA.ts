@@ -3957,5 +3957,6 @@ const dizionario: Dizionario = {
   "Materiali per cantiere": "الماطيريال حسب الشانطي",
   "{n} in attesa del magazzino": "{n} كيتسناو المخزن",
   "Prendi materiale per questo cantiere": "خود الماطيريال لهاد الشانطي",
+  "Nell'app dell'ufficio le traduzioni arrivano a blocchi: prima rumeno e albanese. Le pagine non ancora tradotte restano in italiano.": "فالأبليكاسيون ديال البيرو الترجمة كتجي شوية بشوية: الأول الرومانية والألبانية. الصفحات اللي مازال ما تترجماتش كيبقاو بالطاليانية.",
 };
 export default dizionario;

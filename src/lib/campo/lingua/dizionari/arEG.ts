@@ -3957,5 +3957,6 @@ const dizionario: Dizionario = {
   "Materiali per cantiere": "الخامات حسب الموقع",
   "{n} in attesa del magazzino": "{n} مستنية المخزن",
   "Prendi materiale per questo cantiere": "خد خامات للموقع ده",
+  "Nell'app dell'ufficio le traduzioni arrivano a blocchi: prima rumeno e albanese. Le pagine non ancora tradotte restano in italiano.": "في برنامج المكتب الترجمة بتيجي على مراحل: الأول الروماني والألباني. الصفحات اللي لسه ماتترجمتش بتفضل بالإيطالي.",
 };
 export default dizionario;

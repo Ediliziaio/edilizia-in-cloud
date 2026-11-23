@@ -5606,5 +5606,6 @@ const dizionario: Dizionario = {
   "Quali": "Care",
   "Oggi · {data}": "Azi · {data}",
   "1 evento": "1 eveniment",
+  "Nell'app dell'ufficio le traduzioni arrivano a blocchi: prima rumeno e albanese. Le pagine non ancora tradotte restano in italiano.": "În aplicația de birou traducerile vin pe rând: întâi română și albaneză. Paginile netraduse încă rămân în italiană.",
 };
 export default dizionario;

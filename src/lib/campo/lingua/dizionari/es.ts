@@ -3957,5 +3957,6 @@ const dizionario: Dizionario = {
   "Materiali per cantiere": "Materiales por obra",
   "{n} in attesa del magazzino": "{n} esperando al almacén",
   "Prendi materiale per questo cantiere": "Coger material para esta obra",
+  "Nell'app dell'ufficio le traduzioni arrivano a blocchi: prima rumeno e albanese. Le pagine non ancora tradotte restano in italiano.": "En la aplicación de la oficina las traducciones llegan por partes: primero rumano y albanés. Las páginas aún sin traducir siguen en italiano.",
 };
 export default dizionario;
