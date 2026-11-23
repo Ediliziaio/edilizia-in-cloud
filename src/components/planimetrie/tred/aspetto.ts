@@ -626,9 +626,30 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
           const base = o.userData.materialeBase as THREE.MeshStandardMaterial;
           if ((!attiva || !chiave) && o.scale.y !== 1) { o.scale.y = 1; o.updateMatrix(); }
           if (!attiva || !chiave) { o.material = base; return; }
-          const nuovo = materialeAspetto(chiave, base, opz);
+          // Da fuori la facciata veste solo la faccia esterna dei muri perimetrali: le facce interne e i tramezzi,
+          // che nella vista tagliata si vedono dall'alto, restano a intonaco.
+          const muroDaFuori = chiave === "muro" && o.userData.genere === "muro" && !opz.dentro;
+          const esterno = o.userData.esterno as [number, number] | undefined;
+          const nuovo = materialeAspetto(chiave, base, muroDaFuori && !esterno ? { ...opz, dentro: true } : opz);
           if (!nuovo) { o.material = base; return; }
-          o.material = nuovo;
+          const intonacoInterno = muroDaFuori && esterno ? materialeAspetto(chiave, base, { ...opz, dentro: true }) : null;
+          if (intonacoInterno && esterno) {
+            const geo = o.geometry as THREE.BufferGeometry;
+            if (!geo.groups.length && geo.index) {
+              const pos = geo.getAttribute("position"), indice = geo.index.array;
+              const fuori: number[] = [], dentro: number[] = [];
+              const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), normale = new THREE.Vector3();
+              for (let i = 0; i < indice.length; i += 3) {
+                a.fromBufferAttribute(pos, indice[i]); b.fromBufferAttribute(pos, indice[i + 1]); c.fromBufferAttribute(pos, indice[i + 2]);
+                normale.subVectors(b, a).cross(c.sub(a)).normalize();
+                (normale.x * esterno[0] + normale.z * esterno[1] > .7 ? fuori : dentro).push(indice[i], indice[i + 1], indice[i + 2]);
+              }
+              geo.setIndex([...fuori, ...dentro]);
+              geo.addGroup(0, fuori.length, 0);
+              geo.addGroup(fuori.length, dentro.length, 1);
+            }
+            o.material = [nuovo, intonacoInterno];
+          } else o.material = nuovo;
           const metri = nuovo.userData.metri as number;
           // uno zoccolo in pietra, mattoni o scuro è una fascia vera: alta 60 cm invece dei 30 del battente d'intonaco
           const alza = chiave === "zoccolo" && !opz.dentro && opz.zoccolo && opz.zoccolo !== "intonaco" ? ALTEZZA_ZOCCOLO_DECORATIVO / .3 : 1;

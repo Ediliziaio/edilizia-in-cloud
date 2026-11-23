@@ -35,7 +35,7 @@ const CUCINA_SOGGIORNO: Richiesta[] = [
 ];
 
 /** Stanno sotto, sopra o appesi dietro a un altro mobile: il loro ingombro in pianta può coincidere col suo. */
-export const ARREDI_SOVRAPPONIBILI: ReadonlySet<string> = new Set(["tappeto", "quadro", "specchio_parete", "lampada_sospensione"]);
+export { ARREDI_SOVRAPPONIBILI } from "../../../../shared/planimetrie/modelliArredo.ts";
 
 /** Letto singolo o matrimoniale, divano dritto o angolare, cucina lineare o ad angolo: uno basta. */
 const FAMIGLIE = new Set(["letto", "divano", "cucina"]);

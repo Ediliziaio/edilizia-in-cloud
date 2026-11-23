@@ -27,6 +27,9 @@ export const MODELLI_CATALOGO_3D = {
 export type ModelloCatalogo3D = keyof typeof MODELLI_CATALOGO_3D;
 export const LICENZA_CC0_CATALOGO = "https://creativecommons.org/publicdomain/zero/1.0/";
 
+/** Stanno sotto, sopra o appesi dietro a un altro mobile: il loro ingombro in pianta può coincidere col suo. */
+export const ARREDI_SOVRAPPONIBILI: ReadonlySet<string> = new Set(["tappeto", "quadro", "specchio_parete", "lampada_sospensione"]);
+
 const COMPLEMENTI_CON_ALTEZZA = new Set(["tenda", "quadro", "specchio_parete", "scaldasalviette", "vetrinetta", "pianta_vaso"]);
 export const richiedeAltezzaComplemento = (tipo: string) => COMPLEMENTI_CON_ALTEZZA.has(tipo);
 

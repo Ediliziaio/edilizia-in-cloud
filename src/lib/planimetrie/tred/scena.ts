@@ -347,6 +347,8 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     const mu = pianta.muri.find((x) => x.id === m.id);
     const fuori = mu ? latoEsterno({ x: ((m.a.x + m.b.x) / 2) / CM, y: ((m.a.y + m.b.y) / 2) / CM }, { x: m.n.x, y: m.n.y }, mu.spessore, pianta.locali.map((l) => l.contorno)) : 0;
     if (fuori && m.stato !== "demolire") {
+      const corpoDelMuro = mesh.find((x) => x.id === `muro:${m.id}`);
+      if (corpoDelMuro) corpoDelMuro.esterno = [m.n.x * fuori, m.n.y * fuori];
       const rot = Math.atan2(m.d.y, m.d.x);
       const mezzoDi = (s: number) => ({ x: m.a.x + m.d.x * s, y: m.a.y + m.d.y * s });
       const h = m.spessore / 2;
@@ -362,7 +364,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
       if (opzioni.zoccolo !== false) {
         const da = fuori > 0 ? e.piu0 : e.meno0, a1 = fuori > 0 ? e.piu1 : e.meno1;
         // la zoccolatura si interrompe alle porte (i vani che arrivano a terra)
-        const buchi = vani.filter((v) => v.z0 < 0.3).map((v) => [v.s0, v.s1] as [number, number]).sort((p, q) => p[0] - q[0]);
+        const buchi = vani.filter((v) => v.z0 < 0.62).map((v) => [v.s0, v.s1] as [number, number]).sort((p, q) => p[0] - q[0]);
         const tratti: Array<[number, number]> = [];
         let cursore = da;
         for (const [b0, b1] of buchi) {

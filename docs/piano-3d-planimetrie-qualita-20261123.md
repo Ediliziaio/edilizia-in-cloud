@@ -112,10 +112,20 @@ Sulla tela vera sono una ogni 7,5 cm, misurate sui pixel.
   30, e non si notava), anche con giardino e lotto. Pietre e mattoni restano della misura vera.
   ![zoccolo](piano-3d-planimetrie-immagini/dopo-zoccolo-pietra.jpg)
 
+- **Difetti corretti dopo la prima consegna.** Nella vista tagliata la facciata veste solo la faccia esterna dei
+  muri perimetrali (dentro e sui tramezzi resta l'intonaco). Nello Studio lampada sopra il tavolo, specchio sopra
+  il lavabo e quadro sopra il letto non danno più l'avviso di sovrapposizione. Il render AI riceve resina,
+  mosaico e i formati nuovi col nome giusto. Le piastrelle 7,5×15 hanno una foto di riferimento a mattoncino.
+  Lo zoccolo si interrompe sotto le finestre con davanzale più basso di 60 cm.
+  ![facciata](piano-3d-planimetrie-immagini/dopo-facciata-solo-fuori.jpg)
+
 ### Solo impostato o non fatto
 
-- **Inquadratura della camera**: parte ancora con mezzo fotogramma coperto. Ho provato una correzione al
-  punteggio della telecamera, non ha cambiato il risultato e l'ho tolta. Va capito cosa copre la vista.
+- **Inquadratura della camera**: parte ancora con mezzo fotogramma coperto. Due correzioni al punteggio della
+  telecamera (distanza dai mobili alti, penalità ai fianchi) non hanno cambiato la vista: la telecamera di
+  partenza dello Studio non viene da quel calcolo. Va cercata altrove; le prove sono state tolte.
+- **Facciata sulle facce interne**: in una casa a L qualche faccia interna resta con la facciata, dove lo stesso
+  muro è esterno per un tratto e interno per un altro.
 - **Esterni, il resto**: cielo nella vista «Gira intorno» dello Studio (oggi lo sfondo è grigio per scelta),
   prato con fili d'erba veri, cancello carrabile e posto auto posati da soli, vialetti con curve.
   Nella vista tagliata dall'alto la facciata scelta (mattoni, pietra) si vede anche sulle facce interne dei

@@ -1,6 +1,6 @@
 import { distanzaPuntoSegmento, puntoNelPoligono, segmentiSiIncrociano } from "../../../../shared/planimetrie/geometria";
 import { angoli, siSovrappongono } from "../../../../shared/planimetrie/interferenze";
-import { rettangoliIngombroArredo } from "../../../../shared/planimetrie/modelliArredo";
+import { ARREDI_SOVRAPPONIBILI, rettangoliIngombroArredo } from "../../../../shared/planimetrie/modelliArredo";
 import type { Elemento, Punto } from "../../../../shared/planimetrie/modello";
 
 function contorniIngombro(e: Elemento): Punto[][] {
@@ -28,7 +28,9 @@ export function ingombroDentroLocale(e: Elemento, contorno: Punto[]): boolean {
 }
 
 export function ingombriArrediSovrapposti(a: Elemento, b: Elemento): boolean {
-  if ((a.tipo === "tappeto") !== (b.tipo === "tappeto")) return false;
+  // tappeto sotto il divano, lampada sopra il tavolo, quadro e specchio appesi dietro un mobile: non è un urto
+  if (ARREDI_SOVRAPPONIBILI.has(a.tipo) !== ARREDI_SOVRAPPONIBILI.has(b.tipo)) return false;
+  if (ARREDI_SOVRAPPONIBILI.has(a.tipo) && a.tipo !== b.tipo) return false;
   const ingombroB = contorniIngombro(b);
   return contorniIngombro(a).some(pezzo => ingombroB.some(altro => siSovrappongono(pezzo, altro)));
 }

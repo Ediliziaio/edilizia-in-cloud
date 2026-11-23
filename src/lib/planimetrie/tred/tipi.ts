@@ -178,6 +178,8 @@ export interface Mesh3D {
   materiale: string;
   /** id dell'oggetto della pianta da cui viene (muro, apertura, locale, elemento). */
   riferimento: string;
+  /** Solo per i muri perimetrali: verso l'esterno della casa, in pianta (x, z). La facciata si applica da quel lato. */
+  esterno?: [number, number];
   /** Strato esplicito per gli elementi che condividono lo stesso genere di mesh. */
   stratoEsploso?: StratoEsploso3D | null;
   /** La carrozzeria individua la posa dell'auto. Il visore e i render caricano il modello di dettaglio. */

@@ -131,7 +131,7 @@ export function aggiornaGruppo(gruppo: THREE.Group, scena: Scena3D): void {
       oggetto.userData.materialeBase = materiale.oggetto;
     }
     oggetto.name = m.nome;
-    Object.assign(oggetto.userData, { id: m.id, genere: m.genere, riferimento: m.riferimento, materiale: m.materiale });
+    Object.assign(oggetto.userData, { id: m.id, genere: m.genere, riferimento: m.riferimento, materiale: m.materiale, esterno: m.esterno });
     const trasparente = m.genere === "vetro" || m.materiale.startsWith("acqua")
       || (m.materiale.startsWith("auto:") && (dato?.opacita ?? 1) < 1);
     oggetto.castShadow = !trasparente && m.genere !== "soffitto" && m.genere !== "pavimento" && !SUPERFICI_A_TERRA.has(m.materiale);

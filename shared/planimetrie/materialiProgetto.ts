@@ -100,18 +100,21 @@ export function pavimentoDaCampione(id: string): ConfigPavimentoStanza {
   const legno = c.trama.startsWith("rovere"), parquet = legno && c.id !== "gres_legno";
   const marmo = c.trama.startsWith("marmo"), pietra = c.trama === "pietra" || c.trama === "travertino";
   const spina = c.id === "rovere_spina";
-  const tipo = parquet ? "parquet_legno" : marmo ? "marmo" : pietra ? "pietra_naturale" : c.id === "cotto" ? "cotto" : "gres_porcellanato";
+  const resina = c.trama === "resina", mosaico = c.trama === "mosaico";
+  const tipo = parquet ? "parquet_legno" : marmo ? "marmo" : pietra ? "pietra_naturale" : c.id === "cotto" ? "cotto" : resina ? "resina_continua" : mosaico ? "ceramica" : "gres_porcellanato";
+  // il formato vero del campione, se è dichiarato (lato corto × lato lungo in cm)
+  const formatoCampione = c.formatoCm ? `${String(c.formatoCm[0]).replace(".", ",")}x${String(c.formatoCm[1]).replace(".", ",")}` : undefined;
   const tonoCampione: Record<string, string> = { marmo_marquinia: "#242327", rovere_miele: "#B88B51", travertino: "#C8B393" };
   return {
-    attivo: true, tipo, effetto_visivo: legno ? "legno" : marmo ? "marmo" : c.id === "cemento" ? "cemento" : c.id === "cotto" ? "cotto" : "pietra",
+    attivo: true, tipo, effetto_visivo: legno ? "legno" : marmo ? "marmo" : c.id === "cemento" || c.id === "gres_antracite" ? "cemento" : c.id === "cotto" ? "cotto" : resina ? "resina" : "pietra",
     ...(legno ? {
       essenza_legno: c.id === "noce" ? "noce" : c.id === "rovere_miele" ? "rovere_miele" : "rovere_naturale",
       larghezza_listello_mm: spina ? 100 : 180, lunghezza_listello_mm: spina ? 600 : 1200,
     } : {}),
     colore_nome: c.nome, colore_hex: c.colore === "#ffffff" ? tonoCampione[c.id] ?? (legno ? "#C4A882" : "#F2F0EA") : c.colore,
     pattern: spina ? "spina_di_pesce" : "dritto",
-    formato_piastrella: spina ? "10x60" : parquet ? "18x120" : legno ? "20x120" : c.id === "cotto" ? "30x30" : "60x60",
-    finitura: marmo || c.id === "travertino" ? "levigato" : "opaco", fuga_larghezza_mm: 2,
+    formato_piastrella: spina ? "10x60" : parquet ? "18x120" : legno ? "20x120" : c.id === "cotto" ? "30x30" : formatoCampione ?? "60x60",
+    finitura: marmo || c.id === "travertino" || mosaico ? "levigato" : "opaco", fuga_larghezza_mm: resina ? 0 : 2,
     fuga_colore: "tono_su_tono", battiscopa_azione: "mantieni",
   };
 }

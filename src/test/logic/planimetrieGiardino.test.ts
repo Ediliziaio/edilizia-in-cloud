@@ -166,3 +166,40 @@ describe("aspetto della casa", () => {
     expect(frase).toContain("zoccolo in pietra");
   });
 });
+
+describe("difetti corretti dopo la prima consegna", () => {
+  it("lampada sopra il tavolo, specchio sopra il lavabo, quadro sopra il letto e tappeto sotto il divano non sono urti", async () => {
+    const { ingombriArrediSovrapposti } = await import("@/lib/planimetrie/tred/ingombroArredo");
+    const el = (tipo: string, larghezza = 100, profondita = 100) => ({ id: tipo, tipo, posizione: { x: 0, y: 0 }, rotazione: 0, larghezza, profondita, altezza: 80 }) as never;
+    expect(ingombriArrediSovrapposti(el("tavolo"), el("lampada_sospensione", 36, 36))).toBe(false);
+    expect(ingombriArrediSovrapposti(el("lavabo"), el("specchio_parete", 60, 4))).toBe(false);
+    expect(ingombriArrediSovrapposti(el("letto_matrimoniale"), el("quadro", 82, 4))).toBe(false);
+    expect(ingombriArrediSovrapposti(el("divano"), el("tappeto"))).toBe(false);
+    // due mobili veri si urtano ancora, e due tappeti uno sull'altro pure
+    expect(ingombriArrediSovrapposti(el("tavolo"), el("divano"))).toBe(true);
+    expect(ingombriArrediSovrapposti(el("tappeto"), el("tappeto"))).toBe(true);
+  });
+
+  it("il render AI riceve il materiale giusto per resina, mosaico e formati nuovi", async () => {
+    const { pavimentoDaCampione } = await import("../../../shared/planimetrie/materialiProgetto.ts");
+    expect(pavimentoDaCampione("resina")).toMatchObject({ tipo: "resina_continua", fuga_larghezza_mm: 0 });
+    expect(pavimentoDaCampione("mosaico_bianco")).toMatchObject({ tipo: "ceramica", formato_piastrella: "5x5" });
+    expect(pavimentoDaCampione("gres_grande")).toMatchObject({ tipo: "gres_porcellanato", formato_piastrella: "120x120" });
+    expect(pavimentoDaCampione("gres_antracite")).toMatchObject({ formato_piastrella: "30x60", effetto_visivo: "cemento" });
+    // i campioni di prima restano come prima
+    expect(pavimentoDaCampione("piastrelle")).toMatchObject({ tipo: "gres_porcellanato", formato_piastrella: "60x60" });
+    expect(pavimentoDaCampione("cotto")).toMatchObject({ tipo: "cotto", formato_piastrella: "30x30" });
+    expect(pavimentoDaCampione("rovere")).toMatchObject({ tipo: "parquet_legno", formato_piastrella: "18x120" });
+  });
+
+  it("solo i muri perimetrali portano il verso della facciata; lo zoccolo si apre sotto le finestre basse", () => {
+    const pianta = casaConPrato();
+    const scena = costruisciScena(pianteDaPlanimetria(aPlanimetria(pianta)).fatto, { vista: "fatto" });
+    const muri = scena.mesh.filter(m => m.id.startsWith("muro:"));
+    expect(muri.length).toBeGreaterThanOrEqual(4);
+    for (const m of muri) {
+      expect(m.esterno, m.id).toBeDefined();
+      expect(Math.hypot(m.esterno![0], m.esterno![1])).toBeCloseTo(1, 5);
+    }
+  });
+});
