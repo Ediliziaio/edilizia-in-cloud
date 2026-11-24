@@ -44,6 +44,8 @@ export interface FormCostoCommessa {
   senzaFattura: boolean;
   pagato: boolean;
   note: string;
+  /** Solo se non è ancora pagato: quando va pagato. Vuota = alla data del costo. */
+  scadenza?: string;
 }
 
 export const formCostoVuoto = (oggi: string): FormCostoCommessa => ({
@@ -82,7 +84,9 @@ export function rigaCostoCommessa(form: FormCostoCommessa, ids: { companyId: str
     recurrence_auto: false,
     amount: imponibile,
     vat_rate: iva,
-    due_date: form.data,
+    // Da pagare con una scadenza: la scadenza guida i pagamenti, la data del documento resta a parte.
+    due_date: !form.pagato && form.scadenza && /^\d{4}-\d{2}-\d{2}$/.test(form.scadenza) ? form.scadenza : form.data,
+    documento_data: form.data,
     is_paid: false,
     order_work_phase_id: form.faseId || null,
     senza_fattura: form.senzaFattura,

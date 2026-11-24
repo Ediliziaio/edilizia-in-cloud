@@ -13,7 +13,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronDown, Paperclip, Pencil, Plus, Loader2, Wallet, Trash2 } from "lucide-react";
+import { ChevronDown, Paperclip, Pencil, Plus, Loader2, Sparkles, Upload, Wallet, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { allPaymentRows } from "@/hooks/useSupplierPayments";
@@ -25,6 +25,7 @@ import {
   TIPI_COSTO, campiModificaCosto, lordoCosto, totaliAltriCosti, controllaRicevuta, documentoDelCosto, formCostoVuoto, formDaCosto, leggiImporto, percorsoRicevuta, rigaCostoCommessa, tipoDellaCategoria,
   type DocumentoCosto, type FormCostoCommessa, type TipoCosto,
 } from "@/lib/costi/costoCommessa";
+import { formDaRicevuta, importoIt, lordoDaNetto, pivaPulita, type RicevutaLetta } from "@/lib/costi/letturaRicevuta";
 import { dataIt } from "./OrderDocumentiFornitore";
 import { Button } from "@/components/ui/button";
 import { ContatoriFiltro } from "./ContatoriFiltro";
@@ -92,6 +93,8 @@ export interface CostoCommessa {
 }
 
 interface Fase { id: string; name: string }
+
+interface FatturaArrivata { costo_id: string; fattura_id: string; numero_fattura: string | null; data_fattura: string | null; fornitore: string | null; totale: number | null }
 
 const chiaveCosti = (companyId: string | undefined, orderId: string) => ["company-costs", "commessa", companyId, orderId] as const;
 
@@ -217,6 +220,34 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
     onError: (e) => toast.error(userErrorMessage(e, tr("Costo non eliminato."))),
   });
 
+  // Costi «in attesa di fattura» e la fattura che intanto è arrivata dallo SDI (stesso fornitore, importo entro il 3%).
+  const inAttesa = costi.some((c) => c.documento === "in_attesa");
+  const arrivate = useQuery({
+    queryKey: ["costi-fatture-arrivate", companyId, orderId],
+    enabled: !!companyId && inAttesa,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: righe, error } = await db.rpc("costi_commessa_fatture_arrivate", { p_order: orderId });
+      if (error) throw error;
+      const perCosto = new Map<string, FatturaArrivata>();
+      for (const r of (righe ?? []) as FatturaArrivata[]) if (!perCosto.has(r.costo_id)) perCosto.set(r.costo_id, r);
+      return perCosto;
+    },
+  });
+  const sostituisci = useMutation({
+    mutationFn: async (f: FatturaArrivata) => {
+      const { error } = await db.rpc("costo_sostituisci_con_fattura", { p_costo: f.costo_id, p_fattura: f.fattura_id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(tr("Fattura agganciata"), { description: tr("Il costo a mano è sostituito dalla fattura: ora la trovi in «Fornitori».") });
+      aggiorna();
+      void queryClient.invalidateQueries({ queryKey: ["costi-fatture-arrivate"] });
+      void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] });
+    },
+    onError: (e) => toast.error(userErrorMessage(e, tr("Fattura non agganciata."))),
+  });
+
   return (
     <>
     {pagamentiDi && <ExpensePaymentDialog key={pagamentiDi} costId={pagamentiDi} onClose={() => { setPagamentiDi(null); aggiorna(); }} />}
@@ -291,6 +322,20 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
             { titolo: tr("Documento"), cella: (c) => (
               <div className="space-y-0.5">
                 <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${DOCUMENTO[c.documento].classe}`}>{c.documento === "fattura" ? tr("Fattura n. {numero}", { numero: c.fattura }) : tr(DOCUMENTO[c.documento].testo(c))}</span>
+                {c.documento === "in_attesa" && arrivate.data?.get(c.id) && (() => {
+                  const f = arrivate.data.get(c.id)!;
+                  return (
+                    <div className="rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs">
+                      <span className="block">{tr("Arrivata? Fattura n. {numero}", { numero: f.numero_fattura ?? "—" })}{f.data_fattura ? ` del ${dataIt(f.data_fattura)}` : ""} · {formatCurrency(Number(f.totale ?? 0))}</span>
+                      {puoModificare && !c.is_paid && (
+                        <button type="button" className="font-medium text-primary underline underline-offset-2" disabled={sostituisci.isPending}
+                          onClick={() => { if (window.confirm(tr("Sostituire «{costo}» con la fattura n. {numero} di {fornitore}? Il costo a mano si cancella, la fattura entra sulla commessa con la stessa fase.", { costo: c.name, numero: f.numero_fattura ?? "", fornitore: f.fornitore ?? tr("fornitore") }))) sostituisci.mutate(f); }}>
+                          {tr("Sostituisci con la fattura")}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
                 {c.allegato_path ? (
                   <button type="button" className="flex items-center gap-1 text-xs font-medium text-primary underline underline-offset-2" onClick={() => void apriRicevuta(c.allegato_path!, tr("Non riesco ad aprire la ricevuta."))}>
                     <Paperclip className="h-3 w-3" aria-hidden="true" />{c.allegato_nome ?? tr("Ricevuta")}
@@ -345,6 +390,46 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
   );
 }
 
+/** Fornitori già usati su questa commessa (costi e ordini d'acquisto): i primi da proporre. */
+function useFornitoriCommessa(orderId: string, companyId: string) {
+  return useQuery({
+    queryKey: ["fornitori-commessa", companyId, orderId],
+    staleTime: 60_000,
+    queryFn: async (): Promise<{ id: string; name: string }[]> => {
+      const [costi, oda] = await Promise.all([
+        db.from("company_costs").select("supplier_id").eq("company_id", companyId).eq("order_id", orderId).not("supplier_id", "is", null).limit(200),
+        db.from("purchase_orders").select("supplier_id").eq("company_id", companyId).eq("order_id", orderId).not("supplier_id", "is", null).limit(200),
+      ]);
+      const conta = new Map<string, number>();
+      for (const r of [...(costi.data ?? []), ...(oda.data ?? [])] as { supplier_id: string }[]) conta.set(r.supplier_id, (conta.get(r.supplier_id) ?? 0) + 1);
+      const ids = [...conta.keys()].sort((a, b) => (conta.get(b) ?? 0) - (conta.get(a) ?? 0)).slice(0, 6);
+      if (ids.length === 0) return [];
+      const { data } = await db.from("suppliers").select("id, name").eq("company_id", companyId).in("id", ids);
+      const nomi = new Map(((data ?? []) as { id: string; name: string }[]).map((s) => [s.id, s.name]));
+      return ids.filter((id) => nomi.has(id)).map((id) => ({ id, name: nomi.get(id)! }));
+    },
+  });
+}
+
+/** La ricevuta letta dall'AI (ai-fattura-ricevuta-ocr senza creare la fattura): il modulo si compila da sé. */
+async function leggiRicevutaConAI(file: File, companyId: string, userId: string): Promise<RicevutaLetta> {
+  const ext = (file.name.split(".").pop() ?? "pdf").toLowerCase().replace(/[^a-z0-9]/g, "") || "pdf";
+  const path = `${userId}/costo_commessa_${crypto.randomUUID()}.${ext}`;
+  const { error: upErr } = await supabase.storage.from("silvio-uploads").upload(path, file, { contentType: file.type, upsert: false });
+  if (upErr) throw new Error(`File non caricato: ${upErr.message}`);
+  const resp = await supabase.functions.invoke("ai-fattura-ricevuta-ocr", {
+    body: { storage_path: path, bucket: "silvio-uploads", auto_create: false, company_id: companyId, mime_type: file.type, file_name: file.name },
+  });
+  if (resp.error) {
+    let motivo = resp.error.message;
+    try { const corpo = await (resp.error as { context?: Response }).context?.json?.(); if (corpo?.error) motivo = String(corpo.error); } catch { /* resta il messaggio generico */ }
+    throw new Error(motivo);
+  }
+  const letto = (resp.data as { extracted?: RicevutaLetta } | null)?.extracted;
+  if (!letto) throw new Error("L'AI non è riuscita a leggere la ricevuta.");
+  return letto;
+}
+
 export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, onClose, onSalvato, onCreato }: {
   orderId: string; companyId: string; fasi: Fase[];
   /** Un costo già salvato, da modificare. */
@@ -355,23 +440,61 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
   onCreato?: (costo: { id: string; imponibile: number }) => void;
 }) {
   const tr = useT();
+  const { user } = useAuth();
   const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
   const [form, setForm] = useState<FormCostoCommessa>(() => (costo ? formDaCosto(costo) : { ...formCostoVuoto(oggi), ...iniziale }));
   const [file, setFile] = useState<File | null>(null);
+  // L'importo si scrive come sta sulla ricevuta: di solito IVA compresa, a volte solo l'imponibile.
+  const [ivaInclusa, setIvaInclusa] = useState(true);
+  const [conNote, setConNote] = useState(!!form.note);
+  const [lettura, setLettura] = useState<"no" | "in_corso" | "fatta" | "errore">("no");
+  const [trascina, setTrascina] = useState(false);
+  const inputFile = useRef<HTMLInputElement>(null);
   const set = <K extends keyof FormCostoCommessa>(k: K, v: FormCostoCommessa[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const fornitoriCommessa = useFornitoriCommessa(orderId, companyId);
 
-  const lordo = leggiImporto(form.importo);
+  const scritto = leggiImporto(form.importo);
   const iva = Number(form.aliquotaIva) || 0;
-  const imponibile = Number.isFinite(lordo) && lordo > 0 ? calculateNetFromGross(lordo, iva).netAmount : null;
+  const valido = Number.isFinite(scritto) && scritto > 0;
+  const lordo = valido ? (ivaInclusa ? scritto : lordoDaNetto(scritto, iva)) : null;
+  const imponibile = lordo != null ? calculateNetFromGross(lordo, iva).netAmount : null;
+
+  const scegliFile = async (f: File | null) => {
+    setFile(f);
+    if (!f || costo) return;
+    const errore = controllaRicevuta(f);
+    if (errore) { toast.error(errore); return; }
+    if (!user?.id) return;
+    setLettura("in_corso");
+    try {
+      const letto = await leggiRicevutaConAI(f, companyId, user.id);
+      const campi = formDaRicevuta(letto);
+      // Il fornitore: lo stesso dell'anagrafica, per partita IVA.
+      const piva = pivaPulita(letto.cedente?.piva);
+      let fornitoreId: string | null = null;
+      if (piva.length >= 8) {
+        const { data } = await db.from("suppliers").select("id, vat_number").eq("company_id", companyId).ilike("vat_number", `%${piva}%`).limit(1);
+        fornitoreId = (data?.[0] as { id: string } | undefined)?.id ?? null;
+      }
+      setIvaInclusa(true);
+      setForm((x) => ({ ...x, ...campi, ...(fornitoreId ? { fornitoreId } : {}), ...(campi.senzaFattura === false ? { pagato: false } : {}) }));
+      if (campi.note) setConNote(true);
+      setLettura("fatta");
+    } catch (e) {
+      setLettura("errore");
+      toast.error(tr("Ricevuta non letta: compila a mano"), { description: e instanceof Error ? e.message : undefined });
+    }
+  };
 
   const salva = useMutation({
     mutationFn: async () => {
-      const riga = rigaCostoCommessa(form, { companyId, orderId });
+      const daSalvare: FormCostoCommessa = { ...form, importo: lordo != null ? importoIt(lordo) : form.importo };
+      const riga = rigaCostoCommessa(daSalvare, { companyId, orderId });
       if (file) { const errore = controllaRicevuta(file); if (errore) throw new Error(errore); }
       const path = file ? await caricaRicevuta(orderId, file) : null;
       if (costo) {
         const { error } = await db.from("company_costs").update({
-          ...campiModificaCosto(form, { companyId, orderId }),
+          ...campiModificaCosto(daSalvare, { companyId, orderId }),
           ...(path ? { allegato_path: path, allegato_nome: file?.name ?? null } : {}),
         }).eq("id", costo.id).eq("company_id", companyId);
         if (error) {
@@ -404,9 +527,11 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
     onError: (e) => toast.error(e instanceof Error && e.message ? e.message : userErrorMessage(e, tr("Costo non salvato."))),
   });
 
+  const fornitoriProposti = (fornitoriCommessa.data ?? []).filter((s) => s.id !== form.fornitoreId).slice(0, 4);
+
   return (
     <Dialog open onOpenChange={(o) => { if (!o && !salva.isPending) onClose(); }}>
-      <DialogContent struttura="contenuta" ampiezza="modulo" className="max-h-[85vh] max-w-lg overflow-y-auto">
+      <DialogContent struttura="contenuta" ampiezza="modulo" className="max-h-[90vh] max-w-2xl overflow-y-auto text-[13px] [&_label]:text-[13px]">
         <DialogHeader>
           <DialogTitle>{costo ? tr("Modifica costo") : tr("Aggiungi costo alla commessa")}</DialogTitle>
           <DialogDescription>{tr("Per le spese senza fattura (tassa comunale, bolli, F24) o quelle che aspettano ancora la fattura.")}</DialogDescription>
@@ -416,9 +541,43 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
           onSubmit={(e) => { e.preventDefault(); salva.mutate(); }}
         >
           <CorpoDialogOperativo>
+          <input ref={inputFile} type="file" accept="application/pdf,image/*" className="hidden" aria-label="Ricevuta o F24"
+            onChange={(e) => { void scegliFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+          {/* La ricevuta per prima: se c'è, l'AI compila il resto. */}
+          <div
+            role="button"
+            tabIndex={0}
+            aria-disabled={lettura === "in_corso"}
+            className={`flex w-full cursor-pointer items-center gap-2.5 rounded-md border border-dashed px-3 py-1.5 text-left transition-colors ${trascina ? "border-primary bg-primary/5" : "hover:border-primary/60 hover:bg-muted/40"}`}
+            onClick={() => { if (lettura !== "in_corso") inputFile.current?.click(); }}
+            onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && lettura !== "in_corso") { e.preventDefault(); inputFile.current?.click(); } }}
+            onDragOver={(e) => { e.preventDefault(); setTrascina(true); }}
+            onDragLeave={() => setTrascina(false)}
+            onDrop={(e) => { e.preventDefault(); setTrascina(false); if (lettura !== "in_corso") void scegliFile(e.dataTransfer.files?.[0] ?? null); }}
+          >
+            {lettura === "in_corso" ? <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" aria-hidden="true" />
+              : lettura === "fatta" ? <Sparkles className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+              : <Upload className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />}
+            <span className="min-w-0 flex-1 truncate">
+              <span className="font-medium">
+                {lettura === "in_corso" ? tr("Leggo la ricevuta…")
+                  : file ? file.name
+                  : costo?.allegato_path ? tr("Sostituisci la ricevuta") : tr("Trascina ricevuta o F24")}
+              </span>
+              <span className="ml-2 text-xs text-muted-foreground">
+                {lettura === "fatta" ? tr("compilato dalla ricevuta: controlla prima di salvare")
+                  : lettura === "errore" ? tr("non letta: compila a mano, il file resta allegato")
+                  : costo ? tr("PDF o foto, fino a 10 MB.") : tr("l'AI compila importo, IVA, data e fornitore")}
+              </span>
+            </span>
+            {file && lettura !== "in_corso" && (
+              <button type="button" className="text-xs text-muted-foreground underline" onClick={(e) => { e.stopPropagation(); setFile(null); setLettura("no"); }}
+                onKeyDown={(e) => e.stopPropagation()}>{tr("Togli")}</button>
+            )}
+          </div>
           <div>
             <Label htmlFor="costo-descrizione">{tr("Che costo è *")}</Label>
-            <Textarea id="costo-descrizione" rows={2} value={form.descrizione} onChange={(e) => set("descrizione", e.target.value)} placeholder={tr("es. Tassa comunale occupazione suolo")} maxLength={200} autoFocus />
+            <Input id="costo-descrizione" value={form.descrizione} onChange={(e) => set("descrizione", e.target.value)} placeholder={tr("es. Tassa comunale occupazione suolo")} maxLength={200} autoFocus={!!costo} />
             {!costo && !form.descrizione && (
               <div className="mt-1.5 flex flex-wrap gap-1" aria-label={tr("Costi pronti")}>
                 {COSTI_PRONTI.map((c) => (
@@ -434,9 +593,17 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
               </div>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div>
-              <Label htmlFor="costo-importo">{tr("Importo (€) *")}</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="costo-importo">{tr("Importo (€) *")}</Label>
+                <div className="flex rounded-md border text-[11px]" role="group" aria-label={tr("L'importo comprende l'IVA?")}>
+                  {([[true, "IVA incl."], [false, "IVA escl."]] as const).map(([v, t]) => (
+                    <button key={t} type="button" aria-pressed={ivaInclusa === v} onClick={() => setIvaInclusa(v)}
+                      className={`px-1.5 py-0.5 ${ivaInclusa === v ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{tr(t)}</button>
+                  ))}
+                </div>
+              </div>
               <Input id="costo-importo" inputMode="decimal" value={form.importo} onChange={(e) => set("importo", e.target.value)} placeholder="350,00" />
             </div>
             <div>
@@ -449,14 +616,25 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          {imponibile != null && iva > 0 && (
-            <p className="text-xs text-muted-foreground">{tr("Nel margine entra l’imponibile: {importo}.", { importo: formatCurrency(imponibile) })}</p>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div className="col-span-2 sm:col-span-1">
               <Label htmlFor="costo-data">{tr("Data *")}</Label>
               <Input id="costo-data" type="date" value={form.data} onChange={(e) => set("data", e.target.value)} />
+            </div>
+          </div>
+          {lordo != null && iva > 0 && imponibile != null && (
+            <p className="-mt-1 text-xs text-muted-foreground tabular-nums">
+              {formatCurrency(imponibile)} + IVA {formatCurrency(lordo - imponibile)} = <span className="font-medium text-foreground">{formatCurrency(lordo)}</span> · {tr("nel margine entra l’imponibile.")}
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div>
+              <Label htmlFor="costo-tipo">{tr("Di che tipo è")}</Label>
+              <Select value={form.tipo} onValueChange={(v) => set("tipo", v as TipoCosto)}>
+                <SelectTrigger id="costo-tipo"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TIPI_COSTO.map((t) => <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label htmlFor="costo-fase">{tr("Fase")}</Label>
@@ -468,46 +646,54 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="costo-tipo">{tr("Di che tipo è")}</Label>
-              <Select value={form.tipo} onValueChange={(v) => set("tipo", v as TipoCosto)}>
-                <SelectTrigger id="costo-tipo"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {TIPI_COSTO.map((t) => <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
+            <div className="col-span-2 sm:col-span-1">
               <Label>{tr("Fornitore")}</Label>
               <SupplierSelect value={form.fornitoreId ?? ""} onValueChange={(v) => set("fornitoreId", v || null)} placeholder={tr("Nessuno")} searchable allowCreate />
             </div>
           </div>
-          <div>
-            <Label htmlFor="costo-ricevuta">{costo?.allegato_path ? tr("Sostituisci la ricevuta") : tr("Ricevuta o F24")}</Label>
-            <Input id="costo-ricevuta" type="file" accept="application/pdf,image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          </div>
-          <div className={`grid gap-3 ${costo ? "" : "sm:grid-cols-2"}`}>
-            <div className="flex items-center justify-between gap-3 rounded-md border p-2.5">
-              <Label htmlFor="costo-senza-fattura" className="text-sm font-normal">{tr("Senza fattura")}<span className="block text-xs text-muted-foreground">{tr("Nessuno la manderà.")}</span></Label>
-              <Switch id="costo-senza-fattura" checked={form.senzaFattura} onCheckedChange={(v) => set("senzaFattura", v)} />
+          {fornitoriProposti.length > 0 && (
+            <div className="-mt-1 flex flex-wrap items-center gap-1" aria-label={tr("Fornitori di questa commessa")}>
+              <span className="text-[11px] text-muted-foreground">{tr("Già su questa commessa:")}</span>
+              {fornitoriProposti.map((s) => (
+                <button key={s.id} type="button" onClick={() => set("fornitoreId", s.id)}
+                  className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-primary">{s.name}</button>
+              ))}
             </div>
+          )}
+          {/* Una fila sola: due interruttori e, se resta da pagare, la scadenza. */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-md border px-3 py-2">
+            <label htmlFor="costo-senza-fattura" className="flex items-center gap-2" title={form.senzaFattura ? tr("Nessuno la manderà.") : tr("Quando arriva dallo SDI te la propongo da agganciare.")}>
+              <Switch id="costo-senza-fattura" checked={form.senzaFattura} onCheckedChange={(v) => set("senzaFattura", v)} />
+              <span>{tr("Senza fattura")}</span>
+            </label>
             {!costo && (
-              <div className="flex items-center justify-between gap-3 rounded-md border p-2.5">
-                <Label htmlFor="costo-pagato" className="text-sm font-normal">{tr("Già pagato")}<span className="block text-xs text-muted-foreground">{tr("Uscita alla data del costo.")}</span></Label>
+              <label htmlFor="costo-pagato" className="flex items-center gap-2" title={form.pagato ? tr("Uscita alla data del costo, dalla cassa predefinita.") : tr("Resta da pagare.")}>
                 <Switch id="costo-pagato" checked={form.pagato} onCheckedChange={(v) => set("pagato", v)} />
-              </div>
+                <span>{tr("Già pagato")}</span>
+              </label>
             )}
+            {!costo && !form.pagato && (
+              <label htmlFor="costo-scadenza" className="flex items-center gap-2">
+                <span className="text-muted-foreground">{tr("Scadenza")}</span>
+                <Input id="costo-scadenza" type="date" className="h-8 w-40" value={form.scadenza ?? ""} min={form.data} onChange={(e) => set("scadenza", e.target.value)} />
+              </label>
+            )}
+            <span className="ml-auto text-xs text-muted-foreground">
+              {form.senzaFattura ? tr("Nessuna fattura in arrivo") : tr("La fattura, quando arriva, si aggancia qui")}
+            </span>
           </div>
-          <div>
-            <Label htmlFor="costo-note">{tr("Note")}</Label>
-            <Textarea id="costo-note" value={form.note} onChange={(e) => set("note", e.target.value)} rows={2} maxLength={200} />
-          </div>
+          {conNote ? (
+            <div>
+              <Label htmlFor="costo-note">{tr("Note")}</Label>
+              <Textarea id="costo-note" value={form.note} onChange={(e) => set("note", e.target.value)} rows={2} maxLength={200} />
+            </div>
+          ) : (
+            <button type="button" className="self-start text-xs text-primary underline underline-offset-2" onClick={() => setConNote(true)}>{tr("+ Aggiungi una nota")}</button>
+          )}
           </CorpoDialogOperativo>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={salva.isPending}>{tr("Annulla")}</Button>
-            <Button type="submit" disabled={salva.isPending || !form.descrizione.trim() || !form.importo}>
+            <Button type="submit" disabled={salva.isPending || lettura === "in_corso" || !form.descrizione.trim() || !valido}>
               {salva.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}{costo ? tr("Salva") : tr("Aggiungi")}
             </Button>
           </DialogFooter>
