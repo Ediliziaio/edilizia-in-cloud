@@ -35,7 +35,7 @@ import {
 } from "@/lib/planimetrie/tred";
 import { catturaFotogramma, type Fotogramma } from "./tred/fotogramma";
 import { esplodiInStrati, STRATI_ESPLOSO, stratoDi } from "@/lib/planimetrie/tred/esploso";
-import { INQUADRATURE_ESTERNE, inquadraturaEsterna, orbita, vistaEsplosa, type InquadraturaEsterna } from "@/lib/planimetrie/tred/telecamera";
+import { INQUADRATURE_ESTERNE, inquadraturaEsterna, limitiCasa, orbita, vistaEsplosa, type InquadraturaEsterna } from "@/lib/planimetrie/tred/telecamera";
 import { vistaDettaglioInterno } from "@/lib/planimetrie/tred/inquadraturaArredi";
 import type { StratoEsploso3D } from "@/lib/planimetrie/tred/tipi";
 import { adattaAmbiente, aggiornaGruppo, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./tred/scenaThree";
@@ -402,7 +402,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     // L'inquadratura pronta si calcola qui, sui limiti della scena di adesso (con «Edificio intero» acceso).
     const scelta = inquadraturaScelta.current;
     inquadraturaScelta.current = null;
-    const iniziale = inVisita ? tappaVisita?.vista : scelta ? inquadraturaEsterna(scelta, limiti, aspetto) : primaCamera.current?.telecamera;
+    const iniziale = inVisita ? tappaVisita?.vista : scelta ? inquadraturaEsterna(scelta, limiti, aspetto, limitiCasa(pianta, limiti)) : primaCamera.current?.telecamera;
     const arredo = arredoDaInquadrare.current;
     const dettaglio = compatta && modo === "dentro" && locale && arredo
       ? vistaDettaglioInterno(pianta, locale.id, { tipo: "arredo", id: arredo }, vista, aspetto) : null;

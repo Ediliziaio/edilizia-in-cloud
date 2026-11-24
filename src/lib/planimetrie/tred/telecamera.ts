@@ -130,9 +130,18 @@ export function inquadraturaEsterna(tipo: InquadraturaEsterna, limiti: Limiti3D,
   const verso = unit([-0.62, 0.62, 0.48]);
   const fov = 40;
   const t = Math.tan((fov * Math.PI) / 360);
-  const raggio = Math.hypot(limiti.max[0] - limiti.min[0], limiti.max[1] - limiti.min[1], limiti.max[2] - limiti.min[2]) / 2;
+  // La casa riempie l'inquadratura, con intorno un po' di lotto.
+  const raggio = Math.hypot(casa.max[0] - casa.min[0], casa.max[1] - casa.min[1], casa.max[2] - casa.min[2]) / 2 * 1.35;
   const d = (raggio / t) * (aspetto < 1 ? 1.5 : 1.05);
   return { posizione: [mira[0] + verso[0] * d, mira[1] + verso[1] * d, mira[2] + verso[2] * d], guarda: mira, fov };
+}
+
+/** L'ingombro dell'edificio (dalle pareti), con l'altezza della scena: le inquadrature esterne
+ *  guardano la casa, non il lotto col parcheggio (Callimaco: dalla strada la casa era un francobollo). */
+export function limitiCasa(pianta: Pick<PiantaPer3D, "muri">, limiti: Limiti3D): Limiti3D {
+  if (!pianta.muri.length) return limiti;
+  const xs = pianta.muri.flatMap((m) => [m.a.x * CM, m.b.x * CM]), zs = pianta.muri.flatMap((m) => [m.a.y * CM, m.b.y * CM]);
+  return { min: [Math.min(...xs), limiti.min[1], Math.min(...zs)], max: [Math.max(...xs), limiti.max[1], Math.max(...zs)] };
 }
 
 /** La telecamera girata intorno al punto che guarda, sull'asse verticale: `frazione` 1 = un giro intero. */
