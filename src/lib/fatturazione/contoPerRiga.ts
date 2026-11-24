@@ -50,28 +50,152 @@ export function chiaveRiga(r: { numero_linea?: unknown } | null | undefined, ind
   return n != null && String(n).trim() !== "" ? String(n).trim() : String(indice + 1);
 }
 
-/** Le parole delle righe e il conto che suggeriscono. L'ordine conta: «pompaggio calcestruzzo» è un nolo. */
-const REGOLE: Array<[RegExp, string]> = [
-  [/\b(pompagg|autopompa|betonpompa|piazzamento|pompa\b|nolegg|nolo\b|noli\b|gru\b|piattaforma)/i, "noli_attrezzature"],
-  [/\b(trasport|spedizion|consegna|porto\b|autotrasp|viaggio)/i, "trasporti"],
-  [/\b(gasolio|benzina|carburant|lubrificant|adblue)/i, "carburanti"],
-  [/\b(disco|dischi|seghett|tenagli|cacciavit|badile|pala\b|carriola|doppiometr|metro\b|trapano|martell|utensil|chiave\b|livella|frattazz|cazzuol|secchio|spatol|flessibil|smerigliatr|pennarell|matita|staggia)/i, "attrezzature"],
-  [/\b(crema|spray|silicon|nastro|fascett|filo|vit[ei]\b|tassell|distanziator|cubier|smusso|tapp[oi]|polvere|guant|batteri|colla|schiuma|sigillant|disarmant|chiod|graff|stracci|sacch[ie]tti|pulizi)/i, "materiali_di_consumo"],
-  [/\b(cls|calcestr|cemento|ferro|acciaio|tondo|tondin|rete\b|elettrosaldat|laterizi|mattoni|blocchi|pignatt|travett|sabbia|ghiaia|inerti|malta|massetto|calce|gesso|cartongesso|isolant|guaina|tubo|tubi\b|pvc\b|legname|tavol[ei]|pannell)/i, "materie_prime"],
+/**
+ * Il conto proposto per una riga dalla sua descrizione (riscritto il 24/11/2026).
+ *
+ * Fino al 24/11 si provavano sei elenchi di parole in un ordine fisso e vinceva il primo che
+ * trovava qualcosa in QUALUNQUE punto della descrizione. Misurato in produzione: «VITE MARTELLO
+ * M8X40» finiva in attrezzature (per «martello»), «TURBOVITE POSA FIX» in nessun conto (la vite
+ * dentro una parola composta non si vedeva), «IDROPITTURA - SECCHIO 14 L» in attrezzature (il
+ * secchio), «FOLLETTO … PRONTA CONSEGNA» nei trasporti, «SPESA PER IL TRASPORTO DELL'ENERGIA
+ * ELETTRICA» (439 righe) nei trasporti invece che nelle utenze, «POMPA DI CALORE» nei noli.
+ *
+ * Ora conta la PRIMA parola che dice cos'è la riga, come la scrive chi fattura: l'articolo viene
+ * prima, i dettagli («posa», «per pistola», «secchio 14 l», «pronta consegna») dopo. Prima di
+ * tutto, poche frasi che decidono da sole (energia, rifiuti, abbonamenti, pompa di calore).
+ * Le parole di trasporto contano solo all'inizio: «documento di trasporto» in coda non è un
+ * trasporto. Le righe tecniche dei gestionali (la «Riga ausiliaria» di TeamSystem con i dati
+ * AswT…) non hanno mai un conto.
+ */
+
+/** Frasi che decidono da sole, su tutta la descrizione. In ordine. */
+const FRASI: Array<[RegExp, string]> = [
+  [/(energia elettrica|spesa per l.?energia|accis[ae]|energia (attiva|reattiva|mono|in f|fascia)|gestione (del )?contatore|oneri di sistema|fornitura (di )?(gas|energia|acqua)|bollett|consumi (di )?(gas|energia|acqua))/, "utenze"],
+  [/(conferiment|smaltiment|macerie|rifiuti|\bcasson[ei]\b)/, "servizi_generali"],
+  [/(abbonament|licenz[ae]|software|\bpiattaforma (?!aere|elevat|semovent|a pantograf))/, "servizi_generali"],
+  [/(commission|carta di credito|\bcontr\. (mensile )?carta|carta inattiva)/, "spese_bancarie"],
+  [/((disco|dischi) (dei |del )?fren|pastigli|tagliando)/, "manutenzioni"],
+  [/pomp[ae] di calore/, "materiali"],
+  [/(piattaforma (aere|elevat|semovent|a pantograf)|servizio pompa|pompa (a )?braccio|pompa (cls|calcestruzzo)|\bnolegg|\bnol[oi]\b)/, "noli_attrezzature"],
 ];
+
+/** Parole che non dicono cos'è la riga: si saltano per arrivare all'articolo («Spese trasporto» → trasporto). */
+const DA_SALTARE = new Set([
+  "demo", "spese", "spesa", "sp", "costo", "costi", "addebito", "riaddebito", "contributo", "oneri", "onere", "supplemento",
+  "concorso", "rivalsa", "quota", "ns", "vs", "rif", "art", "cod", "nr", "n", "di", "del", "della", "dei", "delle", "per",
+  "il", "lo", "la", "le", "gli", "i", "e", "ed", "a", "al", "con", "da", "in", "su", "x",
+]);
+
+/**
+ * Il conto di una parola. `entro` = la parola conta solo fra le prime N parole utili: le parole
+ * di trasporto in coda descrivono la consegna di un articolo, non un costo di trasporto.
+ */
+const PAROLE: Array<{ re: RegExp; conto: string; entro?: number }> = [
+  { re: /^(pompagg|autopompa|betonpompa|piazzament|nolegg|nol[oi]$|gru$|autogru|autoscala)/, conto: "noli_attrezzature" },
+  { re: /^(trasport|trasp$|spedizion|consegn|autotrasp|viaggi|porto$|corriere|imball)/, conto: "trasporti", entro: 2 },
+  { re: /^(gasolio|benzina|carburant|lubrificant|adblue|diesel)/, conto: "carburanti" },
+  // Le viti anche dentro una parola composta: turbovite, autoperforanti, tirafondi.
+  { re: /(vit[ei]$|^tirafond|^autoperforant|^autofilettant)/, conto: "materiali_di_consumo" },
+  { re: /^(crema|spray|silicon|nastr|fascett|filo$|tassell|distanziator|cubier|smusso|tapp[oi]$|polvere|guant|batteri|coll[ae]$|schium|sigillant|disarmant|chiod|graff|stracci|sacch|pulizi|disco$|dischi$|abrasiv|rondell|dad[oi]$|bullon|ancorant|rivett|pennarell|matit|marker|mascherin|primer|fissagg|elettrod|punt[ae]$|lam[ae]$|spugn|collar)/, conto: "materiali_di_consumo" },
+  { re: /^(seghett|tenagli|cacciavit|badil|pala$|carriol|doppiometr|flessometr|metro$|trapan|martell|utensil|chiav[ei]$|livella$|frattazz|cazzuol|secchio$|spatol|smerigliatr|staggia|avvitator|tassellator|scala$|trabattell|pinz[ae]$|forbic|cutter|flessibile$)/, conto: "attrezzature" },
+  { re: /^(cls$|calcestr|cemento|ferro$|acciai|tond[oi]$|tondin|rete$|elettrosaldat|laterizi|mattoni|blocch|pignatt|travett|sabbia|ghiaia|inerti|malta|massett|calce$|gesso|cartongesso|isolant|guaina|tub[oi]$|pvc$|legname|tavol[ei]$|pannell|idropittur|pittur|vernic|intonac|piastrell|gres$|battiscopa|lastr[ae]$|coppi$|tegol|stucc|collant|adesiv)/, conto: "materie_prime" },
+];
+
+/** Le righe tecniche dei gestionali (TeamSystem «Riga ausiliaria», dati AswT…): non sono un costo. */
+export function rigaTecnica(descrizione: string | null | undefined): boolean {
+  const d = (descrizione ?? "").trim().toLowerCase();
+  return /^riga ausiliaria|informazioni tecniche e aggiuntive del documento|^asw[a-z]*\b/.test(d);
+}
+
+/** Il conto, fra le categorie di base, che la descrizione suggerisce. */
+export function contoDallaDescrizione(descrizione: string | null | undefined): string | null {
+  const d = (descrizione ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+  if (!d || rigaTecnica(d)) return null;
+  for (const [re, conto] of FRASI) if (re.test(d)) return conto;
+  const parole = d.split(/[^a-zàèéìòù]+/).filter((p) => p.length >= 2 && !DA_SALTARE.has(p));
+  for (let i = 0; i < parole.length; i++) {
+    const regola = PAROLE.find((r) => (r.entro == null || i < r.entro) && r.re.test(parole[i]));
+    if (regola) return regola.conto;
+  }
+  return null;
+}
+
+/** Nomi con cui le aziende chiamano le categorie di base nei loro conti («Consumabili», «Spedizioni»…). */
+const SINONIMI: Record<string, string[]> = {
+  materiali_di_consumo: ["materiali di consumo", "consumabili", "materiale di consumo", "ferramenta", "ferramenta e fissaggi"],
+  materie_prime: ["materie prime", "materiali", "materiale", "materiali edili"],
+  materiali: ["materiali", "materiale", "materiali edili", "materie prime"],
+  attrezzature: ["attrezzature", "utensili, attrezzature, sistemi di fissaggio", "attrezzature e fissaggi"],
+  noli_attrezzature: ["noli attrezzature", "noleggio attrezzature", "noleggi", "noli"],
+  trasporti: ["trasporti", "spedizioni"],
+  carburanti: ["carburanti", "carburante", "carburante e pedaggi"],
+  utenze: ["utenze", "energia elettrica"],
+  servizi_generali: ["servizi generali", "smaltimento rifiuti", "smaltimenti", "container e rifiuti", "servizi"],
+  manutenzioni: ["manutenzioni", "ricambi e officina"],
+};
+const chiaveNome = (x: string) => x.toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ").trim();
+
+/** Fra i conti disponibili, quello che corrisponde a una categoria di base (stesso nome o un sinonimo). */
+export function contoDisponibile(conto: string, disponibili: readonly string[]): string | null {
+  const perNome = new Map(disponibili.map((c) => [chiaveNome(c), c]));
+  for (const nome of [conto, ...(SINONIMI[conto] ?? [])]) {
+    const trovato = perNome.get(chiaveNome(nome));
+    if (trovato) return trovato;
+  }
+  return null;
+}
 
 /**
  * Il conto proposto per una riga dalla sua descrizione, se fra quelli disponibili.
- * Con le categorie proprie dell'azienda si propone solo quando una ha lo stesso nome.
+ * Con le categorie proprie dell'azienda si propone quella con lo stesso nome o un sinonimo.
  */
 export function contoPropostoRiga(descrizione: string | null | undefined, disponibili: readonly string[]): string | null {
-  const d = (descrizione ?? "").trim();
-  if (!d) return null;
-  const perNome = new Map(disponibili.map((c) => [c.toLowerCase(), c]));
-  for (const [re, conto] of REGOLE) {
-    if (re.test(d)) return perNome.get(conto) ?? (conto === "materie_prime" ? perNome.get("materiali") ?? null : null);
+  const conto = contoDallaDescrizione(descrizione);
+  return conto ? contoDisponibile(conto, disponibili) : null;
+}
+
+/** La descrizione come articolo: parole di almeno tre lettere, senza numeri, misure, codici e targhe. */
+function articolo(testo: string | null | undefined): string {
+  return (testo ?? "").toLowerCase().replace(/[0-9]+/g, " ").split(/[^a-zàèéìòù]+/).filter((p) => p.length >= 3).join(" ").slice(0, 80);
+}
+
+/** Una riga già classificata a mano in un'altra fattura della stessa azienda. */
+export interface SceltaPassata { fornitore: string | null; descrizione: string; conto: string }
+
+/**
+ * Le scelte fatte a mano valgono per le righe uguali (24/11/2026). Per ogni riga: la stessa
+ * descrizione (numeri, misure e targhe a parte: «126 CLS RCK35» = «CLS RCK 37», «AUTOPOMPA
+ * AB123CD» = «AUTOPOMPA EF456GH») già classificata nelle fatture
+ * dello STESSO fornitore, se ha avuto sempre lo stesso conto; altrimenti nelle fatture di tutti
+ * i fornitori dell'azienda, alla stessa condizione. Solo conti fra quelli disponibili.
+ * Restituisce {chiave riga: conto}; le righe senza un precedente non ci sono.
+ */
+export function proposteDalleScelte({ righe, fornitore, scelte, disponibili }: {
+  righe: ReadonlyArray<{ chiave: string; descrizione: string | null }>;
+  fornitore: string | null;
+  scelte: readonly SceltaPassata[];
+  /** Il conto è valido? (categoria del menu, o conto del piano esistente) */
+  disponibili: (conto: string) => boolean;
+}): Record<string, string> {
+  const delFornitore = new Map<string, Set<string>>();
+  const ditutti = new Map<string, Set<string>>();
+  for (const s of scelte) {
+    if (!disponibili(s.conto)) continue;
+    const n = articolo(s.descrizione);
+    if (!n) continue;
+    if (fornitore && s.fornitore === fornitore) (delFornitore.get(n) ?? delFornitore.set(n, new Set()).get(n)!).add(s.conto);
+    (ditutti.get(n) ?? ditutti.set(n, new Set()).get(n)!).add(s.conto);
   }
-  return null;
+  const out: Record<string, string> = {};
+  for (const r of righe) {
+    if (rigaTecnica(r.descrizione)) continue;
+    const n = articolo(r.descrizione);
+    if (!n) continue;
+    const unico = (m: Map<string, Set<string>>) => { const v = m.get(n); return v?.size === 1 ? [...v][0] : null; };
+    const conto = unico(delFornitore) ?? unico(ditutti);
+    if (conto) out[r.chiave] = conto;
+  }
+  return out;
 }
 
 /** Un conto del piano, quanto basta per riconoscerlo dalla descrizione. */

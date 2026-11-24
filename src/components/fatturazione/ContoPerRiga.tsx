@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CATEGORIE_DI_BASE, contoPropostoRiga, etichettaCategoria, proposteDalPiano, type FatturaStorica } from "@/lib/fatturazione/contoPerRiga";
+import { CATEGORIE_DI_BASE, chiaveRiga, contoPropostoRiga, etichettaCategoria, proposteDalPiano, proposteDalleScelte, type FatturaStorica, type SceltaPassata } from "@/lib/fatturazione/contoPerRiga";
 
 const DELLA_FATTURA = "__fattura";
 const uguali = (a: Record<string, string>, b: Record<string, string>) =>
@@ -119,18 +119,46 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
       return { fatture, riferimenti };
     },
   });
+  // Le righe già classificate a mano nelle altre fatture dell'azienda (24/11/2026): la scelta fatta
+  // su un articolo vale per lo stesso articolo nelle fatture dopo, prima delle regole sulle parole.
+  // Una lettura per azienda (non per fattura aperta): la fattura corrente si toglie dopo.
+  const { data: scelteInAzienda = [] } = useQuery({
+    queryKey: ["conti-righe-scelti-in-azienda", companyId],
+    enabled: !!companyId,
+    staleTime: 60 * 1000,
+    queryFn: async (): Promise<Array<SceltaPassata & { fattura: string }>> => {
+      const { data, error } = await supabase.from("fatture_ricevute").select("id, cedente_piva, righe, conti_righe")
+        .eq("company_id", companyId).neq("conti_righe", "{}")
+        .order("updated_at", { ascending: false }).limit(150);
+      if (error) throw error;
+      return (data ?? []).flatMap((f) => {
+        const conti = (f.conti_righe ?? {}) as Record<string, string>;
+        const righeF = Array.isArray(f.righe) ? (f.righe as Array<{ numero_linea?: unknown; descrizione?: unknown }>) : [];
+        return righeF.flatMap((r, i) => {
+          const conto = conti[chiaveRiga(r, i)];
+          return conto ? [{ fattura: String(f.id), fornitore: f.cedente_piva ? String(f.cedente_piva) : null, descrizione: String(r?.descrizione ?? ""), conto }] : [];
+        });
+      });
+    },
+  });
+  const scelteFatte = useMemo(() => scelteInAzienda.filter((s) => s.fattura !== fatturaId), [scelteInAzienda, fatturaId]);
   const proposte = useMemo(() => {
     const m: Record<string, string> = {};
     // Con il piano dei conti: il conto del contratto o quello delle fatture passate del fornitore.
     const dalPiano = contiDelPiano.length > 0
       ? proposteDalPiano({ righe, riferimenti: storico.riferimenti, conti: contiDelPiano, storico: storico.fatture }) : {};
+    const valido = (v: string) => {
+      const c = VALORE_CONTO.exec(v);
+      return c ? contiDelPiano.length > 0 && perId.has(c[1]) && !!perId.get(c[1])?.movimentabile : categorie.includes(v);
+    };
+    const dalleScelte = proposteDalleScelte({ righe, fornitore: fornitorePiva, scelte: scelteFatte, disponibili: valido });
     for (const r of righe) {
       if (scelti[r.chiave]) continue;
-      const p = dalPiano[r.chiave] ?? contoPropostoRiga(r.descrizione, categorie);
+      const p = dalPiano[r.chiave] ?? dalleScelte[r.chiave] ?? contoPropostoRiga(r.descrizione, categorie);
       if (p) m[r.chiave] = p;
     }
     return m;
-  }, [righe, scelti, categorie, contiDelPiano, storico]);
+  }, [righe, scelti, categorie, contiDelPiano, storico, scelteFatte, fornitorePiva, perId]);
 
   const salva = async () => {
     if (!corrente || corrente.salvata || invio.current || uguali(corrente.valori, corrente.base)) return;
