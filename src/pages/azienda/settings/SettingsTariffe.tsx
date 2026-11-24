@@ -84,6 +84,7 @@ import { dipendentePerCostoLavorazione } from "@/lib/tariffe/costoDipendente";
 import { leggiParametriCosto } from "@/hooks/useParametriCostoPersonale";
 import { useRegolePrezzo } from "@/hooks/useRegolePrezzo";
 import { arrotondaPercento, costoPieno, formatRicarico, margineDaRicarico, prezzoDaRiallineare, prezzoDaRicarico, RICARICO_MASSIMO, ricaricoDaMargine, ricaricoDaPrezzo } from "@/lib/tariffe/prezzoDalCosto";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -244,16 +245,17 @@ const useSpeseGenerali = () => useContext(SpeseGeneraliContext);
 
 /** «dal costo +30%» sotto il prezzo, o il ricarico di fatto di un prezzo libero. */
 function RicaricoVoce({ t, pv, pc, sg }: { t: Tariffa; pv: number; pc: number | null; sg: number }) {
+  const tr = useT();
   if (t.prezzo_modo === "dal_costo" && t.ricarico_pct != null) {
     const daAggiornare = prezzoDaRiallineare(t, pc, sg);
     return (
-      <span className={`block text-[10px] ${daAggiornare ? "font-semibold text-amber-700" : "text-blue-700"}`} title={daAggiornare ? "Il costo è cambiato: il prezzo non segue più il ricarico. Usa «Ricalcola dai costi»." : "Prezzo calcolato dal costo"}>
-        dal costo {formatRicarico(Number(t.ricarico_pct))}{daAggiornare ? " · da aggiornare" : ""}
+      <span className={`block text-[10px] ${daAggiornare ? "font-semibold text-amber-700" : "text-blue-700"}`} title={daAggiornare ? tr("Il costo è cambiato: il prezzo non segue più il ricarico. Usa «Ricalcola dai costi».") : tr("Prezzo calcolato dal costo")}>
+        {tr("dal costo")} {formatRicarico(Number(t.ricarico_pct))}{daAggiornare ? ` ${tr("· da aggiornare")}` : ""}
       </span>
     );
   }
   const r = pc != null && pc > 0 && pv > 0 ? ricaricoDaPrezzo(pv, costoPieno(pc, sg)) : null;
-  return r != null ? <span className="block text-[10px] text-muted-foreground">ricarico {formatRicarico(r)}</span> : null;
+  return r != null ? <span className="block text-[10px] text-muted-foreground">{tr("ricarico {r}", { r: formatRicarico(r) })}</span> : null;
 }
 
 /**
@@ -290,6 +292,7 @@ function RigaNumeri({
   /** apre «Ricalcola dai costi» sulle voci dal costo il cui costo è cambiato */
   onRicalcola?: () => void;
 }) {
+  const tr = useT();
   const idSpiegazioneBasi = useId();
   const sg = useSpeseGenerali();
   const kpi = useMemo(() => {
@@ -321,7 +324,7 @@ function RigaNumeri({
     return { totali, attive, archiviate, basi, margineMedio, countMarg, sottoSoglia, senzaCosto, senzaPrezzo, daAggiornare };
   }, [tariffe, soglia, sg]);
 
-  const spiegazioneBasi = "Apri una voce, controlla cosa comprende e imposta i tuoi prezzi. Le basi non sono attive nei preventivi.";
+  const spiegazioneBasi = tr("Apri una voce, controlla cosa comprende e imposta i tuoi prezzi. Le basi non sono attive nei preventivi.");
 
   // Striscia unica al posto di 4 card da 130px: stessi numeri, un decimo dello
   // spazio. Il "tipo più usato" (vanity) è uscito; il conteggio per tipo vive
@@ -330,21 +333,21 @@ function RigaNumeri({
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card px-4 py-2.5 text-sm">
       <div className="flex items-baseline gap-1.5">
         <span className="text-lg font-bold leading-none tabular-nums">{kpi.totali}</span>
-        <span className="text-muted-foreground">voci</span>
+        <span className="text-muted-foreground">{tr("voci")}</span>
         <span className="text-xs text-muted-foreground">
-          · {kpi.attive} attive{kpi.archiviate > 0 ? ` · ${kpi.archiviate} archiviate` : ""}
+          · {kpi.attive} {tr("attive")}{kpi.archiviate > 0 ? tr(" · {archiviate} archiviate", { archiviate: String(kpi.archiviate ?? "") }) : ""}
         </span>
       </div>
       {isAdmin && (
         <>
           <div className="hidden h-4 w-px bg-border sm:block" aria-hidden />
           <div className="flex items-baseline gap-1.5">
-            <span className="text-muted-foreground">Margine medio</span>
+            <span className="text-muted-foreground">{tr("Margine medio")}</span>
             <span className={`text-lg font-bold leading-none tabular-nums ${kpi.countMarg > 0 ? margineSemaforo(kpi.margineMedio, soglia).text : "text-muted-foreground"}`}>
-              {kpi.countMarg > 0 ? `${kpi.margineMedio.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : "—"}
+              {kpi.countMarg > 0 ? `${kpi.margineMedio.toLocaleString(intlCampo(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : "—"}
             </span>
             {kpi.countMarg > 0 && (
-              <span className="text-xs text-muted-foreground">su {kpi.countMarg} attive con costi</span>
+              <span className="text-xs text-muted-foreground">{tr("su {countMarg} attive con costi", { countMarg: String(kpi.countMarg ?? "") })}</span>
             )}
           </div>
         </>
@@ -353,33 +356,33 @@ function RigaNumeri({
         <button
           type="button"
           onClick={onShowSottoSoglia}
-          title={`Filtra le voci con margine sotto la soglia minima del ${soglia}%`}
+          title={tr("Filtra le voci con margine sotto la soglia minima del {soglia}%", { soglia: String(soglia ?? "") })}
           className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/70"
         >
           <AlertTriangle className="h-3 w-3" aria-hidden />
-          {kpi.sottoSoglia} sotto soglia ({soglia}%)
+          {kpi.sottoSoglia} {tr("sotto soglia (")}{soglia}%)
         </button>
       )}
       {isAdmin && kpi.daAggiornare > 0 && (
         <button
           type="button"
           onClick={onRicalcola}
-          title="Voci «dal costo» il cui costo è cambiato: il prezzo non segue più il ricarico"
+          title={tr("Voci «dal costo» il cui costo è cambiato: il prezzo non segue più il ricarico")}
           className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-200"
         >
-          {kpi.daAggiornare} {kpi.daAggiornare === 1 ? "prezzo da ricalcolare" : "prezzi da ricalcolare"} dal costo
+          {kpi.daAggiornare} {kpi.daAggiornare === 1 ? tr("prezzo da ricalcolare") : tr("prezzi da ricalcolare")} {tr("dal costo")}
         </button>
       )}
-      {isAdmin && kpi.senzaCosto > 0 && <button type="button" onClick={() => onDaCompletare?.("senza-costo")} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">{kpi.senzaCosto} senza costo</button>}
-      {kpi.senzaPrezzo > 0 && <button type="button" onClick={() => onDaCompletare?.("senza-prezzo")} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">{kpi.senzaPrezzo} senza prezzo</button>}
+      {isAdmin && kpi.senzaCosto > 0 && <button type="button" onClick={() => onDaCompletare?.("senza-costo")} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">{tr("{n} senza costo", { n: String(kpi.senzaCosto ?? "") })}</button>}
+      {kpi.senzaPrezzo > 0 && <button type="button" onClick={() => onDaCompletare?.("senza-prezzo")} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">{tr("{n} senza prezzo", { n: String(kpi.senzaPrezzo ?? "") })}</button>}
       {kpi.basi > 0 && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-blue-200 bg-blue-50/60 py-1 pl-2.5 pr-1 dark:border-blue-900/50 dark:bg-blue-950/30" title={spiegazioneBasi}>
           <span className="text-xs">
-            Hai {kpi.basi} {kpi.basi === 1 ? "lavorazione standard" : "lavorazioni standard"} da personalizzare
+            {tr("Hai")} {kpi.basi} {kpi.basi === 1 ? tr("lavorazione standard") : tr("lavorazioni standard")} {tr("da personalizzare")}
           </span>
           <span id={idSpiegazioneBasi} className="sr-only">{spiegazioneBasi}</span>
           <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" aria-describedby={idSpiegazioneBasi} onClick={onCompletaBasi}>
-            Completa le basi
+            {tr("Completa le basi")}
           </Button>
         </div>
       )}
@@ -418,6 +421,7 @@ export function TariffaDialog({
   /** false finché «Prezzo e margini» non è letto: un prezzo dal costo verrebbe senza spese generali */
   regolePronte?: boolean;
 }) {
+  const tr = useT();
   // Un id per campo, perché l'etichetta lo nomini per chi usa il lettore di schermo.
   const idBase = useId();
   const idDi = (campo: string) => `${idBase}-${campo}`;
@@ -501,9 +505,9 @@ export function TariffaDialog({
   const mostraAltri = altriAperti || squadraConSquadraInterna;
   const areaDellaVoce = areaDiVerticale(verticalAssociato);
   const riepilogoAltri = [
-    `Area: ${areaDellaVoce ? nomeArea(areaDellaVoce) : "comune"}`,
-    `Gruppo: ${GRUPPI_LAVORAZIONE.find((g) => g.id === gruppo)?.nome ?? gruppo}`,
-    ...(attivo ? [] : ["archiviata"]),
+    areaDellaVoce ? tr("Area: {area}", { area: tr(nomeArea(areaDellaVoce)) }) : tr("Area: comune"),
+    tr("Gruppo: {gruppo}", { gruppo: tr(GRUPPI_LAVORAZIONE.find((g) => g.id === gruppo)?.nome ?? gruppo) }),
+    ...(attivo ? [] : [tr("archiviata")]),
   ].join(" · ");
 
   // Costo → costo pieno (con le spese generali) → prezzo. Ricarico e margine
@@ -554,10 +558,12 @@ export function TariffaDialog({
   // Validazioni soft (non bloccanti — warning in UI). Sul costo PIENO, come il
   // margine: con le spese generali un prezzo appena sopra il costo diretto è
   // già in perdita (costo 100, spese 10%, prezzo 105: margine −4,8%).
-  const costoNelConfronto = speseGenerali > 0 ? "Il costo pieno, con le spese generali," : "Il costo";
+  const conSpeseGenerali = speseGenerali > 0;
   const warnings: string[] = [];
-  if (isAdmin && pvNum > 0 && cpNum > 0 && cpNum >= pvNum) warnings.push(`${costoNelConfronto} è uguale o più alto del prezzo di vendita: il margine è zero o negativo.`);
-  if (pvNum === 0 && editing) warnings.push("Prezzo di vendita a zero — la voce non genererà importo in preventivo.");
+  if (isAdmin && pvNum > 0 && cpNum > 0 && cpNum >= pvNum) warnings.push(conSpeseGenerali
+    ? tr("Il costo pieno, con le spese generali, è uguale o più alto del prezzo di vendita: il margine è zero o negativo.")
+    : tr("Il costo è uguale o più alto del prezzo di vendita: il margine è zero o negativo."));
+  if (pvNum === 0 && editing) warnings.push(tr("Prezzo di vendita a zero — la voce non genererà importo in preventivo."));
 
   // Validazioni HARD — bloccano il submit
   // M1 (audit): evitare di persistere margini negativi o tariffe nuove senza prezzo.
@@ -566,25 +572,27 @@ export function TariffaDialog({
   //   - Gli importi modificati con costo uguale o maggiore del prezzo bloccano;
   //     le correzioni descrittive possono mantenere gli importi esistenti.
   const blockReason: string | null = (() => {
-    if (isAdmin && configCosto.modalita === "manuale" && costoInterno.trim() && numeroCosto(costoInterno) == null) return "Inserisci un costo diretto valido, maggiore o uguale a zero.";
-    if (isAdmin && prezzoModo === "dal_costo" && !(costoNoto && ciNum > 0)) return "Per un prezzo dal costo serve un costo maggiore di zero: scrivilo sopra, oppure scegli «Prezzo libero».";
-    if (isAdmin && prezzoModo === "dal_costo" && !regolePronte) return "Le spese generali di «Prezzo e margini» non sono ancora lette: senza, il prezzo verrebbe più basso. Riprova tra un attimo.";
-    if (isAdmin && prezzoModo === "dal_costo" && ricaricoNum == null) return "Scrivi il ricarico (o un margine sotto il 100%) per calcolare il prezzo.";
-    if (isAdmin && prezzoModo === "dal_costo" && ricaricoNum != null && ricaricoNum > RICARICO_MASSIMO) return "Il ricarico è troppo alto: al massimo 9.999% (un margine del 99%).";
-    if (isAdmin && calcoloCosto.applicato == null) return "Completa il costo della modalità scelta: ore, operatori e costo orario oppure importo del subappalto.";
-    if (squadraConSquadraInterna) return "Una squadra interna non può usare un listino riservato al subappaltatore: in «Altri dati» scegli Listino aziendale (generico).";
+    if (isAdmin && configCosto.modalita === "manuale" && costoInterno.trim() && numeroCosto(costoInterno) == null) return tr("Inserisci un costo diretto valido, maggiore o uguale a zero.");
+    if (isAdmin && prezzoModo === "dal_costo" && !(costoNoto && ciNum > 0)) return tr("Per un prezzo dal costo serve un costo maggiore di zero: scrivilo sopra, oppure scegli «Prezzo libero».");
+    if (isAdmin && prezzoModo === "dal_costo" && !regolePronte) return tr("Le spese generali di «Prezzo e margini» non sono ancora lette: senza, il prezzo verrebbe più basso. Riprova tra un attimo.");
+    if (isAdmin && prezzoModo === "dal_costo" && ricaricoNum == null) return tr("Scrivi il ricarico (o un margine sotto il 100%) per calcolare il prezzo.");
+    if (isAdmin && prezzoModo === "dal_costo" && ricaricoNum != null && ricaricoNum > RICARICO_MASSIMO) return tr("Il ricarico è troppo alto: al massimo 9.999% (un margine del 99%).");
+    if (isAdmin && calcoloCosto.applicato == null) return tr("Completa il costo della modalità scelta: ore, operatori e costo orario oppure importo del subappalto.");
+    if (squadraConSquadraInterna) return tr("Una squadra interna non può usare un listino riservato al subappaltatore: in «Altri dati» scegli Listino aziendale (generico).");
     if (isAdmin && !importiInvariati && pvNum > 0 && cpNum > 0 && cpNum >= pvNum) {
-      return `${costoNelConfronto} è uguale o più alto del prezzo di vendita. Correggi prima di salvare.`;
+      return conSpeseGenerali
+        ? tr("Il costo pieno, con le spese generali, è uguale o più alto del prezzo di vendita. Correggi prima di salvare.")
+        : tr("Il costo è uguale o più alto del prezzo di vendita. Correggi prima di salvare.");
     }
     if (!editing && pvNum <= 0) {
-      return "Il prezzo di vendita deve essere maggiore di 0 per una nuova voce.";
+      return tr("Il prezzo di vendita deve essere maggiore di 0 per una nuova voce.");
     }
     return null;
   })();
 
   const handleSave = async () => {
-    if (!nome.trim()) { toast.error("Il nome è obbligatorio"); return; }
-    if (!companyId) { toast.error("Azienda non disponibile"); return; }
+    if (!nome.trim()) { toast.error(tr("Il nome è obbligatorio")); return; }
+    if (!companyId) { toast.error(tr("Azienda non disponibile")); return; }
     if (blockReason) { toast.error(blockReason); return; }
     setSaving(true);
     try {
@@ -593,7 +601,7 @@ export function TariffaDialog({
         if (!trimmed) return null;
         const parsed = Number(trimmed.replace(",", "."));
         if (!Number.isFinite(parsed) || parsed < 0) {
-          throw new Error(`${label} deve essere un numero positivo o zero`);
+          throw new Error(tr("{label} deve essere un numero positivo o zero", { label: tr(label) }));
         }
         return parsed;
       };
@@ -602,7 +610,7 @@ export function TariffaDialog({
         if (!trimmed) return fallback;
         const parsed = Number.parseInt(trimmed, 10);
         if (!Number.isFinite(parsed) || parsed < 0) {
-          throw new Error(`${label} deve essere un numero intero positivo o zero`);
+          throw new Error(tr("{label} deve essere un numero intero positivo o zero", { label: tr(label) }));
         }
         return parsed;
       };
@@ -663,15 +671,15 @@ export function TariffaDialog({
           .eq("id", editing.id)
           .eq("company_id", companyId).select("id").single();
         if (error) throw error;
-        if (!data) throw new Error("Voce non aggiornata: verifica i permessi e riprova.");
+        if (!data) throw new Error(tr("Voce non aggiornata: verifica i permessi e riprova."));
       } else {
         const { error } = await tbl.insert(payload as never);
         if (error) throw error;
       }
-      toast.success(editing ? "Voce aggiornata" : "Voce creata");
+      toast.success(editing ? tr("Voce aggiornata") : tr("Voce creata"));
       onSaved(); onClose();
     } catch (err) {
-      toast.error(testoErrore(err, "Voce non salvata."));
+      toast.error(testoErrore(err, tr("Voce non salvata.")));
     } finally {
       setSaving(false);
     }
@@ -683,11 +691,11 @@ export function TariffaDialog({
     <Dialog open={open} onOpenChange={v => { if (!v && !saving) onClose(); }}>
       <DialogContent className="flex max-w-3xl max-h-[90vh] flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b px-6 py-5 pr-12">
-          <DialogTitle>{editing ? "Modifica voce" : "Nuova voce"}</DialogTitle>
+          <DialogTitle>{editing ? tr("Modifica voce") : tr("Nuova voce")}</DialogTitle>
           <DialogDescription>
             {editing
-              ? "Modifica i dati della voce. Le voci salvate mantengono l'unità di misura originale."
-              : "Scegli che lavoro è e come si misura, poi il nome, il costo e come ne nasce il prezzo."}
+              ? tr("Modifica i dati della voce. Le voci salvate mantengono l'unità di misura originale.")
+              : tr("Scegli che lavoro è e come si misura, poi il nome, il costo e come ne nasce il prezzo.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -695,7 +703,7 @@ export function TariffaDialog({
           {/* Le due scelte che decidono: tipo di lavoro e unità. Partono da «Posa» e «pz». */}
           <div className="grid items-start gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor={idDi("tipo")}>Tipo</Label>
+              <Label htmlFor={idDi("tipo")}>{tr("Tipo")}</Label>
               <Select value={tipo} onValueChange={(v) => {
                 setTipo(v as TipoTariffa);
                 // Suggerisci UM di default per il tipo, ma solo se stiamo creando
@@ -706,21 +714,21 @@ export function TariffaDialog({
                 <SelectTrigger id={idDi("tipo")} aria-describedby={idDi("tipo-aiuto")} className={`mt-1.5 ${CAMPO_DA_DITO}`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {TIPO_DEFS.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p id={idDi("tipo-aiuto")} className="mt-1 text-xs text-muted-foreground">
-                <Info className="inline h-3 w-3 mr-1" aria-hidden />{tipoHint(tipo)}
+                <Info className="inline h-3 w-3 mr-1" aria-hidden />{tr(tipoHint(tipo))}
               </p>
             </div>
 
             <div>
               <Label htmlFor={idDi("unita")}>
-                Unità di fatturazione
+                {tr("Unità di fatturazione")}
                 {unitaBloccata && (
-                  <span className="ml-1 text-xs text-muted-foreground" title="La voce è già usata in preventivi, commesse o listini: per un'unità diversa duplicala">
-                    (fissa: voce già usata)
+                  <span className="ml-1 text-xs text-muted-foreground" title={tr("La voce è già usata in preventivi, commesse o listini: per un'unità diversa duplicala")}>
+                    {tr("(fissa: voce già usata)")}
                   </span>
                 )}
               </Label>
@@ -733,8 +741,8 @@ export function TariffaDialog({
                 <SelectContent>
                   {UM_FATTURAZIONE.map((u) => (
                     <SelectItem key={u.value} value={u.value}>
-                      <span className="font-medium">{u.label}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">{u.hint}</span>
+                      <span className="font-medium">{tr(u.label)}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{tr(u.hint)}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -744,12 +752,12 @@ export function TariffaDialog({
 
           {/* Nome */}
           <div>
-            <Label htmlFor={idDi("nome")}>Nome *</Label>
+            <Label htmlFor={idDi("nome")}>{tr("Nome *")}</Label>
             <Input
               id={idDi("nome")}
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              placeholder="Es. Posa finestra media (100×120)"
+              placeholder={tr("Es. Posa finestra media (100×120)")}
               aria-required="true"
               autoFocus={focusSulNome}
               className={`mt-1.5 ${CAMPO_DA_DITO}`}
@@ -762,9 +770,9 @@ export function TariffaDialog({
           {/* Poi il prezzo: dal costo (ricarico o margine) oppure libero */}
           <div className="space-y-3 rounded-lg border p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold">Come nasce il prezzo</p>
+              <p className="text-sm font-semibold">{tr("Come nasce il prezzo")}</p>
               {isAdmin && (
-                <div className="flex rounded-lg bg-muted p-0.5" role="radiogroup" aria-label="Come nasce il prezzo">
+                <div className="flex rounded-lg bg-muted p-0.5" role="radiogroup" aria-label={tr("Come nasce il prezzo")}>
                   {([["dal_costo", "Dal costo"], ["libero", "Prezzo libero"]] as const).map(([v, label]) => (
                     <button
                       key={v}
@@ -774,47 +782,45 @@ export function TariffaDialog({
                       onClick={() => passaAModo(v)}
                       className={`rounded-md px-3 py-1 text-xs font-medium ${prezzoModo === v ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                     >
-                      {label}
+                      {tr(label)}
                     </button>
                   ))}
                 </div>
               )}
             </div>
             {isAdmin && speseGenerali > 0 && costoNoto && (
-              <p className="text-xs text-muted-foreground">
-                Costo pieno {formatPrezzoUnitario(cpNum)} / {umLabel}: costo {formatPrezzoUnitario(ciNum)} + spese generali {speseGenerali.toLocaleString("it-IT")}%.
-              </p>
+              <p className="text-xs text-muted-foreground">{tr("Costo pieno {cpNum} / {umLabel}: costo {ciNum} + spese generali {speseGenerali}%.", { cpNum: formatPrezzoUnitario(cpNum), umLabel: String(umLabel ?? ""), ciNum: formatPrezzoUnitario(ciNum), speseGenerali: speseGenerali.toLocaleString(intlCampo()) })}</p>
             )}
             {prezzoModo === "dal_costo" && !isAdmin ? (
               <div>
-                <Label htmlFor={idDi("prezzo")}>Prezzo di vendita (€ per {umLabel})</Label>
+                <Label htmlFor={idDi("prezzo")}>{tr("Prezzo di vendita (€ per {umLabel})", { umLabel: String(umLabel ?? "") })}</Label>
                 <Input id={idDi("prezzo")} readOnly value={formatPrezzoUnitario(pvNum)} className={`mt-1.5 bg-muted/40 font-semibold ${CAMPO_DA_DITO}`} aria-describedby={idDi("prezzo-aiuto")} />
-                <p id={idDi("prezzo-aiuto")} className="mt-1 text-xs text-muted-foreground">Il prezzo nasce dal costo: lo cambia chi vede i costi.</p>
+                <p id={idDi("prezzo-aiuto")} className="mt-1 text-xs text-muted-foreground">{tr("Il prezzo nasce dal costo: lo cambia chi vede i costi.")}</p>
               </div>
             ) : prezzoModo === "dal_costo" ? (
               <div className="grid gap-3 sm:grid-cols-3">
                 <div>
-                  <Label htmlFor={idDi("ricarico")}>Ricarico sul costo %</Label>
+                  <Label htmlFor={idDi("ricarico")}>{tr("Ricarico sul costo %")}</Label>
                   <Input id={idDi("ricarico")} type="number" min="0" step="0.01" value={ricaricoTesto} onChange={(e) => cambiaRicarico(e.target.value)} className={`mt-1.5 ${CAMPO_DA_DITO}`} />
                 </div>
                 <div>
-                  <Label htmlFor={idDi("margine")}>oppure margine %</Label>
+                  <Label htmlFor={idDi("margine")}>{tr("oppure margine %")}</Label>
                   <Input id={idDi("margine")} type="number" min="0" max="99.99" step="0.01" value={margineTesto} onChange={(e) => cambiaMargine(e.target.value)} className={`mt-1.5 ${CAMPO_DA_DITO}`} />
                 </div>
                 <div>
-                  <Label htmlFor={idDi("prezzo")}>Prezzo di vendita (€ per {umLabel})</Label>
+                  <Label htmlFor={idDi("prezzo")}>{tr("Prezzo di vendita (€ per {umLabel})", { umLabel: String(umLabel ?? "") })}</Label>
                   <Input id={idDi("prezzo")} readOnly value={prezzoCalcolato != null ? formatPrezzoUnitario(prezzoCalcolato) : "—"} className={`mt-1.5 bg-muted/40 font-semibold ${CAMPO_DA_DITO}`} aria-describedby={idDi("prezzo-aiuto")} />
                 </div>
                 <p id={idDi("prezzo-aiuto")} className="text-xs text-muted-foreground sm:col-span-3">
                   {costoNoto
-                    ? `Costo pieno × (1 + ricarico). Un ricarico del ${(ricaricoNum ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 2 })}% è un margine del ${(margineDaRicarico(ricaricoNum ?? 0) ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%. Se il costo cambia, il prezzo si ricalcola.`
-                    : "Scrivi il costo sopra: il prezzo si calcola da lì."}
+                    ? tr("Costo pieno × (1 + ricarico). Un ricarico del {valore}% è un margine del {valore2}%. Se il costo cambia, il prezzo si ricalcola.", { valore: (ricaricoNum ?? 0).toLocaleString(intlCampo(), { maximumFractionDigits: 2 }), valore2: (margineDaRicarico(ricaricoNum ?? 0) ?? 0).toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) })
+                    : tr("Scrivi il costo sopra: il prezzo si calcola da lì.")}
                 </p>
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:items-end">
                 <div>
-                  <Label htmlFor={idDi("prezzo")}>Prezzo di vendita (€ per {umLabel})</Label>
+                  <Label htmlFor={idDi("prezzo")}>{tr("Prezzo di vendita (€ per {umLabel})", { umLabel: String(umLabel ?? "") })}</Label>
                   <Input
                     id={idDi("prezzo")}
                     type="number"
@@ -829,8 +835,8 @@ export function TariffaDialog({
                 {isAdmin && (
                   <p className="text-xs text-muted-foreground">
                     {ricaricoDiFatto != null && pvNum > 0
-                      ? `Il prezzo scritto a mano dà un ricarico del ${formatRicarico(ricaricoDiFatto).replace("+", "")} sul costo pieno. Non segue il costo: se cambia, il prezzo resta questo.`
-                      : "Il prezzo scritto a mano (prezzo di mercato, prezzario) non segue il costo."}
+                      ? tr("Il prezzo scritto a mano dà un ricarico del {valore} sul costo pieno. Non segue il costo: se cambia, il prezzo resta questo.", { valore: formatRicarico(ricaricoDiFatto).replace("+", "") })
+                      : tr("Il prezzo scritto a mano (prezzo di mercato, prezzario) non segue il costo.")}
                   </p>
                 )}
               </div>
@@ -842,27 +848,27 @@ export function TariffaDialog({
             <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Calculator className="h-4 w-4" aria-hidden />
-                Anteprima economica — 1 {umLabel}
+                {tr("Anteprima economica — 1")} {umLabel}
               </div>
               <div className="grid gap-2 text-sm sm:grid-cols-3">
                 {isAdmin && (
                   <div className="rounded-md bg-background p-2 border">
-                    <div className="text-xs text-muted-foreground">{speseGenerali > 0 ? "Costo pieno" : "Costo"}</div>
-                    <div className="font-semibold text-rose-600">{costoNoto ? formatPrezzoUnitario(cpNum) : "Da impostare"}</div>
+                    <div className="text-xs text-muted-foreground">{speseGenerali > 0 ? tr("Costo pieno") : tr("Costo")}</div>
+                    <div className="font-semibold text-rose-600">{costoNoto ? formatPrezzoUnitario(cpNum) : tr("Da impostare")}</div>
                   </div>
                 )}
                 <div className="rounded-md bg-background p-2 border">
-                  <div className="text-xs text-muted-foreground">Vendita</div>
+                  <div className="text-xs text-muted-foreground">{tr("Vendita")}</div>
                   <div className="font-semibold">{formatPrezzoUnitario(pvNum)}</div>
                 </div>
                 {isAdmin && (
                   <div className="rounded-md bg-background p-2 border">
-                    <div className="text-xs text-muted-foreground">Guadagno</div>
+                    <div className="text-xs text-muted-foreground">{tr("Guadagno")}</div>
                     <div className={`font-semibold ${semMargine.text}`}>
-                      {costoNoto ? formatPrezzoUnitario(guadagnoUnit) : "Da calcolare"}
+                      {costoNoto ? formatPrezzoUnitario(guadagnoUnit) : tr("Da calcolare")}
                       {costoNoto && pvNum > 0 && (
                         <span className="ml-1 text-xs font-normal">
-                          (margine {marginePerc.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%{ricaricoDiFatto != null ? ` · ricarico ${formatRicarico(ricaricoDiFatto)}` : ""})
+                          {tr("(margine")} {marginePerc.toLocaleString(intlCampo(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%{ricaricoDiFatto != null ? tr(" · ricarico {ricaricoDiFatto}", { ricaricoDiFatto: formatRicarico(ricaricoDiFatto) }) : ""})
                         </span>
                       )}
                     </div>
@@ -872,7 +878,7 @@ export function TariffaDialog({
               {isAdmin && pvNum > 0 && (
                 <div className="flex items-center justify-between rounded-md bg-background px-3 py-2 text-xs border">
                   <span className="text-muted-foreground">
-                    Giudizio margine:
+                    {tr("Giudizio margine:")}
                   </span>
                   <span className={`font-semibold ${semMargine.text}`}>
                     {semMargine.label}
@@ -882,12 +888,12 @@ export function TariffaDialog({
               {isAdmin && prezzoMinimo != null && pvNum < prezzoMinimo && (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                   <span>
-                    Per il margine minimo del {sogliaMinima}%{ricaricoMinimo != null ? ` serve un ricarico di almeno ${formatRicarico(ricaricoMinimo)}` : ""}: {formatPrezzoUnitario(prezzoMinimo)} / {umLabel}.
+                    {tr("Per il margine minimo del")} {sogliaMinima}%{ricaricoMinimo != null ? tr(" serve un ricarico di almeno {ricaricoMinimo}", { ricaricoMinimo: formatRicarico(ricaricoMinimo) }) : ""}: {formatPrezzoUnitario(prezzoMinimo)} / {umLabel}.
                   </span>
                   {prezzoModo === "dal_costo" && ricaricoMinimo != null ? (
-                    <Button type="button" size="sm" variant="outline" onClick={() => cambiaRicarico(String(Math.ceil(ricaricoMinimo * 100) / 100))}>Usa il ricarico minimo</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => cambiaRicarico(String(Math.ceil(ricaricoMinimo * 100) / 100))}>{tr("Usa il ricarico minimo")}</Button>
                   ) : (
-                    <Button type="button" size="sm" variant="outline" onClick={() => setPrezzoVendita(String(prezzoMinimo))}>Usa questo prezzo</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setPrezzoVendita(String(prezzoMinimo))}>{tr("Usa questo prezzo")}</Button>
                   )}
                 </div>
               )}
@@ -899,16 +905,16 @@ export function TariffaDialog({
             <div className="rounded-lg bg-purple-50 border border-purple-200 p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-purple-800">
                 <Info className="h-4 w-4" aria-hidden />
-                Formula "Tiro al piano"
+                {tr("Formula \"Tiro al piano\"")}
               </div>
               <p className="text-xs text-purple-700">
-                <strong>Piano 0 → base:</strong> prezzo vendita base × quantità.
+                <strong>{tr("Piano 0 → base:")}</strong> {tr("prezzo vendita base × quantità.")}
                 <br />
-                <strong>Piani ≥ {pianoBase || "1"}:</strong> base + (piano − soglia) × prezzo piano aggiuntivo.
+                <strong>{tr("Piani ≥")} {pianoBase || "1"}:</strong> {tr("base + (piano − soglia) × prezzo piano aggiuntivo.")}
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor={idDi("piano-base")}>Piano base (soglia)</Label>
+                  <Label htmlFor={idDi("piano-base")}>{tr("Piano base (soglia)")}</Label>
                   <Input
                     id={idDi("piano-base")}
                     type="number"
@@ -920,7 +926,7 @@ export function TariffaDialog({
                   />
                 </div>
                 <div>
-                  <Label htmlFor={idDi("piano-extra")}>Prezzo piano aggiuntivo €</Label>
+                  <Label htmlFor={idDi("piano-extra")}>{tr("Prezzo piano aggiuntivo €")}</Label>
                   <Input
                     id={idDi("piano-extra")}
                     type="number"
@@ -943,7 +949,7 @@ export function TariffaDialog({
                     const totale = pvNum + excess * extra;
                     return (
                       <div key={piano} className="rounded-md bg-background border p-2">
-                        <div className="text-muted-foreground">Piano {piano}</div>
+                        <div className="text-muted-foreground">{tr("Piano {piano}", { piano: String(piano ?? "") })}</div>
                         <div className="font-semibold">{formatCurrency(totale)}</div>
                       </div>
                     );
@@ -975,33 +981,33 @@ export function TariffaDialog({
           >
             <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
               <span className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                <span>Altri dati</span>
+                <span>{tr("Altri dati")}</span>
                 <span className="truncate text-xs font-normal text-muted-foreground">{riepilogoAltri}</span>
               </span>
               <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
             </summary>
             <div className="grid gap-3 border-t p-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor={idDi("codice")}>Codice</Label>
+                <Label htmlFor={idDi("codice")}>{tr("Codice")}</Label>
                 <Input
                   id={idDi("codice")}
                   value={codice}
                   onChange={(e) => setCodice(e.target.value)}
-                  placeholder="Es. LOM241.1C.00.010"
+                  placeholder={tr("Es. LOM241.1C.00.010")}
                   aria-describedby={idDi("codice-aiuto")}
                   className={`mt-1.5 font-mono ${CAMPO_DA_DITO}`}
                 />
                 <p id={idDi("codice-aiuto")} className="mt-1 text-xs text-muted-foreground">
-                  Codice articolo/voce. Opzionale.
+                  {tr("Codice articolo/voce. Opzionale.")}
                 </p>
               </div>
               <div>
-                <Label htmlFor={idDi("descrizione")}>Descrizione</Label>
+                <Label htmlFor={idDi("descrizione")}>{tr("Descrizione")}</Label>
                 <Input
                   id={idDi("descrizione")}
                   value={descrizione}
                   onChange={(e) => setDescrizione(e.target.value)}
-                  placeholder="Dettagli visibili ai colleghi (es. include smontaggio)"
+                  placeholder={tr("Dettagli visibili ai colleghi (es. include smontaggio)")}
                   className={`mt-1.5 ${CAMPO_DA_DITO}`}
                 />
               </div>
@@ -1011,43 +1017,43 @@ export function TariffaDialog({
                   si sceglie quella squadra. */}
               {squadre.length > 0 && (
                 <div className="sm:col-span-2">
-                  <Label htmlFor={idDi("listino-di")}>Listino di</Label>
+                  <Label htmlFor={idDi("listino-di")}>{tr("Listino di")}</Label>
                   <Select value={externalTeamId || "generico"} onValueChange={(v) => setExternalTeamId(v === "generico" ? "" : v)}>
                     <SelectTrigger id={idDi("listino-di")} aria-describedby={idDi("listino-di-aiuto")} className={`mt-1.5 ${CAMPO_DA_DITO}`}>
-                      <SelectValue placeholder="Listino aziendale (generico)" />
+                      <SelectValue placeholder={tr("Listino aziendale (generico)")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="generico">Listino aziendale (generico)</SelectItem>
+                      <SelectItem value="generico">{tr("Listino aziendale (generico)")}</SelectItem>
                       {squadre.map((sq) => (
-                        <SelectItem key={sq.id} value={sq.id}>{sq.name ?? "Squadra"}</SelectItem>
+                        <SelectItem key={sq.id} value={sq.id}>{sq.name ?? tr("Squadra")}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <p id={idDi("listino-di-aiuto")} className="mt-1 text-xs text-muted-foreground">
-                    Lascia il listino aziendale se la voce vale per tutti. Scegli una squadra se è riservata a lei.
+                    {tr("Lascia il listino aziendale se la voce vale per tutti. Scegli una squadra se è riservata a lei.")}
                   </p>
                 </div>
               )}
 
               <div>
-                <Label htmlFor={idDi("area")}>Area di lavoro</Label>
+                <Label htmlFor={idDi("area")}>{tr("Area di lavoro")}</Label>
                 <Select
                   value={verticalAssociato || "__none__"}
                   onValueChange={(v) => setVerticalAssociato(v === "__none__" ? "" : v)}
                 >
                   <SelectTrigger id={idDi("area")} aria-describedby={idDi("area-aiuto")} className={`mt-1.5 ${CAMPO_DA_DITO}`}><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Comune / nessuna area</SelectItem>
+                    <SelectItem value="__none__">{tr("Comune / nessuna area")}</SelectItem>
                     {AREE_STANDARD.map((area) => <SelectItem key={area.chiave} value={area.verticale}>{area.nome}</SelectItem>)}
                     {[...new Set(["generico", "edile", "impiantistica", verticalAssociato])]
                       .filter((v) => v && !AREE_STANDARD.some((a) => a.verticale === v))
-                      .map((v) => <SelectItem key={v} value={v}>{nomeArea(areaDiVerticale(v) ?? "generale")} ({v})</SelectItem>)}
+                      .map((v) => <SelectItem key={v} value={v}>{tr(nomeArea(areaDiVerticale(v) ?? "generale"))} ({v})</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <p id={idDi("area-aiuto")} className="mt-1 text-xs text-muted-foreground">Organizza la voce nel listino. Le voci comuni restano senza un&apos;area specifica.</p>
+                <p id={idDi("area-aiuto")} className="mt-1 text-xs text-muted-foreground">{tr("Organizza la voce nel listino. Le voci comuni restano senza un'area specifica.")}</p>
               </div>
               <div>
-                <Label htmlFor={idDi("gruppo")}>Gruppo di lavorazioni</Label>
+                <Label htmlFor={idDi("gruppo")}>{tr("Gruppo di lavorazioni")}</Label>
                 <UniformSelect
                   id={idDi("gruppo")}
                   aria-describedby={idDi("gruppo-aiuto")}
@@ -1057,20 +1063,20 @@ export function TariffaDialog({
                 >
                   {GRUPPI_LAVORAZIONE.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
                 </UniformSelect>
-                <p id={idDi("gruppo-aiuto")} className="mt-1 text-xs text-muted-foreground">All'interno dell'area, organizza la voce per fase o tipo di lavoro.</p>
+                <p id={idDi("gruppo-aiuto")} className="mt-1 text-xs text-muted-foreground">{tr("All'interno dell'area, organizza la voce per fase o tipo di lavoro.")}</p>
               </div>
 
               <div>
-                <Label htmlFor={idDi("stato")}>Stato</Label>
+                <Label htmlFor={idDi("stato")}>{tr("Stato")}</Label>
                 <div className="mt-1.5 flex items-center gap-2 rounded-md border px-3 py-2">
                   <Switch id={idDi("stato")} aria-describedby={idDi("stato-testo")} checked={attivo} onCheckedChange={setAttivo} />
                   <span id={idDi("stato-testo")} className="text-sm">
-                    {attivo ? "Attiva (selezionabile in preventivo)" : "Archiviata"}
+                    {attivo ? tr("Attiva (selezionabile in preventivo)") : tr("Archiviata")}
                   </span>
                 </div>
               </div>
               <div>
-                <Label htmlFor={idDi("incidenza")}>Incidenza manodopera %</Label>
+                <Label htmlFor={idDi("incidenza")}>{tr("Incidenza manodopera %")}</Label>
                 <Input
                   id={idDi("incidenza")}
                   type="number"
@@ -1079,27 +1085,27 @@ export function TariffaDialog({
                   step="0.01"
                   value={incidenzaMdoPct}
                   onChange={(e) => setIncidenzaMdoPct(e.target.value)}
-                  placeholder="Es. 35"
+                  placeholder={tr("Es. 35")}
                   aria-describedby={idDi("incidenza-aiuto")}
                   className={`mt-1.5 ${CAMPO_DA_DITO}`}
                 />
                 <p id={idDi("incidenza-aiuto")} className="mt-1 text-xs text-muted-foreground">
-                  Quota di manodopera sul prezzo (obbligo base d'asta nei lavori pubblici). Opzionale.
+                  {tr("Quota di manodopera sul prezzo (obbligo base d'asta nei lavori pubblici). Opzionale.")}
                 </p>
               </div>
 
               <div className="sm:col-span-2">
-                <Label htmlFor={idDi("fonte")}>Fonte</Label>
+                <Label htmlFor={idDi("fonte")}>{tr("Fonte")}</Label>
                 <Input
                   id={idDi("fonte")}
                   value={fonte}
                   onChange={(e) => setFonte(e.target.value)}
-                  placeholder="Es. Prezzario Regione Lombardia 2024"
+                  placeholder={tr("Es. Prezzario Regione Lombardia 2024")}
                   aria-describedby={idDi("fonte-aiuto")}
                   className={`mt-1.5 ${CAMPO_DA_DITO}`}
                 />
                 <p id={idDi("fonte-aiuto")} className="mt-1 text-xs text-muted-foreground">
-                  Prezzario di provenienza (se importata).
+                  {tr("Prezzario di provenienza (se importata).")}
                 </p>
               </div>
             </div>
@@ -1108,8 +1114,8 @@ export function TariffaDialog({
           {/* Sprint B — Varianti Costo Manodopera: visibile solo su tariffe esistenti e solo admin */}
           {isAdmin && editing && (
             <details className="rounded-lg border p-3">
-              <summary className="cursor-pointer text-sm font-medium">Varianti per commesse e squadre (avanzato)</summary>
-              <p className="my-2 text-xs text-muted-foreground">Il calcolo sopra imposta il costo base del listino. Nei margini delle commesse, assegnazioni già bloccate e varianti predefinite hanno precedenza. Non vengono cambiate da questo salvataggio.</p>
+              <summary className="cursor-pointer text-sm font-medium">{tr("Varianti per commesse e squadre (avanzato)")}</summary>
+              <p className="my-2 text-xs text-muted-foreground">{tr("Il calcolo sopra imposta il costo base del listino. Nei margini delle commesse, assegnazioni già bloccate e varianti predefinite hanno precedenza. Non vengono cambiate da questo salvataggio.")}</p>
             <TariffaVariantiSection
               tariffaId={editing.id}
               costoDefault={costoTariffa(editing)}
@@ -1122,7 +1128,7 @@ export function TariffaDialog({
           {editing && (
             <div className="mt-4 pt-4 border-t">
               <h3 className="text-sm font-semibold mb-2">
-                Prodotti collegati a questa voce
+                {tr("Prodotti collegati a questa voce")}
               </h3>
               <TariffaProdottiCollegati
                 tariffaId={editing.id}
@@ -1138,9 +1144,9 @@ export function TariffaDialog({
               <span>{blockReason}</span>
             </div>
           )}
-          <Button variant="outline" disabled={saving} onClick={onClose}>Annulla</Button>
+          <Button variant="outline" disabled={saving} onClick={onClose}>{tr("Annulla")}</Button>
           <Button onClick={handleSave} disabled={saving || !!blockReason} aria-describedby={blockReason ? idDi("blocco") : undefined}>
-            {saving ? "Salvataggio..." : "Salva"}
+            {saving ? tr("Salvataggio...") : tr("Salva")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1166,6 +1172,7 @@ function StandardTariffeDialog({
   /** Vertical dell'azienda — guida la pre-selezione del preset al first-run. */
   vertical: Vertical;
 }) {
+  const tr = useT();
   const existingNames = useMemo(
     () => new Set(existing.map((t) => t.nome.trim().toLowerCase())),
     [existing],
@@ -1229,11 +1236,11 @@ function StandardTariffeDialog({
 
   const handleCreate = async () => {
     if (toCreate.length === 0) {
-      toast.info("Nessuna voce selezionata");
+      toast.info(tr("Nessuna voce selezionata"));
       return;
     }
     if (!companyId) {
-      toast.error("Azienda non disponibile");
+      toast.error(tr("Azienda non disponibile"));
       return;
     }
     setCreating(true);
@@ -1255,11 +1262,11 @@ function StandardTariffeDialog({
       });
       const { error } = await supabase.from("tariffe_aziendali").insert(payload as never);
       if (error) throw error;
-      toast.success(`${toCreate.length} voci create`);
+      toast.success(tr("{n} voci create", { n: toCreate.length }));
       onCreated();
       onClose();
     } catch (err) {
-      toast.error(testoErrore(err, "Voci non create."));
+      toast.error(testoErrore(err, tr("Voci non create.")));
     } finally {
       setCreating(false);
     }
@@ -1287,14 +1294,11 @@ function StandardTariffeDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Catalogo manodopera e servizi standard</DialogTitle>
+          <DialogTitle>{tr("Catalogo manodopera e servizi standard")}</DialogTitle>
           <DialogDescription>
-            Scegli un catalogo adatto al tuo mestiere per importare in blocco, oppure scegli le singole voci.
-            Le voci già presenti (stesso nome) sono disabilitate.
+            {tr("Scegli un catalogo adatto al tuo mestiere per importare in blocco, oppure scegli le singole voci. Le voci già presenti (stesso nome) sono disabilitate.")}
             {giaPresentiCount > 0 && (
-              <span className="ml-1 text-muted-foreground">
-                ({giaPresentiCount} di {STANDARD_TARIFFE.length} già presenti)
-              </span>
+              <span className="ml-1 text-muted-foreground">{tr("({giaPresentiCount} di {n} già presenti)", { giaPresentiCount: String(giaPresentiCount ?? ""), n: STANDARD_TARIFFE.length })}</span>
             )}
           </DialogDescription>
         </DialogHeader>
@@ -1302,7 +1306,7 @@ function StandardTariffeDialog({
         {/* ─── CATALOGHI PRONTI ──────────────────────────────────────────── */}
         <div className="space-y-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Cataloghi pronti
+            {tr("Cataloghi pronti")}
           </h3>
           <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
             {PRESET_CATALOGHI.map((preset) => {
@@ -1340,13 +1344,9 @@ function StandardTariffeDialog({
                         {preset.descrizione}
                       </p>
                       <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal">
-                          {stats.importabili}/{stats.total} voci
-                        </Badge>
+                        <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal">{tr("{coperte}/{totale} voci", { coperte: String(stats.importabili ?? ""), totale: String(stats.total ?? "") })}</Badge>
                         {stats.selected > 0 && (
-                          <span className="text-primary font-medium">
-                            {stats.selected} selezionate
-                          </span>
+                          <span className="text-primary font-medium">{tr("{n} selezionate", { n: String(stats.selected ?? "") })}</span>
                         )}
                       </div>
                     </div>
@@ -1361,17 +1361,15 @@ function StandardTariffeDialog({
         <div className="flex items-center justify-between py-2 border-t border-b">
           <div className="text-sm">
             <span className="font-semibold">{toCreate.length}</span>
-            <span className="text-muted-foreground"> voci da importare</span>
-            <span className="text-muted-foreground text-xs ml-2">
-              (su {importabiliCount} disponibili)
-            </span>
+            <span className="text-muted-foreground"> {tr("voci da importare")}</span>
+            <span className="text-muted-foreground text-xs ml-2">{tr("(su {importabiliCount} disponibili)", { importabiliCount: String(importabiliCount ?? "") })}</span>
           </div>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={selectAll} disabled={importabiliCount === 0}>
-              Seleziona tutte
+              {tr("Seleziona tutte")}
             </Button>
             <Button size="sm" variant="ghost" onClick={selectNone} disabled={selected.size === 0}>
-              Azzera
+              {tr("Azzera")}
             </Button>
           </div>
         </div>
@@ -1379,15 +1377,15 @@ function StandardTariffeDialog({
         {/* ─── LISTA FINE PER TIPO ───────────────────────────────────────── */}
         <div className="space-y-4">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Tutte le voci
+            {tr("Tutte le voci")}
           </h3>
           {groups.map(([tipo, items]) => (
             <div key={tipo}>
               <div className="flex items-center gap-2 mb-2">
                 <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${tipoBadgeClass(tipo)}`}>
-                  {tipoLabel(tipo)}
+                  {tr(tipoLabel(tipo))}
                 </span>
-                <span className="text-xs text-muted-foreground">{items.length} voci</span>
+                <span className="text-xs text-muted-foreground">{tr("{n} voci", { n: items.length })}</span>
               </div>
               <div className="space-y-1">
                 {items.map((d) => {
@@ -1410,14 +1408,12 @@ function StandardTariffeDialog({
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-sm">{d.nome}</span>
                           {alreadyExists && (
-                            <Badge variant="secondary" className="text-xs">Già presente</Badge>
+                            <Badge variant="secondary" className="text-xs">{tr("Già presente")}</Badge>
                           )}
                           <span className="text-xs text-muted-foreground">
                             {d.unita_fatturazione ?? d.unita} · {formatCurrency(d.prezzo_vendita ?? 0)}
                             {d.costo_interno != null && (
-                              <span className="ml-1 text-muted-foreground/70">
-                                (costo {formatCurrency(d.costo_interno)})
-                              </span>
+                              <span className="ml-1 text-muted-foreground/70">{tr("(costo {costo_interno})", { costo_interno: formatCurrency(d.costo_interno) })}</span>
                             )}
                           </span>
                         </div>
@@ -1441,9 +1437,9 @@ function StandardTariffeDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{tr("Annulla")}</Button>
           <Button onClick={handleCreate} disabled={creating || toCreate.length === 0}>
-            {creating ? "Creazione..." : `Crea ${toCreate.length} voci`}
+            {creating ? tr("Creazione...") : tr("Crea {n} voci", { n: toCreate.length })}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1458,11 +1454,12 @@ function StandardTariffeDialog({
  * scritta, e ogni filtro attivo ha comunque il suo cartellino sotto la barra.
  */
 function FiltriRipiegabili({ daTelefono, attivi, children }: { daTelefono: boolean; attivi: number; children: ReactNode }) {
+  const t = useT();
   if (!daTelefono) return <>{children}</>;
   return (
     <details className="group rounded-md border bg-background">
       <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
-        <span>Filtri{attivi > 0 ? ` (${attivi})` : ""}</span>
+        <span>{t("Filtri")}{attivi > 0 ? ` (${attivi})` : ""}</span>
         <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
       </summary>
       <div className="flex flex-col gap-2 border-t p-2">{children}</div>
@@ -1478,10 +1475,11 @@ function FiltriRipiegabili({ daTelefono, attivi, children }: { daTelefono: boole
 function InterruttoreStato({
   t, isAdmin, onToggleAttivo, aDito = false,
 }: { t: Tariffa; isAdmin: boolean; onToggleAttivo: (t: Tariffa) => void; aDito?: boolean }) {
+  const tr = useT();
   const isAttivo = t.attivo !== false;
   const nomeInterruttore = isAdmin
-    ? (isAttivo ? `Archivia ${t.nome}` : `Riattiva ${t.nome}`)
-    : `${t.nome}: ${isAttivo ? "attiva" : "archiviata"}`;
+    ? (isAttivo ? tr("Archivia {nome}", { nome: t.nome }) : tr("Riattiva {nome}", { nome: t.nome }))
+    : (isAttivo ? tr("{nome}: attiva", { nome: t.nome }) : tr("{nome}: archiviata", { nome: t.nome }));
   return (
     <TooltipProvider delayDuration={200}>
       <Tooltip>
@@ -1497,7 +1495,7 @@ function InterruttoreStato({
           </div>
         </TooltipTrigger>
         <TooltipContent>
-          {!isAdmin ? (isAttivo ? "Attiva" : "Archiviata") : isAttivo ? "Archivia voce" : "Riattiva voce"}
+          {!isAdmin ? (isAttivo ? tr("Attiva") : tr("Archiviata")) : isAttivo ? tr("Archivia voce") : tr("Riattiva voce")}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -1512,11 +1510,12 @@ function AzioniVoce({
   onEdit: (t: Tariffa) => void; onDelete: (id: string) => void; onToggleAttivo: (t: Tariffa) => void;
   onDuplica: (t: Tariffa) => void; onShowUsage: (t: Tariffa) => void; onAnalisi: (t: Tariffa) => void;
 }) {
+  const tr = useT();
   const isAttivo = t.attivo !== false;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni per ${t.nome}`}>
+        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={tr("Azioni per {nome}", { nome: String(t.nome ?? "") })}>
           <MoreVertical className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -1524,26 +1523,26 @@ function AzioniVoce({
         {isAdmin && (
           <>
             <DropdownMenuItem onClick={() => onEdit(t)}>
-              <Pencil className="h-4 w-4 mr-2" />Modifica
+              <Pencil className="h-4 w-4 mr-2" />{tr("Modifica")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onDuplica(t)}>
-              <Copy className="h-4 w-4 mr-2" />Duplica
+              <Copy className="h-4 w-4 mr-2" />{tr("Duplica")}
             </DropdownMenuItem>
           </>
         )}
         <DropdownMenuItem onClick={() => onShowUsage(t)}>
-          <Link2 className="h-4 w-4 mr-2" />Dove è usata
+          <Link2 className="h-4 w-4 mr-2" />{tr("Dove è usata")}
         </DropdownMenuItem>
         {isAdmin && (
           <>
             <DropdownMenuItem onClick={() => onAnalisi(t)}>
-              <Calculator className="h-4 w-4 mr-2" />Analisi prezzo
+              <Calculator className="h-4 w-4 mr-2" />{tr("Analisi prezzo")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onToggleAttivo(t)}>
               {isAttivo ? (
-                <><Archive className="h-4 w-4 mr-2" />Archivia</>
+                <><Archive className="h-4 w-4 mr-2" />{tr("Archivia")}</>
               ) : (
-                <><RotateCcw className="h-4 w-4 mr-2" />Riattiva</>
+                <><RotateCcw className="h-4 w-4 mr-2" />{tr("Riattiva")}</>
               )}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -1551,7 +1550,7 @@ function AzioniVoce({
               className="text-destructive focus:text-destructive"
               onClick={() => onDelete(t.id)}
             >
-              <Trash2 className="h-4 w-4 mr-2" />Elimina
+              <Trash2 className="h-4 w-4 mr-2" />{tr("Elimina")}
             </DropdownMenuItem>
           </>
         )}
@@ -1567,6 +1566,7 @@ function AzioniVoce({
 function NomeVoce({
   t, squadraName, aCapo = false,
 }: { t: Tariffa; squadraName?: Record<string, string>; aCapo?: boolean }) {
+  const tr = useT();
   return (
     <>
       <div className={`flex min-w-0 gap-1.5 font-medium ${aCapo ? "flex-wrap items-center gap-y-0.5" : "items-center"}`}>
@@ -1577,20 +1577,20 @@ function NomeVoce({
         )}
         <span className={aCapo ? "min-w-0 break-words" : "truncate"} title={t.nome}>{t.nome}</span>
         {lavorazioneStandardDaCompletare(t) && (
-          <Badge variant="secondary" title="Base standard senza prezzo: non è attiva nei preventivi." className="shrink-0 text-[10px]">Da completare</Badge>
+          <Badge variant="secondary" title={tr("Base standard senza prezzo: non è attiva nei preventivi.")} className="shrink-0 text-[10px]">{tr("Da completare")}</Badge>
         )}
       </div>
       <div className={`mt-0.5 flex min-w-0 gap-1.5 ${aCapo ? "flex-wrap items-center" : "items-center"}`}>
         <span className={`inline-flex h-4 shrink-0 items-center rounded px-1.5 text-[10px] font-medium ${tipoBadgeClass(t.tipo)}`}>
-          {tipoLabel(t.tipo)}
+          {tr(tipoLabel(t.tipo))}
         </span>
         {t.external_team_id ? (
           <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">
-            {squadraName?.[t.external_team_id] ?? "Squadra"}
+            {squadraName?.[t.external_team_id] ?? tr("Squadra")}
           </Badge>
         ) : t.subappaltatore_id ? (
           <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">
-            Voce di un subappaltatore
+            {tr("Voce di un subappaltatore")}
           </Badge>
         ) : null}
         {t.vertical_associato && (
@@ -1598,11 +1598,11 @@ function NomeVoce({
             {t.vertical_associato}
           </Badge>
         )}
-        <Badge variant="outline" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">{GRUPPI_LAVORAZIONE.find(g => g.id === gruppoLavorazione(t))?.nome}</Badge>
-        {categoriaPrezzarioTariffa(t) && <Badge variant="outline" title={`${t.fonte ?? "Prezziario"} · ${categoriaPrezzarioTariffa(t)}`} className="h-4 max-w-52 shrink-0 truncate px-1.5 text-[10px] font-normal">{categoriaPrezzarioTariffa(t)}</Badge>}
+        <Badge variant="outline" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">{tr(GRUPPI_LAVORAZIONE.find(g => g.id === gruppoLavorazione(t))?.nome ?? "")}</Badge>
+        {categoriaPrezzarioTariffa(t) && <Badge variant="outline" title={`${t.fonte ?? tr("Prezziario")} · ${categoriaPrezzarioTariffa(t)}`} className="h-4 max-w-52 shrink-0 truncate px-1.5 text-[10px] font-normal">{categoriaPrezzarioTariffa(t)}</Badge>}
         {t.tipo === "tiro_piano" && t.prezzo_piano_aggiuntivo != null && (
           <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
-            +{formatCurrency(t.prezzo_piano_aggiuntivo)}/piano oltre il {t.piano_base ?? 1}°
+            +{formatCurrency(t.prezzo_piano_aggiuntivo)}{tr("/piano oltre il")} {t.piano_base ?? 1}°
           </span>
         )}
         {t.descrizione && (
@@ -1637,7 +1637,7 @@ function MargineConSemaforo({ margine, sem }: { margine: number; sem: ReturnType
           <span className="inline-flex items-center justify-end gap-1.5">
             <span className={`h-2 w-2 rounded-full shrink-0 ${sem.dot}`} aria-hidden />
             <span className={`text-sm font-semibold tabular-nums ${sem.text}`}>
-              {margine.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+              {margine.toLocaleString(intlCampo(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
             </span>
             <span className="sr-only">{sem.label}</span>
           </span>
@@ -1649,11 +1649,12 @@ function MargineConSemaforo({ margine, sem }: { margine: number; sem: ReturnType
 }
 
 function NessunaVoceTrovata({ isAdmin }: { isAdmin: boolean }) {
+  const t = useT();
   return (
     <div className="flex flex-col items-center gap-2 text-muted-foreground">
       <Layers3 className="h-8 w-8 opacity-40" aria-hidden />
-      <p className="text-sm">Nessuna voce trovata.</p>
-      <p className="text-xs">{isAdmin ? "Prova a cambiare filtro o crea una nuova voce." : "Prova a cambiare filtro."}</p>
+      <p className="text-sm">{t("Nessuna voce trovata.")}</p>
+      <p className="text-xs">{isAdmin ? t("Prova a cambiare filtro o crea una nuova voce.") : t("Prova a cambiare filtro.")}</p>
     </div>
   );
 }
@@ -1682,6 +1683,7 @@ function TariffeTable({
   onShowUsage: (t: Tariffa) => void;
   onAnalisi: (t: Tariffa) => void;
 }) {
+  const tr = useT();
   const isMobile = useIsMobile();
   const sg = useSpeseGenerali();
   // Accessori per il sort ("tipo" è ordinabile dai tab gruppo, non serve qui)
@@ -1728,10 +1730,10 @@ function TariffeTable({
               checked={headerChecked}
               onCheckedChange={(v) => onToggleSelectAll(visibleIds, v === true)}
             />
-            Seleziona tutte le voci visibili
+            {tr("Seleziona tutte le voci visibili")}
           </label>
         )}
-        <ul className="divide-y rounded-md border" aria-label="Elenco delle voci">
+        <ul className="divide-y rounded-md border" aria-label={tr("Elenco delle voci")}>
           {sortedItems.length === 0 ? (
             <li className="px-3 py-10 text-center"><NessunaVoceTrovata isAdmin={isAdmin} /></li>
           ) : sortedItems.map((t) => {
@@ -1756,14 +1758,14 @@ function TariffeTable({
                     className="relative mt-1 shrink-0 before:absolute before:-inset-3.5 before:content-['']"
                     checked={isSelected}
                     onCheckedChange={() => onToggleSelect(t.id)}
-                    aria-label={`Seleziona ${t.nome}`}
+                    aria-label={tr("Seleziona {nome}", { nome: String(t.nome ?? "") })}
                   />
                 )}
                 <div className="min-w-0 flex-1">
                   <NomeVoce t={t} squadraName={squadraName} aCapo />
                   <dl className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
                     <div className="flex items-baseline gap-1">
-                      <dt className="text-xs text-muted-foreground">Vendita</dt>
+                      <dt className="text-xs text-muted-foreground">{tr("Vendita")}</dt>
                       <dd className="font-medium tabular-nums">
                         {pv ? formatPrezzoUnitario(pv) : <span className="text-muted-foreground">—</span>}
                         <span className="text-xs font-normal text-muted-foreground"> / {unitaDellaVoce(t)}</span>
@@ -1771,7 +1773,7 @@ function TariffeTable({
                     </div>
                     {isAdmin && (
                       <div className="flex items-baseline gap-1">
-                        <dt className="text-xs text-muted-foreground">Costo</dt>
+                        <dt className="text-xs text-muted-foreground">{tr("Costo")}</dt>
                         <dd className="tabular-nums">
                           {costoNoto != null ? formatPrezzoUnitario(pc) : <span className="text-muted-foreground">—</span>}
                           {pc > 0 && <span className="text-xs text-muted-foreground"> · {modalitaCostoVoce(t, pc)}</span>}
@@ -1780,7 +1782,7 @@ function TariffeTable({
                     )}
                     {isAdmin && (
                       <div className="flex items-baseline gap-1">
-                        <dt className="text-xs text-muted-foreground">Margine</dt>
+                        <dt className="text-xs text-muted-foreground">{tr("Margine")}</dt>
                         <dd>{hasBoth ? <MargineConSemaforo margine={margine} sem={sem} /> : <span className="text-muted-foreground">—</span>}<RicaricoVoce t={t} pv={pv} pc={costoNoto} sg={sg} /></dd>
                       </div>
                     )}
@@ -1811,17 +1813,17 @@ function TariffeTable({
                 <Checkbox
                   checked={headerChecked}
                   onCheckedChange={(v) => onToggleSelectAll(visibleIds, v === true)}
-                  aria-label="Seleziona tutte le voci visibili"
+                  aria-label={tr("Seleziona tutte le voci visibili")}
                 />
               )}
             </TableHead>
-            <SortableTableHead column="attivo" label="Stato" sortConfig={sortConfig} onSort={toggleSort} className="w-[64px]" />
-            <SortableTableHead column="nome" label="Nome" sortConfig={sortConfig} onSort={toggleSort} />
+            <SortableTableHead column="attivo" label={tr("Stato")} sortConfig={sortConfig} onSort={toggleSort} className="w-[64px]" />
+            <SortableTableHead column="nome" label={tr("Nome")} sortConfig={sortConfig} onSort={toggleSort} />
             <SortableTableHead column="unita" label="UM" sortConfig={sortConfig} onSort={toggleSort} className="w-[56px]" />
-            <SortableTableHead column="prezzo_vendita" label="Vendita" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[104px]" />
-            {isAdmin && <SortableTableHead column="costo" label="Costo" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[104px]" />}
-            {isAdmin && <SortableTableHead column="margine" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[112px]" />}
-            <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>
+            <SortableTableHead column="prezzo_vendita" label={tr("Vendita")} sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[104px]" />
+            {isAdmin && <SortableTableHead column="costo" label={tr("Costo")} sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[104px]" />}
+            {isAdmin && <SortableTableHead column="margine" label={tr("Margine")} sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[112px]" />}
+            <TableHead className="w-[48px]"><span className="sr-only">{tr("Azioni")}</span></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -1852,7 +1854,7 @@ function TariffeTable({
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={() => onToggleSelect(t.id)}
-                      aria-label={`Seleziona ${t.nome}`}
+                      aria-label={tr("Seleziona {nome}", { nome: String(t.nome ?? "") })}
                     />
                   )}
                 </TableCell>
@@ -1906,6 +1908,7 @@ type VerticalFilter = FiltroAreaTariffe;
 type MargineFilter = "all" | "sotto-soglia" | "perdita" | "senza-costo" | "senza-prezzo" | "dal-costo" | "prezzo-libero" | "da-aggiornare";
 
 export default function SettingsTariffe() {
+  const tr = useT();
   const { effectiveCompany, role } = useAuth();
   const { vertical: currentVertical } = useVertical();
   const permissions = usePermissions();
@@ -2009,7 +2012,7 @@ export default function SettingsTariffe() {
   });
   const squadraName = useMemo(() => {
     const m: Record<string, string> = {};
-    for (const sq of squadre) m[sq.id] = sq.name ?? "Squadra";
+    for (const sq of squadre) m[sq.id] = sq.name ?? tr("Squadra");
     return m;
   }, [squadre]);
 
@@ -2056,7 +2059,7 @@ export default function SettingsTariffe() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!companyId) throw new Error(tr("Azienda non disponibile"));
       const { data, error } = await supabase
         .from("tariffe_aziendali")
         .delete()
@@ -2066,24 +2069,24 @@ export default function SettingsTariffe() {
       if (error) {
         // Assegnata come manodopera a un preventivo: il database non la lascia cancellare.
         if ((error as { code?: string }).code === "23503")
-          throw new Error("La voce è assegnata come manodopera a uno o più preventivi: non si può eliminare. Archiviala.");
+          throw new Error(tr("La voce è assegnata come manodopera a uno o più preventivi: non si può eliminare. Archiviala."));
         throw error;
       }
-      if (!data?.length) throw new Error("Voce non eliminata: non hai il permesso o è già stata tolta.");
+      if (!data?.length) throw new Error(tr("Voce non eliminata: non hai il permesso o è già stata tolta."));
     },
     onSuccess: () => {
       invalidateAllTariffe(queryClient);
-      toast.success("Voce eliminata");
+      toast.success(tr("Voce eliminata"));
       setDeleteId(null);
     },
     onError: (err: unknown) => {
-      toast.error(testoErrore(err, "Voce non eliminata."));
+      toast.error(testoErrore(err, tr("Voce non eliminata.")));
     },
   });
 
   const toggleAttivoMutation = useMutation({
     mutationFn: async (t: Tariffa) => {
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!companyId) throw new Error(tr("Azienda non disponibile"));
       const next = !(t.attivo !== false);
       const { data, error } = await supabase
         .from("tariffe_aziendali")
@@ -2092,21 +2095,21 @@ export default function SettingsTariffe() {
         .eq("company_id", companyId)
         .select("id");
       if (error) throw error;
-      if (!data?.length) throw new Error("Voce non aggiornata: non hai il permesso o è stata tolta.");
+      if (!data?.length) throw new Error(tr("Voce non aggiornata: non hai il permesso o è stata tolta."));
       return next;
     },
     onSuccess: (next) => {
       invalidateAllTariffe(queryClient);
-      toast.success(next ? "Voce riattivata" : "Voce archiviata");
+      toast.success(next ? tr("Voce riattivata") : tr("Voce archiviata"));
     },
     onError: (err: unknown) => {
-      toast.error(testoErrore(err, "Stato della voce non cambiato."));
+      toast.error(testoErrore(err, tr("Stato della voce non cambiato.")));
     },
   });
 
   const duplicaMutation = useMutation({
     mutationFn: async (t: Tariffa) => {
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!companyId) throw new Error(tr("Azienda non disponibile"));
       const payload: Record<string, unknown> = {
         company_id: companyId,
         nome: `${t.nome} (copia)`,
@@ -2140,17 +2143,17 @@ export default function SettingsTariffe() {
     },
     onSuccess: () => {
       invalidateAllTariffe(queryClient);
-      toast.success("Voce duplicata");
+      toast.success(tr("Voce duplicata"));
     },
     onError: (err: unknown) => {
-      toast.error(testoErrore(err, "Voce non duplicata."));
+      toast.error(testoErrore(err, tr("Voce non duplicata.")));
     },
   });
 
   // ─── Azioni in blocco ─────────────────────────────────────────────────────
   const bulkSetAttivoMutation = useMutation({
     mutationFn: async ({ ids, attivo }: { ids: string[]; attivo: boolean }) => {
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!companyId) throw new Error(tr("Azienda non disponibile"));
       if (ids.length === 0) return { count: 0, attivo };
       const { data, error } = await supabase
         .from("tariffe_aziendali")
@@ -2159,7 +2162,7 @@ export default function SettingsTariffe() {
         .eq("company_id", companyId)
         .select("id");
       if (error) throw error;
-      if (!data?.length) throw new Error("Nessuna voce aggiornata: non hai il permesso o sono già state tolte.");
+      if (!data?.length) throw new Error(tr("Nessuna voce aggiornata: non hai il permesso o sono già state tolte."));
       return { count: data.length, attivo };
     },
     onSuccess: ({ count, attivo }) => {
@@ -2167,18 +2170,18 @@ export default function SettingsTariffe() {
       setSelectedIds(new Set());
       toast.success(
         attivo
-          ? `${count} ${count === 1 ? "voce riattivata" : "voci riattivate"}`
-          : `${count} ${count === 1 ? "voce archiviata" : "voci archiviate"}`,
+          ? tr(count === 1 ? "{n} voce riattivata" : "{n} voci riattivate", { n: count })
+          : tr(count === 1 ? "{n} voce archiviata" : "{n} voci archiviate", { n: count }),
       );
     },
     onError: (err: unknown) => {
-      toast.error(testoErrore(err, "Stato delle voci non cambiato."));
+      toast.error(testoErrore(err, tr("Stato delle voci non cambiato.")));
     },
   });
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!companyId) throw new Error(tr("Azienda non disponibile"));
       if (ids.length === 0) return 0;
       const { data, error } = await supabase
         .from("tariffe_aziendali")
@@ -2188,20 +2191,20 @@ export default function SettingsTariffe() {
         .select("id");
       if (error) {
         if ((error as { code?: string }).code === "23503")
-          throw new Error("Almeno una voce è assegnata come manodopera a un preventivo: nessuna è stata eliminata. Archivia quelle voci.");
+          throw new Error(tr("Almeno una voce è assegnata come manodopera a un preventivo: nessuna è stata eliminata. Archivia quelle voci."));
         throw error;
       }
-      if (!data?.length) throw new Error("Nessuna voce eliminata: non hai il permesso o sono già state tolte.");
+      if (!data?.length) throw new Error(tr("Nessuna voce eliminata: non hai il permesso o sono già state tolte."));
       return data.length;
     },
     onSuccess: (count) => {
       invalidateAllTariffe(queryClient);
       setSelectedIds(new Set());
       setBulkDeleteOpen(false);
-      toast.success(`${count} ${count === 1 ? "voce eliminata" : "voci eliminate"}`);
+      toast.success(tr(count === 1 ? "{n} voce eliminata" : "{n} voci eliminate", { n: count }));
     },
     onError: (err: unknown) => {
-      toast.error(testoErrore(err, "Voci non eliminate."));
+      toast.error(testoErrore(err, tr("Voci non eliminate.")));
     },
   });
 
@@ -2327,13 +2330,13 @@ export default function SettingsTariffe() {
   const activeFilterChips = useMemo(() => {
     const chips: { key: string; label: string; onRemove: () => void }[] = [];
     const q = search.trim();
-    if (categoriaRegionaleFilter !== "all") chips.push({ key: "categoria-regionale", label: `Categoria regionale: ${categoriaRegionaleFilter}`, onRemove: () => setCategoriaRegionaleFilter("all") });
-    if (lavorazioneFilter !== "all") chips.push({ key: "lavorazione", label: `Lavorazioni: ${GRUPPI_LAVORAZIONE.find(g => g.id === lavorazioneFilter)?.nome}`, onRemove: () => setLavorazioneFilter("all") });
-    if (q) chips.push({ key: "search", label: `Cerca: "${q}"`, onRemove: () => setSearch("") });
+    if (categoriaRegionaleFilter !== "all") chips.push({ key: "categoria-regionale", label: tr("Categoria regionale: {categoria}", { categoria: categoriaRegionaleFilter }), onRemove: () => setCategoriaRegionaleFilter("all") });
+    if (lavorazioneFilter !== "all") chips.push({ key: "lavorazione", label: tr("Lavorazioni: {gruppo}", { gruppo: tr(GRUPPI_LAVORAZIONE.find(g => g.id === lavorazioneFilter)?.nome ?? "") }), onRemove: () => setLavorazioneFilter("all") });
+    if (q) chips.push({ key: "search", label: tr("Cerca: \"{q}\"", { q }), onRemove: () => setSearch("") });
     if (statoFilter !== "attive")
       chips.push({
         key: "stato",
-        label: statoFilter === "standard" ? "Stato: basi da completare" : statoFilter === "archiviate" ? "Stato: archiviate" : "Stato: tutte",
+        label: statoFilter === "standard" ? tr("Stato: basi da completare") : statoFilter === "archiviate" ? tr("Stato: archiviate") : tr("Stato: tutte"),
         onRemove: () => setStatoFilter("attive"),
       });
     if (verticalFilter !== "all")
@@ -2341,23 +2344,23 @@ export default function SettingsTariffe() {
         key: "vertical",
         label:
           verticalFilter === "current"
-            ? `Area: ${nomeArea(areaDiVerticale(currentVertical) ?? "generale")}`
-            : verticalFilter === "global" ? "Area: comuni / non assegnate" : `Area: ${nomeArea(verticalFilter.slice(5))}`,
+            ? tr("Area: {area}", { area: tr(nomeArea(areaDiVerticale(currentVertical) ?? "generale")) })
+            : verticalFilter === "global" ? tr("Area: comuni / non assegnate") : tr("Area: {area}", { area: tr(nomeArea(verticalFilter.slice(5))) }),
         onRemove: () => setVerticalFilter("all"),
       });
     if (margineFilter !== "all")
       chips.push({
         key: "margine",
-        label: margineFilter === "perdita" ? "Redditività: in perdita" : margineFilter === "senza-costo" ? "Prezzi e costi: costo da impostare" : margineFilter === "senza-prezzo" ? "Prezzi e costi: prezzo da impostare" : margineFilter === "dal-costo" ? "Prezzo: dal costo" : margineFilter === "prezzo-libero" ? "Prezzo: libero" : margineFilter === "da-aggiornare" ? "Prezzo: dal costo, da aggiornare" : "Redditività: sotto soglia",
+        label: margineFilter === "perdita" ? tr("Redditività: in perdita") : margineFilter === "senza-costo" ? tr("Prezzi e costi: costo da impostare") : margineFilter === "senza-prezzo" ? tr("Prezzi e costi: prezzo da impostare") : margineFilter === "dal-costo" ? tr("Prezzo: dal costo") : margineFilter === "prezzo-libero" ? tr("Prezzo: libero") : margineFilter === "da-aggiornare" ? tr("Prezzo: dal costo, da aggiornare") : tr("Redditività: sotto soglia"),
         onRemove: () => setMargineFilter("all"),
       });
     return chips;
-  }, [search, statoFilter, verticalFilter, margineFilter, currentVertical, lavorazioneFilter, categoriaRegionaleFilter]);
+  }, [search, statoFilter, verticalFilter, margineFilter, currentVertical, lavorazioneFilter, categoriaRegionaleFilter, tr]);
 
   // Esporta in CSV ciò che è attualmente filtrato (round-trip con l'import).
   const exportCsv = () => {
     if (filtered.length === 0) {
-      toast.info("Nessuna voce da esportare con i filtri attuali");
+      toast.info(tr("Nessuna voce da esportare con i filtri attuali"));
       return;
     }
     // Costo e unità esportati sono quelli che la pagina mostra (costoTariffa,
@@ -2376,7 +2379,7 @@ export default function SettingsTariffe() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    toast.success(`Esportate ${filtered.length} voci in CSV`);
+    toast.success(tr("Esportate {n} voci in CSV", { n: filtered.length }));
   };
 
   if (!companyId) return null;
@@ -2389,14 +2392,14 @@ export default function SettingsTariffe() {
       <Tabs value={scheda} onValueChange={setScheda}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <TabsList
-            aria-label="Manodopera e servizi, impianti, interventi e prezzi di manutenzione"
+            aria-label={tr("Manodopera e servizi, impianti, interventi e prezzi di manutenzione")}
             className="h-auto w-full justify-start gap-1 overflow-x-auto sm:w-auto"
           >
-            <TabsTrigger value="manodopera" className="shrink-0">Manodopera e servizi</TabsTrigger>
+            <TabsTrigger value="manodopera" className="shrink-0">{tr("Manodopera e servizi")}</TabsTrigger>
             <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
-            <TabsTrigger value="impianti" className="shrink-0">Impianti</TabsTrigger>
-            <TabsTrigger value="interventi" className="shrink-0">Interventi</TabsTrigger>
-            <TabsTrigger value="prezzi" className="shrink-0">Prezzi di manutenzione</TabsTrigger>
+            <TabsTrigger value="impianti" className="shrink-0">{tr("Impianti")}</TabsTrigger>
+            <TabsTrigger value="interventi" className="shrink-0">{tr("Interventi")}</TabsTrigger>
+            <TabsTrigger value="prezzi" className="shrink-0">{tr("Prezzi di manutenzione")}</TabsTrigger>
           </TabsList>
           {scheda === "manodopera" && (
             <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto [&>*]:max-sm:flex-1">
@@ -2408,7 +2411,7 @@ export default function SettingsTariffe() {
                     className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
                   >
                     <Layers3 className="h-4 w-4 mr-1.5" aria-hidden />
-                    {isAdmin ? "Importa / Esporta" : "Esporta"}
+                    {isAdmin ? tr("Importa / Esporta") : tr("Esporta")}
                     <ChevronDown className="h-4 w-4 ml-1 opacity-60" aria-hidden />
                   </Button>
                 </DropdownMenuTrigger>
@@ -2420,28 +2423,28 @@ export default function SettingsTariffe() {
                       <DropdownMenuItem onClick={() => setStandardOpen(true)} className="gap-2 cursor-pointer">
                         <Zap className="h-4 w-4 text-orange-500 shrink-0" />
                         <div className="flex flex-col">
-                          <span>Catalogo standard</span>
-                          <span className="text-xs text-muted-foreground">Voci tipiche del tuo settore</span>
+                          <span>{tr("Catalogo standard")}</span>
+                          <span className="text-xs text-muted-foreground">{tr("Voci tipiche del tuo settore")}</span>
                         </div>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setImportOpen(true)} className="gap-2 cursor-pointer">
                         <FileSpreadsheet className="h-4 w-4 text-orange-500 shrink-0" />
                         <div className="flex flex-col">
-                          <span>Importa prezziario</span>
-                          <span className="text-xs text-muted-foreground">Carica un CSV o Excel</span>
+                          <span>{tr("Importa prezziario")}</span>
+                          <span className="text-xs text-muted-foreground">{tr("Carica un CSV o Excel")}</span>
                         </div>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setImportRegionaleOpen(true)} className="gap-2 cursor-pointer">
                         <Library className="h-4 w-4 text-orange-500 shrink-0" />
                         <div className="flex flex-col">
-                          <span>Importa da prezzario regionale</span>
-                          <span className="text-xs text-muted-foreground">Voci dai prezzari ufficiali regionali</span>
+                          <span>{tr("Importa da prezzario regionale")}</span>
+                          <span className="text-xs text-muted-foreground">{tr("Voci dai prezzari ufficiali regionali")}</span>
                         </div>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                     </>
                   )}
-                  <DropdownMenuLabel>Esporta</DropdownMenuLabel>
+                  <DropdownMenuLabel>{tr("Esporta")}</DropdownMenuLabel>
                   <DropdownMenuItem
                     onClick={exportCsv}
                     disabled={tariffe.length === 0}
@@ -2449,8 +2452,8 @@ export default function SettingsTariffe() {
                   >
                     <Download className="h-4 w-4 text-orange-500 shrink-0" />
                     <div className="flex flex-col">
-                      <span>Esporta in CSV</span>
-                      <span className="text-xs text-muted-foreground">Scarica il listino filtrato</span>
+                      <span>{tr("Esporta in CSV")}</span>
+                      <span className="text-xs text-muted-foreground">{tr("Scarica il listino filtrato")}</span>
                     </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -2461,7 +2464,7 @@ export default function SettingsTariffe() {
                   onClick={openNew}
                   className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
                 >
-                  <Plus className="h-4 w-4 mr-1.5" aria-hidden />Nuova voce
+                  <Plus className="h-4 w-4 mr-1.5" aria-hidden />{tr("Nuova voce")}
                 </Button>
               )}
             </div>
@@ -2469,12 +2472,12 @@ export default function SettingsTariffe() {
         </div>
 
         <TabsContent value="manodopera" className="mt-4 space-y-4">
-      <h2 className="sr-only">Manodopera e servizi</h2>
+      <h2 className="sr-only">{tr("Manodopera e servizi")}</h2>
 
       {!isAdmin && (
         <Alert>
           <AlertDescription>
-            Stai consultando il listino: le voci le modifica chi ha il permesso «Listino &amp; Prezzi» in modifica.
+            {tr("Stai consultando il listino: le voci le modifica chi ha il permesso «Listino & Prezzi» in modifica.")}
           </AlertDescription>
         </Alert>
       )}
@@ -2482,11 +2485,11 @@ export default function SettingsTariffe() {
       {isError && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" aria-hidden />
-          <h2 className="mb-1 font-medium leading-none tracking-tight">Manodopera e servizi non caricati</h2>
+          <h2 className="mb-1 font-medium leading-none tracking-tight">{tr("Manodopera e servizi non caricati")}</h2>
           <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span>{testoErrore(error, "Non riesco a leggere le voci.")}</span>
+            <span>{testoErrore(error, tr("Non riesco a leggere le voci."))}</span>
             <Button size="sm" variant="outline" onClick={() => void refetch()}>
-              Riprova
+              {tr("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -2522,8 +2525,8 @@ export default function SettingsTariffe() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cerca per nome, tipo, unità o area…"
-              aria-label="Cerca tra le voci"
+              placeholder={tr("Cerca per nome, tipo, unità o area…")}
+              aria-label={tr("Cerca tra le voci")}
               className="h-9 pl-9 max-md:h-11"
             />
           </div>
@@ -2532,65 +2535,65 @@ export default function SettingsTariffe() {
             attivi={[statoFilter !== "attive", verticalFilter !== "all", lavorazioneFilter !== "all", categoriaRegionaleFilter !== "all", squadraFilter !== "tutte", margineFilter !== "all"].filter(Boolean).length}
           >
           <Select value={statoFilter} onValueChange={(v) => setStatoFilter(v as StatoFilter)}>
-            <SelectTrigger aria-label="Filtra per stato della voce" className="h-9 w-full md:w-[180px] max-md:h-11">
+            <SelectTrigger aria-label={tr("Filtra per stato della voce")} className="h-9 w-full md:w-[180px] max-md:h-11">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="attive">Solo attive</SelectItem>
-              <SelectItem value="standard">Basi da completare</SelectItem>
-              <SelectItem value="archiviate">Solo archiviate</SelectItem>
-              <SelectItem value="all">Tutte</SelectItem>
+              <SelectItem value="attive">{tr("Solo attive")}</SelectItem>
+              <SelectItem value="standard">{tr("Basi da completare")}</SelectItem>
+              <SelectItem value="archiviate">{tr("Solo archiviate")}</SelectItem>
+              <SelectItem value="all">{tr("Tutte")}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={verticalFilter} onValueChange={(v) => setVerticalFilter(v as VerticalFilter)}>
-            <SelectTrigger aria-label="Filtra per area di lavoro" className="h-9 w-full md:w-[220px] max-md:h-11">
-              <SelectValue placeholder="Filtra per area" />
+            <SelectTrigger aria-label={tr("Filtra per area di lavoro")} className="h-9 w-full md:w-[220px] max-md:h-11">
+              <SelectValue placeholder={tr("Filtra per area")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutte le aree</SelectItem>
-              <SelectItem value="global">Comuni / non assegnate</SelectItem>
+              <SelectItem value="all">{tr("Tutte le aree")}</SelectItem>
+              <SelectItem value="global">{tr("Comuni / non assegnate")}</SelectItem>
               {areePerTariffe(tariffe).map((area) => (
                 <SelectItem key={area.chiave} value={`area:${area.chiave}`}>{area.nome}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <UniformSelect aria-label="Filtra per gruppo di lavorazioni" value={lavorazioneFilter} onChange={e => { setLavorazioneFilter(e.target.value as GruppoLavorazione | "all"); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[230px] max-md:h-11">
-            <option value="all">Tutte le lavorazioni</option>
+          <UniformSelect aria-label={tr("Filtra per gruppo di lavorazioni")} value={lavorazioneFilter} onChange={e => { setLavorazioneFilter(e.target.value as GruppoLavorazione | "all"); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[230px] max-md:h-11">
+            <option value="all">{tr("Tutte le lavorazioni")}</option>
             {/* Solo i gruppi che l'azienda usa: a un serramentista non servono le strutture. */}
             {GRUPPI_LAVORAZIONE.filter(g => g.id === lavorazioneFilter || tariffe.some(t => gruppoLavorazione(t) === g.id)).map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
           </UniformSelect>
-          {tariffe.some(t => categoriaPrezzarioTariffa(t)) && <UniformSelect aria-label="Filtra per categoria regionale" value={categoriaRegionaleFilter} onChange={e => { setCategoriaRegionaleFilter(e.target.value); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[250px] max-md:h-11">
-            <option value="all">Tutte le categorie regionali</option>
+          {tariffe.some(t => categoriaPrezzarioTariffa(t)) && <UniformSelect aria-label={tr("Filtra per categoria regionale")} value={categoriaRegionaleFilter} onChange={e => { setCategoriaRegionaleFilter(e.target.value); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[250px] max-md:h-11">
+            <option value="all">{tr("Tutte le categorie regionali")}</option>
             {[...new Set(tariffe.flatMap(t => categoriaPrezzarioTariffa(t) ? [categoriaPrezzarioTariffa(t)!] : []))].sort().map(c => <option key={c} value={c}>{c}</option>)}
           </UniformSelect>}
           {squadre.length > 0 && (
             <Select value={squadraFilter} onValueChange={setSquadraFilter}>
-              <SelectTrigger aria-label="Filtra per listino" className="h-9 w-full md:w-[180px] max-md:h-11">
-                <SelectValue placeholder="Listino" />
+              <SelectTrigger aria-label={tr("Filtra per listino")} className="h-9 w-full md:w-[180px] max-md:h-11">
+                <SelectValue placeholder={tr("Listino")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="tutte">Tutti i listini</SelectItem>
-                <SelectItem value="generico">Listino aziendale (generico)</SelectItem>
+                <SelectItem value="tutte">{tr("Tutti i listini")}</SelectItem>
+                <SelectItem value="generico">{tr("Listino aziendale (generico)")}</SelectItem>
                 {squadre.map((sq) => (
-                  <SelectItem key={sq.id} value={sq.id}>{sq.name ?? "Squadra"}</SelectItem>
+                  <SelectItem key={sq.id} value={sq.id}>{sq.name ?? tr("Squadra")}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           )}
           {isAdmin && (
             <Select value={margineFilter} onValueChange={(v) => setMargineFilter(v as MargineFilter)}>
-              <SelectTrigger aria-label="Filtra per redditività" className="h-9 w-full md:w-[160px] max-md:h-11">
-                <SelectValue placeholder="Redditività" />
+              <SelectTrigger aria-label={tr("Filtra per redditività")} className="h-9 w-full md:w-[160px] max-md:h-11">
+                <SelectValue placeholder={tr("Redditività")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i margini</SelectItem>
-                <SelectItem value="sotto-soglia">Sotto soglia (&lt;{soglia}%)</SelectItem>
-                <SelectItem value="perdita">In perdita (&lt;0%)</SelectItem>
-                <SelectItem value="senza-costo">Costo da impostare</SelectItem>
-                <SelectItem value="senza-prezzo">Prezzo da impostare</SelectItem>
-                <SelectItem value="dal-costo">Prezzo dal costo</SelectItem>
-                <SelectItem value="prezzo-libero">Prezzo libero</SelectItem>
-                <SelectItem value="da-aggiornare">Dal costo, da aggiornare</SelectItem>
+                <SelectItem value="all">{tr("Tutti i margini")}</SelectItem>
+                <SelectItem value="sotto-soglia">{tr("Sotto soglia (<{soglia}%)", { soglia: String(soglia ?? "") })}</SelectItem>
+                <SelectItem value="perdita">{tr("In perdita (<0%)")}</SelectItem>
+                <SelectItem value="senza-costo">{tr("Costo da impostare")}</SelectItem>
+                <SelectItem value="senza-prezzo">{tr("Prezzo da impostare")}</SelectItem>
+                <SelectItem value="dal-costo">{tr("Prezzo dal costo")}</SelectItem>
+                <SelectItem value="prezzo-libero">{tr("Prezzo libero")}</SelectItem>
+                <SelectItem value="da-aggiornare">{tr("Dal costo, da aggiornare")}</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -2608,7 +2611,7 @@ export default function SettingsTariffe() {
                 <button
                   type="button"
                   onClick={c.onRemove}
-                  aria-label={`Rimuovi filtro: ${c.label}`}
+                  aria-label={tr("Rimuovi filtro: {label}", { label: String(c.label ?? "") })}
                   className="ml-0.5 rounded-sm p-0.5 hover:bg-muted-foreground/20"
                 >
                   <X className="h-3 w-3" />
@@ -2617,11 +2620,11 @@ export default function SettingsTariffe() {
             ))}
             <span className="ml-1">
               <span className="font-medium text-foreground">{tariffeForActiveGroup.length}</span>{" "}
-              {tariffeForActiveGroup.length === 1 ? "voce" : "voci"}
-              {tariffeForActiveGroup.length !== tariffe.length && ` su ${tariffe.length} totali`}
+              {tariffeForActiveGroup.length === 1 ? tr("voce") : tr("voci")}
+              {tariffeForActiveGroup.length !== tariffe.length && tr(" su {n} totali", { n: tariffe.length })}
             </span>
             <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={resetFilters}>
-              <FilterX className="h-3.5 w-3.5 mr-1" />Azzera filtri
+              <FilterX className="h-3.5 w-3.5 mr-1" />{tr("Azzera filtri")}
             </Button>
           </div>
         )}
@@ -2642,7 +2645,7 @@ export default function SettingsTariffe() {
             return (
               <TabsTrigger key={g.value} value={g.value} className="shrink-0 gap-1.5">
                 <Icon className="h-3.5 w-3.5" aria-hidden />
-                {g.label}
+                {tr(g.label)}
                 {count > 0 && (
                   <Badge variant="secondary" className="ml-1 text-xs">
                     {count}
@@ -2657,7 +2660,7 @@ export default function SettingsTariffe() {
           {isLoading ? (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
-                Caricamento…
+                {tr("Caricamento…")}
               </CardContent>
             </Card>
           ) : tariffe.length === 0 ? (
@@ -2667,23 +2670,23 @@ export default function SettingsTariffe() {
                   <Layers3 className="h-6 w-6" aria-hidden />
                 </div>
                 <div>
-                  <h2 className="font-semibold">Nessuna voce ancora</h2>
+                  <h2 className="font-semibold">{tr("Nessuna voce ancora")}</h2>
                   <p className="text-sm text-muted-foreground mt-1">
                     {isAdmin
-                      ? "Inizia creando le voci standard del tuo settore o aggiungine una nuova."
-                      : "Le voci le aggiunge chi ha il permesso di modificare il listino."}
+                      ? tr("Inizia creando le voci standard del tuo settore o aggiungine una nuova.")
+                      : tr("Le voci le aggiunge chi ha il permesso di modificare il listino.")}
                   </p>
                 </div>
                 {isAdmin && (
                   <div className="flex justify-center gap-2 flex-wrap">
                     <Button variant="outline" onClick={() => setStandardOpen(true)}>
-                      <Zap className="h-4 w-4 mr-2" />Usa il catalogo standard
+                      <Zap className="h-4 w-4 mr-2" />{tr("Usa il catalogo standard")}
                     </Button>
                     <Button variant="outline" onClick={() => setImportOpen(true)}>
-                      <FileSpreadsheet className="h-4 w-4 mr-2" />Importa prezziario
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />{tr("Importa prezziario")}
                     </Button>
                     <Button onClick={openNew}>
-                      <Plus className="h-4 w-4 mr-2" />Nuova voce
+                      <Plus className="h-4 w-4 mr-2" />{tr("Nuova voce")}
                     </Button>
                   </div>
                 )}
@@ -2696,20 +2699,19 @@ export default function SettingsTariffe() {
                   <Search className="h-6 w-6" aria-hidden />
                 </div>
                 <div>
-                  <h2 className="font-semibold">Nessun risultato</h2>
+                  <h2 className="font-semibold">{tr("Nessun risultato")}</h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Nessuna voce corrisponde ai filtri o alla ricerca attuali.
+                    {tr("Nessuna voce corrisponde ai filtri o alla ricerca attuali.")}
                   </p>
                   {verticalFilter.startsWith("area:") && (
                     <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
-                      Le voci senza area sono in «Comuni / non assegnate». Puoi aprirle e scegliere l&apos;area di lavoro:
-                      il nome della lavorazione, da solo, non la assegna automaticamente.
+                      {tr("Le voci senza area sono in «Comuni / non assegnate». Puoi aprirle e scegliere l'area di lavoro: il nome della lavorazione, da solo, non la assegna automaticamente.")}
                     </p>
                   )}
                 </div>
                 <div className="flex justify-center">
                   <Button variant="outline" onClick={resetFilters}>
-                    <FilterX className="h-4 w-4 mr-2" />Azzera filtri
+                    <FilterX className="h-4 w-4 mr-2" />{tr("Azzera filtri")}
                   </Button>
                 </div>
               </CardContent>
@@ -2719,7 +2721,7 @@ export default function SettingsTariffe() {
               {selectedIds.size > 0 && (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 dark:border-orange-900/50 dark:bg-orange-950/30">
                   <span className="text-sm font-medium text-orange-900 dark:text-orange-200">
-                    {selectedIds.size} {selectedIds.size === 1 ? "voce selezionata" : "voci selezionate"}
+                    {selectedIds.size} {selectedIds.size === 1 ? tr("voce selezionata") : tr("voci selezionate")}
                   </span>
                   <div className="flex-1" />
                   <Button
@@ -2729,17 +2731,17 @@ export default function SettingsTariffe() {
                     onClick={() => setPriceAdjustOpen(true)}
                   >
                     <Percent className="h-4 w-4 mr-1.5" />
-                    Adegua prezzi
+                    {tr("Adegua prezzi")}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     disabled={bulkBusy || !regole}
                     onClick={() => setPrezzoDalCosto({ modo: "applica", items: selectedItems })}
-                    title="Le voci selezionate passano a «dal costo» con un ricarico"
+                    title={tr("Le voci selezionate passano a «dal costo» con un ricarico")}
                   >
                     <Calculator className="h-4 w-4 mr-1.5" />
-                    Prezzo dal costo
+                    {tr("Prezzo dal costo")}
                   </Button>
                   {selectedArchiviateCount > 0 && (
                     <Button
@@ -2751,7 +2753,7 @@ export default function SettingsTariffe() {
                       }
                     >
                       <RotateCcw className="h-4 w-4 mr-1.5" />
-                      Riattiva{selectedArchiviateCount !== selectedIds.size ? ` (${selectedArchiviateCount})` : ""}
+                      {tr("Riattiva")}{selectedArchiviateCount !== selectedIds.size ? ` (${selectedArchiviateCount})` : ""}
                     </Button>
                   )}
                   {selectedAttiveCount > 0 && (
@@ -2764,7 +2766,7 @@ export default function SettingsTariffe() {
                       }
                     >
                       <Archive className="h-4 w-4 mr-1.5" />
-                      Archivia{selectedAttiveCount !== selectedIds.size ? ` (${selectedAttiveCount})` : ""}
+                      {tr("Archivia")}{selectedAttiveCount !== selectedIds.size ? ` (${selectedAttiveCount})` : ""}
                     </Button>
                   )}
                   <Button
@@ -2775,11 +2777,11 @@ export default function SettingsTariffe() {
                     onClick={() => setBulkDeleteOpen(true)}
                   >
                     <Trash2 className="h-4 w-4 mr-1.5" />
-                    Elimina
+                    {tr("Elimina")}
                   </Button>
                   <Button size="sm" variant="ghost" disabled={bulkBusy} onClick={clearSelection}>
                     <X className="h-4 w-4 mr-1.5" />
-                    Deseleziona
+                    {tr("Deseleziona")}
                   </Button>
                 </div>
               )}
@@ -2877,36 +2879,33 @@ export default function SettingsTariffe() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Elimina {deleteTariffa ? `«${deleteTariffa.nome}»` : "voce"}
+              {tr("Elimina")} {deleteTariffa ? `«${deleteTariffa.nome}»` : tr("voce")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione è irreversibile. Se preferisci puoi archiviare la voce:
-              non sarà più selezionabile nei nuovi preventivi ma potrai riattivarla in qualsiasi momento.
+              {tr("Questa azione è irreversibile. Se preferisci puoi archiviare la voce: non sarà più selezionabile nei nuovi preventivi ma potrai riattivarla in qualsiasi momento.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           {/* #50 — Guardia: avvisa se la voce è ancora collegata. */}
           {deleteUsageLoading ? (
-            <div className="text-xs text-muted-foreground">Verifica dei collegamenti in corso…</div>
+            <div className="text-xs text-muted-foreground">{tr("Verifica dei collegamenti in corso…")}</div>
           ) : deleteUsageTotal > 0 ? (
             <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                 <div>
                   <span className="font-medium">
-                    Questa voce è collegata in {deleteUsageTotal}{" "}
-                    {deleteUsageTotal === 1 ? "punto" : "punti"}.
+                    {tr("Questa voce è collegata in")} {deleteUsageTotal}{" "}
+                    {deleteUsageTotal === 1 ? tr("punto") : tr("punti")}.
                   </span>{" "}
-                  Eliminandola, preventivi e commesse tengono il testo ma perdono il collegamento alla voce;
-                  da pacchetti e alias viene tolta, e si perdono analisi prezzi e varianti di costo.
-                  Ti consigliamo di <span className="font-medium">archiviarla</span> invece di eliminarla.
+                  {tr("Eliminandola, preventivi e commesse tengono il testo ma perdono il collegamento alla voce; da pacchetti e alias viene tolta, e si perdono analisi prezzi e varianti di costo. Ti consigliamo di")} <span className="font-medium">{tr("archiviarla")}</span> {tr("invece di eliminarla.")}
                 </div>
               </div>
             </div>
           ) : null}
 
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             {deleteTariffa && deleteTariffa.attivo !== false && (
               <Button
                 variant="outline"
@@ -2915,7 +2914,7 @@ export default function SettingsTariffe() {
                   setDeleteId(null);
                 }}
               >
-                <Archive className="h-4 w-4 mr-2" />Archivia invece
+                <Archive className="h-4 w-4 mr-2" />{tr("Archivia invece")}
               </Button>
             )}
             <AlertDialogAction
@@ -2923,7 +2922,7 @@ export default function SettingsTariffe() {
               disabled={deleteUsageLoading || deleteMutation.isPending}
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
             >
-              Elimina definitivamente
+              {tr("Elimina definitivamente")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2973,36 +2972,33 @@ export default function SettingsTariffe() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Elimina {selectedIds.size} {selectedIds.size === 1 ? "voce" : "voci"}
+              {tr("Elimina")} {selectedIds.size} {selectedIds.size === 1 ? tr("voce") : tr("voci")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione è irreversibile ed elimina definitivamente le voci selezionate.
-              Se preferisci puoi archiviarle: non saranno più selezionabili nei nuovi preventivi
-              ma potrai riattivarle in qualsiasi momento.
+              {tr("Questa azione è irreversibile ed elimina definitivamente le voci selezionate. Se preferisci puoi archiviarle: non saranno più selezionabili nei nuovi preventivi ma potrai riattivarle in qualsiasi momento.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           {/* #51 — Guardia: avvisa se le voci selezionate sono ancora collegate. */}
           {bulkUsageLoading ? (
-            <div className="text-xs text-muted-foreground">Verifica dei collegamenti in corso…</div>
+            <div className="text-xs text-muted-foreground">{tr("Verifica dei collegamenti in corso…")}</div>
           ) : bulkUsageTotal > 0 ? (
             <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                 <div>
                   <span className="font-medium">
-                    Le voci selezionate sono collegate complessivamente in {bulkUsageTotal}{" "}
-                    {bulkUsageTotal === 1 ? "punto" : "punti"}.
+                    {tr("Le voci selezionate sono collegate complessivamente in")} {bulkUsageTotal}{" "}
+                    {bulkUsageTotal === 1 ? tr("punto") : tr("punti")}.
                   </span>{" "}
-                  Eliminandole, preventivi e commesse tengono il testo ma perdono il collegamento; da pacchetti e alias vengono tolte.
-                  Ti consigliamo di <span className="font-medium">archiviarle</span> invece di eliminarle.
+                  {tr("Eliminandole, preventivi e commesse tengono il testo ma perdono il collegamento; da pacchetti e alias vengono tolte. Ti consigliamo di")} <span className="font-medium">{tr("archiviarle")}</span> {tr("invece di eliminarle.")}
                 </div>
               </div>
             </div>
           ) : null}
 
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             {selectedAttiveCount > 0 && (
               <Button
                 variant="outline"
@@ -3014,7 +3010,7 @@ export default function SettingsTariffe() {
                   setBulkDeleteOpen(false);
                 }}
               >
-                <Archive className="h-4 w-4 mr-2" />Archivia invece
+                <Archive className="h-4 w-4 mr-2" />{tr("Archivia invece")}
               </Button>
             )}
             <AlertDialogAction
@@ -3022,7 +3018,7 @@ export default function SettingsTariffe() {
               disabled={bulkUsageLoading || bulkDeleteMutation.isPending}
               onClick={() => bulkDeleteMutation.mutate([...selectedIds])}
             >
-              Elimina definitivamente
+              {tr("Elimina definitivamente")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

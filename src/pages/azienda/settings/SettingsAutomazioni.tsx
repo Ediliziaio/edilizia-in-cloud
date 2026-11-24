@@ -9,12 +9,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Switch } from "@/components/ui/switch";
 import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
 import { AUTOMATISMI, type Automatismo } from "@/components/settings/automazioni/registroAutomatismi";
 import { MisuraAutomazioni } from "@/components/settings/automazioni/MisuraAutomazioni";
 import { DaFareAcquisti } from "@/components/settings/automazioni/DaFareAcquisti";
 import { SoglieCollegamentiCard } from "@/components/settings/automazioni/SoglieCollegamenti";
 import { EccezioniOperative } from "@/components/operazioni/EccezioniOperative";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const TONO: Record<string, string> = {
   neutro: "text-muted-foreground",
@@ -28,38 +28,39 @@ function nessunEsito(): undefined {
 }
 
 function RigaAutomatismo({ a, companyId, puoModificare, puoConfermare }: { a: Automatismo; companyId: string; puoModificare: boolean; puoConfermare: boolean }) {
+  const t = useT();
   const stato = a.useStato(companyId);
   const esito = (a.useUltimoEsito ?? nessunEsito)(companyId);
   return (
     <li id={a.id} className="grid gap-3 border-b px-4 py-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_11rem_14rem] md:items-start">
       <div className="min-w-0">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{a.area}</p>
-        <p className="font-medium">{a.titolo}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{a.cosaFa}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{a.daSpento}</p>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{t(a.area)}</p>
+        <p className="font-medium">{t(a.titolo)}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t(a.cosaFa)}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t(a.daSpento)}</p>
       </div>
       <div className="flex items-center gap-2">
         <Switch
           checked={stato.acceso}
           disabled={!puoModificare || stato.caricamento || stato.salvataggio}
           onCheckedChange={stato.cambia}
-          aria-label={a.titolo}
+          aria-label={t(a.titolo)}
         />
         <span className={`text-sm font-medium ${stato.acceso ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}>
-          {stato.caricamento ? "…" : stato.acceso ? "Acceso" : "Spento"}
+          {stato.caricamento ? "…" : stato.acceso ? t("Acceso") : t("Spento")}
         </span>
       </div>
       <div className="text-sm">
-        <p className="text-xs text-muted-foreground md:hidden">Ultimo esito</p>
+        <p className="text-xs text-muted-foreground md:hidden">{t("Ultimo esito")}</p>
         {esito ? (
           <>
             <p className={TONO[esito.tono]}>{esito.testo}</p>
             {esito.quando && (
-              <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(esito.quando), { addSuffix: true, locale: it })}</p>
+              <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(esito.quando), { addSuffix: true, locale: dateFnsCampo() })}</p>
             )}
           </>
         ) : (
-          <p className="text-muted-foreground">Nessun esito registrato</p>
+          <p className="text-muted-foreground">{t("Nessun esito registrato")}</p>
         )}
         {a.Azione && (
           <div className="mt-1">
@@ -72,6 +73,7 @@ function RigaAutomatismo({ a, companyId, puoModificare, puoConfermare }: { a: Au
 }
 
 export default function SettingsAutomazioni() {
+  const t = useT();
   const { effectiveCompany, role } = useAuth();
   const permessi = usePermissions();
   const companyId = effectiveCompany?.id;
@@ -87,18 +89,17 @@ export default function SettingsAutomazioni() {
           <Workflow className="h-5 w-5 text-primary" />
         </div>
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold leading-tight">Automazioni</h2>
+          <h2 className="text-lg font-semibold leading-tight">{t("Automazioni")}</h2>
           <p className="text-sm text-muted-foreground">
-            Cosa fa il gestionale da solo, acceso o spento, e l&apos;ultima volta che ha lavorato. Ogni cosa fatta da sola
-            resta nello storico con il perché e si può annullare.
+            {t("Cosa fa il gestionale da solo, acceso o spento, e l'ultima volta che ha lavorato. Ogni cosa fatta da sola resta nello storico con il perché e si può annullare.")}
           </p>
         </div>
       </div>
       <div className="rounded-lg border">
         <div className="hidden border-b bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground md:grid md:grid-cols-[minmax(0,1fr)_11rem_14rem]">
-          <span>Cosa fa</span>
-          <span>Stato</span>
-          <span>Ultimo esito</span>
+          <span>{t("Cosa fa")}</span>
+          <span>{t("Stato")}</span>
+          <span>{t("Ultimo esito")}</span>
         </div>
         <ul>
           {AUTOMATISMI.map((a) => (
@@ -106,11 +107,11 @@ export default function SettingsAutomazioni() {
           ))}
         </ul>
       </div>
-      {!puoModificare && <p className="text-xs text-muted-foreground">Gli interruttori li cambia l&apos;amministratore dell&apos;azienda.</p>}
+      {!puoModificare && <p className="text-xs text-muted-foreground">{t("Gli interruttori li cambia l'amministratore dell'azienda.")}</p>}
       <SoglieCollegamentiCard companyId={companyId} puoModificare={puoModificare} />
       {puoConfermare && <EccezioniOperative key={companyId} companyId={companyId} />}
       {puoConfermare && <details className="rounded-lg border p-3">
-        <summary className="cursor-pointer text-sm font-medium">Altri controlli acquisti</summary>
+        <summary className="cursor-pointer text-sm font-medium">{t("Altri controlli acquisti")}</summary>
         <div className="pt-3"><DaFareAcquisti companyId={companyId} /></div>
       </details>}
       <MisuraAutomazioni companyId={companyId} />

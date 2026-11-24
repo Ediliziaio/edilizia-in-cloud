@@ -13,6 +13,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { cercaCodiceMezzo } from "@/hooks/useMezzi";
 import { leggiCodiceScansionato } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Etichetta vuota letta: chi chiama apre il modulo del nuovo attrezzo con il codice. */
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function ScansionaMezzoButton({ onLibero, className }: Props) {
+  const tr = useT();
   const navigate = useNavigate();
   const companyId = useEffectiveCompanyId();
   const [aperto, setAperto] = useState(false);
@@ -30,7 +32,7 @@ export function ScansionaMezzoButton({ onLibero, className }: Props) {
     async (testo: string) => {
       const c = leggiCodiceScansionato(testo);
       if (!c) {
-        toast.error("Non riconosco questo codice.");
+        toast.error(tr("Non riconosco questo codice."));
         return;
       }
       setCercando(true);
@@ -40,12 +42,12 @@ export function ScansionaMezzoButton({ onLibero, className }: Props) {
           navigate(`/azienda/mezzi/${r.id}?da=qr`);
         } else if (r.esito === "libero") {
           if (r.posso_registrare && onLibero) onLibero(r.codice);
-          else toast.info(`L'etichetta ${r.codice} non è ancora collegata a nessun attrezzo.`);
+          else toast.info(tr("L'etichetta {codice} non è ancora collegata a nessun attrezzo.", { codice: String(r.codice ?? "") }));
         } else {
-          toast.error(`Nessun attrezzo con il codice ${c.codice}.`);
+          toast.error(tr("Nessun attrezzo con il codice {codice}.", { codice: String(c.codice ?? "") }));
         }
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Non sono riuscito a leggere il codice.");
+        toast.error(e instanceof Error ? e.message : tr("Non sono riuscito a leggere il codice."));
       } finally {
         setCercando(false);
       }
@@ -71,11 +73,11 @@ export function ScansionaMezzoButton({ onLibero, className }: Props) {
         onClick={() => setAperto(true)}
         disabled={cercando}
         className={cn("gap-2 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0", className)}
-        aria-label="Scansiona un'etichetta"
-        title="Scansiona un'etichetta QR"
+        aria-label={tr("Scansiona un'etichetta")}
+        title={tr("Scansiona un'etichetta QR")}
       >
         {cercando ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4 text-orange-600" />}
-        <span className="max-sm:hidden">Scansiona</span>
+        <span className="max-sm:hidden">{tr("Scansiona")}</span>
       </Button>
       <BarcodeScanner open={aperto} onOpenChange={setAperto} onScan={suLettura} />
     </>

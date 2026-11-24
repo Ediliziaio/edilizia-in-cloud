@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { NOME_RUOLO } from "@/lib/permessi/ruoliUtente";
 import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 
@@ -47,6 +48,7 @@ interface UserProfileTabProps {
 }
 
 export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readOnly = false, onDirtyChange }: UserProfileTabProps) {
+  const t = useT();
   const [firstName, setFirstName] = useState(user.first_name);
   const [lastName, setLastName] = useState(user.last_name);
   const [email, setEmail] = useState(user.email);
@@ -110,7 +112,7 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
   const handleResetPassword = async () => {
     if (readOnly) return;
     if (newPassword.trim() && newPassword.trim().length < 8) {
-      toast({ title: "Password troppo corta", description: "Servono almeno 8 caratteri.", variant: "destructive" });
+      toast({ title: t("Password troppo corta"), description: t("Servono almeno 8 caratteri."), variant: "destructive" });
       return;
     }
     setResettingPassword(true);
@@ -130,11 +132,11 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
         setPasswordDialogOpen(true);
         setNewPassword("");
       } else {
-        toast({ title: "Password cambiata", description: "La nuova password è arrivata alla persona per email." });
+        toast({ title: t("Password cambiata"), description: t("La nuova password è arrivata alla persona per email.") });
       }
     } catch (err) {
       toast({
-        title: "Non sono riuscito a cambiare la password",
+        title: t("Non sono riuscito a cambiare la password"),
         description: messaggioErrorePersone(err, "Riprova tra un attimo."),
         variant: "destructive",
       });
@@ -157,8 +159,8 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
         <Card>
           {/* Mobile: niente titolo né avatar, nome ed email sono già in testata. */}
           <CardHeader className="max-md:hidden">
-            <CardTitle>Dati</CardTitle>
-            <CardDescription>Dati personali e di contatto della persona.</CardDescription>
+            <CardTitle>{t("Dati")}</CardTitle>
+            <CardDescription>{t("Dati personali e di contatto della persona.")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 max-md:space-y-4 max-md:p-4">
             {/* Avatar + Role */}
@@ -181,7 +183,7 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
                   })()}
                   {isBlocked && (
                     <Badge variant="destructive" className="gap-1 text-xs">
-                      <ShieldOff className="h-3 w-3" aria-hidden="true" /> Accesso bloccato
+                      <ShieldOff className="h-3 w-3" aria-hidden="true" /> {t("Accesso bloccato")}
                     </Badge>
                   )}
                 </div>
@@ -192,7 +194,7 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
             {/* Campi */}
             <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1 max-sm:gap-3">
               <div className="space-y-2">
-                <Label htmlFor="firstName">Nome *</Label>
+                <Label htmlFor="firstName">{t("Nome *")}</Label>
                 <Input
                   id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={bloccoGenerale}
                   autoComplete="off" aria-invalid={!!validationErrors.firstName}
@@ -201,7 +203,7 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
                 {validationErrors.firstName && <p id="firstName-errore" role="alert" className="text-xs text-destructive">{validationErrors.firstName}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Cognome *</Label>
+                <Label htmlFor="lastName">{t("Cognome *")}</Label>
                 <Input
                   id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={bloccoGenerale}
                   autoComplete="off" aria-invalid={!!validationErrors.lastName}
@@ -212,7 +214,7 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
+              <Label htmlFor="email">{t("Email *")}</Label>
               <Input
                 id="email" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={bloccoGenerale}
                 autoComplete="off" aria-invalid={!!validationErrors.email}
@@ -220,11 +222,11 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
               />
               {validationErrors.email
                 ? <p id="email-errore" role="alert" className="text-xs text-destructive">{validationErrors.email}</p>
-                : <p id="email-aiuto" className="text-xs text-muted-foreground max-md:hidden">È anche l'indirizzo con cui entra. Se la cambi, ti chiediamo di confermare.</p>}
+                : <p id="email-aiuto" className="text-xs text-muted-foreground max-md:hidden">{t("È anche l'indirizzo con cui entra. Se la cambi, ti chiediamo di confermare.")}</p>}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="phone">Telefono</Label>
+              <Label htmlFor="phone">{t("Telefono")}</Label>
               <Input
                 id="phone" type="tel" inputMode="tel" autoComplete="off" value={phone} onChange={(e) => setPhone(e.target.value)}
                 placeholder="+39 333 1234567" disabled={bloccoGenerale}
@@ -234,21 +236,19 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
             {/* Password: cambia subito */}
             <div className="pt-2 border-t space-y-3">
               <div>
-                <p className="text-sm font-medium">Password</p>
+                <p className="text-sm font-medium">{t("Password")}</p>
                 <p id="password-aiuto" className="text-xs text-muted-foreground max-md:hidden">
-                  La password cambia adesso: quella di prima smette di funzionare e la nuova arriva alla persona per email.
-                  Se non ne scrivi una, la genera il sistema e tu non la vedi. Per mandare solo un link, senza cambiarla
-                  adesso, vai in «Sicurezza».
+                  {t("La password cambia adesso: quella di prima smette di funzionare e la nuova arriva alla persona per email. Se non ne scrivi una, la genera il sistema e tu non la vedi. Per mandare solo un link, senza cambiarla adesso, vai in «Sicurezza».")}
                 </p>
               </div>
               <div className="flex items-center gap-3 max-sm:flex-col max-sm:items-stretch max-sm:gap-2">
                 <div className="relative flex-1 max-w-xs max-sm:max-w-none">
                   <Input
                     type={showPassword ? "text" : "password"}
-                    aria-label="Nuova password (se vuoi scriverla tu)"
+                    aria-label={t("Nuova password (se vuoi scriverla tu)")}
                     aria-describedby="password-aiuto"
                     autoComplete="new-password"
-                    placeholder="Nuova password (se vuoi scriverla tu)"
+                    placeholder={t("Nuova password (se vuoi scriverla tu)")}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     disabled={resettingPassword || readOnly}
@@ -260,7 +260,7 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
                     size="icon"
                     className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
                     onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? "Nascondi la password" : "Mostra la password"}
+                    aria-label={showPassword ? t("Nascondi la password") : t("Mostra la password")}
                     aria-pressed={showPassword}
                     disabled={readOnly}
                   >
@@ -271,19 +271,19 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
                   <AlertDialogTrigger asChild>
                     <Button type="button" variant="outline" size="sm" disabled={resettingPassword || readOnly} className="max-sm:h-10">
                       {resettingPassword ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> : <KeyRound className="h-4 w-4 mr-2" aria-hidden="true" />}
-                      Cambia subito la password
+                      {t("Cambia subito la password")}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Cambiare la password{nomeCompleto ? ` a ${nomeCompleto}` : ""}?</AlertDialogTitle>
+                      <AlertDialogTitle>{t("Cambiare la password")}{nomeCompleto ? ` a ${nomeCompleto}` : ""}?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Quella di prima smette di funzionare subito. La nuova arriva alla persona per email.
+                        {t("Quella di prima smette di funzionare subito. La nuova arriva alla persona per email.")}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Annulla</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => void handleResetPassword()}>Cambia la password</AlertDialogAction>
+                      <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => void handleResetPassword()}>{t("Cambia la password")}</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
@@ -298,12 +298,12 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
             {isDirty ? (
               <span role="status" className="text-xs text-amber-600 font-medium flex items-center gap-1 max-md:hidden">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden="true" />
-                Modifiche non salvate
+                {t("Modifiche non salvate")}
               </span>
             ) : <span />}
             <Button type="submit" disabled={isLoading || !isDirty} className="max-md:flex-1">
               {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4 mr-2" aria-hidden="true" />}
-              Salva le modifiche
+              {t("Salva le modifiche")}
             </Button>
           </div>
         )}
@@ -313,19 +313,19 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading, readO
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Password cambiata</DialogTitle>
+            <DialogTitle>{t("Password cambiata")}</DialogTitle>
             <DialogDescription>
-              La nuova password è già arrivata alla persona per email. Se vuoi dargliela anche a voce, eccola: comunicala in modo sicuro.
+              {t("La nuova password è già arrivata alla persona per email. Se vuoi dargliela anche a voce, eccola: comunicala in modo sicuro.")}
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2 p-3 rounded-lg bg-muted border font-mono text-sm break-all">
             <span className="flex-1">{generatedPassword}</span>
-            <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={handleCopyPassword} aria-label={copied ? "Password copiata" : "Copia la password"}>
+            <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={handleCopyPassword} aria-label={copied ? t("Password copiata") : t("Copia la password")}>
               {copied ? <Check className="h-4 w-4 text-green-500" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Questa password non sarà più visibile dopo la chiusura di questa finestra.
+            {t("Questa password non sarà più visibile dopo la chiusura di questa finestra.")}
           </p>
         </DialogContent>
       </Dialog>

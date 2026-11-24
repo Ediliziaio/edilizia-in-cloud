@@ -16,6 +16,7 @@ import {
   useCaricaFotoMezzo, useEliminaFotoMezzo, useImpostaCopertina, useMezzoFoto, type FotoConLink,
 } from "@/hooks/useMezzi";
 import { formatData, giornoItaliano } from "@/types/mezzi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   mezzoId: string;
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function MezzoFotoSection({ mezzoId, copertina, puoModificare }: Props) {
+  const t = useT();
   const { data: foto = [], isLoading, error, refetch } = useMezzoFoto(mezzoId);
   const carica = useCaricaFotoMezzo(mezzoId);
   const impostaCopertina = useImpostaCopertina(mezzoId);
@@ -41,7 +43,7 @@ export function MezzoFotoSection({ mezzoId, copertina, puoModificare }: Props) {
   return (
     <div className="space-y-3 max-sm:space-y-2">
       <div className="flex items-center justify-between gap-2 max-sm:justify-end">
-        <p className="text-sm text-muted-foreground max-sm:hidden">Com'è il mezzo, danni, targhette: le foto restano qui.</p>
+        <p className="text-sm text-muted-foreground max-sm:hidden">{t("Com'è il mezzo, danni, targhette: le foto restano qui.")}</p>
         {puoModificare && (
           <>
             <input
@@ -51,11 +53,11 @@ export function MezzoFotoSection({ mezzoId, copertina, puoModificare }: Props) {
               multiple
               className="hidden"
               onChange={(e) => scegli(e.target.files)}
-              aria-label="Scegli le foto da caricare"
+              aria-label={t("Scegli le foto da caricare")}
             />
             <Button size="sm" onClick={() => input.current?.click()} disabled={carica.isPending} className="shrink-0 max-sm:h-8 max-sm:text-xs">
               {carica.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Camera className="mr-1 h-4 w-4" />}
-              Aggiungi foto
+              {t("Aggiungi foto")}
             </Button>
           </>
         )}
@@ -65,13 +67,13 @@ export function MezzoFotoSection({ mezzoId, copertina, puoModificare }: Props) {
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          Non riesco a caricare le foto.{" "}
-          <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
+          {t("Non riesco a caricare le foto.")}{" "}
+          <button type="button" className="font-semibold underline" onClick={() => refetch()}>{t("Riprova")}</button>
         </div>
       ) : foto.length === 0 ? (
         <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground max-sm:py-4">
           <Camera className="mx-auto mb-2 h-8 w-8 opacity-40 max-sm:hidden" />
-          Nessuna foto<span className="max-sm:hidden">. La prima che carichi diventa la copertina del mezzo</span>.
+          {t("Nessuna foto")}<span className="max-sm:hidden">. {t("La prima che carichi diventa la copertina del mezzo")}</span>.
         </div>
       ) : (
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -79,16 +81,16 @@ export function MezzoFotoSection({ mezzoId, copertina, puoModificare }: Props) {
             const eCopertina = f.file_path === copertina;
             return (
               <li key={f.id} className="group relative overflow-hidden rounded-xl border bg-muted">
-                <button type="button" className="block aspect-[4/3] w-full" onClick={() => setAperta(f)} aria-label="Apri la foto">
+                <button type="button" className="block aspect-[4/3] w-full" onClick={() => setAperta(f)} aria-label={t("Apri la foto")}>
                   {f.url ? (
-                    <img src={f.url} alt={f.didascalia ?? "Foto del mezzo"} loading="lazy" className="h-full w-full object-cover" />
+                    <img src={f.url} alt={f.didascalia ?? t("Foto del mezzo")} loading="lazy" className="h-full w-full object-cover" />
                   ) : (
                     <span className="flex h-full w-full items-center justify-center text-muted-foreground"><ImageOff className="h-6 w-6" /></span>
                   )}
                 </button>
                 <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap gap-1 p-1.5">
-                  {eCopertina && <Badge className="bg-orange-500 text-[10px] text-white hover:bg-orange-500">Copertina</Badge>}
-                  {f.segnalazione_id && <Badge variant="secondary" className="text-[10px]">Dal campo</Badge>}
+                  {eCopertina && <Badge className="bg-orange-500 text-[10px] text-white hover:bg-orange-500">{t("Copertina")}</Badge>}
+                  {f.segnalazione_id && <Badge variant="secondary" className="text-[10px]">{t("Dal campo")}</Badge>}
                 </div>
                 <p className="px-2 py-1 text-[11px] text-muted-foreground">{formatData(giornoItaliano(f.created_at))}</p>
                 {puoModificare && (
@@ -99,8 +101,8 @@ export function MezzoFotoSection({ mezzoId, copertina, puoModificare }: Props) {
                         variant="secondary"
                         className="h-8 w-8 shadow"
                         onClick={() => impostaCopertina.mutate(f.file_path)}
-                        aria-label="Usa come copertina"
-                        title="Usa come copertina"
+                        aria-label={t("Usa come copertina")}
+                        title={t("Usa come copertina")}
                       >
                         <Star className="h-4 w-4" />
                       </Button>
@@ -110,8 +112,8 @@ export function MezzoFotoSection({ mezzoId, copertina, puoModificare }: Props) {
                       variant="secondary"
                       className="h-8 w-8 text-destructive shadow"
                       onClick={() => setDaEliminare(f)}
-                      aria-label="Elimina la foto"
-                      title="Elimina"
+                      aria-label={t("Elimina la foto")}
+                      title={t("Elimina")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -125,13 +127,13 @@ export function MezzoFotoSection({ mezzoId, copertina, puoModificare }: Props) {
 
       <Dialog open={!!aperta} onOpenChange={(o) => !o && setAperta(null)}>
         <DialogContent className="max-w-4xl border-0 bg-black p-0">
-          <DialogTitle className="sr-only">Foto del mezzo</DialogTitle>
-          {aperta?.url && <img src={aperta.url} alt={aperta.didascalia ?? "Foto del mezzo"} className="max-h-[85vh] w-full object-contain" />}
+          <DialogTitle className="sr-only">{t("Foto del mezzo")}</DialogTitle>
+          {aperta?.url && <img src={aperta.url} alt={aperta.didascalia ?? t("Foto del mezzo")} className="max-h-[85vh] w-full object-contain" />}
           <button
             type="button"
             onClick={() => setAperta(null)}
             className="absolute right-2 top-2 rounded-full bg-black/60 p-2 text-white"
-            aria-label="Chiudi"
+            aria-label={t("Chiudi")}
           >
             <X className="h-5 w-5" />
           </button>
@@ -141,18 +143,18 @@ export function MezzoFotoSection({ mezzoId, copertina, puoModificare }: Props) {
       <AlertDialog open={!!daEliminare} onOpenChange={(o) => !o && setDaEliminare(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare la foto?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare la foto?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {daEliminare?.file_path === copertina ? "È la copertina: il mezzo resterà senza finché non ne scegli un'altra." : "La foto si cancella definitivamente."}
+              {daEliminare?.file_path === copertina ? t("È la copertina: il mezzo resterà senza finché non ne scegli un'altra.") : t("La foto si cancella definitivamente.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => daEliminare && elimina.mutate(daEliminare)}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

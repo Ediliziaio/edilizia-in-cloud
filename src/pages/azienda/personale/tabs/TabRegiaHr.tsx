@@ -14,8 +14,6 @@ import {
   Users,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { HrQueryError } from "@/components/hr/HrQueryError";
 import { buildOrgTree, orgLinksToReview, hasValidGps } from "@/lib/personale/organizzazione";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TabRegiaHrProps {
   onNavigate?: (tab: string) => void;
@@ -52,6 +51,7 @@ type HrActivityLogRow = Pick<
 >;
 
 export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const profilesQuery = useAllHrProfili();
   const requestsQuery = useRichieste({ stato: "in_attesa" });
@@ -138,8 +138,10 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
 
     if (richiestePendenti.length > 0) {
       list.push({
-        title: "Richieste da approvare",
-        description: `${richiestePendenti.length} richiesta${richiestePendenti.length === 1 ? "" : "e"} in attesa di risposta.`,
+        title: t("Richieste da approvare"),
+        description: richiestePendenti.length === 1
+          ? t("1 richiesta in attesa di risposta.")
+          : t("{n} richieste in attesa di risposta.", { n: richiestePendenti.length }),
         tab: "richieste",
         severity: "alta",
         icon: CalendarCheck,
@@ -148,8 +150,10 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
 
     if (metrics.saldiCritici > 0) {
       list.push({
-        title: "Saldi HR da verificare",
-        description: `${metrics.saldiCritici} profil${metrics.saldiCritici === 1 ? "o ha" : "i hanno"} ferie, permessi o ROL sotto zero.`,
+        title: t("Saldi HR da verificare"),
+        description: metrics.saldiCritici === 1
+          ? t("1 profilo ha ferie, permessi o ROL sotto zero.")
+          : t("{n} profili hanno ferie, permessi o ROL sotto zero.", { n: metrics.saldiCritici }),
         tab: "profili",
         severity: "alta",
         icon: ShieldCheck,
@@ -158,16 +162,16 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
 
     if (metrics.sediAttive === 0 && metrics.totaleAttivi > 0) {
       list.push({
-        title: "Nessuna sede HR configurata",
-        description: "Senza sedi, GPS e controlli timbratura non possono validare bene il personale.",
+        title: t("Nessuna sede HR configurata"),
+        description: t("Senza sedi, GPS e controlli timbratura non possono validare bene il personale."),
         tab: "sedi",
         severity: "alta",
         icon: MapPin,
       });
     } else if (metrics.senzaSede > 0) {
       list.push({
-        title: "Profili senza sede",
-        description: `${metrics.senzaSede} profili attivi non hanno una sede assegnata.`,
+        title: t("Profili senza sede"),
+        description: t("{n} profili attivi non hanno una sede assegnata.", { n: metrics.senzaSede }),
         tab: "profili",
         severity: "media",
         icon: Building2,
@@ -176,8 +180,8 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
 
     if (metrics.senzaResponsabile > 0) {
       list.push({
-        title: "Collegamenti da verificare",
-        description: `${metrics.senzaResponsabile} collegamenti dell'organigramma non sono validi. I profili autonomi non sono errori.`,
+        title: t("Collegamenti da verificare"),
+        description: t("{n} collegamenti dell'organigramma non sono validi. I profili autonomi non sono errori.", { n: metrics.senzaResponsabile }),
         tab: "organigramma",
         severity: "media",
         icon: Network,
@@ -186,8 +190,8 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
 
     if (metrics.totaleAttivi > 0 && liveStatus.length === 0) {
       list.push({
-        title: "Stato presenze non disponibile",
-        description: "I profili esistono, ma non ci sono dati live sulle timbrature di oggi.",
+        title: t("Stato presenze non disponibile"),
+        description: t("I profili esistono, ma non ci sono dati live sulle timbrature di oggi."),
         tab: "timbrature",
         severity: "bassa",
         icon: Clock,
@@ -195,7 +199,7 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
     }
 
     return list;
-  }, [liveStatus.length, metrics, richiestePendenti.length]);
+  }, [liveStatus.length, metrics, richiestePendenti.length, t]);
 
   const loading = loadingProfili || loadingRichieste || loadingLive || loadingSedi;
   const failed = profilesQuery.isError || requestsQuery.isError || liveQuery.isError || sitesQuery.isError;
@@ -203,14 +207,14 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
 
   return (
     <div className="space-y-4">
-      {failed && <HrQueryError label="Controllo HR incompleto" onRetry={() => Promise.all([profilesQuery.refetch(), requestsQuery.refetch(), liveQuery.refetch(), sitesQuery.refetch()])} />}
+      {failed && <HrQueryError label={t("Controllo HR incompleto")} onRetry={() => Promise.all([profilesQuery.refetch(), requestsQuery.refetch(), liveQuery.refetch(), sitesQuery.refetch()])} />}
       {/* Testata navy famiglia (come Costi/Commesse): i quattro numeri di
           controllo HR, cliccabili → portano al tab che li gestisce. */}
       <div className="rounded-2xl bg-eic-navy-deep p-3 sm:p-4">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">Regia HR</p>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">{t("Regia HR")}</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
           <NavyStatCard
-            label="Profili attivi"
+            label={t("Profili attivi")}
             value={unavailable ? "—" : metrics.totaleAttivi}
             sub={unavailable ? "dati da verificare" : metrics.senzaSede > 0 ? `${metrics.senzaSede} senza sede` : "sede assegnata"}
             icon={Users}
@@ -218,7 +222,7 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
             onClick={() => onNavigate?.("profili")}
           />
           <NavyStatCard
-            label="Presenti ora"
+            label={t("Presenti ora")}
             value={unavailable ? "—" : metrics.presentiOra}
             sub={`su ${metrics.totaleAttivi} attivi`}
             icon={UserRoundCheck}
@@ -226,7 +230,7 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
             onClick={() => onNavigate?.("timbrature")}
           />
           <NavyStatCard
-            label="Richieste aperte"
+            label={t("Richieste aperte")}
             value={unavailable ? "—" : richiestePendenti.length}
             sub={richiestePendenti.length > 0 ? "da approvare" : "nessuna in attesa"}
             icon={CalendarCheck}
@@ -234,7 +238,7 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
             onClick={() => onNavigate?.("richieste")}
           />
           <NavyStatCard
-            label="Sedi attive"
+            label={t("Sedi attive")}
             value={unavailable ? "—" : metrics.sediAttive}
             sub={unavailable ? "dati da verificare" : `${metrics.sediGps} con coordinate GPS`}
             icon={MapPin}
@@ -248,25 +252,25 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle className="text-base">Stato operativo HR</CardTitle>
+              <CardTitle className="text-base">{t("Stato operativo HR")}</CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
-                Controllo rapido su presenze, richieste, sedi e organigramma.
+                {t("Controllo rapido su presenze, richieste, sedi e organigramma.")}
               </p>
             </div>
             <Badge className={metrics.healthScore >= 80 ? "bg-emerald-100 text-emerald-700" : metrics.healthScore >= 55 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}>
-              {unavailable ? "Non verificabile" : `Indice dati ${metrics.healthScore}/100`}
+              {unavailable ? t("Non verificabile") : t("Indice dati {healthScore}/100", { healthScore: String(metrics.healthScore ?? "") })}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-xs text-muted-foreground">Indicatore dei soli dati caricati, non certificazione HR: saldi negativi, sede e collegamenti. Le richieste in attesa non riducono l'indice.</p>
+          <p className="text-xs text-muted-foreground">{t("Indicatore dei soli dati caricati, non certificazione HR: saldi negativi, sede e collegamenti. Le richieste in attesa non riducono l'indice.")}</p>
           {!unavailable && <Progress value={metrics.healthScore} className="h-2" />}
-          {unavailable ? <p className="text-sm text-muted-foreground">Attendo dati completi per mostrare le verifiche operative.</p> : actions.length === 0 ? (
+          {unavailable ? <p className="text-sm text-muted-foreground">{t("Attendo dati completi per mostrare le verifiche operative.")}</p> : actions.length === 0 ? (
             <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
-                <p className="font-medium">Nessuna criticità operativa evidente</p>
-                <p className="text-emerald-700">Sedi, richieste e struttura HR risultano coerenti con i dati caricati.</p>
+                <p className="font-medium">{t("Nessuna criticità operativa evidente")}</p>
+                <p className="text-emerald-700">{t("Sedi, richieste e struttura HR risultano coerenti con i dati caricati.")}</p>
               </div>
             </div>
           ) : (
@@ -281,12 +285,12 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-medium text-sm">{action.title}</p>
-                        <Badge variant="outline" className="text-[10px] uppercase">{action.severity}</Badge>
+                        <Badge variant="outline" className="text-[10px] uppercase">{t(action.severity)}</Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{action.description}</p>
                     </div>
                     <Button variant="outline" size="sm" onClick={() => onNavigate?.(action.tab)}>
-                      Apri
+                      {t("Apri")}
                     </Button>
                   </div>
                 );
@@ -302,13 +306,13 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
                 <History className="h-4 w-4" />
-                Registro HR recente
+                {t("Registro HR recente")}
               </CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
-                Ultime azioni tracciate su richieste, profili e giornate HR.
+                {t("Ultime azioni tracciate su richieste, profili e giornate HR.")}
               </p>
             </div>
-            <Badge variant="outline">{activityLog.length} eventi</Badge>
+            <Badge variant="outline">{t("{n} eventi", { n: activityLog.length })}</Badge>
           </div>
         </CardHeader>
         <CardContent>
@@ -318,9 +322,9 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
                 <div key={item} className="h-12 animate-pulse rounded-lg bg-muted" />
               ))}
             </div>
-          ) : errorActivity ? <HrQueryError label="Registro HR non disponibile" onRetry={retryActivity} /> : activityLog.length === 0 ? (
+          ) : errorActivity ? <HrQueryError label={t("Registro HR non disponibile")} onRetry={retryActivity} /> : activityLog.length === 0 ? (
             <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              Nessun evento HR tracciato. Le nuove approvazioni richieste verranno registrate qui.
+              {t("Nessun evento HR tracciato. Le nuove approvazioni richieste verranno registrate qui.")}
             </div>
           ) : (
             <div className="space-y-2">
@@ -335,11 +339,11 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
                         {event.description || event.event_type || event.action}
                       </p>
                       <Badge variant="outline" className="text-[10px]">
-                        {({ hr_richieste: "Richieste", hr_giornate: "Presenze", hr_profili: "Profili", hr_sedi: "Sedi" } as Record<string, string>)[event.target_table ?? ""] || "Personale"}
+                        {({ hr_richieste: "Richieste", hr_giornate: "Presenze", hr_profili: "Profili", hr_sedi: "Sedi" } as Record<string, string>)[event.target_table ?? ""] || t("Personale")}
                       </Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {event.actor_name || "Sistema"} · {formatDistanceToNow(new Date(event.created_at), { addSuffix: true, locale: it })}
+                      {event.actor_name || t("Sistema")} · {formatDistanceToNow(new Date(event.created_at), { addSuffix: true, locale: dateFnsCampo() })}
                       {event.target_label ? ` · ${event.target_label}` : ""}
                     </p>
                   </div>

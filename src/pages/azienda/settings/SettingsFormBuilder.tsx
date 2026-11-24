@@ -47,6 +47,7 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type FormSavePayload = Partial<LeadForm> & { id: string };
 
@@ -137,6 +138,7 @@ function FormsList({
   canEdit: boolean;
   isPublishing: boolean;
 }) {
+  const t = useT();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const formBaseUrl = getLeadFormBaseUrl();
@@ -144,9 +146,9 @@ function FormsList({
   const copyPublicUrl = async (url: string) => {
     try {
       await copyTextToClipboard(url);
-      toast.success("Link copiato");
+      toast.success(t("Link copiato"));
     } catch {
-      toast.error("Copia non riuscita", { description: "Seleziona il link e copialo manualmente." });
+      toast.error(t("Copia non riuscita"), { description: t("Seleziona il link e copialo manualmente.") });
     }
   };
 
@@ -162,11 +164,11 @@ function FormsList({
     <>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold">I tuoi moduli</h2>
-          <p className="text-sm text-muted-foreground">Chi compila un modulo diventa un contatto nel CRM.</p>
+          <h2 className="text-lg font-semibold">{t("I tuoi moduli")}</h2>
+          <p className="text-sm text-muted-foreground">{t("Chi compila un modulo diventa un contatto nel CRM.")}</p>
         </div>
         <Button size="sm" onClick={onCreate} className="gap-1.5 max-md:h-11 max-sm:w-full" disabled={!canEdit}>
-          <Plus className="h-3.5 w-3.5" /> Nuovo modulo
+          <Plus className="h-3.5 w-3.5" /> {t("Nuovo modulo")}
         </Button>
       </div>
 
@@ -174,9 +176,9 @@ function FormsList({
         <Card>
           <CardContent className="py-12 text-center">
             <FileText className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">Nessun modulo creato. Crea il primo per cominciare a raccogliere contatti dal tuo sito.</p>
+            <p className="text-sm text-muted-foreground">{t("Nessun modulo creato. Crea il primo per cominciare a raccogliere contatti dal tuo sito.")}</p>
             <Button size="sm" className="mt-4 gap-1.5 max-md:h-11" onClick={onCreate} disabled={!canEdit}>
-              <Plus className="h-3.5 w-3.5" /> Crea un modulo
+              <Plus className="h-3.5 w-3.5" /> {t("Crea un modulo")}
             </Button>
           </CardContent>
         </Card>
@@ -193,14 +195,14 @@ function FormsList({
                       <div className="flex items-center gap-2">
                         <h3 className="font-medium text-sm break-words">{f.name}</h3>
                         <Badge variant={f.is_published ? "default" : "secondary"} className="text-[10px]">
-                          {f.is_published ? "Pubblicato" : "Bozza"}
+                          {f.is_published ? t("Pubblicato") : t("Bozza")}
                         </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">/{f.slug} · {f.fields.length} campi</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">/{f.slug} · {t(f.fields.length === 1 ? "{n} campo" : "{n} campi", { n: f.fields.length })}</p>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {f.total_views} visualizzazioni</span>
-                        <span className="flex items-center gap-1"><FileText className="h-3 w-3" /> {f.total_submissions} invii</span>
-                        <span>{convRate}% conversione</span>
+                        <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {t("{n} visualizzazioni", { n: f.total_views ?? 0 })}</span>
+                        <span className="flex items-center gap-1"><FileText className="h-3 w-3" /> {t("{n} invii", { n: f.total_submissions ?? 0 })}</span>
+                        <span>{t("{convRate}% conversione", { convRate: String(convRate ?? "") })}</span>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-1 sm:shrink-0">
@@ -208,7 +210,7 @@ function FormsList({
                         checked={f.is_published}
                         onCheckedChange={() => onTogglePublish(f)}
                         disabled={!canEdit || isPublishing}
-                        aria-label={f.is_published ? `Sospendi la pubblicazione di «${f.name}»` : `Pubblica «${f.name}»`}
+                        aria-label={f.is_published ? t("Sospendi la pubblicazione di «{name}»", { name: String(f.name ?? "") }) : t("Pubblica «{name}»", { name: String(f.name ?? "") })}
                         // L'interruttore è alto 24 px: sul telefono la zona che risponde al dito arriva a 44 px senza spostare niente.
                         className="max-md:relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-2.5 max-md:before:content-['']"
                       />
@@ -218,7 +220,7 @@ function FormsList({
                           size="icon"
                           className="h-11 w-11 md:h-8 md:w-8"
                           onClick={() => window.open(publicUrl, "_blank", "noopener,noreferrer")}
-                          aria-label={`Apri il modulo «${f.name}»`}
+                          aria-label={t("Apri il modulo «{name}»", { name: String(f.name ?? "") })}
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
@@ -229,15 +231,15 @@ function FormsList({
                           size="icon"
                           className="h-11 w-11 md:h-8 md:w-8"
                           onClick={() => copyPublicUrl(publicUrl)}
-                          aria-label={`Copia il link di «${f.name}»`}
+                          aria-label={t("Copia il link di «{name}»", { name: String(f.name ?? "") })}
                         >
                           <Copy className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" className="h-11 w-11 md:h-8 md:w-8" onClick={() => onEdit(f)} aria-label={canEdit ? `Modifica il modulo «${f.name}»` : `Guarda il modulo «${f.name}»`}>
+                      <Button variant="ghost" size="icon" className="h-11 w-11 md:h-8 md:w-8" onClick={() => onEdit(f)} aria-label={canEdit ? t("Modifica il modulo «{name}»", { name: String(f.name ?? "") }) : t("Guarda il modulo «{name}»", { name: String(f.name ?? "") })}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-11 w-11 md:h-8 md:w-8 text-destructive" onClick={() => setDeleteId(f.id)} disabled={!canEdit} aria-label={`Elimina il modulo «${f.name}»`}>
+                      <Button variant="ghost" size="icon" className="h-11 w-11 md:h-8 md:w-8 text-destructive" onClick={() => setDeleteId(f.id)} disabled={!canEdit} aria-label={t("Elimina il modulo «{name}»", { name: String(f.name ?? "") })}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -254,16 +256,16 @@ function FormsList({
       }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il modulo?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare il modulo?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {(() => {
                 const richieste = forms.find((f) => f.id === deleteId)?.total_submissions ?? 0;
-                return `Spariscono anche le richieste ricevute con questo modulo (${richieste}). I contatti già creati restano. Per fermarlo senza cancellare, togli la spunta da «Pubblicato».`;
+                return t("Spariscono anche le richieste ricevute con questo modulo ({richieste}). I contatti già creati restano. Per fermarlo senza cancellare, togli la spunta da «Pubblicato».", { richieste });
               })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={!!deletingId} className="max-md:h-11">Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={!!deletingId} className="max-md:h-11">{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async (event) => {
                 event.preventDefault();
@@ -281,7 +283,7 @@ function FormsList({
               disabled={!!deletingId}
               className="max-md:h-11"
             >
-              {deletingId ? "Elimino…" : "Elimina"}
+              {deletingId ? t("Elimino…") : t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -303,6 +305,7 @@ function FormEditor({
   canEdit: boolean;
   isSaving: boolean;
 }) {
+  const t = useT();
   const [initialDraft] = useState(() => readFormEditorDraft(form));
   const [isDraftRestored, setIsDraftRestored] = useState(() => Boolean(initialDraft));
   const [fields, setFields] = useState<FormField[]>(() => initialDraft?.fields ?? form.fields);
@@ -394,7 +397,7 @@ function FormEditor({
     setTheme(form.theme);
     setSelectedFieldId(null);
     setIsDraftRestored(false);
-    toast.info("Bozza locale scartata");
+    toast.info(t("Bozza locale scartata"));
   };
 
   const handleSave = async () => {
@@ -408,7 +411,7 @@ function FormEditor({
     };
     const validation = validateLeadFormDraft({ ...form, ...payload, fields });
     if (!validation.ok) {
-      toast.error("Controlla il modulo", { description: validation.errors[0] });
+      toast.error(t("Controlla il modulo"), { description: validation.errors[0] });
       return;
     }
     try {
@@ -424,35 +427,35 @@ function FormEditor({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={onBack} className="gap-1 max-md:h-11">
-          <ArrowLeft className="h-3.5 w-3.5" /> Indietro
+          <ArrowLeft className="h-3.5 w-3.5" /> {t("Indietro")}
         </Button>
-        {!canEdit && <Badge variant="secondary">Solo lettura</Badge>}
+        {!canEdit && <Badge variant="secondary">{t("Solo lettura")}</Badge>}
       </div>
 
       {isDraftRestored && canEdit && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Bozza recuperata</AlertTitle>
-          <AlertDescription>Ho ripristinato le modifiche non ancora salvate di questo computer, così non perdi il lavoro dopo un ricaricamento.</AlertDescription>
+          <AlertTitle>{t("Bozza recuperata")}</AlertTitle>
+          <AlertDescription>{t("Ho ripristinato le modifiche non ancora salvate di questo computer, così non perdi il lavoro dopo un ricaricamento.")}</AlertDescription>
         </Alert>
       )}
 
       {!canEdit && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Solo lettura</AlertTitle>
-          <AlertDescription>Puoi guardare campi, impostazioni e link, ma per modificarli serve il permesso «Modifica» su Personalizzazione.</AlertDescription>
+          <AlertTitle>{t("Solo lettura")}</AlertTitle>
+          <AlertDescription>{t("Puoi guardare campi, impostazioni e link, ma per modificarli serve il permesso «Modifica» su Personalizzazione.")}</AlertDescription>
         </Alert>
       )}
 
       {/* Form meta */}
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
-          <Label htmlFor="modulo-nome" className="text-xs">Nome del modulo</Label>
+          <Label htmlFor="modulo-nome" className="text-xs">{t("Nome del modulo")}</Label>
           <Input id="modulo-nome" value={formName} onChange={(e) => setFormName(e.target.value)} className="h-8 text-sm max-md:h-11" disabled={!canEdit || isSaving} />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="modulo-descrizione" className="text-xs">Descrizione</Label>
+          <Label htmlFor="modulo-descrizione" className="text-xs">{t("Descrizione")}</Label>
           <Input id="modulo-descrizione" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="h-8 text-sm max-md:h-11" disabled={!canEdit || isSaving} />
         </div>
       </div>
@@ -504,16 +507,16 @@ function FormEditor({
       {canEdit && (hasUnsavedChanges || isSaving) && (
         <div className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3 shadow-sm">
           <div className="min-w-0">
-            <span role="status" className="text-sm font-medium">Modifiche non salvate</span>
-            <p className="text-xs text-muted-foreground">Restano su questo computer finché non salvi o le scarti.</p>
+            <span role="status" className="text-sm font-medium">{t("Modifiche non salvate")}</span>
+            <p className="text-xs text-muted-foreground">{t("Restano su questo computer finché non salvi o le scarti.")}</p>
           </div>
           <div className="flex items-center gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={handleDiscardDraft} disabled={isSaving} className="max-md:h-11">
-              Scarta
+              {t("Scarta")}
             </Button>
             <Button size="sm" onClick={handleSave} disabled={isSaving || !hasUnsavedChanges} className="max-md:h-11">
               {isSaving ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
-              Salva modifiche
+              {t("Salva modifiche")}
             </Button>
           </div>
         </div>
@@ -523,6 +526,7 @@ function FormEditor({
 }
 
 export default function SettingsFormBuilder() {
+  const t = useT();
   // Riuso lato super-admin: la pagina è avvolta in PlatformCompanyProvider, che
   // sovrascrive effectiveCompany sulla Platform Admin CRM. useFormBuilder e
   // usePermissions leggono quel contesto (super_admin → ALL_PERMISSIONS), quindi
@@ -539,7 +543,7 @@ export default function SettingsFormBuilder() {
     const slug = sanitizeLeadFormSlug(newSlug || newName);
     const validation = validateLeadFormDraft({ name: newName, slug });
     if (!validation.ok) {
-      toast.error("Controlla il nuovo modulo", { description: validation.errors[0] });
+      toast.error(t("Controlla il nuovo modulo"), { description: validation.errors[0] });
       return;
     }
 
@@ -571,19 +575,19 @@ export default function SettingsFormBuilder() {
   return (
     <Tabs defaultValue="forms" className="space-y-4">
       <TabsList>
-        <TabsTrigger value="forms" className="max-md:min-h-11">Moduli</TabsTrigger>
-        <TabsTrigger value="tracking" className="max-md:min-h-11">Da dove arrivano i contatti</TabsTrigger>
+        <TabsTrigger value="forms" className="max-md:min-h-11">{t("Moduli")}</TabsTrigger>
+        <TabsTrigger value="tracking" className="max-md:min-h-11">{t("Da dove arrivano i contatti")}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="forms">
         {isError ? (
           <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Moduli non disponibili</AlertTitle>
+            <AlertTitle>{t("Moduli non disponibili")}</AlertTitle>
             <AlertDescription className="space-y-3">
-              <p>{userErrorMessage(error, "Non è stato possibile caricare i moduli.")}</p>
+              <p>{userErrorMessage(error, t("Non è stato possibile caricare i moduli."))}</p>
               <Button type="button" variant="outline" size="sm" onClick={() => refetch()} className="max-md:h-11">
-                Riprova
+                {t("Riprova")}
               </Button>
             </AlertDescription>
           </Alert>
@@ -605,12 +609,12 @@ export default function SettingsFormBuilder() {
             }}>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Nuovo modulo</DialogTitle>
-                  <DialogDescription>Dai un nome al modulo: poi aggiungi i campi e scegli cosa succede quando qualcuno lo compila.</DialogDescription>
+                  <DialogTitle>{t("Nuovo modulo")}</DialogTitle>
+                  <DialogDescription>{t("Dai un nome al modulo: poi aggiungi i campi e scegli cosa succede quando qualcuno lo compila.")}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <Label htmlFor="nuovo-modulo-nome">Nome</Label>
+                    <Label htmlFor="nuovo-modulo-nome">{t("Nome")}</Label>
                     <Input
                       id="nuovo-modulo-nome"
                       className="max-md:h-11"
@@ -619,12 +623,12 @@ export default function SettingsFormBuilder() {
                         setNewName(e.target.value);
                         setNewSlug(sanitizeLeadFormSlug(e.target.value));
                       }}
-                      placeholder="Es: Richiesta preventivo"
+                      placeholder={t("Es: Richiesta preventivo")}
                       disabled={createForm.isPending}
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="nuovo-modulo-indirizzo">Indirizzo del modulo</Label>
+                    <Label htmlFor="nuovo-modulo-indirizzo">{t("Indirizzo del modulo")}</Label>
                     <Input
                       id="nuovo-modulo-indirizzo"
                       className="max-md:h-11"
@@ -633,14 +637,14 @@ export default function SettingsFormBuilder() {
                       placeholder="richiesta-preventivo"
                       disabled={createForm.isPending}
                     />
-                    <p className="text-xs text-muted-foreground">Compare nel link, per esempio …/richiesta-preventivo. Solo lettere, numeri e trattini.</p>
+                    <p className="text-xs text-muted-foreground">{t("Compare nel link, per esempio …/richiesta-preventivo. Solo lettere, numeri e trattini.")}</p>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={createForm.isPending} className="max-md:h-11">Annulla</Button>
+                  <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={createForm.isPending} className="max-md:h-11">{t("Annulla")}</Button>
                   <Button onClick={handleCreate} disabled={!newName.trim() || !newSlug || createForm.isPending} className="max-md:h-11">
                     {createForm.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Crea
+                    {t("Crea")}
                   </Button>
                 </DialogFooter>
               </DialogContent>

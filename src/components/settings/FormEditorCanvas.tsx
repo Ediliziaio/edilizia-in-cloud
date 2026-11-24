@@ -6,6 +6,7 @@ import {
   CircleDot, Calendar, Heading, FileText, Minus, EyeOff, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   text: <Type className="h-3.5 w-3.5" />,
@@ -43,6 +44,7 @@ function SortableField({
   onClick: () => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: field.id,
     disabled,
@@ -69,7 +71,7 @@ function SortableField({
       <button
         {...(!disabled ? attributes : {})}
         {...(!disabled ? listeners : {})}
-        aria-label={disabled ? "Riordino non disponibile" : `Trascina «${field.label}» per riordinare`}
+        aria-label={disabled ? t("Riordino non disponibile") : t("Trascina «{label}» per riordinare", { label: String(field.label ?? "") })}
         className={cn("touch-none px-2 max-md:min-w-11", disabled ? "cursor-not-allowed opacity-40" : "cursor-grab")}
         disabled={disabled}
         type="button"
@@ -81,7 +83,7 @@ function SortableField({
         type="button"
         onClick={onClick}
         aria-pressed={isSelected}
-        aria-label={`Modifica il campo «${field.label}» (${TYPE_LABELS[field.type] || field.type})`}
+        aria-label={t("Modifica il campo «{label}» ({tipo})", { label: String(field.label ?? ""), tipo: TYPE_LABELS[field.type] ? t(TYPE_LABELS[field.type]) : field.type })}
         className="min-w-0 flex-1 rounded-r-lg py-3 pr-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary max-md:min-h-11"
       >
         <span className="flex items-center gap-2">
@@ -90,7 +92,7 @@ function SortableField({
           {field.required && !isStructural && <span className="text-destructive text-xs" aria-hidden="true">*</span>}
         </span>
         <span className="mt-1 block text-[10px] text-muted-foreground">
-          {TYPE_LABELS[field.type] || field.type}{field.type !== "divider" ? ` · ${field.name}` : ""}
+          {TYPE_LABELS[field.type] ? t(TYPE_LABELS[field.type]) : field.type}{field.type !== "divider" ? ` · ${field.name}` : ""}
         </span>
       </button>
     </div>
@@ -105,14 +107,13 @@ interface Props {
 }
 
 export function FormEditorCanvas({ fields, selectedFieldId, onSelectField, disabled = false }: Props) {
+  const t = useT();
   return (
     <div className="space-y-2">
-      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-        Campi del modulo ({fields.length})
-      </h3>
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">{t("Campi del modulo ({n})", { n: fields.length })}</h3>
       {fields.length === 0 ? (
         <div className="border-2 border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground">
-          Aggiungi i campi dall'elenco a sinistra
+          {t("Aggiungi i campi dall'elenco a sinistra")}
         </div>
       ) : (
         fields.map((f) => (

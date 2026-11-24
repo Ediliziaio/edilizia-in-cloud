@@ -32,6 +32,7 @@ import { PushConsentBanner } from "@/components/hr/PushConsentBanner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HrQueryError } from "@/components/hr/HrQueryError";
 import { HrPager } from "@/components/hr/HrPager";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ProfiloOption {
   id: string;
@@ -48,6 +49,7 @@ function fmt(d: string): string {
 }
 
 export function TabDocumenti() {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [selectedProfilo, setSelectedProfilo] = useState<string>("");
   const [view, setView] = useState("scadenze");
@@ -96,11 +98,11 @@ export function TabDocumenti() {
         <TabsList className="h-auto gap-1 p-1">
           <TabsTrigger value="scadenze" className="gap-1.5">
             <AlertTriangle className="h-3.5 w-3.5" />
-            Scadenze globali
+            {t("Scadenze globali")}
           </TabsTrigger>
           <TabsTrigger value="per-persona" className="gap-1.5">
             <FileText className="h-3.5 w-3.5" />
-            Per persona
+            {t("Per persona")}
           </TabsTrigger>
         </TabsList>
 
@@ -110,33 +112,33 @@ export function TabDocumenti() {
             <Card>
               <CardContent className="p-4">
                 <p className="text-2xl font-semibold text-red-600">{scaduti}</p>
-                <p className="text-xs text-muted-foreground">Scaduti</p>
+                <p className="text-xs text-muted-foreground">{t("Scaduti")}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4">
                 <p className="text-2xl font-semibold text-amber-600">{inScadenza}</p>
-                <p className="text-xs text-muted-foreground">In scadenza</p>
+                <p className="text-xs text-muted-foreground">{t("In scadenza")}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4">
                 <p className="text-2xl font-semibold">{scadenze.length}</p>
-                <p className="text-xs text-muted-foreground">Documenti con scadenza</p>
+                <p className="text-xs text-muted-foreground">{t("Documenti con scadenza")}</p>
               </CardContent>
             </Card>
           </div>}
 
           {loadingScadenze ? (
             <Skeleton className="h-40 w-full rounded-xl" />
-          ) : errorScadenze ? <HrQueryError label="Scadenze non disponibili" onRetry={retryScadenze} /> : daVedere.length === 0 ? (
+          ) : errorScadenze ? <HrQueryError label={t("Scadenze non disponibili")} onRetry={retryScadenze} /> : daVedere.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center">
               <CheckCircle2 className="mb-3 h-10 w-10 text-emerald-500/60" />
-              <p className="text-sm font-medium">Nessuna scadenza da gestire</p>
+              <p className="text-sm font-medium">{t("Nessuna scadenza da gestire")}</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {scadenze.length === 0
-                  ? "Non ci sono ancora documenti con una data di scadenza."
-                  : `Tutti i ${scadenze.length} documenti con scadenza sono in regola.`}
+                  ? t("Non ci sono ancora documenti con una data di scadenza.")
+                  : t("Tutti i {n} documenti con scadenza sono in regola.", { n: scadenze.length })}
               </p>
             </div>
           ) : (
@@ -144,10 +146,10 @@ export function TabDocumenti() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Persona</TableHead>
-                    <TableHead>Documento</TableHead>
-                    <TableHead>Scadenza</TableHead>
-                    <TableHead>Stato</TableHead>
+                    <TableHead>{t("Persona")}</TableHead>
+                    <TableHead>{t("Documento")}</TableHead>
+                    <TableHead>{t("Scadenza")}</TableHead>
+                    <TableHead>{t("Stato")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -173,7 +175,7 @@ export function TabDocumenti() {
                         </TableCell>
                         <TableCell className="text-sm">{fmt(s.data_scadenza)}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={badge.cls}>{badge.label}</Badge>
+                          <Badge variant="outline" className={badge.cls}>{t(badge.label)}</Badge>
                         </TableCell>
                       </TableRow>
                     );
@@ -190,21 +192,21 @@ export function TabDocumenti() {
           <div className="flex items-center gap-3">
             <div className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-muted-foreground">
               <User className="h-3.5 w-3.5" />
-              Persona
+              {t("Persona")}
             </div>
-            {errorProfili ? <HrQueryError label="Elenco persone non disponibile" onRetry={retryProfili} /> : loadingProfili ? (
+            {errorProfili ? <HrQueryError label={t("Elenco persone non disponibile")} onRetry={retryProfili} /> : loadingProfili ? (
               <Skeleton className="h-9 w-64 rounded-md" />
             ) : (
               <Select value={selectedProfilo} onValueChange={setSelectedProfilo}>
                 <SelectTrigger className="w-64">
-                  <SelectValue placeholder="Seleziona persona…" />
+                  <SelectValue placeholder={t("Seleziona persona…")} />
                 </SelectTrigger>
                 <SelectContent>
                   {profili.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {[p.nome, p.cognome].filter(Boolean).join(" ") || p.id.slice(0, 8)}
                       {p.mansione ? ` · ${p.mansione}` : ""}
-                      {!p.attivo ? " · Cessato" : ""}
+                      {!p.attivo ? ` ${t("· Cessato")}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -218,10 +220,10 @@ export function TabDocumenti() {
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center">
               <User className="mb-3 h-10 w-10 text-muted-foreground/40" />
               <p className="text-sm font-medium text-muted-foreground">
-                Seleziona una persona per gestire i suoi documenti
+                {t("Seleziona una persona per gestire i suoi documenti")}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Contratto, visita medica, corsi sicurezza, patente, permesso di soggiorno e altro
+                {t("Contratto, visita medica, corsi sicurezza, patente, permesso di soggiorno e altro")}
               </p>
             </div>
           )}

@@ -53,6 +53,7 @@ import { useTicketMessages } from "@/hooks/useTicketMessages";
 import { SUPPORT_PRIORITIES, TICKET_STATI, TICKET_FASI } from "@/types/tickets";
 import { calcolaFermo, CLASSI_FERMO } from "@/lib/assistenzaSla";
 import { format } from "date-fns";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type CampiIntervento = {
   indirizzo: string;
@@ -68,6 +69,7 @@ export default function TicketDetail() {
 }
 
 function SchedaTicket({ id }: { id: string | undefined }) {
+  const tr = useT();
   const navigate = useNavigate();
   
   const { effectiveCompany } = useAuth();
@@ -239,14 +241,14 @@ function SchedaTicket({ id }: { id: string | undefined }) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Ticket convertito in Intervento");
+      toast.success(tr("Ticket convertito in Intervento"));
       setEscalationOpen(false);
       // Dopo unificazione restiamo sulla stessa pagina — la vista mostra già
       // i campi intervento aggiornati dopo invalidate.
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
     },
-    onError: () => toast.error("Errore nella conversione"),
+    onError: () => toast.error(tr("Errore nella conversione")),
   });
 
   // Salva modifiche "Dettagli Intervento"
@@ -279,11 +281,11 @@ function SchedaTicket({ id }: { id: string | undefined }) {
         }
         return rimaste;
       });
-      toast.success("Dettagli intervento salvati");
+      toast.success(tr("Dettagli intervento salvati"));
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
     },
-    onError: (err: Error) => toast.error(err.message || "Errore salvataggio"),
+    onError: (err: Error) => toast.error(err.message || tr("Errore salvataggio")),
   });
 
   // Chiudi intervento: set status=risolto + data_intervento_effettiva=now
@@ -302,11 +304,11 @@ function SchedaTicket({ id }: { id: string | undefined }) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Intervento chiuso");
+      toast.success(tr("Intervento chiuso"));
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
     },
-    onError: () => toast.error("Errore chiusura intervento"),
+    onError: () => toast.error(tr("Errore chiusura intervento")),
   });
 
   const updateTicketMutation = useMutation({
@@ -327,12 +329,12 @@ function SchedaTicket({ id }: { id: string | undefined }) {
         queryClient.setQueryData<TicketDetailType>(chiaveDettaglio, (corrente) => corrente && { ...corrente, ...salvato });
         setBozzaNote((corrente) => corrente === (updates.internal_notes ?? "") ? undefined : corrente);
       }
-      toast.success("Ticket aggiornato con successo.");
+      toast.success(tr("Ticket aggiornato con successo."));
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
     },
     onError: () => {
-      toast.error("Impossibile aggiornare il ticket.");
+      toast.error(tr("Impossibile aggiornare il ticket."));
     },
   });
 
@@ -352,15 +354,15 @@ function SchedaTicket({ id }: { id: string | undefined }) {
       if ((SUPPORT_PRIORITIES as readonly string[]).includes(sp)) {
         if (sp !== ticket.priority) {
           updateTicketMutation.mutate({ priority: sp });
-          toast.success(`Priorità suggerita dall'AI: ${sp}`);
+          toast.success(tr("Priorità suggerita dall'AI: {sp}", { sp: String(sp ?? "") }));
         } else {
-          toast.info(`L'AI conferma la priorità attuale (${sp}).`);
+          toast.info(tr("L'AI conferma la priorità attuale ({sp}).", { sp: String(sp ?? "") }));
         }
       } else {
-        toast.info("Analisi AI completata: nessun cambio di priorità suggerito.");
+        toast.info(tr("Analisi AI completata: nessun cambio di priorità suggerito."));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Triage AI non riuscito.");
+      toast.error(err instanceof Error ? err.message : tr("Triage AI non riuscito."));
     } finally {
       setAiTriaging(false);
     }
@@ -389,9 +391,9 @@ function SchedaTicket({ id }: { id: string | undefined }) {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
-            Errore nel caricamento del ticket.
+            {tr("Errore nel caricamento del ticket.")}
             <Button variant="outline" size="sm" onClick={() => { refetchTicket(); refetchMessages(); }}>
-              <RefreshCw className="h-4 w-4 mr-2" /> Riprova
+              <RefreshCw className="h-4 w-4 mr-2" /> {tr("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -402,9 +404,9 @@ function SchedaTicket({ id }: { id: string | undefined }) {
   if (!ticket) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Ticket non trovato</p>
+        <p className="text-muted-foreground">{tr("Ticket non trovato")}</p>
         <Button variant="link" onClick={() => navigate("/azienda/assistenza")}>
-          Torna all'assistenza
+          {tr("Torna all'assistenza")}
         </Button>
       </div>
     );
@@ -447,16 +449,16 @@ function SchedaTicket({ id }: { id: string | undefined }) {
             {/* Da 768px stato e priorità si leggono (e si cambiano) nelle tendine
                 del pannello a sinistra, subito sotto: qui erano un doppione. */}
             <Badge variant="outline" className="md:hidden" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
-              {getTicketStatusLabel(ticket.status)}
+              {tr(getTicketStatusLabel(ticket.status))}
             </Badge>
             <Badge variant="outline" className="md:hidden" style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}>
-              {getTicketPriorityLabel(ticket.priority)}
+              {tr(getTicketPriorityLabel(ticket.priority))}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-0.5 max-md:text-xs">
-            Aperto {formatRelativeTime(ticket.created_at)}
+            {tr("Aperto")} {formatRelativeTime(ticket.created_at)}
             {ticket.data_intervento_effettiva && (
-              <> · Chiuso il {new Date(ticket.data_intervento_effettiva).toLocaleDateString("it-IT")}</>
+              <>{" "}{tr("· Chiuso il {valore}", { valore: new Date(ticket.data_intervento_effettiva).toLocaleDateString(intlCampo()) })}</>
             )}
           </p>
         </div>
@@ -492,7 +494,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
               onClick={() => setEscalationOpen(true)}
             >
               <Wrench className="h-4 w-4" />
-              <span className="hidden sm:inline">Converti in Intervento</span>
+              <span className="hidden sm:inline">{tr("Converti in Intervento")}</span>
             </Button>
           )}
           {/* Crea appuntamento calendario */}
@@ -502,7 +504,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
             onClick={() => setAppointmentOpen(true)}
           >
             <CalendarPlus className="h-4 w-4" />
-            <span className="hidden sm:inline">Appuntamento</span>
+            <span className="hidden sm:inline">{tr("Appuntamento")}</span>
           </Button>
           {/* Chiudi intervento — visibile per tutti i tipi se non già chiuso */}
           {!isClosed && (
@@ -513,7 +515,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
               disabled={chiudiMutation.isPending}
             >
               {chiudiMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              <span className="hidden sm:inline">Chiudi</span>
+              <span className="hidden sm:inline">{tr("Chiudi")}</span>
             </Button>
           )}
         </div>
@@ -533,7 +535,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
             <CardContent className="p-4 space-y-3">
               {/* Stato */}
               <div className="flex items-center justify-between gap-2">
-                <label className="text-xs text-muted-foreground shrink-0">Stato</label>
+                <label className="text-xs text-muted-foreground shrink-0">{tr("Stato")}</label>
                 <Select
                   value={ticket.status}
                   onValueChange={(v) => updateTicketMutation.mutate({ status: v })}
@@ -549,11 +551,11 @@ function SchedaTicket({ id }: { id: string | undefined }) {
                       return (
                         <SelectGroup key={fase.key}>
                           <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                            {fase.label}
+                            {tr(fase.label)}
                           </SelectLabel>
                           {stati.map((st) => (
                             <SelectItem key={st.value} value={st.value} className="text-xs">
-                              {st.label}
+                              {tr(st.label)}
                             </SelectItem>
                           ))}
                         </SelectGroup>
@@ -568,7 +570,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
                 return fermo ? (
                   <p className={`text-right text-[11px] ${CLASSI_FERMO[fermo.livello]}`}>
                     {fermo.etichetta}
-                    {fermo.livello !== "ok" ? ` — oltre i ${fermo.soglia} giorni previsti` : ""}
+                    {fermo.livello !== "ok" ? tr(" — oltre i {soglia} giorni previsti", { soglia: String(fermo.soglia ?? "") }) : ""}
                   </p>
                 ) : null;
               })()}
@@ -580,7 +582,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
               )}
               {/* Priorità */}
               <div className="flex items-center justify-between gap-2">
-                <label className="text-xs text-muted-foreground shrink-0">Priorità</label>
+                <label className="text-xs text-muted-foreground shrink-0">{tr("Priorità")}</label>
                 <div className="flex items-center gap-1">
                   <Button
                     type="button"
@@ -589,7 +591,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
                     className="h-8 w-8 text-violet-600 hover:text-violet-700 dark:text-violet-400"
                     onClick={handleAiTriage}
                     disabled={aiTriaging || updateTicketMutation.isPending}
-                    title="Triage AI: suggerisci priorità"
+                    title={tr("Triage AI: suggerisci priorità")}
                   >
                     {aiTriaging ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -606,27 +608,27 @@ function SchedaTicket({ id }: { id: string | undefined }) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="bassa">Bassa</SelectItem>
-                      <SelectItem value="normale">Normale</SelectItem>
-                      <SelectItem value="alta">Alta</SelectItem>
-                      <SelectItem value="urgente">Urgente</SelectItem>
+                      <SelectItem value="bassa">{tr("Bassa")}</SelectItem>
+                      <SelectItem value="normale">{tr("Normale")}</SelectItem>
+                      <SelectItem value="alta">{tr("Alta")}</SelectItem>
+                      <SelectItem value="urgente">{tr("Urgente")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               {/* Assegnato */}
               <div className="flex items-center justify-between gap-2">
-                <label className="text-xs text-muted-foreground shrink-0">Assegnato</label>
+                <label className="text-xs text-muted-foreground shrink-0">{tr("Assegnato")}</label>
                 <Select
                   value={ticket.assigned_to || "unassigned"}
                   onValueChange={(v) => updateTicketMutation.mutate({ assigned_to: v === "unassigned" ? null : v })}
                   disabled={updateTicketMutation.isPending}
                 >
                   <SelectTrigger className="tap-compact w-[160px] h-8 text-xs">
-                    <SelectValue placeholder="Non assegnato" />
+                    <SelectValue placeholder={tr("Non assegnato")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="unassigned">Non assegnato</SelectItem>
+                    <SelectItem value="unassigned">{tr("Non assegnato")}</SelectItem>
                     {staffMembers.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.first_name} {s.last_name}
@@ -639,17 +641,17 @@ function SchedaTicket({ id }: { id: string | undefined }) {
                   vede l'intervento nell'app di cantiere, con data e indirizzo. */}
               {squadre.length > 0 && (
                 <div className="flex items-center justify-between gap-2">
-                  <label className="text-xs text-muted-foreground shrink-0">Squadra</label>
+                  <label className="text-xs text-muted-foreground shrink-0">{tr("Squadra")}</label>
                   <Select
                     value={ticket.squadra_id || "nessuna"}
                     onValueChange={(v) => updateTicketMutation.mutate({ squadra_id: v === "nessuna" ? null : v })}
                     disabled={updateTicketMutation.isPending}
                   >
                     <SelectTrigger className="tap-compact w-[160px] h-8 text-xs">
-                      <SelectValue placeholder="Nessuna squadra" />
+                      <SelectValue placeholder={tr("Nessuna squadra")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="nessuna">Nessuna squadra</SelectItem>
+                      <SelectItem value="nessuna">{tr("Nessuna squadra")}</SelectItem>
                       {squadre.map((s) => (
                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                       ))}
@@ -662,10 +664,10 @@ function SchedaTicket({ id }: { id: string | undefined }) {
 
               {/* Cliente */}
               <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">Cliente</label>
+                <label className="text-xs text-muted-foreground">{tr("Cliente")}</label>
                 {/* Senza cliente comparivano due icone sole e un link «mailto:undefined». */}
                 {!ticket.customer ? (
-                  <p className="text-xs text-muted-foreground">Nessun cliente collegato</p>
+                  <p className="text-xs text-muted-foreground">{tr("Nessun cliente collegato")}</p>
                 ) : (
                   <div className="flex items-center gap-2">
                     <User className="h-3.5 w-3.5 text-muted-foreground" />
@@ -697,7 +699,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
                 <>
                   <Separator />
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Ordine</label>
+                    <label className="text-xs text-muted-foreground mb-1 block">{tr("Ordine")}</label>
                     <Link to={`/azienda/ordini/${ticket.order.id}`} className="flex items-start gap-2 text-primary hover:underline">
                       <Package className="h-3.5 w-3.5 mt-0.5" />
                       <span className="text-xs">
@@ -736,7 +738,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Wrench className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="font-semibold text-sm">Dettagli Intervento</h3>
+                  <h3 className="font-semibold text-sm">{tr("Dettagli Intervento")}</h3>
                 </div>
                 {interventoDirty && (
                   <Button
@@ -750,7 +752,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
                     disabled={saveInterventoMutation.isPending}
                   >
                     {saveInterventoMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
-                    Salva
+                    {tr("Salva")}
                   </Button>
                 )}
               </div>
@@ -758,13 +760,13 @@ function SchedaTicket({ id }: { id: string | undefined }) {
               <div className="space-y-1.5">
                 <Label htmlFor="ticket-intervento-indirizzo" className="text-xs text-muted-foreground flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
-                  Indirizzo intervento
+                  {tr("Indirizzo intervento")}
                 </Label>
                 <CampoIndirizzo
                   id="ticket-intervento-indirizzo"
                   value={campiIntervento.indirizzo}
                   onChange={(valore) => cambiaCampo("indirizzo", valore)}
-                  placeholder="Via, n°, città…"
+                  placeholder={tr("Via, n°, città…")}
                   className="h-8 text-xs"
                   disabled={isClosed}
                 />
@@ -772,7 +774,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Data prevista</Label>
+                  <Label className="text-xs text-muted-foreground">{tr("Data prevista")}</Label>
                   <Input
                     type="datetime-local"
                     value={campiIntervento.data}
@@ -784,7 +786,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    Durata (h)
+                    {tr("Durata (h)")}
                   </Label>
                   <Input
                     type="number"
@@ -802,16 +804,16 @@ function SchedaTicket({ id }: { id: string | undefined }) {
               {ticket.data_intervento_effettiva && (
                 <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 text-green-800 dark:text-green-300 flex items-center gap-1.5">
                   <CheckCircle2 className="h-3 w-3" />
-                  Eseguito il {new Date(ticket.data_intervento_effettiva).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}
+                  {tr("Eseguito il {data}", { data: new Date(ticket.data_intervento_effettiva).toLocaleString(intlCampo(), { dateStyle: "short", timeStyle: "short" }) })}
                 </div>
               )}
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Note per il tecnico</Label>
+                <Label className="text-xs text-muted-foreground">{tr("Note per il tecnico")}</Label>
                 <Textarea
                   value={campiIntervento.note}
                   onChange={(e) => cambiaCampo("note", e.target.value)}
-                  placeholder="Istruzioni, materiali, accessi…"
+                  placeholder={tr("Istruzioni, materiali, accessi…")}
                   rows={2}
                   className="text-xs resize-none"
                   disabled={isClosed}
@@ -825,7 +827,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
             <Card>
               <CollapsibleTrigger asChild>
                 <button className="w-full flex items-center justify-between p-4 text-sm font-medium hover:bg-muted/50 rounded-t-lg transition-colors">
-                  <span>Note Interne</span>
+                  <span>{tr("Note Interne")}</span>
                   <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${notesOpen ? 'rotate-180' : ''}`} />
                 </button>
               </CollapsibleTrigger>
@@ -834,7 +836,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
                   <Textarea
                     value={internalNotes}
                     onChange={(e) => setBozzaNote(e.target.value)}
-                    placeholder="Note visibili solo allo staff..."
+                    placeholder={tr("Note visibili solo allo staff...")}
                     rows={3}
                     maxLength={1000}
                     className="resize-none text-sm"
@@ -847,7 +849,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
                     onClick={() => updateTicketMutation.mutate({ internal_notes: internalNotes || null })}
                   >
                     <Save className="h-3.5 w-3.5 mr-1.5" />
-                    Salva Note
+                    {tr("Salva Note")}
                   </Button>
                 </CardContent>
               </CollapsibleContent>
@@ -864,8 +866,8 @@ function SchedaTicket({ id }: { id: string | undefined }) {
               già incatenate e assegnate come configurato in "Gestisci". */}
           <div className="flex items-center gap-2 flex-wrap rounded-lg border bg-muted/20 px-3 py-2">
             <ListChecks className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Flusso</span>
-            <span className="text-xs text-muted-foreground max-md:hidden">Crea le attività standard dell'assistenza.</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{tr("Flusso")}</span>
+            <span className="text-xs text-muted-foreground max-md:hidden">{tr("Crea le attività standard dell'assistenza.")}</span>
             <div className="ml-auto flex items-center gap-2">
               <Button
                 size="sm"
@@ -884,8 +886,8 @@ function SchedaTicket({ id }: { id: string | undefined }) {
                     });
                     // "0 create" non è un errore: vuol dire che il flusso c'è già.
                     toast.success(created > 0
-                      ? `${created} attività create dal flusso assistenza.`
-                      : "Il flusso è già applicato a questo ticket.");
+                      ? tr("{created} attività create dal flusso assistenza.", { created: String(created ?? "") })
+                      : tr("Il flusso è già applicato a questo ticket."));
                     queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
                   } catch (e) {
                     toast.error("Non riesco ad applicare il flusso: " + (e instanceof Error ? e.message : "riprova"));
@@ -895,10 +897,10 @@ function SchedaTicket({ id }: { id: string | undefined }) {
                 }}
               >
                 <Sparkles className="h-3.5 w-3.5 mr-1" />
-                {flussoInCorso ? "Applico…" : "Applica flusso"}
+                {flussoInCorso ? tr("Applico…") : tr("Applica flusso")}
               </Button>
               <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground max-md:hidden" onClick={() => setEditorFlussoAperto(true)}>
-                Gestisci
+                {tr("Gestisci")}
               </Button>
             </div>
           </div>
@@ -923,7 +925,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
 
         {/* Chat: on mobile first, on desktop second */}
         <div className="order-1 md:order-2 min-h-0 space-y-4">
-          {ticket.descrizione && <Card><CardContent className="p-4"><h2 className="mb-3 text-sm font-semibold">Richiesta del cliente</h2><p className="whitespace-pre-wrap break-words text-sm leading-6">{ticket.descrizione}</p></CardContent></Card>}
+          {ticket.descrizione && <Card><CardContent className="p-4"><h2 className="mb-3 text-sm font-semibold">{tr("Richiesta del cliente")}</h2><p className="whitespace-pre-wrap break-words text-sm leading-6">{ticket.descrizione}</p></CardContent></Card>}
           {effectiveCompany?.id && <TicketAIConversation companyId={effectiveCompany.id} ticketId={ticket.id}/>}
           {effectiveCompany?.id && <TicketAIActivity companyId={effectiveCompany.id} ticketId={ticket.id}/>}
           <TicketChat
@@ -945,21 +947,21 @@ function SchedaTicket({ id }: { id: string | undefined }) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Wrench className="h-5 w-5 text-orange-500" />
-              Converti in Intervento
+              {tr("Converti in Intervento")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="ticket-escalation-indirizzo">Indirizzo intervento</Label>
+              <Label htmlFor="ticket-escalation-indirizzo">{tr("Indirizzo intervento")}</Label>
               <CampoIndirizzo
                 id="ticket-escalation-indirizzo"
-                placeholder="Via Roma 1, Milano..."
+                placeholder={tr("Via Roma 1, Milano...")}
                 value={escalationIndirizzo}
                 onChange={setEscalationIndirizzo}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Data/ora prevista</Label>
+              <Label>{tr("Data/ora prevista")}</Label>
               <Input
                 type="datetime-local"
                 value={escalationData}
@@ -967,11 +969,11 @@ function SchedaTicket({ id }: { id: string | undefined }) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Assegna tecnico</Label>
+              <Label>{tr("Assegna tecnico")}</Label>
               <Select value={escalationTecnicoId} onValueChange={setEscalationTecnicoId}>
-                <SelectTrigger><SelectValue placeholder="Seleziona tecnico..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={tr("Seleziona tecnico...")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__unassign__">Nessuno</SelectItem>
+                  <SelectItem value="__unassign__">{tr("Nessuno")}</SelectItem>
                   {tecnici.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>
                   ))}
@@ -979,9 +981,9 @@ function SchedaTicket({ id }: { id: string | undefined }) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Note per il tecnico</Label>
+              <Label>{tr("Note per il tecnico")}</Label>
               <Textarea
-                placeholder="Istruzioni specifiche per il tecnico..."
+                placeholder={tr("Istruzioni specifiche per il tecnico...")}
                 value={escalationNote}
                 onChange={(e) => setEscalationNote(e.target.value)}
                 rows={3}
@@ -989,14 +991,14 @@ function SchedaTicket({ id }: { id: string | undefined }) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEscalationOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setEscalationOpen(false)}>{tr("Annulla")}</Button>
             <Button
               onClick={() => escalationMutation.mutate()}
               disabled={escalationMutation.isPending}
               className="bg-orange-600 hover:bg-orange-700 text-white"
             >
               {escalationMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Converti in Intervento
+              {tr("Converti in Intervento")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1030,7 +1032,7 @@ function SchedaTicket({ id }: { id: string | undefined }) {
         onSaved={() => {
           setAppointmentOpen(false);
           queryClient.invalidateQueries({ queryKey: ["appointments"] });
-          toast.success("Appuntamento creato in calendario");
+          toast.success(tr("Appuntamento creato in calendario"));
         }}
       />
 

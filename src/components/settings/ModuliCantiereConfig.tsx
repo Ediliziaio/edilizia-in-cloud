@@ -27,6 +27,7 @@ import {
   BLOCCHI_STANDARD, SCHEMA_COME_OGGI, campiPerContesto, chiaveDaEtichetta, validaModifica, validaSchema,
   type BloccoStandard, type CampoModulo, type ModuloSchema, type TipoCampo,
 } from "../../../supabase/functions/_shared/moduliCantiere";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PARTI: Record<BloccoStandard, { nome: string; conseguenza?: string }> = {
   fasi: { nome: "Fasi e lavorazioni", conseguenza: "Avanzamento fasi e cronoprogramma non si aggiornano più dai rapportini." },
@@ -45,10 +46,11 @@ const SELECT = "h-9 w-full min-w-0 rounded-md border bg-background px-2 text-sm 
 function Scelta<T extends string>({ etichetta, aria, value, opzioni, disabled, onChange }: {
   etichetta: string; aria: string; value: T; opzioni: Array<[T, string]>; disabled?: boolean; onChange: (v: T) => void;
 }) {
+  const t = useT();
   return (
     <label className="grid gap-1 text-xs text-muted-foreground">{etichetta}
       <UniformSelect aria-label={aria} className={SELECT} value={value} disabled={disabled} onChange={e => onChange(e.target.value as T)}>
-        {opzioni.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        {opzioni.map(([v, l]) => <option key={v} value={v}>{t(l)}</option>)}
       </UniformSelect>
     </label>
   );
@@ -57,6 +59,7 @@ function Scelta<T extends string>({ etichetta, aria, value, opzioni, disabled, o
 function EditorCampi({ tipoModulo, campi, uso, bloccato, onChange }: {
   tipoModulo: TipoModulo; campi: CampoModulo[]; uso: Record<string, number>; bloccato: boolean; onChange: (c: CampoModulo[]) => void;
 }) {
+  const tr = useT();
   const attivi = campi.filter(c => !c.archiviato);
   const archiviati = campi.filter(c => c.archiviato);
   const delRapportino = tipoModulo === "rapportino";
@@ -69,7 +72,7 @@ function EditorCampi({ tipoModulo, campi, uso, bloccato, onChange }: {
     const c = attivi[i];
     const n = uso[c.chiave] ?? 0;
     if (n > 0) {
-      if (!window.confirm(`${n} documenti contengono «${c.etichetta}». Non si compilerà più, ma quei dati restano. Continuare?`)) return;
+      if (!window.confirm(tr("{n} documenti contengono «{etichetta}». Non si compilerà più, ma quei dati restano. Continuare?", { n: String(n ?? ""), etichetta: String(c.etichetta ?? "") }))) return;
       onChange([...attivi.filter((_, k) => k !== i), ...archiviati, { ...c, archiviato: true }]);
     } else onChange([...attivi.filter((_, k) => k !== i), ...archiviati]);
   };
@@ -86,53 +89,53 @@ function EditorCampi({ tipoModulo, campi, uso, bloccato, onChange }: {
         return (
           <div key={c.chiave} className="space-y-2 rounded-lg border p-3">
             <div className="flex flex-wrap items-end gap-2">
-              <label className="grid min-w-48 flex-1 gap-1 text-xs text-muted-foreground">Nome
-                <Input aria-label={`Nome del campo ${n}`} value={c.etichetta} maxLength={80} disabled={bloccato} onChange={e => cambia(i, { etichetta: e.target.value })} className="h-9" />
+              <label className="grid min-w-48 flex-1 gap-1 text-xs text-muted-foreground">{tr("Nome")}
+                <Input aria-label={tr("Nome del campo {n}", { n: String(n ?? "") })} value={c.etichetta} maxLength={80} disabled={bloccato} onChange={e => cambia(i, { etichetta: e.target.value })} className="h-9" />
               </label>
-              <div className="w-36"><Scelta etichetta="Tipo" aria={`Tipo del campo ${n}`} value={c.tipo} disabled={bloccato || usato > 0}
+              <div className="w-36"><Scelta etichetta={tr("Tipo")} aria={tr("Tipo del campo {n}", { n: String(n) })} value={c.tipo} disabled={bloccato || usato > 0}
                 opzioni={TIPI.map(t => [t.value, t.label])} onChange={tipo => cambia(i, { tipo })} /></div>
               <div className="flex h-9 items-center gap-2">
-                <Switch id={`obbligatorio-${c.chiave}`} aria-label={`Obbligatorio, campo ${n}`} checked={c.obbligatorio} disabled={bloccato} onCheckedChange={obbligatorio => cambia(i, { obbligatorio })} />
-                <Label htmlFor={`obbligatorio-${c.chiave}`} className="text-xs font-normal">Obbligatorio</Label>
+                <Switch id={`obbligatorio-${c.chiave}`} aria-label={tr("Obbligatorio, campo {n}", { n: String(n ?? "") })} checked={c.obbligatorio} disabled={bloccato} onCheckedChange={obbligatorio => cambia(i, { obbligatorio })} />
+                <Label htmlFor={`obbligatorio-${c.chiave}`} className="text-xs font-normal">{tr("Obbligatorio")}</Label>
               </div>
               {!bloccato && <div className="ml-auto flex gap-1">
-                <Button type="button" variant="ghost" size="icon" className="h-9 w-9" aria-label={`Sposta su il campo ${n}`} disabled={i === 0} onClick={() => sposta(i, -1)}><ArrowUp className="h-4 w-4" /></Button>
-                <Button type="button" variant="ghost" size="icon" className="h-9 w-9" aria-label={`Sposta giù il campo ${n}`} disabled={i === attivi.length - 1} onClick={() => sposta(i, 1)}><ArrowDown className="h-4 w-4" /></Button>
-                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-rose-600" aria-label={`Elimina il campo ${n}`} onClick={() => elimina(i)}><Trash2 className="h-4 w-4" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9" aria-label={tr("Sposta su il campo {n}", { n: String(n ?? "") })} disabled={i === 0} onClick={() => sposta(i, -1)}><ArrowUp className="h-4 w-4" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9" aria-label={tr("Sposta giù il campo {n}", { n: String(n ?? "") })} disabled={i === attivi.length - 1} onClick={() => sposta(i, 1)}><ArrowDown className="h-4 w-4" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-rose-600" aria-label={tr("Elimina il campo {n}", { n: String(n ?? "") })} onClick={() => elimina(i)}><Trash2 className="h-4 w-4" /></Button>
               </div>}
             </div>
-            {usato > 0 && <p className="text-xs text-muted-foreground">Il tipo non si cambia: {usato} documenti contengono già questo campo.</p>}
+            {usato > 0 && <p className="text-xs text-muted-foreground">{tr("Il tipo non si cambia: {usato} documenti contengono già questo campo.", { usato: String(usato ?? "") })}</p>}
             {(c.tipo === "select" || c.tipo === "multiselect") && (
-              <label className="grid gap-1 text-xs text-muted-foreground">Opzioni, separate da virgola
-                <Input aria-label={`Opzioni del campo ${n}`} defaultValue={(c.opzioni ?? []).join(", ")} disabled={bloccato}
+              <label className="grid gap-1 text-xs text-muted-foreground">{tr("Opzioni, separate da virgola")}
+                <Input aria-label={tr("Opzioni del campo {n}", { n: String(n ?? "") })} defaultValue={(c.opzioni ?? []).join(", ")} disabled={bloccato}
                   onChange={e => cambia(i, { opzioni: e.target.value.split(",").map(o => o.trim()).filter(Boolean) })} className="h-9" />
               </label>
             )}
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
-              {c.tipo === "number" && <label className="grid gap-1 text-xs text-muted-foreground">Unità
-                <Input aria-label={`Unità del campo ${n}`} value={c.unita ?? ""} maxLength={12} disabled={bloccato} onChange={e => cambia(i, { unita: e.target.value || undefined })} className="h-9" />
+              {c.tipo === "number" && <label className="grid gap-1 text-xs text-muted-foreground">{tr("Unità")}
+                <Input aria-label={tr("Unità del campo {n}", { n: String(n ?? "") })} value={c.unita ?? ""} maxLength={12} disabled={bloccato} onChange={e => cambia(i, { unita: e.target.value || undefined })} className="h-9" />
               </label>}
               {delRapportino && <>
-                <Scelta etichetta="Chi lo compila" aria={`Chi lo compila, campo ${n}`} value={c.chi} disabled={bloccato} opzioni={[["tutti", "Tutti"], ["capo", "Solo il capo"]]} onChange={chi => cambia(i, { chi })} />
-                <Scelta etichetta="Quali ditte" aria={`Quali ditte, campo ${n}`} value={c.ditte} disabled={bloccato} opzioni={[["tutti", "Tutte"], ["dipendenti", "Dipendenti"], ["subappaltatori", "Subappaltatori"]]} onChange={ditte => cambia(i, { ditte })} />
-                <Scelta etichetta="Quando" aria={`Quando, campo ${n}`} value={c.quando} disabled={bloccato} opzioni={[["sempre", "Sempre"], ["giornaliero", "Ogni giorno"], ["fine_lavori", "A fine lavori"]]} onChange={quando => cambia(i, { quando })} />
-                <Scelta etichetta="Dove" aria={`Dove, campo ${n}`} value={c.livello} disabled={bloccato || usato > 0} opzioni={[["rapportino", "Sul rapportino"], ["fase", "Per ogni fase"]]} onChange={livello => cambia(i, { livello })} />
+                <Scelta etichetta={tr("Chi lo compila")} aria={tr("Chi lo compila, campo {n}", { n: String(n) })} value={c.chi} disabled={bloccato} opzioni={[["tutti", "Tutti"], ["capo", "Solo il capo"]]} onChange={chi => cambia(i, { chi })} />
+                <Scelta etichetta={tr("Quali ditte")} aria={tr("Quali ditte, campo {n}", { n: String(n) })} value={c.ditte} disabled={bloccato} opzioni={[["tutti", "Tutte"], ["dipendenti", "Dipendenti"], ["subappaltatori", "Subappaltatori"]]} onChange={ditte => cambia(i, { ditte })} />
+                <Scelta etichetta={tr("Quando")} aria={tr("Quando, campo {n}", { n: String(n) })} value={c.quando} disabled={bloccato} opzioni={[["sempre", "Sempre"], ["giornaliero", "Ogni giorno"], ["fine_lavori", "A fine lavori"]]} onChange={quando => cambia(i, { quando })} />
+                <Scelta etichetta={tr("Dove")} aria={tr("Dove, campo {n}", { n: String(n) })} value={c.livello} disabled={bloccato || usato > 0} opzioni={[["rapportino", "Sul rapportino"], ["fase", "Per ogni fase"]]} onChange={livello => cambia(i, { livello })} />
               </>}
-              <Scelta etichetta="Nel PDF" aria={`Nel PDF, campo ${n}`} value={c.stampa} disabled={bloccato} opzioni={[["mai", "Mai"], ["interno", "Solo interno"], ["cliente", "Anche per il cliente"]]} onChange={stampa => cambia(i, { stampa })} />
+              <Scelta etichetta={tr("Nel PDF")} aria={tr("Nel PDF, campo {n}", { n: String(n) })} value={c.stampa} disabled={bloccato} opzioni={[["mai", "Mai"], ["interno", "Solo interno"], ["cliente", "Anche per il cliente"]]} onChange={stampa => cambia(i, { stampa })} />
             </div>
           </div>
         );
       })}
-      {!bloccato && <Button type="button" variant="outline" size="sm" onClick={aggiungi}><Plus className="mr-1.5 h-4 w-4" />Aggiungi un campo</Button>}
+      {!bloccato && <Button type="button" variant="outline" size="sm" onClick={aggiungi}><Plus className="mr-1.5 h-4 w-4" />{tr("Aggiungi un campo")}</Button>}
       {archiviati.length > 0 && (
-        <section role="region" aria-label="Archiviati" className="rounded-lg border bg-muted/30 p-3">
-          <p className="mb-1 text-xs font-semibold text-muted-foreground">Archiviati</p>
+        <section role="region" aria-label={tr("Archiviati")} className="rounded-lg border bg-muted/30 p-3">
+          <p className="mb-1 text-xs font-semibold text-muted-foreground">{tr("Archiviati")}</p>
           <ul className="divide-y">
             {archiviati.map(c => (
               <li key={c.chiave} className="flex items-center justify-between gap-2 py-1.5 text-sm">
                 <span>{c.etichetta}</span>
-                {!bloccato && <Button type="button" variant="ghost" size="sm" className="h-8" aria-label={`Riattiva ${c.etichetta}`}
-                  onClick={() => onChange([...attivi, { ...c, archiviato: undefined }, ...archiviati.filter(a => a.chiave !== c.chiave)])}>Riattiva</Button>}
+                {!bloccato && <Button type="button" variant="ghost" size="sm" className="h-8" aria-label={tr("Riattiva {etichetta}", { etichetta: String(c.etichetta ?? "") })}
+                  onClick={() => onChange([...attivi, { ...c, archiviato: undefined }, ...archiviati.filter(a => a.chiave !== c.chiave)])}>{tr("Riattiva")}</Button>}
               </li>
             ))}
           </ul>
@@ -143,23 +146,24 @@ function EditorCampi({ tipoModulo, campi, uso, bloccato, onChange }: {
 }
 
 function Anteprima({ schema }: { schema: ModuloSchema }) {
+  const t = useT();
   const [ruolo, setRuolo] = useState<"operaio" | "capo">("operaio");
   const [valori, setValori] = useState<Record<string, unknown>>({});
   const campi = campiPerContesto(schema, { ruolo, momento: "giornaliero", subappaltatore: false, soloOre: false });
-  const parti = BLOCCHI_STANDARD.filter(b => schema.blocchi[b]).map(b => PARTI[b].nome);
+  const parti = BLOCCHI_STANDARD.filter(b => schema.blocchi[b]).map(b => t(PARTI[b].nome));
   return (
-    <section role="region" aria-label="Anteprima del modulo" className="space-y-3 rounded-lg border bg-muted/20 p-3">
+    <section role="region" aria-label={t("Anteprima del modulo")} className="space-y-3 rounded-lg border bg-muted/20 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold">Anteprima</span>
+        <span className="text-sm font-semibold">{t("Anteprima")}</span>
         <div className="ml-auto flex gap-1 rounded-lg bg-muted p-1" role="group">
           {(["operaio", "capo"] as const).map(r => (
             <Button key={r} type="button" size="sm" className="h-7" variant={ruolo === r ? "secondary" : "ghost"} aria-pressed={ruolo === r} onClick={() => setRuolo(r)}>
-              {r === "operaio" ? "Vista operaio" : "Vista capo"}
+              {r === "operaio" ? t("Vista operaio") : t("Vista capo")}
             </Button>
           ))}
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">Ore, descrizione{parti.length ? `, ${parti.join(", ").toLowerCase()}` : ""}.</p>
+      <p className="text-xs text-muted-foreground">{t("Ore, descrizione")}{parti.length ? `, ${parti.join(", ").toLowerCase()}` : ""}.</p>
       <CampiModulo campi={campi} valori={valori} onChange={(k, v) => setValori(p => ({ ...p, [k]: v }))} />
     </section>
   );
@@ -193,6 +197,7 @@ interface Bozza { id: string | null; nome: string; schema: ModuloSchema; attivo:
 export interface StatoModulo { modificato: boolean; inCorso: boolean; salva: () => Promise<boolean>; annulla: () => void }
 
 export function ModuliCantiereConfig({ tipo, evidenziate, onStato }: { tipo: TipoModulo; evidenziate?: Record<string, boolean>; onStato?: (stato: StatoModulo) => void }) {
+  const t = useT();
   const { effectiveCompany, role } = useAuth();
   const permessi = usePermissions();
   const mobile = useIsMobile();
@@ -224,7 +229,7 @@ export function ModuliCantiereConfig({ tipo, evidenziate, onStato }: { tipo: Tip
   const prendiPreset = (p: PresetModulo) => {
     if (!corrente) return;
     const prima = corrente.schema.campi;
-    if (prima.some(c => !c.archiviato) && !window.confirm("Il modello sostituisce parti e campi di questa bozza. Continuare?")) return;
+    if (prima.some(c => !c.archiviato) && !window.confirm(t("Il modello sostituisce parti e campi di questa bozza. Continuare?"))) return;
     const nuove = new Set(p.schema.campi.map(c => c.chiave));
     const daTenere = prima.filter(c => (uso[c.chiave] ?? 0) > 0 && !nuove.has(c.chiave)).map(c => ({ ...c, archiviato: true }));
     setBozza({ ...corrente, schema: { ...p.schema, rilevazioni_mezzi: corrente.schema.rilevazioni_mezzi, campi: [...p.schema.campi, ...daTenere] } });
@@ -234,18 +239,18 @@ export function ModuliCantiereConfig({ tipo, evidenziate, onStato }: { tipo: Tip
     if (!corrente || bloccato) return false;
     const schema = fissaChiavi(corrente.schema);
     const errori = [
-      ...(corrente.nome.trim() ? [] : ["Dai un nome al modello."]),
+      ...(corrente.nome.trim() ? [] : [t("Dai un nome al modello.")]),
       ...validaSchema(schema),
       ...validaModifica(aperto?.schema ?? SCHEMA_COME_OGGI, schema, uso),
     ];
-    if (errori.length) { toast.error(errori[0]); return false; }
+    if (errori.length) { toast.error(t(errori[0])); return false; }
     try {
       const id = await salva.mutateAsync({ id: corrente.id, tipo, nome: corrente.nome.trim(), schema, attivo: corrente.attivo });
       if (tipo === "verbale") setApertoId(id);
       setBozza(null);
-      if (!onStato) toast.success("Modello salvato");
+      if (!onStato) toast.success(t("Modello salvato"));
       return true;
-    } catch (e) { toast.error(erroreSalvataggio(e)); return false; }
+    } catch (e) { toast.error(t(erroreSalvataggio(e))); return false; }
   };
   useEffect(() => { salvaOra.current = conferma; });
 
@@ -253,43 +258,43 @@ export function ModuliCantiereConfig({ tipo, evidenziate, onStato }: { tipo: Tip
   if (isLoading) return null;
   if (isError) {
     return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">
-      Non riesco a leggere i modelli.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+      {t("Non riesco a leggere i modelli.")}<Button size="sm" variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button>
     </AlertDescription></Alert>;
   }
 
   // Dentro la pagina delle regole il bottone è quello della pagina.
   const barraSalva = !onStato && puoModificare && (bozza != null) && (
     <div className="flex items-center justify-end gap-2">
-      <Button type="button" size="sm" variant="ghost" onClick={() => setBozza(null)} disabled={salva.isPending}>Annulla</Button>
-      <Button type="button" size="sm" onClick={() => void conferma()} disabled={salva.isPending}><Save className="mr-1.5 h-4 w-4" />Salva</Button>
+      <Button type="button" size="sm" variant="ghost" onClick={() => setBozza(null)} disabled={salva.isPending}>{t("Annulla")}</Button>
+      <Button type="button" size="sm" onClick={() => void conferma()} disabled={salva.isPending}><Save className="mr-1.5 h-4 w-4" />{t("Salva")}</Button>
     </div>
   );
 
   if (tipo === "rapportino" && corrente) {
     return (
       <>
-        <SezioneImpostazione id="parti" titolo="Parti del rapportino" evidenziata={evidenziate?.parti}
-          descrizione="Spegnere nasconde solo l’inserimento: quello che è già scritto resta nei rapportini.">
+        <SezioneImpostazione id="parti" titolo={t("Parti del rapportino")} evidenziata={evidenziate?.parti}
+          descrizione={t("Spegnere nasconde solo l’inserimento: quello che è già scritto resta nei rapportini.")}>
           <div className="space-y-3 p-4">
             {puoModificare && <div className="flex flex-wrap items-center gap-2">
-              {PRESET_RAPPORTINO.map(p => <Button key={p.id} type="button" variant="outline" size="sm" className="h-8" aria-label={`Parti dal modello ${p.nome}`} onClick={() => prendiPreset(p)}>{p.nome}</Button>)}
+              {PRESET_RAPPORTINO.map(p => <Button key={p.id} type="button" variant="outline" size="sm" className="h-8" aria-label={t("Parti dal modello {nome}", { nome: t(p.nome) })} onClick={() => prendiPreset(p)}>{t(p.nome)}</Button>)}
             </div>}
             <ul className="grid gap-x-6 md:grid-cols-2">
-              <li className="flex min-h-11 items-center justify-between gap-3 border-b text-sm"><span>Ore</span><span className="text-xs text-muted-foreground">Sempre</span></li>
-              <li className="flex min-h-11 items-center justify-between gap-3 border-b text-sm"><span>Descrizione dei lavori</span><span className="text-xs text-muted-foreground">Sempre</span></li>
+              <li className="flex min-h-11 items-center justify-between gap-3 border-b text-sm"><span>{t("Ore")}</span><span className="text-xs text-muted-foreground">{t("Sempre")}</span></li>
+              <li className="flex min-h-11 items-center justify-between gap-3 border-b text-sm"><span>{t("Descrizione dei lavori")}</span><span className="text-xs text-muted-foreground">{t("Sempre")}</span></li>
               {(Object.keys(PARTI) as BloccoStandard[]).map(b => (
                 <li key={b} className="border-b py-2">
                   <div className="flex items-center justify-between gap-3 text-sm">
-                    <span>{PARTI[b].nome}</span>
-                    <Switch aria-label={PARTI[b].nome} checked={corrente.schema.blocchi[b]} disabled={bloccato}
+                    <span>{t(PARTI[b].nome)}</span>
+                    <Switch aria-label={t(PARTI[b].nome)} checked={corrente.schema.blocchi[b]} disabled={bloccato}
                       onCheckedChange={v => cambiaSchema({ blocchi: { ...corrente.schema.blocchi, [b]: v } })} />
                   </div>
-                  {!corrente.schema.blocchi[b] && PARTI[b].conseguenza && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{PARTI[b].conseguenza}</p>}
+                  {!corrente.schema.blocchi[b] && PARTI[b].conseguenza && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t(PARTI[b].conseguenza)}</p>}
                 </li>
               ))}
             </ul>
             {corrente.schema.blocchi.mezzi && <fieldset className="grid gap-2 rounded-lg border px-3 pb-2 sm:grid-cols-2 xl:grid-cols-3">
-              <legend className="px-1 text-sm font-medium">Rilevazioni dei mezzi da cantiere</legend>
+              <legend className="px-1 text-sm font-medium">{t("Rilevazioni dei mezzi da cantiere")}</legend>
               {RILEVAZIONI_MEZZI.map(campo => <label key={campo.chiave} className="flex min-h-10 items-center justify-between gap-3 text-sm">
                 {campo.etichetta}
                 <Switch aria-label={campo.etichetta} disabled={bloccato} checked={corrente.schema.rilevazioni_mezzi?.[campo.chiave] === true}
@@ -299,8 +304,8 @@ export function ModuliCantiereConfig({ tipo, evidenziate, onStato }: { tipo: Tip
 
           </div>
         </SezioneImpostazione>
-        <SezioneImpostazione id="campi-propri" titolo="Campi propri" evidenziata={evidenziate?.["campi-propri"]}
-          descrizione="I dati che servono alla tua azienda, in app, dall’ufficio e nel PDF.">
+        <SezioneImpostazione id="campi-propri" titolo={t("Campi propri")} evidenziata={evidenziate?.["campi-propri"]}
+          descrizione={t("I dati che servono alla tua azienda, in app, dall’ufficio e nel PDF.")}>
           <div className="space-y-4 p-4">
             <EditorCampi tipoModulo="rapportino" campi={corrente.schema.campi} uso={uso} bloccato={bloccato} onChange={campi => cambiaSchema({ campi })} />
             <Anteprima schema={corrente.schema} />
@@ -312,48 +317,48 @@ export function ModuliCantiereConfig({ tipo, evidenziate, onStato }: { tipo: Tip
   }
 
   return (
-    <SezioneImpostazione id="verbali" titolo="Verbali di collaudo" evidenziata={evidenziate?.verbali}
-      descrizione="Modelli di partenza: controllali e adattali al tuo lavoro. Il verbale non è un documento a norma di per sé.">
+    <SezioneImpostazione id="verbali" titolo={t("Verbali di collaudo")} evidenziata={evidenziate?.verbali}
+      descrizione={t("Modelli di partenza: controllali e adattali al tuo lavoro. Il verbale non è un documento a norma di per sé.")}>
       <div className="space-y-4 p-4">
         <div className="flex flex-wrap items-center gap-2">
           {moduli.map(m => (
             <Button key={m.id} type="button" size="sm" className="h-8" variant={apertoId === m.id ? "secondary" : "outline"}
-              aria-label={`Apri il modello ${m.nome}`} onClick={() => { setBozza(null); setApertoId(m.id); }}>
-              {m.nome}{m.attivo ? "" : " · spento"}
+              aria-label={t("Apri il modello {nome}", { nome: String(m.nome ?? "") })} onClick={() => { setBozza(null); setApertoId(m.id); }}>
+              {m.nome}{m.attivo ? "" : ` · ${t("spento")}`}
             </Button>
           ))}
           {puoModificare && PRESET_VERBALE.map(p => (
-            <Button key={p.id} type="button" size="sm" className="h-8" variant="ghost" aria-label={`Nuovo verbale da ${p.nome}`}
-              onClick={() => setBozza({ id: null, nome: p.nome, schema: p.schema, attivo: true })}><Plus className="mr-1 h-3.5 w-3.5" />{p.nome}</Button>
+            <Button key={p.id} type="button" size="sm" className="h-8" variant="ghost" aria-label={t("Nuovo verbale da {nome}", { nome: t(p.nome) })}
+              onClick={() => setBozza({ id: null, nome: p.nome, schema: p.schema, attivo: true })}><Plus className="mr-1 h-3.5 w-3.5" />{t(p.nome)}</Button>
           ))}
         </div>
         {corrente && (
           <div className="space-y-3">
             <div className="flex flex-wrap items-end gap-3">
-              <label className="grid min-w-56 flex-1 gap-1 text-xs text-muted-foreground">Nome del modello
-                <Input aria-label="Nome del modello" value={corrente.nome} maxLength={80} disabled={bloccato} onChange={e => setBozza({ ...corrente, nome: e.target.value })} className="h-9" />
+              <label className="grid min-w-56 flex-1 gap-1 text-xs text-muted-foreground">{t("Nome del modello")}
+                <Input aria-label={t("Nome del modello")} value={corrente.nome} maxLength={80} disabled={bloccato} onChange={e => setBozza({ ...corrente, nome: e.target.value })} className="h-9" />
               </label>
-              <label className="flex h-9 items-center gap-2 text-xs">Modello attivo
-                <Switch aria-label="Modello attivo" checked={corrente.attivo} disabled={bloccato} onCheckedChange={attivo => setBozza({ ...corrente, attivo })} />
+              <label className="flex h-9 items-center gap-2 text-xs">{t("Modello attivo")}
+                <Switch aria-label={t("Modello attivo")} checked={corrente.attivo} disabled={bloccato} onCheckedChange={attivo => setBozza({ ...corrente, attivo })} />
               </label>
-              <label className="flex h-9 items-center gap-2 text-xs">Compilabile dal capo in cantiere
-                <Switch aria-label="Compilabile dal capo in cantiere" checked={corrente.schema.dal_cantiere === true} disabled={bloccato} onCheckedChange={dal_cantiere => cambiaSchema({ dal_cantiere })} />
+              <label className="flex h-9 items-center gap-2 text-xs">{t("Compilabile dal capo in cantiere")}
+                <Switch aria-label={t("Compilabile dal capo in cantiere")} checked={corrente.schema.dal_cantiere === true} disabled={bloccato} onCheckedChange={dal_cantiere => cambiaSchema({ dal_cantiere })} />
               </label>
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Voci da controllare</p>
+              <p className="text-sm font-semibold">{t("Voci da controllare")}</p>
               {(corrente.schema.voci ?? []).map((v, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <Input aria-label={`Voce ${i + 1}`} value={v} maxLength={160} disabled={bloccato} className="h-9"
+                  <Input aria-label={t("Voce {i}", { i: i + 1 })} value={v} maxLength={160} disabled={bloccato} className="h-9"
                     onChange={e => cambiaSchema({ voci: (corrente.schema.voci ?? []).map((x, k) => k === i ? e.target.value : x) })} />
-                  {!bloccato && <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-rose-600" aria-label={`Togli la voce ${i + 1}`}
+                  {!bloccato && <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-rose-600" aria-label={t("Togli la voce {i}", { i: i + 1 })}
                     onClick={() => cambiaSchema({ voci: (corrente.schema.voci ?? []).filter((_, k) => k !== i) })}><Trash2 className="h-4 w-4" /></Button>}
                 </div>
               ))}
-              {!bloccato && <Button type="button" variant="outline" size="sm" onClick={() => cambiaSchema({ voci: [...(corrente.schema.voci ?? []), ""] })}><Plus className="mr-1.5 h-4 w-4" />Aggiungi una voce</Button>}
+              {!bloccato && <Button type="button" variant="outline" size="sm" onClick={() => cambiaSchema({ voci: [...(corrente.schema.voci ?? []), ""] })}><Plus className="mr-1.5 h-4 w-4" />{t("Aggiungi una voce")}</Button>}
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Dati del collaudo</p>
+              <p className="text-sm font-semibold">{t("Dati del collaudo")}</p>
               <EditorCampi tipoModulo="verbale" campi={corrente.schema.campi} uso={uso} bloccato={bloccato} onChange={campi => cambiaSchema({ campi })} />
             </div>
             {barraSalva}

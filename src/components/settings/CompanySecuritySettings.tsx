@@ -35,6 +35,7 @@ import {
   indirizzoSenzaMaschera,
   rischiaDiRestareFuori,
 } from "@/lib/impostazioni/regoleSicurezzaAzienda";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RegoleAzienda {
   allowed_ips: string[] | null;
@@ -45,6 +46,7 @@ interface RegoleAzienda {
 const NUMERI_TENTATIVI = Array.from({ length: TENTATIVI_MASSIMI - TENTATIVI_MINIMI + 1 }, (_, i) => TENTATIVI_MINIMI + i);
 
 export function CompanySecuritySettings() {
+  const t = useT();
   const { effectiveCompany, role, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const isAdmin = role === "company_admin" || role === "super_admin";
@@ -93,8 +95,8 @@ export function CompanySecuritySettings() {
     return (
       <Alert variant="destructive" className="max-w-2xl">
         <AlertDescription className="flex flex-wrap items-center gap-3">
-          Non riesco a leggere le regole di sicurezza. Nessuna modifica verrà salvata.
-          <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+          {t("Non riesco a leggere le regole di sicurezza. Nessuna modifica verrà salvata.")}
+          <Button size="sm" variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button>
         </AlertDescription>
       </Alert>
     );
@@ -102,9 +104,9 @@ export function CompanySecuritySettings() {
 
   if (!regole) {
     return (
-      <SezioneImpostazione id="regole-azienda" titolo="Regole di sicurezza dell'azienda" descrizione="Valgono per tutte le persone dell'azienda quando entrano.">
+      <SezioneImpostazione id="regole-azienda" titolo={t("Regole di sicurezza dell'azienda")} descrizione={t("Valgono per tutte le persone dell'azienda quando entrano.")}>
         <p className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Caricamento…
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("Caricamento…")}
         </p>
       </SezioneImpostazione>
     );
@@ -115,6 +117,7 @@ export function CompanySecuritySettings() {
 }
 
 function FormRegole({ companyId, salvate, mioIndirizzo }: { companyId: string; salvate: RegoleAzienda; mioIndirizzo: string | null }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const { evidenziata } = useVaiASezione(true);
@@ -137,15 +140,15 @@ function FormRegole({ companyId, salvate, mioIndirizzo }: { companyId: string; s
       // L'aggiornamento non dà errore quando le regole di accesso gli lasciano toccare zero righe.
       const { data, error } = await supabase.from("companies").update(modifiche as never).eq("id", companyId).select("id");
       if (error) throw error;
-      if (righeToccate(data) === 0) throw new MessaggioPerUtente("Il tuo utente non può modificare le regole di sicurezza dell'azienda.");
+      if (righeToccate(data) === 0) throw new MessaggioPerUtente(t("Il tuo utente non può modificare le regole di sicurezza dell'azienda."));
     },
     onSuccess: () => {
-      toast.success("Regole di sicurezza salvate");
+      toast.success(t("Regole di sicurezza salvate"));
       // Subito nella copia in memoria: il modulo riparte da qui, senza aspettare la rilettura.
       queryClient.setQueryData(["company-security", companyId], { ...salvate, ...modifiche });
       void queryClient.invalidateQueries({ queryKey: ["company-security", companyId] });
     },
-    onError: (errore) => toast.error("Regole non salvate", { description: motivoDelRifiuto(errore, "Riprova tra poco.") }),
+    onError: (errore) => toast.error(t("Regole non salvate"), { description: motivoDelRifiuto(errore, t("Riprova tra poco.")) }),
   });
   useSettingsDraftGuard(dirty || salva.isPending);
 
@@ -153,11 +156,11 @@ function FormRegole({ companyId, salvate, mioIndirizzo }: { companyId: string; s
     if (!dirty || salva.isPending || nonValidi.length > 0) return;
     if (modifiche.allowed_ips && rischiaDiRestareFuori(elenco, mioIndirizzo)) {
       const ok = await confirm({
-        title: "Il tuo indirizzo potrebbe restare fuori",
+        title: t("Il tuo indirizzo potrebbe restare fuori"),
         description: mioIndirizzo && indirizzoNellElenco(mioIndirizzo, elenco) === false
-          ? `Dopo il salvataggio si entra solo dagli indirizzi scritti. Il tuo ultimo accesso è partito da ${mioIndirizzo}, che nell'elenco non c'è: rischi di non poter più entrare. Salvare lo stesso?`
-          : "Dopo il salvataggio si entra solo dagli indirizzi scritti. Se il tuo non c'è, non potrai più entrare. Salvare lo stesso?",
-        confirmLabel: "Salva lo stesso",
+          ? t("Dopo il salvataggio si entra solo dagli indirizzi scritti. Il tuo ultimo accesso è partito da {mioIndirizzo}, che nell'elenco non c'è: rischi di non poter più entrare. Salvare lo stesso?", { mioIndirizzo: String(mioIndirizzo ?? "") })
+          : t("Dopo il salvataggio si entra solo dagli indirizzi scritti. Se il tuo non c'è, non potrai più entrare. Salvare lo stesso?"),
+        confirmLabel: t("Salva lo stesso"),
         variant: "destructive",
       });
       if (!ok) return;
@@ -174,9 +177,9 @@ function FormRegole({ companyId, salvate, mioIndirizzo }: { companyId: string; s
   return (
     <SezioneImpostazione
       id="regole-azienda"
-      titolo="Regole di sicurezza dell'azienda"
-      descrizione="Valgono per tutte le persone dell'azienda quando entrano."
-      ambito={<AmbitoImpostazione>Tutta l'azienda</AmbitoImpostazione>}
+      titolo={t("Regole di sicurezza dell'azienda")}
+      descrizione={t("Valgono per tutte le persone dell'azienda quando entrano.")}
+      ambito={<AmbitoImpostazione>{t("Tutta l'azienda")}</AmbitoImpostazione>}
       evidenziata={evidenziata === "regole-azienda"}
     >
       <fieldset disabled={salva.isPending} className="m-0 min-w-0 divide-y border-0 p-0">
@@ -184,33 +187,33 @@ function FormRegole({ companyId, salvate, mioIndirizzo }: { companyId: string; s
           <StatoSalvataggio modificato={dirty} inCorso={salva.isPending} />
           <Button size="sm" onClick={avviaSalvataggio} disabled={!dirty || salva.isPending || nonValidi.length > 0}>
             {salva.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Salva regole
+            {t("Salva regole")}
           </Button>
         </div>
         <div className="space-y-3 px-4 py-4">
           <div>
-            <h3 className="text-sm font-semibold">Troppi tentativi sbagliati</h3>
-            <p className="text-xs text-muted-foreground">Dopo troppe password sbagliate di fila l'account si ferma da solo, per un po'.</p>
+            <h3 className="text-sm font-semibold">{t("Troppi tentativi sbagliati")}</h3>
+            <p className="text-xs text-muted-foreground">{t("Dopo troppe password sbagliate di fila l'account si ferma da solo, per un po'.")}</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="sicurezza-tentativi">Blocca l'account dopo</Label>
+              <Label htmlFor="sicurezza-tentativi">{t("Blocca l'account dopo")}</Label>
               <Select value={tentativi} onValueChange={setTentativi}>
                 <SelectTrigger id="sicurezza-tentativi"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {NUMERI_TENTATIVI.map((n) => (
-                    <SelectItem key={n} value={String(n)}>{n} password sbagliate</SelectItem>
+                    <SelectItem key={n} value={String(n)}>{t("{n} password sbagliate", { n: String(n ?? "") })}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="sicurezza-durata">Quanto resta bloccato</Label>
+              <Label htmlFor="sicurezza-durata">{t("Quanto resta bloccato")}</Label>
               <Select value={durata} onValueChange={setDurata}>
                 <SelectTrigger id="sicurezza-durata"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {DURATE_BLOCCO.map((d) => (
-                    <SelectItem key={d.valore} value={d.valore}>{d.etichetta}</SelectItem>
+                    <SelectItem key={d.valore} value={d.valore}>{t(d.etichetta)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -218,20 +221,20 @@ function FormRegole({ companyId, salvate, mioIndirizzo }: { companyId: string; s
           </div>
           <p className="text-xs text-muted-foreground">
             {durata === "0"
-              ? "L'account resta bloccato finché non lo sblocca un amministratore."
-              : `L'account si sblocca da solo dopo ${etichettaDurata(durata)}.`}
+              ? t("L'account resta bloccato finché non lo sblocca un amministratore.")
+              : t("L'account si sblocca da solo dopo {durata}.", { durata: t(String(etichettaDurata(durata) ?? "")) })}
           </p>
         </div>
 
         <div className="space-y-3 px-4 py-4">
           <div>
-            <h3 className="text-sm font-semibold">Indirizzi autorizzati</h3>
+            <h3 className="text-sm font-semibold">{t("Indirizzi autorizzati")}</h3>
             <p id="sicurezza-indirizzi-aiuto" className="text-xs text-muted-foreground">
-              Se scrivi degli indirizzi, si entra solo da quelli. Lascia vuoto per entrare da dove si vuole.
+              {t("Se scrivi degli indirizzi, si entra solo da quelli. Lascia vuoto per entrare da dove si vuole.")}
             </p>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="sicurezza-indirizzi">Indirizzi da cui si può entrare, uno per riga</Label>
+            <Label htmlFor="sicurezza-indirizzi">{t("Indirizzi da cui si può entrare, uno per riga")}</Label>
             <Textarea
               id="sicurezza-indirizzi"
               value={testoIndirizzi}
@@ -245,23 +248,21 @@ function FormRegole({ companyId, salvate, mioIndirizzo }: { companyId: string; s
           </div>
           {mioIndirizzo && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <span>L'ultimo accesso con il tuo account è partito da <strong className="font-mono text-foreground">{mioIndirizzo}</strong>.</span>
+              <span>{t("L'ultimo accesso con il tuo account è partito da")} <strong className="font-mono text-foreground">{mioIndirizzo}</strong>.</span>
               {mioIndirizzoManca && (
                 <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={aggiungiMioIndirizzo}>
-                  <Plus className="h-3.5 w-3.5" /> Aggiungilo all'elenco
+                  <Plus className="h-3.5 w-3.5" /> {t("Aggiungilo all'elenco")}
                 </Button>
               )}
             </div>
           )}
           {nonValidi.length > 0 && (
-            <p role="alert" className="text-xs text-destructive">
-              «{nonValidi[0]}» non sembra un indirizzo: scrivi per esempio 203.0.113.25.
-            </p>
+            <p role="alert" className="text-xs text-destructive">{t("«{valore}» non sembra un indirizzo: scrivi per esempio 203.0.113.25.", { valore: String(nonValidi[0] ?? "") })}</p>
           )}
           <Alert role="note" className="border-amber-300 bg-amber-50/60 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Attenzione: se sbagli, nessuno potrà entrare, nemmeno tu.
+              {t("Attenzione: se sbagli, nessuno potrà entrare, nemmeno tu.")}
             </AlertDescription>
           </Alert>
         </div>

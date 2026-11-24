@@ -53,6 +53,7 @@ import {
   isValidLogoUrl,
   isValidUnsubscribeFooter,
 } from "@/lib/email/preferencesValidators";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface EmailPreferencesRow {
@@ -145,6 +146,7 @@ function HexColorInput({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const t = useT();
   const valid = HEX_REGEX.test(value);
   return (
     <div className="space-y-1.5">
@@ -155,7 +157,7 @@ function HexColorInput({
           value={valid ? value : "#000000"}
           onChange={(e) => onChange(e.target.value.toUpperCase())}
           className="h-11 w-11 shrink-0 cursor-pointer rounded border p-0.5 disabled:opacity-50 sm:h-9 sm:w-9"
-          aria-label={`${label}: scegli dalla tavolozza`}
+          aria-label={t("{label}: scegli dalla tavolozza", { label: String(label ?? "") })}
         />
         <Input
           id={id}
@@ -168,7 +170,7 @@ function HexColorInput({
         />
       </div>
       {!valid && (
-        <p id={`${id}-errore`} className="text-xs text-destructive">Formato non valido. Scrivi il colore così: #1E3A5F.</p>
+        <p id={`${id}-errore`} className="text-xs text-destructive">{t("Formato non valido. Scrivi il colore così: #1E3A5F.")}</p>
       )}
     </div>
   );
@@ -211,9 +213,10 @@ function AnteprimaEmail({
   testoInFondo: string | null;
   inviatoCon: boolean;
 }) {
+  const t = useT();
   return (
     <div className="hidden min-w-0 lg:block" aria-hidden="true">
-      <p className="mb-2 text-xs font-medium text-muted-foreground">Anteprima (indicativa)</p>
+      <p className="mb-2 text-xs font-medium text-muted-foreground">{t("Anteprima (indicativa)")}</p>
       <div className="overflow-hidden rounded-lg border bg-white text-slate-800 shadow-sm">
         <div className="border-b bg-slate-50 px-5 py-2 text-[11px] text-slate-500">
           <p className="truncate"><span className="font-medium text-slate-700">Da:</span> {mittente}</p>
@@ -239,7 +242,7 @@ function AnteprimaEmail({
         <div className="space-y-1 border-t bg-slate-50 px-5 py-3 text-[11px] text-slate-500">
           {testoInFondo && <p className="whitespace-pre-line">{testoInFondo}</p>}
           {inviatoCon && <p>Inviato con EdiliziaInCloud</p>}
-          {!testoInFondo && !inviatoCon && <p>Nessun testo in fondo</p>}
+          {!testoInFondo && !inviatoCon && <p>{t("Nessun testo in fondo")}</p>}
         </div>
       </div>
     </div>
@@ -253,6 +256,7 @@ export default function SettingsEmailPreferences({
   /** Dove sta la pagina del dominio quando questa è montata altrove (es. la scheda «Mittente e aspetto» della pagina Email admin). */
   linkDominio?: string;
 } = {}) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
@@ -318,7 +322,7 @@ export default function SettingsEmailPreferences({
 
   const saveMutation = useMutation({
     mutationFn: async (payload: EmailPreferencesRow) => {
-      if (!puoModificare) throw new Error("Per cambiare le preferenze serve il permesso «Email Marketing».");
+      if (!puoModificare) throw new Error(t("Per cambiare le preferenze serve il permesso «Email Marketing»."));
       // upsert: crea la riga se non esiste, altrimenti la aggiorna
       const { error } = await supabase
         .from("company_email_preferences")
@@ -341,10 +345,10 @@ export default function SettingsEmailPreferences({
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["company-email-preferences", companyId] });
       setModifiche({});
-      toast.success("Preferenze email salvate");
+      toast.success(t("Preferenze email salvate"));
     },
     onError: (err: unknown) => {
-      toast.error("Non sono riuscito a salvare", { description: userErrorMessage(err, "Riprova tra poco.") });
+      toast.error(t("Non sono riuscito a salvare"), { description: userErrorMessage(err, t("Riprova tra poco.")) });
     },
   });
 
@@ -353,7 +357,7 @@ export default function SettingsEmailPreferences({
     return (
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>Seleziona un'azienda per cambiare mittente e aspetto delle email.</AlertDescription>
+        <AlertDescription>{t("Seleziona un'azienda per cambiare mittente e aspetto delle email.")}</AlertDescription>
       </Alert>
     );
   }
@@ -362,10 +366,10 @@ export default function SettingsEmailPreferences({
     return (
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Non riesco a leggere le preferenze</AlertTitle>
+        <AlertTitle>{t("Non riesco a leggere le preferenze")}</AlertTitle>
         <AlertDescription className="flex flex-wrap items-center gap-3">
-          {userErrorMessage(prefsQuery.error, "Ricarica la pagina tra poco.")}
-          <Button size="sm" variant="outline" onClick={() => prefsQuery.refetch()}>Riprova</Button>
+          {userErrorMessage(prefsQuery.error, t("Ricarica la pagina tra poco."))}
+          <Button size="sm" variant="outline" onClick={() => prefsQuery.refetch()}>{t("Riprova")}</Button>
         </AlertDescription>
       </Alert>
     );
@@ -393,11 +397,11 @@ export default function SettingsEmailPreferences({
   const canSave = primaryValid && secondaryValid && prefixValid && replyToValid && logoUrlValid && footerValid;
   // Perché «Salva» è spento (il primo problema che l'utente deve sistemare).
   const motivoNonSalva = !replyToValid
-    ? replyToVuoto ? "Manca l'indirizzo per le risposte." : "L'indirizzo per le risposte non è valido."
-    : !prefixValid ? "Controlla la parte prima della @."
-    : !primaryValid || !secondaryValid ? "Controlla i colori (si scrivono così: #1E3A5F)."
-    : !logoUrlValid ? "Il logo deve cominciare con https://"
-    : !footerValid ? "Manca il link per disiscriversi: scrivi {{unsubscribe_url}} nel testo."
+    ? replyToVuoto ? t("Manca l'indirizzo per le risposte.") : t("L'indirizzo per le risposte non è valido.")
+    : !prefixValid ? t("Controlla la parte prima della @.")
+    : !primaryValid || !secondaryValid ? t("Controlla i colori (si scrivono così: #1E3A5F).")
+    : !logoUrlValid ? t("Il logo deve cominciare con https://")
+    : !footerValid ? t("Manca il link per disiscriversi: scrivi {segnaposto} nel testo.", { segnaposto: "{{unsubscribe_url}}" })
     : null;
 
   const domains = domainsQuery.data ?? [];
@@ -406,8 +410,8 @@ export default function SettingsEmailPreferences({
   const nomeMittente = form.sender_name || effectiveCompany?.name || "La tua azienda";
   const riepilogo: RiepilogoCanale[] = [
     riepilogoCanale({
-      titolo: "Messaggi di servizio",
-      sottotitolo: "Notifiche, documenti, codici",
+      titolo: t("Messaggi di servizio"),
+      sottotitolo: t("Notifiche, documenti, codici"),
       dominioScelto: form.transactional_domain_id,
       pronti: transactionalDomains,
       fallback: DOMINIO_PIATTAFORMA.transactional,
@@ -416,8 +420,8 @@ export default function SettingsEmailPreferences({
       conVia: false,
     }),
     riepilogoCanale({
-      titolo: "Campagne e newsletter",
-      sottotitolo: "Email di marketing",
+      titolo: t("Campagne e newsletter"),
+      sottotitolo: t("Email di marketing"),
       dominioScelto: form.marketing_domain_id,
       pronti: marketingDomains,
       fallback: DOMINIO_PIATTAFORMA.marketing,
@@ -427,18 +431,18 @@ export default function SettingsEmailPreferences({
     }),
   ];
   const testoStato = saveMutation.isPending
-    ? "Salvataggio…"
+    ? t("Salvataggio…")
     : dirty
-      ? motivoNonSalva ?? "Modifiche non salvate"
-      : "Nessuna modifica da salvare";
+      ? motivoNonSalva ?? t("Modifiche non salvate")
+      : t("Nessuna modifica da salvare");
 
   return (
     // Tutta la larghezza (fino a 1600px): le sezioni stanno affiancate invece di lasciare metà pagina vuota.
     <div className="max-w-[1600px] space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">Mittente e aspetto delle email</h2>
+        <h2 className="text-lg font-semibold">{t("Mittente e aspetto delle email")}</h2>
         <p className="text-sm text-muted-foreground max-sm:hidden">
-          Chi vede il cliente come mittente, da quale dominio parte ogni tipo di email e che aspetto hanno.
+          {t("Chi vede il cliente come mittente, da quale dominio parte ogni tipo di email e che aspetto hanno.")}
         </p>
       </div>
 
@@ -446,14 +450,14 @@ export default function SettingsEmailPreferences({
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            Stai solo consultando: per cambiare mittente e aspetto serve il permesso «Email Marketing» (o essere amministratore).
+            {t("Stai solo consultando: per cambiare mittente e aspetto serve il permesso «Email Marketing» (o essere amministratore).")}
           </AlertDescription>
         </Alert>
       )}
 
       {/* Riepilogo per canale: chi scrive, da quale dominio, e se il dominio è il tuo o quello della piattaforma.
           Segue quello che c'è nei campi qui sotto, modifiche non salvate comprese. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-label="Riepilogo per tipo di email">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-label={t("Riepilogo per tipo di email")}>
         {riepilogo.map((c) => (
           <div key={c.titolo} className="flex items-start gap-3 rounded-lg border bg-card px-3 py-2.5">
             <div className={cn("mt-0.5 rounded-md p-1.5", c.tuo ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-muted text-muted-foreground")}>
@@ -463,11 +467,11 @@ export default function SettingsEmailPreferences({
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <p className="text-sm font-medium">{c.titolo}</p>
                 <Badge variant="outline" className={cn("px-1.5 py-0 text-[11px] font-normal", c.tuo && "border-emerald-300 text-emerald-700 dark:text-emerald-300")}>
-                  {c.stato}
+                  {t(c.stato)}
                 </Badge>
               </div>
               <p className="truncate text-xs text-muted-foreground" title={c.mittente}>{c.mittente}</p>
-              {c.nota && <p className="text-xs text-amber-700 dark:text-amber-400">{c.nota}</p>}
+              {c.nota && <p className="text-xs text-amber-700 dark:text-amber-400">{t(c.nota)}</p>}
             </div>
           </div>
         ))}
@@ -478,27 +482,27 @@ export default function SettingsEmailPreferences({
         {/* ─── Chi scrive (vale per tutti e due i canali: nel database è un valore solo) ─── */}
         <SezioneImpostazione
           id="chi-scrive"
-          titolo="Chi scrive"
-          descrizione="Il nome e l'indirizzo che vede il cliente. Valgono per i messaggi di servizio e per le campagne."
+          titolo={t("Chi scrive")}
+          descrizione={t("Il nome e l'indirizzo che vede il cliente. Valgono per i messaggi di servizio e per le campagne.")}
           evidenziata={evidenziata === "chi-scrive"}
         >
           <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="sender_name">Nome che vede il cliente</Label>
+              <Label htmlFor="sender_name">{t("Nome che vede il cliente")}</Label>
               <Input
                 id="sender_name"
-                placeholder="es. Rossi Costruzioni"
+                placeholder={t("es. Rossi Costruzioni")}
                 value={form.sender_name ?? ""}
                 onChange={(e) => setCampo("sender_name", e.target.value || null)}
                 aria-describedby="sender_name-aiuto"
               />
               <p id="sender_name-aiuto" className="text-xs text-muted-foreground">
-                Se lo lasci vuoto usiamo il nome dell'azienda.
+                {t("Se lo lasci vuoto usiamo il nome dell'azienda.")}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="sender_prefix">Prima della @</Label>
+              <Label htmlFor="sender_prefix">{t("Prima della @")}</Label>
               <Input
                 id="sender_prefix"
                 placeholder="info"
@@ -509,16 +513,15 @@ export default function SettingsEmailPreferences({
                 className={!prefixValid ? "border-destructive" : ""}
               />
               <p id="sender_prefix-aiuto" className="text-xs text-muted-foreground">
-                Per esempio «info» o «preventivi». Solo lettere minuscole, numeri e <code>. _ -</code> (massimo 30). Vale
-                quando le email partono da un dominio tuo.
+                {t("Per esempio «info» o «preventivi». Solo lettere minuscole, numeri e")} <code>. _ -</code> {t("(massimo 30). Vale quando le email partono da un dominio tuo.")}
               </p>
               {!prefixValid && (
-                <p className="text-xs text-destructive">C'è un carattere non consentito.</p>
+                <p className="text-xs text-destructive">{t("C'è un carattere non consentito.")}</p>
               )}
             </div>
 
             <div className="space-y-2 sm:col-span-2 xl:col-span-1">
-              <Label htmlFor="reply_to_email">Risposte a</Label>
+              <Label htmlFor="reply_to_email">{t("Risposte a")}</Label>
               <Input
                 id="reply_to_email"
                 type="email"
@@ -531,10 +534,10 @@ export default function SettingsEmailPreferences({
                 className={!replyToValid ? "border-destructive" : ""}
               />
               <p id="reply_to_email-aiuto" className="text-xs text-muted-foreground">
-                Dove arrivano le risposte dei clienti: una casella che controlli tu. Obbligatorio.
+                {t("Dove arrivano le risposte dei clienti: una casella che controlli tu. Obbligatorio.")}
               </p>
               {!replyToValid && !replyToVuoto && (
-                <p className="text-xs text-destructive">L'indirizzo non è valido.</p>
+                <p className="text-xs text-destructive">{t("L'indirizzo non è valido.")}</p>
               )}
             </div>
           </div>
@@ -543,54 +546,53 @@ export default function SettingsEmailPreferences({
         {/* ─── Dominio, per canale ─────────────────────────────────────── */}
         <SezioneImpostazione
           id="dominio"
-          titolo="Da quale dominio partono le email"
-          descrizione="Uno per tipo di email. Se non scegli niente partono dal dominio della piattaforma."
+          titolo={t("Da quale dominio partono le email")}
+          descrizione={t("Uno per tipo di email. Se non scegli niente partono dal dominio della piattaforma.")}
           evidenziata={evidenziata === "dominio"}
         >
           <div className="grid grid-cols-1 divide-y lg:grid-cols-2 lg:divide-x lg:divide-y-0">
             <div className="space-y-2 px-4 py-4">
               <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <Mail className="h-4 w-4 text-muted-foreground" /> Messaggi di servizio
+                <Mail className="h-4 w-4 text-muted-foreground" /> {t("Messaggi di servizio")}
               </h3>
               {/* 07/11/2026: i messaggi di servizio non usano più il dominio dell'azienda
                   (manage-email-domain non li registra su Resend): niente scelta qui. */}
               <p className="text-xs text-muted-foreground">
-                Notifiche, documenti da firmare, codici di accesso. Partono sempre da{" "}
-                <span className="font-mono">{DOMINIO_PIATTAFORMA.transactional}</span> col solo nome della tua azienda;
-                le risposte arrivano a te. Promemoria e conferme degli appuntamenti partono dal dominio delle campagne.
+                {t("Notifiche, documenti da firmare, codici di accesso. Partono sempre da")}{" "}
+                <span className="font-mono">{DOMINIO_PIATTAFORMA.transactional}</span> {t("col solo nome della tua azienda; le risposte arrivano a te. Promemoria e conferme degli appuntamenti partono dal dominio delle campagne.")}
               </p>
             </div>
 
             <div className="space-y-2 px-4 py-4">
               <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <Megaphone className="h-4 w-4 text-muted-foreground" /> Campagne e newsletter
-                <AmbitoImpostazione>Solo campagne</AmbitoImpostazione>
+                <Megaphone className="h-4 w-4 text-muted-foreground" /> {t("Campagne e newsletter")}
+                <AmbitoImpostazione>{t("Solo campagne")}</AmbitoImpostazione>
               </h3>
-              <p className="text-xs text-muted-foreground">Le email di marketing mandate a liste di contatti.</p>
-              <Label htmlFor="marketing_domain" className="sr-only">Dominio delle campagne</Label>
+              <p className="text-xs text-muted-foreground">{t("Le email di marketing mandate a liste di contatti.")}</p>
+              <Label htmlFor="marketing_domain" className="sr-only">{t("Dominio delle campagne")}</Label>
               <Select
                 value={form.marketing_domain_id ?? "__none__"}
                 onValueChange={(v) => setCampo("marketing_domain_id", v === "__none__" ? null : v)}
               >
-                <SelectTrigger id="marketing_domain" aria-label="Dominio delle campagne">
-                  <SelectValue placeholder="Scegli il dominio" />
+                <SelectTrigger id="marketing_domain" aria-label={t("Dominio delle campagne")}>
+                  <SelectValue placeholder={t("Scegli il dominio")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">
                     {/* Il valore vero è email_marketing_fallback_subdomain (21/09/2026). */}
-                    Il dominio della piattaforma ({DOMINIO_PIATTAFORMA.marketing})
+                    {t("Il dominio della piattaforma (")}{DOMINIO_PIATTAFORMA.marketing})
                   </SelectItem>
                   {marketingDomains.map((d) => (
                     <SelectItem key={d.id} value={d.id}>
-                      {d.domain} <span className="text-muted-foreground">· verificato</span>
+                      {d.domain} <span className="text-muted-foreground">{t("· verificato")}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {marketingDomains.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Nessun tuo dominio è ancora verificato per le campagne. Registralo in{" "}
-                  <Link to={vaiAlDominio} className="text-primary underline">Dominio</Link>.
+                  {t("Nessun tuo dominio è ancora verificato per le campagne. Registralo in")}{" "}
+                  <Link to={vaiAlDominio} className="text-primary underline">{t("Dominio")}</Link>.
                 </p>
               )}
 
@@ -598,17 +600,17 @@ export default function SettingsEmailPreferences({
                   non serve, ma si apre da solo se il testo scritto non va bene. */}
               <details className="rounded-md border" open={!footerValid || undefined}>
                 <summary className="cursor-pointer px-3 py-2 text-sm">
-                  Piè di pagina delle campagne <span className="text-xs text-muted-foreground">(facoltativo)</span>
+                  {t("Piè di pagina delle campagne")} <span className="text-xs text-muted-foreground">{t("(facoltativo)")}</span>
                 </summary>
                 <div className="space-y-2 border-t px-3 py-3">
-                  <Label htmlFor="unsubscribe_footer_html" className="text-sm font-medium">Piè di pagina delle campagne</Label>
+                  <Label htmlFor="unsubscribe_footer_html" className="text-sm font-medium">{t("Piè di pagina delle campagne")}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Testo con il link per disiscriversi, obbligatorio per legge. Se lo lasci vuoto usiamo quello standard.
+                    {t("Testo con il link per disiscriversi, obbligatorio per legge. Se lo lasci vuoto usiamo quello standard.")}
                   </p>
                   <Textarea
                     id="unsubscribe_footer_html"
                     rows={4}
-                    placeholder='<p style="font-size:11px;color:#94a3b8">…</p>'
+                    placeholder={t("<p style=\"font-size:11px;color:#94a3b8\">…</p>")}
                     value={form.unsubscribe_footer_html ?? ""}
                     onChange={(e) => setCampo("unsubscribe_footer_html", e.target.value || null)}
                     aria-invalid={!footerValid}
@@ -616,11 +618,11 @@ export default function SettingsEmailPreferences({
                     className={cn("font-mono text-xs", !footerValid && "border-destructive")}
                   />
                   <p id="unsubscribe_footer_html-aiuto" className="text-xs text-muted-foreground">
-                    Scrivi <code>{"{{unsubscribe_url}}"}</code> dove vuoi il link: al suo posto compare quello vero.
+                    {t("Scrivi")} <code>{"{{unsubscribe_url}}"}</code> {t("dove vuoi il link: al suo posto compare quello vero.")}
                   </p>
                   {!footerValid && (
                     <p className="text-xs text-destructive">
-                      Manca il link per disiscriversi: scrivi <code>{"{{unsubscribe_url}}"}</code> nel testo.
+                      {t("Manca il link per disiscriversi: scrivi")} <code>{"{{unsubscribe_url}}"}</code> {t("nel testo.")}
                     </p>
                   )}
                 </div>
@@ -634,14 +636,14 @@ export default function SettingsEmailPreferences({
             per mittente. Si presenta come «Brand» per leggerla come tale. */}
         <SezioneImpostazione
           id="aspetto"
-          titolo="Brand"
-          descrizione="Logo, colori e testo in fondo: valgono per tutte le email. L'anteprima a destra cambia mentre scrivi."
+          titolo={t("Brand")}
+          descrizione={t("Logo, colori e testo in fondo: valgono per tutte le email. L'anteprima a destra cambia mentre scrivi.")}
           evidenziata={evidenziata === "aspetto"}
         >
           <div className="grid grid-cols-1 gap-6 px-4 py-4 lg:grid-cols-2">
             <div className="min-w-0 space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="logo_url">Indirizzo del logo (https://)</Label>
+                <Label htmlFor="logo_url">{t("Indirizzo del logo (https://)")}</Label>
                 <Input
                   id="logo_url"
                   type="url"
@@ -653,48 +655,48 @@ export default function SettingsEmailPreferences({
                   className={!logoUrlValid ? "border-destructive" : ""}
                 />
                 <p id="logo_url-aiuto" className="text-xs text-muted-foreground">
-                  Massimo 200 KB, meglio un PNG con sfondo trasparente. Se lo lasci vuoto usiamo il logo dell'azienda.
+                  {t("Massimo 200 KB, meglio un PNG con sfondo trasparente. Se lo lasci vuoto usiamo il logo dell'azienda.")}
                 </p>
                 {!logoUrlValid && (
-                  <p className="text-xs text-destructive">L'indirizzo del logo deve cominciare con https://</p>
+                  <p className="text-xs text-destructive">{t("L'indirizzo del logo deve cominciare con https://")}</p>
                 )}
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <HexColorInput
                   id="primary_color"
-                  label="Colore principale"
+                  label={t("Colore principale")}
                   value={form.primary_color}
                   onChange={(v) => setCampo("primary_color", v)}
                 />
                 <HexColorInput
                   id="secondary_color"
-                  label="Colore di risalto"
+                  label={t("Colore di risalto")}
                   value={form.secondary_color}
                   onChange={(v) => setCampo("secondary_color", v)}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="footer_text">Testo in fondo alle email (facoltativo)</Label>
+                <Label htmlFor="footer_text">{t("Testo in fondo alle email (facoltativo)")}</Label>
                 <Textarea
                   id="footer_text"
                   rows={2}
-                  placeholder="Es. Rossi Costruzioni SRL · Via Roma 1, 20100 Milano · P.IVA 12345678901"
+                  placeholder={t("Es. Rossi Costruzioni SRL · Via Roma 1, 20100 Milano · P.IVA 12345678901")}
                   value={form.footer_text ?? ""}
                   onChange={(e) => setCampo("footer_text", e.target.value || null)}
                   aria-describedby="footer_text-aiuto"
                 />
                 <p id="footer_text-aiuto" className="text-xs text-muted-foreground">
-                  Per le campagne conviene metterci i dati dell'azienda (indirizzo, partita IVA).
+                  {t("Per le campagne conviene metterci i dati dell'azienda (indirizzo, partita IVA).")}
                 </p>
               </div>
 
               <div className="-mx-4 border-t">
                 <RigaImpostazione
-                  titolo="Scrivi «Inviato con EdiliziaInCloud» in fondo alle email"
+                  titolo={t("Scrivi «Inviato con EdiliziaInCloud» in fondo alle email")}
                   htmlFor="powered_by"
-                  descrizione="Se lo spegni la scritta sparisce dalle email."
+                  descrizione={t("Se lo spegni la scritta sparisce dalle email.")}
                   comando={
                     <Switch
                       id="powered_by"
@@ -731,11 +733,11 @@ export default function SettingsEmailPreferences({
                 motivoNonSalva && !saveMutation.isPending ? "font-medium text-destructive" : "text-amber-700 dark:text-amber-400",
               )}
             >
-              {saveMutation.isPending ? "Salvataggio…" : motivoNonSalva ?? "Hai modifiche non salvate"}
+              {saveMutation.isPending ? t("Salvataggio…") : motivoNonSalva ?? t("Hai modifiche non salvate")}
             </p>
             <div className="flex shrink-0 items-center gap-2 max-sm:w-full">
               <Button size="sm" variant="outline" className="h-11 sm:h-9" onClick={() => setModifiche({})} disabled={saveMutation.isPending}>
-                Annulla modifiche
+                {t("Annulla modifiche")}
               </Button>
               <Button size="sm" className="h-11 flex-1 sm:h-9 sm:flex-none" onClick={() => saveMutation.mutate(form)} disabled={!canSave || saveMutation.isPending}>
                 {saveMutation.isPending ? (
@@ -743,7 +745,7 @@ export default function SettingsEmailPreferences({
                 ) : (
                   <Save className="mr-2 h-4 w-4" />
                 )}
-                Salva preferenze
+                {t("Salva preferenze")}
               </Button>
             </div>
           </div>

@@ -13,6 +13,7 @@ import {
   rimuovi, sostituisci, sposta, validaBozza,
   type BozzaModello, type FaseModello, type PayloadModello, type SottofaseModello,
 } from "@/lib/orders/modelliFasi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface ModelloFasiEditorProps {
   aperto: boolean;
@@ -25,15 +26,16 @@ interface ModelloFasiEditorProps {
 function Comandi({ etichetta, indice, totale, onSu, onGiu, onElimina, eliminaDisabilitato }: {
   etichetta: string; indice: number; totale: number; onSu: () => void; onGiu: () => void; onElimina: () => void; eliminaDisabilitato?: boolean;
 }) {
+  const t = useT();
   return (
     <>
-      <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Sposta su ${etichetta}`} disabled={indice === 0} onClick={onSu}>
+      <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={t("Sposta su {etichetta}", { etichetta: String(etichetta ?? "") })} disabled={indice === 0} onClick={onSu}>
         <ArrowUp className="h-4 w-4" />
       </Button>
-      <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Sposta giù ${etichetta}`} disabled={indice === totale - 1} onClick={onGiu}>
+      <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={t("Sposta giù {etichetta}", { etichetta: String(etichetta ?? "") })} disabled={indice === totale - 1} onClick={onGiu}>
         <ArrowDown className="h-4 w-4" />
       </Button>
-      <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-rose-600" aria-label={`Elimina ${etichetta}`} disabled={eliminaDisabilitato} onClick={onElimina}>
+      <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-rose-600" aria-label={t("Elimina {etichetta}", { etichetta: String(etichetta ?? "") })} disabled={eliminaDisabilitato} onClick={onElimina}>
         <Trash2 className="h-4 w-4" />
       </Button>
     </>
@@ -47,6 +49,7 @@ export default function ModelloFasiEditor({ aperto, bozzaIniziale, ...resto }: M
 }
 
 function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<ModelloFasiEditorProps, "aperto" | "bozzaIniziale"> & { bozzaIniziale: BozzaModello }) {
+  const t = useT();
   const [bozza, setBozza] = useState<BozzaModello>(bozzaIniziale);
   const modificato = JSON.stringify(bozza) !== JSON.stringify(bozzaIniziale);
   const conferma = useSettingsDraftGuard(salvataggio || modificato);
@@ -68,20 +71,20 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Mo
     <Dialog open onOpenChange={(o) => { if (!o) chiudi(); }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{bozza.id ? "Modifica il modello" : "Nuovo modello di fasi"}</DialogTitle>
+          <DialogTitle>{bozza.id ? t("Modifica il modello") : t("Nuovo modello di fasi")}</DialogTitle>
           <DialogDescription>
-            Le fasi che compaiono quando scegli questo modello in una commessa. Le sottofasi misurano l'avanzamento della fase: più pesano, più contano. Con i giorni, nella commessa si mettono in fila da sole.
+            {t("Le fasi che compaiono quando scegli questo modello in una commessa. Le sottofasi misurano l'avanzamento della fase: più pesano, più contano. Con i giorni, nella commessa si mettono in fila da sole.")}
           </DialogDescription>
         </DialogHeader>
 
         <fieldset disabled={salvataggio} className="m-0 min-w-0 space-y-4 border-0 p-0">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="modello-nome">Nome del modello</Label>
+              <Label htmlFor="modello-nome">{t("Nome del modello")}</Label>
               <Input id="modello-nome" value={bozza.nome} maxLength={80} onChange={(e) => setBozza({ ...bozza, nome: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="modello-desc">A cosa serve (facoltativo)</Label>
+              <Label htmlFor="modello-desc">{t("A cosa serve (facoltativo)")}</Label>
               <Input id="modello-desc" value={bozza.descrizione} maxLength={200} onChange={(e) => setBozza({ ...bozza, descrizione: e.target.value })} />
             </div>
           </div>
@@ -92,12 +95,12 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Mo
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{i + 1}</span>
                   <Input
-                    value={fase.nome} maxLength={160} placeholder="Nome della fase" aria-label={`Nome fase ${i + 1}`}
+                    value={fase.nome} maxLength={160} placeholder={t("Nome della fase")} aria-label={t("Nome fase {i}", { i: i + 1 })}
                     onChange={(e) => cambiaFase(i, { nome: e.target.value })} className="h-9 min-w-0 flex-1 basis-[calc(100%-1.625rem)] sm:basis-0"
                   />
                   <div className="ml-auto flex items-center gap-1.5">
                   <Comandi
-                    etichetta={`fase ${i + 1}`} indice={i} totale={fasi.length} eliminaDisabilitato={fasi.length === 1}
+                    etichetta={t("fase {i}", { i: i + 1 })} indice={i} totale={fasi.length} eliminaDisabilitato={fasi.length === 1}
                     onSu={() => cambiaFasi(sposta(fasi, i, -1))} onGiu={() => cambiaFasi(sposta(fasi, i, 1))} onElimina={() => cambiaFasi(rimuovi(fasi, i))}
                   />
                   </div>
@@ -106,24 +109,24 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Mo
                   {fase.sottofasi.map((s, j) => (
                     <li key={j} className="flex flex-wrap items-center gap-1.5">
                       <Input
-                        value={s.nome} maxLength={160} placeholder="Sottofase" aria-label={`Nome sottofase ${i + 1}.${j + 1}`}
+                        value={s.nome} maxLength={160} placeholder={t("Sottofase")} aria-label={t("Nome sottofase {i}.{j}", { i: i + 1, j: j + 1 })}
                         onChange={(e) => cambiaSotto(i, sostituisci(fase.sottofasi, j, { nome: e.target.value }))} className="h-9 min-w-[120px] flex-1 basis-full text-sm sm:basis-auto"
                       />
                       <Input
-                        type="number" min={1} max={100} value={s.peso} aria-label={`Peso sottofase ${i + 1}.${j + 1}`}
-                        title="Quanto pesa nell'avanzamento della fase"
+                        type="number" min={1} max={100} value={s.peso} aria-label={t("Peso sottofase {i}.{j}", { i: i + 1, j: j + 1 })}
+                        title={t("Quanto pesa nell'avanzamento della fase")}
                         onChange={(e) => cambiaSotto(i, sostituisci(fase.sottofasi, j, { peso: Number(e.target.value) }))} className="h-8 w-16 shrink-0 text-sm"
                       />
                       <label className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
                         <Input
-                          type="number" min={1} max={3650} placeholder="—" value={s.giorni ?? ""} aria-label={`Giorni sottofase ${i + 1}.${j + 1}`}
-                          title="I giorni di lavoro che servono: nella commessa la sottofase si mette in fila con questi"
+                          type="number" min={1} max={3650} placeholder="—" value={s.giorni ?? ""} aria-label={t("Giorni sottofase {i}.{j}", { i: i + 1, j: j + 1 })}
+                          title={t("I giorni di lavoro che servono: nella commessa la sottofase si mette in fila con questi")}
                           onChange={(e) => cambiaSotto(i, sostituisci(fase.sottofasi, j, { giorni: e.target.value === "" ? null : Number(e.target.value) }))}
                           className="h-8 w-16 text-sm"
-                        />gg
+                        />{t("gg")}
                       </label>
                       <Comandi
-                        etichetta={`sottofase ${i + 1}.${j + 1}`} indice={j} totale={fase.sottofasi.length}
+                        etichetta={t("sottofase {i}.{j}", { i: i + 1, j: j + 1 })} indice={j} totale={fase.sottofasi.length}
                         onSu={() => cambiaSotto(i, sposta(fase.sottofasi, j, -1))} onGiu={() => cambiaSotto(i, sposta(fase.sottofasi, j, 1))}
                         onElimina={() => cambiaSotto(i, rimuovi(fase.sottofasi, j))}
                       />
@@ -131,27 +134,27 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Mo
                   ))}
                 </ul>
                 <Button
-                  type="button" variant="ghost" size="sm" className="ml-5 mt-1.5 h-8 text-xs" aria-label={`Aggiungi sottofase alla fase ${i + 1}`}
+                  type="button" variant="ghost" size="sm" className="ml-5 mt-1.5 h-8 text-xs" aria-label={t("Aggiungi sottofase alla fase {i}", { i: i + 1 })}
                   onClick={() => cambiaSotto(i, [...fase.sottofasi, { nome: "", peso: 1 }])}
                 >
-                  <Plus className="mr-1 h-3.5 w-3.5" />Sottofase
+                  <Plus className="mr-1 h-3.5 w-3.5" />{t("Sottofase")}
                 </Button>
               </li>
             ))}
           </ol>
           <Button type="button" variant="outline" size="sm" onClick={() => cambiaFasi([...fasi, { nome: "", sottofasi: [] }])}>
-            <Plus className="mr-1 h-4 w-4" />Aggiungi fase
+            <Plus className="mr-1 h-4 w-4" />{t("Aggiungi fase")}
           </Button>
         </fieldset>
 
         <details className="rounded-lg border p-3">
-          <summary className="cursor-pointer text-sm font-medium">Anteprima della sequenza</summary>
+          <summary className="cursor-pointer text-sm font-medium">{t("Anteprima della sequenza")}</summary>
           <div className="mt-4"><AnteprimaModelloFasi fasi={fasi} /></div>
         </details>
         <DialogFooter className="sticky -bottom-6 z-10 border-t bg-background py-3">
-          <StatoSalvataggio modificato={modificato} inCorso={salvataggio} descrizione={bozza.id ? "Modifica i campi e salva il modello" : "Il nuovo modello si crea con Salva modello"} />
-          <Button variant="outline" disabled={salvataggio} onClick={chiudi}>Annulla</Button>
-          <Button onClick={salva} disabled={salvataggio}>Salva modello</Button>
+          <StatoSalvataggio modificato={modificato} inCorso={salvataggio} descrizione={bozza.id ? t("Modifica i campi e salva il modello") : t("Il nuovo modello si crea con Salva modello")} />
+          <Button variant="outline" disabled={salvataggio} onClick={chiudi}>{t("Annulla")}</Button>
+          <Button onClick={salva} disabled={salvataggio}>{t("Salva modello")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

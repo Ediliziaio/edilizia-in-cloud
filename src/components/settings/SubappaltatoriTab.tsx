@@ -25,8 +25,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { Link } from "react-router-dom";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function SubappaltatoriTab({ soloLettura = false }: { soloLettura?: boolean } = {}) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -72,17 +74,17 @@ export function SubappaltatoriTab({ soloLettura = false }: { soloLettura?: boole
     },
     onSuccess: ({ collegato }) => {
       if (collegato) {
-        toast.success("Accesso all'app cantiere collegato");
+        toast.success(t("Accesso all'app cantiere collegato"));
       } else {
         // Il toast di successo diceva «collegato» anche quando c'era solo l'email.
-        toast.info("Ho salvato l'email, ma non c'è ancora un account con questo indirizzo. Crea l'utente con ruolo Subappaltatore per completare il collegamento.");
+        toast.info(t("Ho salvato l'email, ma non c'è ancora un account con questo indirizzo. Crea l'utente con ruolo Subappaltatore per completare il collegamento."));
       }
       queryClient.invalidateQueries({ queryKey: ["sub-campo-list", companyId] });
       setCollegaDialogId(null);
       setCollegaEmail("");
     },
     onError: (e: unknown) =>
-      toast.error(userErrorMessage(e, "Non sono riuscito a collegare l'accesso. Riprova tra un attimo.")),
+      toast.error(userErrorMessage(e, t("Non sono riuscito a collegare l'accesso. Riprova tra un attimo."))),
   });
 
   const revocaMutation = useMutation({
@@ -92,18 +94,18 @@ export function SubappaltatoriTab({ soloLettura = false }: { soloLettura?: boole
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Accesso all'app cantiere tolto");
+      toast.success(t("Accesso all'app cantiere tolto"));
       queryClient.invalidateQueries({ queryKey: ["sub-campo-list", companyId] });
     },
     onError: (e: unknown) =>
-      toast.error(userErrorMessage(e, "Non sono riuscito a togliere l'accesso. Riprova tra un attimo.")),
+      toast.error(userErrorMessage(e, t("Non sono riuscito a togliere l'accesso. Riprova tra un attimo."))),
   });
 
   const chiediRevoca = async (sub: { id: string; ragione_sociale: string }) => {
     const ok = await confirm({
-      title: `Togliere l'accesso all'app cantiere a ${sub.ragione_sociale}?`,
-      description: "Non potrà più entrare finché non lo ricolleghi.",
-      confirmLabel: "Togli l'accesso",
+      title: t("Togliere l'accesso all'app cantiere a {ragione_sociale}?", { ragione_sociale: String(sub.ragione_sociale ?? "") }),
+      description: t("Non potrà più entrare finché non lo ricolleghi."),
+      confirmLabel: t("Togli l'accesso"),
       variant: "destructive",
     });
     if (ok) revocaMutation.mutate(sub.id);
@@ -119,17 +121,16 @@ export function SubappaltatoriTab({ soloLettura = false }: { soloLettura?: boole
         <CardHeader>
           <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
             <Building2 className="h-5 w-5 shrink-0" aria-hidden="true" />
-            Squadre di posa
+            {t("Squadre di posa")}
           </h2>
           <CardDescription>
-            Le squadre — interne o esterne, con il loro colore e il loro calendario Google — si gestiscono in un
-            posto solo.
+            {t("Le squadre — interne o esterne, con il loro colore e il loro calendario Google — si gestiscono in un posto solo.")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild variant="outline" className="gap-2">
             <Link to="/azienda/impostazioni/calendari-lavori?tab=squadre">
-              Vai a Calendari lavori → Squadre <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              {t("Vai a Calendari lavori → Squadre")} <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </Button>
         </CardContent>
@@ -140,29 +141,29 @@ export function SubappaltatoriTab({ soloLettura = false }: { soloLettura?: boole
         <CardHeader>
           <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
             <HardHat className="h-5 w-5" aria-hidden="true" />
-            Account app cantiere
+            {t("Account app cantiere")}
           </h2>
           <CardDescription>
-            Collega un account a ogni subappaltatore per dargli accesso all'app cantiere. Le anagrafiche create dal modulo Subappaltatori compaiono qui.
+            {t("Collega un account a ogni subappaltatore per dargli accesso all'app cantiere. Le anagrafiche create dal modulo Subappaltatori compaiono qui.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {loadingSub ? (
             <div role="status" className="flex justify-center py-4">
               <Loader2 className="animate-spin h-5 w-5" aria-hidden="true" />
-              <span className="sr-only">Caricamento dei subappaltatori…</span>
+              <span className="sr-only">{t("Caricamento dei subappaltatori…")}</span>
             </div>
           ) : elencoFallito ? (
             <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 p-3 text-sm text-destructive">
-              <span>Non riesco a leggere i subappaltatori. Controlla la connessione e riprova.</span>
-              <Button size="sm" variant="outline" onClick={() => void rileggi()}>Riprova</Button>
+              <span>{t("Non riesco a leggere i subappaltatori. Controlla la connessione e riprova.")}</span>
+              <Button size="sm" variant="outline" onClick={() => void rileggi()}>{t("Riprova")}</Button>
             </div>
           ) : subCampo.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center">
               <HardHat className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" aria-hidden="true" />
-              <p className="text-sm font-medium">Nessun subappaltatore in anagrafica</p>
+              <p className="text-sm font-medium">{t("Nessun subappaltatore in anagrafica")}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Crea un subappaltatore dalla sezione operativa: poi potrai dargli l'accesso all'app cantiere da qui.
+                {t("Crea un subappaltatore dalla sezione operativa: poi potrai dargli l'accesso all'app cantiere da qui.")}
               </p>
             </div>
           ) : (
@@ -181,11 +182,11 @@ export function SubappaltatoriTab({ soloLettura = false }: { soloLettura?: boole
                       {sub.user_id ? (
                         <Badge className="mt-1 text-[10px] bg-green-100 text-green-800 border-green-200 max-w-full">
                           <Link2 className="h-2.5 w-2.5 mr-1 shrink-0" aria-hidden="true" />
-                          <span className="truncate">App attiva — {sub.user_email}</span>
+                          <span className="truncate">{t("App attiva — {user_email}", { user_email: String(sub.user_email ?? "") })}</span>
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="mt-1 text-[10px] text-muted-foreground">
-                          <Link2Off className="h-2.5 w-2.5 mr-1" aria-hidden="true" />Nessun accesso
+                          <Link2Off className="h-2.5 w-2.5 mr-1" aria-hidden="true" />{t("Nessun accesso")}
                         </Badge>
                       )}
                     </div>
@@ -193,18 +194,18 @@ export function SubappaltatoriTab({ soloLettura = false }: { soloLettura?: boole
                   {sub.user_id ? (
                     <Button size="sm" variant="outline"
                       className="text-destructive border-destructive/30 hover:bg-destructive/10 w-full sm:w-auto shrink-0"
-                      aria-label={`Togli l'accesso all'app cantiere a ${sub.ragione_sociale}`}
+                      aria-label={t("Togli l'accesso all'app cantiere a {ragione_sociale}", { ragione_sociale: String(sub.ragione_sociale ?? "") })}
                       onClick={() => void chiediRevoca(sub)}
                       disabled={soloLettura || revocaMutation.isPending}>
-                      <Link2Off className="h-3 w-3 mr-1" aria-hidden="true" />Togli l'accesso
+                      <Link2Off className="h-3 w-3 mr-1" aria-hidden="true" />{t("Togli l'accesso")}
                     </Button>
                   ) : (
                     <Button size="sm" variant="outline"
                       className="w-full sm:w-auto shrink-0"
-                      aria-label={`Collega un account a ${sub.ragione_sociale}`}
+                      aria-label={t("Collega un account a {ragione_sociale}", { ragione_sociale: String(sub.ragione_sociale ?? "") })}
                       disabled={soloLettura}
                       onClick={() => { setCollegaDialogId(sub.id); setCollegaEmail(sub.user_email ?? ""); }}>
-                      <Link2 className="h-3 w-3 mr-1" aria-hidden="true" />Collega
+                      <Link2 className="h-3 w-3 mr-1" aria-hidden="true" />{t("Collega")}
                     </Button>
                   )}
                 </div>
@@ -217,9 +218,9 @@ export function SubappaltatoriTab({ soloLettura = false }: { soloLettura?: boole
       <Dialog open={!!collegaDialogId} onOpenChange={() => { setCollegaDialogId(null); setCollegaEmail(""); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Collega un account all'app cantiere</DialogTitle>
+            <DialogTitle>{t("Collega un account all'app cantiere")}</DialogTitle>
             <DialogDescription>
-              Scrivi l&apos;email del subappaltatore. Se ha già un account, viene collegato subito.
+              {t("Scrivi l'email del subappaltatore. Se ha già un account, viene collegato subito.")}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -236,12 +237,12 @@ export function SubappaltatoriTab({ soloLettura = false }: { soloLettura?: boole
               onChange={e => setCollegaEmail(e.target.value)} placeholder="email@subappaltatore.it" />
           </form>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCollegaDialogId(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setCollegaDialogId(null)}>{t("Annulla")}</Button>
             <Button type="submit" form="collega-subappaltatore"
               disabled={!collegaEmail.trim() || collegaMutation.isPending}>
               {collegaMutation.isPending
-                ? <Loader2 className="animate-spin h-4 w-4" aria-label="Collegamento in corso" />
-                : "Collega"}
+                ? <Loader2 className="animate-spin h-4 w-4" aria-label={t("Collegamento in corso")} />
+                : t("Collega")}
             </Button>
           </DialogFooter>
         </DialogContent>

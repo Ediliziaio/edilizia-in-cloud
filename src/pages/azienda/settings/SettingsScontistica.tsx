@@ -57,6 +57,7 @@ import {
   type DiscountRule, type DiscountRuleScope,
 } from "@/hooks/useDiscountRules";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Sentinel per Radix Select: "nessun valore" → null al salvataggio. */
 const SELECT_NONE = "__none__";
@@ -86,17 +87,17 @@ function toNum(v: unknown, fallback = 0): number {
   return n ?? fallback;
 }
 
-const schema = z
+const creaSchema = (t: (testo: string) => string = (testo) => testo) => z
   .object({
-    name: z.string().trim().min(1, "Nome obbligatorio").max(100, "Max 100 caratteri"),
+    name: z.string().trim().min(1, t("Nome obbligatorio")).max(100, t("Max 100 caratteri")),
     scope: z.enum(["globale", "per_commerciale", "per_cliente_cat"]),
     salesperson_id: z.string().nullable().optional(),
     client_category: z.string().trim().nullable().optional(),
     tipo_lavoro: z.string().trim().nullable().optional(),
-    importo_min: z.coerce.number<string | number>().min(0, "Min ≥ 0").nullable().optional(),
-    importo_max: z.coerce.number<string | number>().min(0, "Max ≥ 0").nullable().optional(),
-    margine_min_pct: z.coerce.number<string | number>().min(0).max(99, "Margine min deve essere < 100% (altrimenti nessuno sconto applicabile)"),
-    sconto_max_pct: z.coerce.number<string | number>().min(0.1, "Sconto max deve essere > 0% (altrimenti la regola non concede sconti)").max(100),
+    importo_min: z.coerce.number<string | number>().min(0, t("Min ≥ 0")).nullable().optional(),
+    importo_max: z.coerce.number<string | number>().min(0, t("Max ≥ 0")).nullable().optional(),
+    margine_min_pct: z.coerce.number<string | number>().min(0).max(99, t("Margine min deve essere < 100% (altrimenti nessuno sconto applicabile)")),
+    sconto_max_pct: z.coerce.number<string | number>().min(0.1, t("Sconto max deve essere > 0% (altrimenti la regola non concede sconti)")).max(100),
     approva_oltre_pct: z.coerce.number<string | number>().min(0).max(100).nullable().optional(),
     priority: z.coerce.number<string | number>().int().min(1).max(1000),
     is_active: z.boolean(),
@@ -104,23 +105,24 @@ const schema = z
   // Cross-validation: importo_max ≥ importo_min
   .refine(
     (v) => v.importo_max == null || (v.importo_min ?? 0) <= v.importo_max,
-    { path: ["importo_max"], message: "Max deve essere ≥ Min" },
+    { path: ["importo_max"], message: t("Max deve essere ≥ Min") },
   )
   // approva_oltre ≤ sconto_max (sennò approvazione non scatta mai)
   .refine(
     (v) => v.approva_oltre_pct == null || v.approva_oltre_pct <= v.sconto_max_pct,
-    { path: ["approva_oltre_pct"], message: "Deve essere ≤ Sconto max" },
+    { path: ["approva_oltre_pct"], message: t("Deve essere ≤ Sconto max") },
   )
   // salesperson obbligatorio quando scope=per_commerciale
   .refine(
     (v) => v.scope !== "per_commerciale" || (v.salesperson_id != null && v.salesperson_id !== ""),
-    { path: ["salesperson_id"], message: "Seleziona un commerciale" },
+    { path: ["salesperson_id"], message: t("Seleziona un commerciale") },
   )
   // client_category obbligatorio quando scope=per_cliente_cat
   .refine(
     (v) => v.scope !== "per_cliente_cat" || (v.client_category != null && v.client_category.trim() !== ""),
-    { path: ["client_category"], message: "Inserisci il tag categoria cliente" },
+    { path: ["client_category"], message: t("Inserisci il tag categoria cliente") },
   );
+const schema = creaSchema();
 
 type FormValues = z.infer<typeof schema>;
 
@@ -146,6 +148,7 @@ const DEFAULT_VALUES: FormValues = {
 };
 
 export default function SettingsScontistica() {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const { data: rules = [], isLoading } = useDiscountRules();
   const upsert = useUpsertDiscountRule();
@@ -172,8 +175,9 @@ export default function SettingsScontistica() {
     },
   });
 
+  const schemaTradotto = useMemo(() => creaSchema(tr), [tr]);
   const form = useForm<z.input<typeof schema>, unknown, FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schemaTradotto),
     defaultValues: DEFAULT_VALUES,
     mode: "onBlur",
   });
@@ -227,12 +231,12 @@ export default function SettingsScontistica() {
         onSuccess: () => {
           setDialogOpen(false);
           setEditing(null);
-          toast.success(isEdit ? "Regola aggiornata" : "Regola creata", {
-            description: `"${values.name}" è ora attiva nel matching sconti.`,
+          toast.success(isEdit ? tr("Regola aggiornata") : tr("Regola creata"), {
+            description: tr("\"{name}\" è ora attiva nel matching sconti.", { name: String(values.name ?? "") }),
           });
         },
         onError: (err: Error) => {
-          toast.error(isEdit ? "Errore aggiornamento" : "Errore creazione", {
+          toast.error(isEdit ? tr("Errore aggiornamento") : tr("Errore creazione"), {
             description: err.message,
           });
         },
@@ -249,19 +253,19 @@ export default function SettingsScontistica() {
         onSuccess: () => {
           toast.success(
             checked
-              ? `Regola "${rule.name}" attivata`
-              : `Regola "${rule.name}" disattivata`,
+              ? tr("Regola \"{name}\" attivata", { name: String(rule.name ?? "") })
+              : tr("Regola \"{name}\" disattivata", { name: String(rule.name ?? "") }),
             {
               duration: 4000,
               action: {
-                label: "Annulla",
+                label: tr("Annulla"),
                 onClick: () => {
                   upsert.mutate(
                     { id: rule.id, is_active: !checked },
                     {
                       onSuccess: () =>
-                        toast.info("Modifica annullata", {
-                          description: `Stato di "${rule.name}" ripristinato.`,
+                        toast.info(tr("Modifica annullata"), {
+                          description: tr("Stato di \"{name}\" ripristinato.", { name: String(rule.name ?? "") }),
                         }),
                     },
                   );
@@ -271,7 +275,7 @@ export default function SettingsScontistica() {
           );
         },
         onError: (err: Error) => {
-          toast.error("Errore toggle regola", { description: err.message });
+          toast.error(tr("Errore toggle regola"), { description: err.message });
         },
       },
     );
@@ -280,12 +284,12 @@ export default function SettingsScontistica() {
   const handleDelete = (rule: DiscountRule) => {
     del.mutate(rule.id, {
       onSuccess: () => {
-        toast.success("Regola eliminata", {
-          description: `"${rule.name}" è stata rimossa dalle regole attive.`,
+        toast.success(tr("Regola eliminata"), {
+          description: tr("\"{name}\" è stata rimossa dalle regole attive.", { name: String(rule.name ?? "") }),
         });
       },
       onError: (err: Error) => {
-        toast.error("Errore eliminazione", { description: err.message });
+        toast.error(tr("Errore eliminazione"), { description: err.message });
       },
     });
   };
@@ -317,17 +321,16 @@ export default function SettingsScontistica() {
               <Percent className="h-5 w-5 text-primary" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-xl sm:text-2xl font-bold leading-tight">Regole di scontistica</h2>
+              <h2 className="text-xl sm:text-2xl font-bold leading-tight">{tr("Regole di scontistica")}</h2>
               <p className="text-sm text-muted-foreground">
-                Limiti di sconto validi per TUTTI i preventivatori (serramenti e fotovoltaico)
-                e per tutti i tipi di cliente, privati inclusi — <strong>{rules.length}</strong> configurate,{" "}
-                <strong>{activeCount}</strong> attive.
+                {tr("Limiti di sconto validi per TUTTI i preventivatori (serramenti e fotovoltaico) e per tutti i tipi di cliente, privati inclusi —")}{" "}
+                {tr("{configurate} configurate, {attive} attive.", { configurate: rules.length, attive: activeCount })}
               </p>
             </div>
           </div>
           <Button onClick={openNew} size="sm" className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-1.5" />
-            Nuova regola
+            {tr("Nuova regola")}
           </Button>
         </div>
 
@@ -335,39 +338,39 @@ export default function SettingsScontistica() {
         <details className="rounded-lg border bg-card px-4 py-2.5 text-sm">
           <summary className="flex cursor-pointer items-center gap-2 font-medium">
             <Info className="h-4 w-4" />
-            Come funziona
+            {tr("Come funziona")}
           </summary>
           <ul className="mt-2 list-disc space-y-0.5 pb-1 pl-5">
-            <li>Ogni preventivo matcha tutte le regole con scope + fascia importo + tipo lavoro coerenti.</li>
-            <li>Il sistema applica il limite <strong>più basso</strong> tra le regole matchanti (binding).</li>
-            <li>Oltre <em>approva oltre %</em> → richiede approvazione admin.</li>
-            <li>Oltre <em>sconto max %</em> → bloccato senza override admin.</li>
-            <li>Il <strong>margine minimo</strong> non si scende mai sotto: lo sconto viene limitato in automatico.</li>
+            <li>{tr("Ogni preventivo matcha tutte le regole con scope + fascia importo + tipo lavoro coerenti.")}</li>
+            <li>{tr("Il sistema applica il limite")} <strong>{tr("più basso")}</strong> {tr("tra le regole matchanti (binding).")}</li>
+            <li>{tr("Oltre")} <em>{tr("approva oltre %")}</em> {tr("→ richiede approvazione admin.")}</li>
+            <li>{tr("Oltre")} <em>{tr("sconto max %")}</em> {tr("→ bloccato senza override admin.")}</li>
+            <li>{tr("Il")} <strong>{tr("margine minimo")}</strong> {tr("non si scende mai sotto: lo sconto viene limitato in automatico.")}</li>
           </ul>
         </details>
 
         {/* Tabella / Card list */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Regole attive</CardTitle>
-            <CardDescription>Ordinate per priorità crescente (più basso = valutato prima)</CardDescription>
+            <CardTitle className="text-base">{tr("Regole attive")}</CardTitle>
+            <CardDescription>{tr("Ordinate per priorità crescente (più basso = valutato prima)")}</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="p-8 text-center text-muted-foreground flex items-center justify-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Caricamento…
+                {tr("Caricamento…")}
               </div>
             ) : rules.length === 0 ? (
               <div className="p-8 text-center border rounded-lg border-dashed">
                 <AlertCircle className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
-                <p className="font-medium">Nessuna regola configurata</p>
+                <p className="font-medium">{tr("Nessuna regola configurata")}</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  In assenza di regole il limite è <strong>10%</strong> per tutti.
+                  {tr("In assenza di regole il limite è")} <strong>10%</strong> {tr("per tutti.")}
                 </p>
                 <Button onClick={openNew} size="sm" className="mt-4">
                   <Plus className="h-4 w-4 mr-1.5" />
-                  Crea la prima regola
+                  {tr("Crea la prima regola")}
                 </Button>
               </div>
             ) : (
@@ -377,15 +380,15 @@ export default function SettingsScontistica() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Nome</TableHead>
-                        <TableHead>Scope</TableHead>
-                        <TableHead>Fascia importo</TableHead>
-                        <TableHead className="text-right">Margine min</TableHead>
-                        <TableHead className="text-right">Sconto max</TableHead>
-                        <TableHead className="text-right">Approva oltre</TableHead>
-                        <TableHead className="text-right">Prio</TableHead>
-                        <TableHead>Attiva</TableHead>
-                        <TableHead className="text-right">Azioni</TableHead>
+                        <TableHead>{tr("Nome")}</TableHead>
+                        <TableHead>{tr("Scope")}</TableHead>
+                        <TableHead>{tr("Fascia importo")}</TableHead>
+                        <TableHead className="text-right">{tr("Margine min")}</TableHead>
+                        <TableHead className="text-right">{tr("Sconto max")}</TableHead>
+                        <TableHead className="text-right">{tr("Approva oltre")}</TableHead>
+                        <TableHead className="text-right">{tr("Prio")}</TableHead>
+                        <TableHead>{tr("Attiva")}</TableHead>
+                        <TableHead className="text-right">{tr("Azioni")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -436,9 +439,9 @@ export default function SettingsScontistica() {
         }}>
           <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editing ? "Modifica regola" : "Nuova regola di sconto"}</DialogTitle>
+              <DialogTitle>{editing ? tr("Modifica regola") : tr("Nuova regola di sconto")}</DialogTitle>
               <DialogDescription>
-                Definisci condizioni di applicazione e limiti.
+                {tr("Definisci condizioni di applicazione e limiti.")}
               </DialogDescription>
             </DialogHeader>
 
@@ -449,9 +452,9 @@ export default function SettingsScontistica() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nome regola *</FormLabel>
+                      <FormLabel>{tr("Nome regola *")}</FormLabel>
                       <FormControl>
-                        <Input placeholder='es. "Sconto gold cliente fino 10k"' {...field} />
+                        <Input placeholder={tr("es. \"Sconto gold cliente fino 10k\"")} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -463,7 +466,7 @@ export default function SettingsScontistica() {
                   name="scope"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Tipo di regola</FormLabel>
+                      <FormLabel>{tr("Tipo di regola")}</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
@@ -471,9 +474,9 @@ export default function SettingsScontistica() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="globale">Globale (tutti i commerciali + tutti i clienti)</SelectItem>
-                          <SelectItem value="per_commerciale">Per commerciale specifico</SelectItem>
-                          <SelectItem value="per_cliente_cat">Per categoria / tag cliente</SelectItem>
+                          <SelectItem value="globale">{tr("Globale (tutti i commerciali + tutti i clienti)")}</SelectItem>
+                          <SelectItem value="per_commerciale">{tr("Per commerciale specifico")}</SelectItem>
+                          <SelectItem value="per_cliente_cat">{tr("Per categoria / tag cliente")}</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -487,7 +490,7 @@ export default function SettingsScontistica() {
                     name="salesperson_id"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Commerciale *</FormLabel>
+                        <FormLabel>{tr("Commerciale *")}</FormLabel>
                         <Select
                           onValueChange={(v) => field.onChange(v === SELECT_NONE ? null : v)}
                           value={field.value ?? SELECT_NONE}
@@ -495,11 +498,11 @@ export default function SettingsScontistica() {
                         >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder={salespeopleLoading ? "Caricamento…" : "Seleziona commerciale"} />
+                              <SelectValue placeholder={salespeopleLoading ? tr("Caricamento…") : tr("Seleziona commerciale")} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value={SELECT_NONE}>— Seleziona —</SelectItem>
+                            <SelectItem value={SELECT_NONE}>{tr("— Seleziona —")}</SelectItem>
                             {salespeople.map((s) => (
                               <SelectItem key={s.id} value={s.id}>
                                 {s.first_name} {s.last_name}
@@ -509,7 +512,7 @@ export default function SettingsScontistica() {
                         </Select>
                         {salespeople.length === 0 && !salespeopleLoading && (
                           <FormDescription className="text-xs text-amber-600">
-                            ⚠ Nessun commerciale attivo. Aggiungili in Impostazioni › Commerciali.
+                            {tr("⚠ Nessun commerciale attivo. Aggiungili in Impostazioni › Commerciali.")}
                           </FormDescription>
                         )}
                         <FormMessage />
@@ -524,17 +527,17 @@ export default function SettingsScontistica() {
                     name="client_category"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Tag / categoria cliente *</FormLabel>
+                        <FormLabel>{tr("Tag / categoria cliente *")}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="es. gold, silver, bronze"
+                            placeholder={tr("es. gold, silver, bronze")}
                             {...field}
                             value={field.value ?? ""}
                             onChange={(e) => field.onChange(e.target.value || null)}
                           />
                         </FormControl>
                         <FormDescription className="text-xs">
-                          Deve corrispondere a un tag presente sui contatti.
+                          {tr("Deve corrispondere a un tag presente sui contatti.")}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -555,7 +558,7 @@ export default function SettingsScontistica() {
                           : TIPO_LAVORO_ALTRO;
                     return (
                       <FormItem>
-                        <FormLabel>Tipo di lavoro (opzionale)</FormLabel>
+                        <FormLabel>{tr("Tipo di lavoro (opzionale)")}</FormLabel>
                         <Select
                           value={selectValue}
                           onValueChange={(v) => {
@@ -578,25 +581,24 @@ export default function SettingsScontistica() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value={SELECT_NONE}>(tutti i lavori)</SelectItem>
+                            <SelectItem value={SELECT_NONE}>{tr("(tutti i lavori)")}</SelectItem>
                             {TIPI_LAVORO_NOTI.map((t) => (
-                              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                              <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                             ))}
-                            <SelectItem value={TIPO_LAVORO_ALTRO}>Altro…</SelectItem>
+                            <SelectItem value={TIPO_LAVORO_ALTRO}>{tr("Altro…")}</SelectItem>
                           </SelectContent>
                         </Select>
                         {(tipoLavoroAltro || selectValue === TIPO_LAVORO_ALTRO) && (
                           <FormControl>
                             <Input
-                              placeholder="es. tende da sole"
+                              placeholder={tr("es. tende da sole")}
                               value={field.value ?? ""}
                               onChange={(e) => field.onChange(e.target.value || null)}
                             />
                           </FormControl>
                         )}
                         <FormDescription className="text-xs">
-                          "(tutti i lavori)" = la regola vale per qualsiasi preventivatore
-                          (serramenti, fotovoltaico, …).
+                          {tr("\"(tutti i lavori)\" = la regola vale per qualsiasi preventivatore (serramenti, fotovoltaico, …).")}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -610,7 +612,7 @@ export default function SettingsScontistica() {
                     name="importo_min"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Importo min (€)</FormLabel>
+                        <FormLabel>{tr("Importo min (€)")}</FormLabel>
                         <FormControl>
                           <Input
                             type="number" step="0.01" min="0" inputMode="decimal"
@@ -627,16 +629,16 @@ export default function SettingsScontistica() {
                     name="importo_max"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Importo max (€)</FormLabel>
+                        <FormLabel>{tr("Importo max (€)")}</FormLabel>
                         <FormControl>
                           <Input
                             type="number" step="0.01" min="0" inputMode="decimal"
-                            placeholder="∞ (vuoto)"
+                            placeholder={tr("∞ (vuoto)")}
                             value={field.value ?? ""}
                             onChange={(e) => field.onChange(toNumOrNull(e.target.value))}
                           />
                         </FormControl>
-                        <FormDescription className="text-xs">Vuoto = nessun limite</FormDescription>
+                        <FormDescription className="text-xs">{tr("Vuoto = nessun limite")}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -649,7 +651,7 @@ export default function SettingsScontistica() {
                     name="margine_min_pct"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Margine min post-sconto (%)</FormLabel>
+                        <FormLabel>{tr("Margine min post-sconto (%)")}</FormLabel>
                         <FormControl>
                           <Input
                             type="number" step="0.1" min="0" max="100" inputMode="decimal"
@@ -657,7 +659,7 @@ export default function SettingsScontistica() {
                             onChange={(e) => field.onChange(toNum(e.target.value, 0))}
                           />
                         </FormControl>
-                        <FormDescription className="text-xs">Non si scende sotto.</FormDescription>
+                        <FormDescription className="text-xs">{tr("Non si scende sotto.")}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -667,7 +669,7 @@ export default function SettingsScontistica() {
                     name="sconto_max_pct"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Sconto max consentito (%)</FormLabel>
+                        <FormLabel>{tr("Sconto max consentito (%)")}</FormLabel>
                         <FormControl>
                           <Input
                             type="number" step="0.1" min="0" max="100" inputMode="decimal"
@@ -687,17 +689,17 @@ export default function SettingsScontistica() {
                     name="approva_oltre_pct"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Approva oltre (%)</FormLabel>
+                        <FormLabel>{tr("Approva oltre (%)")}</FormLabel>
                         <FormControl>
                           <Input
                             type="number" step="0.1" min="0" max="100" inputMode="decimal"
-                            placeholder="— (nessuna soglia)"
+                            placeholder={tr("— (nessuna soglia)")}
                             value={field.value ?? ""}
                             onChange={(e) => field.onChange(toNumOrNull(e.target.value))}
                           />
                         </FormControl>
                         <FormDescription className="text-xs">
-                          Oltre → autorizzazione admin.
+                          {tr("Oltre → autorizzazione admin.")}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -708,7 +710,7 @@ export default function SettingsScontistica() {
                     name="priority"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Priorità</FormLabel>
+                        <FormLabel>{tr("Priorità")}</FormLabel>
                         <FormControl>
                           <Input
                             type="number" step="1" min="1" max="1000" inputMode="numeric"
@@ -716,7 +718,7 @@ export default function SettingsScontistica() {
                             onChange={(e) => field.onChange(toNum(e.target.value, 100))}
                           />
                         </FormControl>
-                        <FormDescription className="text-xs">Più basso = valutato prima.</FormDescription>
+                        <FormDescription className="text-xs">{tr("Più basso = valutato prima.")}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -729,9 +731,9 @@ export default function SettingsScontistica() {
                   render={({ field }) => (
                     <FormItem className="flex items-center justify-between rounded-lg border p-3">
                       <div>
-                        <FormLabel>Regola attiva</FormLabel>
+                        <FormLabel>{tr("Regola attiva")}</FormLabel>
                         <FormDescription className="text-xs">
-                          Se disattiva, non viene considerata.
+                          {tr("Se disattiva, non viene considerata.")}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -747,11 +749,11 @@ export default function SettingsScontistica() {
                     onClick={() => setDialogOpen(false)}
                     disabled={upsert.isPending}
                   >
-                    Annulla
+                    {tr("Annulla")}
                   </Button>
                   <Button type="submit" disabled={upsert.isPending}>
                     {upsert.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
-                    {editing ? "Salva modifiche" : "Crea regola"}
+                    {editing ? tr("Salva modifiche") : tr("Crea regola")}
                   </Button>
                 </DialogFooter>
               </form>
@@ -775,6 +777,7 @@ function RuleRow({
   toggleDisabled?: boolean;
   deleteDisabled?: boolean;
 }) {
+  const t = useT();
   const salesperson = rule.scope === "per_commerciale" && rule.salesperson_id
     ? salespeople.find((s) => s.id === rule.salesperson_id)
     : null;
@@ -789,18 +792,18 @@ function RuleRow({
           </div>
         )}
         {rule.scope === "per_cliente_cat" && rule.client_category && (
-          <div className="text-xs text-muted-foreground">Tag: {rule.client_category}</div>
+          <div className="text-xs text-muted-foreground">{t("Tag: {client_category}", { client_category: String(rule.client_category ?? "") })}</div>
         )}
         {rule.tipo_lavoro && (
-          <div className="text-xs text-muted-foreground">Tipo: {rule.tipo_lavoro}</div>
+          <div className="text-xs text-muted-foreground">{t("Tipo: {tipo_lavoro}", { tipo_lavoro: String(rule.tipo_lavoro ?? "") })}</div>
         )}
       </TableCell>
       <TableCell>
-        <Badge variant="outline">{SCOPE_LABELS[rule.scope]}</Badge>
+        <Badge variant="outline">{t(SCOPE_LABELS[rule.scope])}</Badge>
       </TableCell>
       <TableCell className="text-sm">
-        €{(rule.importo_min ?? 0).toLocaleString("it-IT")} –{" "}
-        {rule.importo_max ? `${rule.importo_max.toLocaleString("it-IT")} €` : "∞"}
+        €{(rule.importo_min ?? 0).toLocaleString(intlCampo())} –{" "}
+        {rule.importo_max ? `${rule.importo_max.toLocaleString(intlCampo())} €` : "∞"}
       </TableCell>
       <TableCell className="text-right">{rule.margine_min_pct}%</TableCell>
       <TableCell className="text-right font-medium">{rule.sconto_max_pct}%</TableCell>
@@ -813,18 +816,18 @@ function RuleRow({
           checked={rule.is_active}
           onCheckedChange={onToggle}
           disabled={toggleDisabled}
-          aria-label={`Toggle attivazione regola ${rule.name}`}
+          aria-label={t("Toggle attivazione regola {name}", { name: String(rule.name ?? "") })}
         />
       </TableCell>
       <TableCell className="text-right">
         <div className="flex gap-1 justify-end">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Modifica regola">
+              <Button variant="ghost" size="icon" onClick={onEdit} aria-label={t("Modifica regola")}>
                 <Pencil className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Modifica</TooltipContent>
+            <TooltipContent>{t("Modifica")}</TooltipContent>
           </Tooltip>
           <DeleteRuleButton rule={rule} onDelete={onDelete} disabled={deleteDisabled} />
         </div>
@@ -845,6 +848,7 @@ function RuleCard({
   toggleDisabled?: boolean;
   deleteDisabled?: boolean;
 }) {
+  const t = useT();
   const salesperson = rule.scope === "per_commerciale" && rule.salesperson_id
     ? salespeople.find((s) => s.id === rule.salesperson_id)
     : null;
@@ -855,52 +859,52 @@ function RuleCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-medium text-sm truncate">{rule.name}</p>
-            <Badge variant="outline" className="text-[10px]">{SCOPE_LABELS[rule.scope]}</Badge>
+            <Badge variant="outline" className="text-[10px]">{t(SCOPE_LABELS[rule.scope])}</Badge>
           </div>
           {salesperson && (
             <p className="text-[11px] text-muted-foreground">{salesperson.first_name} {salesperson.last_name}</p>
           )}
           {rule.scope === "per_cliente_cat" && rule.client_category && (
-            <p className="text-[11px] text-muted-foreground">Tag: {rule.client_category}</p>
+            <p className="text-[11px] text-muted-foreground">{t("Tag: {client_category}", { client_category: String(rule.client_category ?? "") })}</p>
           )}
           {rule.tipo_lavoro && (
-            <p className="text-[11px] text-muted-foreground">Tipo: {rule.tipo_lavoro}</p>
+            <p className="text-[11px] text-muted-foreground">{t("Tipo: {tipo_lavoro}", { tipo_lavoro: String(rule.tipo_lavoro ?? "") })}</p>
           )}
         </div>
         <Switch
           checked={rule.is_active}
           onCheckedChange={onToggle}
           disabled={toggleDisabled}
-          aria-label={`Toggle attivazione regola ${rule.name}`}
+          aria-label={t("Toggle attivazione regola {name}", { name: String(rule.name ?? "") })}
         />
       </div>
 
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div>
-          <p className="text-[9px] uppercase text-muted-foreground">Sconto max</p>
+          <p className="text-[9px] uppercase text-muted-foreground">{t("Sconto max")}</p>
           <p className="font-semibold">{rule.sconto_max_pct}%</p>
         </div>
         <div>
-          <p className="text-[9px] uppercase text-muted-foreground">Approva oltre</p>
+          <p className="text-[9px] uppercase text-muted-foreground">{t("Approva oltre")}</p>
           <p className="font-semibold">{rule.approva_oltre_pct != null ? `${rule.approva_oltre_pct}%` : "—"}</p>
         </div>
         <div>
-          <p className="text-[9px] uppercase text-muted-foreground">Margine min</p>
+          <p className="text-[9px] uppercase text-muted-foreground">{t("Margine min")}</p>
           <p className="font-semibold">{rule.margine_min_pct}%</p>
         </div>
       </div>
 
       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
         <span>
-          {(rule.importo_min ?? 0).toLocaleString("it-IT")} € – {rule.importo_max ? `${rule.importo_max.toLocaleString("it-IT")} €` : "∞"}
+          {(rule.importo_min ?? 0).toLocaleString(intlCampo())} € – {rule.importo_max ? `${rule.importo_max.toLocaleString(intlCampo())} €` : "∞"}
         </span>
-        <span>prio {rule.priority}</span>
+        <span>{t("prio {priority}", { priority: String(rule.priority ?? "") })}</span>
       </div>
 
       <div className="flex gap-2 pt-1">
         <Button variant="outline" size="sm" onClick={onEdit} className="flex-1 h-10">
           <Pencil className="h-4 w-4 mr-1.5" />
-          Modifica
+          {t("Modifica")}
         </Button>
         <DeleteRuleButton rule={rule} onDelete={onDelete} mobile disabled={deleteDisabled} />
       </div>
@@ -912,6 +916,7 @@ function RuleCard({
 function DeleteRuleButton({
   rule, onDelete, mobile = false, disabled = false,
 }: { rule: DiscountRule; onDelete: () => void; mobile?: boolean; disabled?: boolean }) {
+  const t = useT();
   return (
     <AlertDialog>
       {mobile ? (
@@ -921,7 +926,7 @@ function DeleteRuleButton({
             size="sm"
             className="h-10 px-3"
             disabled={disabled}
-            aria-label={`Elimina regola ${rule.name}`}
+            aria-label={t("Elimina regola {match_value}", { match_value: String(rule.name ?? "") })}
           >
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
@@ -934,30 +939,29 @@ function DeleteRuleButton({
                 variant="ghost"
                 size="icon"
                 disabled={disabled}
-                aria-label={`Elimina regola ${rule.name}`}
+                aria-label={t("Elimina regola {match_value}", { match_value: String(rule.name ?? "") })}
               >
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </AlertDialogTrigger>
           </TooltipTrigger>
-          <TooltipContent>Elimina</TooltipContent>
+          <TooltipContent>{t("Elimina")}</TooltipContent>
         </Tooltip>
       )}
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Eliminare la regola?</AlertDialogTitle>
+          <AlertDialogTitle>{t("Eliminare la regola?")}</AlertDialogTitle>
           <AlertDialogDescription>
-            La regola <strong>{rule.name}</strong> sarà rimossa. I preventivi esistenti
-            non saranno toccati; i nuovi non la applicheranno più.
+            {t("La regola")} <strong>{rule.name}</strong> {t("sarà rimossa. I preventivi esistenti non saranno toccati; i nuovi non la applicheranno più.")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Annulla</AlertDialogCancel>
+          <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={onDelete}
           >
-            Elimina
+            {t("Elimina")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -977,6 +981,7 @@ function DiscountSimulator({
   rules: DiscountRule[];
   salespeople: Array<{ id: string; first_name: string; last_name: string }>;
 }) {
+  const tr = useT();
   const [simImporto, setSimImporto] = useState<number>(5000);
   const [simSconto, setSimSconto] = useState<number>(10);
   const [simSalesperson, setSimSalesperson] = useState<string>("any");
@@ -1038,10 +1043,10 @@ function DiscountSimulator({
     const s = simSconto;
     const cap = evaluation.bindingSconto;
     const approva = evaluation.bindingApprova;
-    if (s > cap) return { kind: "blocked" as const, label: `Oltre il limite (${cap}%) — richiede override admin` };
-    if (approva != null && s > approva) return { kind: "approve" as const, label: `Oltre ${approva}% — richiede approvazione admin` };
-    return { kind: "ok" as const, label: `Applicabile liberamente dal commerciale` };
-  }, [simSconto, evaluation.bindingSconto, evaluation.bindingApprova]);
+    if (s > cap) return { kind: "blocked" as const, label: tr("Oltre il limite ({cap}%) — richiede override admin", { cap: String(cap ?? "") }) };
+    if (approva != null && s > approva) return { kind: "approve" as const, label: tr("Oltre {approva}% — richiede approvazione admin", { approva: String(approva ?? "") }) };
+    return { kind: "ok" as const, label: tr("Applicabile liberamente dal commerciale") };
+  }, [simSconto, evaluation.bindingSconto, evaluation.bindingApprova, tr]);
 
   const hasActiveRules = rules.some((r) => r.is_active);
 
@@ -1050,10 +1055,10 @@ function DiscountSimulator({
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Calculator className="h-4 w-4 text-primary" />
-          Simulatore — verifica le regole
+          {tr("Simulatore — verifica le regole")}
         </CardTitle>
         <CardDescription>
-          Testa uno scenario reale: quale regola scatta, qual è il tetto, se serve approvazione.
+          {tr("Testa uno scenario reale: quale regola scatta, qual è il tetto, se serve approvazione.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1061,18 +1066,18 @@ function DiscountSimulator({
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Nessuna regola attiva: il simulatore usa il fallback predefinito (10%).
+              {tr("Nessuna regola attiva: il simulatore usa il fallback predefinito (10%).")}
             </AlertDescription>
           </Alert>
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="space-y-1">
-            <label htmlFor="sim-sconto-commerciale" className="text-xs font-medium text-muted-foreground">Commerciale</label>
+            <label htmlFor="sim-sconto-commerciale" className="text-xs font-medium text-muted-foreground">{tr("Commerciale")}</label>
             <Select value={simSalesperson} onValueChange={setSimSalesperson}>
               <SelectTrigger id="sim-sconto-commerciale" className="h-9 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="any">— non specificato —</SelectItem>
+                <SelectItem value="any">{tr("— non specificato —")}</SelectItem>
                 {salespeople.map((sp) => (
                   <SelectItem key={sp.id} value={sp.id}>
                     {sp.first_name} {sp.last_name}
@@ -1082,32 +1087,32 @@ function DiscountSimulator({
             </Select>
           </div>
           <div className="space-y-1">
-            <label htmlFor="sim-sconto-categoria" className="text-xs font-medium text-muted-foreground">Categoria cliente</label>
+            <label htmlFor="sim-sconto-categoria" className="text-xs font-medium text-muted-foreground">{tr("Categoria cliente")}</label>
             <Input
               id="sim-sconto-categoria"
               value={simCategoria}
               onChange={(e) => setSimCategoria(e.target.value)}
-              placeholder="es. vip, standard"
+              placeholder={tr("es. vip, standard")}
               className="h-9 text-xs"
             />
           </div>
           <div className="space-y-1">
-            <label htmlFor="sim-sconto-lavoro" className="text-xs font-medium text-muted-foreground">Tipo lavoro</label>
+            <label htmlFor="sim-sconto-lavoro" className="text-xs font-medium text-muted-foreground">{tr("Tipo lavoro")}</label>
             <Select
               value={simTipoLavoro || SELECT_NONE}
               onValueChange={(v) => setSimTipoLavoro(v === SELECT_NONE ? "" : v)}
             >
               <SelectTrigger id="sim-sconto-lavoro" className="h-9 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={SELECT_NONE}>— non specificato —</SelectItem>
+                <SelectItem value={SELECT_NONE}>{tr("— non specificato —")}</SelectItem>
                 {TIPI_LAVORO_NOTI.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <label htmlFor="sim-sconto-importo" className="text-xs font-medium text-muted-foreground">Importo imponibile €</label>
+            <label htmlFor="sim-sconto-importo" className="text-xs font-medium text-muted-foreground">{tr("Importo imponibile €")}</label>
             <Input
               type="number" min="0" inputMode="decimal"
               id="sim-sconto-importo"
@@ -1117,7 +1122,7 @@ function DiscountSimulator({
             />
           </div>
           <div className="space-y-1">
-            <label htmlFor="sim-sconto-sconto" className="text-xs font-medium text-muted-foreground">Sconto richiesto %</label>
+            <label htmlFor="sim-sconto-sconto" className="text-xs font-medium text-muted-foreground">{tr("Sconto richiesto %")}</label>
             <Input
               type="number" min="0" max="100" step="0.1" inputMode="decimal"
               id="sim-sconto-sconto"
@@ -1131,10 +1136,10 @@ function DiscountSimulator({
         {/* KPI binding */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-lg border p-3 bg-muted/30">
-            <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Regole matchanti</p>
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">{tr("Regole matchanti")}</p>
             <p className="text-lg font-bold mt-0.5">{evaluation.matchingRules.length}</p>
             {evaluation.fallback && (
-              <p className="text-[10px] text-muted-foreground">Nessuna → fallback 10%</p>
+              <p className="text-[10px] text-muted-foreground">{tr("Nessuna → fallback 10%")}</p>
             )}
             {evaluation.matchingRules.length > 0 && (
               <div className="mt-1.5 space-y-0.5 max-h-16 overflow-y-auto">
@@ -1144,26 +1149,22 @@ function DiscountSimulator({
                   </Badge>
                 ))}
                 {evaluation.matchingRules.length > 4 && (
-                  <span className="text-[10px] text-muted-foreground">
-                    +{evaluation.matchingRules.length - 4} altre
-                  </span>
+                  <span className="text-[10px] text-muted-foreground">{tr("+{n} altre", { n: evaluation.matchingRules.length - 4 })}</span>
                 )}
               </div>
             )}
           </div>
           <div className="rounded-lg border p-3 bg-muted/30">
-            <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Tetto sconto (binding)</p>
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">{tr("Tetto sconto (binding)")}</p>
             <p className="text-lg font-bold mt-0.5 tabular-nums">{evaluation.bindingSconto}%</p>
             {evaluation.bindingApprova != null && (
-              <p className="text-[10px] text-muted-foreground">
-                Approvazione oltre {evaluation.bindingApprova}%
-              </p>
+              <p className="text-[10px] text-muted-foreground">{tr("Approvazione oltre {bindingApprova}%", { bindingApprova: String(evaluation.bindingApprova ?? "") })}</p>
             )}
           </div>
           <div className="rounded-lg border p-3 bg-muted/30">
-            <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Margine minimo</p>
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">{tr("Margine minimo")}</p>
             <p className="text-lg font-bold mt-0.5 tabular-nums">{evaluation.bindingMargine}%</p>
-            <p className="text-[10px] text-muted-foreground">Non si scende sotto</p>
+            <p className="text-[10px] text-muted-foreground">{tr("Non si scende sotto")}</p>
           </div>
         </div>
 
@@ -1184,7 +1185,7 @@ function DiscountSimulator({
           )}
           <div className="text-xs">
             <p className="font-semibold">
-              {verdict.kind === "ok" ? "OK" : verdict.kind === "approve" ? "Richiede approvazione" : "Bloccato"}
+              {verdict.kind === "ok" ? "OK" : verdict.kind === "approve" ? tr("Richiede approvazione") : tr("Bloccato")}
             </p>
             <p className="text-muted-foreground">{verdict.label}</p>
           </div>

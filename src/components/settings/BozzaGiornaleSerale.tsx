@@ -11,6 +11,7 @@ import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazio
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impostazioni/erroriPerUtente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const chiave = (companyId: string | undefined) => ["giornale-bozza-serale", companyId];
 
@@ -29,6 +30,7 @@ export function useBozzaGiornaleSerale(companyId: string | undefined) {
 export function BozzaGiornaleSerale({
   companyId, canEdit, evidenziata,
 }: { companyId: string; canEdit: boolean; evidenziata?: boolean }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const { data: acceso, isLoading, isError, refetch } = useBozzaGiornaleSerale(companyId);
   const [inSalvataggio, setInSalvataggio] = useState(false);
@@ -39,12 +41,12 @@ export function BozzaGiornaleSerale({
       const { data, error } = await supabase.from("companies")
         .update({ giornale_auto_enabled: valore } as never).eq("id", companyId).select("id");
       if (error) throw error;
-      if (righeToccate(data) === 0) throw new MessaggioPerUtente("Il tuo utente non può cambiare le impostazioni dell'azienda: chiedi all'amministratore.");
+      if (righeToccate(data) === 0) throw new MessaggioPerUtente(t("Il tuo utente non può cambiare le impostazioni dell'azienda: chiedi all'amministratore."));
       queryClient.setQueryData(chiave(companyId), valore);
       void queryClient.invalidateQueries({ queryKey: ["automazioni-che-partono-da-sole", companyId] });
-      toast.success(valore ? "Bozza serale accesa" : "Bozza serale spenta");
+      toast.success(valore ? t("Bozza serale accesa") : t("Bozza serale spenta"));
     } catch (e) {
-      toast.error(motivoDelRifiuto(e, "Non sono riuscito a salvare: riprova."));
+      toast.error(motivoDelRifiuto(e, t("Non sono riuscito a salvare: riprova.")));
     } finally {
       setInSalvataggio(false);
     }
@@ -54,20 +56,20 @@ export function BozzaGiornaleSerale({
     <SezioneImpostazione
       id="bozza-giornale"
       evidenziata={evidenziata}
-      titolo="Bozza del giornale dei lavori"
-      descrizione="Si salva subito, senza «Salva modifiche»."
+      titolo={t("Bozza del giornale dei lavori")}
+      descrizione={t("Si salva subito, senza «Salva modifiche».")}
     >
       {isError ? (
         <div className="p-4 text-sm text-muted-foreground">
-          Non riesco a leggere questa impostazione.{" "}
-          <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button>
+          {t("Non riesco a leggere questa impostazione.")}{" "}
+          <button type="button" className="underline" onClick={() => void refetch()}>{t("Riprova")}</button>
         </div>
       ) : (
         <div className="flex items-start justify-between gap-4 p-4">
           <div className="min-w-0">
-            <Label htmlFor="bozza-giornale-serale" className="text-sm font-medium">Prepara ogni sera la bozza del giornale</Label>
-            <p className="mt-0.5 text-xs text-muted-foreground">Ogni sera prepara una bozza per i cantieri con lavoro registrato. Nessuna pagina viene firmata da sola.</p>
-            {!canEdit && <p className="mt-1 text-xs text-muted-foreground">La cambia chi può modificare il profilo dell'azienda.</p>}
+            <Label htmlFor="bozza-giornale-serale" className="text-sm font-medium">{t("Prepara ogni sera la bozza del giornale")}</Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">{t("Ogni sera prepara una bozza per i cantieri con lavoro registrato. Nessuna pagina viene firmata da sola.")}</p>
+            {!canEdit && <p className="mt-1 text-xs text-muted-foreground">{t("La cambia chi può modificare il profilo dell'azienda.")}</p>}
           </div>
           <Switch
             id="bozza-giornale-serale"

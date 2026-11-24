@@ -26,6 +26,7 @@ import {
   type ParametriVerbaleTecnico,
 } from "../../../supabase/functions/_shared/mezziVerbaliTecnici";
 import { categoriaDocumentoLabel, formatData } from "@/types/mezzi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function VerbaleTecnicoDialog({
   companyId,
@@ -40,6 +41,7 @@ export function VerbaleTecnicoDialog({
   onClose: () => void;
   onVaiDocumenti?: () => void;
 }) {
+  const t = useT();
   const p = usePermissions();
   const q = usePreparaVerbaleTecnico(
     companyId,
@@ -105,11 +107,11 @@ export function VerbaleTecnicoDialog({
       });
       if (!r.disponibile)
         toast.warning(
-          "La registrazione esiste, ma il documento non è più disponibile: controlla la scheda Documenti.",
+          t("La registrazione esiste, ma il documento non è più disponibile: controlla la scheda Documenti."),
         );
       else
         toast.success(
-          "Verbale tecnico registrato nei documenti della macchina",
+          t("Verbale tecnico registrato nei documenti della macchina"),
         );
       onClose();
       onVaiDocumenti?.();
@@ -130,31 +132,28 @@ export function VerbaleTecnicoDialog({
     >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Registra un verbale tecnico</DialogTitle>
+          <DialogTitle>{t("Registra un verbale tecnico")}</DialogTitle>
           <DialogDescription>
-            Verifica l’allegato dell’intervento e crea una copia separata nei
-            documenti della macchina, selezionabile poi nel POS.
+            {t("Verifica l’allegato dell’intervento e crea una copia separata nei documenti della macchina, selezionabile poi nel POS.")}
           </DialogDescription>
         </DialogHeader>
         {sola ? (
           <p role="alert">
-            Serve il permesso di modifica Mezzi per registrare il verbale.
+            {t("Serve il permesso di modifica Mezzi per registrare il verbale.")}
           </p>
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Se l’allegato è una fattura o contiene anche dati economici,
-              carica prima un verbale tecnico separato. La classificazione resta
-              una tua dichiarazione da verificare.
+              {t("Se l’allegato è una fattura o contiene anche dati economici, carica prima un verbale tecnico separato. La classificazione resta una tua dichiarazione da verificare.")}
             </p>
             {q.isLoading && (
-              <p role="status">Lettura dell’allegato dell’intervento…</p>
+              <p role="status">{t("Lettura dell’allegato dell’intervento…")}</p>
             )}
             {q.isError && (
               <p role="alert">
                 {q.error instanceof Error
                   ? q.error.message
-                  : "Originale non disponibile"}
+                  : t("Originale non disponibile")}
               </p>
             )}
             {q.data && !q.isError && (
@@ -162,7 +161,7 @@ export function VerbaleTecnicoDialog({
                 <p className="break-words font-medium">
                   {q.data.fonte.file_name}
                 </p>
-                <p>Intervento del {formatData(q.data.fonte.data)}</p>
+                <p>{t("Intervento del {data}", { data: formatData(q.data.fonte.data) })}</p>
                 <Button
                   type="button"
                   size="sm"
@@ -191,7 +190,7 @@ export function VerbaleTecnicoDialog({
                     }
                   }}
                 >
-                  Apri allegato da verificare
+                  {t("Apri allegato da verificare")}
                 </Button>
               </div>
             )}
@@ -207,18 +206,17 @@ export function VerbaleTecnicoDialog({
                 void registro.refetch();
               }}
             >
-              Rileggi allegato e registrazioni
+              {t("Rileggi allegato e registrazioni")}
             </Button>
             {registro.isError && (
               <p role="alert">
-                Non riesco a leggere le copie già registrate. Rileggi prima di
-                registrare.
+                {t("Non riesco a leggere le copie già registrate. Rileggi prima di registrare.")}
               </p>
             )}
             {giaRegistrato ? (
               <div className="space-y-2 rounded border border-green-200 bg-green-50 p-3 text-sm">
                 <p>
-                  Questo allegato è già registrato nei documenti della macchina.
+                  {t("Questo allegato è già registrato nei documenti della macchina.")}
                 </p>
                 {onVaiDocumenti && (
                   <Button
@@ -229,7 +227,7 @@ export function VerbaleTecnicoDialog({
                       onVaiDocumenti();
                     }}
                   >
-                    Vai ai documenti tecnici
+                    {t("Vai ai documenti tecnici")}
                   </Button>
                 )}
               </div>
@@ -237,7 +235,7 @@ export function VerbaleTecnicoDialog({
               <>
                 <div>
                   <Label htmlFor="verbale-titolo">
-                    Titolo del documento tecnico
+                    {t("Titolo del documento tecnico")}
                   </Label>
                   <Input
                     id="verbale-titolo"
@@ -249,7 +247,7 @@ export function VerbaleTecnicoDialog({
                 </div>
                 <div>
                   <Label htmlFor="verbale-categoria">
-                    Classificazione tecnica
+                    {t("Classificazione tecnica")}
                   </Label>
                   <UniformSelect
                     id="verbale-categoria"
@@ -258,10 +256,10 @@ export function VerbaleTecnicoDialog({
                     disabled={busy}
                     onChange={(e) => modifica({ categoria: e.target.value })}
                   >
-                    <option value="">Scegli dopo aver letto l’allegato</option>
+                    <option value="">{t("Scegli dopo aver letto l’allegato")}</option>
                     {CATEGORIE_VERBALE_TECNICO.map((c) => (
                       <option key={c} value={c}>
-                        {categoriaDocumentoLabel(c)}
+                        {t(categoriaDocumentoLabel(c))}
                       </option>
                     ))}
                   </UniformSelect>
@@ -269,7 +267,7 @@ export function VerbaleTecnicoDialog({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="verbale-inizio">
-                      Valido dal, se indicato
+                      {t("Valido dal, se indicato")}
                     </Label>
                     <Input
                       id="verbale-inizio"
@@ -283,7 +281,7 @@ export function VerbaleTecnicoDialog({
                   </div>
                   <div>
                     <Label htmlFor="verbale-scadenza">
-                      Scadenza, se indicata
+                      {t("Scadenza, se indicata")}
                     </Label>
                     <Input
                       id="verbale-scadenza"
@@ -306,13 +304,10 @@ export function VerbaleTecnicoDialog({
                       modifica({ conferma_tecnica: e.target.checked })
                     }
                   />
-                  Ho letto l’allegato: è un documento tecnico pertinente alla
-                  macchina, separato da fatture o altri dati economici.
+                  {t("Ho letto l’allegato: è un documento tecnico pertinente alla macchina, separato da fatture o altri dati economici.")}
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  La copia sarà autonoma dall’allegato dell’intervento. Nel POS
-                  serviranno ancora selezione, verifica della revisione e
-                  riesame per il cantiere.
+                  {t("La copia sarà autonoma dall’allegato dell’intervento. Nel POS serviranno ancora selezione, verifica della revisione e riesame per il cantiere.")}
                 </p>
               </>
             )}
@@ -330,7 +325,7 @@ export function VerbaleTecnicoDialog({
             disabled={busy}
             onClick={onClose}
           >
-            Annulla
+            {t("Annulla")}
           </Button>
           {!sola && !giaRegistrato && (
             <Button
@@ -347,7 +342,7 @@ export function VerbaleTecnicoDialog({
               }
               onClick={() => void registra()}
             >
-              {busy ? "Registrazione…" : "Registra copia tecnica"}
+              {busy ? t("Registrazione…") : t("Registra copia tecnica")}
             </Button>
           )}
         </DialogFooter>

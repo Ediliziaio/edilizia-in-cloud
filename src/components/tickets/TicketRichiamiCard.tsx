@@ -12,7 +12,6 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PhoneCall, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { queryKeys } from "@/lib/queryKeys";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TicketRichiami {
   richiami_count?: number | null;
@@ -39,6 +39,7 @@ export function TicketRichiamiCard({
   ticketId: string;
   ticket: TicketRichiami;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [nota, setNota] = useState("");
   const [aperto, setAperto] = useState(false);
@@ -59,9 +60,9 @@ export function TicketRichiamiCard({
       setAperto(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(ticketId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
-      toast.success("Richiamo registrato");
+      toast.success(t("Richiamo registrato"));
     },
-    onError: (e) => toast.error("Richiamo non registrato", { description: userErrorMessage(e) }),
+    onError: (e) => toast.error(t("Richiamo non registrato"), { description: userErrorMessage(e) }),
   });
 
   return (
@@ -70,27 +71,27 @@ export function TicketRichiamiCard({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <PhoneCall className={`h-4 w-4 ${insistente ? "text-amber-600" : "text-muted-foreground"}`} />
-            <h3 className="text-sm font-semibold">Richiami del cliente</h3>
+            <h3 className="text-sm font-semibold">{t("Richiami del cliente")}</h3>
           </div>
           {conteggio > 0 && (
             <Badge className={insistente ? "bg-amber-500 text-white" : "bg-muted text-foreground"}>
-              {conteggio} {conteggio === 1 ? "volta" : "volte"}
+              {conteggio} {conteggio === 1 ? t("volta") : t("volte")}
             </Badge>
           )}
         </div>
 
         {conteggio === 0 ? (
           <p className="text-xs text-muted-foreground">
-            Nessun sollecito. Segnalo ogni volta che il cliente richiama per questo stesso intervento.
+            {t("Nessun sollecito. Segnalo ogni volta che il cliente richiama per questo stesso intervento.")}
           </p>
         ) : (
           <div className="space-y-2">
             <p className={`text-xs ${insistente ? "text-amber-700" : "text-muted-foreground"}`}>
               {insistente
-                ? "Il cliente ha già sollecitato più volte: conviene richiamarlo prima che lo faccia lui."
-                : "Il cliente ha già sollecitato."}
+                ? t("Il cliente ha già sollecitato più volte: conviene richiamarlo prima che lo faccia lui.")
+                : t("Il cliente ha già sollecitato.")}
               {ticket.ultimo_richiamo_at && (
-                <> Ultimo: <strong>{format(new Date(ticket.ultimo_richiamo_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}</strong>.</>
+                <> {t("Ultimo:")} <strong>{format(new Date(ticket.ultimo_richiamo_at), "d MMM yyyy 'alle' HH:mm", { locale: dateFnsCampo() })}</strong>.</>
               )}
             </p>
             {ticket.note_richiami && (
@@ -103,26 +104,26 @@ export function TicketRichiamiCard({
 
         {aperto ? (
           <div className="space-y-2">
-            <Label className="text-xs">Cosa ha detto (facoltativo)</Label>
+            <Label className="text-xs">{t("Cosa ha detto (facoltativo)")}</Label>
             <Textarea
               value={nota}
               onChange={(e) => setNota(e.target.value)}
-              placeholder="Es. chiede quando arriva il tecnico"
+              placeholder={t("Es. chiede quando arriva il tecnico")}
               rows={2}
             />
             <div className="flex justify-end gap-2">
               <Button size="sm" variant="outline" onClick={() => { setAperto(false); setNota(""); }}>
-                Annulla
+                {t("Annulla")}
               </Button>
               <Button size="sm" onClick={() => segna.mutate()} disabled={segna.isPending}>
                 {segna.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-                Registra richiamo
+                {t("Registra richiamo")}
               </Button>
             </div>
           </div>
         ) : (
           <Button size="sm" variant="outline" className="w-full" onClick={() => setAperto(true)}>
-            <PhoneCall className="mr-1 h-3.5 w-3.5" /> Ha richiamato
+            <PhoneCall className="mr-1 h-3.5 w-3.5" /> {t("Ha richiamato")}
           </Button>
         )}
       </CardContent>

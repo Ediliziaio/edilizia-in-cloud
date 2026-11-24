@@ -26,13 +26,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Search, Pencil, Trash2, CalendarDays, Link2, Clock, Route, Copy, AlertTriangle, ExternalLink, Code2, Share2, Video, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import CalendarDialog, { type CalendarFormData } from "./CalendarDialog";
 import GoogleCalendarConnectionTab from "./GoogleCalendarConnectionTab";
 import AppleCalendarConnectionTab from "./AppleCalendarConnectionTab";
 import OutlookCalendarConnectionTab from "./OutlookCalendarConnectionTab";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { buildBookingBadgeCode, buildBookingButtonCode, buildBookingEmbedCode, buildBookingInlineCode, buildBookingPopupCode, buildBookingUrl, normalizeBookingSlug } from "@/lib/bookingLinks";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type MarketingCalendar = {
   id: string;
@@ -150,6 +150,7 @@ function normalizeSettingsTab(value: string | null) {
 }
 
 export default function MarketingCalendarsConfig() {
+  const t = useT();
   const { effectiveCompany, user, role } = useAuth();
   const effectiveCompanyId = effectiveCompany?.id;
   const permissions = usePermissions();
@@ -203,21 +204,21 @@ export default function MarketingCalendarsConfig() {
     const calendarType = ["personal", "team", "event"].includes(data.calendar_type) ? data.calendar_type : "personal";
     const meetingProvider = data.default_meeting_provider === "google_meet" ? "google_meet" : "none";
 
-    if(calendarType==="team"&&!(data.team_calendar_ids?.length))throw new Error("Scegli almeno un calendario personale per la squadra.");
-    if (!name) throw new Error("Inserisci un nome calendario.");
-    if (!bookingSlug) throw new Error("Scrivi la parte finale del link, per esempio sopralluogo-milano.");
+    if(calendarType==="team"&&!(data.team_calendar_ids?.length))throw new Error(t("Scegli almeno un calendario personale per la squadra."));
+    if (!name) throw new Error(t("Inserisci un nome calendario."));
+    if (!bookingSlug) throw new Error(t("Scrivi la parte finale del link, per esempio sopralluogo-milano."));
     if (!Number.isFinite(duration) || duration <= 0 || duration > 24 * 60) {
-      throw new Error("La durata appuntamento deve essere tra 1 minuto e 24 ore.");
+      throw new Error(t("La durata appuntamento deve essere tra 1 minuto e 24 ore."));
     }
     if (maxDailyKm != null && (!Number.isFinite(maxDailyKm) || maxDailyKm <= 0)) {
-      throw new Error("I km massimi giornalieri devono essere maggiori di zero.");
+      throw new Error(t("I km massimi giornalieri devono essere maggiori di zero."));
     }
 
     return { name, duration, maxDailyKm, bookingSlug, calendarType, meetingProvider };
   };
 
   const assertNoDuplicateCalendarName = async (name: string, excludeId?: string) => {
-    if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
+    if (!effectiveCompanyId) throw new Error(t("Azienda non disponibile."));
     let query = supabase
       .from("marketing_calendars")
       .select("id")
@@ -227,11 +228,11 @@ export default function MarketingCalendarsConfig() {
     if (excludeId) query = query.neq("id", excludeId);
     const { data, error } = await query;
     if (error) throw error;
-    if ((data || []).length > 0) throw new Error("Esiste già un calendario con questo nome.");
+    if ((data || []).length > 0) throw new Error(t("Esiste già un calendario con questo nome."));
   };
 
   const isBookingSlugTaken = async (slug: string, excludeId?: string) => {
-    if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
+    if (!effectiveCompanyId) throw new Error(t("Azienda non disponibile."));
     let query = supabase
       .from("marketing_calendars")
       .select("id")
@@ -250,16 +251,16 @@ export default function MarketingCalendarsConfig() {
       if (!(await isBookingSlugTaken(candidate, excludeId))) return candidate;
       candidate = `${base}-${Math.random().toString(36).slice(2, 6)}`;
     }
-    throw new Error("Non riesco a generare un link univoco. Riprova scrivendo una parte finale diversa.");
+    throw new Error(t("Non riesco a generare un link univoco. Riprova scrivendo una parte finale diversa."));
   };
 
   const copyText = async (value: string, label: string) => {
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-      toast.success(`${label} copiato`);
+      toast.success(t("{label} copiato", { label: String(label ?? "") }));
     } catch {
-      toast.error("Copia non riuscita: seleziona il testo manualmente.");
+      toast.error(t("Copia non riuscita: seleziona il testo manualmente."));
     }
   };
 
@@ -268,10 +269,10 @@ export default function MarketingCalendarsConfig() {
     // pausa pranzo). Devono pero' essere valide e non sovrapporsi fra loro.
     for (const row of rows) {
       if (!row.is_enabled) continue;
-      const dayName = DAYS.find(d => d.value === row.day_of_week)?.label || "giorno selezionato";
-      if (!row.start_time || !row.end_time) throw new Error("Completa gli orari dei giorni attivi.");
+      const dayName = t(DAYS.find(d => d.value === row.day_of_week)?.label || "giorno selezionato");
+      if (!row.start_time || !row.end_time) throw new Error(t("Completa gli orari dei giorni attivi."));
       if (row.start_time >= row.end_time) {
-        throw new Error(`Orario non valido per ${dayName}: l'ora di fine deve essere successiva all'inizio.`);
+        throw new Error(t("Orario non valido per {giorno}: l'ora di fine deve essere successiva all'inizio.", { giorno: dayName }));
       }
     }
     for (const day of new Set(rows.filter(r => r.is_enabled).map(r => r.day_of_week))) {
@@ -279,8 +280,8 @@ export default function MarketingCalendarsConfig() {
         .slice().sort((x, y) => x.start_time.localeCompare(y.start_time));
       for (let i = 1; i < fasce.length; i++) {
         if (fasce[i].start_time < fasce[i - 1].end_time) {
-          const dayName = DAYS.find(d => d.value === day)?.label || "giorno selezionato";
-          throw new Error(`Fasce sovrapposte per ${dayName}: ${fasce[i - 1].start_time}-${fasce[i - 1].end_time} e ${fasce[i].start_time}-${fasce[i].end_time}.`);
+          const dayName = t(DAYS.find(d => d.value === day)?.label || "giorno selezionato");
+          throw new Error(t("Fasce sovrapposte per {giorno}: {prima} e {seconda}.", { giorno: dayName, prima: `${fasce[i - 1].start_time}-${fasce[i - 1].end_time}`, seconda: `${fasce[i].start_time}-${fasce[i].end_time}` }));
         }
       }
     }
@@ -290,7 +291,7 @@ export default function MarketingCalendarsConfig() {
     for (const p of PREFERENZE_SPOSTAMENTI) {
       const valore = data[p.chiave];
       const massimo = p.chiave === "default_appointment_duration_minutes" ? 24 * 60 : Number.MAX_SAFE_INTEGER;
-      if (!Number.isInteger(valore) || valore <= 0 || valore > massimo) throw new Error(p.errore);
+      if (!Number.isInteger(valore) || valore <= 0 || valore > massimo) throw new Error(t(p.errore));
     }
   };
 
@@ -393,8 +394,8 @@ export default function MarketingCalendarsConfig() {
   // ---- MUTATIONS ----
   const createCalendar = useMutation({
     mutationFn: async (data: CalendarFormData) => {
-      if (!effectiveCompanyId || !user?.id) throw new Error("Dati mancanti");
-      if (!canManageCalendars) throw new Error("Non hai i permessi per creare calendari.");
+      if (!effectiveCompanyId || !user?.id) throw new Error(t("Dati mancanti"));
+      if (!canManageCalendars) throw new Error(t("Non hai i permessi per creare calendari."));
       const { name, duration, maxDailyKm, bookingSlug, calendarType, meetingProvider } = validateCalendarPayload(data);
       await assertNoDuplicateCalendarName(name);
       const safeBookingSlug = await getAvailableBookingSlug(bookingSlug);
@@ -479,27 +480,27 @@ export default function MarketingCalendarsConfig() {
       // salvati: il link di prenotazione restava senza fasce libere.
       // Il pulsante nel messaggio porta direttamente agli orari del calendario appena creato.
       const vaiAgliOrari = esito?.id
-        ? { label: "Cambia gli orari", onClick: () => { setSelectedCalendarId(esito.id!); handleTabChange("availability"); } }
+        ? { label: t("Cambia gli orari"), onClick: () => { setSelectedCalendarId(esito.id!); handleTabChange("availability"); } }
         : undefined;
       if (esito?.orariCreati === false) {
-        toast.warning("Calendario creato, orari non salvati", { description: "Imposta gli orari dalla scheda «Orari», altrimenti nessuno potrà prenotare.", action: vaiAgliOrari });
+        toast.warning(t("Calendario creato, orari non salvati"), { description: t("Imposta gli orari dalla scheda «Orari», altrimenti nessuno potrà prenotare."), action: vaiAgliOrari });
       } else {
-        toast.success("Calendario creato", { description: "Orari di partenza: lunedì-venerdì 9-18. Puoi cambiarli dalla scheda «Orari».", action: vaiAgliOrari });
+        toast.success(t("Calendario creato"), { description: t("Orari di partenza: lunedì-venerdì 9-18. Puoi cambiarli dalla scheda «Orari»."), action: vaiAgliOrari });
       }
       invalidaCalendari();
       setDialogOpen(false);
     },
-    onError: (e: Error) => toast.error(e.message || "Impossibile creare il calendario"),
+    onError: (e: Error) => toast.error(e.message || t("Impossibile creare il calendario")),
   });
 
   const updateCalendar = useMutation({
     mutationFn: async ({ id, ...data }: CalendarFormData & { id: string }) => {
-      if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
-      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare calendari.");
+      if (!effectiveCompanyId) throw new Error(t("Azienda non disponibile."));
+      if (!canManageCalendars) throw new Error(t("Non hai i permessi per modificare calendari."));
       const { name, duration, maxDailyKm, bookingSlug, calendarType, meetingProvider } = validateCalendarPayload(data);
       await assertNoDuplicateCalendarName(name, id);
       if (await isBookingSlugTaken(bookingSlug, id)) {
-        throw new Error("Questo link è già usato da un altro calendario: scrivine un altro.");
+        throw new Error(t("Questo link è già usato da un altro calendario: scrivine un altro."));
       }
       const { error } = await supabase.from("marketing_calendars").update({
         name,
@@ -551,31 +552,31 @@ export default function MarketingCalendarsConfig() {
     },
     onSuccess: (_r, data) => {
       if (data.external_provider === "google") void registraCanaleCalendario(data.external_connection_id ?? null, data.external_calendar_id ?? null);
-      toast.success("Calendario aggiornato");
+      toast.success(t("Calendario aggiornato"));
       invalidaCalendari();
       setDialogOpen(false);
       setEditingCalendar(null);
     },
-    onError: (e: Error) => toast.error(e.message || "Impossibile aggiornare il calendario"),
+    onError: (e: Error) => toast.error(e.message || t("Impossibile aggiornare il calendario")),
   });
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
-      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare calendari.");
+      if (!effectiveCompanyId) throw new Error(t("Azienda non disponibile."));
+      if (!canManageCalendars) throw new Error(t("Non hai i permessi per modificare calendari."));
       const { error } = await supabase.from("marketing_calendars").update({ is_active }).eq("id", id).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
     },
     onSuccess: () => {
       invalidaCalendari();
     },
-    onError: (e: Error) => toast.error(e.message || "Impossibile aggiornare lo stato del calendario"),
+    onError: (e: Error) => toast.error(e.message || t("Impossibile aggiornare lo stato del calendario")),
   });
 
   const ensureBookingSlug = useMutation({
     mutationFn: async (calendar: MarketingCalendar) => {
-      if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
-      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare calendari.");
+      if (!effectiveCompanyId) throw new Error(t("Azienda non disponibile."));
+      if (!canManageCalendars) throw new Error(t("Non hai i permessi per modificare calendari."));
       const bookingSlug = await getAvailableBookingSlug(calendar.booking_slug || calendar.name, calendar.id);
       const { error } = await supabase
         .from("marketing_calendars")
@@ -586,17 +587,17 @@ export default function MarketingCalendarsConfig() {
       return { ...calendar, booking_slug: bookingSlug };
     },
     onSuccess: (calendar) => {
-      toast.success("Link pubblico generato");
+      toast.success(t("Link pubblico generato"));
       setSharingCalendar(calendar);
       invalidaCalendari();
     },
-    onError: (e: Error) => toast.error(e.message || "Impossibile generare il link"),
+    onError: (e: Error) => toast.error(e.message || t("Impossibile generare il link")),
   });
 
   const deleteCalendar = useMutation({
     mutationFn: async (id: string) => {
-      if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
-      if (!canManageCalendars) throw new Error("Non hai i permessi per eliminare calendari.");
+      if (!effectiveCompanyId) throw new Error(t("Azienda non disponibile."));
+      if (!canManageCalendars) throw new Error(t("Non hai i permessi per eliminare calendari."));
       const { count, error: countError } = await supabase
         .from("appointments")
         .select("id", { count: "exact", head: true })
@@ -607,23 +608,23 @@ export default function MarketingCalendarsConfig() {
         .or("status.is.null,status.not.in.(cancelled,canceled,archived)");
       if (countError) throw countError;
       if ((count || 0) > 0) {
-        throw new Error("Calendario collegato ad appuntamenti attivi: disattivalo invece di eliminarlo.");
+        throw new Error(t("Calendario collegato ad appuntamenti attivi: disattivalo invece di eliminarlo."));
       }
       const { error } = await supabase.from("marketing_calendars").delete().eq("id", id).eq("company_id", effectiveCompanyId);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Calendario eliminato");
+      toast.success(t("Calendario eliminato"));
       invalidaCalendari();
       setDeleteId(null);
     },
-    onError: (e: Error) => toast.error(e.message || "Impossibile eliminare il calendario"),
+    onError: (e: Error) => toast.error(e.message || t("Impossibile eliminare il calendario")),
   });
 
   const upsertPreferences = useMutation({
     mutationFn: async (data: Record<ChiavePreferenza, number>) => {
-      if (!effectiveCompanyId) throw new Error("Dati mancanti");
-      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare gli spostamenti.");
+      if (!effectiveCompanyId) throw new Error(t("Dati mancanti"));
+      if (!canManageCalendars) throw new Error(t("Non hai i permessi per modificare gli spostamenti."));
       validatePreferencesPayload(data);
       // Solo i tre numeri vivi: le altre colonne restano come sono (o, alla prima volta, con il loro valore di partenza).
       const { error } = await supabase.from("marketing_calendar_preferences").upsert(
@@ -633,17 +634,17 @@ export default function MarketingCalendarsConfig() {
       if (error) throw error;
     },
     onSuccess: async () => {
-      toast.success("Spostamenti salvati");
+      toast.success(t("Spostamenti salvati"));
       await queryClient.refetchQueries({ queryKey: ["marketing-calendar-preferences"] });
       setBozzaPrefs({});
     },
-    onError: (e: Error) => toast.error(e.message || "Impossibile salvare gli spostamenti"),
+    onError: (e: Error) => toast.error(e.message || t("Impossibile salvare gli spostamenti")),
   });
 
   const saveAvailability = useMutation({
     mutationFn: async (rows: { day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]) => {
-      if (!calendarioOrariId || !effectiveCompanyId) throw new Error("Dati mancanti");
-      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare gli orari.");
+      if (!calendarioOrariId || !effectiveCompanyId) throw new Error(t("Dati mancanti"));
+      if (!canManageCalendars) throw new Error(t("Non hai i permessi per modificare gli orari."));
       validateAvailabilityRows(rows);
       // Delete existing weekly rows, then insert new
       const { error: deleteError } = await supabase.from("marketing_calendar_availability")
@@ -667,13 +668,13 @@ export default function MarketingCalendarsConfig() {
       }
     },
     onSuccess: async () => {
-      toast.success("Orari salvati");
+      toast.success(t("Orari salvati"));
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
       // Si rilegge prima di togliere la bozza: nessun lampo con gli orari di prima.
       await queryClient.refetchQueries({ queryKey: ["marketing-calendar-availability"] });
       setBozzaOrari(null);
     },
-    onError: (e: Error) => toast.error(e.message || "Impossibile salvare gli orari"),
+    onError: (e: Error) => toast.error(e.message || t("Impossibile salvare gli orari")),
   });
 
   // ---- FILTERS ----
@@ -692,15 +693,15 @@ export default function MarketingCalendarsConfig() {
   }, {});
 
   const ownerName = (ownerId: string | null) => {
-    if (!ownerId) return "Non assegnato";
+    if (!ownerId) return t("Non assegnato");
     const owner = staffUsers.find(u => u.id === ownerId);
-    return owner ? [owner.first_name, owner.last_name].filter(Boolean).join(" ") || "Senza nome" : "Utente non trovato";
+    return owner ? [owner.first_name, owner.last_name].filter(Boolean).join(" ") || t("Senza nome") : t("Utente non trovato");
   };
 
   const calendarTypeMeta = (type: string) => {
-    if (type === "team") return { label: "Team", variant: "default" as const };
-    if (type === "event") return { label: "Evento", variant: "outline" as const };
-    return { label: "Commerciale", variant: "secondary" as const };
+    if (type === "team") return { label: t("Team"), variant: "default" as const };
+    if (type === "event") return { label: t("Evento"), variant: "outline" as const };
+    return { label: t("Commerciale"), variant: "secondary" as const };
   };
 
   const calendarStats = {
@@ -713,11 +714,11 @@ export default function MarketingCalendarsConfig() {
   // base — chiederlo come "da completare" creava rumore inutile.
   const getConfigWarnings = (cal: MarketingCalendar) => {
     const warnings: string[] = [];
-    if(cal.calendar_type==="team"){if(!cal.team_calendar_ids?.length)warnings.push("partecipanti squadra");}else if (!cal.owner_id) warnings.push("responsabile");
-    if (!cal.booking_slug) warnings.push("link");
-    if (!cal.duration_minutes || cal.duration_minutes <= 0) warnings.push("durata");
+    if(cal.calendar_type==="team"){if(!cal.team_calendar_ids?.length)warnings.push(t("partecipanti squadra"));}else if (!cal.owner_id) warnings.push(t("responsabile"));
+    if (!cal.booking_slug) warnings.push(t("link"));
+    if (!cal.duration_minutes || cal.duration_minutes <= 0) warnings.push(t("durata"));
     // Senza fasce attive il link pubblico non propone alcun orario.
-    if (!calendariConOrari.has(cal.id)) warnings.push("orari");
+    if (!calendariConOrari.has(cal.id)) warnings.push(t("orari"));
     return warnings;
   };
 
@@ -773,7 +774,7 @@ export default function MarketingCalendarsConfig() {
     <div className="flex flex-col gap-4">
       {!canManageCalendars && (
         <AvvisoSolaLettura>
-          Sola lettura: per creare, modificare, disattivare o sincronizzare un calendario serve un amministratore o il permesso «Modifica» su Personalizzazione.
+          {t("Sola lettura: per creare, modificare, disattivare o sincronizzare un calendario serve un amministratore o il permesso «Modifica» su Personalizzazione.")}
         </AvvisoSolaLettura>
       )}
 
@@ -781,10 +782,10 @@ export default function MarketingCalendarsConfig() {
         {/* Schede nell'ordine in cui si usano. I valori nell'indirizzo (?tab=availability, ?tab=preferences) non cambiano: ricerca e
             collegamenti già in giro continuano ad aprire la scheda giusta. */}
         <TabsList className="w-full sm:w-auto max-w-full h-auto flex-wrap justify-start gap-1 sm:flex-nowrap overflow-x-auto">
-          <TabsTrigger value="calendars" className="gap-2 shrink-0 max-md:min-h-11"><CalendarDays className="h-4 w-4" />Calendari</TabsTrigger>
-          <TabsTrigger value="availability" className="gap-2 shrink-0 max-md:min-h-11"><Clock className="h-4 w-4" />Orari</TabsTrigger>
-          <TabsTrigger value="preferences" className="gap-2 shrink-0 max-md:min-h-11"><Route className="h-4 w-4" />Spostamenti</TabsTrigger>
-          <TabsTrigger value="connections" className="gap-2 shrink-0 max-md:min-h-11"><Link2 className="h-4 w-4" />Collegamenti</TabsTrigger>
+          <TabsTrigger value="calendars" className="gap-2 shrink-0 max-md:min-h-11"><CalendarDays className="h-4 w-4" />{t("Calendari")}</TabsTrigger>
+          <TabsTrigger value="availability" className="gap-2 shrink-0 max-md:min-h-11"><Clock className="h-4 w-4" />{t("Orari")}</TabsTrigger>
+          <TabsTrigger value="preferences" className="gap-2 shrink-0 max-md:min-h-11"><Route className="h-4 w-4" />{t("Spostamenti")}</TabsTrigger>
+          <TabsTrigger value="connections" className="gap-2 shrink-0 max-md:min-h-11"><Link2 className="h-4 w-4" />{t("Collegamenti")}</TabsTrigger>
         </TabsList>
 
         {/* TAB: CALENDARI */}
@@ -795,36 +796,36 @@ export default function MarketingCalendarsConfig() {
         <TabsContent value="calendars" className="space-y-4">
           {!loadingCalendars && !calendarsError && (
             <p className="text-sm text-muted-foreground">
-              {calendarStats.total === 1 ? "1 calendario" : `${calendarStats.total} calendari`} · {calendarStats.active === 1 ? "1 abilitato" : `${calendarStats.active} abilitati`}
+              {calendarStats.total === 1 ? t("1 calendario") : t("{total} calendari", { total: String(calendarStats.total ?? "") })} · {calendarStats.active === 1 ? t("1 abilitato") : t("{active} abilitati", { active: String(calendarStats.active ?? "") })}
             </p>
           )}
-          <p className="text-xs text-muted-foreground">Abilitato non significa pronto per le prenotazioni: completa link e orari segnalati nella riga del calendario.</p>
+          <p className="text-xs text-muted-foreground">{t("Abilitato non significa pronto per le prenotazioni: completa link e orari segnalati nella riga del calendario.")}</p>
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex gap-2 flex-wrap items-center">
               <div className="relative max-md:w-full">
                 <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Cerca calendario…" aria-label="Cerca un calendario" value={search} onChange={e => setSearch(e.target.value)} className="pl-9 w-56 max-md:h-11 max-md:w-full" />
+                <Input placeholder={t("Cerca calendario…")} aria-label={t("Cerca un calendario")} value={search} onChange={e => setSearch(e.target.value)} className="pl-9 w-56 max-md:h-11 max-md:w-full" />
               </div>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-32 max-md:h-11" aria-label="Filtra per stato"><SelectValue placeholder="Stato" /></SelectTrigger>
+                <SelectTrigger className="w-32 max-md:h-11" aria-label={t("Filtra per stato")}><SelectValue placeholder={t("Stato")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
-                  <SelectItem value="active">Attivi</SelectItem>
-                  <SelectItem value="inactive">Inattivi</SelectItem>
+                  <SelectItem value="all">{t("Tutti")}</SelectItem>
+                  <SelectItem value="active">{t("Attivi")}</SelectItem>
+                  <SelectItem value="inactive">{t("Inattivi")}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-32 max-md:h-11" aria-label="Filtra per tipo"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                <SelectTrigger className="w-32 max-md:h-11" aria-label={t("Filtra per tipo")}><SelectValue placeholder={t("Tipo")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
-                  <SelectItem value="personal">Commerciale</SelectItem>
-                  <SelectItem value="team">Team</SelectItem>
-                  <SelectItem value="event">Evento</SelectItem>
+                  <SelectItem value="all">{t("Tutti")}</SelectItem>
+                  <SelectItem value="personal">{t("Commerciale")}</SelectItem>
+                  <SelectItem value="team">{t("Team")}</SelectItem>
+                  <SelectItem value="event">{t("Evento")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <Button onClick={() => { setEditingCalendar(null); setDialogOpen(true); }} disabled={!canManageCalendars} className="gap-2 max-md:h-11 max-md:w-full">
-              <Plus className="h-4 w-4" /> Nuovo calendario
+              <Plus className="h-4 w-4" /> {t("Nuovo calendario")}
             </Button>
           </div>
 
@@ -833,8 +834,8 @@ export default function MarketingCalendarsConfig() {
               <CardContent className="flex gap-3 py-6 text-sm text-destructive">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <div>
-                  <p className="font-medium">Impossibile caricare i calendari</p>
-                  <p className="text-destructive/80">Riprova tra poco o verifica i permessi dell'utente.</p>
+                  <p className="font-medium">{t("Impossibile caricare i calendari")}</p>
+                  <p className="text-destructive/80">{t("Riprova tra poco o verifica i permessi dell'utente.")}</p>
                 </div>
               </CardContent>
             </Card>
@@ -846,10 +847,10 @@ export default function MarketingCalendarsConfig() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <CalendarDays className="h-12 w-12 text-muted-foreground mb-4" />
-                <h2 className="text-lg font-medium mb-1">Nessun calendario</h2>
-                <p className="text-muted-foreground mb-4">Crea il tuo primo calendario per iniziare</p>
+                <h2 className="text-lg font-medium mb-1">{t("Nessun calendario")}</h2>
+                <p className="text-muted-foreground mb-4">{t("Crea il tuo primo calendario per iniziare")}</p>
                 <Button onClick={() => { setEditingCalendar(null); setDialogOpen(true); }} disabled={!canManageCalendars} className="gap-2 max-md:h-11">
-                  <Plus className="h-4 w-4" /> Nuovo calendario
+                  <Plus className="h-4 w-4" /> {t("Nuovo calendario")}
                 </Button>
               </CardContent>
             </Card>
@@ -858,19 +859,19 @@ export default function MarketingCalendarsConfig() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="max-sm:px-2">Nome</TableHead>
-                    <TableHead className="hidden sm:table-cell">Responsabile</TableHead>
+                    <TableHead className="max-sm:px-2">{t("Nome")}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t("Responsabile")}</TableHead>
                     {/* Colonne spostate più in là: nelle Impostazioni a 1024 lo
                         spazio è 686px e la tabella ne chiedeva 1157. */}
-                    <TableHead className="hidden 2xl:table-cell">Sede base</TableHead>
-                    <TableHead className="hidden sm:table-cell">Durata</TableHead>
-                    <TableHead className="hidden sm:table-cell">Tipo</TableHead>
-                    <TableHead className="hidden 2xl:table-cell">Link di prenotazione</TableHead>
-                    <TableHead className="hidden xl:table-cell">Calendario esterno</TableHead>
-                    <TableHead className="hidden xl:table-cell">Appuntamenti</TableHead>
-                    <TableHead className="max-sm:px-2">Stato</TableHead>
-                    <TableHead className="hidden min-[1700px]:table-cell">Aggiornato</TableHead>
-                    <TableHead className="text-right max-sm:px-2">Azioni</TableHead>
+                    <TableHead className="hidden 2xl:table-cell">{t("Sede base")}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t("Durata")}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t("Tipo")}</TableHead>
+                    <TableHead className="hidden 2xl:table-cell">{t("Link di prenotazione")}</TableHead>
+                    <TableHead className="hidden xl:table-cell">{t("Calendario esterno")}</TableHead>
+                    <TableHead className="hidden xl:table-cell">{t("Appuntamenti")}</TableHead>
+                    <TableHead className="max-sm:px-2">{t("Stato")}</TableHead>
+                    <TableHead className="hidden min-[1700px]:table-cell">{t("Aggiornato")}</TableHead>
+                    <TableHead className="text-right max-sm:px-2">{t("Azioni")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -879,17 +880,15 @@ export default function MarketingCalendarsConfig() {
                       <TableCell className="max-sm:px-2">
                         <div className="space-y-1">
                           <p className="font-medium">{cal.name}</p>
-                          <p className="text-xs text-muted-foreground sm:hidden">{cal.duration_minutes} min · {calendarTypeMeta(cal.calendar_type).label}</p>
+                          <p className="text-xs text-muted-foreground sm:hidden">{t("{duration_minutes} min · {label}", { duration_minutes: String(cal.duration_minutes ?? ""), label: String(calendarTypeMeta(cal.calendar_type).label ?? "") })}</p>
                           {cal.default_meeting_provider === "google_meet" && (
                             <Badge variant="outline" className="gap-1 border-sky-200 bg-sky-50 text-sky-700">
                               <Video className="h-3 w-3" />
-                              Meet
+                              {t("Meet")}
                             </Badge>
                           )}
                           {getConfigWarnings(cal).length > 0 && (
-                            <p className="text-xs text-amber-600">
-                              Da completare: {getConfigWarnings(cal).join(", ")}
-                            </p>
+                            <p className="text-xs text-amber-600">{t("Da completare: {valore}", { valore: getConfigWarnings(cal).join(", ") })}</p>
                           )}
                         </div>
                       </TableCell>
@@ -897,7 +896,7 @@ export default function MarketingCalendarsConfig() {
                       <TableCell className="hidden 2xl:table-cell text-muted-foreground">
                         {cal.base_formatted_address || [cal.base_address_city, cal.base_address_province].filter(Boolean).join(", ") || "—"}
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell">{cal.duration_minutes} min</TableCell>
+                      <TableCell className="hidden sm:table-cell">{t("{duration_minutes} min", { duration_minutes: String(cal.duration_minutes ?? "") })}</TableCell>
                       <TableCell className="hidden sm:table-cell">
                         {(() => {
                           const meta = calendarTypeMeta(cal.calendar_type);
@@ -915,7 +914,7 @@ export default function MarketingCalendarsConfig() {
                             <span className="truncate">/prenota/{cal.booking_slug}</span>
                           </button>
                         ) : (
-                          <span className="text-xs text-amber-600">Da generare</span>
+                          <span className="text-xs text-amber-600">{t("Da generare")}</span>
                         )}
                       </TableCell>
                       {/* Dove finiscono gli appuntamenti: prima si vedeva solo
@@ -931,7 +930,7 @@ export default function MarketingCalendarsConfig() {
                           >
                             <span className="flex items-center gap-1.5 text-sm">
                               <CalendarDays className="h-3.5 w-3.5 shrink-0 text-primary" />
-                              <span className="truncate">{cal.external_calendar_name || "Collegato"}</span>
+                              <span className="truncate">{cal.external_calendar_name || t("Collegato")}</span>
                             </span>
                             <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                               {emailAccount(cal.external_connection_id) ?? PROVIDER_NOME[cal.external_provider ?? "google"]}
@@ -943,13 +942,13 @@ export default function MarketingCalendarsConfig() {
                             className="text-xs text-muted-foreground hover:underline"
                             onClick={() => { setEditingCalendar(cal); setDialogOpen(true); }}
                           >
-                            Non collegato
+                            {t("Non collegato")}
                           </button>
                         )}
                       </TableCell>
                       <TableCell className="hidden xl:table-cell">{appointmentCountsByCalendar[cal.id] || 0}</TableCell>
                       <TableCell className="max-sm:px-2">
-                        <Switch checked={cal.is_active} aria-label={`Attivo: ${cal.name}`} disabled={!canManageCalendars || toggleActive.isPending} onCheckedChange={(v) => toggleActive.mutate({ id: cal.id, is_active: v })} className="max-md:relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-2.5 max-md:before:content-['']" />
+                        <Switch checked={cal.is_active} aria-label={t("Attivo: {name}", { name: String(cal.name ?? "") })} disabled={!canManageCalendars || toggleActive.isPending} onCheckedChange={(v) => toggleActive.mutate({ id: cal.id, is_active: v })} className="max-md:relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-2.5 max-md:before:content-['']" />
                       </TableCell>
                       <TableCell className="hidden min-[1700px]:table-cell text-muted-foreground text-sm">
                         {/* 2026-05-27: guard contro updated_at null/invalid che
@@ -959,18 +958,18 @@ export default function MarketingCalendarsConfig() {
                           if (!cal.updated_at) return "—";
                           const d = new Date(cal.updated_at);
                           if (Number.isNaN(d.getTime())) return "—";
-                          return format(d, "dd MMM yyyy", { locale: it });
+                          return format(d, "dd MMM yyyy", { locale: dateFnsCampo() });
                         })()}
                       </TableCell>
                       <TableCell className="text-right max-sm:px-2">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => setSharingCalendar(cal)} title="Condividi il link di prenotazione" aria-label={`Condividi il link di «${cal.name}»`} className="max-md:h-11 max-md:w-11">
+                          <Button variant="ghost" size="icon" onClick={() => setSharingCalendar(cal)} title={t("Condividi il link di prenotazione")} aria-label={t("Condividi il link di «{name}»", { name: String(cal.name ?? "") })} className="max-md:h-11 max-md:w-11">
                             <Share2 className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" disabled={!canManageCalendars} onClick={() => { setEditingCalendar(cal); setDialogOpen(true); }} aria-label={`Modifica «${cal.name}»`} className="max-md:h-11 max-md:w-11">
+                          <Button variant="ghost" size="icon" disabled={!canManageCalendars} onClick={() => { setEditingCalendar(cal); setDialogOpen(true); }} aria-label={t("Modifica «{name}»", { name: String(cal.name ?? "") })} className="max-md:h-11 max-md:w-11">
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" disabled={!canManageCalendars} onClick={() => setDeleteId(cal.id)} aria-label={`Elimina «${cal.name}»`} className="text-destructive hover:text-destructive max-md:h-11 max-md:w-11">
+                          <Button variant="ghost" size="icon" disabled={!canManageCalendars} onClick={() => setDeleteId(cal.id)} aria-label={t("Elimina «{name}»", { name: String(cal.name ?? "") })} className="text-destructive hover:text-destructive max-md:h-11 max-md:w-11">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -988,17 +987,17 @@ export default function MarketingCalendarsConfig() {
         <TabsContent value="availability" className="space-y-4">
           <Card>
             <CardHeader>
-              <h2 className="text-base font-semibold leading-none tracking-tight">Orari di prenotazione</h2>
-              <CardDescription>Sono gli orari in cui i clienti possono prenotare con il link.</CardDescription>
+              <h2 className="text-base font-semibold leading-none tracking-tight">{t("Orari di prenotazione")}</h2>
+              <CardDescription>{t("Sono gli orari in cui i clienti possono prenotare con il link.")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {calendars.length === 0 ? (
-                <p className="text-muted-foreground text-sm py-4">Crea prima un calendario: gli orari si impostano calendario per calendario.</p>
+                <p className="text-muted-foreground text-sm py-4">{t("Crea prima un calendario: gli orari si impostano calendario per calendario.")}</p>
               ) : (
                 <>
                   {calendars.length > 1 ? (
                     <div className="space-y-2">
-                      <Label htmlFor="orari-calendario">Calendario</Label>
+                      <Label htmlFor="orari-calendario">{t("Calendario")}</Label>
                       <Select value={calendarioOrariId ?? ""} onValueChange={cambiaCalendarioOrari}>
                         <SelectTrigger id="orari-calendario" className="w-full sm:w-72 max-md:h-11"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -1009,7 +1008,7 @@ export default function MarketingCalendarsConfig() {
                       </Select>
                     </div>
                   ) : (
-                    <p className="text-sm font-medium">Calendario: {calendars[0].name}</p>
+                    <p className="text-sm font-medium">{t("Calendario: {name}", { name: String(calendars[0].name ?? "") })}</p>
                   )}
 
                   {loadingAvail ? (
@@ -1019,10 +1018,8 @@ export default function MarketingCalendarsConfig() {
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
                           <div>
-                            <p className="font-medium">Copertura settimanale</p>
-                            <p className="text-muted-foreground">
-                              {new Set(localAvail.filter(a => a.is_enabled).map(a => a.day_of_week)).size} giorni attivi su 7
-                            </p>
+                            <p className="font-medium">{t("Copertura settimanale")}</p>
+                            <p className="text-muted-foreground">{t("{size} giorni attivi su 7", { size: String(new Set(localAvail.filter(a => a.is_enabled).map(a => a.day_of_week)).size ?? "") })}</p>
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <Button
@@ -1038,7 +1035,7 @@ export default function MarketingCalendarsConfig() {
                                 end_time: "18:00",
                               })))}
                             >
-                              Lunedì-venerdì 9-18
+                              {t("Lunedì-venerdì 9-18")}
                             </Button>
                             <Button
                               type="button"
@@ -1048,7 +1045,7 @@ export default function MarketingCalendarsConfig() {
                               className="max-md:h-11"
                               onClick={() => modificaOrari(prev => prev.map(a => ({ ...a, is_enabled: false })))}
                             >
-                              Chiudi tutti i giorni
+                              {t("Chiudi tutti i giorni")}
                             </Button>
                           </div>
                         </div>
@@ -1060,7 +1057,7 @@ export default function MarketingCalendarsConfig() {
                             <div key={day.value} className="border-b py-2 last:border-0">
                               {fasce.map((row, idx) => {
                                 const invalid = row.is_enabled && row.start_time >= row.end_time;
-                                const nomeFascia = idx === 0 ? day.label : `${day.label}, seconda fascia`;
+                                const nomeFascia = idx === 0 ? t(day.label) : t("{giorno}, seconda fascia", { giorno: t(day.label) });
                                 return (
                                   <div key={row.rid} className={`flex flex-wrap items-center gap-3 py-1 ${invalid ? "rounded-md bg-destructive/5 px-2" : ""}`}>
                                     {/* L'etichetta con il giorno fa da bersaglio grande per la casella (44 px sul telefono). */}
@@ -1069,15 +1066,15 @@ export default function MarketingCalendarsConfig() {
                                         <Checkbox
                                           checked={attivo}
                                           disabled={!canManageCalendars}
-                                          aria-label={`${day.label}: aperto`}
+                                          aria-label={t("{label}: aperto", { label: t(day.label) })}
                                           onCheckedChange={(v) => modificaOrari(prev => prev.map(a => a.day_of_week === day.value ? { ...a, is_enabled: !!v } : a))}
                                         />
-                                        {day.label}
+                                        {t(day.label)}
                                       </label>
                                     ) : <span className="w-36 max-sm:hidden" />}
                                     <Input
                                       type="time"
-                                      aria-label={`${nomeFascia}: dalle`}
+                                      aria-label={t("{nomeFascia}: dalle", { nomeFascia: String(nomeFascia ?? "") })}
                                       value={row.start_time}
                                       onChange={e => modificaOrari(prev => prev.map(a => a.rid === row.rid ? { ...a, start_time: e.target.value } : a))}
                                       className="w-28 max-md:h-11"
@@ -1086,25 +1083,25 @@ export default function MarketingCalendarsConfig() {
                                     <span className="text-muted-foreground">–</span>
                                     <Input
                                       type="time"
-                                      aria-label={`${nomeFascia}: alle`}
+                                      aria-label={t("{nomeFascia}: alle", { nomeFascia: String(nomeFascia ?? "") })}
                                       value={row.end_time}
                                       onChange={e => modificaOrari(prev => prev.map(a => a.rid === row.rid ? { ...a, end_time: e.target.value } : a))}
                                       className="w-28 max-md:h-11"
                                       disabled={!row.is_enabled || !canManageCalendars}
                                     />
                                     {idx === 0 ? (
-                                      <Button variant="ghost" size="icon" title="Copia questa fascia a tutti i giorni attivi" aria-label={`Copia gli orari di ${day.label} a tutti i giorni aperti`} disabled={!canManageCalendars} className="max-md:h-11 max-md:w-11" onClick={() => {
+                                      <Button variant="ghost" size="icon" title={t("Copia questa fascia a tutti i giorni attivi")} aria-label={t("Copia gli orari di {label} a tutti i giorni aperti", { label: t(day.label) })} disabled={!canManageCalendars} className="max-md:h-11 max-md:w-11" onClick={() => {
                                         modificaOrari(prev => prev.map(a => a.is_enabled ? { ...a, start_time: row.start_time, end_time: row.end_time } : a));
                                       }}>
                                         <Copy className="h-4 w-4" />
                                       </Button>
                                     ) : (
-                                      <Button variant="ghost" size="icon" title="Togli questa fascia" aria-label={`Togli la seconda fascia di ${day.label}`} disabled={!canManageCalendars} className="max-md:h-11 max-md:w-11"
+                                      <Button variant="ghost" size="icon" title={t("Togli questa fascia")} aria-label={t("Togli la seconda fascia di {label}", { label: t(day.label) })} disabled={!canManageCalendars} className="max-md:h-11 max-md:w-11"
                                         onClick={() => modificaOrari(prev => prev.filter(a => a.rid !== row.rid))}>
                                         <Trash2 className="h-4 w-4 text-muted-foreground" />
                                       </Button>
                                     )}
-                                    {invalid && <span className="text-xs text-destructive">La fine deve essere dopo l'inizio</span>}
+                                    {invalid && <span className="text-xs text-destructive">{t("La fine deve essere dopo l'inizio")}</span>}
                                   </div>
                                 );
                               })}
@@ -1112,7 +1109,7 @@ export default function MarketingCalendarsConfig() {
                                 <button
                                   type="button"
                                   className="mt-0.5 text-xs text-muted-foreground hover:text-foreground sm:ml-40 max-md:min-h-11"
-                                  title="Una seconda fascia serve per la pausa pranzo (es. 9-13 e 14:30-18)"
+                                  title={t("Una seconda fascia serve per la pausa pranzo (es. 9-13 e 14:30-18)")}
                                   onClick={() => modificaOrari(prev => {
                                     const ultime = prev.filter(a => a.day_of_week === day.value);
                                     const ultima = ultime[ultime.length - 1];
@@ -1134,7 +1131,7 @@ export default function MarketingCalendarsConfig() {
                                     ];
                                   })}
                                 >
-                                  + Aggiungi una seconda fascia (per la pausa pranzo)
+                                  {t("+ Aggiungi una seconda fascia (per la pausa pranzo)")}
                                 </button>
                               )}
                             </div>
@@ -1144,13 +1141,13 @@ export default function MarketingCalendarsConfig() {
                       {/* La barra resta in vista: con sette giorni il pulsante in fondo usciva dallo schermo. */}
                       {canManageCalendars && bozzaOrari !== null && (
                         <div className="sticky bottom-0 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-2 rounded-b-lg border-t bg-card px-6 py-3">
-                          <span role="status" className="text-sm text-muted-foreground">Modifiche non salvate</span>
+                          <span role="status" className="text-sm text-muted-foreground">{t("Modifiche non salvate")}</span>
                           <div className="flex flex-wrap gap-2">
                             <Button variant="ghost" size="sm" onClick={() => setBozzaOrari(null)} disabled={saveAvailability.isPending} className="max-md:h-11">
-                              Annulla le modifiche
+                              {t("Annulla le modifiche")}
                             </Button>
                             <Button size="sm" onClick={() => saveAvailability.mutate(localAvail)} disabled={saveAvailability.isPending} className="max-md:h-11">
-                              {saveAvailability.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio…</> : "Salva gli orari"}
+                              {saveAvailability.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("Salvataggio…")}</> : t("Salva gli orari")}
                             </Button>
                           </div>
                         </div>
@@ -1167,14 +1164,14 @@ export default function MarketingCalendarsConfig() {
         <TabsContent value="preferences" className="space-y-4">
           <Card>
             <CardHeader>
-              <h2 className="text-base font-semibold leading-none tracking-tight">Spostamenti e durata</h2>
-              <CardDescription>Valori che si usano quando il calendario non ne ha di suoi, per proporre il calendario giusto a un nuovo appuntamento.</CardDescription>
+              <h2 className="text-base font-semibold leading-none tracking-tight">{t("Spostamenti e durata")}</h2>
+              <CardDescription>{t("Valori che si usano quando il calendario non ne ha di suoi, per proporre il calendario giusto a un nuovo appuntamento.")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {PREFERENZE_SPOSTAMENTI.map((p) => (
                   <div key={p.chiave} className="space-y-2">
-                    <Label htmlFor={`pref-${p.chiave}`}>{p.etichetta}</Label>
+                    <Label htmlFor={`pref-${p.chiave}`}>{t(p.etichetta)}</Label>
                     <Input
                       id={`pref-${p.chiave}`}
                       type="number"
@@ -1185,19 +1182,19 @@ export default function MarketingCalendarsConfig() {
                       onChange={(e) => setBozzaPrefs((b) => ({ ...b, [p.chiave]: e.target.value }))}
                       className="max-md:h-11"
                     />
-                    <p className="text-xs text-muted-foreground">{p.aiuto}</p>
+                    <p className="text-xs text-muted-foreground">{t(p.aiuto)}</p>
                   </div>
                 ))}
               </div>
               {canManageCalendars && Object.keys(bozzaPrefs).length > 0 && (
                 <div className="sticky bottom-0 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-2 rounded-b-lg border-t bg-card px-6 py-3">
-                  <span role="status" className="text-sm text-muted-foreground">Modifiche non salvate</span>
+                  <span role="status" className="text-sm text-muted-foreground">{t("Modifiche non salvate")}</span>
                   <div className="flex flex-wrap gap-2">
                     <Button variant="ghost" size="sm" onClick={() => setBozzaPrefs({})} disabled={upsertPreferences.isPending} className="max-md:h-11">
-                      Annulla le modifiche
+                      {t("Annulla le modifiche")}
                     </Button>
                     <Button size="sm" onClick={salvaSpostamenti} disabled={upsertPreferences.isPending} className="max-md:h-11">
-                      {upsertPreferences.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio…</> : "Salva gli spostamenti"}
+                      {upsertPreferences.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("Salvataggio…")}</> : t("Salva gli spostamenti")}
                     </Button>
                   </div>
                 </div>
@@ -1214,10 +1211,9 @@ export default function MarketingCalendarsConfig() {
         <TabsContent value="connections" className="space-y-8">
           <section className="space-y-3">
             <div>
-              <h2 className="text-sm font-semibold">Il tuo account</h2>
+              <h2 className="text-sm font-semibold">{t("Il tuo account")}</h2>
               <p className="text-xs text-muted-foreground">
-                Vale solo per te: collega qui il calendario dove vuoi ricevere i tuoi appuntamenti.
-                Ogni persona del team collega il proprio dal suo profilo.
+                {t("Vale solo per te: collega qui il calendario dove vuoi ricevere i tuoi appuntamenti. Ogni persona del team collega il proprio dal suo profilo.")}
               </p>
             </div>
             <GoogleCalendarConnectionTab />
@@ -1227,10 +1223,9 @@ export default function MarketingCalendarsConfig() {
 
           <section className="space-y-3">
             <div>
-              <h2 className="text-sm font-semibold">Tutta l'azienda</h2>
+              <h2 className="text-sm font-semibold">{t("Tutta l'azienda")}</h2>
               <p className="text-xs text-muted-foreground">
-                Chi ha collegato un account, con quale indirizzo, quando ha sincronizzato
-                l'ultima volta e quali calendari del gestionale ci scrivono dentro.
+                {t("Chi ha collegato un account, con quale indirizzo, quando ha sincronizzato l'ultima volta e quali calendari del gestionale ci scrivono dentro.")}
               </p>
             </div>
             <CompanyCalendarsOverview />
@@ -1244,7 +1239,7 @@ export default function MarketingCalendarsConfig() {
         onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditingCalendar(null); }}
         onSubmit={(data) => {
           if (!canManageCalendars) {
-            toast.error("Non hai i permessi per modificare calendari.");
+            toast.error(t("Non hai i permessi per modificare calendari."));
             return;
           }
           if (editingCalendar) {
@@ -1266,9 +1261,9 @@ export default function MarketingCalendarsConfig() {
       <Dialog open={!!sharingCalendar} onOpenChange={(open) => !open && setSharingCalendar(null)}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Condividi calendario</DialogTitle>
+            <DialogTitle>{t("Condividi calendario")}</DialogTitle>
             <DialogDescription>
-              Copia il link da mandare al cliente, oppure incolla uno dei codici nel tuo sito.
+              {t("Copia il link da mandare al cliente, oppure incolla uno dei codici nel tuo sito.")}
             </DialogDescription>
           </DialogHeader>
 
@@ -1278,19 +1273,17 @@ export default function MarketingCalendarsConfig() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold">{sharingCalendar.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {ownerName(sharingCalendar.owner_id)} · {sharingCalendar.duration_minutes} min · {calendarTypeMeta(sharingCalendar.calendar_type).label}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t("{owner_id} · {duration_minutes} min · {label}", { owner_id: String(ownerName(sharingCalendar.owner_id) ?? ""), duration_minutes: String(sharingCalendar.duration_minutes ?? ""), label: String(calendarTypeMeta(sharingCalendar.calendar_type).label ?? "") })}</p>
                   </div>
                   <Badge variant={sharingCalendar.is_active ? "default" : "secondary"}>
-                    {sharingCalendar.is_active ? "Attivo" : "Disattivato"}
+                    {sharingCalendar.is_active ? t("Attivo") : t("Disattivato")}
                   </Badge>
                 </div>
 
                 {!sharingCalendar.booking_slug ? (
                   <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                    <p className="font-medium">Questo calendario non ha ancora un link pubblico.</p>
-                    <p className="mt-1 text-xs text-amber-800/80">Generalo per avere una pagina dove i clienti prenotano da soli.</p>
+                    <p className="font-medium">{t("Questo calendario non ha ancora un link pubblico.")}</p>
+                    <p className="mt-1 text-xs text-amber-800/80">{t("Generalo per avere una pagina dove i clienti prenotano da soli.")}</p>
                     <Button
                       className="mt-3 gap-2"
                       size="sm"
@@ -1298,21 +1291,21 @@ export default function MarketingCalendarsConfig() {
                       onClick={() => ensureBookingSlug.mutate(sharingCalendar)}
                     >
                       <Link2 className="h-4 w-4" />
-                      {ensureBookingSlug.isPending ? "Generazione..." : "Genera link pubblico"}
+                      {ensureBookingSlug.isPending ? t("Generazione...") : t("Genera link pubblico")}
                     </Button>
                   </div>
                 ) : (
                   <div className="mt-4 space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="condividi-link">Link diretto</Label>
+                      <Label htmlFor="condividi-link">{t("Link diretto")}</Label>
                       <div className="flex gap-2">
                         <Input id="condividi-link" value={shareUrl} readOnly className="font-mono text-xs" />
-                        <Button type="button" variant="outline" className="gap-2 max-md:h-11" onClick={() => copyText(shareUrl, "Link")}>
+                        <Button type="button" variant="outline" className="gap-2 max-md:h-11" onClick={() => copyText(shareUrl, t("Link"))}>
                           <Copy className="h-4 w-4" />
-                          Copia
+                          {t("Copia")}
                         </Button>
                         <Button type="button" variant="outline" size="icon" asChild>
-                          <a href={shareUrl} target="_blank" rel="noopener noreferrer" aria-label="Apri la pagina di prenotazione in una nuova scheda">
+                          <a href={shareUrl} target="_blank" rel="noopener noreferrer" aria-label={t("Apri la pagina di prenotazione in una nuova scheda")}>
                             <ExternalLink className="h-4 w-4" />
                           </a>
                         </Button>
@@ -1324,27 +1317,27 @@ export default function MarketingCalendarsConfig() {
                         <div className="flex items-center justify-between gap-2">
                           <Label className="inline-flex items-center gap-1.5">
                             <Code2 className="h-3.5 w-3.5" />
-                            Codice da incollare nel sito
+                            {t("Codice da incollare nel sito")}
                           </Label>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(shareEmbedCode, "Codice")}>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(shareEmbedCode, t("Codice"))}>
                             <Copy className="h-3.5 w-3.5" />
-                            Copia
+                            {t("Copia")}
                           </Button>
                         </div>
-                        <Textarea value={shareEmbedCode} readOnly rows={5} aria-label="Codice da incollare nel sito" className="font-mono text-xs" />
+                        <Textarea value={shareEmbedCode} readOnly rows={5} aria-label={t("Codice da incollare nel sito")} className="font-mono text-xs" />
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <Label className="inline-flex items-center gap-1.5">
                             <Link2 className="h-3.5 w-3.5" />
-                            Pulsante per il sito
+                            {t("Pulsante per il sito")}
                           </Label>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(shareButtonCode, "Codice del pulsante")}>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(shareButtonCode, t("Codice del pulsante"))}>
                             <Copy className="h-3.5 w-3.5" />
-                            Copia
+                            {t("Copia")}
                           </Button>
                         </div>
-                        <Textarea value={shareButtonCode} readOnly rows={5} aria-label="Codice del pulsante per il sito" className="font-mono text-xs" />
+                        <Textarea value={shareButtonCode} readOnly rows={5} aria-label={t("Codice del pulsante per il sito")} className="font-mono text-xs" />
                       </div>
                       {/* Widget: come Calendly — riquadro che si adatta, finestra
                           al clic e bottone fisso. Servono lo script prenota.js. */}
@@ -1352,51 +1345,51 @@ export default function MarketingCalendarsConfig() {
                         <div className="flex items-center justify-between gap-2">
                           <Label className="inline-flex items-center gap-1.5">
                             <Code2 className="h-3.5 w-3.5" />
-                            Riquadro che si adatta
+                            {t("Riquadro che si adatta")}
                           </Label>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(shareInlineCode, "Codice del riquadro")}>
-                            <Copy className="h-3.5 w-3.5" /> Copia
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(shareInlineCode, t("Codice del riquadro"))}>
+                            <Copy className="h-3.5 w-3.5" /> {t("Copia")}
                           </Button>
                         </div>
-                        <Textarea value={shareInlineCode} readOnly rows={3} aria-label="Codice del riquadro che si adatta" className="font-mono text-xs" />
-                        <p className="text-[11px] text-muted-foreground">Cresce e si accorcia da solo con il contenuto.</p>
+                        <Textarea value={shareInlineCode} readOnly rows={3} aria-label={t("Codice del riquadro che si adatta")} className="font-mono text-xs" />
+                        <p className="text-[11px] text-muted-foreground">{t("Cresce e si accorcia da solo con il contenuto.")}</p>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <Label className="inline-flex items-center gap-1.5">
                             <Link2 className="h-3.5 w-3.5" />
-                            Finestra al clic
+                            {t("Finestra al clic")}
                           </Label>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(sharePopupCode, "Codice della finestra")}>
-                            <Copy className="h-3.5 w-3.5" /> Copia
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(sharePopupCode, t("Codice della finestra"))}>
+                            <Copy className="h-3.5 w-3.5" /> {t("Copia")}
                           </Button>
                         </div>
-                        <Textarea value={sharePopupCode} readOnly rows={3} aria-label="Codice della finestra al clic" className="font-mono text-xs" />
+                        <Textarea value={sharePopupCode} readOnly rows={3} aria-label={t("Codice della finestra al clic")} className="font-mono text-xs" />
                         <p className="text-[11px] text-muted-foreground">
-                          Si apre sopra il sito, senza lasciare la pagina. Funziona su qualsiasi bottone con <code>data-prenota</code>.
+                          {t("Si apre sopra il sito, senza lasciare la pagina. Funziona su qualsiasi bottone con")} <code>data-prenota</code>.
                         </p>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <Label className="inline-flex items-center gap-1.5">
                             <Link2 className="h-3.5 w-3.5" />
-                            Pulsante fisso in basso
+                            {t("Pulsante fisso in basso")}
                           </Label>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(shareBadgeCode, "Codice del pulsante fisso")}>
-                            <Copy className="h-3.5 w-3.5" /> Copia
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(shareBadgeCode, t("Codice del pulsante fisso"))}>
+                            <Copy className="h-3.5 w-3.5" /> {t("Copia")}
                           </Button>
                         </div>
-                        <Textarea value={shareBadgeCode} readOnly rows={3} aria-label="Codice del pulsante fisso in basso" className="font-mono text-xs" />
+                        <Textarea value={shareBadgeCode} readOnly rows={3} aria-label={t("Codice del pulsante fisso in basso")} className="font-mono text-xs" />
                         <p className="text-[11px] text-muted-foreground">
-                          Una riga nel tema del sito: il bottone compare su tutte le pagine. A prenotazione fatta il sito riceve l'evento <code>eic:appuntamento-prenotato</code> per Analytics.
+                          {t("Una riga nel tema del sito: il bottone compare su tutte le pagine. A prenotazione fatta il sito riceve l'evento")} <code>eic:appuntamento-prenotato</code> {t("per Analytics.")}
                         </p>
                       </div>
                     </div>
 
                     <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground">
-                      <p className="font-medium text-foreground">Flusso consigliato</p>
+                      <p className="font-medium text-foreground">{t("Flusso consigliato")}</p>
                       <p className="mt-1">
-                        Invialo via WhatsApp/email per un commerciale singolo, oppure incorporalo in landing page e campagne per eventi specifici.
+                        {t("Invialo via WhatsApp/email per un commerciale singolo, oppure incorporalo in landing page e campagne per eventi specifici.")}
                       </p>
                     </div>
                   </div>
@@ -1410,13 +1403,13 @@ export default function MarketingCalendarsConfig() {
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il calendario?</AlertDialogTitle>
-            <AlertDialogDescription>Il calendario e i suoi orari vengono eliminati e non si possono recuperare. Se ha appuntamenti attivi non si elimina: disattivalo.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Eliminare il calendario?")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Il calendario e i suoi orari vengono eliminati e non si possono recuperare. Se ha appuntamenti attivi non si elimina: disattivalo.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteId && deleteCalendar.mutate(deleteId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

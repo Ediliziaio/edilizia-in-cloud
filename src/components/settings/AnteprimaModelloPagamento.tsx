@@ -10,6 +10,7 @@ import {
   type ModelloPagamento,
 } from "@/lib/orders/modelliPagamento";
 import { totaleAnteprimaPagamento } from "@/lib/orders/totaleAnteprimaPagamento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function AnteprimaModelloPagamento({
   modello,
@@ -18,6 +19,7 @@ export default function AnteprimaModelloPagamento({
   modello: Pick<ModelloPagamento, "nome" | "descrizione" | "righe">;
   bozza?: boolean;
 }) {
+  const t = useT();
   const id = useId();
   const [totale, setTotale] = useState("10000");
   const importo = totaleAnteprimaPagamento(totale);
@@ -31,17 +33,17 @@ export default function AnteprimaModelloPagamento({
       : [];
   return (
     <section
-      aria-label={bozza ? "Anteprima della bozza" : "Anteprima del modello"}
+      aria-label={bozza ? t("Anteprima della bozza") : t("Anteprima del modello")}
       className="min-w-0 space-y-4 rounded-xl border bg-muted/20 p-4"
     >
       <div>
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Calculator className="h-4 w-4 text-primary" />
-          Anteprima del piano
+          {t("Anteprima del piano")}
         </h3>
         <p className="mt-2 break-words text-sm font-medium">
-          {modello.nome || "Modello da completare"} · {modello.righe.length}{" "}
-          {modello.righe.length === 1 ? "rata" : "rate"}
+          {modello.nome || t("Modello da completare")} · {modello.righe.length}{" "}
+          {modello.righe.length === 1 ? t("rata") : t("rate")}
         </p>
         {modello.descrizione && (
           <p className="mt-1 text-xs text-muted-foreground">
@@ -50,7 +52,7 @@ export default function AnteprimaModelloPagamento({
         )}
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor={id}>Totale di esempio IVA inclusa</Label>
+        <Label htmlFor={id}>{t("Totale di esempio IVA inclusa")}</Label>
         <div className="relative">
           <Input
             id={id}
@@ -69,17 +71,17 @@ export default function AnteprimaModelloPagamento({
       </div>
       {importo === null ? (
         <p role="status" className="text-xs text-amber-800">
-          Inserisci un importo positivo, con al massimo due decimali.
+          {t("Inserisci un importo positivo, con al massimo due decimali.")}
         </p>
       ) : !percentualiValide ? (
         <p role="status" className="text-xs text-amber-800">
-          Completa le percentuali fino al 100% per vedere gli importi.
+          {t("Completa le percentuali fino al 100% per vedere gli importi.")}
         </p>
       ) : (
         <>
           <div
             role="img"
-            aria-label={`Ripartizione del totale: ${modello.righe.map((r) => `${r.percent}%`).join(", ")}`}
+            aria-label={t("Ripartizione del totale: {quote}", { quote: modello.righe.map((r) => `${r.percent}%`).join(", ") })}
             className="flex h-2 overflow-hidden rounded-full bg-muted"
           >
             {modello.righe.map((r, i) => (
@@ -120,17 +122,17 @@ export default function AnteprimaModelloPagamento({
                     )}
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Preavviso:{" "}
+                    {t("Preavviso:")}{" "}
                     {r.giorni_preavviso === 0
-                      ? "alla scadenza"
-                      : `${r.giorni_preavviso} giorni prima`}
+                      ? t("alla scadenza")
+                      : t("{giorni_preavviso} giorni prima", { giorni_preavviso: String(r.giorni_preavviso ?? "") })}
                   </p>
                 </div>
               </li>
             ))}
           </ol>
           <p className="flex justify-between gap-3 border-t pt-3 text-sm">
-            <span>Totale IVA inclusa</span>
+            <span>{t("Totale IVA inclusa")}</span>
             <strong className="tabular-nums">
               {formatCurrency(rate.reduce((s, r) => s + r.amount, 0))}
             </strong>
@@ -138,8 +140,7 @@ export default function AnteprimaModelloPagamento({
         </>
       )}
       <p className="text-[11px] leading-relaxed text-muted-foreground">
-        Importi di esempio. Le date effettive si definiscono nella commessa; il
-        saldo include gli eventuali arrotondamenti.
+        {t("Importi di esempio. Le date effettive si definiscono nella commessa; il saldo include gli eventuali arrotondamenti.")}
       </p>
     </section>
   );

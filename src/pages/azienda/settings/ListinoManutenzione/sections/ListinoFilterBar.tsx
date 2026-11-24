@@ -15,6 +15,7 @@ import { Search, X, FilterX } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface FilterChip {
   key: string;
@@ -55,6 +56,7 @@ export function ListinoFilterBar({
   hasActiveFilters,
   onReset,
 }: Props) {
+  const t = useT();
   return (
     <div className="space-y-2">
       <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
@@ -71,7 +73,7 @@ export function ListinoFilterBar({
         {filters}
         {totalCount > 0 && (
           <span className="hidden text-xs text-muted-foreground md:ml-auto md:inline">
-            {totalCount} {totalCount === 1 ? unit[0] : unit[1]}
+            {totalCount} {t(totalCount === 1 ? unit[0] : unit[1])}
           </span>
         )}
         {actions && <div className={`shrink-0 ${totalCount > 0 ? "" : "md:ml-auto"}`}>{actions}</div>}
@@ -89,7 +91,7 @@ export function ListinoFilterBar({
               <button
                 type="button"
                 onClick={c.onRemove}
-                aria-label={`Rimuovi filtro: ${c.label}`}
+                aria-label={t("Rimuovi filtro: {label}", { label: String(c.label ?? "") })}
                 className="ml-0.5 rounded-sm p-0.5 hover:bg-muted-foreground/20"
               >
                 <X className="h-3 w-3" />
@@ -98,11 +100,11 @@ export function ListinoFilterBar({
           ))}
           <span className="ml-1">
             <span className="font-medium text-foreground">{shownCount}</span>{" "}
-            {shownCount === 1 ? unit[0] : unit[1]}
-            {shownCount !== totalCount && ` su ${totalCount} totali`}
+            {t(shownCount === 1 ? unit[0] : unit[1])}
+            {shownCount !== totalCount && t(" su {totalCount} totali", { totalCount: String(totalCount ?? "") })}
           </span>
           <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onReset}>
-            <FilterX className="h-3.5 w-3.5 mr-1" />Azzera filtri
+            <FilterX className="h-3.5 w-3.5 mr-1" />{t("Azzera filtri")}
           </Button>
         </div>
       )}

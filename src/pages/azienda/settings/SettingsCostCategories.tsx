@@ -44,6 +44,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { puoModificareCosti } from "@/lib/permessi/modificaSegueVisibilita";
 import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CostCategory {
   id: string;
@@ -76,6 +77,7 @@ function categoryKey(name: string) {
 }
 
 export default function SettingsCostCategories() {
+  const t = useT();
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -182,11 +184,11 @@ export default function SettingsCostCategories() {
   // Una riga sola al posto delle tre tessere: quante sono e quante servono davvero.
   const riepilogo = useMemo(() => {
     if (isLoading || categoriesIsError || categories.length === 0) return null;
-    const quante = categories.length === 1 ? "1 categoria" : `${categories.length} categorie`;
+    const quante = categories.length === 1 ? t("1 categoria") : t("{n} categorie", { n: categories.length });
     if (!usageKnown) return quante;
     const usate = categories.filter((c) => (usageCounts[categoryKey(c.name)]?.count ?? 0) > 0).length;
-    return `${quante} · ${usate} ${usate === 1 ? "usata" : "usate"} nei costi`;
-  }, [categories, usageCounts, usageKnown, isLoading, categoriesIsError]);
+    return `${quante} · ${t(usate === 1 ? "{n} usata nei costi" : "{n} usate nei costi", { n: usate })}`;
+  }, [categories, usageCounts, usageKnown, isLoading, categoriesIsError, t]);
 
   // ─── Mutations ────────────────────────────────────────
   const invalidateAll = useCallback(() => {
@@ -196,40 +198,40 @@ export default function SettingsCostCategories() {
 
   const addMutation = useMutation({
     mutationFn: async ({ name }: { name: string }) => {
-      if (!canWrite) throw new ErroreCategoria("Modifica categorie non disponibile");
-      if (!companyId) throw new ErroreCategoria("Azienda non selezionata");
+      if (!canWrite) throw new ErroreCategoria(t("Modifica categorie non disponibile"));
+      if (!companyId) throw new ErroreCategoria(t("Azienda non selezionata"));
       const safeName = normalizeCategoryName(name);
-      if (!safeName) throw new ErroreCategoria("Inserisci il nome categoria");
+      if (!safeName) throw new ErroreCategoria(t("Inserisci il nome categoria"));
       // Solo azienda e nome: il colore non si scrive più (nel database resta vuoto).
       const { error } = await supabase.from("cost_categories").insert({
         company_id: companyId!,
         name: safeName,
       });
       if (error) {
-        if (error.code === "23505") throw new ErroreCategoria("Categoria già esistente");
+        if (error.code === "23505") throw new ErroreCategoria(t("Categoria già esistente"));
         throw error;
       }
     },
     onSuccess: () => {
       invalidateAll();
       setNewName("");
-      toast.success("Categoria aggiunta");
+      toast.success(t("Categoria aggiunta"));
     },
     onError: (e: unknown) =>
-      toast.error(messaggioErrore(e, "Non sono riuscito ad aggiungere la categoria. Riprova.")),
+      toast.error(messaggioErrore(e, t("Non sono riuscito ad aggiungere la categoria. Riprova."))),
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
-      if (!canWrite) throw new ErroreCategoria("Modifica categorie non disponibile");
-      if (!companyId) throw new ErroreCategoria("Azienda non selezionata");
+      if (!canWrite) throw new ErroreCategoria(t("Modifica categorie non disponibile"));
+      if (!companyId) throw new ErroreCategoria(t("Azienda non selezionata"));
       const current = categories.find((category) => category.id === id);
       const safeName = normalizeCategoryName(name);
-      if (!safeName) throw new ErroreCategoria("Inserisci il nome categoria");
-      if (!current) throw new ErroreCategoria("Categoria non trovata: ricarica i dati");
-      if (!usageKnown && categoryKey(current.name) !== categoryKey(safeName)) throw new ErroreCategoria("Utilizzi non disponibili: non puoi ancora rinominare la categoria");
+      if (!safeName) throw new ErroreCategoria(t("Inserisci il nome categoria"));
+      if (!current) throw new ErroreCategoria(t("Categoria non trovata: ricarica i dati"));
+      if (!usageKnown && categoryKey(current.name) !== categoryKey(safeName)) throw new ErroreCategoria(t("Utilizzi non disponibili: non puoi ancora rinominare la categoria"));
       if (current && categoryKey(current.name) !== categoryKey(safeName) && (usageCounts[categoryKey(current.name)]?.count ?? 0) > 0) {
-        throw new ErroreCategoria("Categoria già usata nei costi: il nome non si può cambiare.");
+        throw new ErroreCategoria(t("Categoria già usata nei costi: il nome non si può cambiare."));
       }
       const { error } = await supabase
         .from("cost_categories")
@@ -237,28 +239,28 @@ export default function SettingsCostCategories() {
         .eq("id", id)
         .eq("company_id", companyId).select("id").single();
       if (error) {
-        if (error.code === "23505") throw new ErroreCategoria("Categoria già esistente");
+        if (error.code === "23505") throw new ErroreCategoria(t("Categoria già esistente"));
         throw error;
       }
     },
     onSuccess: () => {
       invalidateAll();
       setEditingId(null);
-      toast.success("Categoria aggiornata");
+      toast.success(t("Categoria aggiornata"));
     },
     onError: (e: unknown) =>
-      toast.error(messaggioErrore(e, "Non sono riuscito ad aggiornare la categoria. Riprova.")),
+      toast.error(messaggioErrore(e, t("Non sono riuscito ad aggiornare la categoria. Riprova."))),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!canWrite || !usageKnown) throw new ErroreCategoria("Eliminazione non disponibile: verifica categorie e utilizzi");
-      if (!companyId) throw new ErroreCategoria("Azienda non selezionata");
+      if (!canWrite || !usageKnown) throw new ErroreCategoria(t("Eliminazione non disponibile: verifica categorie e utilizzi"));
+      if (!companyId) throw new ErroreCategoria(t("Azienda non selezionata"));
       const category = categories.find((cat) => cat.id === id);
-      if (!category) throw new ErroreCategoria("Categoria non trovata: ricarica i dati");
+      if (!category) throw new ErroreCategoria(t("Categoria non trovata: ricarica i dati"));
       const usage = usageCounts[categoryKey(category.name)]?.count ?? 0;
       if (usage > 0) {
-        throw new ErroreCategoria("Categoria già usata: eliminazione bloccata per proteggere costi storici, marginalità e report.");
+        throw new ErroreCategoria(t("Categoria già usata: eliminazione bloccata per proteggere costi storici, marginalità e report."));
       }
       const { error } = await supabase
         .from("cost_categories")
@@ -266,23 +268,23 @@ export default function SettingsCostCategories() {
         .eq("id", id)
         .eq("company_id", companyId).select("id").single();
       if (error?.code === "23503" && error.message.includes("fornitori_conti_costo_categoria_id_fkey")) {
-        throw new ErroreCategoria("La categoria è usata da una regola fornitore. Sposta o rimuovi la regola prima di eliminarla.");
+        throw new ErroreCategoria(t("La categoria è usata da una regola fornitore. Sposta o rimuovi la regola prima di eliminarla."));
       }
       if (error) throw error;
     },
     onSuccess: () => {
       invalidateAll();
       setDeleteId(null);
-      toast.success("Categoria eliminata");
+      toast.success(t("Categoria eliminata"));
     },
     onError: (e: unknown) =>
-      toast.error(messaggioErrore(e, "Non sono riuscito a eliminare la categoria. Riprova.")),
+      toast.error(messaggioErrore(e, t("Non sono riuscito a eliminare la categoria. Riprova."))),
   });
 
   const importMutation = useMutation({
     mutationFn: async () => {
-      if (!canWrite) throw new ErroreCategoria("Importazione non disponibile");
-      if (!companyId) throw new ErroreCategoria("Azienda non selezionata");
+      if (!canWrite) throw new ErroreCategoria(t("Importazione non disponibile"));
+      if (!companyId) throw new ErroreCategoria(t("Azienda non selezionata"));
 
       const [costs, suppliers] = await Promise.all([
         tutteLePagine((from, to) => supabase.from("company_costs").select("category")
@@ -298,7 +300,7 @@ export default function SettingsCostCategories() {
       }
 
       if (cats.size === 0) {
-        throw new ErroreCategoria("Nessuna categoria trovata nei costi o fornitori");
+        throw new ErroreCategoria(t("Nessuna categoria trovata nei costi o fornitori"));
       }
 
       const existing = new Set(categories.map((c) => categoryKey(c.name)));
@@ -311,7 +313,7 @@ export default function SettingsCostCategories() {
         }));
 
       if (toInsert.length === 0) {
-        throw new ErroreCategoria("Tutte le categorie sono già importate");
+        throw new ErroreCategoria(t("Tutte le categorie sono già importate"));
       }
 
       const { error } = await supabase.from("cost_categories").insert(toInsert);
@@ -321,10 +323,10 @@ export default function SettingsCostCategories() {
     onSuccess: (count) => {
       invalidateAll();
       setImportOpen(false);
-      toast.success(`${count} ${count === 1 ? "categoria importata" : "categorie importate"}`);
+      toast.success(t(count === 1 ? "{n} categoria importata" : "{n} categorie importate", { n: count }));
     },
     onError: (e: unknown) =>
-      toast.error(messaggioErrore(e, "Importazione non riuscita: controlla i dati e riprova")),
+      toast.error(messaggioErrore(e, t("Importazione non riuscita: controlla i dati e riprova"))),
   });
   const busy = addMutation.isPending || updateMutation.isPending || deleteMutation.isPending || importMutation.isPending;
   const confermaUscita = useSettingsDraftGuard(!!newName.trim() || !!editingId || busy);
@@ -333,7 +335,7 @@ export default function SettingsCostCategories() {
     if (!canWrite || busy || !newName.trim()) return;
     const normalizedName = categoryKey(newName);
     if (categories.some((category) => categoryKey(category.name) === normalizedName)) {
-      toast.error("Categoria già esistente");
+      toast.error(t("Categoria già esistente"));
       return;
     }
     addMutation.mutate({ name: newName });
@@ -354,7 +356,7 @@ export default function SettingsCostCategories() {
           (category) => category.id !== id && categoryKey(category.name) === normalizedName,
         )
       ) {
-        toast.error("Categoria già esistente");
+        toast.error(t("Categoria già esistente"));
         return;
       }
       // Il nome è lo stesso (una categoria già usata ha il nome bloccato): niente da salvare. Si chiude la riga
@@ -401,7 +403,7 @@ export default function SettingsCostCategories() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    toast.success("File scaricato");
+    toast.success(t("File scaricato"));
   }, [categories, historicalMissingCategories, usageCounts, isLoading, categoriesIsError, usageKnown]);
 
   // ─── Render ───────────────────────────────────────────
@@ -416,13 +418,12 @@ export default function SettingsCostCategories() {
         {/* Titolo e icona li mette già la testata delle Impostazioni: qui la frase e, sotto, i numeri. */}
         <div className="min-w-0 space-y-1">
           <p className="text-sm text-muted-foreground">
-            Le categorie con cui dividi i costi (affitto, utenze, marketing…). Le scegli quando registri un costo e
-            servono a leggerli nei report.
+            {t("Le categorie con cui dividi i costi (affitto, utenze, marketing…). Le scegli quando registri un costo e servono a leggerli nei report.")}
           </p>
           {riepilogo && <p className="text-sm font-medium">{riepilogo}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {companyId && <Button variant="outline" size="sm" disabled={isLoading || categoriesIsError} onClick={() => setRegoleAperte(true)}>Regole fornitori</Button>}
+          {companyId && <Button variant="outline" size="sm" disabled={isLoading || categoriesIsError} onClick={() => setRegoleAperte(true)}>{t("Regole fornitori")}</Button>}
           {puoModificare && (
             <Button
               variant="outline"
@@ -431,7 +432,7 @@ export default function SettingsCostCategories() {
               disabled={busy || !canWrite}
             >
               <Download className="h-4 w-4 mr-1.5" />
-              {importMutation.isPending ? "Importo…" : "Importa da costi e fornitori"}
+              {importMutation.isPending ? t("Importo…") : t("Importa da costi e fornitori")}
             </Button>
           )}
           {/* Niente export su telefono. */}
@@ -443,7 +444,7 @@ export default function SettingsCostCategories() {
               disabled={isLoading || categoriesIsError || !usageKnown || (categories.length === 0 && historicalMissingCategories.length === 0)}
             >
               <FileDown className="h-4 w-4 mr-1.5" />
-              Esporta CSV
+              {t("Esporta CSV")}
             </Button>
           )}
         </div>
@@ -452,10 +453,10 @@ export default function SettingsCostCategories() {
       {(categoriesIsError || usageIsError) && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Categorie costi non disponibili</AlertTitle>
+          <AlertTitle>{t("Categorie costi non disponibili")}</AlertTitle>
           <AlertDescription className="space-y-3">
             <p>
-              Non riesco a caricare correttamente categorie o utilizzi. I dati potrebbero non essere completi.
+              {t("Non riesco a caricare correttamente categorie o utilizzi. I dati potrebbero non essere completi.")}
             </p>
             {dettaglioErrore && <p className="text-xs">{dettaglioErrore}</p>}
             <Button
@@ -466,7 +467,7 @@ export default function SettingsCostCategories() {
                 refetchUsage();
               }}
             >
-              Riprova
+              {t("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -475,11 +476,11 @@ export default function SettingsCostCategories() {
       {!categoriesIsError && usageKnown && historicalMissingCategories.length > 0 && (
         <Alert>
           <AlertTriangle className="h-4 w-4 text-amber-500" />
-          <AlertTitle>Categorie usate nei costi ma non nell'elenco</AlertTitle>
+          <AlertTitle>{t("Categorie usate nei costi ma non nell'elenco")}</AlertTitle>
           <AlertDescription>
             {historicalMissingCategories.length === 1
-              ? "C'è 1 categoria usata nei costi ma non nell'elenco. Premi «Importa da costi e fornitori» per aggiungerla senza toccare i costi già registrati."
-              : `Ci sono ${historicalMissingCategories.length} categorie usate nei costi ma non nell'elenco. Premi «Importa da costi e fornitori» per aggiungerle senza toccare i costi già registrati.`}
+              ? t("C'è 1 categoria usata nei costi ma non nell'elenco. Premi «Importa da costi e fornitori» per aggiungerla senza toccare i costi già registrati.")
+              : t("Ci sono {n} categorie usate nei costi ma non nell'elenco. Premi «Importa da costi e fornitori» per aggiungerle senza toccare i costi già registrati.", { n: historicalMissingCategories.length })}
           </AlertDescription>
         </Alert>
       )}
@@ -488,19 +489,19 @@ export default function SettingsCostCategories() {
         <CardContent className="pt-5 space-y-4">
           {!puoModificare && (
             <AvvisoSolaLettura>
-              Sola lettura: qui serve il permesso «Costi», e chi ce l&apos;ha in «Sola lettura» non può scrivere.
+              {t("Sola lettura: qui serve il permesso «Costi», e chi ce l'ha in «Sola lettura» non può scrivere.")}
             </AvvisoSolaLettura>
           )}
           {/* Add form */}
           {puoModificare && (
           <fieldset disabled={busy || !canWrite} className="m-0 min-w-0 border-0 p-0 flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
             <div className="flex-1">
-              <Label htmlFor="new-cat-name" className="text-xs">Nuova categoria</Label>
+              <Label htmlFor="new-cat-name" className="text-xs">{t("Nuova categoria")}</Label>
               <Input
                 id="new-cat-name"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="es. Affitto, Utenze, Marketing…"
+                placeholder={t("es. Affitto, Utenze, Marketing…")}
                 onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
                 maxLength={80}
               />
@@ -511,7 +512,7 @@ export default function SettingsCostCategories() {
               className="sm:self-end"
             >
               <Plus className="h-4 w-4 mr-1.5" />
-              {addMutation.isPending ? "Aggiungo…" : "Aggiungi"}
+              {addMutation.isPending ? t("Aggiungo…") : t("Aggiungi")}
             </Button>
           </fieldset>
           )}
@@ -525,8 +526,8 @@ export default function SettingsCostCategories() {
                   <Input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Cerca categoria…"
-                    aria-label="Cerca una categoria"
+                    placeholder={t("Cerca categoria…")}
+                    aria-label={t("Cerca una categoria")}
                     className="pl-8 pr-8 h-9 text-sm"
                   />
                   {search && (
@@ -534,7 +535,7 @@ export default function SettingsCostCategories() {
                       type="button"
                       onClick={() => setSearch("")}
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted"
-                      aria-label="Cancella la ricerca"
+                      aria-label={t("Cancella la ricerca")}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -555,18 +556,18 @@ export default function SettingsCostCategories() {
                       onClick={() => setUsageFilter(value)}
                       disabled={value !== "all" && !usageKnown}
                     >
-                      {label}
+                      {t(label)}
                     </Button>
                   ))}
                   <UniformSelect
                     value={sortMode}
                     onChange={(event) => setSortMode(event.target.value as SortMode)}
                     className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                    aria-label="Ordina categorie"
+                    aria-label={t("Ordina categorie")}
                   >
-                    <option value="name">Nome A-Z</option>
-                    <option value="usage_desc" disabled={!usageKnown}>Più usate</option>
-                    <option value="usage_asc" disabled={!usageKnown}>Meno usate</option>
+                    <option value="name">{t("Nome A-Z")}</option>
+                    <option value="usage_desc" disabled={!usageKnown}>{t("Più usate")}</option>
+                    <option value="usage_asc" disabled={!usageKnown}>{t("Meno usate")}</option>
                   </UniformSelect>
                 </div>
               </div>
@@ -575,23 +576,23 @@ export default function SettingsCostCategories() {
 
           {/* Table */}
           {isLoading ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">Caricamento…</p>
+            <p className="text-sm text-muted-foreground py-6 text-center">{t("Caricamento…")}</p>
           ) : categoriesIsError ? null : categories.length === 0 ? (
             <div className="py-10 text-center space-y-3 border border-dashed rounded-lg">
               <FolderOpen className="h-10 w-10 text-muted-foreground/40 mx-auto" />
               <p className="text-sm text-muted-foreground">
-                Nessuna categoria configurata.
+                {t("Nessuna categoria configurata.")}
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 {puoModificare
-                  ? "Aggiungine una qui sopra oppure premi «Importa da costi e fornitori» per creare le categorie già usate nei tuoi costi e fornitori."
-                  : "Nessuna categoria creata finora."}
+                  ? t("Aggiungine una qui sopra oppure premi «Importa da costi e fornitori» per creare le categorie già usate nei tuoi costi e fornitori.")
+                  : t("Nessuna categoria creata finora.")}
               </p>
             </div>
           ) : filtered.length === 0 ? (
             <div className="py-10 text-center">
               <p className="text-sm text-muted-foreground">
-                Nessuna categoria corrisponde ai filtri attivi.
+                {t("Nessuna categoria corrisponde ai filtri attivi.")}
               </p>
               <Button
                 variant="ghost"
@@ -603,16 +604,16 @@ export default function SettingsCostCategories() {
                   setSortMode("name");
                 }}
               >
-                Mostra tutte
+                {t("Mostra tutte")}
               </Button>
             </div>
           ) : (
             <Table className="block md:table">
               <TableHeader className="hidden md:table-header-group">
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead className="text-center w-24">Utilizzi</TableHead>
-                  {puoModificare && <TableHead className="w-[140px] text-right">Azioni</TableHead>}
+                  <TableHead>{t("Nome")}</TableHead>
+                  <TableHead className="text-center w-24">{t("Utilizzi")}</TableHead>
+                  {puoModificare && <TableHead className="w-[140px] text-right">{t("Azioni")}</TableHead>}
                 </TableRow>
               </TableHeader>
               {/* Su telefono ogni categoria è una scheda col suo bordo («!»: il corpo della tabella lo toglie all'ultima riga). */}
@@ -627,7 +628,7 @@ export default function SettingsCostCategories() {
                           <div className="space-y-1.5">
                             <Input
                               value={editName}
-                              aria-label={`Nome categoria ${cat.name}`}
+                              aria-label={t("Nome categoria {name}", { name: String(cat.name ?? "") })}
                               onChange={(e) => setEditName(e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") saveEdit(cat.id);
@@ -639,12 +640,12 @@ export default function SettingsCostCategories() {
                             />
                             {usage > 0 && (
                               <p className="text-[11px] text-muted-foreground">
-                                Nome bloccato: la categoria è usata nei costi.
+                                {t("Nome bloccato: la categoria è usata nei costi.")}
                               </p>
                             )}
                             {usageIsError && (
                               <p className="text-[11px] text-muted-foreground">
-                                Utilizzi non disponibili: il nome non si può cambiare adesso.
+                                {t("Utilizzi non disponibili: il nome non si può cambiare adesso.")}
                               </p>
                             )}
                           </div>
@@ -654,7 +655,7 @@ export default function SettingsCostCategories() {
                             {usageKnown && usage > 0 && (
                               <Badge variant="secondary" className="gap-1">
                                 <ShieldCheck className="h-3 w-3" />
-                                Protetta
+                                {t("Protetta")}
                               </Badge>
                             )}
                           </div>
@@ -677,15 +678,15 @@ export default function SettingsCostCategories() {
                                 onClick={() => saveEdit(cat.id)}
                                 disabled={!canWrite || busy || !editName.trim()}
                               >
-                                Salva
+                                {t("Salva")}
                               </Button>
                               <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditingId(null)}>
-                                Annulla
+                                {t("Annulla")}
                               </Button>
                             </div>
                           ) : (
                             <div className="flex justify-end gap-1">
-                              <Button size="icon" variant="ghost" className="h-8 w-8" disabled={!canWrite || busy} onClick={() => startEdit(cat)} aria-label={`Modifica ${cat.name}`}>
+                              <Button size="icon" variant="ghost" className="h-8 w-8" disabled={!canWrite || busy} onClick={() => startEdit(cat)} aria-label={t("Modifica {nome}", { nome: String(cat.name ?? "") })}>
                                 <Pencil className="h-4 w-4" />
                               </Button>
                               <Button
@@ -694,8 +695,8 @@ export default function SettingsCostCategories() {
                                 variant="ghost"
                                 disabled={!canWrite || busy || !usageKnown || usage > 0}
                                 onClick={() => setDeleteId(cat.id)}
-                                aria-label={usage > 0 ? `${cat.name} protetta: non eliminabile` : `Elimina ${cat.name}`}
-                                title={usage > 0 ? "Categoria protetta perché già usata nei costi" : "Elimina categoria inutilizzata"}
+                                aria-label={usage > 0 ? t("{name} protetta: non eliminabile", { name: String(cat.name ?? "") }) : t("Elimina {nome}", { nome: String(cat.name ?? "") })}
+                                title={usage > 0 ? t("Categoria protetta perché già usata nei costi") : t("Elimina categoria inutilizzata")}
                               >
                                 <Trash2 className={`h-4 w-4 ${usage > 0 ? "text-muted-foreground" : "text-destructive"}`} />
                               </Button>
@@ -720,7 +721,7 @@ export default function SettingsCostCategories() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               {deleteUsage > 0 && <AlertTriangle className="h-5 w-5 text-amber-500" />}
-              Elimina categoria
+              {t("Elimina categoria")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {categoryToDelete ? (
@@ -728,24 +729,24 @@ export default function SettingsCostCategories() {
                   // Il pulsante «Elimina» è spento per le categorie già usate: questo ramo c'è per quando gli utilizzi
                   // cambiano mentre la finestra è aperta.
                   <>
-                    La categoria <strong>"{categoryToDelete.name}"</strong> è usata da{" "}
-                    <strong>{deleteUsage} {deleteUsage === 1 ? "costo" : "costi"}</strong>.{" "}
-                    Per proteggere costi storici, marginalità e report, l'eliminazione è bloccata: lascia la categoria nell'elenco per lo storico.
+                    {t("La categoria")} <strong>"{categoryToDelete.name}"</strong> {t("è usata da")}{" "}
+                    <strong>{t(deleteUsage === 1 ? "{n} costo" : "{n} costi", { n: deleteUsage })}</strong>.{" "}
+                    {t("Per proteggere costi storici, marginalità e report, l'eliminazione è bloccata: lascia la categoria nell'elenco per lo storico.")}
                   </>
                 ) : (
-                  <>La categoria <strong>"{categoryToDelete.name}"</strong> verrà rimossa.</>
+                  <>{t("La categoria")} <strong>"{categoryToDelete.name}"</strong> {t("verrà rimossa.")}</>
                 )
               ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
               disabled={!canWrite || !usageKnown || deleteUsage > 0 || busy}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteUsage > 0 ? "Bloccata" : "Elimina"}
+              {deleteUsage > 0 ? t("Bloccata") : t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -753,12 +754,12 @@ export default function SettingsCostCategories() {
       <AlertDialog open={importOpen} onOpenChange={(open) => { if (!busy) setImportOpen(open); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Importare le categorie mancanti?</AlertDialogTitle>
-            <AlertDialogDescription>Legge costi e fornitori dell'azienda e aggiunge solo le categorie che mancano. Non modifica i movimenti storici.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Importare le categorie mancanti?")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Legge costi e fornitori dell'azienda e aggiunge solo le categorie che mancano. Non modifica i movimenti storici.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Annulla</AlertDialogCancel>
-            <AlertDialogAction disabled={busy || !canWrite} onClick={(event) => { event.preventDefault(); importMutation.mutate(); }}>{importMutation.isPending ? "Importo…" : "Importa categorie"}</AlertDialogAction>
+            <AlertDialogCancel disabled={busy}>{t("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction disabled={busy || !canWrite} onClick={(event) => { event.preventDefault(); importMutation.mutate(); }}>{importMutation.isPending ? t("Importo…") : t("Importa categorie")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

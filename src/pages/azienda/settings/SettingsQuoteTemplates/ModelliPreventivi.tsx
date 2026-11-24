@@ -12,6 +12,7 @@ import {
   type QuoteTemplatesTopTab,
 } from "@/lib/settingsQuoteTemplatesRoute";
 import { ModuliVenditaPanel } from "./ModuliVenditaPanel";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ComputoModelloPanel = lazy(() => import("@/components/computo/ComputoModelloPanel"));
 const VariationTemplatesPanel = lazy(() => import("./VariationTemplatesPanel").then(m => ({ default: m.VariationTemplatesPanel })));
@@ -37,7 +38,10 @@ function useSchedeModelliPreventivi(unificato: boolean) {
   return { scheda, modulo, cambiaScheda };
 }
 
-const caricamentoModelli = <p role="status" className="py-8 text-sm text-muted-foreground">Caricamento dei modelli…</p>;
+function CaricamentoModelli() {
+  const t = useT();
+  return <p role="status" className="py-8 text-sm text-muted-foreground">{t("Caricamento dei modelli…")}</p>;
+}
 
 export function SchedeModelliPreventivi({ companyId, puoModificare, unificato, caricamentoLibreria, children }: {
   companyId?: string;
@@ -46,9 +50,10 @@ export function SchedeModelliPreventivi({ companyId, puoModificare, unificato, c
   caricamentoLibreria?: boolean;
   children?: ReactNode;
 }) {
+  const t = useT();
   const { scheda, cambiaScheda, modulo } = useSchedeModelliPreventivi(unificato);
   if (caricamentoLibreria && scheda === "documenti") {
-    return <div role="status" aria-label="Caricamento dei modelli" className="flex items-center justify-center py-12">
+    return <div role="status" aria-label={t("Caricamento dei modelli")} className="flex items-center justify-center py-12">
       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
     </div>;
   }
@@ -56,22 +61,22 @@ export function SchedeModelliPreventivi({ companyId, puoModificare, unificato, c
     <Tabs value={scheda} onValueChange={cambiaScheda} className="space-y-4">
       <TabsList className={`h-auto max-w-full flex-wrap bg-slate-100 max-sm:grid max-sm:w-full max-sm:gap-1 max-sm:[&>button]:min-h-11 max-sm:[&>button]:whitespace-normal max-sm:[&>button]:px-1.5 max-sm:[&>button]:text-xs max-sm:[&_svg]:hidden ${unificato ? "max-sm:grid-cols-3" : "max-sm:grid-cols-2"}`}>
         {!unificato && <TabsTrigger value="documenti" className="gap-1.5">
-          <FileText className="h-3.5 w-3.5" />Libreria modelli
+          <FileText className="h-3.5 w-3.5" />{t("Libreria modelli")}
         </TabsTrigger>}
         <TabsTrigger value="computo" className="gap-1.5">
-          <FileSpreadsheet className="h-3.5 w-3.5" />{unificato ? "Preventivo / computo metrico" : "Builder preventivo"}
+          <FileSpreadsheet className="h-3.5 w-3.5" />{unificato ? t("Preventivo / computo metrico") : t("Builder preventivo")}
         </TabsTrigger>
         <TabsTrigger value="moduli-vendita" className="gap-1.5">
-          <ShoppingBag className="h-3.5 w-3.5" />Moduli<span className="max-sm:hidden"> (serramenti, fotovoltaico…)</span>
+          <ShoppingBag className="h-3.5 w-3.5" />{t("Moduli")}<span className="max-sm:hidden"> {t("(serramenti, fotovoltaico…)")}</span>
         </TabsTrigger>
-        <TabsTrigger value="varianti" className="gap-1.5">Varianti e lavori extra</TabsTrigger>
+        <TabsTrigger value="varianti" className="gap-1.5">{t("Varianti e lavori extra")}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="computo">
-        <Suspense fallback={caricamentoModelli}><ComputoModelloPanel key={companyId} canEdit={puoModificare} /></Suspense>
+        <Suspense fallback={<CaricamentoModelli />}><ComputoModelloPanel key={companyId} canEdit={puoModificare} /></Suspense>
       </TabsContent>
       <TabsContent value="varianti">
-        <Suspense fallback={caricamentoModelli}><VariationTemplatesPanel key={companyId} companyId={companyId} canEdit={puoModificare} /></Suspense>
+        <Suspense fallback={<CaricamentoModelli />}><VariationTemplatesPanel key={companyId} companyId={companyId} canEdit={puoModificare} /></Suspense>
       </TabsContent>
       <TabsContent value="moduli-vendita" className="space-y-4">
         <ModuliVenditaPanel initialModulo={modulo} />

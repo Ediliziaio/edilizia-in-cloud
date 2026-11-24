@@ -31,6 +31,7 @@ import {
   vociPerClasse,
   type MezzoClasse, type MezzoDocumento, type MezzoDocumentoCategoria, type StatoScadenza,
 } from "@/types/mezzi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ORDINE: Record<StatoScadenza, number> = { scaduto: 0, in_scadenza: 1, valido: 2, senza_scadenza: 3, sostituito: 4 };
 
@@ -61,6 +62,7 @@ const MIME_DA_ESTENSIONE: Record<string, string> = {
 };
 
 export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa, classe = "mezzo" }: Props) {
+  const t = useT();
   const { data: docs = [], isLoading, error, refetch } = useMezzoDocumenti(mezzoId);
   const salva = useSalvaDocumentoMezzo(mezzoId);
   const elimina = useEliminaDocumentoMezzo();
@@ -131,7 +133,7 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
           patch.file_path = up.path;
           patch.file_name = up.name;
         } catch (e) {
-          toast.error(e instanceof Error ? `Non ho caricato il file: ${e.message}` : "Non ho caricato il file");
+          toast.error(e instanceof Error ? t("Non ho caricato il file: {message}", { message: String(e.message ?? "") }) : t("Non ho caricato il file"));
           return;
         }
       }
@@ -189,14 +191,14 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
       }));
       const targaLetta = testoLetto(letto.targa)?.replace(/\s+/g, "").toUpperCase();
       if (targaLetta && targa && targaLetta !== targa.replace(/\s+/g, "").toUpperCase()) {
-        toast.warning(`La polizza è per la targa ${targaLetta}, il mezzo ha ${targa}: controlla di aver preso quella giusta.`);
+        toast.warning(t("La polizza è per la targa {targaLetta}, il mezzo ha {targa}: controlla di aver preso quella giusta.", { targaLetta: String(targaLetta ?? ""), targa: String(targa ?? "") }));
       } else if (!scadenza) {
-        toast.warning("Non ho trovato la scadenza nella polizza: scrivila a mano.");
+        toast.warning(t("Non ho trovato la scadenza nella polizza: scrivila a mano."));
       } else {
-        toast.success("Ho compilato i campi dalla polizza: controllali prima di salvare.");
+        toast.success(t("Ho compilato i campi dalla polizza: controllali prima di salvare."));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? `Lettura automatica non riuscita: ${e.message}. Compila a mano.` : "Lettura automatica non riuscita. Compila a mano.");
+      toast.error(e instanceof Error ? t("Lettura automatica non riuscita: {message}. Compila a mano.", { message: String(e.message ?? "") }) : t("Lettura automatica non riuscita. Compila a mano."));
     } finally {
       setLeggendo(false);
     }
@@ -206,7 +208,7 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
     if (!d.file_path) return;
     const url = await linkFileMezzo(d.file_path);
     if (url) window.open(url, "_blank", "noopener");
-    else toast.error("Il file non è disponibile. Riprova tra qualche secondo.");
+    else toast.error(t("Il file non è disponibile. Riprova tra qualche secondo."));
   };
 
   const dataValida = !form.data_scadenza || !form.data_inizio || form.data_scadenza >= form.data_inizio;
@@ -216,12 +218,12 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
       {/* Mobile: niente spiegazione; senza documenti il bottone sta nella riga vuota. */}
       <div className={`flex items-center justify-between gap-2 max-sm:justify-end ${conStato.length === 0 ? "max-sm:hidden" : ""}`}>
         <p className="text-sm text-muted-foreground max-sm:hidden">
-          Assicurazione, bollo, revisione, contratti: ti avvisiamo prima che scadano.
+          {t("Assicurazione, bollo, revisione, contratti: ti avvisiamo prima che scadano.")}
         </p>
         {puoModificare && (
-          <Button size="sm" onClick={nuovo} aria-label="Aggiungi documento" className="shrink-0 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0">
+          <Button size="sm" onClick={nuovo} aria-label={t("Aggiungi documento")} className="shrink-0 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0">
             {/* Telefono: «+» tondo, come in tutte le pagine (decisione del founder, 23/11/2026). */}
-            <Plus className="mr-1 h-4 w-4 max-sm:mr-0" /><span className="max-sm:hidden">Aggiungi</span>
+            <Plus className="mr-1 h-4 w-4 max-sm:mr-0" /><span className="max-sm:hidden">{t("Aggiungi")}</span>
           </Button>
         )}
       </div>
@@ -230,16 +232,16 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          Non riesco a caricare i documenti.{" "}
-          <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
+          {t("Non riesco a caricare i documenti.")}{" "}
+          <button type="button" className="font-semibold underline" onClick={() => refetch()}>{t("Riprova")}</button>
         </div>
       ) : conStato.length === 0 ? (
         <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground max-sm:py-4">
           <FileText className="mx-auto mb-2 h-8 w-8 opacity-40 max-sm:hidden" />
-          Nessun documento<span className="max-sm:hidden">. {classe === "attrezzatura" ? "Garanzia, manuale, verifiche e tarature: con la scadenza arriva l'avviso" : "Inizia da assicurazione e revisione"}</span>.
+          {t("Nessun documento")}<span className="max-sm:hidden">. {classe === "attrezzatura" ? t("Garanzia, manuale, verifiche e tarature: con la scadenza arriva l'avviso") : t("Inizia da assicurazione e revisione")}</span>.
           {puoModificare && (
             <div className="mt-3 max-sm:mt-2">
-              <Button size="sm" variant="outline" className="max-sm:h-8 max-sm:text-xs" onClick={nuovo}><Plus className="mr-1 h-4 w-4" />Aggiungi documento</Button>
+              <Button size="sm" variant="outline" className="max-sm:h-8 max-sm:text-xs" onClick={nuovo}><Plus className="mr-1 h-4 w-4" />{t("Aggiungi documento")}</Button>
             </div>
           )}
         </div>
@@ -252,8 +254,8 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
               <li key={d.id} className={`flex items-start gap-3 rounded-xl border bg-card p-3 ${vecchio ? "opacity-60" : ""}`}>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">{categoriaDocumentoLabel(d.categoria)}</span>
-                    <Badge variant="outline" className={`px-1.5 py-0 text-[11px] ${badge.cls}`}>{badge.label}</Badge>
+                    <span className="text-sm font-medium">{t(categoriaDocumentoLabel(d.categoria))}</span>
+                    <Badge variant="outline" className={`px-1.5 py-0 text-[11px] ${badge.cls}`}>{t(badge.label)}</Badge>
                   </div>
                   <p className="mt-0.5 text-sm text-foreground/80">{quando(d.stato, d.data_scadenza, oggi)}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
@@ -262,21 +264,21 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5">
                   {d.file_path && (
-                    <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => apriFile(d)} aria-label="Apri il file" title="Apri il file">
+                    <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => apriFile(d)} aria-label={t("Apri il file")} title={t("Apri il file")}>
                       <Download className="h-4 w-4" />
                     </Button>
                   )}
                   {puoModificare && !vecchio && d.data_scadenza && (
-                    <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => rinnova(d)} aria-label="Rinnova" title="Rinnova">
+                    <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => rinnova(d)} aria-label={t("Rinnova")} title={t("Rinnova")}>
                       <RefreshCw className="h-4 w-4" />
                     </Button>
                   )}
                   {puoModificare && (
                     <>
-                      <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => modifica(d)} aria-label="Modifica" title="Modifica">
+                      <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => modifica(d)} aria-label={t("Modifica")} title={t("Modifica")}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-9 w-9 text-destructive" onClick={() => setDaEliminare(d)} aria-label="Elimina" title="Elimina">
+                      <Button size="icon" variant="ghost" className="h-9 w-9 text-destructive" onClick={() => setDaEliminare(d)} aria-label={t("Elimina")} title={t("Elimina")}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </>
@@ -291,42 +293,42 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
       <Dialog open={aperto} onOpenChange={chiudiFinestra}>
         <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{rinnovo ? "Rinnova documento" : form.id ? "Modifica documento" : "Nuovo documento"}</DialogTitle>
+            <DialogTitle>{rinnovo ? t("Rinnova documento") : form.id ? t("Modifica documento") : t("Nuovo documento")}</DialogTitle>
             {rinnovo && (
               <DialogDescription>
-                Ho proposto la scadenza a un anno dalla precedente: correggila se serve. Il documento vecchio resta nello storico.
+                {t("Ho proposto la scadenza a un anno dalla precedente: correggila se serve. Il documento vecchio resta nello storico.")}
               </DialogDescription>
             )}
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="doc-categoria">Tipo di documento</Label>
+              <Label htmlFor="doc-categoria">{t("Tipo di documento")}</Label>
               <Select value={form.categoria ?? "assicurazione"} onValueChange={(v) => cambiaCategoria(v as MezzoDocumentoCategoria)}>
                 <SelectTrigger id="doc-categoria"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {vociPerClasse(CATEGORIE_DOCUMENTO, classe, form.categoria).map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  {vociPerClasse(CATEGORIE_DOCUMENTO, classe, form.categoria).map((c) => <SelectItem key={c.value} value={c.value}>{t(c.label)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="doc-ente">Compagnia / ente</Label>
-                <Input id="doc-ente" value={form.ente ?? ""} onChange={(e) => set("ente", e.target.value)} placeholder="es. Allianz" />
+                <Label htmlFor="doc-ente">{t("Compagnia / ente")}</Label>
+                <Input id="doc-ente" value={form.ente ?? ""} onChange={(e) => set("ente", e.target.value)} placeholder={t("es. Allianz")} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="doc-titolo">Numero / descrizione</Label>
-                <Input id="doc-titolo" value={form.titolo ?? ""} onChange={(e) => set("titolo", e.target.value)} placeholder="es. polizza n. 12345" />
+                <Label htmlFor="doc-titolo">{t("Numero / descrizione")}</Label>
+                <Input id="doc-titolo" value={form.titolo ?? ""} onChange={(e) => set("titolo", e.target.value)} placeholder={t("es. polizza n. 12345")} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="doc-inizio">Valido dal</Label>
+                <Label htmlFor="doc-inizio">{t("Valido dal")}</Label>
                 <Input id="doc-inizio" type="date" value={form.data_inizio ?? ""} onChange={(e) => set("data_inizio", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="doc-scadenza">Scadenza</Label>
+                <Label htmlFor="doc-scadenza">{t("Scadenza")}</Label>
                 <Input id="doc-scadenza" type="date" value={form.data_scadenza ?? ""} onChange={(e) => set("data_scadenza", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="doc-importo">Importo (€)</Label>
+                <Label htmlFor="doc-importo">{t("Importo (€)")}</Label>
                 <Input
                   id="doc-importo"
                   type="number"
@@ -338,7 +340,7 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="doc-avviso">Avvisami giorni prima</Label>
+                <Label htmlFor="doc-avviso">{t("Avvisami giorni prima")}</Label>
                 <Input
                   id="doc-avviso"
                   type="number"
@@ -351,33 +353,33 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
               </div>
             </div>
             {!dataValida && (
-              <p className="text-sm text-red-700">La scadenza viene prima della data di inizio: controlla le date.</p>
+              <p className="text-sm text-red-700">{t("La scadenza viene prima della data di inizio: controlla le date.")}</p>
             )}
             <div className="space-y-1.5">
               <Label htmlFor="doc-file">
-                File {form.file_name && <span className="text-xs text-muted-foreground">(ora: {form.file_name})</span>}
+                {t("File")} {form.file_name && <span className="text-xs text-muted-foreground">{t("(ora: {file_name})", { file_name: String(form.file_name ?? "") })}</span>}
               </Label>
               <div className="flex items-center gap-2">
                 <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <Input id="doc-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
               </div>
-              <p className="text-xs text-muted-foreground">PDF o foto della polizza, del libretto, del contratto.</p>
+              <p className="text-xs text-muted-foreground">{t("PDF o foto della polizza, del libretto, del contratto.")}</p>
               {form.categoria === "assicurazione" && (file || form.file_path) && (
                 <Button type="button" variant="outline" size="sm" className="mt-1" onClick={compilaDallaPolizza} disabled={leggendo}>
                   {leggendo ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4 text-orange-500" />}
-                  {leggendo ? "Sto leggendo la polizza…" : "Compila dalla polizza"}
+                  {leggendo ? t("Sto leggendo la polizza…") : t("Compila dalla polizza")}
                 </Button>
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="doc-note">Note</Label>
+              <Label htmlFor="doc-note">{t("Note")}</Label>
               <Textarea id="doc-note" rows={2} value={form.note ?? ""} onChange={(e) => set("note", e.target.value)} />
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => chiudiFinestra(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => chiudiFinestra(false)}>{t("Annulla")}</Button>
             <Button onClick={salvaDocumento} disabled={!dataValida || caricamento || leggendo || salva.isPending}>
-              {(caricamento || salva.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salva
+              {(caricamento || salva.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -386,19 +388,19 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
       <AlertDialog open={!!daEliminare} onOpenChange={(o) => !o && setDaEliminare(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il documento?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare il documento?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {daEliminare ? categoriaDocumentoLabel(daEliminare.categoria) : ""}
-              {daEliminare?.data_scadenza ? ` in scadenza il ${formatData(daEliminare.data_scadenza)}` : ""}. Si cancella anche il file allegato.
+              {daEliminare ? t(categoriaDocumentoLabel(daEliminare.categoria)) : ""}
+              {daEliminare?.data_scadenza ? t(" in scadenza il {data_scadenza}", { data_scadenza: formatData(daEliminare.data_scadenza) }) : ""}{". "}{t("Si cancella anche il file allegato.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => daEliminare && elimina.mutate(daEliminare)}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

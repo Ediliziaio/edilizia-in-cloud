@@ -57,8 +57,10 @@ import { ViaggiCommessa } from "./ViaggiMezzoWorkspace";
 import { GiroMaterialiCommessa } from "./GiroMaterialiCommessa";
 import { StrumentiComputo } from "@/components/orders/materiali/StrumentiComputo";
 import type { PropostaRisorsa } from "@/lib/distinta/proposteRisorseComputo";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function SchedeLogistica({ mezzi, viaggi }: { mezzi: ReactNode; viaggi: ReactNode }) {
+  const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
   const mostraViaggi = resolveOrderDetailDestination(location.search, location.hash).section === "section-viaggi";
@@ -74,9 +76,9 @@ function SchedeLogistica({ mezzi, viaggi }: { mezzi: ReactNode; viaggi: ReactNod
         }),
       }, { preventScrollReset: true })}>
       <div className="rounded-t-2xl border-b bg-muted/35 px-2.5 py-2 sm:px-3">
-        <TabsList className="grid h-auto w-full grid-cols-2 rounded-lg bg-muted/85 sm:inline-grid sm:w-auto" aria-label="Logistica di cantiere">
-          <TabsTrigger className="min-w-0 gap-1.5 rounded-md px-2 max-sm:text-xs" value="mezzi"><Truck className="size-4 shrink-0" aria-hidden="true" />Mezzi e attrezzature</TabsTrigger>
-          <TabsTrigger className="min-w-0 gap-1.5 rounded-md px-2 max-sm:text-xs" value="viaggi"><Route className="size-4 shrink-0" aria-hidden="true" />Registro viaggi</TabsTrigger>
+        <TabsList className="grid h-auto w-full grid-cols-2 rounded-lg bg-muted/85 sm:inline-grid sm:w-auto" aria-label={t("Logistica di cantiere")}>
+          <TabsTrigger className="min-w-0 gap-1.5 rounded-md px-2 max-sm:text-xs" value="mezzi"><Truck className="size-4 shrink-0" aria-hidden="true" />{t("Mezzi e attrezzature")}</TabsTrigger>
+          <TabsTrigger className="min-w-0 gap-1.5 rounded-md px-2 max-sm:text-xs" value="viaggi"><Route className="size-4 shrink-0" aria-hidden="true" />{t("Registro viaggi")}</TabsTrigger>
         </TabsList>
       </div>
       <TabsContent className="mt-0" value="mezzi">{mezzi}</TabsContent>
@@ -97,6 +99,7 @@ export function PianoMezziCantiere({
   faseId?: string;
   conViaggi?: boolean;
 }) {
+  const tr = useT();
   const perms = usePermissions();
   const vede = perms.canViewMezzi || perms.isAdmin;
   const modifica =
@@ -196,10 +199,10 @@ export function PianoMezziCantiere({
   const inCantiere = tutte.filter(r => r.stato === "sul_cantiere").length;
   const rientriInRitardo = tutte.filter(r => rientroInRitardo(r, oggi)).length;
   const stati = [
-    { id: "tutti", label: "Tutti", totale: tutte.length },
-    { id: "presenti", label: "In cantiere", totale: inCantiere },
-    { id: "arrivi", label: "In arrivo", totale: tutte.length - inCantiere },
-    { id: "rientri", label: "Rientri in ritardo", totale: rientriInRitardo },
+    { id: "tutti", label: tr("Tutti"), totale: tutte.length },
+    { id: "presenti", label: tr("In cantiere"), totale: inCantiere },
+    { id: "arrivi", label: tr("In arrivo"), totale: tutte.length - inCantiere },
+    { id: "rientri", label: tr("Rientri in ritardo"), totale: rientriInRitardo },
   ] as const;
   const termine = ricerca.trim().toLocaleLowerCase("it");
   const filtriAttivi = !!(termine || tipoFiltro || possessoFiltro || statoFiltro !== "tutti");
@@ -352,45 +355,45 @@ export function PianoMezziCantiere({
         ? { testo: "Rientro oggi", classe: avviso }
         : { testo: "In cantiere", classe: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/45 dark:text-emerald-200" };
     }
-    if (r.stato === "atteso") return { testo: r.piano!.dal < oggi ? "Arrivo in ritardo" : "Atteso oggi", classe: avviso };
+    if (r.stato === "atteso") return { testo: r.piano!.dal < oggi ? tr("Arrivo in ritardo") : tr("Atteso oggi"), classe: avviso };
     return { testo: "Prenotato", classe: "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-950/45 dark:text-blue-200" };
   };
   const elencoMezzi = (
       <section
         className={cn("space-y-3 p-3 sm:p-4", !conViaggi && "rounded-xl border bg-background")}
-        aria-label="Mezzi e attrezzature del cantiere"
+        aria-label={tr("Mezzi e attrezzature del cantiere")}
       >
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div>
             <h3 className={cn("flex items-center gap-2 font-semibold", conViaggi && "sr-only")}>
               <Truck className="size-4" aria-hidden="true" />
-              Mezzi e attrezzature
+              {tr("Mezzi e attrezzature")}
             </h3>
-            {faseId && <p className="mt-1 text-xs text-muted-foreground">Per questa fase e per tutto il cantiere</p>}
+            {faseId && <p className="mt-1 text-xs text-muted-foreground">{tr("Per questa fase e per tutto il cantiere")}</p>}
             <Link to="/azienda/manodopera?tab=mezzi" className="inline-flex items-center gap-1 rounded text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              Parco mezzi e noleggi<ArrowUpRight className="size-3" aria-hidden="true" />
+              {tr("Parco mezzi e noleggi")}<ArrowUpRight className="size-3" aria-hidden="true" />
             </Link>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {companyId && conViaggi && <StrumentiComputo companyId={companyId} orderId={orderId}
-              nomeFase={id => id ? nomeFase(id) : "Senza fase"} iniziale="servizi" etichetta="Noleggi e servizi dal computo" soloSeDocumento
+              nomeFase={id => id ? nomeFase(id) : tr("Senza fase")} iniziale="servizi" etichetta={tr("Noleggi e servizi dal computo")} soloSeDocumento
               noleggi={!modifica || piani.isLoading || piani.isError || fasi.isLoading || fasi.isError ? undefined : {
                 collegato: (id, p) => !!prenotazioneDa(id, p),
                 apri: (id, p) => apri(prenotazioneDa(id, p), "noleggio", { computoId: id, proposta: p }),
               }} />}
             {modifica && <>
               <Button size="sm" variant="outline" onClick={() => apri()} disabled={loadingMezzi || erroreMezzi || fasi.isError}>
-                <Plus className="size-4" aria-hidden="true" />Aggiungi mezzo
+                <Plus className="size-4" aria-hidden="true" />{tr("Aggiungi mezzo")}
               </Button>
               <Button size="sm" onClick={() => apri(undefined, "noleggio")} disabled={erroreMezzi || fasi.isError}>
-                <CalendarPlus className="size-4" aria-hidden="true" />Aggiungi noleggio
+                <CalendarPlus className="size-4" aria-hidden="true" />{tr("Aggiungi noleggio")}
               </Button>
             </>}
           </div>
         </div>
         {!caricamento && !erroreCaricamento && (tutte.length > 0 || filtriAttivi) && (
           <div className="space-y-2.5">
-            <div role="group" aria-label="Stato delle risorse" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div role="group" aria-label={tr("Stato delle risorse")} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {stati.map(stato => <button key={stato.id} type="button" aria-label={`${stato.label} ${stato.totale}`} aria-pressed={statoFiltro === stato.id}
                 className={cn("flex min-h-11 min-w-0 items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3",
                   statoFiltro === stato.id ? "border-primary/30 bg-primary/10 text-primary" : "bg-background hover:bg-muted/60",
@@ -402,22 +405,22 @@ export function PianoMezziCantiere({
             {(tutte.length > 1 || termine || tipoFiltro || possessoFiltro) && <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               <div className="relative col-span-2 min-w-0 flex-1 sm:min-w-48">
                 <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
-                <Input value={ricerca} onChange={e => setRicerca(e.target.value)} aria-label="Cerca mezzi e attrezzature" placeholder="Cerca mezzo, targa o fornitore…" className="h-9 bg-background pl-9" />
+                <Input value={ricerca} onChange={e => setRicerca(e.target.value)} aria-label={tr("Cerca mezzi e attrezzature")} placeholder={tr("Cerca mezzo, targa o fornitore…")} className="h-9 bg-background pl-9" />
               </div>
-              <select aria-label="Tipo di risorsa" className="h-9 min-w-0 rounded-md border bg-background px-2 text-xs" value={tipoFiltro} onChange={e => setTipoFiltro(e.target.value)}>
-                <option value="">Tutti i tipi</option><option value="mezzo">Mezzi</option><option value="attrezzatura">Attrezzature</option>
+              <select aria-label={tr("Tipo di risorsa")} className="h-9 min-w-0 rounded-md border bg-background px-2 text-xs" value={tipoFiltro} onChange={e => setTipoFiltro(e.target.value)}>
+                <option value="">{tr("Tutti i tipi")}</option><option value="mezzo">{tr("Mezzi")}</option><option value="attrezzatura">{tr("Attrezzature")}</option>
               </select>
-              <select aria-label="Possesso della risorsa" className="h-9 min-w-0 rounded-md border bg-background px-2 text-xs" value={possessoFiltro} onChange={e => setPossessoFiltro(e.target.value)}>
-                <option value="">Tutti i possessi</option><option value="proprieta">Di proprietà</option><option value="noleggio">A noleggio</option><option value="leasing">In leasing</option>
+              <select aria-label={tr("Possesso della risorsa")} className="h-9 min-w-0 rounded-md border bg-background px-2 text-xs" value={possessoFiltro} onChange={e => setPossessoFiltro(e.target.value)}>
+                <option value="">{tr("Tutti i possessi")}</option><option value="proprieta">{tr("Di proprietà")}</option><option value="noleggio">{tr("A noleggio")}</option><option value="leasing">{tr("In leasing")}</option>
               </select>
             </div>}
           </div>
         )}
         {caricamento ? (
-          <p role="status" className="flex items-center gap-2 rounded-lg border p-3 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Carico i mezzi del cantiere…</p>
+          <p role="status" className="flex items-center gap-2 rounded-lg border p-3 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" aria-hidden="true" />{tr("Carico i mezzi del cantiere…")}</p>
         ) : erroreCaricamento ? (
           <p role="alert" className="py-4 text-sm text-destructive">
-            Impossibile caricare i mezzi del cantiere.{" "}
+            {tr("Impossibile caricare i mezzi del cantiere.")}{" "}
             <button
               className="underline"
               onClick={() => {
@@ -428,23 +431,23 @@ export function PianoMezziCantiere({
                 void montati.refetch();
               }}
             >
-              Riprova
+              {tr("Riprova")}
             </button>
           </p>
         ) : rows.length === 0 ? (
           <div className="grid justify-items-center gap-2 rounded-xl border border-dashed bg-muted/20 p-6 text-center">
             <span className="grid size-9 place-items-center rounded-lg bg-muted text-muted-foreground"><Truck className="size-4" aria-hidden="true" /></span>
             <p role="status" className="text-sm font-medium">
-              {filtriAttivi ? "Nessuna risorsa corrisponde ai filtri." : faseId ? "Nessun mezzo per questa fase." : "Nessun mezzo su questo cantiere."}
+              {filtriAttivi ? tr("Nessuna risorsa corrisponde ai filtri.") : faseId ? tr("Nessun mezzo per questa fase.") : tr("Nessun mezzo su questo cantiere.")}
             </p>
-            {filtriAttivi && <Button type="button" variant="outline" size="sm" onClick={azzeraFiltri}>Azzera filtri</Button>}
+            {filtriAttivi && <Button type="button" variant="outline" size="sm" onClick={azzeraFiltri}>{tr("Azzera filtri")}</Button>}
           </div>
         ) : (
           <div className="overflow-hidden rounded-xl border bg-background">
           <div className={cn("hidden gap-3 border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground lg:grid", COLONNE_RISORSE)} aria-hidden="true">
-            <span>Risorsa</span><span>Stato</span><span>Periodo e fase</span><span className="sr-only">Azioni</span>
+            <span>{tr("Risorsa")}</span><span>{tr("Stato")}</span><span>{tr("Periodo e fase")}</span><span className="sr-only">{tr("Azioni")}</span>
           </div>
-          <ul className="divide-y" aria-label="Mezzi del cantiere">
+          <ul className="divide-y" aria-label={tr("Mezzi del cantiere")}>
             {rows.map((r) => {
               const p = r.piano;
               const m = mezziPerId.get(r.mezzo_id);
@@ -488,16 +491,16 @@ export function PianoMezziCantiere({
                   </div>
                   <div className="min-w-0 justify-self-end lg:justify-self-start">
                     <Badge variant="outline" className={cn("max-w-[8.5rem] rounded-md px-2 py-0.5 text-right text-[11px] leading-snug lg:max-w-full lg:text-left", st.classe)}>{st.testo}</Badge>
-                    {r.presenza && <p className="mt-0.5 text-right text-xs tabular-nums text-muted-foreground lg:text-left">Dal {formatData(r.presenza.dal)}</p>}
+                    {r.presenza && <p className="mt-0.5 text-right text-xs tabular-nums text-muted-foreground lg:text-left">{tr("Dal {dal}", { dal: formatData(r.presenza.dal) })}</p>}
                   </div>
                   <div className="col-span-2 min-w-0 pl-[2.875rem] text-xs lg:col-span-1 lg:pl-0">
                     {p ? <>
                       <p className="line-clamp-2 font-medium" title={fasiRiga}>{fasiRiga}</p>
-                      <p className="mt-0.5 tabular-nums text-muted-foreground">{formatData(p.dal)} → {p.al ? formatData(p.al) : "Fine da definire"}</p>
+                      <p className="mt-0.5 tabular-nums text-muted-foreground">{formatData(p.dal)} → {p.al ? formatData(p.al) : tr("Fine da definire")}</p>
                       {p.responsabile_hr_id && <p className="mt-0.5 break-words text-muted-foreground">
-                        Referente {persone.data?.find(x => x.id === p.responsabile_hr_id)?.nome ?? "assegnato"}
+                        {tr("Referente {nome}", { nome: persone.data?.find(x => x.id === p.responsabile_hr_id)?.nome ?? tr("assegnato") })}
                       </p>}
-                    </> : <p className="text-muted-foreground">Presenza registrata direttamente</p>}
+                    </> : <p className="text-muted-foreground">{tr("Presenza registrata direttamente")}</p>}
                   </div>
                   {modifica && (
                     <div className="col-span-2 flex justify-end lg:col-span-1">
@@ -515,9 +518,9 @@ export function PianoMezziCantiere({
                         }}
                       >
                         {r.stato === "sul_cantiere" ? (
-                          <><ArrowUpFromLine className="size-4" aria-hidden="true" />{r.presenza?.allocazione_id ? "Registra rientro" : "È rientrato"}</>
+                          <><ArrowUpFromLine className="size-4" aria-hidden="true" />{r.presenza?.allocazione_id ? tr("Registra rientro") : tr("È rientrato")}</>
                         ) : (
-                          <><ArrowDownToLine className="size-4" aria-hidden="true" />È arrivato</>
+                          <><ArrowDownToLine className="size-4" aria-hidden="true" />{tr("È arrivato")}</>
                         )}
                       </Button>
                     </div>
@@ -526,7 +529,7 @@ export function PianoMezziCantiere({
                     {fuori && (
                       <p className="flex flex-wrap items-center gap-x-2 text-xs text-amber-900 dark:text-amber-200">
                         <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-                        Le fasi ora vanno dal {formatData(fuori.dal)} al {formatData(fuori.al)}.
+                        {tr("Le fasi ora vanno dal {dal} al {al}.", { dal: formatData(fuori.dal), al: formatData(fuori.al) })}
                         {modifica && !r.presenza && (
                           <button
                             type="button"
@@ -534,7 +537,7 @@ export function PianoMezziCantiere({
                             disabled={occupato}
                             onClick={() => azione(() => salva.mutateAsync({ ...p!, dal: fuori.dal, al: fuori.al }))}
                           >
-                            Allinea alle fasi
+                            {tr("Allinea alle fasi")}
                           </button>
                         )}
                       </p>
@@ -542,15 +545,15 @@ export function PianoMezziCantiere({
                     {costi && p && (
                       <p className="text-xs text-muted-foreground">
                         {prezzi.isError
-                          ? "Costo non disponibile"
+                          ? tr("Costo non disponibile")
                           : prezzi.isFetching
-                            ? "Caricamento…"
+                            ? tr("Caricamento…")
                             : t !== null
-                              ? `Costo previsto ${formatCurrency(t)}`
+                              ? tr("Costo previsto {t}", { t: formatCurrency(t) })
                               : c
-                                ? "Costo: definisci la fine"
-                                : "Costo da valorizzare"}
-                        {riga && riga.registrato !== 0 && ` · registrato ${formatCurrency(riga.registrato)}`}
+                                ? tr("Costo: definisci la fine")
+                                : tr("Costo da valorizzare")}
+                        {riga && riga.registrato !== 0 && tr(" · registrato {registrato}", { registrato: formatCurrency(riga.registrato) })}
                         {statoCosto && ["daRegistrare", "oltre", "verifica"].includes(statoCosto.chiave) && (
                           <span className="ml-1 font-medium text-amber-800">· {statoCosto.testo}</span>
                         )}
@@ -565,9 +568,9 @@ export function PianoMezziCantiere({
         )}
         {prezzi.isError && (
           <p role="alert" className="mt-2 text-xs text-destructive">
-            Costi non disponibili.{" "}
+            {tr("Costi non disponibili.")}{" "}
             <button className="underline" onClick={() => void prezzi.refetch()}>
-              Riprova
+              {tr("Riprova")}
             </button>
           </p>
         )}
@@ -575,20 +578,20 @@ export function PianoMezziCantiere({
           <details className="group/storico rounded-lg border" onToggle={e => setStoricoAperto(e.currentTarget.open)}>
             <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
               <History className="size-4 text-muted-foreground" aria-hidden="true" />
-              Storico{conViaggi ? " dei mezzi" : ", viaggi"}{costi ? " e costi" : ""}
+              {conViaggi ? (costi ? tr("Storico dei mezzi e costi") : tr("Storico dei mezzi")) : (costi ? tr("Storico, viaggi e costi") : tr("Storico, viaggi"))}
               <ChevronDown className="ml-auto size-4 text-muted-foreground group-open/storico:rotate-180" aria-hidden="true" />
             </summary>
             {storicoAperto && <div className="space-y-3 border-t p-3">
               {pianiPassati.length > 0 && (
-                <ul className="divide-y rounded-lg border text-xs" aria-label="Prenotazioni passate">
+                <ul className="divide-y rounded-lg border text-xs" aria-label={tr("Prenotazioni passate")}>
                   {pianiPassati.map((p) => (
                     <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                       <button type="button" className="font-medium text-blue-700 hover:underline" onClick={() => apri(p)}>
-                        {mezzi.find((m) => m.id === p.mezzo_id)?.nome ?? "Risorsa archiviata"}
+                        {mezzi.find((m) => m.id === p.mezzo_id)?.nome ?? tr("Risorsa archiviata")}
                       </button>
                       <span className="text-muted-foreground">
                         {formatData(p.dal)} → {p.al ? formatData(p.al) : "—"} · {statoPianoMezzo(p, oggi)}
-                        {p.al_concordato && p.al_concordato !== p.al && ` · previsto il ${formatData(p.al_concordato)}`}
+                        {p.al_concordato && p.al_concordato !== p.al && tr(" · previsto il {al_concordato}", { al_concordato: formatData(p.al_concordato) })}
                       </span>
                     </li>
                   ))}
@@ -599,7 +602,7 @@ export function PianoMezziCantiere({
           </details>
         )}
         {costi && (
-          <p className="mt-2 text-[11px] text-muted-foreground">Costi previsti al netto IVA, separati dalle fatture.</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">{tr("Costi previsti al netto IVA, separati dalle fatture.")}</p>
         )}
       </section>
   );
@@ -619,10 +622,10 @@ export function PianoMezziCantiere({
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {draft.id ? "Dettaglio prenotazione" : noleggio ? "Aggiungi noleggio" : "Aggiungi un mezzo"}
+              {draft.id ? tr("Dettaglio prenotazione") : noleggio ? tr("Aggiungi noleggio") : tr("Aggiungi un mezzo")}
             </DialogTitle>
             <DialogDescription>
-              {noleggio ? "Indica la risorsa, il periodo e le fasi in cui serve." : "Scegli una risorsa del parco e indica dove e quando serve."}
+              {noleggio ? tr("Indica la risorsa, il periodo e le fasi in cui serve.") : tr("Scegli una risorsa del parco e indica dove e quando serve.")}
             </DialogDescription>
           </DialogHeader>
           <fieldset
@@ -631,14 +634,14 @@ export function PianoMezziCantiere({
           >
             <div className="space-y-2">
               {fonte && <div className="space-y-1 rounded-lg border bg-sky-50/60 p-3 text-xs dark:bg-sky-950/30">
-                <p className="font-semibold">Voce del computo · {fonte.fonti.map(f => f.numero ?? "senza numero").join(", ")}</p>
+                <p className="font-semibold">{tr("Voce del computo ·")} {fonte.fonti.map(f => f.numero ?? tr("senza numero")).join(", ")}</p>
                 <p>{fonte.descrizione}</p>
-                {(fonte.scelta.periodi ?? fonte.periodi).map((p, i) => <p key={i}>{p.quantita.toLocaleString("it-IT")} {p.unita} × {p.mesi.toLocaleString("it-IT")} mesi</p>)}
-                {(fonte.scelta.periodi ?? fonte.periodi).length > 1 && <p className="text-amber-900 dark:text-amber-200">Il computo indica più periodi. Conferma la quantità e le date da prenotare.</p>}
+                {(fonte.scelta.periodi ?? fonte.periodi).map((p, i) => <p key={i}>{tr("{quantita} {unita} × {mesi} mesi", { quantita: p.quantita.toLocaleString(intlCampo()), unita: String(p.unita ?? ""), mesi: p.mesi.toLocaleString(intlCampo()) })}</p>)}
+                {(fonte.scelta.periodi ?? fonte.periodi).length > 1 && <p className="text-amber-900 dark:text-amber-200">{tr("Il computo indica più periodi. Conferma la quantità e le date da prenotare.")}</p>}
               </div>}
-              <Label htmlFor="piano-risorsa">{noleggio && !draft.id ? "Risorsa da noleggiare" : "Mezzo o attrezzatura"}</Label>
+              <Label htmlFor="piano-risorsa">{noleggio && !draft.id ? tr("Risorsa da noleggiare") : tr("Mezzo o attrezzatura")}</Label>
               <ViaggioSelect
-                label={noleggio && !draft.id ? "Risorsa da noleggiare" : "Mezzo o attrezzatura"}
+                label={noleggio && !draft.id ? tr("Risorsa da noleggiare") : tr("Mezzo o attrezzatura")}
                 id="piano-risorsa"
                 value={nuovoNoleggio ? "nuovo-noleggio" : draft.mezzo_id ?? ""}
                 disabled={!!draft.id || !modifica}
@@ -653,9 +656,9 @@ export function PianoMezziCantiere({
                     setDraft({ ...draft, mezzo_id: id, quantita: m?.gestione === "quantita" && fonte ? (m.unita_misura === unita ? draft.quantita : undefined) : 1 });
                   }
                 }}
-                emptyMessage="Risorsa non trovata. Puoi registrarla con i pulsanti qui sotto."
+                emptyMessage={tr("Risorsa non trovata. Puoi registrarla con i pulsanti qui sotto.")}
                 options={[
-                  ...(modalita === "noleggio" && !draft.id ? [{ value: "nuovo-noleggio", label: "Nuovo noleggio" }] : [{ value: "", label: "Cerca nel parco aziendale…" }]),
+                  ...(modalita === "noleggio" && !draft.id ? [{ value: "nuovo-noleggio", label: tr("Nuovo noleggio") }] : [{ value: "", label: tr("Cerca nel parco aziendale…") }]),
                   ...mezzi
                     .filter(
                       (m) =>
@@ -669,13 +672,13 @@ export function PianoMezziCantiere({
               />
               {nuovoNoleggio && <div className="grid gap-3 pt-1 sm:grid-cols-2">
                 <div className="space-y-1 sm:col-span-2">
-                  <Label htmlFor="noleggio-nome">Nome del mezzo o dell’attrezzatura</Label>
-                  <Input id="noleggio-nome" maxLength={160} placeholder="Es. Ponteggio a telai prefabbricati" value={nuovoNoleggio.nome}
+                  <Label htmlFor="noleggio-nome">{tr("Nome del mezzo o dell’attrezzatura")}</Label>
+                  <Input id="noleggio-nome" maxLength={160} placeholder={tr("Es. Ponteggio a telai prefabbricati")} value={nuovoNoleggio.nome}
                     onChange={e => setNuovoNoleggio({ ...nuovoNoleggio, nome: e.target.value })} />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="noleggio-tipo">Tipo</Label>
-                  <ViaggioSelect label="Tipo del noleggio" id="noleggio-tipo" value={nuovoNoleggio.tipo} options={TIPI_MEZZO} onValueChange={tipo => {
+                  <Label htmlFor="noleggio-tipo">{tr("Tipo")}</Label>
+                  <ViaggioSelect label={tr("Tipo del noleggio")} id="noleggio-tipo" value={nuovoNoleggio.tipo} options={TIPI_MEZZO.map(o => ({ ...o, label: tr(o.label) }))} onValueChange={tipo => {
                     setNuovoNoleggio({ ...nuovoNoleggio, tipo: tipo as MezzoTipo, unita: tipo === "attrezzatura" ? nuovoNoleggio.unita : null });
                     if (tipo !== "attrezzatura") {
                       setDraft({ ...draft, quantita: 1 });
@@ -685,10 +688,10 @@ export function PianoMezziCantiere({
                   }} />
                 </div>
                 {nuovoNoleggio.tipo === "attrezzatura" && <div className="space-y-1">
-                  <Label htmlFor="noleggio-unita">Gestione e unità</Label>
-                  <ViaggioSelect label="Unità di noleggio" id="noleggio-unita" value={unitaDaConfermare ? "da-scegliere" : nuovoNoleggio.unita ?? ""} options={[
-                    ...(unitaDaConfermare ? [{ value: "da-scegliere", label: "Scegli l’unità" }] : []),
-                    { value: "", label: "Un solo esemplare" }, ...UNITA_QUANTITA.map(u => ({ value: u.value, label: u.label })),
+                  <Label htmlFor="noleggio-unita">{tr("Gestione e unità")}</Label>
+                  <ViaggioSelect label={tr("Unità di noleggio")} id="noleggio-unita" value={unitaDaConfermare ? "da-scegliere" : nuovoNoleggio.unita ?? ""} options={[
+                    ...(unitaDaConfermare ? [{ value: "da-scegliere", label: tr("Scegli l’unità") }] : []),
+                    { value: "", label: tr("Un solo esemplare") }, ...UNITA_QUANTITA.map(u => ({ value: u.value, label: tr(u.label) })),
                   ]} onValueChange={udm => {
                     if (udm === "da-scegliere") return;
                     setUnitaDaConfermare(false);
@@ -705,29 +708,29 @@ export function PianoMezziCantiere({
                     size="sm"
                     onClick={() => setNuovo("mezzo")}
                   >
-                    + Registra mezzo
+                    {tr("+ Registra mezzo")}
                   </Button>
                   <Button
                     variant="link"
                     size="sm"
                     onClick={() => setNuovo("attrezzatura")}
                   >
-                    + Registra attrezzatura
+                    {tr("+ Registra attrezzatura")}
                   </Button>
                 </div>
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="piano-ambito">Dove serve</Label>
+              <Label htmlFor="piano-ambito">{tr("Dove serve")}</Label>
               <ViaggioSelect
-                label="Dove serve"
+                label={tr("Dove serve")}
                 id="piano-ambito"
                 value={ambito}
                 onValueChange={setAmbito}
                 disabled={!modifica}
                 options={[
-                  { value: "cantiere", label: "Tutto il cantiere" },
-                  { value: "fasi", label: "Solo alcune fasi" },
+                  { value: "cantiere", label: tr("Tutto il cantiere") },
+                  { value: "fasi", label: tr("Solo alcune fasi") },
                 ]}
               />
               {ambito === "fasi" && (
@@ -755,24 +758,24 @@ export function PianoMezziCantiere({
                     ))
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      Crea prima le lavorazioni nella commessa.
+                      {tr("Crea prima le lavorazioni nella commessa.")}
                     </p>
                   )}
                 </div>
               )}
             </div>
             <div className="space-y-2">
-              <Label>Responsabile della risorsa</Label>
+              <Label>{tr("Responsabile della risorsa")}</Label>
               <ViaggioSelect
-                label="Responsabile della risorsa"
+                label={tr("Responsabile della risorsa")}
                 value={draft.responsabile_hr_id ?? ""}
                 disabled={!modifica || persone.isLoading || persone.isError}
-                emptyMessage="Nessuna persona corrispondente."
+                emptyMessage={tr("Nessuna persona corrispondente.")}
                 onValueChange={(v) =>
                   setDraft({ ...draft, responsabile_hr_id: v || null })
                 }
                 options={[
-                  { value: "", label: "Nessun responsabile assegnato" },
+                  { value: "", label: tr("Nessun responsabile assegnato") },
                   ...(persone.data ?? [])
                     .slice()
                     .sort(
@@ -780,19 +783,19 @@ export function PianoMezziCantiere({
                     )
                     .map((p) => ({
                       value: p.id,
-                      label: `${p.nome}${p.capocantiere ? " · Capocantiere" : p.in_cantiere ? " · Nel cantiere" : " · Azienda"}`,
+                      label: `${p.nome} · ${p.capocantiere ? tr("Capocantiere") : p.in_cantiere ? tr("Nel cantiere") : tr("Azienda")}`,
                     })),
                 ]}
               />
               {persone.isError && (
                 <p role="alert" className="text-xs text-destructive">
-                  Persone non disponibili.{" "}
+                  {tr("Persone non disponibili.")}{" "}
                   <button
                     type="button"
                     className="underline"
                     onClick={() => void persone.refetch()}
                   >
-                    Riprova
+                    {tr("Riprova")}
                   </button>
                 </p>
               )}
@@ -810,17 +813,16 @@ export function PianoMezziCantiere({
                     })
                   }
                 >
-                  Usa il capocantiere
+                  {tr("Usa il capocantiere")}
                 </Button>
               )}
               <p className="text-xs text-muted-foreground">
-                Referente operativo di questa assegnazione. Non cambia nomine di
-                sicurezza, accessi o abilitazioni all’uso.
+                {tr("Referente operativo di questa assegnazione. Non cambia nomine di sicurezza, accessi o abilitazioni all’uso.")}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="piano-dal">Dal</Label>
+                <Label htmlFor="piano-dal">{tr("Dal")}</Label>
                 <Input
                   id="piano-dal"
                   type="date"
@@ -829,7 +831,7 @@ export function PianoMezziCantiere({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="piano-al">Al (compreso)</Label>
+                <Label htmlFor="piano-al">{tr("Al (compreso)")}</Label>
                 <Input
                   id="piano-al"
                   type="date"
@@ -854,27 +856,23 @@ export function PianoMezziCantiere({
                   })
                 }
               >
-                Usa le date{" "}
                 {ambito === "cantiere"
-                  ? "del cantiere"
-                  : "delle fasi selezionate"}
+                  ? tr("Usa le date del cantiere")
+                  : tr("Usa le date delle fasi selezionate")}
               </Button>
             )}
             <p className="text-xs text-muted-foreground">
-              Lascia la fine vuota se ancora da definire. Se le fasi si spostano,
-              le date restano queste: l’elenco te lo segnala e le allinei con un clic.
+              {tr("Lascia la fine vuota se ancora da definire. Se le fasi si spostano, le date restano queste: l’elenco te lo segnala e le allinei con un clic.")}
             </p>
             {!draft.id && (
               <label className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
                 <input type="checkbox" checked={giaQui} onChange={(e) => setGiaQui(e.target.checked)} />
-                È già in cantiere (arrivato oggi)
+                {tr("È già in cantiere (arrivato oggi)")}
               </label>
             )}
             {unita && (
               <div className="space-y-2">
-                <Label htmlFor="piano-quantita">
-                  Quantità ({unitaBreve(unita)})
-                </Label>
+                <Label htmlFor="piano-quantita">{tr("Quantità ({unita})", { unita: String(unitaBreve(unita) ?? "") })}</Label>
                 <Input
                   id="piano-quantita"
                   type="number"
@@ -885,32 +883,32 @@ export function PianoMezziCantiere({
                     setDraft({ ...draft, quantita: e.target.value === "" ? undefined : Number(e.target.value) })
                   }
                 />
-                {draft.quantita != null && !quantitaMezzoValida(draft.quantita, unita) && <p className="text-xs text-amber-800">{unita === "pz" ? "Indica un numero intero di pezzi." : "Usa fino a due decimali per la quantità da prenotare."}</p>}
+                {draft.quantita != null && !quantitaMezzoValida(draft.quantita, unita) && <p className="text-xs text-amber-800">{unita === "pz" ? tr("Indica un numero intero di pezzi.") : tr("Usa fino a due decimali per la quantità da prenotare.")}</p>}
               </div>
             )}
             {(noleggio || costi) && <div className="space-y-2">
-              <Label>Fornitore</Label>
+              <Label>{tr("Fornitore")}</Label>
               <SupplierSelect searchable value={supplierId ?? undefined} fallbackCompanyId={companyId ?? undefined}
                 allowCreate={modifica && (perms.canManageSuppliers || perms.canEditSettingsSuppliers || perms.isAdmin)}
                 onSupplierNameChange={setFornitore} onValueChange={id => setSupplierId(id ?? null)} />
-              {!supplierId && noleggio && <Input aria-label="Nome del noleggiatore" placeholder="Nome, se il fornitore non è in anagrafica" value={fornitore}
+              {!supplierId && noleggio && <Input aria-label={tr("Nome del noleggiatore")} placeholder={tr("Nome, se il fornitore non è in anagrafica")} value={fornitore}
                 maxLength={200} onChange={e => setFornitore(e.target.value)} />}
             </div>}
             {noleggio && <div className="space-y-1">
-              <Label htmlFor="noleggio-riferimento">Riferimento del noleggio</Label>
-              <Input id="noleggio-riferimento" placeholder="Es. numero preventivo o contratto" maxLength={200}
+              <Label htmlFor="noleggio-riferimento">{tr("Riferimento del noleggio")}</Label>
+              <Input id="noleggio-riferimento" placeholder={tr("Es. numero preventivo o contratto")} maxLength={200}
                 value={draft.riferimento_noleggio ?? ""} onChange={e => setDraft({ ...draft, riferimento_noleggio: e.target.value || null })} />
             </div>}
             {costi && (
               <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
                 <h4 className="text-sm font-semibold">
                   {noleggio
-                    ? "Costo del noleggio (facoltativo)"
-                    : "Costo previsto dell’assegnazione (facoltativo)"}
+                    ? tr("Costo del noleggio (facoltativo)")
+                    : tr("Costo previsto dell’assegnazione (facoltativo)")}
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label htmlFor="piano-tariffa">Importo €</Label>
+                    <Label htmlFor="piano-tariffa">{tr("Importo €")}</Label>
                     <Input
                       id="piano-tariffa"
                       type="number"
@@ -922,52 +920,52 @@ export function PianoMezziCantiere({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="piano-base">Tariffa</Label>
+                    <Label htmlFor="piano-base">{tr("Tariffa")}</Label>
                     <ViaggioSelect
-                      label="Tariffa"
+                      label={tr("Tariffa")}
                       id="piano-base"
                       value={base}
                       onValueChange={(v) => setBase(v as BaseCostoMezzo)}
                       disabled={!modifica}
                       options={[
-                        { value: "totale", label: "Totale concordato" },
-                        { value: "giorno", label: "Al giorno" },
-                        { value: "settimana", label: "A settimana (7 giorni)" },
-                        { value: "mese", label: "Al mese (30 giorni)" },
+                        { value: "totale", label: tr("Totale concordato") },
+                        { value: "giorno", label: tr("Al giorno") },
+                        { value: "settimana", label: tr("A settimana (7 giorni)") },
+                        { value: "mese", label: tr("Al mese (30 giorni)") },
                       ]}
                     />
                   </div>
                 </div>
                 {unita && <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={perUnita} onChange={e => setPerUnita(e.target.checked)} />
-                  Applica l’importo a ogni {unitaBreve(unita)}
+                  {tr("Applica l’importo a ogni {unita}", { unita: unitaBreve(unita) })}
                 </label>}
                 <details className="rounded-md border bg-background p-2">
-                  <summary className="cursor-pointer text-sm">Trasporto, montaggio e altre spese</summary>
+                  <summary className="cursor-pointer text-sm">{tr("Trasporto, montaggio e altre spese")}</summary>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     {(["trasporto", "montaggio", "smontaggio"] as const).map(k => (
                       <label key={k} className="space-y-1 text-sm capitalize">{k} €
                         <Input type="number" min="0" step="0.01" value={accessori[k]} onChange={e => setAccessori({ ...accessori, [k]: e.target.value })} />
                       </label>
                     ))}
-                    <label className="space-y-1 text-sm">Altre spese €
+                    <label className="space-y-1 text-sm">{tr("Altre spese €")}
                       <Input id="piano-extra" type="number" min="0" step="0.01" value={extra} onChange={e => setExtra(e.target.value)} />
                     </label>
                   </div>
                 </details>
-                {base !== "totale" && <p className="text-xs text-muted-foreground">Giorni di calendario compresi. Settimane e mesi sono riproporzionati.</p>}
+                {base !== "totale" && <p className="text-xs text-muted-foreground">{tr("Giorni di calendario compresi. Settimane e mesi sono riproporzionati.")}</p>}
                 {!tariffa.trim() && !!(prezzo.extra || prezzo.trasporto || prezzo.montaggio || prezzo.smontaggio) &&
-                  <p className="text-xs text-amber-800">Indica l’importo del noleggio. Usa 0 se sono previste solo le spese accessorie.</p>}
+                  <p className="text-xs text-amber-800">{tr("Indica l’importo del noleggio. Usa 0 se sono previste solo le spese accessorie.")}</p>}
                 <p className="text-sm font-semibold">
-                  Totale previsto:{" "}
+                  {tr("Totale previsto:")}{" "}
                   {totale !== null
                     ? formatCurrency(totale)
-                    : tariffa.trim() ? "serve la data di fine" : "da definire"}
+                    : tariffa.trim() ? tr("serve la data di fine") : tr("da definire")}
                 </p>
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="piano-note">Note operative</Label>
+              <Label htmlFor="piano-note">{tr("Note operative")}</Label>
               <Input
                 id="piano-note"
                 value={draft.note ?? ""}
@@ -983,7 +981,7 @@ export function PianoMezziCantiere({
                     setDraft({ ...draft, annullato: e.target.checked })
                   }
                 />
-                Assegnazione annullata (rimane nello storico)
+                {tr("Assegnazione annullata (rimane nello storico)")}
               </label>
             )}
           </fieldset>
@@ -1001,7 +999,7 @@ export function PianoMezziCantiere({
               onClick={() => setAperto(false)}
               disabled={salva.isPending}
             >
-              {modifica ? "Annulla" : "Chiudi"}
+              {modifica ? tr("Annulla") : tr("Chiudi")}
             </Button>
             {modifica && (
               <Button
@@ -1013,7 +1011,7 @@ export function PianoMezziCantiere({
                 ) : (
                   <Pencil className="mr-1 h-4 w-4" />
                 )}
-                {draft.id ? "Salva" : noleggio ? "Salva noleggio" : "Aggiungi"}
+                {draft.id ? tr("Salva") : noleggio ? tr("Salva noleggio") : tr("Aggiungi")}
               </Button>
             )}
           </DialogFooter>
@@ -1022,8 +1020,8 @@ export function PianoMezziCantiere({
       {rientroParziale && <Dialog open onOpenChange={open => { if (!open && !occupato) setRientroParziale(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Registra rientro</DialogTitle>
-            <DialogDescription>{presente.toLocaleString("it-IT")} {unitaBreve(unitaRientro)} sul cantiere</DialogDescription>
+            <DialogTitle>{tr("Registra rientro")}</DialogTitle>
+            <DialogDescription>{tr("{presente} {unitaRientro} sul cantiere", { presente: presente.toLocaleString(intlCampo()), unitaRientro: String(unitaBreve(unitaRientro) ?? "") })}</DialogDescription>
           </DialogHeader>
           <form className="space-y-3" onSubmit={e => {
             e.preventDefault();
@@ -1031,13 +1029,13 @@ export function PianoMezziCantiere({
             azione(async () => { await rientra(rientroParziale, rientrante); setRientroParziale(null); });
           }}>
             <div className="space-y-1">
-              <Label htmlFor="piano-quanto-rientra">Quantità che rientra ({unitaBreve(unitaRientro)})</Label>
+              <Label htmlFor="piano-quanto-rientra">{tr("Quantità che rientra ({unitaRientro})", { unitaRientro: String(unitaBreve(unitaRientro) ?? "") })}</Label>
               <Input id="piano-quanto-rientra" inputMode="decimal" value={quantoRientra} onChange={e => setQuantoRientra(e.target.value)} />
             </div>
-            {rientrante != null && rientrante > 0 && rientrante < presente && <p className="text-sm text-muted-foreground">Restano in cantiere {(presente - rientrante).toLocaleString("it-IT")} {unitaBreve(unitaRientro)}.</p>}
+            {rientrante != null && rientrante > 0 && rientrante < presente && <p className="text-sm text-muted-foreground">{tr("Restano in cantiere {valore} {unitaRientro}.", { valore: (presente - rientrante).toLocaleString(intlCampo()), unitaRientro: String(unitaBreve(unitaRientro) ?? "") })}</p>}
             <DialogFooter>
-              <Button type="button" variant="outline" disabled={occupato} onClick={() => setRientroParziale(null)}>Annulla</Button>
-              <Button type="submit" disabled={occupato || rientrante == null || !quantitaMezzoValida(rientrante, unitaRientro) || rientrante > presente}>Conferma rientro</Button>
+              <Button type="button" variant="outline" disabled={occupato} onClick={() => setRientroParziale(null)}>{tr("Annulla")}</Button>
+              <Button type="submit" disabled={occupato || rientrante == null || !quantitaMezzoValida(rientrante, unitaRientro) || rientrante > presente}>{tr("Conferma rientro")}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -1066,6 +1064,7 @@ export function MezziFaseCantiere({
   orderId: string;
   faseId: string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const p = usePermissions();
   const vede = p.canViewMezzi || p.isAdmin;
@@ -1085,14 +1084,14 @@ export function MezziFaseCantiere({
         onClick={() => setOpen(true)}
       >
         <Truck className="mr-1 h-3.5 w-3.5" />
-        Mezzi e attrezzature{n ? ` · ${n}` : ""}
+        {t("Mezzi e attrezzature")}{n ? ` · ${n}` : ""}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-5xl">
           <DialogHeader>
-            <DialogTitle>Risorse della lavorazione</DialogTitle>
+            <DialogTitle>{t("Risorse della lavorazione")}</DialogTitle>
             <DialogDescription>
-              Gestisci le assegnazioni senza uscire dalla commessa.
+              {t("Gestisci le assegnazioni senza uscire dalla commessa.")}
             </DialogDescription>
           </DialogHeader>
           {open && <PianoMezziCantiere orderId={orderId} faseId={faseId} />}

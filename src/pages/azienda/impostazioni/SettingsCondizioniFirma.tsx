@@ -50,6 +50,7 @@ import {
   testoPrivacy,
   testoRecesso,
 } from "../../../../supabase/functions/_shared/quoteLegal";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Categoria consigliata per ciascuna clausola tipo proposta. */
 const CATEGORIA_PER_CODICE: Record<string, CategoriaClausola> = {
@@ -90,6 +91,7 @@ const TESTI_DI_SISTEMA: Record<TipoLegale, { titolo: string; aiuto: string; test
  * soltanto di cosa parla questa scheda.
  */
 export default function SettingsCondizioniFirma({ dentroArchivio = false }: { dentroArchivio?: boolean } = {}) {
+  const tr = useT();
   const permissions = usePermissions();
   // La pagina si apre con «Vedi» su Listino & prezzi (route in companyRoutes.tsx),
   // ma modificare le clausole serve «Modifica»: prima usava lo stesso permesso
@@ -126,9 +128,9 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
           const { [c.id]: _rimossa, ...resto } = prev;
           return resto;
         });
-        toast.success("Clausola salvata");
+        toast.success(tr("Clausola salvata"));
       } catch (e) {
-        toast.error("Non sono riuscito a salvare la clausola", { description: userErrorMessage(e) });
+        toast.error(tr("Non sono riuscito a salvare la clausola"), { description: userErrorMessage(e) });
       }
     },
     [bozza, salva],
@@ -144,9 +146,9 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
         sort_order: (vessatorie.length + 1) * 10,
         applicable_to: { vessatoria: true },
       });
-      toast.success("Clausola aggiunta", { description: "Scrivi il testo e salvala." });
+      toast.success(tr("Clausola aggiunta"), { description: tr("Scrivi il testo e salvala.") });
     } catch (e) {
-      toast.error("Non sono riuscito ad aggiungere la clausola", { description: userErrorMessage(e) });
+      toast.error(tr("Non sono riuscito ad aggiungere la clausola"), { description: userErrorMessage(e) });
     }
   }, [salva, vessatorie.length]);
 
@@ -157,7 +159,7 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
       (t) => !giaPresenti.has(t.titolo.trim().toLowerCase()),
     );
     if (daCreare.length === 0) {
-      toast.info("Le clausole tipo sono già tutte presenti");
+      toast.info(tr("Le clausole tipo sono già tutte presenti"));
       return;
     }
     try {
@@ -171,11 +173,11 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
           applicable_to: { vessatoria: true },
         });
       }
-      toast.success(`${daCreare.length} clausole proposte`, {
-        description: "Sono disattive: rileggile, adattale al tuo contratto e attivale.",
+      toast.success(tr("{n} clausole proposte", { n: daCreare.length }), {
+        description: tr("Sono disattive: rileggile, adattale al tuo contratto e attivale."),
       });
     } catch (e) {
-      toast.error("Non sono riuscito a creare le clausole proposte", { description: userErrorMessage(e) });
+      toast.error(tr("Non sono riuscito a creare le clausole proposte"), { description: userErrorMessage(e) });
     }
   }, [salva, vessatorie]);
 
@@ -183,9 +185,9 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
     async (c: QuoteClause) => {
       try {
         await elimina.mutateAsync(c.id);
-        toast.success("Clausola eliminata");
+        toast.success(tr("Clausola eliminata"));
       } catch (e) {
-        toast.error("Non sono riuscito a eliminare la clausola", { description: userErrorMessage(e) });
+        toast.error(tr("Non sono riuscito a eliminare la clausola"), { description: userErrorMessage(e) });
       }
     },
     [elimina],
@@ -207,7 +209,7 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
       try {
         if (esistente && !pulito) {
           await elimina.mutateAsync(esistente.id);
-          toast.success("Testo ripristinato a quello di sistema");
+          toast.success(tr("Testo ripristinato a quello di sistema"));
           return;
         }
         if (!pulito) return;
@@ -220,9 +222,9 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
           sort_order: 900,
           applicable_to: { tipo_legale: tipo },
         });
-        toast.success("Testo salvato");
+        toast.success(tr("Testo salvato"));
       } catch (e) {
-        toast.error("Non sono riuscito a salvare il testo", { description: userErrorMessage(e) });
+        toast.error(tr("Non sono riuscito a salvare il testo"), { description: userErrorMessage(e) });
       }
     },
     [elimina, salva, testoPersonalizzato],
@@ -243,10 +245,10 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
       <Card className="border-rose-200">
         <CardContent className="flex flex-col items-start gap-3 p-6">
           <p className="text-sm text-muted-foreground">
-            Non sono riuscito a caricare le clausole contrattuali.
+            {tr("Non sono riuscito a caricare le clausole contrattuali.")}
           </p>
           <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.quoteClauses.all })}>
-            Riprova
+            {tr("Riprova")}
           </Button>
         </CardContent>
       </Card>
@@ -259,10 +261,8 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
       {!dentroArchivio && (
         <Alert>
           <AlertDescription className="text-sm">
-            Queste clausole valgono per la firma del preventivo. I <strong>modelli di contratto dell'azienda</strong> —
-            committente, subappaltatori, fornitori, contratti di lavoro — stanno tutti in{" "}
-            <Link to="/azienda/impostazioni/contratti-e-condizioni" className="font-medium underline">Contratti e condizioni</Link>,
-            che da lì le propone a ogni documento. Puoi portarci anche queste: restano anche qui, non si perde niente.
+            {tr("Queste clausole valgono per la firma del preventivo. I")} <strong>{tr("modelli di contratto dell'azienda")}</strong> {tr("— committente, subappaltatori, fornitori, contratti di lavoro — stanno tutti in")}{" "}
+            <Link to="/azienda/impostazioni/contratti-e-condizioni" className="font-medium underline">{tr("Contratti e condizioni")}</Link>{tr(", che da lì le propone a ogni documento. Puoi portarci anche queste: restano anche qui, non si perde niente.")}
           </AlertDescription>
         </Alert>
       )}
@@ -270,7 +270,7 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
       {!puoModificare && (
         <Alert>
           <AlertDescription>
-            Stai consultando le condizioni: le cambia chi ha il permesso «Listino &amp; Prezzi» in modifica.
+            {tr("Stai consultando le condizioni: le cambia chi ha il permesso «Listino & Prezzi» in modifica.")}
           </AlertDescription>
         </Alert>
       )}
@@ -279,14 +279,12 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
         <Gavel className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
         <div className="space-y-1 text-sm text-muted-foreground">
           <p>
-            Decidi cosa accetta il cliente quando firma un preventivo dal link che riceve. Vale per il preventivo
-            generico e per i preventivatori (serramenti, bagni, tetti, ristrutturazioni…).
+            {tr("Decidi cosa accetta il cliente quando firma un preventivo dal link che riceve. Vale per il preventivo generico e per i preventivatori (serramenti, bagni, tetti, ristrutturazioni…).")}
           </p>
           <p>
-            Il preventivo fotovoltaico, gli ordini e i documenti di cantiere si firmano con il codice e non leggono queste
-            clausole: il loro testo sul diritto di ripensamento si scrive in{" "}
+            {tr("Il preventivo fotovoltaico, gli ordini e i documenti di cantiere si firmano con il codice e non leggono queste clausole: il loro testo sul diritto di ripensamento si scrive in")}{" "}
             <Link to="/azienda/impostazioni/firma-elettronica#ripensamento" className="text-primary underline">
-              Firma elettronica
+              {tr("Firma elettronica")}
             </Link>
             .
           </p>
@@ -300,23 +298,21 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
             <div>
               <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
                 <ShieldAlert className="h-4 w-4 text-amber-600" aria-hidden="true" />
-                Clausole da approvare a parte
+                {tr("Clausole da approvare a parte")}
               </h2>
               <CardDescription>
-                Penali, limiti di responsabilità, decadenze e foro competente valgono solo se il cliente
-                le approva con una spunta dedicata (art. 1341 c.c.). Quelle attive qui compaiono nella
-                pagina di firma.
+                {tr("Penali, limiti di responsabilità, decadenze e foro competente valgono solo se il cliente le approva con una spunta dedicata (art. 1341 c.c.). Quelle attive qui compaiono nella pagina di firma.")}
               </CardDescription>
             </div>
             {puoModificare && (
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={proponiTipo} disabled={salva.isPending}>
                   <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                  Proponi clausole tipo
+                  {tr("Proponi clausole tipo")}
                 </Button>
                 <Button size="sm" onClick={aggiungiVessatoria} disabled={salva.isPending}>
                   <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Aggiungi
+                  {tr("Aggiungi")}
                 </Button>
               </div>
             )}
@@ -325,15 +321,14 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
         <CardContent className="space-y-4">
           {vessatorie.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center">
-              <p className="text-sm font-medium">Nessuna clausola da approvare</p>
+              <p className="text-sm font-medium">{tr("Nessuna clausola da approvare")}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Il cliente firmerà accettando condizioni e privacy. Se il tuo contratto ha penali o
-                limiti di responsabilità, aggiungili qui: altrimenti non sono opponibili.
+                {tr("Il cliente firmerà accettando condizioni e privacy. Se il tuo contratto ha penali o limiti di responsabilità, aggiungili qui: altrimenti non sono opponibili.")}
               </p>
               {puoModificare && (
                 <Button variant="outline" size="sm" className="mt-3" onClick={proponiTipo}>
                   <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                  Parti dalle clausole tipo
+                  {tr("Parti dalle clausole tipo")}
                 </Button>
               )}
             </div>
@@ -348,7 +343,7 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
                       onChange={(e) => patch(c.id, { title: e.target.value })}
                       disabled={!puoModificare}
                       className="h-9 min-w-[14rem] max-w-sm flex-1 font-medium"
-                      aria-label="Titolo della clausola"
+                      aria-label={tr("Titolo della clausola")}
                     />
                     <div className="flex items-center gap-2">
                       <Switch
@@ -358,7 +353,7 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
                         disabled={!puoModificare}
                       />
                       <Label htmlFor={`attiva-${c.id}`} className="text-xs text-muted-foreground">
-                        {valore(c, "active") ? "Mostrata al cliente" : "Non mostrata"}
+                        {valore(c, "active") ? tr("Mostrata al cliente") : tr("Non mostrata")}
                       </Label>
                     </div>
                   </div>
@@ -367,18 +362,18 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
                     onChange={(e) => patch(c.id, { content: e.target.value })}
                     disabled={!puoModificare}
                     rows={3}
-                    placeholder="Scrivi la clausola come compare nel tuo contratto…"
-                    aria-label="Testo della clausola"
+                    placeholder={tr("Scrivi la clausola come compare nel tuo contratto…")}
+                    aria-label={tr("Testo della clausola")}
                   />
                   {!String(valore(c, "content") ?? "").trim() && (
                     <p className="text-xs text-amber-700">
-                      Senza testo la clausola non viene mostrata al cliente.
+                      {tr("Senza testo la clausola non viene mostrata al cliente.")}
                     </p>
                   )}
                   <details className="text-xs text-muted-foreground">
-                    <summary className="cursor-pointer py-1">Altre opzioni</summary>
+                    <summary className="cursor-pointer py-1">{tr("Altre opzioni")}</summary>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <Label htmlFor={`tipo-${c.id}`} className="text-xs">Tipo di clausola</Label>
+                      <Label htmlFor={`tipo-${c.id}`} className="text-xs">{tr("Tipo di clausola")}</Label>
                       <Select
                         value={String(valore(c, "category") ?? "custom")}
                         onValueChange={(v) => patch(c.id, { category: v as CategoriaClausola })}
@@ -389,11 +384,11 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
                         </SelectTrigger>
                         <SelectContent>
                           {CATEGORIE_CLAUSOLA.map((cat) => (
-                            <SelectItem key={cat} value={cat}>{ETICHETTA_CATEGORIA[cat]}</SelectItem>
+                            <SelectItem key={cat} value={cat}>{tr(ETICHETTA_CATEGORIA[cat])}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="basis-full">Un'etichetta per tenere in ordine le clausole: il cliente non la vede.</p>
+                      <p className="basis-full">{tr("Un'etichetta per tenere in ordine le clausole: il cliente non la vede.")}</p>
                     </div>
                   </details>
                   {puoModificare && (
@@ -406,10 +401,10 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
                         className="text-rose-600 hover:text-rose-700"
                       >
                         <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                        Elimina
+                        {tr("Elimina")}
                       </Button>
                       <Button size="sm" onClick={() => salvaRiga(c)} disabled={!modificata || salva.isPending}>
-                        {modificata ? "Salva modifiche" : "Salvata"}
+                        {modificata ? tr("Salva modifiche") : tr("Salvata")}
                       </Button>
                     </div>
                   )}
@@ -425,11 +420,10 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
         <CardHeader>
           <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
             <FileSignature className="h-4 w-4 text-blue-600" aria-hidden="true" />
-            Testi mostrati al momento della firma
+            {tr("Testi mostrati al momento della firma")}
           </h2>
           <CardDescription>
-            Puoi riscriverli con parole tue. Se lasci il campo vuoto usiamo il testo di sistema. Valgono per i preventivi
-            firmati dal link.
+            {tr("Puoi riscriverli con parole tue. Se lasci il campo vuoto usiamo il testo di sistema. Valgono per i preventivi firmati dal link.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -448,8 +442,7 @@ export default function SettingsCondizioniFirma({ dentroArchivio = false }: { de
 
       <p className="flex items-start gap-2 text-xs text-muted-foreground">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        Di ogni firma conserviamo il testo esatto che il cliente ha letto, con data, ora, indirizzo IP e
-        impronta del documento: se il preventivo viene modificato dopo, l'impronta lo dimostra.
+        {tr("Di ogni firma conserviamo il testo esatto che il cliente ha letto, con data, ora, indirizzo IP e impronta del documento: se il preventivo viene modificato dopo, l'impronta lo dimostra.")}
       </p>
     </div>
   );
@@ -470,6 +463,7 @@ function TestoLegaleEditor({
   /** Dice alla pagina se c'è testo scritto e non salvato (per avvisare prima di uscire). Deve essere stabile. */
   onModificato: (tipo: TipoLegale, modificato: boolean) => void;
 }) {
+  const t = useT();
   const meta = TESTI_DI_SISTEMA[tipo];
   const [testo, setTesto] = useState(personalizzato);
   // Il valore arriva dal server: se cambia sotto (salvataggio, refetch) riallineo.
@@ -487,12 +481,12 @@ function TestoLegaleEditor({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Label htmlFor={`testo-${tipo}`} className="text-sm font-medium">{meta.titolo}</Label>
+        <Label htmlFor={`testo-${tipo}`} className="text-sm font-medium">{t(meta.titolo)}</Label>
         <Badge variant={usaSistema ? "secondary" : "default"} className="text-[10px] font-normal">
-          {usaSistema ? "testo di sistema" : "testo tuo"}
+          {usaSistema ? t("testo di sistema") : t("testo tuo")}
         </Badge>
       </div>
-      <p className="text-xs text-muted-foreground">{meta.aiuto}</p>
+      <p className="text-xs text-muted-foreground">{t(meta.aiuto)}</p>
       <Textarea
         id={`testo-${tipo}`}
         value={testo}
@@ -504,16 +498,16 @@ function TestoLegaleEditor({
       {!disabilitato && (
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => onSalva(testo)} disabled={!modificato}>
-            {modificato ? "Salva testo" : "Salvato"}
+            {modificato ? t("Salva testo") : t("Salvato")}
           </Button>
           {!usaSistema && (
             <Button variant="ghost" size="sm" onClick={() => { setTesto(""); onSalva(""); }}>
-              Torna al testo di sistema
+              {t("Torna al testo di sistema")}
             </Button>
           )}
           {usaSistema && (
             <Button variant="ghost" size="sm" onClick={() => setTesto(meta.testo)}>
-              Parti dal testo di sistema
+              {t("Parti dal testo di sistema")}
             </Button>
           )}
         </div>

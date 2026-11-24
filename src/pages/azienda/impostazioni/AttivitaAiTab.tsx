@@ -15,6 +15,7 @@ import {
 } from "@/lib/ai/attivita";
 import { cn } from "@/lib/utils";
 import type { FlussoAi } from "../../../../shared/aiAttivita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const iconeFlusso = {
   whatsapp: MessageSquare,
@@ -40,6 +41,7 @@ function gruppoDi(stato: StatoAttivita): Gruppo {
 export default function AttivitaAiTab({
   dati, apriChat,
 }: { dati: ReturnType<typeof useAttivitaAi>; apriChat: () => void }) {
+  const t = useT();
   const [flusso, setFlusso] = useState<FlussoAi | "tutti">("tutti");
   const [gruppo, setGruppo] = useState<Gruppo | null>(null);
   const [selezionata, setSelezionata] = useState<string | null>(null);
@@ -83,7 +85,7 @@ export default function AttivitaAiTab({
   return (
     <section aria-labelledby="attivita-ai-heading" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="attivita-ai-heading" className="text-xl font-semibold tracking-tight">Attività AI</h2>
+        <h2 id="attivita-ai-heading" className="text-xl font-semibold tracking-tight">{t("Attività AI")}</h2>
         <div className="flex items-center gap-2">
           <span className={cn(
             "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
@@ -91,9 +93,9 @@ export default function AttivitaAiTab({
               : "border-border text-muted-foreground",
           )}>
             <Wifi className="size-3.5" aria-hidden="true" />
-            {isError ? "Connessione da verificare" : inDiretta ? "In diretta" : "Aggiornamento automatico"}
+            {isError ? t("Connessione da verificare") : inDiretta ? t("In diretta") : t("Aggiornamento automatico")}
           </span>
-          <Button variant="outline" size="icon" className="size-11 shrink-0 sm:size-9" title="Aggiorna" aria-label="Aggiorna attività" disabled={isFetching}
+          <Button variant="outline" size="icon" className="size-11 shrink-0 sm:size-9" title={t("Aggiorna")} aria-label={t("Aggiorna attività")} disabled={isFetching}
             onClick={() => void refetch()}>
             <RefreshCw className={cn("size-3.5", isFetching && "motion-safe:animate-spin")} />
           </Button>
@@ -103,12 +105,12 @@ export default function AttivitaAiTab({
       {isError && (
         <div role="status" className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
           <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          {dataUpdatedAt ? `Attività aggiornata alle ${oraAttivita(new Date(dataUpdatedAt).toISOString())}. Riprovo il collegamento quando la pagina è aperta.`
-            : "Il registro non è disponibile. Riprova con il pulsante Aggiorna."}
+          {dataUpdatedAt ? t("Attività aggiornata alle {valore}. Riprovo il collegamento quando la pagina è aperta.", { valore: String(oraAttivita(new Date(dataUpdatedAt).toISOString()) ?? "") })
+            : t("Il registro non è disponibile. Riprova con il pulsante Aggiorna.")}
         </div>
       )}
 
-      <div role="group" aria-label="Stati delle attività" className={cn("grid grid-cols-2 gap-2 sm:grid-cols-4", mostraSoloDettaglio && "hidden xl:grid")}>
+      <div role="group" aria-label={t("Stati delle attività")} className={cn("grid grid-cols-2 gap-2 sm:grid-cols-4", mostraSoloDettaglio && "hidden xl:grid")}>
         {gruppi.map(({ chiave, testo, Icona, colore }) => {
           const quanti = delFlusso.filter(riga => gruppoDi(statoAttivita(riga, adesso)) === chiave).length;
           return (
@@ -124,7 +126,7 @@ export default function AttivitaAiTab({
               </span>
               <span className="min-w-0">
                 <span className="block text-lg font-semibold leading-none tabular-nums">{isLoading || (isError && !dataUpdatedAt) ? "—" : quanti}</span>
-                <span className="text-xs text-muted-foreground">{testo}</span>
+                <span className="text-xs text-muted-foreground">{t(testo)}</span>
               </span>
             </button>
           );
@@ -132,7 +134,7 @@ export default function AttivitaAiTab({
       </div>
 
       {isLoading ? (
-        <Skeleton className="h-80 w-full rounded-xl" role="status" aria-label="Caricamento attività" />
+        <Skeleton className="h-80 w-full rounded-xl" role="status" aria-label={t("Caricamento attività")} />
       ) : (
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(17rem,0.85fr)_minmax(0,1.15fr)]">
           <section ref={elenco} tabIndex={-1} aria-labelledby="attivita-recenti-heading"
@@ -140,18 +142,18 @@ export default function AttivitaAiTab({
               mostraSoloDettaglio && "hidden xl:block")}>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3 sm:px-4">
               <div>
-                <h3 id="attivita-recenti-heading" className="text-sm font-semibold">Attività recenti</h3>
+                <h3 id="attivita-recenti-heading" className="text-sm font-semibold">{t("Attività recenti")}</h3>
                 <p className="text-xs text-muted-foreground">
-                  Ultime 24 ore{righe.length === LIMITE_ATTIVITA_AI ? ` · fino a ${LIMITE_ATTIVITA_AI} attività` : ""}
+                  {t("Ultime 24 ore")}{righe.length === LIMITE_ATTIVITA_AI ? t(" · fino a {LIMITE_ATTIVITA_AI} attività", { LIMITE_ATTIVITA_AI: String(LIMITE_ATTIVITA_AI ?? "") }) : ""}
                 </p>
               </div>
               <Select value={flusso} onValueChange={value => { setFlusso(value as FlussoAi | "tutti"); setSelezionata(null); setDettaglioMobile(false); }}>
-                <SelectTrigger className="h-11 w-[min(10.5rem,100%)] text-xs sm:h-8" aria-label="Filtra per flusso">
+                <SelectTrigger className="h-11 w-[min(10.5rem,100%)] text-xs sm:h-8" aria-label={t("Filtra per flusso")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tutti">Tutti i flussi</SelectItem>
-                  {Object.entries(FLUSSI_AI).map(([chiave, testo]) => <SelectItem key={chiave} value={chiave}>{testo}</SelectItem>)}
+                  <SelectItem value="tutti">{t("Tutti i flussi")}</SelectItem>
+                  {Object.entries(FLUSSI_AI).map(([chiave, testo]) => <SelectItem key={chiave} value={chiave}>{t(testo)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -194,14 +196,14 @@ export default function AttivitaAiTab({
               <div className="flex min-h-48 flex-col items-center justify-center gap-2 p-5 text-center">
                 <SearchX className="mb-1 size-5 text-muted-foreground" aria-hidden="true" />
                 <p className="text-sm font-medium">
-                  {isError && !dataUpdatedAt ? "Registro non raggiungibile"
-                    : gruppo || flusso !== "tutti" ? "Nessuna attività per questi filtri" : "Nessuna attività nelle ultime 24 ore"}
+                  {isError && !dataUpdatedAt ? t("Registro non raggiungibile")
+                    : gruppo || flusso !== "tutti" ? t("Nessuna attività per questi filtri") : t("Nessuna attività nelle ultime 24 ore")}
                 </p>
                 {gruppo || flusso !== "tutti" ? (
-                  <Button variant="ghost" size="sm" onClick={() => { setGruppo(null); setFlusso("tutti"); }}>Rimuovi filtri</Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setGruppo(null); setFlusso("tutti"); }}>{t("Rimuovi filtri")}</Button>
                 ) : !isError && (
                   <Button variant="outline" size="sm" className="mt-1 gap-1.5" onClick={apriChat}>
-                    Apri la chat <ArrowUpRight className="size-3.5" aria-hidden="true" />
+                    {t("Apri la chat")} <ArrowUpRight className="size-3.5" aria-hidden="true" />
                   </Button>
                 )}
               </div>
@@ -212,7 +214,7 @@ export default function AttivitaAiTab({
               mostraSoloDettaglio ? "block" : "hidden xl:block")}>
             {mostraSoloDettaglio && (
               <Button type="button" variant="outline" size="sm" className="mb-3 min-h-11 gap-2 xl:hidden" onClick={tornaAlleAttivita}>
-                <ArrowLeft className="size-4" aria-hidden="true" /> Torna alle attività
+                <ArrowLeft className="size-4" aria-hidden="true" /> {t("Torna alle attività")}
               </Button>
             )}
             <AiAgentPipeline attivita={corrente} adesso={adesso} disponibile={!isError || !!dataUpdatedAt}

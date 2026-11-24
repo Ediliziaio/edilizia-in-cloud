@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { useModuliVisibilita, type ModuloVendutaSlug } from "@/lib/moduli-vendita";
 import { findSalesArea } from "@/lib/moduli-vendita/areas";
 import { buildQuoteTemplatesModuleParams } from "@/lib/settingsQuoteTemplatesRoute";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // PERF: lazy-load editor pesanti (Serramenti ~150KB, Fotovoltaico ~120KB)
 // per evitare di caricare il bundle nella route Settings prima del click sulla tab.
@@ -216,10 +217,12 @@ const MODULI_VENDITA: ModuloVendita[] = [
 const ModuleTemplateLibrary = lazy(() => import("@/components/preventivi/modules/ModuleTemplateLibrary"));
 
 export function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
-  return <Suspense fallback={<p role="status">Caricamento dei modelli…</p>}><ModuleTemplateLibrary renderLegacy={() => <LegacyModuliVenditaPanel initialModulo={initialModulo} />} /></Suspense>;
+  const t = useT();
+  return <Suspense fallback={<p role="status">{t("Caricamento dei modelli…")}</p>}><ModuleTemplateLibrary renderLegacy={() => <LegacyModuliVenditaPanel initialModulo={initialModulo} />} /></Suspense>;
 }
 
 function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
+  const t = useT();
   // Se arriva via deeplink un modulo valido E available, lo pre-seleziono.
   // Altrimenti mostro la landing con la grid di selezione.
   const [, setSearchParams] = useSearchParams();
@@ -253,11 +256,11 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
           <ShoppingBag className="h-5 w-5 text-white" />
         </div>
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold leading-tight">Modello dell&apos;area</h2>
+          <h2 className="text-lg font-semibold leading-tight">{t("Modello dell'area")}</h2>
           <p className="text-sm text-muted-foreground">
-            {active && ["tetti", "serramenti"].includes(active.slug) ? `Configura i modelli PDF dell'area ${active.nome}, uno per ogni intervento.` : active
-              ? <>Stai configurando il modello dell&apos;area <strong>{active.nome}</strong>.</>
-              : "Scegli quale area vuoi configurare. Le impostazioni valgono per tutti i nuovi preventivi di quell'area."}
+            {active && ["tetti", "serramenti"].includes(active.slug) ? t("Configura i modelli PDF dell'area {nome}, uno per ogni intervento.", { nome: t(active.nome) }) : active
+              ? <>{t("Stai configurando il modello dell'area")} <strong>{t(active.nome)}</strong>.</>
+              : t("Scegli quale area vuoi configurare. Le impostazioni valgono per tutti i nuovi preventivi di quell'area.")}
           </p>
         </div>
       </div>
@@ -269,7 +272,7 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
           className="gap-1"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          Scegli un&apos;altra area
+          {t("Scegli un'altra area")}
         </Button>
       )}
     </div>
@@ -283,11 +286,10 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
 
         {/* Aree: accendi/spegni (interruttore su ogni scheda) + apri l'editor del PDF */}
         <div className="pt-1">
-          <h2 className="text-base font-bold leading-tight">Aree dei preventivi</h2>
+          <h2 className="text-base font-bold leading-tight">{t("Aree dei preventivi")}</h2>
           <p className="text-xs text-muted-foreground">
-            Accendi o spegni ogni area per la tua squadra con l'interruttore, e clicca <strong>Apri</strong>{" "}
-            per configurarne il PDF (logo, copertina, recensioni, punti di forza, cronoprogramma). Le aree spente
-            spariscono dal menu «Nuovo preventivo»; il «Classico» c'è sempre.
+            {t("Accendi o spegni ogni area per la tua squadra con l'interruttore, e clicca")} <strong>{t("Apri")}</strong>{" "}
+            {t("per configurarne il PDF (logo, copertina, recensioni, punti di forza, cronoprogramma). Le aree spente spariscono dal menu «Nuovo preventivo»; il «Classico» c'è sempre.")}
           </p>
         </div>
         <Card className="border-orange-200 bg-gradient-to-r from-orange-50 via-white to-amber-50/60">
@@ -295,22 +297,22 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
             <div className="mb-3 flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">3</div>
               <div>
-                <p className="text-sm font-bold text-slate-900">Il primo PDF in tre passi</p>
-                <p className="text-xs text-slate-600">Le impostazioni diventano il punto di partenza per tutti i nuovi preventivi.</p>
+                <p className="text-sm font-bold text-slate-900">{t("Il primo PDF in tre passi")}</p>
+                <p className="text-xs text-slate-600">{t("Le impostazioni diventano il punto di partenza per tutti i nuovi preventivi.")}</p>
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-orange-100 bg-white/80 p-3">
-                <p className="text-xs font-semibold text-orange-700">01 · Scegli</p>
-                <p className="mt-1 text-xs text-slate-600">Apri l'area che vendi più spesso.</p>
+                <p className="text-xs font-semibold text-orange-700">{t("01 · Scegli")}</p>
+                <p className="mt-1 text-xs text-slate-600">{t("Apri l'area che vendi più spesso.")}</p>
               </div>
               <div className="rounded-lg border border-orange-100 bg-white/80 p-3">
-                <p className="text-xs font-semibold text-orange-700">02 · Applica</p>
-                <p className="mt-1 text-xs text-slate-600">In Copertina scegli uno stile pronto e una foto.</p>
+                <p className="text-xs font-semibold text-orange-700">{t("02 · Applica")}</p>
+                <p className="mt-1 text-xs text-slate-600">{t("In Copertina scegli uno stile pronto e una foto.")}</p>
               </div>
               <div className="rounded-lg border border-orange-100 bg-white/80 p-3">
-                <p className="text-xs font-semibold text-orange-700">03 · Verifica</p>
-                <p className="mt-1 text-xs text-slate-600">Usa Anteprima PDF e salva solo dopo aver controllato le pagine.</p>
+                <p className="text-xs font-semibold text-orange-700">{t("03 · Verifica")}</p>
+                <p className="mt-1 text-xs text-slate-600">{t("Usa Anteprima PDF e salva solo dopo aver controllato le pagine.")}</p>
               </div>
             </div>
           </CardContent>
@@ -337,12 +339,12 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
                   <div className="relative mb-3 h-24 shrink-0 overflow-hidden rounded-lg bg-slate-100">
                     <img
                       src={m.coverPreview}
-                      alt={`Anteprima copertina PDF ${m.nome}`}
+                      alt={t("Anteprima copertina PDF {nome}", { nome: t(m.nome) })}
                       loading="lazy"
                       className="h-full w-full object-cover"
                     />
                     <span className="absolute bottom-2 left-2 rounded-full bg-slate-950/70 px-2 py-0.5 text-[10px] font-medium text-white">
-                      Anteprima PDF
+                      {t("Anteprima PDF")}
                     </span>
                   </div>
                 )}
@@ -356,12 +358,12 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 mb-1 flex-wrap min-w-0">
-                        <h3 className={"font-bold " + (!isDisabled && visibile ? "text-slate-900" : "text-slate-500")}>{m.nome}</h3>
+                        <h3 className={"font-bold " + (!isDisabled && visibile ? "text-slate-900" : "text-slate-500")}>{t(m.nome)}</h3>
                         {isDisabled ? (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">In arrivo</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">{t("In arrivo")}</span>
                         ) : (
                           <span className={"text-[10px] px-2 py-0.5 rounded-full font-medium " + (visibile ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-500")}>
-                            {visibile ? "Attivo" : "Nascosto"}
+                            {visibile ? t("Attivo") : t("Nascosto")}
                           </span>
                         )}
                       </div>
@@ -370,12 +372,12 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
                         checked={visibile}
                         disabled={isDisabled || isSaving || visibilityLoading}
                         onCheckedChange={(v) => salesArea ? setAreaVisibile(salesArea, v) : setModuloVisibile(m.slug, v)}
-                        aria-label={`${visibile ? "Spegni" : "Accendi"} l'area ${m.nome} nel menu Nuovo preventivo`}
+                        aria-label={visibile ? t("Spegni l'area {nome} nel menu Nuovo preventivo", { nome: t(m.nome) }) : t("Accendi l'area {nome} nel menu Nuovo preventivo", { nome: t(m.nome) })}
                       />
                     </div>
-                    <p className="text-xs leading-snug text-slate-600">{m.description}</p>
+                    <p className="text-xs leading-snug text-slate-600">{t(m.description)}</p>
                     {m.designNote && (
-                      <p className="mt-2 text-[11px] font-medium text-slate-500">Stile: {m.designNote}</p>
+                      <p className="mt-2 text-[11px] font-medium text-slate-500">{t("Stile: {designNote}", { designNote: t(m.designNote) })}</p>
                     )}
                   </div>
                 </div>
@@ -385,8 +387,8 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
                     onClick={() => handleSelectModulo(m.slug)}
                     className="mt-auto pt-3 border-t w-full flex items-center justify-between text-xs group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 rounded"
                   >
-                    <span className="text-slate-500">Configura logo, recensioni…</span>
-                    <span className="font-semibold text-orange-700 group-hover:translate-x-0.5 transition-transform">Apri →</span>
+                    <span className="text-slate-500">{t("Configura logo, recensioni…")}</span>
+                    <span className="font-semibold text-orange-700 group-hover:translate-x-0.5 transition-transform">{t("Apri →")}</span>
                   </button>
                 )}
               </div>
@@ -395,7 +397,7 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
         </div>
         <Card className="bg-slate-50 border-slate-200">
           <CardContent className="p-3 text-xs text-slate-600">
-            Il modello dell'area è il punto di partenza dei nuovi preventivi. I modelli di ogni intervento li usano i preventivi creati da quell'intervento.
+            {t("Il modello dell'area è il punto di partenza dei nuovi preventivi. I modelli di ogni intervento li usano i preventivi creati da quell'intervento.")}
           </CardContent>
         </Card>
       </div>
@@ -410,8 +412,8 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
         <CardContent className="p-3 flex items-start gap-3">
           <active.icon className="h-5 w-5 text-orange-700 mt-0.5 shrink-0" />
           <div>
-            <p className="font-semibold text-sm text-orange-900">{active.nome}</p>
-            <p className="text-xs text-orange-800 mt-0.5">{active.description}</p>
+            <p className="font-semibold text-sm text-orange-900">{t(active.nome)}</p>
+            <p className="text-xs text-orange-800 mt-0.5">{t(active.description)}</p>
           </div>
         </CardContent>
       </Card>}

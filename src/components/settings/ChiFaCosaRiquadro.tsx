@@ -8,6 +8,7 @@ import { ArrowUpRight, ClipboardCheck, HardHat, NotebookPen, UserRound } from "l
 import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 import { chiFaCosa, type RuoloChiFaCosa } from "@/lib/campo/chiFaCosa";
 import type { RegoleCampo } from "@/lib/campo/regoleCampo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const ICONE: Record<RuoloChiFaCosa, typeof UserRound> = {
   operaio: UserRound,
@@ -25,14 +26,15 @@ export function ChiFaCosaRiquadro({
   /** Il link si mostra solo a chi può aprire quella pagina: altrimenti porta a un «accesso negato». */
   linkVisibili?: Partial<Record<RuoloChiFaCosa, boolean>>;
 }) {
+  const t = useT();
   return (
     <SezioneImpostazione
       id="chi-fa-cosa"
       evidenziata={evidenziata}
-      titolo="Chi fa cosa"
+      titolo={t("Chi fa cosa")}
       descrizione={modificato
-        ? "Con le scelte non ancora salvate: diventa vero quando salvi."
-        : "Con le regole attuali dell’azienda. Cambia se cambi le scelte qui sotto."}
+        ? t("Con le scelte non ancora salvate: diventa vero quando salvi.")
+        : t("Con le regole attuali dell’azienda. Cambia se cambi le scelte qui sotto.")}
     >
       <div className="grid gap-3 p-4 sm:grid-cols-2" data-testid="chi-fa-cosa">
         {chiFaCosa(regole, { bozzaSerale }).map(({ ruolo, titolo, righe, link }) => {

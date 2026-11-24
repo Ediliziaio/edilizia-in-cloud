@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { ListinoFilterBar, type FilterChip } from "./ListinoFilterBar";
 import type { TipoImpianto } from "../types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type StatoFilter = "all" | "attivi" | "disattivi";
 
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export function ImpiantiTab({ tipiImpianto, loadingImpianti, puoModificare, puoImportare, onAdd, onEdit, onDelete }: Props) {
+  const tr = useT();
   const [search, setSearch] = useState("");
   const [stato, setStato] = useState<StatoFilter>("all");
 
@@ -52,8 +54,8 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, puoModificare, puoI
   const resetFilters = () => { setSearch(""); setStato("all"); };
 
   const chips: FilterChip[] = [];
-  if (search.trim()) chips.push({ key: "search", label: `Cerca: "${search.trim()}"`, onRemove: () => setSearch("") });
-  if (stato !== "all") chips.push({ key: "stato", label: stato === "attivi" ? "Stato: attivi" : "Stato: disattivi", onRemove: () => setStato("all") });
+  if (search.trim()) chips.push({ key: "search", label: tr("Cerca: \"{testo}\"", { testo: search.trim() }), onRemove: () => setSearch("") });
+  if (stato !== "all") chips.push({ key: "stato", label: stato === "attivi" ? tr("Stato: attivi") : tr("Stato: disattivi"), onRemove: () => setStato("all") });
 
   /** Tutta la riga apre Modifica — tranne i controlli veri (menu, checkbox…). */
   const rowClick = (t: TipoImpianto) => (e: React.MouseEvent) => {
@@ -70,15 +72,15 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, puoModificare, puoI
       <ListinoFilterBar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Cerca tipo di impianto…"
-        searchLabel="Cerca tra i tipi di impianto"
+        searchPlaceholder={tr("Cerca tipo di impianto…")}
+        searchLabel={tr("Cerca tra i tipi di impianto")}
         filters={
           <Select value={stato} onValueChange={(v) => setStato(v as StatoFilter)}>
-            <SelectTrigger aria-label="Filtra per stato" className="h-9 w-full md:w-[150px] max-md:h-11"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label={tr("Filtra per stato")} className="h-9 w-full md:w-[150px] max-md:h-11"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="attivi">Solo attivi</SelectItem>
-              <SelectItem value="disattivi">Solo disattivi</SelectItem>
+              <SelectItem value="all">{tr("Tutti gli stati")}</SelectItem>
+              <SelectItem value="attivi">{tr("Solo attivi")}</SelectItem>
+              <SelectItem value="disattivi">{tr("Solo disattivi")}</SelectItem>
             </SelectContent>
           </Select>
         }
@@ -88,7 +90,7 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, puoModificare, puoI
             onClick={onAdd}
             className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
           >
-            <Plus className="h-4 w-4 mr-1" aria-hidden />Nuovo impianto
+            <Plus className="h-4 w-4 mr-1" aria-hidden />{tr("Nuovo impianto")}
           </Button>
         ) : undefined}
         chips={chips}
@@ -102,31 +104,31 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, puoModificare, puoI
         <Table className="table-fixed min-w-[520px] [&_thead_th]:h-10 [&_thead_th]:px-3 [&_tbody_td]:px-3 [&_tbody_td]:py-2">
           <TableHeader>
             <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead className="w-[72px]">Ordine</TableHead>
-              <TableHead className="w-[96px]">Attivo</TableHead>
-              {puoModificare && <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>}
+              <TableHead>{tr("Nome")}</TableHead>
+              <TableHead className="w-[72px]">{tr("Ordine")}</TableHead>
+              <TableHead className="w-[96px]">{tr("Attivo")}</TableHead>
+              {puoModificare && <TableHead className="w-[48px]"><span className="sr-only">{tr("Azioni")}</span></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loadingImpianti ? (
               <TableRow>
                 <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
-                  Caricamento...
+                  {tr("Caricamento...")}
                 </TableCell>
               </TableRow>
             ) : tipiImpianto.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
                   {puoModificare
-                    ? `Nessun tipo di impianto. Aggiungine uno${puoImportare ? " o usa «Importa un catalogo pronto»" : ""}.`
-                    : "Nessun tipo di impianto."}
+                    ? (puoImportare ? tr("Nessun tipo di impianto. Aggiungine uno o usa «Importa un catalogo pronto».") : tr("Nessun tipo di impianto. Aggiungine uno."))
+                    : tr("Nessun tipo di impianto.")}
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
-                  Nessun tipo di impianto corrisponde ai filtri.
+                  {tr("Nessun tipo di impianto corrisponde ai filtri.")}
                 </TableCell>
               </TableRow>
             ) : filtered.map((t) => (
@@ -140,27 +142,27 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, puoModificare, puoI
                 <TableCell className="text-muted-foreground tabular-nums">{t.ordine ?? "—"}</TableCell>
                 <TableCell>
                   <Badge variant={t.attivo ? "default" : "secondary"} className="h-5 px-2 text-[11px]">
-                    {t.attivo ? "Attivo" : "Disattivo"}
+                    {t.attivo ? tr("Attivo") : tr("Disattivo")}
                   </Badge>
                 </TableCell>
                 {puoModificare && (
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni per ${t.nome}`}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={tr("Azioni per {nome}", { nome: String(t.nome ?? "") })}>
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => onEdit(t)}>
-                          <Pencil className="h-4 w-4 mr-2" />Modifica
+                          <Pencil className="h-4 w-4 mr-2" />{tr("Modifica")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
                           onClick={() => onDelete(t.id)}
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />Elimina
+                          <Trash2 className="h-4 w-4 mr-2" />{tr("Elimina")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

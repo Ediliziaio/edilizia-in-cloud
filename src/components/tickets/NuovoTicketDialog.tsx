@@ -10,6 +10,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { NuovoTicketForm, type NuovoTicketInitial } from "@/components/tickets/NuovoTicketForm";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface NuovoTicketDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ interface NuovoTicketDialogProps {
 }
 
 export function NuovoTicketDialog({ open, onOpenChange, initial, onCreated }: NuovoTicketDialogProps) {
+  const t = useT();
   const navigate = useNavigate();
   const pendingRef = useRef(false);
   const focusReturn = useDialogFocusReturn();
@@ -28,10 +30,10 @@ export function NuovoTicketDialog({ open, onOpenChange, initial, onCreated }: Nu
       <DialogContent {...focusReturn} className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Headset className="h-5 w-5 text-primary" /> Nuovo ticket
+            <Headset className="h-5 w-5 text-primary" /> {t("Nuovo ticket")}
           </DialogTitle>
           <DialogDescription>
-            Apri un'assistenza per un cliente. Solo cliente e oggetto sono obbligatori: il resto lo aggiungi ora o dopo.
+            {t("Apri un'assistenza per un cliente. Solo cliente e oggetto sono obbligatori: il resto lo aggiungi ora o dopo.")}
           </DialogDescription>
         </DialogHeader>
         {/* key: rimonta il form a ogni apertura così i campi ripartono puliti. */}

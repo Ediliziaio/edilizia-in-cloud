@@ -37,6 +37,7 @@ import { ExternalTeamsTab } from "@/components/employees/ExternalTeamsTab";
 import type { Employee, ExternalTeam } from "@/types/employees";
 
 import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MARKETING_SECTION_KEYS = [
   "can_view_marketing_dashboard", "can_view_callcenter_dashboard", "can_view_marketing_contacts", "can_view_marketing_opportunities",
@@ -54,6 +55,7 @@ interface EmployeesProps {
 }
 
 function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: EmployeesProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { canViewCosts, canViewEmployees, canViewPersone } = usePermissions();
   const canViewIndividualCosts = canViewCosts && (canViewEmployees || canViewPersone);
@@ -151,11 +153,11 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
-      toast.success(editingEmployee ? "Dipendente aggiornato" : "Dipendente creato", { description: "I dati sono stati salvati." });
+      toast.success(editingEmployee ? t("Dipendente aggiornato") : t("Dipendente creato"), { description: t("I dati sono stati salvati.") });
       setEmployeeDialogOpen(false); setEditingEmployee(null);
     },
     onError: (err: Error) => {
-      toast.error("Non sono riuscito a salvare il dipendente", {
+      toast.error(t("Non sono riuscito a salvare il dipendente"), {
         description: messaggioErrorePersone(err, "Riprova tra un attimo."),
       });
     },
@@ -168,10 +170,10 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
-      toast.success("Dipendente eliminato", { description: "Il dipendente è stato rimosso." });
+      toast.success(t("Dipendente eliminato"), { description: t("Il dipendente è stato rimosso.") });
     },
     onError: (err: Error) => {
-      toast.error("Non sono riuscito a eliminare il dipendente", {
+      toast.error(t("Non sono riuscito a eliminare il dipendente"), {
         description: messaggioErrorePersone(err, "Se è assegnato a delle commesse, impostalo come «Inattivo»."),
       });
     },
@@ -198,11 +200,11 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.externalTeams.all });
-      toast.success(editingTeam ? "Squadra aggiornata" : "Squadra creata", { description: "I dati sono stati salvati." });
+      toast.success(editingTeam ? t("Squadra aggiornata") : t("Squadra creata"), { description: t("I dati sono stati salvati.") });
       setTeamDialogOpen(false); setEditingTeam(null);
     },
     onError: (err: Error) => {
-      toast.error("Non sono riuscito a salvare la squadra", {
+      toast.error(t("Non sono riuscito a salvare la squadra"), {
         description: messaggioErrorePersone(err, "Riprova tra un attimo."),
       });
     },
@@ -215,10 +217,10 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.externalTeams.all });
-      toast.success("Squadra eliminata", { description: "La squadra esterna è stata rimossa." });
+      toast.success(t("Squadra eliminata"), { description: t("La squadra esterna è stata rimossa.") });
     },
     onError: (err: Error) => {
-      toast.error("Non sono riuscito a eliminare la squadra", {
+      toast.error(t("Non sono riuscito a eliminare la squadra"), {
         description: messaggioErrorePersone(err, "Se è assegnata a delle commesse, impostala come «Inattiva»."),
       });
     },
@@ -247,11 +249,11 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
       } else {
         setCreateUserDialogOpen(false);
         resetCreateUserForm();
-        toast.success("Accesso creato", { description: data.message });
+        toast.success(t("Accesso creato"), { description: data.message });
       }
     },
     onError: (error: unknown) => {
-      toast.error("Non sono riuscito a creare l'accesso", {
+      toast.error(t("Non sono riuscito a creare l'accesso"), {
         description: messaggioErrorePersone(error, "Riprova tra un attimo."),
       });
     },
@@ -324,7 +326,7 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
         <Checkbox id={`emp-${section.viewKey}`} checked={createUserPermissions[section.viewKey] as boolean}
           disabled={permBloccato(section.viewKey)}
           onCheckedChange={(checked) => handleTogglePermission(section.viewKey, checked as boolean)} />
-        <Label htmlFor={`emp-${section.viewKey}`} className="font-medium text-sm">{section.label}</Label>
+        <Label htmlFor={`emp-${section.viewKey}`} className="font-medium text-sm">{t(section.label)}</Label>
         {(permBloccato(section.viewKey) || (section.editKey && permBloccato(section.editKey))) && (
           <span className="text-[11px] text-amber-600">{SOLA_LETTURA_BLOCKED_NOTE}</span>
         )}
@@ -334,7 +336,7 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
           <Checkbox id={`emp-${section.editKey}`} checked={createUserPermissions[section.editKey] as boolean}
             disabled={permBloccato(section.editKey)}
             onCheckedChange={(checked) => handleTogglePermission(section.editKey!, checked as boolean)} />
-          <Label htmlFor={`emp-${section.editKey}`} className="text-xs text-muted-foreground">Può modificare</Label>
+          <Label htmlFor={`emp-${section.editKey}`} className="text-xs text-muted-foreground">{t("Può modificare")}</Label>
         </div>
       )}
     </div>
@@ -344,19 +346,19 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold">Dipendenti e squadre</h2>
-          <p className="text-muted-foreground">Operai, squadre esterne e staff interno.</p>
+          <h2 className="text-xl sm:text-2xl font-bold">{t("Dipendenti e squadre")}</h2>
+          <p className="text-muted-foreground">{t("Operai, squadre esterne e staff interno.")}</p>
         </div>
         {canViewCosts && <ValoriCostoPersonale />}
       </div>
 
       <Tabs defaultValue="employees" className="space-y-4">
         <TabsList className="flex flex-nowrap h-auto gap-1 p-1 w-full justify-start overflow-x-auto scrollbar-none">
-          <TabsTrigger value="employees" className="gap-1.5 shrink-0"><Users className="h-4 w-4" aria-hidden="true" />Operai ({operai.length})</TabsTrigger>
-          <TabsTrigger value="teams" className="gap-1.5 shrink-0"><Building2 className="h-4 w-4" aria-hidden="true" />Squadre ({externalTeams.length})</TabsTrigger>
-          <TabsTrigger value="staff-interno" className="gap-1.5 shrink-0"><Users className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">Staff interno</span><span className="sm:hidden">Staff</span> ({staffInterno.length})</TabsTrigger>
-          <TabsTrigger value="worklogs" className="gap-1.5 shrink-0"><Clock className="h-4 w-4" aria-hidden="true" />Rapportini</TabsTrigger>
-          <TabsTrigger value="leave" className="gap-1.5 shrink-0"><Palmtree className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">Ferie e permessi</span><span className="sm:hidden">Ferie</span></TabsTrigger>
+          <TabsTrigger value="employees" className="gap-1.5 shrink-0"><Users className="h-4 w-4" aria-hidden="true" />{t("Operai ({n})", { n: operai.length })}</TabsTrigger>
+          <TabsTrigger value="teams" className="gap-1.5 shrink-0"><Building2 className="h-4 w-4" aria-hidden="true" />{t("Squadre ({n})", { n: externalTeams.length })}</TabsTrigger>
+          <TabsTrigger value="staff-interno" className="gap-1.5 shrink-0"><Users className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">{t("Staff interno")}</span><span className="sm:hidden">{t("Staff")}</span> ({staffInterno.length})</TabsTrigger>
+          <TabsTrigger value="worklogs" className="gap-1.5 shrink-0"><Clock className="h-4 w-4" aria-hidden="true" />{t("Rapportini")}</TabsTrigger>
+          <TabsTrigger value="leave" className="gap-1.5 shrink-0"><Palmtree className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">{t("Ferie e permessi")}</span><span className="sm:hidden">{t("Ferie")}</span></TabsTrigger>
         </TabsList>
 
         <TabsContent value="employees">
@@ -386,13 +388,13 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
             <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
               <Palmtree className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
               <div>
-                <p className="font-medium">Ferie e permessi si gestiscono in Personale e HR</p>
+                <p className="font-medium">{t("Ferie e permessi si gestiscono in Personale e HR")}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Richieste, approvazioni e saldi (ferie, permessi, ROL) sono nella scheda «Richieste» del modulo Personale.
+                  {t("Richieste, approvazioni e saldi (ferie, permessi, ROL) sono nella scheda «Richieste» del modulo Personale.")}
                 </p>
               </div>
               <Button asChild>
-                <Link to="/azienda/personale?tab=richieste">Apri Richieste HR</Link>
+                <Link to="/azienda/personale?tab=richieste">{t("Apri Richieste HR")}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -423,9 +425,9 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
       }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Crea l'accesso del dipendente</DialogTitle>
+            <DialogTitle>{t("Crea l'accesso del dipendente")}</DialogTitle>
             <DialogDescription>
-              {createUserEmployee && `Crea l'accesso all'app per ${createUserEmployee.first_name} ${createUserEmployee.last_name}`}
+              {createUserEmployee && t("Crea l'accesso all'app per {first_name} {last_name}", { first_name: String(createUserEmployee.first_name ?? ""), last_name: String(createUserEmployee.last_name ?? "") })}
             </DialogDescription>
           </DialogHeader>
 
@@ -433,21 +435,21 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
             <div className="space-y-4">
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800">
                 <p className="font-medium text-green-800 dark:text-green-200 flex items-center gap-2">
-                  <Check className="h-4 w-4" aria-hidden="true" /> Accesso creato
+                  <Check className="h-4 w-4" aria-hidden="true" /> {t("Accesso creato")}
                 </p>
                 <p className="text-sm text-green-700 dark:text-green-300 mt-2">
-                  Password temporanea: <code className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded font-mono">{createdPassword}</code>
+                  {t("Password temporanea:")} <code className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded font-mono">{createdPassword}</code>
                   <Button variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6 ml-1" onClick={() => {
                     navigator.clipboard.writeText(createdPassword);
-                    toast.success("Copiato", { description: "Password copiata" });
-                  }} aria-label="Copia la password"><Copy className="h-3 w-3" aria-hidden="true" /></Button>
+                    toast.success(t("Copiato"), { description: t("Password copiata") });
+                  }} aria-label={t("Copia la password")}><Copy className="h-3 w-3" aria-hidden="true" /></Button>
                 </p>
                 <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-                  Comunica questa password al dipendente: gli è arrivata anche per email. Gli consigliamo di cambiarla al primo accesso.
+                  {t("Comunica questa password al dipendente: gli è arrivata anche per email. Gli consigliamo di cambiarla al primo accesso.")}
                 </p>
               </div>
               <DialogFooter>
-                <Button onClick={() => { setCreateUserDialogOpen(false); resetCreateUserForm(); }}>Chiudi</Button>
+                <Button onClick={() => { setCreateUserDialogOpen(false); resetCreateUserForm(); }}>{t("Chiudi")}</Button>
               </DialogFooter>
             </div>
           ) : (
@@ -464,20 +466,20 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
               }
             }} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="user-email">Email *</Label>
+                <Label htmlFor="user-email">{t("Email *")}</Label>
                 <Input id="user-email" type="email" value={createUserEmail}
                   onChange={(e) => setCreateUserEmail(e.target.value)} placeholder="email@esempio.com" required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="user-phone">Cellulare</Label>
+                <Label htmlFor="user-phone">{t("Cellulare")}</Label>
                 <Input id="user-phone" type="tel" value={createUserPhone}
                   onChange={(e) => setCreateUserPhone(e.target.value)} placeholder="+39 333 1234567" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="user-password">Password</Label>
+                <Label htmlFor="user-password">{t("Password")}</Label>
                 <Input id="user-password" type="password" autoComplete="new-password" value={createUserPassword}
-                  onChange={(e) => setCreateUserPassword(e.target.value)} placeholder="Lascia vuoto per generarla da solo" />
-                <p className="text-xs text-muted-foreground">Se lasci vuoto, la password viene generata e te la mostriamo dopo la creazione.</p>
+                  onChange={(e) => setCreateUserPassword(e.target.value)} placeholder={t("Lascia vuoto per generarla da solo")} />
+                <p className="text-xs text-muted-foreground">{t("Se lasci vuoto, la password viene generata e te la mostriamo dopo la creazione.")}</p>
               </div>
 
               <MagazzinoCampoPermission creation value={createUserPermissions.magazzino_campo} soloLettura={createUserPermissions.sola_lettura}
@@ -486,18 +488,18 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label className="text-base font-semibold">Permessi</Label>
+                  <Label className="text-base font-semibold">{t("Permessi")}</Label>
                   <div className="flex gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={handleSelectAllPerms}>Seleziona tutti</Button>
-                    <Button type="button" variant="outline" size="sm" onClick={handleDeselectAllPerms}>Deseleziona tutti</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={handleSelectAllPerms}>{t("Seleziona tutti")}</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={handleDeselectAllPerms}>{t("Deseleziona tutti")}</Button>
                   </div>
                 </div>
 
                 <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gestione Interna</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("Gestione Interna")}</p>
                   {INTERNAL_SECTIONS.map(renderPermSection)}
                   <Separator />
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Marketing e Vendita</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("Marketing e Vendita")}</p>
                   {MARKETING_SECTIONS.map(renderPermSection)}
                   <Separator />
                   <SolaLetturaToggle
@@ -509,17 +511,17 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
                     <div className="flex items-center space-x-2">
                       <Checkbox id="emp-only_assigned" checked={createUserPermissions.only_assigned || false}
                         onCheckedChange={(checked) => setCreateUserPermissions((prev) => ({ ...prev, only_assigned: checked as boolean }))} />
-                      <Label htmlFor="emp-only_assigned" className="font-medium text-sm">Solo i dati assegnati a lui</Label>
+                      <Label htmlFor="emp-only_assigned" className="font-medium text-sm">{t("Solo i dati assegnati a lui")}</Label>
                     </div>
-                    <p className="text-xs text-muted-foreground ml-6">Vede solo commesse, attività e appuntamenti assegnati a lui.</p>
+                    <p className="text-xs text-muted-foreground ml-6">{t("Vede solo commesse, attività e appuntamenti assegnati a lui.")}</p>
                   </div>
                 </div>
               </div>
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => { setCreateUserDialogOpen(false); resetCreateUserForm(); }}>Annulla</Button>
+                <Button type="button" variant="outline" onClick={() => { setCreateUserDialogOpen(false); resetCreateUserForm(); }}>{t("Annulla")}</Button>
                 <Button type="submit" disabled={createUserMutation.isPending}>
-                  {createUserMutation.isPending ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />Creazione…</>) : "Crea l'accesso"}
+                  {createUserMutation.isPending ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />{t("Creazione…")}</>) : t("Crea l'accesso")}
                 </Button>
               </DialogFooter>
             </form>
@@ -531,8 +533,9 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
 }
 
 export default function Employees(props: EmployeesProps = {}) {
+  const t = useT();
   return (
-    <ErrorBoundary title="Non riesco a mostrare i dipendenti">
+    <ErrorBoundary title={t("Non riesco a mostrare i dipendenti")}>
       <EmployeesInner {...props} />
     </ErrorBoundary>
   );

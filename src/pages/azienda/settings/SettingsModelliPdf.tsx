@@ -51,6 +51,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const Contratti = lazy(() => import("./modelliPdf/ModelliContrattiPanel"));
 const ICONE = {
   materiali: ShoppingCart,
@@ -77,6 +78,7 @@ export default function SettingsModelliPdf() {
   return effectiveCompany ? <Libreria key={effectiveCompany.id} /> : null;
 }
 function Libreria() {
+  const t = useT();
   const permissions = usePermissions();
   const query = useDocumentPdfTemplates();
   const [params, setParams] = useSearchParams();
@@ -100,9 +102,9 @@ function Libreria() {
   };
   return (
     <div className="min-w-0 space-y-6" data-testid="modelli-pdf-pagina">
-      <p className="text-sm text-muted-foreground">Scegli il documento da personalizzare. Le modifiche salvate valgono per le nuove generazioni, senza cambiare i PDF già creati.</p>
+      <p className="text-sm text-muted-foreground">{t("Scegli il documento da personalizzare. Le modifiche salvate valgono per le nuove generazioni, senza cambiare i PDF già creati.")}</p>
       <section
-        aria-label="Libreria modelli PDF"
+        aria-label={t("Libreria modelli PDF")}
         className="grid grid-cols-2 gap-3 xl:grid-cols-4"
       >
         {([...TIPI_MODELLI_PDF, "contratti"] as const).map((tipo) => {
@@ -137,35 +139,35 @@ function Libreria() {
                 />
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                   {tipo === "contratti"
-                    ? "Libreria contratti"
+                    ? t("Libreria contratti")
                     : custom
-                      ? "Personalizzato"
-                      : "Standard"}
+                      ? t("Personalizzato")
+                      : t("Standard")}
                 </span>
               </div>
               <h2 className="mt-3 text-sm font-semibold text-slate-900">
-                {titoli[tipo]}
+                {t(titoli[tipo])}
               </h2>
-              <p className="mt-1 text-xs text-slate-500">{DESCRIZIONI[tipo]}</p>
+              <p className="mt-1 text-xs text-slate-500">{t(DESCRIZIONI[tipo])}</p>
             </button>
           );
         })}
       </section>
       {selected === "contratti" ? (
-        <Suspense fallback={<p>Caricamento contratti…</p>}>
+        <Suspense fallback={<p>{t("Caricamento contratti…")}</p>}>
           <Contratti onDirty={setDirty} onSaving={setSaving} />
         </Suspense>
       ) : query.isLoading ? (
         <Card>
           <CardContent className="p-8 text-sm text-slate-600">
-            Caricamento dei modelli aziendali…
+            {t("Caricamento dei modelli aziendali…")}
           </CardContent>
         </Card>
       ) : query.error && !query.data ? (
         <Card>
           <CardContent className="space-y-3 p-6">
             <p role="alert">{query.error.message}</p>
-            <Button onClick={() => query.refetch()}>Riprova caricamento</Button>
+            <Button onClick={() => query.refetch()}>{t("Riprova caricamento")}</Button>
           </CardContent>
         </Card>
       ) : (
@@ -208,6 +210,7 @@ function EditorModello({
   save: ReturnType<typeof useDocumentPdfTemplates>["save"];
   reload: () => Promise<boolean>;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const savingGuard = useRef(false);
   const [base, setBase] = useState(() =>
@@ -233,7 +236,7 @@ function EditorModello({
     try {
       if (await reload()) scarta();
     } catch {
-      setError("Ricarica non riuscita. La bozza è ancora aperta.");
+      setError(t("Ricarica non riuscita. La bozza è ancora aperta."));
     } finally {
       savingGuard.current = false;
       setOperazione(null);
@@ -249,7 +252,7 @@ function EditorModello({
   const salva = async () => {
     if (busy || !canEdit || savingGuard.current) return;
     if (!draft.nome.trim()) {
-      setError("Indica il nome del modello.");
+      setError(t("Indica il nome del modello."));
       setSezione("aspetto");
       return;
     }
@@ -264,9 +267,9 @@ function EditorModello({
       setDraft(next);
       setVersion(r.updated_at);
       onDirty(false);
-      toast.success("Modello salvato per questa azienda");
+      toast.success(t("Modello salvato per questa azienda"));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Salvataggio non riuscito.");
+      setError(e instanceof Error ? e.message : t("Salvataggio non riuscito."));
     } finally {
       savingGuard.current = false;
       setOperazione(null);
@@ -303,27 +306,27 @@ function EditorModello({
             </CardTitle>
             <Badge aria-live="polite" variant={dirty ? "outline" : "secondary"}>
               {dirty
-                ? "Modifiche da salvare"
+                ? t("Modifiche da salvare")
                 : record &&
                     JSON.stringify(base) !==
                       JSON.stringify(modelloPdfStandard(tipo))
-                  ? "Modello aziendale"
-                  : "Standard di sistema"}
+                  ? t("Modello aziendale")
+                  : t("Standard di sistema")}
             </Badge>
           </div>
           <p className="text-xs text-slate-500">
-            Salva il modello per usare queste impostazioni nei prossimi PDF di questo tipo.
+            {t("Salva il modello per usare queste impostazioni nei prossimi PDF di questo tipo.")}
           </p>
           {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" onClick={salva} disabled={!canEdit || !dirty || busy}>
               <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
-              {operazione === "salva" ? "Salvataggio…" : "Salva modello"}
+              {operazione === "salva" ? t("Salvataggio…") : t("Salva modello")}
             </Button>
             {canEdit && <DiscardDocumentDraft disabled={!dirty || busy} onDiscard={scarta} />}
             <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={ricarica}>
               <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden="true" />
-              {operazione === "ricarica" ? "Ricarico…" : "Ricarica"}
+              {operazione === "ricarica" ? t("Ricarico…") : t("Ricarica")}
             </Button>
           </div>
         </CardHeader>
@@ -337,20 +340,19 @@ function EditorModello({
               role="status"
               className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900"
             >
-              Puoi consultare i modelli. Per modificarli serve il permesso di
-              modifica delle impostazioni cantieri.
+              {t("Puoi consultare i modelli. Per modificarli serve il permesso di modifica delle impostazioni cantieri.")}
             </p>
           )}
           <Tabs value={sezione} onValueChange={setSezione}>
             <TabsList className="mb-3 flex h-auto flex-wrap justify-start gap-1">
-              <TabsTrigger value="aspetto">Aspetto e logo</TabsTrigger>
-              <TabsTrigger value="contenuti">Testi e condizioni</TabsTrigger>
-              <TabsTrigger value="chiusura">{isRapporto ? "Piè di pagina" : "Firma e piè di pagina"}</TabsTrigger>
+              <TabsTrigger value="aspetto">{t("Aspetto e logo")}</TabsTrigger>
+              <TabsTrigger value="contenuti">{t("Testi e condizioni")}</TabsTrigger>
+              <TabsTrigger value="chiusura">{isRapporto ? t("Piè di pagina") : t("Firma e piè di pagina")}</TabsTrigger>
             </TabsList>
             <TabsContent value="aspetto">
             <fieldset disabled={!canEdit || busy} className="min-w-0 space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="pdf-nome">Nome del modello</Label>
+              <Label htmlFor="pdf-nome">{t("Nome del modello")}</Label>
               <Input
                 id="pdf-nome"
                 maxLength={120}
@@ -359,21 +361,21 @@ function EditorModello({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pdf-titolo">Titolo nel PDF</Label>
+              <Label htmlFor="pdf-titolo">{t("Titolo nel PDF")}</Label>
               <Input
                 id="pdf-titolo"
-                placeholder="Titolo standard del documento"
+                placeholder={t("Titolo standard del documento")}
                 maxLength={70}
                 value={draft.titolo}
                 onChange={(e) => patch({ titolo: e.target.value })}
               />
               <p className="text-xs text-slate-500">
-                Lascia vuoto per usare il titolo originale.
+                {t("Lascia vuoto per usare il titolo originale.")}
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="pdf-colore">Colore principale</Label>
+                <Label htmlFor="pdf-colore">{t("Colore principale")}</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     id="pdf-colore"
@@ -388,12 +390,12 @@ function EditorModello({
                     size="sm"
                     onClick={() => patch({ colore: "" })}
                   >
-                    Standard
+                    {t("Standard")}
                   </Button>
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pdf-carattere">Carattere</Label>
+                <Label htmlFor="pdf-carattere">{t("Carattere")}</Label>
                 <UniformSelect
                   id="pdf-carattere"
                   className="h-10 w-full rounded-md border bg-white px-3 text-sm"
@@ -404,15 +406,15 @@ function EditorModello({
                     })
                   }
                 >
-                  <option value="helvetica">Helvetica · moderno</option>
-                  <option value="times">Times · classico</option>
-                  <option value="courier">Courier · tecnico</option>
+                  <option value="helvetica">{t("Helvetica · moderno")}</option>
+                  <option value="times">{t("Times · classico")}</option>
+                  <option value="courier">{t("Courier · tecnico")}</option>
                 </UniformSelect>
               </div>
             </div>
             <div className="space-y-4 rounded-lg border p-3 sm:p-4">
               <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="pdf-logo">Mostra il logo aziendale</Label>
+                <Label htmlFor="pdf-logo">{t("Mostra il logo aziendale")}</Label>
                 <Switch id="pdf-logo" checked={draft.mostraLogo}
                   onCheckedChange={(mostraLogo) => patch({ mostraLogo })} />
               </div>
@@ -423,25 +425,24 @@ function EditorModello({
             </div>
             {altriModelli.length > 0 && (
               <div className="space-y-2">
-                <Label htmlFor="pdf-copia-aspetto">Copia l’impaginazione da</Label>
+                <Label htmlFor="pdf-copia-aspetto">{t("Copia l’impaginazione da")}</Label>
                 <UniformSelect id="pdf-copia-aspetto" value="" onChange={(e) => {
                   const sorgente = altriModelli.find((modello) => modello.document_type === e.target.value);
                   if (sorgente) patch(aspettoDelModello(normalizzaModelloPdf(sorgente.document_type, sorgente.config)));
                 }} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
-                  <option value="">Scegli un modello salvato</option>
+                  <option value="">{t("Scegli un modello salvato")}</option>
                   {altriModelli.map((modello) => <option key={modello.document_type} value={modello.document_type}>
                     {NOMI_MODELLI_PDF[modello.document_type]}
                   </option>)}
                 </UniformSelect>
-                <p className="text-xs text-muted-foreground">Applica colori, carattere, margini, logo e numerazione alla bozza.</p>
+                <p className="text-xs text-muted-foreground">{t("Applica colori, carattere, margini, logo e numerazione alla bozza.")}</p>
               </div>
             )}
             <div className="space-y-3 rounded-xl border bg-muted/40 p-4">
               <div>
-                <h3 className="font-medium">Stile e impaginazione</h3>
+                <h3 className="font-medium">{t("Stile e impaginazione")}</h3>
                 <p className="text-xs text-slate-500">
-                  Parti da uno stile, poi regola ogni opzione. I testi già
-                  scritti restano tuoi.
+                  {t("Parti da uno stile, poi regola ogni opzione. I testi già scritti restano tuoi.")}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -489,28 +490,28 @@ function EditorModello({
                     size="sm"
                     onClick={() => patch(stile)}
                   >
-                    {nome}
+                    {t(nome)}
                   </Button>
                 ))}
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="pdf-margini">Margini laterali</Label>
+                  <Label htmlFor="pdf-margini">{t("Margini laterali")}</Label>
                   <UniformSelect
                     id="pdf-margini"
                     className="h-10 w-full rounded-md border bg-white px-3 text-sm"
                     value={draft.margine}
                     onChange={(e) => patch({ margine: Number(e.target.value) })}
                   >
-                    <option value={0}>Standard del documento</option>
-                    <option value={10}>Stretti · 10 mm</option>
-                    <option value={14}>Medi · 14 mm</option>
-                    <option value={18}>Ampi · 18 mm</option>
+                    <option value={0}>{t("Standard del documento")}</option>
+                    <option value={10}>{t("Stretti · 10 mm")}</option>
+                    <option value={14}>{t("Medi · 14 mm")}</option>
+                    <option value={18}>{t("Ampi · 18 mm")}</option>
                   </UniformSelect>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pdf-dimensione">
-                    Dimensione testi liberi
+                    {t("Dimensione testi liberi")}
                   </Label>
                   <UniformSelect
                     id="pdf-dimensione"
@@ -520,15 +521,15 @@ function EditorModello({
                       patch({ dimensioneTesto: Number(e.target.value) })
                     }
                   >
-                    <option value={0}>Standard del documento</option>
-                    <option value={8}>Compatta · 8 pt</option>
-                    <option value={9}>Media · 9 pt</option>
-                    <option value={10}>Grande · 10 pt</option>
+                    <option value={0}>{t("Standard del documento")}</option>
+                    <option value={8}>{t("Compatta · 8 pt")}</option>
+                    <option value={9}>{t("Media · 9 pt")}</option>
+                    <option value={10}>{t("Grande · 10 pt")}</option>
                   </UniformSelect>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pdf-riquadri">
-                    Sfondo riquadri e tabelle
+                    {t("Sfondo riquadri e tabelle")}
                   </Label>
                   <div className="flex gap-2">
                     <Input
@@ -545,16 +546,16 @@ function EditorModello({
                       variant="ghost"
                       onClick={() => patch({ coloreRiquadri: "" })}
                     >
-                      Standard
+                      {t("Standard")}
                     </Button>
                   </div>
                   <p className="text-xs text-slate-500">
-                    Scegli una tinta chiara per leggere bene i dati.
+                    {t("Scegli una tinta chiara per leggere bene i dati.")}
                   </p>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="pdf-righe">Righe alternate nelle tabelle</Label>
+                <Label htmlFor="pdf-righe">{t("Righe alternate nelle tabelle")}</Label>
                 <Switch
                   id="pdf-righe"
                   checked={draft.righeAlternate}
@@ -564,16 +565,16 @@ function EditorModello({
             </div>
             <div className="space-y-1">
               <Button type="button" variant="ghost" size="sm" onClick={() => patch(modelloPdfStandard(tipo))}>
-                <RotateCcw className="mr-1.5 h-4 w-4" aria-hidden="true" />Ripristina standard
+                <RotateCcw className="mr-1.5 h-4 w-4" aria-hidden="true" />{t("Ripristina standard")}
               </Button>
-              <p className="text-xs text-muted-foreground">Riporta stile e testi ai valori iniziali nella bozza.</p>
+              <p className="text-xs text-muted-foreground">{t("Riporta stile e testi ai valori iniziali nella bozza.")}</p>
             </div>
             </fieldset>
             </TabsContent>
             <TabsContent value="chiusura">
             <fieldset disabled={!canEdit || busy} className="min-w-0 space-y-4">
               <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="pdf-numerazione">Numeri di pagina</Label>
+                <Label htmlFor="pdf-numerazione">{t("Numeri di pagina")}</Label>
                 <Switch
                   id="pdf-numerazione"
                   checked={draft.numerazione}
@@ -581,30 +582,29 @@ function EditorModello({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pdf-nota-pagina">Nota su ogni pagina</Label>
+                <Label htmlFor="pdf-nota-pagina">{t("Nota su ogni pagina")}</Label>
                 <Input
                   id="pdf-nota-pagina"
                   maxLength={100}
-                  placeholder="Es. Ufficio acquisti · acquisti@azienda.it"
+                  placeholder={t("Es. Ufficio acquisti · acquisti@azienda.it")}
                   value={draft.notaPagina}
                   onChange={(e) => patch({ notaPagina: e.target.value })}
                 />
                 <p className="text-xs text-slate-500">
-                  Una riga aggiuntiva sotto i dati aziendali, che restano nel
-                  piè di pagina.
+                  {t("Una riga aggiuntiva sotto i dati aziendali, che restano nel piè di pagina.")}
                 </p>
               </div>
             {!isRapporto && (
               <>
                 <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                  <Label htmlFor="pdf-firma">Spazio per l’accettazione</Label>
+                  <Label htmlFor="pdf-firma">{t("Spazio per l’accettazione")}</Label>
                   <Switch id="pdf-firma" checked={draft.mostraFirma}
                     onCheckedChange={(mostraFirma) => patch({ mostraFirma })} />
                 </div>
                 {draft.mostraFirma && (
                   <div className="space-y-2">
-                    <Label htmlFor="pdf-etichetta-firma">Dicitura della firma</Label>
-                    <Input id="pdf-etichetta-firma" maxLength={90} placeholder="Dicitura standard"
+                    <Label htmlFor="pdf-etichetta-firma">{t("Dicitura della firma")}</Label>
+                    <Input id="pdf-etichetta-firma" maxLength={90} placeholder={t("Dicitura standard")}
                       value={draft.etichettaFirma} onChange={(e) => patch({ etichettaFirma: e.target.value })} />
                   </div>
                 )}
@@ -615,12 +615,12 @@ function EditorModello({
             <TabsContent value="contenuti">
             <fieldset disabled={!canEdit || busy} className="min-w-0 space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="pdf-introduzione">Testo introduttivo</Label>
+              <Label htmlFor="pdf-introduzione">{t("Testo introduttivo")}</Label>
               <Textarea
                 id="pdf-introduzione"
                 rows={3}
                 maxLength={1200}
-                placeholder="Un messaggio prima dei dati del documento…"
+                placeholder={t("Un messaggio prima dei dati del documento…")}
                 value={draft.introduzione}
                 onChange={(e) => patch({ introduzione: e.target.value })}
               />
@@ -628,12 +628,10 @@ function EditorModello({
             {!isRapporto && (
               <div className="space-y-3 rounded-xl border bg-slate-50/60 p-4">
                 <div>
-                  <h3 className="font-medium">Condizioni stampate sul documento</h3>
+                  <h3 className="font-medium">{t("Condizioni stampate sul documento")}</h3>
                   <p className="text-xs text-slate-500">
-                    Spegni l’interruttore per non stamparle. Il testo si può
-                    riscrivere: <code>{"{riferimento}"}</code> diventa «numero
-                    dell’ordine - Commessa …», <code>{"{numero}"}</code> e{" "}
-                    <code>{"{commessa}"}</code> solo l’uno o l’altra.
+                    {t("Spegni l’interruttore per non stamparle. Il testo si può riscrivere:")} <code>{"{riferimento}"}</code> {t("diventa «numero dell’ordine - Commessa …»,")} <code>{"{numero}"}</code> {t("e")}{" "}
+                    <code>{"{commessa}"}</code> {t("solo l’uno o l’altra.")}
                   </p>
                 </div>
                 {clausole.map((c) => {
@@ -661,7 +659,7 @@ function EditorModello({
                       </div>
                       {attiva && (
                         <Textarea
-                          aria-label={`Testo della clausola ${c.etichetta}`}
+                          aria-label={t("Testo della clausola {etichetta}", { etichetta: String(c.etichetta ?? "") })}
                           rows={2}
                           maxLength={600}
                           placeholder={c.testo}
@@ -673,7 +671,7 @@ function EditorModello({
                       )}
                       {c.soloSenzaPrezzi && (
                         <p className="text-xs text-slate-500">
-                          Compare solo sui documenti inviati senza prezzi.
+                          {t("Compare solo sui documenti inviati senza prezzi.")}
                         </p>
                       )}
                     </div>
@@ -683,13 +681,10 @@ function EditorModello({
                   <div className="flex items-center justify-between gap-3 rounded-lg border bg-white p-3">
                     <div className="min-w-0">
                       <Label htmlFor="pdf-da-indicare" className="text-sm">
-                        Riquadro «Da indicare nella vostra{" "}
-                        {tipo === "richiesta" ? "offerta" : "conferma"}»
+                        {tipo === "richiesta" ? t("Riquadro «Da indicare nella vostra offerta»") : t("Riquadro «Da indicare nella vostra conferma»")}
                       </Label>
                       <p className="mt-1 text-xs text-slate-500">
-                        Le righe vuote per tempi di consegna, validità
-                        dell’offerta e trasporto. Solo sui documenti senza
-                        prezzi.
+                        {t("Le righe vuote per tempi di consegna, validità dell’offerta e trasporto. Solo sui documenti senza prezzi.")}
                       </p>
                     </div>
                     <Switch
@@ -706,30 +701,28 @@ function EditorModello({
             {!isRapporto && (
               <div className="space-y-2">
                 <Label htmlFor="pdf-condizioni">
-                  Condizioni predefinite (sostituiscono le clausole)
+                  {t("Condizioni predefinite (sostituiscono le clausole)")}
                 </Label>
                 <Textarea
                   id="pdf-condizioni"
                   rows={5}
                   maxLength={4000}
-                  placeholder="Lascia vuoto per usare le clausole qui sopra…"
+                  placeholder={t("Lascia vuoto per usare le clausole qui sopra…")}
                   value={draft.condizioni}
                   onChange={(e) => patch({ condizioni: e.target.value })}
                 />
                 <p className="text-xs text-slate-500">
-                  Se scrivi qui, questo testo prende il posto di tutte le
-                  clausole qui sopra. Le condizioni scritte sul singolo
-                  documento hanno comunque la precedenza.
+                  {t("Se scrivi qui, questo testo prende il posto di tutte le clausole qui sopra. Le condizioni scritte sul singolo documento hanno comunque la precedenza.")}
                 </p>
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="pdf-conclusione">Testo conclusivo</Label>
+              <Label htmlFor="pdf-conclusione">{t("Testo conclusivo")}</Label>
               <Textarea
                 id="pdf-conclusione"
                 rows={3}
                 maxLength={1200}
-                placeholder="Ringraziamenti, istruzioni o indicazioni finali…"
+                placeholder={t("Ringraziamenti, istruzioni o indicazioni finali…")}
                 value={draft.conclusione}
                 onChange={(e) => patch({ conclusione: e.target.value })}
               />
@@ -737,14 +730,14 @@ function EditorModello({
           </fieldset>
           <div className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
             {isRapporto
-              ? "Attività, foto e firme registrate restano collegate al rapportino originale. I dati aziendali sono riportati in basso, su massimo due righe."
-              : "Fornitore, commessa, destinazione e importi vengono compilati dal documento. I dati aziendali sono riportati nel piè di pagina, su massimo due righe."}
+              ? t("Attività, foto e firme registrate restano collegate al rapportino originale. I dati aziendali sono riportati in basso, su massimo due righe.")
+              : t("Fornitore, commessa, destinazione e importi vengono compilati dal documento. I dati aziendali sono riportati nel piè di pagina, su massimo due righe.")}
           </div>
           </TabsContent>
           </Tabs>
         </CardContent>
       </Card>}
-        anteprima={<section aria-label="Anteprima con dati di esempio">
+        anteprima={<section aria-label={t("Anteprima con dati di esempio")}>
         <div className="h-[72dvh] min-h-[380px] overflow-hidden rounded-xl border bg-card">
           <PdfBlobLivePreviewPanel
             renderBlobUrl={render}
@@ -756,7 +749,7 @@ function EditorModello({
             ])}
             downloadFileName={`anteprima-${tipo}.pdf`}
             showDownloadOnMobile
-            headerLabel="PDF con dati di esempio"
+            headerLabel={t("PDF con dati di esempio")}
             debounceMs={650}
           />
         </div>

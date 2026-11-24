@@ -23,6 +23,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Gauge, Plus, Trash2, Loader2, Zap, Check } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Periodo corrente in formato YYYY-MM. */
 function currentPeriodo(): string {
@@ -62,6 +63,7 @@ interface KpiCardProps {
 }
 
 function KpiCard({ kpi, valori, auto, periodo, onSetValore, onDelete, saving }: KpiCardProps) {
+  const t = useT();
   const isAuto = kpi.tipo === "auto";
   const mine = valori.filter((v) => v.kpi_id === kpi.id);
   const currentManual = mine.find((v) => v.periodo_label === periodo)?.valore ?? null;
@@ -93,29 +95,29 @@ function KpiCard({ kpi, valori, auto, periodo, onSetValore, onDelete, saving }: 
               <span className="font-medium text-sm">{kpi.nome}</span>
               {isAuto && (
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-violet-100 text-violet-800 border-violet-200">
-                  <Zap className="h-3 w-3 mr-0.5" />auto
+                  <Zap className="h-3 w-3 mr-0.5" />{t("auto")}
                 </Badge>
               )}
             </div>
             <div className="text-xs text-muted-foreground mt-0.5">
-              {kpi.periodo} · {kpi.direzione === "su" ? "più alto è meglio" : "più basso è meglio"}
+              {t(kpi.periodo)} · {kpi.direzione === "su" ? t("più alto è meglio") : t("più basso è meglio")}
             </div>
           </div>
           {!isAuto && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive shrink-0" title="Elimina KPI">
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive shrink-0" title={t("Elimina KPI")}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Eliminare il KPI?</AlertDialogTitle>
-                  <AlertDialogDescription>{kpi.nome}. Verranno rimossi anche i valori storicizzati.</AlertDialogDescription>
+                  <AlertDialogTitle>{t("Eliminare il KPI?")}</AlertDialogTitle>
+                  <AlertDialogDescription>{t("{nome}. Verranno rimossi anche i valori storicizzati.", { nome: String(kpi.nome ?? "") })}</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
-                  <AlertDialogAction onClick={onDelete}>Elimina</AlertDialogAction>
+                  <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                  <AlertDialogAction onClick={onDelete}>{t("Elimina")}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -125,7 +127,7 @@ function KpiCard({ kpi, valori, auto, periodo, onSetValore, onDelete, saving }: 
         <div className="flex items-baseline gap-2">
           <span className={`text-2xl font-bold ${onTarget ? "text-green-600" : ""}`}>{fmtVal(value, kpi.unita)}</span>
           {kpi.target != null && (
-            <span className="text-xs text-muted-foreground">/ obiettivo {fmtVal(kpi.target, kpi.unita)}</span>
+            <span className="text-xs text-muted-foreground">{t("/ obiettivo {target}", { target: fmtVal(kpi.target, kpi.unita) })}</span>
           )}
         </div>
 
@@ -139,7 +141,7 @@ function KpiCard({ kpi, valori, auto, periodo, onSetValore, onDelete, saving }: 
               <LineChart data={trend} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
                 <Tooltip
                   contentStyle={{ fontSize: 11, padding: "2px 6px" }}
-                  labelFormatter={(l) => `Periodo ${l}`}
+                  labelFormatter={(l) => t("Periodo {periodo}", { periodo: String(l) })}
                   formatter={(v: any) => [fmtVal(Number(v), kpi.unita), "Valore"]}
                 />
                 <Line type="monotone" dataKey="valore" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
@@ -151,7 +153,7 @@ function KpiCard({ kpi, valori, auto, periodo, onSetValore, onDelete, saving }: 
         {!isAuto && (
           <div className="flex items-end gap-2 pt-1">
             <div className="flex-1">
-              <Label className="text-xs text-muted-foreground">Valore {periodo}</Label>
+              <Label className="text-xs text-muted-foreground">{t("Valore {periodo}", { periodo: String(periodo ?? "") })}</Label>
               <Input
                 type="number"
                 step="0.1"
@@ -166,7 +168,7 @@ function KpiCard({ kpi, valori, auto, periodo, onSetValore, onDelete, saving }: 
               disabled={saving || input === "" || Number.isNaN(Number(input))}
               onClick={() => onSetValore(Number(input))}
             >
-              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}Aggiorna
+              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}{t("Aggiorna")}
             </Button>
           </div>
         )}
@@ -180,6 +182,7 @@ interface Props { profiloId: string; companyId: string; }
 const EMPTY_NEW = { nome: "", unita: "num" as KpiUnita, target: "", direzione: "su" as KpiDirezione };
 
 export function HrKpiBlock({ profiloId, companyId }: Props) {
+  const t = useT();
   const periodo = currentPeriodo();
   const { data: kpis = [], isLoading } = useHrKpi(profiloId);
   const kpiIds = useMemo(() => kpis.map((k) => k.id), [kpis]);
@@ -205,45 +208,45 @@ export function HrKpiBlock({ profiloId, companyId }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-muted-foreground">KPI & PERFORMANCE</h4>
+        <h4 className="text-sm font-semibold text-muted-foreground">{t("KPI & PERFORMANCE")}</h4>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" variant="outline"><Plus className="h-4 w-4 mr-1" />KPI manuale</Button>
+            <Button size="sm" variant="outline"><Plus className="h-4 w-4 mr-1" />{t("KPI manuale")}</Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>Nuovo KPI manuale</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{t("Nuovo KPI manuale")}</DialogTitle></DialogHeader>
             <div className="space-y-3">
               <div>
-                <Label>Nome *</Label>
-                <Input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} placeholder="es. Preventivi chiusi" />
+                <Label>{t("Nome *")}</Label>
+                <Input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} placeholder={t("es. Preventivi chiusi")} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Unità</Label>
+                  <Label>{t("Unità")}</Label>
                   <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={form.unita} onChange={(e) => setForm((f) => ({ ...f, unita: e.target.value as KpiUnita }))}>
-                    {UNITA.map((u) => <option key={u} value={u}>{u}</option>)}
+                    {UNITA.map((u) => <option key={u} value={u}>{t(u)}</option>)}
                   </UniformSelect>
                 </div>
                 <div>
-                  <Label>Obiettivo</Label>
+                  <Label>{t("Obiettivo")}</Label>
                   <Input type="number" step="0.1" value={form.target}
                     onChange={(e) => setForm((f) => ({ ...f, target: e.target.value }))} />
                 </div>
                 <div className="col-span-2">
-                  <Label>Direzione</Label>
+                  <Label>{t("Direzione")}</Label>
                   <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={form.direzione} onChange={(e) => setForm((f) => ({ ...f, direzione: e.target.value as KpiDirezione }))}>
-                    <option value="su">Più alto è meglio</option>
-                    <option value="giu">Più basso è meglio</option>
+                    <option value="su">{t("Più alto è meglio")}</option>
+                    <option value="giu">{t("Più basso è meglio")}</option>
                   </UniformSelect>
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>Annulla</Button>
+              <Button variant="outline" onClick={() => setOpen(false)}>{t("Annulla")}</Button>
               <Button onClick={saveNew} disabled={create.isPending || !form.nome.trim()}>
-                {create.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Crea
+                {create.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{t("Crea")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -255,7 +258,7 @@ export function HrKpiBlock({ profiloId, companyId }: Props) {
       ) : kpis.length === 0 ? (
         <div className="text-center py-8 text-sm text-muted-foreground">
           <Gauge className="h-8 w-8 mx-auto mb-2 opacity-40" />
-          Nessun KPI. Aggiungi un KPI manuale o applica i KPI del ruolo dalla mansione.
+          {t("Nessun KPI. Aggiungi un KPI manuale o applica i KPI del ruolo dalla mansione.")}
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">

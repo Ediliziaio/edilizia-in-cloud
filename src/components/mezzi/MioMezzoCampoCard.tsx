@@ -8,8 +8,10 @@ import { AlertTriangle, ChevronRight } from "lucide-react";
 import { IconaMezzo } from "@/components/mezzi/IconaMezzo";
 import { useMieiMezzi } from "@/hooks/useMezzi";
 import { categoriaDocumentoLabel, documentiConStato, formatData, oggiIso } from "@/types/mezzi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function MioMezzoCampoCard() {
+  const t = useT();
   const navigate = useNavigate();
   const { data: mezzi = [] } = useMieiMezzi();
   const ids = new Set(mezzi.map((m) => m.id));
@@ -38,7 +40,7 @@ export function MioMezzoCampoCard() {
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {principali.length > 1 ? "I miei mezzi" : "Il mio mezzo"}
+          {principali.length > 1 ? t("I miei mezzi") : t("Il mio mezzo")}
         </p>
         <p className="truncate text-sm font-semibold">{titolo}</p>
         {sotto && <p className="truncate font-mono text-xs text-muted-foreground">{sotto}</p>}
@@ -46,8 +48,8 @@ export function MioMezzoCampoCard() {
           <p className={`mt-1 flex items-center gap-1 text-xs ${urgente.stato === "scaduto" ? "text-red-700" : "text-amber-800"}`}>
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="truncate">
-              {categoriaDocumentoLabel(urgente.categoria)}
-              {urgente.stato === "scaduto" ? ": scadenza passata il " : ": scade il "}
+              {t(categoriaDocumentoLabel(urgente.categoria))}
+              {urgente.stato === "scaduto" ? `${t(": scadenza passata il")} ` : `${t(": scade il")} `}
               {formatData(urgente.data_scadenza)}
               {principali.length > 1 ? ` · ${urgente.mezzo}` : ""}
             </span>

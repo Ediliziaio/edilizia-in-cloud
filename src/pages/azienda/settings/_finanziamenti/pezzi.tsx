@@ -8,14 +8,16 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { FRASE_ACCESSO_NEGATO, FRASE_SOLA_LETTURA, ID_AVVISO_SOLA_LETTURA } from "./comuni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Al posto della pagina, per chi non ha il permesso di vedere i finanziamenti. */
 export function AccessoNegato() {
+  const t = useT();
   return (
     <Card className="max-w-xl mx-auto mt-8">
       <CardContent className="py-10 flex flex-col items-center gap-4 text-center" role="alert" aria-live="polite">
         <ShieldAlert className="h-12 w-12 text-amber-500" aria-hidden="true" />
-        <p className="font-medium">{FRASE_ACCESSO_NEGATO}</p>
+        <p className="font-medium">{t(FRASE_ACCESSO_NEGATO)}</p>
       </CardContent>
     </Card>
   );
@@ -26,9 +28,10 @@ export function AccessoNegato() {
  * `aria-describedby` (vedi `proprietaComandoSpento`): la stessa frase arriva anche al lettore di schermo.
  */
 export function AvvisoSolaLettura() {
+  const t = useT();
   return (
     <Alert id={ID_AVVISO_SOLA_LETTURA}>
-      <AlertDescription>{FRASE_SOLA_LETTURA}</AlertDescription>
+      <AlertDescription>{t(FRASE_SOLA_LETTURA)}</AlertDescription>
     </Alert>
   );
 }

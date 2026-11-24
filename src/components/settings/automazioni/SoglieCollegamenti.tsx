@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -58,6 +59,7 @@ const CAMPI: Array<{ chiave: keyof SoglieCollegamenti; etichetta: string; unita:
 ];
 
 export function SoglieCollegamentiCard({ companyId, puoModificare }: { companyId: string; puoModificare: boolean }) {
+  const t = useT();
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["soglie-collegamenti", companyId],
@@ -84,49 +86,49 @@ export function SoglieCollegamentiCard({ companyId, puoModificare }: { companyId
         .upsert({ company_id: companyId, ...valori, updated_at: new Date().toISOString() }, { onConflict: "company_id" });
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => { toast.success("Soglie salvate"); void qc.invalidateQueries({ queryKey: ["soglie-collegamenti", companyId] }); },
-    onError: (e: Error) => toast.error("Soglie non salvate", { description: e.message }),
+    onSuccess: () => { toast.success(t("Soglie salvate")); void qc.invalidateQueries({ queryKey: ["soglie-collegamenti", companyId] }); },
+    onError: (e: Error) => toast.error(t("Soglie non salvate"), { description: e.message }),
   });
 
   if (q.isError) return null;
   return (
     <section className="rounded-lg border p-4" aria-labelledby="soglie-collegamenti">
-      <h3 id="soglie-collegamenti" className="flex items-center gap-2 font-medium"><SlidersHorizontal className="h-4 w-4" />Soglie dei collegamenti</h3>
-      <p className="mt-1 text-sm text-muted-foreground">Quanto può scostarsi un documento perché il gestionale lo colleghi o lo proponga. Valgono per questa azienda.</p>
+      <h3 id="soglie-collegamenti" className="flex items-center gap-2 font-medium"><SlidersHorizontal className="h-4 w-4" />{t("Soglie dei collegamenti")}</h3>
+      <p className="mt-1 text-sm text-muted-foreground">{t("Quanto può scostarsi un documento perché il gestionale lo colleghi o lo proponga. Valgono per questa azienda.")}</p>
       {!bozza ? (
-        <p role="status" className="mt-3 text-sm text-muted-foreground">Caricamento…</p>
+        <p role="status" className="mt-3 text-sm text-muted-foreground">{t("Caricamento…")}</p>
       ) : (
         <>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {CAMPI.map((c) => (
               <div key={c.chiave} className="space-y-1">
-                <Label htmlFor={`soglia-${c.chiave}`}>{c.etichetta}</Label>
+                <Label htmlFor={`soglia-${c.chiave}`}>{t(c.etichetta)}</Label>
                 <div className="flex items-center gap-2">
                   <Input id={`soglia-${c.chiave}`} inputMode="decimal" className="w-28" value={bozza[c.chiave]} disabled={!puoModificare}
                     aria-invalid={errori.includes(c.chiave)} onChange={(e) => setBozza({ ...bozza, [c.chiave]: e.target.value })} />
                   <span className="text-sm text-muted-foreground">{c.unita}</span>
                 </div>
                 <p className={`text-xs ${errori.includes(c.chiave) ? "text-destructive" : "text-muted-foreground"}`}>
-                  {errori.includes(c.chiave) ? `Da ${LIMITI[c.chiave].min} a ${LIMITI[c.chiave].max}${c.chiave === "acquisti_prezzo_toll_cent" ? ", senza decimali" : ""}.` : c.aiuto}
+                  {errori.includes(c.chiave) ? t(c.chiave === "acquisti_prezzo_toll_cent" ? "Da {min} a {max}, senza decimali." : "Da {min} a {max}.", { min: LIMITI[c.chiave].min, max: LIMITI[c.chiave].max }) : t(c.aiuto)}
                 </p>
               </div>
             ))}
             <div className="space-y-1">
-              <p className="text-sm font-medium">Acquisti: indirizzo del cantiere</p>
-              <p className="text-sm">Solo proposta</p>
-              <p className="text-xs text-muted-foreground">Un indirizzo simile non basta per collegare da solo: si propone e si conferma con un clic.</p>
+              <p className="text-sm font-medium">{t("Acquisti: indirizzo del cantiere")}</p>
+              <p className="text-sm">{t("Solo proposta")}</p>
+              <p className="text-xs text-muted-foreground">{t("Un indirizzo simile non basta per collegare da solo: si propone e si conferma con un clic.")}</p>
             </div>
           </div>
           {puoModificare ? (
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => salva.mutate()} disabled={!cambiate || errori.length > 0 || salva.isPending}>{salva.isPending ? "Salvo…" : "Salva le soglie"}</Button>
+              <Button size="sm" onClick={() => salva.mutate()} disabled={!cambiate || errori.length > 0 || salva.isPending}>{salva.isPending ? t("Salvo…") : t("Salva le soglie")}</Button>
               <Button size="sm" variant="outline" disabled={salva.isPending}
                 onClick={() => setBozza(Object.fromEntries(Object.entries(SOGLIE_DEFAULT).map(([k, v]) => [k, String(v).replace(".", ",")])) as Record<keyof SoglieCollegamenti, string>)}>
-                Valori di partenza
+                {t("Valori di partenza")}
               </Button>
             </div>
           ) : (
-            <p className="mt-3 text-xs text-muted-foreground">Le soglie le cambia l&apos;amministratore dell&apos;azienda.</p>
+            <p className="mt-3 text-xs text-muted-foreground">{t("Le soglie le cambia l'amministratore dell'azienda.")}</p>
           )}
         </>
       )}

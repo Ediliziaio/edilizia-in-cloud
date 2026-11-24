@@ -15,6 +15,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ListChecks, Plus, Trash2, Loader2, Check, Circle, CircleDot } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function fmt(d: string | null): string {
   if (!d) return "—";
@@ -45,6 +46,7 @@ const NEXT_STATO: Record<TaskStato, TaskStato> = {
 interface Props { profiloId: string; companyId: string; }
 
 export function HrTaskBlock({ profiloId, companyId }: Props) {
+  const tr = useT();
   const { data: tasks = [], isLoading } = useHrTask(profiloId);
   const { create, setStato, remove } = useHrTaskMutations(profiloId, companyId);
 
@@ -70,36 +72,36 @@ export function HrTaskBlock({ profiloId, companyId }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-muted-foreground">TASK & OBIETTIVI</h4>
+        <h4 className="text-sm font-semibold text-muted-foreground">{tr("TASK & OBIETTIVI")}</h4>
       </div>
 
       {/* Riga aggiunta inline */}
       <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3 sm:flex-row sm:items-end">
         <div className="flex-1">
-          <label className="text-xs text-muted-foreground">Nuovo task</label>
+          <label className="text-xs text-muted-foreground">{tr("Nuovo task")}</label>
           <Input
             value={titolo}
             onChange={(e) => setTitolo(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") add(); }}
-            placeholder="es. Chiudere consuntivo cantiere Rossi"
+            placeholder={tr("es. Chiudere consuntivo cantiere Rossi")}
           />
         </div>
         <div>
-          <label className="text-xs text-muted-foreground">Scadenza</label>
+          <label className="text-xs text-muted-foreground">{tr("Scadenza")}</label>
           <Input type="date" value={scadenza} onChange={(e) => setScadenza(e.target.value)} className="w-full sm:w-40" />
         </div>
         <div>
-          <label className="text-xs text-muted-foreground">Priorità</label>
+          <label className="text-xs text-muted-foreground">{tr("Priorità")}</label>
           <UniformSelect
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:w-28"
             value={priorita}
             onChange={(e) => setPriorita(e.target.value as TaskPriorita)}
           >
-            {PRIORITA.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            {PRIORITA.map((p) => <option key={p.value} value={p.value}>{tr(p.label)}</option>)}
           </UniformSelect>
         </div>
         <Button onClick={add} disabled={create.isPending || !titolo.trim()} className="shrink-0">
-          {create.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}Aggiungi
+          {create.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}{tr("Aggiungi")}
         </Button>
       </div>
 
@@ -108,7 +110,7 @@ export function HrTaskBlock({ profiloId, companyId }: Props) {
       ) : tasks.length === 0 ? (
         <div className="text-center py-8 text-sm text-muted-foreground">
           <ListChecks className="h-8 w-8 mx-auto mb-2 opacity-40" />
-          Nessun task assegnato. Aggiungi il primo obiettivo qui sopra.
+          {tr("Nessun task assegnato. Aggiungi il primo obiettivo qui sopra.")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -119,7 +121,7 @@ export function HrTaskBlock({ profiloId, companyId }: Props) {
                 <button
                   type="button"
                   className="mt-0.5 shrink-0"
-                  title="Cambia stato"
+                  title={tr("Cambia stato")}
                   onClick={() => setStato.mutate({ id: t.id, stato: NEXT_STATO[t.stato] })}
                 >
                   <StatoIcon t={t} />
@@ -129,11 +131,11 @@ export function HrTaskBlock({ profiloId, companyId }: Props) {
                     <span className={`font-medium text-sm ${t.stato === "fatto" || t.stato === "annullato" ? "text-muted-foreground line-through" : ""}`}>
                       {t.titolo}
                     </span>
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${priCls(t.priorita)}`}>{priLabel(t.priorita)}</Badge>
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${sb.cls}`}>{sb.label}</Badge>
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${priCls(t.priorita)}`}>{tr(priLabel(t.priorita))}</Badge>
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${sb.cls}`}>{tr(sb.label)}</Badge>
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {t.scadenza ? <>Scadenza <b>{fmt(t.scadenza)}</b></> : "Senza scadenza"}
+                    {t.scadenza ? <>{tr("Scadenza")} <b>{fmt(t.scadenza)}</b></> : tr("Senza scadenza")}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -143,23 +145,23 @@ export function HrTaskBlock({ profiloId, companyId }: Props) {
                     onChange={(e) => setStato.mutate({ id: t.id, stato: e.target.value as TaskStato })}
                   >
                     {(Object.keys(STATO) as TaskStato[]).map((s) => (
-                      <option key={s} value={s}>{STATO[s].label}</option>
+                      <option key={s} value={s}>{tr(STATO[s].label)}</option>
                     ))}
                   </UniformSelect>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title="Elimina">
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title={tr("Elimina")}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Eliminare il task?</AlertDialogTitle>
-                        <AlertDialogDescription>{t.titolo}. L'operazione è irreversibile.</AlertDialogDescription>
+                        <AlertDialogTitle>{tr("Eliminare il task?")}</AlertDialogTitle>
+                        <AlertDialogDescription>{tr("{titolo}. L'operazione è irreversibile.", { titolo: String(t.titolo ?? "") })}</AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Annulla</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => remove.mutate(t.id)}>Elimina</AlertDialogAction>
+                        <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => remove.mutate(t.id)}>{tr("Elimina")}</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>

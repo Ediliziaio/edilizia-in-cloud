@@ -34,6 +34,7 @@ import { getRoute } from "@/lib/routing";
 import type { ArrivoDaRapportino } from "@/lib/campo/arrivoRapportino";
 import { formatData, giornoItaliano } from "@/types/mezzi";
 import { toast } from "sonner";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Riga = Omit<TrattaViaggio, "km" | "minuti"> & {
   km: string;
@@ -76,6 +77,7 @@ function TappaInput({
   onChange: (value: string) => void;
   cantieri: CantiereViaggio[];
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <div className="flex gap-1">
@@ -90,7 +92,7 @@ function TappaInput({
           <Button
             variant="outline"
             size="icon"
-            aria-label={`Scegli luogo per ${label}`}
+            aria-label={t("Scegli luogo per {label}", { label: String(label ?? "") })}
           >
             <MapPin className="h-4 w-4" />
           </Button>
@@ -99,7 +101,7 @@ function TappaInput({
           align="end"
           className="max-h-72 w-72 overflow-y-auto rounded-2xl p-2"
         >
-          {[{ id: "sede", label: "Sede" }, ...cantieri].map((c) => (
+          {[{ id: "sede", label: t("Sede") }, ...cantieri].map((c) => (
             <button
               key={c.id}
               type="button"
@@ -176,6 +178,7 @@ function ViaggioForm({
   onClose,
   defaultOrderId,
 }: ViaggioDialogProps) {
+  const tr = useT();
   const { user } = useAuth();
   const storageKey = draftViaggioKey(companyId, user?.id ?? "", mezzoId) +
     (arrivoRapportino ? `:arrivo:${arrivoRapportino.id}` : "");
@@ -349,12 +352,12 @@ function ViaggioForm({
         }
       toast.success(
         azione === "verifica"
-          ? "Viaggio verificato, nessun costo contabile registrato"
+          ? tr("Viaggio verificato, nessun costo contabile registrato")
           : azione === "annulla"
-            ? "Viaggio annullato, storico conservato"
+            ? tr("Viaggio annullato, storico conservato")
             : azione === "salva"
-              ? "Bozza salvata"
-              : "Viaggio inviato all’ufficio",
+              ? tr("Bozza salvata")
+              : tr("Viaggio inviato all’ufficio"),
       );
       onClose();
     } catch {
@@ -378,7 +381,7 @@ function ViaggioForm({
       to = point(t.a);
     if (!from || !to) {
       toast.info(
-        "Scegli sedi o cantieri geolocalizzati dai suggerimenti, oppure inserisci i km manualmente.",
+        tr("Scegli sedi o cantieri geolocalizzati dai suggerimenti, oppure inserisci i km manualmente."),
       );
       return;
     }
@@ -393,7 +396,7 @@ function ViaggioForm({
       });
     } catch {
       toast.error(
-        "Non riesco a stimare il percorso. Puoi compilare i km manualmente.",
+        tr("Non riesco a stimare il percorso. Puoi compilare i km manualmente."),
       );
     } finally {
       setRouting(null);
@@ -402,7 +405,7 @@ function ViaggioForm({
   const number = (n: number | null) =>
     n == null || !Number.isFinite(n)
       ? "—"
-      : n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+      : n.toLocaleString(intlCampo(), { maximumFractionDigits: 2 });
 
   return (
     <Dialog
@@ -417,20 +420,19 @@ function ViaggioForm({
       >
         <DialogHeader className="shrink-0 border-b px-4 py-4 sm:px-6">
           <DialogTitle>
-            {viaggio ? "Rivedi viaggio" : arrivoRapportino ? `Completa l’arrivo del ${formatData(arrivoRapportino.giorno)}` : "Registra viaggio e tappe"}
+            {viaggio ? tr("Rivedi viaggio") : arrivoRapportino ? tr("Completa l’arrivo del {giorno}", { giorno: formatData(arrivoRapportino.giorno) }) : tr("Registra viaggio e tappe")}
           </DialogTitle>
           <DialogDescription>
-            {context.data?.mezzo.nome ?? "Mezzo"} ·{" "}
+            {context.data?.mezzo.nome ?? tr("Mezzo")} ·{" "}
             {context.data?.mezzo.conducente
-              ? `In carico a ${context.data.mezzo.conducente}`
-              : "Conducente non assegnato"}
-            . Registra il viaggio una sola volta, anche se trasporti più
-            persone.
+              ? tr("In carico a {conducente}", { conducente: String(context.data.mezzo.conducente ?? "") })
+              : tr("Conducente non assegnato")}
+            {". "}{tr("Registra il viaggio una sola volta, anche se trasporti più persone.")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-5 overflow-y-auto px-4 py-4 sm:px-6">
           {context.isPending && (
-            <p role="status">Carico mezzo e cantieri accessibili…</p>
+            <p role="status">{tr("Carico mezzo e cantieri accessibili…")}</p>
           )}
           {context.isError && (
             <div
@@ -439,14 +441,13 @@ function ViaggioForm({
             >
               {context.error.message}{" "}
               <Button variant="outline" onClick={() => void context.refetch()}>
-                Riprova
+                {tr("Riprova")}
               </Button>
             </div>
           )}
           {storageError && (
             <p role="alert" className="text-sm text-amber-800">
-              Questo browser non conserva la bozza. Non chiudere prima del
-              salvataggio sul server.
+              {tr("Questo browser non conserva la bozza. Non chiudere prima del salvataggio sul server.")}
             </p>
           )}
           <fieldset
@@ -455,9 +456,9 @@ function ViaggioForm({
           >
             {context.data?.puo_verificare && (
               <div className="space-y-1">
-                <Label>Chi ha guidato questo viaggio?</Label>
+                <Label>{tr("Chi ha guidato questo viaggio?")}</Label>
                 <ViaggioSelect
-                  label="Conducente del viaggio"
+                  label={tr("Conducente del viaggio")}
                   value={dati.conducente_hr_id ?? ""}
                   onValueChange={(value) =>
                     update({ conducente: value || null })
@@ -471,15 +472,14 @@ function ViaggioForm({
                   ]}
                 />
                 <p className="text-xs text-slate-600">
-                  Per trovare altri conducenti, cerca per nome nel campo di
-                  ricerca qui sotto.
+                  {tr("Per trovare altri conducenti, cerca per nome nel campo di ricerca qui sotto.")}
                 </p>
               </div>
             )}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1 text-sm">
                 <span className="flex items-center justify-between">
-                  <Label htmlFor="viaggio-partenza">Partenza</Label>
+                  <Label htmlFor="viaggio-partenza">{tr("Partenza")}</Label>
                   {!arrivoRapportino && <Button
                     type="button"
                     variant="ghost"
@@ -488,11 +488,11 @@ function ViaggioForm({
                       update({ da: dateInput(new Date().toISOString()) })
                     }
                   >
-                    Partenza ora
+                    {tr("Partenza ora")}
                   </Button>}
                 </span>
                 <Input
-                  aria-label="Data e ora partenza"
+                  aria-label={tr("Data e ora partenza")}
                   id="viaggio-partenza"
                   type="datetime-local"
                   value={draft.da}
@@ -501,7 +501,7 @@ function ViaggioForm({
               </div>
               <div className="space-y-1 text-sm">
                 <span className="flex items-center justify-between">
-                  <Label htmlFor="viaggio-arrivo">Arrivo</Label>
+                  <Label htmlFor="viaggio-arrivo">{tr("Arrivo")}</Label>
                   {!arrivoRapportino && <Button
                     type="button"
                     variant="ghost"
@@ -510,11 +510,11 @@ function ViaggioForm({
                       update({ a: dateInput(new Date().toISOString()) })
                     }
                   >
-                    Arrivo ora
+                    {tr("Arrivo ora")}
                   </Button>}
                 </span>
                 <Input
-                  aria-label="Data e ora arrivo"
+                  aria-label={tr("Data e ora arrivo")}
                   id="viaggio-arrivo"
                   type="datetime-local"
                   value={draft.a}
@@ -524,55 +524,49 @@ function ViaggioForm({
             </div>
             <details className="rounded-xl border bg-slate-50 p-3">
               <summary className="cursor-pointer text-sm font-semibold">
-                Contachilometri iniziale e finale (facoltativi)
+                {tr("Contachilometri iniziale e finale (facoltativi)")}
               </summary>
-              <p className="mb-3 mt-2 text-xs text-slate-600">
-                Facoltativo: inserisci entrambi, senza punti delle migliaia.
-                Ultimo valore in anagrafica:{" "}
-                {number(context.data?.mezzo.contatore ?? null)} km; potrebbe non
-                essere aggiornato.
-              </p>
+              <p className="mb-3 mt-2 text-xs text-slate-600">{tr("Facoltativo: inserisci entrambi, senza punti delle migliaia. Ultimo valore in anagrafica: {valore} km; potrebbe non essere aggiornato.", { valore: String(number(context.data?.mezzo.contatore ?? null) ?? "") })}</p>
               <div className="grid grid-cols-2 gap-3">
                 <label className="space-y-1 text-sm">
-                  Iniziale
+                  {tr("Iniziale")}
                   <Input
-                    aria-label="Contachilometri iniziale"
+                    aria-label={tr("Contachilometri iniziale")}
                     inputMode="decimal"
                     value={draft.ci}
                     onChange={(e) => update({ ci: e.target.value })}
-                    placeholder="es. 84210"
+                    placeholder={tr("es. 84210")}
                   />
                 </label>
                 <label className="space-y-1 text-sm">
-                  Finale
+                  {tr("Finale")}
                   <Input
-                    aria-label="Contachilometri finale"
+                    aria-label={tr("Contachilometri finale")}
                     inputMode="decimal"
                     value={draft.cf}
                     onChange={(e) => update({ cf: e.target.value })}
-                    placeholder="es. 84290"
+                    placeholder={tr("es. 84290")}
                   />
                 </label>
               </div>
             </details>
             <details className="rounded-xl border p-3">
               <summary className="cursor-pointer text-sm font-medium">
-                Cerca altri cantieri
-                {context.data?.puo_verificare ? " o conducenti" : ""}
+                {context.data?.puo_verificare ? tr("Cerca altri cantieri o conducenti") : tr("Cerca altri cantieri")}
               </summary>
               <div className="mt-2 space-y-2">
                 <Label htmlFor="viaggio-cantieri-search">
-                  Cerca cantieri o conducenti
+                  {tr("Cerca cantieri o conducenti")}
                 </Label>
                 <Input
                   id="viaggio-cantieri-search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Codice o indirizzo, anche per ritiri e consegne…"
+                  placeholder={tr("Codice o indirizzo, anche per ritiri e consegne…")}
                 />
                 {context.data?.altri_cantieri && (
                   <p className="text-xs text-slate-600">
-                    Mostrati 50 cantieri: cerca per trovare gli altri.
+                    {tr("Mostrati 50 cantieri: cerca per trovare gli altri.")}
                   </p>
                 )}
               </div>
@@ -584,11 +578,11 @@ function ViaggioForm({
                   className="space-y-3 rounded-2xl border bg-white p-3 sm:p-4"
                 >
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">Tratta {i + 1}</h3>
+                    <h3 className="text-sm font-semibold">{tr("Tratta {i}", { i: i + 1 })}</h3>
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label={`Elimina tratta ${i + 1}`}
+                      aria-label={tr("Elimina tratta {i}", { i: i + 1 })}
                       disabled={draft.tratte.length === 1}
                       onClick={() =>
                         update({
@@ -601,9 +595,9 @@ function ViaggioForm({
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1 text-sm">
-                      <span>Da</span>
+                      <span>{tr("Da")}</span>
                       <TappaInput
-                        label={`Partenza tratta ${i + 1}`}
+                        label={tr("Partenza tratta {i}", { i: i + 1 })}
                         value={t.da}
                         onChange={(value) => row(t.id, { da: value })}
                         cantieri={context.data?.cantieri ?? []}
@@ -612,7 +606,7 @@ function ViaggioForm({
                     <div className="space-y-1 text-sm">
                       <span>A</span>
                       <TappaInput
-                        label={`Destinazione tratta ${i + 1}`}
+                        label={tr("Destinazione tratta {i}", { i: i + 1 })}
                         value={t.a}
                         onChange={(value) => row(t.id, { a: value })}
                         cantieri={context.data?.cantieri ?? []}
@@ -620,7 +614,7 @@ function ViaggioForm({
                     </div>
                   </div>
                   <ViaggioSelect
-                    label={`Attribuzione tratta ${i + 1}`}
+                    label={tr("Attribuzione tratta {i}", { i: i + 1 })}
                     value={t.order_id ?? t.destinazione}
                     onValueChange={(value) =>
                       row(
@@ -644,7 +638,7 @@ function ViaggioForm({
                         ? [
                             {
                               value: t.order_id,
-                              label: "Commessa già collegata",
+                              label: tr("Commessa già collegata"),
                             },
                           ]
                         : []),
@@ -656,15 +650,15 @@ function ViaggioForm({
                   />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="space-y-1 text-sm">
-                      Km della tratta
+                      {tr("Km della tratta")}
                       <Input
-                        aria-label={`Km tratta ${i + 1}`}
+                        aria-label={tr("Km tratta {i}", { i: i + 1 })}
                         inputMode="decimal"
                         value={t.km}
                         onChange={(e) =>
                           row(t.id, { km: e.target.value, fonte: "dichiarati" })
                         }
-                        placeholder="Da completare"
+                        placeholder={tr("Da completare")}
                       />
                     </label>
                     <Button
@@ -674,33 +668,33 @@ function ViaggioForm({
                       onClick={() => void stima(t)}
                     >
                       <Route className="mr-1 h-4 w-4" />
-                      {routing === t.id ? "Calcolo…" : "Stima percorso"}
+                      {routing === t.id ? tr("Calcolo…") : tr("Stima percorso")}
                     </Button>
                   </div>
                   <p className="text-xs text-slate-600">
                     {t.fonte === "stimati"
-                      ? "Km stimati, da verificare"
-                      : "Km dichiarati da chi guida"}
+                      ? tr("Km stimati, da verificare")
+                      : tr("Km dichiarati da chi guida")}
                   </p>
                   <details className="rounded-xl border p-2.5">
                     <summary className="cursor-pointer text-xs font-medium">
-                      Tempi e tipo di km
+                      {tr("Tempi e tipo di km")}
                     </summary>
                     <div className="mt-3 space-y-3">
                       <label className="block space-y-1 text-sm">
-                        Minuti di viaggio
+                        {tr("Minuti di viaggio")}
                         <Input
-                          aria-label={`Minuti tratta ${i + 1}`}
+                          aria-label={tr("Minuti tratta {i}", { i: i + 1 })}
                           inputMode="decimal"
                           value={t.minuti}
                           onChange={(e) =>
                             row(t.id, { minuti: e.target.value })
                           }
-                          placeholder="Facoltativi"
+                          placeholder={tr("Facoltativi")}
                         />
                       </label>
                       <ViaggioSelect
-                        label={`Fonte km tratta ${i + 1}`}
+                        label={tr("Fonte km tratta {i}", { i: i + 1 })}
                         value={t.fonte}
                         onValueChange={(value) =>
                           row(t.id, { fonte: value as Riga["fonte"] })
@@ -724,23 +718,23 @@ function ViaggioForm({
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" disabled={draft.tratte.length >= 30} onClick={() =>
                 update({ tratte: [...draft.tratte, nuovaTratta(ultima?.a)] })
-              }><Plus className="mr-1 h-4 w-4" /> Aggiungi tappa / tratta</Button>
+              }><Plus className="mr-1 h-4 w-4" /> {tr("Aggiungi tappa / tratta")}</Button>
               {aggiungiRientro && <Button type="button" variant="outline" onClick={() => {
                 const ordini = [...new Set(draft.tratte.flatMap(t => t.order_id ? [t.order_id] : []))];
                 const order_id = ordini.length === 1 ? ordini[0] : null;
                 update({ tratte: [...draft.tratte, { ...nuovaTratta(destinazioneUltima), a: partenzaGiro!,
                   order_id, destinazione: order_id ? "commessa" : "generale" }] });
-              }}><Undo2 className="mr-1 h-4 w-4" /> Aggiungi rientro</Button>}
+              }}><Undo2 className="mr-1 h-4 w-4" /> {tr("Aggiungi rientro")}</Button>}
             </div>
-            <p className="text-xs text-slate-600">Stima o inserisci i km di ogni tratta, compreso il rientro. Puoi aggiornare i km effettivi prima della verifica.</p>
+            <p className="text-xs text-slate-600">{tr("Stima o inserisci i km di ogni tratta, compreso il rientro. Puoi aggiornare i km effettivi prima della verifica.")}</p>
             <details className="rounded-xl border p-3">
               <summary className="cursor-pointer text-sm font-medium">
-                Note viaggio (facoltative)
+                {tr("Note viaggio (facoltative)")}
               </summary>
               <label className="mt-2 block space-y-1 text-sm">
-                Note
+                {tr("Note")}
                 <textarea
-                  aria-label="Note viaggio"
+                  aria-label={tr("Note viaggio")}
                   className="min-h-20 w-full rounded-xl border p-3"
                   maxLength={2000}
                   value={draft.note}
@@ -750,29 +744,27 @@ function ViaggioForm({
             </details>
             {context.data?.vede_costi && context.data.puo_verificare && (
               <label className="block space-y-1 text-sm">
-                Tariffa gestionale €/km (facoltativa)
+                {tr("Tariffa gestionale €/km (facoltativa)")}
                 <Input
-                  aria-label="Tariffa gestionale al km"
+                  aria-label={tr("Tariffa gestionale al km")}
                   inputMode="decimal"
                   value={draft.tariffa}
                   onChange={(e) => update({ tariffa: e.target.value })}
                 />
                 <span className="block text-xs text-slate-600">
-                  Tariffa onnicomprensiva, senza sommare di nuovo carburante e
-                  quote già incluse. È una simulazione gestionale, non un costo
-                  contabile.
+                  {tr("Tariffa onnicomprensiva, senza sommare di nuovo carburante e quote già incluse. È una simulazione gestionale, non un costo contabile.")}
                 </span>
               </label>
             )}
             {viaggio && context.data?.puo_verificare && (
               <label className="block space-y-1 text-sm">
-                Motivo rettifica o annullamento
+                {tr("Motivo rettifica o annullamento")}
                 <Input
-                  aria-label="Motivo rettifica"
+                  aria-label={tr("Motivo rettifica")}
                   maxLength={1000}
                   value={motivo}
                   onChange={(e) => setMotivo(e.target.value)}
-                  placeholder="Obbligatorio per modificare verificati o annullare"
+                  placeholder={tr("Obbligatorio per modificare verificati o annullare")}
                 />
               </label>
             )}
@@ -782,36 +774,28 @@ function ViaggioForm({
             className="space-y-1 rounded-xl bg-blue-50 p-3 text-sm text-blue-950"
           >
             <p>
-              <strong>{number(summary.km)} km</strong> nelle tratte ·{" "}
-              {summary.mancanti} da misurare · {summary.daAttribuire} da
-              attribuire
+              <strong>{tr("{km} km", { km: String(number(summary.km) ?? "") })}</strong> {tr("nelle tratte · {mancanti} da misurare · {daAttribuire} da attribuire", { mancanti: summary.mancanti, daAttribuire: summary.daAttribuire })}
             </p>
-            <p>
-              Dichiarati: {number(summary.kmDichiarati)} km · Stimati:{" "}
-              {number(summary.kmStimati)} km
-            </p>
+            <p>{tr("Dichiarati: {kmDichiarati} km · Stimati: {kmStimati} km", { kmDichiarati: String(number(summary.kmDichiarati) ?? ""), kmStimati: String(number(summary.kmStimati) ?? "") })}</p>
             {context.data?.vede_costi && user?.id && giornoPrezzo && kmStima != null && dati.tariffa_km == null && (
               <StimaCarburanteViaggio company={companyId} mezzo={mezzoId} giorno={giornoPrezzo} km={kmStima}
                 parziale={summary.delta == null && summary.mancanti > 0} />
             )}
             {summary.tappeDiscontinue && (
               <p>
-                Il percorso ha un’interruzione tra le tappe: aggiungi la tratta
-                mancante o correggi i luoghi.
+                {tr("Il percorso ha un’interruzione tra le tappe: aggiungi la tratta mancante o correggi i luoghi.")}
               </p>
             )}
             {summary.tempiIncoerenti && (
               <p>
-                La somma dei minuti di viaggio supera l’intervallo tra partenza
-                e arrivo.
+                {tr("La somma dei minuti di viaggio supera l’intervallo tra partenza e arrivo.")}
               </p>
             )}
             {summary.delta != null && (
               <p>
-                Contachilometri: {number(summary.delta)} km · Scarto rispetto
-                alle tratte: {number(summary.scarto)} km
+                {tr("Contachilometri: {delta} km · Scarto rispetto alle tratte: {scarto} km", { delta: number(summary.delta), scarto: number(summary.scarto) })}
                 {summary.scarto != null && Math.abs(summary.scarto) > 0.1
-                  ? " — da chiarire, non ripartito automaticamente"
+                  ? ` ${tr("— da chiarire, non ripartito automaticamente")}`
                   : ""}
               </p>
             )}
@@ -827,22 +811,19 @@ function ViaggioForm({
             <p
               role="alert"
               className="rounded-xl border border-red-200 p-3 text-sm text-red-800"
-            >
-              {save.error.message} La compilazione è rimasta aperta: non creare
-              un nuovo viaggio se stai riprovando lo stesso invio.
-            </p>
+            >{tr("{message} La compilazione è rimasta aperta: non creare un nuovo viaggio se stai riprovando lo stesso invio.", { message: String(save.error.message ?? "") })}</p>
           )}
         </div>
         <DialogFooter className="shrink-0 flex-wrap gap-2 border-t bg-white px-4 py-3 sm:px-6">
           <Button variant="ghost" disabled={busy} onClick={onClose}>
-            Chiudi
+            {tr("Chiudi")}
           </Button>
           <Button
             variant="outline"
             disabled={!canSave}
             onClick={() => void submit("salva")}
           >
-            {locked ? "Riapri come bozza" : "Salva bozza"}
+            {locked ? tr("Riapri come bozza") : tr("Salva bozza")}
           </Button>
           {context.data?.puo_verificare && viaggio && (
             <Button
@@ -850,7 +831,7 @@ function ViaggioForm({
               disabled={!canSave || motivo.trim().length < 5}
               onClick={() => void submit("annulla")}
             >
-              Annulla viaggio
+              {tr("Annulla viaggio")}
             </Button>
           )}
           {context.data?.puo_verificare ? (
@@ -860,11 +841,11 @@ function ViaggioForm({
               }
               onClick={() => void submit("verifica")}
             >
-              Verifica viaggio
+              {tr("Verifica viaggio")}
             </Button>
           ) : (
             <Button disabled={!canSave} onClick={() => void submit("invia")}>
-              Invia all’ufficio
+              {tr("Invia all’ufficio")}
             </Button>
           )}
         </DialogFooter>
@@ -877,11 +858,12 @@ function ViaggioForm({
 function StimaCarburanteViaggio({ company, mezzo, giorno, km, parziale }: {
   company: string; mezzo: string; giorno: string; km: number; parziale: boolean;
 }) {
+  const t = useT();
   const { data } = useCarburanteMezzo(company, mezzo, giorno);
   const consumo = data?.consumo?.litri_100;
   const prezzoLitro = data?.stima?.euro_litro;
   if (consumo == null || prezzoLitro == null) return null;
-  return <p>Carburante {parziale ? "parziale" : "stimato"} · <strong>{formatCurrency(km * consumo / 100 * prezzoLitro)}</strong>
-    {" "}su {km.toLocaleString("it-IT", { maximumFractionDigits: 2 })} km · {data.stima?.fonte === "mimit" ? "media MIMIT" : "prezzo aziendale"} al netto IVA
+  return <p>{parziale ? t("Carburante parziale") : t("Carburante stimato")} · <strong>{formatCurrency(km * consumo / 100 * prezzoLitro)}</strong>
+    {" "}{t("su {km} km ·", { km: km.toLocaleString(intlCampo(), { maximumFractionDigits: 2 }) })} {data.stima?.fonte === "mimit" ? t("media MIMIT") : t("prezzo aziendale")} {t("al netto IVA")}
   </p>;
 }

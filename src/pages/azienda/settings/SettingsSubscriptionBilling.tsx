@@ -36,7 +36,6 @@ import { useBillingInfo, useInvoices, useOpenBillingPortal, useTopPlanPrice, use
 import { useBillingDetails } from "@/hooks/useBillingDetails";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { BillingDetailsCard } from "@/components/billing/BillingDetailsCard";
 import { PlanChangeDialog, CancelPlanDialog } from "@/components/billing/PlanChangeDialog";
 import { EMAIL_ASSISTENZA } from "@/lib/impostazioni/contattiEdiliziaInCloud";
@@ -44,6 +43,7 @@ import { EMAIL_ASSISTENZA } from "@/lib/impostazioni/contattiEdiliziaInCloud";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AvvisoSoloDaComputer } from "@/components/mobile/SoloDaComputer";
 import { SpazioArchiviazioneCard } from "@/components/billing/SpazioArchiviazioneCard";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 // Lazy-load contenuto Portafoglio (la pagina Crediti & Saldo ha già tutta la logica)
 const SettingsCrediti = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
 
@@ -61,7 +61,7 @@ const PAGAMENTO_A_PARTE: Record<string, string> = {
    UTILITY
 ═══════════════════════════════════════════════════════════════════════════ */
 function formatEurCents(centesimi: number, currency = "eur"): string {
-  return new Intl.NumberFormat("it-IT", {
+  return new Intl.NumberFormat(intlCampo(), {
     style: "currency",
     currency: currency.toUpperCase(), useGrouping: "always" }).format(centesimi / 100);
 }
@@ -72,8 +72,8 @@ function formatPeriod(start: string | null, end: string | null): string {
   const e = new Date(end);
   // Stripe sulla prima fattura mette period_start = period_end (stesso giorno):
   // "15 lug 2026 → 15 lug 2026" è rumore, mostriamo la sola data.
-  if (s.toDateString() === e.toDateString()) return format(s, "d MMM yyyy", { locale: it });
-  return `${format(s, "d MMM yyyy", { locale: it })} → ${format(e, "d MMM yyyy", { locale: it })}`;
+  if (s.toDateString() === e.toDateString()) return format(s, "d MMM yyyy", { locale: dateFnsCampo() });
+  return `${format(s, "d MMM yyyy", { locale: dateFnsCampo() })} → ${format(e, "d MMM yyyy", { locale: dateFnsCampo() })}`;
 }
 
 /** Restituisce label + colore brand pulito (visa, mastercard, amex…). */
@@ -94,17 +94,18 @@ function brandLabel(brand?: string): { label: string; className: string } {
 
 /** Lo stato di una fattura di Stripe, in parole: prima «aperta» diventava «In scadenza» e il resto usciva grezzo. */
 function StatoFattura({ stato }: { stato: string }) {
-  if (stato === "paid") return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px]">Pagata</Badge>;
+  const t = useT();
+  if (stato === "paid") return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px]">{t("Pagata")}</Badge>;
   const etichette: Record<string, string> = {
     open: "Da pagare",
     draft: "Bozza",
     void: "Annullata",
     uncollectible: "Non incassata",
   };
-  return <Badge variant={stato === "open" ? "secondary" : "outline"} className="text-[10px]">{etichette[stato] ?? "In elaborazione"}</Badge>;
+  return <Badge variant={stato === "open" ? "secondary" : "outline"} className="text-[10px]">{etichette[stato] ? t(etichette[stato]) : t("In elaborazione")}</Badge>;
 }
 
-function companyStatusBadge(status: string) {
+function companyStatusBadge(status: string, t: (testo: string) => string) {
   const map: Record<string, { label: string; className: string }> = {
     trial:     { label: "Periodo di prova", className: "bg-blue-100 text-blue-700 border-blue-200" },
     active:    { label: "Attivo",           className: "bg-emerald-100 text-emerald-700 border-emerald-200" },
@@ -115,7 +116,7 @@ function companyStatusBadge(status: string) {
   const cfg = map[status] ?? { label: status, className: "" };
   return (
     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${cfg.className}`}>
-      {cfg.label}
+      {t(cfg.label)}
     </span>
   );
 }
@@ -124,6 +125,7 @@ function companyStatusBadge(status: string) {
    TAB 1 — ABBONAMENTI
 ═══════════════════════════════════════════════════════════════════════════ */
 function TabAbbonamenti() {
+  const t = useT();
   const { data: billing, isLoading } = useBillingInfo();
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
   const { mutate: attivaAbbonamento, isPending: attivazioneInCorso } = useStartPlanCheckout();
@@ -156,15 +158,14 @@ function TabAbbonamenti() {
       <Card>
         <CardContent className="pt-6 space-y-4">
           <div>
-            <h2 className="text-xl font-bold tracking-tight">Il tuo abbonamento</h2>
+            <h2 className="text-xl font-bold tracking-tight">{t("Il tuo abbonamento")}</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Non riusciamo a caricare i dettagli del piano in questo momento. Puoi comunque
-              gestire pagamento e cancellazione dal portale sicuro.
+              {t("Non riusciamo a caricare i dettagli del piano in questo momento. Puoi comunque gestire pagamento e cancellazione dal portale sicuro.")}
             </p>
           </div>
           <Button onClick={() => openPortal()} disabled={isPending} className="gap-1.5">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-            Gestisci abbonamento
+            {t("Gestisci abbonamento")}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </CardContent>
@@ -173,7 +174,7 @@ function TabAbbonamenti() {
   }
 
   const priceLabel = billing.planPriceMonthly === 0
-    ? "Gratuito"
+    ? t("Gratuito")
     : formatCurrency(billing.planPriceMonthly);
   const isYearly = billing.billingCycle === "yearly";
   const daAttivare = abbonamentoDaAttivare(billing) && !appenaPagato;
@@ -187,14 +188,14 @@ function TabAbbonamenti() {
             <div>
               <h2 className="text-2xl font-bold tracking-tight">{billing.planName}</h2>
               <div className="mt-1 flex items-center gap-2 flex-wrap">
-                <p className="text-sm text-muted-foreground">Gestisci il tuo piano</p>
-                {companyStatusBadge(billing.status)}
+                <p className="text-sm text-muted-foreground">{t("Gestisci il tuo piano")}</p>
+                {companyStatusBadge(billing.status, t)}
               </div>
             </div>
             <div className="text-right">
               <div className="flex items-baseline gap-1 justify-end">
                 <span className="text-4xl font-bold tabular-nums">{priceLabel}</span>
-                <span className="text-sm text-muted-foreground">/ {isYearly ? "anno" : "mese"}</span>
+                <span className="text-sm text-muted-foreground">/ {isYearly ? t("anno") : t("mese")}</span>
               </div>
             </div>
           </div>
@@ -206,10 +207,8 @@ function TabAbbonamenti() {
               <div className="flex items-start gap-3 flex-1 min-w-0">
                 <CreditCard className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div className="min-w-0">
-                  <p className="font-semibold text-sm">Abbonamento da attivare</p>
-                  <p className="text-xs text-muted-foreground">
-                    {priceLabel} al mese, con carta o addebito SEPA sulla pagina sicura di Stripe.
-                  </p>
+                  <p className="font-semibold text-sm">{t("Abbonamento da attivare")}</p>
+                  <p className="text-xs text-muted-foreground">{t("{priceLabel} al mese, con carta o addebito SEPA sulla pagina sicura di Stripe.", { priceLabel: String(priceLabel ?? "") })}</p>
                 </div>
               </div>
               <Button
@@ -218,7 +217,7 @@ function TabAbbonamenti() {
                 className="w-full sm:w-auto shrink-0"
               >
                 {attivazioneInCorso ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
-                Attiva abbonamento
+                {t("Attiva abbonamento")}
               </Button>
             </div>
           )}
@@ -226,7 +225,7 @@ function TabAbbonamenti() {
             <Alert className="mt-5">
               <Clock className="h-4 w-4" />
               <AlertDescription>
-                Pagamento ricevuto: l'abbonamento si attiva in pochi secondi. Ricarica la pagina per vederlo attivo.
+                {t("Pagamento ricevuto: l'abbonamento si attiva in pochi secondi. Ricarica la pagina per vederlo attivo.")}
               </AlertDescription>
             </Alert>
           )}
@@ -251,15 +250,15 @@ function TabAbbonamenti() {
                     <Gift className="h-5 w-5 text-emerald-600" />
                   </div>
                   <div className="min-w-0">
-                    <p className="font-semibold text-sm">Risparmia {savingLabel} con l'annuale</p>
+                    <p className="font-semibold text-sm">{t("Risparmia {savingLabel} con l'annuale", { savingLabel: String(savingLabel ?? "") })}</p>
                     <p className="text-xs text-muted-foreground">
-                      Passa al ciclo annuale dal portale Stripe — confermi tu il cambio prima del pagamento.
+                      {t("Passa al ciclo annuale dal portale Stripe — confermi tu il cambio prima del pagamento.")}
                     </p>
                   </div>
                 </div>
                 <Button onClick={() => openPortal()} disabled={isPending} className="w-full sm:w-auto shrink-0">
                   {isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
-                  Passa all'annuale
+                  {t("Passa all'annuale")}
                 </Button>
               </div>
             );
@@ -270,21 +269,19 @@ function TabAbbonamenti() {
           {billing.status === "trial" && billing.trialEndsAt && (() => {
             const trialEnd = new Date(billing.trialEndsAt);
             const isExpired = trialEnd.getTime() < Date.now();
-            const dateLabel = format(trialEnd, "d MMMM yyyy", { locale: it });
+            const dateLabel = format(trialEnd, "d MMMM yyyy", { locale: dateFnsCampo() });
             return isExpired ? (
               <Alert variant="destructive" className="mt-5">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  Il periodo di prova è terminato il <strong>{dateLabel}</strong>.
-                  Aggiungi un metodo di pagamento per riattivare i servizi.
+                  {t("Il periodo di prova è terminato il")} <strong>{dateLabel}</strong>{t(". Aggiungi un metodo di pagamento per riattivare i servizi.")}
                 </AlertDescription>
               </Alert>
             ) : (
               <Alert className="mt-5">
                 <Clock className="h-4 w-4" />
                 <AlertDescription>
-                  Il periodo di prova termina il <strong>{dateLabel}</strong>.
-                  Aggiungi un metodo di pagamento per continuare senza interruzioni.
+                  {t("Il periodo di prova termina il")} <strong>{dateLabel}</strong>{t(". Aggiungi un metodo di pagamento per continuare senza interruzioni.")}
                 </AlertDescription>
               </Alert>
             );
@@ -296,15 +293,14 @@ function TabAbbonamenti() {
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
                 <p>
-                  Il tuo ultimo pagamento non è andato a buon fine. Hai ancora <strong>{billing.dunningDaysLeft} giorni</strong> per
-                  aggiornare il metodo di pagamento ed evitare la sospensione dell'account.
+                  {t("Il tuo ultimo pagamento non è andato a buon fine. Hai ancora")} <strong>{t("{n} giorni", { n: String(billing.dunningDaysLeft ?? "") })}</strong> {t("per aggiornare il metodo di pagamento ed evitare la sospensione dell'account.")}
                 </p>
                 <Button
                   size="sm" variant="destructive" className="mt-2 gap-1.5"
                   onClick={() => openPortal()} disabled={isPending}
                 >
                   {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
-                  Riprova il pagamento
+                  {t("Riprova il pagamento")}
                 </Button>
               </AlertDescription>
             </Alert>
@@ -315,9 +311,8 @@ function TabAbbonamenti() {
             <Alert className="mt-5 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900">
               <Clock className="h-4 w-4" />
               <AlertDescription>
-                Abbonamento in <strong>cancellazione</strong>: resta attivo
-                {billing.currentPeriodEnd ? <> fino al <strong>{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}</strong></> : " fino a fine periodo"},
-                poi non verrà rinnovato. Puoi riattivarlo dal portale prima di quella data.
+                {t("Abbonamento in")} <strong>{t("cancellazione")}</strong>{t(": resta attivo")}
+                {billing.currentPeriodEnd ? <> {t("fino al")} <strong>{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: dateFnsCampo() })}</strong></> : ` ${t("fino a fine periodo")}`}{t(", poi non verrà rinnovato. Puoi riattivarlo dal portale prima di quella data.")}
               </AlertDescription>
             </Alert>
           )}
@@ -327,21 +322,21 @@ function TabAbbonamenti() {
             <div className="mt-5 grid gap-3 sm:grid-cols-3 rounded-lg border bg-muted/30 p-3">
               {billing.currentPeriodStart && (
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Inizio periodo</p>
-                  <p className="text-sm font-semibold">{format(new Date(billing.currentPeriodStart), "d MMM yyyy", { locale: it })}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("Inizio periodo")}</p>
+                  <p className="text-sm font-semibold">{format(new Date(billing.currentPeriodStart), "d MMM yyyy", { locale: dateFnsCampo() })}</p>
                 </div>
               )}
               {billing.currentPeriodEnd && (
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                    {billing.cancelAtPeriodEnd ? "Scade il" : "Prossima fattura"}
+                    {billing.cancelAtPeriodEnd ? t("Scade il") : t("Prossima fattura")}
                   </p>
-                  <p className="text-sm font-semibold">{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}</p>
+                  <p className="text-sm font-semibold">{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: dateFnsCampo() })}</p>
                 </div>
               )}
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Ciclo</p>
-                <p className="text-sm font-semibold">{isYearly ? "Annuale" : "Mensile"}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("Ciclo")}</p>
+                <p className="text-sm font-semibold">{isYearly ? t("Annuale") : t("Mensile")}</p>
               </div>
             </div>
           )}
@@ -356,12 +351,12 @@ function TabAbbonamenti() {
               className="gap-1.5 w-full sm:w-auto justify-center sm:justify-start"
             >
               <CreditCard className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Cambia o annulla il piano</span>
-              <span className="sm:hidden">Gestisci abbonamento</span>
+              <span className="hidden sm:inline">{t("Cambia o annulla il piano")}</span>
+              <span className="sm:hidden">{t("Gestisci abbonamento")}</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
             <p className="text-xs text-muted-foreground text-center sm:text-left">
-              Hai una domanda? <a href={`mailto:${EMAIL_ASSISTENZA}`} className="text-primary hover:underline">Scrivici</a>
+              {t("Hai una domanda?")} <a href={`mailto:${EMAIL_ASSISTENZA}`} className="text-primary hover:underline">{t("Scrivici")}</a>
             </p>
           </div>
         </CardContent>
@@ -377,14 +372,14 @@ function TabAbbonamenti() {
             <div>
               <h3 className="font-semibold flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-orange-600" />
-                Vuoi più funzionalità?
+                {t("Vuoi più funzionalità?")}
               </h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Esplora i piani superiori per sbloccare AI, multi-sede, banca PSD2 e molto altro.
+                {t("Esplora i piani superiori per sbloccare AI, multi-sede, banca PSD2 e molto altro.")}
               </p>
             </div>
             <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={() => navigate("/prezzi")}>
-              Vedi tutti i piani
+              {t("Vedi tutti i piani")}
               <ArrowRight className="h-4 w-4 ml-1.5" />
             </Button>
           </CardContent>
@@ -395,8 +390,8 @@ function TabAbbonamenti() {
       <Dialog open={modifyOpen} onOpenChange={setModifyOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Modifica abbonamento</DialogTitle>
-            <DialogDescription>Scegli cosa vuoi fare con il tuo piano.</DialogDescription>
+            <DialogTitle>{t("Modifica abbonamento")}</DialogTitle>
+            <DialogDescription>{t("Scegli cosa vuoi fare con il tuo piano.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             {/* Upgrade — evidenziato */}
@@ -405,11 +400,11 @@ function TabAbbonamenti() {
                 <ArrowUpRight className="h-5 w-5 text-emerald-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm">Passa a un piano superiore</p>
-                <p className="text-xs text-muted-foreground">Più funzioni da subito. Ora paghi {priceLabel} / {isYearly ? "anno" : "mese"}.</p>
+                <p className="font-semibold text-sm">{t("Passa a un piano superiore")}</p>
+                <p className="text-xs text-muted-foreground">{isYearly ? t("Più funzioni da subito. Ora paghi {prezzo} / anno.", { prezzo: priceLabel }) : t("Più funzioni da subito. Ora paghi {prezzo} / mese.", { prezzo: priceLabel })}</p>
               </div>
               <Button size="sm" className="shrink-0" onClick={() => { setModifyOpen(false); setPlanDialog("upgrade"); }}>
-                Scegli il piano
+                {t("Scegli il piano")}
               </Button>
             </div>
             {/* Downgrade */}
@@ -422,8 +417,8 @@ function TabAbbonamenti() {
                 <ArrowDownRight className="h-5 w-5 text-amber-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm">Passa a un piano più economico</p>
-                <p className="text-xs text-muted-foreground">Scegli un piano che costa meno</p>
+                <p className="font-semibold text-sm">{t("Passa a un piano più economico")}</p>
+                <p className="text-xs text-muted-foreground">{t("Scegli un piano che costa meno")}</p>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
             </button>
@@ -437,8 +432,8 @@ function TabAbbonamenti() {
                 <XCircle className="h-5 w-5 text-rose-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm">Annulla il piano</p>
-                <p className="text-xs text-muted-foreground">Interrompi l'abbonamento</p>
+                <p className="font-semibold text-sm">{t("Annulla il piano")}</p>
+                <p className="text-xs text-muted-foreground">{t("Interrompi l'abbonamento")}</p>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
             </button>
@@ -461,6 +456,7 @@ function TabAbbonamenti() {
    TAB 2 — PAGAMENTI
 ═══════════════════════════════════════════════════════════════════════════ */
 function TabPagamenti() {
+  const t = useT();
   const isMobile = useIsMobile();
   const { data: billing } = useBillingInfo();
   const { data: invoices, isLoading: invoicesLoading } = useInvoices();
@@ -487,13 +483,13 @@ function TabPagamenti() {
           <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
           {billing.cancelAtPeriodEnd ? (
             <span>
-              Piano attivo fino al <strong>{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}</strong> — nessun rinnovo previsto.
+              {t("Piano attivo fino al")} <strong>{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: dateFnsCampo() })}</strong> {t("— nessun rinnovo previsto.")}
             </span>
           ) : (
             <span>
-              Prossimo addebito: <strong>{formatCurrency(billing.billingCycle === "yearly" ? billing.planPriceYearly : billing.planPriceMonthly)}</strong> il{" "}
-              <strong>{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}</strong>
-              {pm?.hasMethod && pm.last4 ? <> su {brandLabel(pm.brand).label} •••• {pm.last4}</> : null}
+              {t("Prossimo addebito:")} <strong>{formatCurrency(billing.billingCycle === "yearly" ? billing.planPriceYearly : billing.planPriceMonthly)}</strong> {t("il")}{" "}
+              <strong>{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: dateFnsCampo() })}</strong>
+              {pm?.hasMethod && pm.last4 ? <>{" "}{t("su {label} •••• {last4}", { label: String(brandLabel(pm.brand).label ?? ""), last4: String(pm.last4 ?? "") })}</> : null}
             </span>
           )}
         </div>
@@ -505,17 +501,17 @@ function TabPagamenti() {
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <CreditCard className="h-4 w-4 text-muted-foreground" />
-              Metodo di pagamento
+              {t("Metodo di pagamento")}
             </CardTitle>
             {/* Il portale Stripe esiste solo dopo il primo pagamento. */}
             {hasStripeCustomer && (
               <Button
                 variant="outline" size="sm" className="h-7 px-2 gap-1 text-xs"
                 onClick={() => openPortal()} disabled={isPending}
-                aria-label="Modifica metodo di pagamento"
+                aria-label={t("Modifica metodo di pagamento")}
               >
                 {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}
-                Gestisci
+                {t("Gestisci")}
               </Button>
             )}
           </CardHeader>
@@ -536,15 +532,15 @@ function TabPagamenti() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium flex items-center gap-2">
                     {brandLabel(pm.brand).label} •••• {pm.last4}
-                    <Badge variant="secondary" className="text-[10px] font-normal">Predefinita</Badge>
+                    <Badge variant="secondary" className="text-[10px] font-normal">{t("Predefinita")}</Badge>
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {pm.expMonth && pm.expYear ? (
-                      <>Scade {String(pm.expMonth).padStart(2, "0")}/{String(pm.expYear).slice(-2)}</>
+                      <>{t("Scade {valore}/{valore2}", { valore: String(pm.expMonth).padStart(2, "0"), valore2: String(pm.expYear).slice(-2) })}</>
                     ) : (
-                      "Carta registrata"
+                      t("Carta registrata")
                     )}
-                    {pm.funding ? ` · ${pm.funding === "credit" ? "Credito" : pm.funding === "debit" ? "Debito" : pm.funding}` : null}
+                    {pm.funding ? ` · ${pm.funding === "credit" ? t("Credito") : pm.funding === "debit" ? t("Debito") : pm.funding}` : null}
                   </p>
                 </div>
               </div>
@@ -554,33 +550,31 @@ function TabPagamenti() {
                   CARD
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium">Nessuna carta predefinita</p>
-                  <p className="text-xs text-muted-foreground">Aggiungi un metodo di pagamento dal portale Stripe.</p>
+                  <p className="text-sm font-medium">{t("Nessuna carta predefinita")}</p>
+                  <p className="text-xs text-muted-foreground">{t("Aggiungi un metodo di pagamento dal portale Stripe.")}</p>
                 </div>
               </div>
             ) : daAttivare ? (
               <div className="text-center py-4">
-                <p className="text-sm text-muted-foreground mb-3">
-                  Abbonamento da attivare: {formatCurrency(billing?.planPriceMonthly ?? 0)} al mese
-                </p>
+                <p className="text-sm text-muted-foreground mb-3">{t("Abbonamento da attivare: {valore} al mese", { valore: formatCurrency(billing?.planPriceMonthly ?? 0) })}</p>
                 <Button
                   size="sm"
                   onClick={() => billing?.planId && attivaAbbonamento({ planId: billing.planId })}
                   disabled={attivazioneInCorso}
                 >
                   {attivazioneInCorso ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
-                  Attiva abbonamento
+                  {t("Attiva abbonamento")}
                 </Button>
               </div>
             ) : pagamentoAParte ? (
-              <p className="text-sm text-muted-foreground text-center py-4">{pagamentoAParte}</p>
+              <p className="text-sm text-muted-foreground text-center py-4">{t(pagamentoAParte)}</p>
             ) : (
               <div className="text-center py-4">
-                <p className="text-sm text-muted-foreground mb-3">Nessun metodo di pagamento</p>
+                <p className="text-sm text-muted-foreground mb-3">{t("Nessun metodo di pagamento")}</p>
                 {/* Senza cliente Stripe il portale non si apre: la carta si aggiunge col checkout. */}
                 <Button size="sm" onClick={() => aggiungiCarta()} disabled={aggiuntaCartaInCorso}>
                   {aggiuntaCartaInCorso ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
-                  Aggiungi metodo di pagamento
+                  {t("Aggiungi metodo di pagamento")}
                 </Button>
               </div>
             )}
@@ -594,13 +588,13 @@ function TabPagamenti() {
             <button
               type="button"
               className="text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg"
-              aria-label="Apri modifica informazioni fiscali"
+              aria-label={t("Apri modifica informazioni fiscali")}
             >
               <Card className="transition-colors hover:bg-muted/40 h-full">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                    Informazioni fiscali
+                    {t("Informazioni fiscali")}
                   </CardTitle>
                   <Pencil className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                 </CardHeader>
@@ -610,7 +604,7 @@ function TabPagamenti() {
                     <div className="space-y-2">
                       {billingDetails.legal_name && (
                         <div>
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Ragione sociale</p>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("Ragione sociale")}</p>
                           <p className="text-sm font-medium truncate">{billingDetails.legal_name}</p>
                         </div>
                       )}
@@ -622,7 +616,7 @@ function TabPagamenti() {
                       )}
                       {(billingDetails.address_line1 || billingDetails.city) && (
                         <div>
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Sede legale</p>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("Sede legale")}</p>
                           <p className="text-sm font-medium truncate">
                             {[billingDetails.address_line1, [billingDetails.postal_code, billingDetails.city].filter(Boolean).join(" ")]
                               .filter(Boolean).join(", ")}
@@ -631,15 +625,15 @@ function TabPagamenti() {
                       )}
                       {billingDetails.invoice_email && (
                         <div>
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Email fatturazione</p>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("Email fatturazione")}</p>
                           <p className="text-sm font-medium truncate">{billingDetails.invoice_email}</p>
                         </div>
                       )}
                     </div>
                   ) : (
                     <div className="text-center py-4">
-                      <p className="text-sm text-muted-foreground mb-2">Nessuna informazione fiscale</p>
-                      <p className="text-xs text-muted-foreground">Clicca qui per compilare i dati di fatturazione.</p>
+                      <p className="text-sm text-muted-foreground mb-2">{t("Nessuna informazione fiscale")}</p>
+                      <p className="text-xs text-muted-foreground">{t("Clicca qui per compilare i dati di fatturazione.")}</p>
                     </div>
                   )}
                 </CardContent>
@@ -648,9 +642,9 @@ function TabPagamenti() {
           </DialogTrigger>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Dati di fatturazione</DialogTitle>
+              <DialogTitle>{t("Dati di fatturazione")}</DialogTitle>
               <DialogDescription>
-                Anagrafica fiscale completa usata per le fatture EdiliziaInCloud.
+                {t("Anagrafica fiscale completa usata per le fatture EdiliziaInCloud.")}
               </DialogDescription>
             </DialogHeader>
             <BillingDetailsCard />
@@ -665,9 +659,9 @@ function TabPagamenti() {
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 <Receipt className="h-4 w-4 text-muted-foreground" />
-                Cronologia dei pagamenti
+                {t("Cronologia dei pagamenti")}
               </CardTitle>
-              <CardDescription className="text-xs">Le fatture dell'abbonamento</CardDescription>
+              <CardDescription className="text-xs">{t("Le fatture dell'abbonamento")}</CardDescription>
             </div>
             <Button
               variant="link"
@@ -675,7 +669,7 @@ function TabPagamenti() {
               className="h-auto justify-start p-0 text-xs sm:justify-end"
               onClick={() => setSearchParams({ tab: "portafoglio" }, { replace: true })}
             >
-              Consumi dei crediti → Crediti
+              {t("Consumi dei crediti → Crediti")}
             </Button>
           </div>
         </CardHeader>
@@ -687,9 +681,9 @@ function TabPagamenti() {
           ) : !invoices || invoices.length === 0 ? (
             <div className="text-center py-12">
               <Receipt className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="font-medium">Nessun pagamento ancora registrato</p>
+              <p className="font-medium">{t("Nessun pagamento ancora registrato")}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                I pagamenti appariranno qui dopo il primo addebito.
+                {t("I pagamenti appariranno qui dopo il primo addebito.")}
               </p>
             </div>
           ) : (
@@ -701,7 +695,7 @@ function TabPagamenti() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className="text-sm font-semibold">
-                          {inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: it }) : "—"}
+                          {inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: dateFnsCampo() }) : "—"}
                         </span>
                         <StatoFattura stato={inv.status} />
                       </div>
@@ -716,7 +710,7 @@ function TabPagamenti() {
                       {/* Niente export su telefono. */}
                       {!isMobile && inv.invoicePdf && (
                         <Button
-                          variant="ghost" size="icon" aria-label="Scarica PDF fattura" className="h-8 w-8"
+                          variant="ghost" size="icon" aria-label={t("Scarica PDF fattura")} className="h-8 w-8"
                           onClick={() => window.open(inv.invoicePdf!, "_blank")}
                         >
                           <Download className="h-4 w-4" />
@@ -724,7 +718,7 @@ function TabPagamenti() {
                       )}
                       {inv.invoiceUrl && (
                         <Button
-                          variant="ghost" size="icon" aria-label="Apri fattura online" className="h-8 w-8"
+                          variant="ghost" size="icon" aria-label={t("Apri fattura online")} className="h-8 w-8"
                           onClick={() => window.open(inv.invoiceUrl!, "_blank")}
                         >
                           <ExternalLink className="h-4 w-4" />
@@ -742,11 +736,11 @@ function TabPagamenti() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Descrizione</TableHead>
-                      <TableHead className="text-right">Importo</TableHead>
-                      <TableHead>Stato</TableHead>
-                      <TableHead className="text-right">Azioni</TableHead>
+                      <TableHead>{t("Data")}</TableHead>
+                      <TableHead>{t("Descrizione")}</TableHead>
+                      <TableHead className="text-right">{t("Importo")}</TableHead>
+                      <TableHead>{t("Stato")}</TableHead>
+                      <TableHead className="text-right">{t("Azioni")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -754,11 +748,11 @@ function TabPagamenti() {
                       <TableRow key={inv.id}>
                         <TableCell className="text-sm whitespace-nowrap">
                           {inv.paidAt
-                            ? format(new Date(inv.paidAt), "d MMM yyyy", { locale: it })
-                            : inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: it }) : "—"}
+                            ? format(new Date(inv.paidAt), "d MMM yyyy", { locale: dateFnsCampo() })
+                            : inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: dateFnsCampo() }) : "—"}
                         </TableCell>
                         <TableCell>
-                          <p className="text-sm font-medium">Abbonamento {billing?.planName ?? ""}</p>
+                          <p className="text-sm font-medium">{t("Abbonamento")} {billing?.planName ?? ""}</p>
                           <p className="text-xs text-muted-foreground">{formatPeriod(inv.periodStart, inv.periodEnd)}</p>
                         </TableCell>
                         <TableCell className="font-semibold text-right tabular-nums">
@@ -779,13 +773,13 @@ function TabPagamenti() {
                                     <Button
                                       variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
                                       onClick={() => window.open(inv.invoicePdf!, "_blank")}
-                                      aria-label="Scarica PDF"
+                                      aria-label={t("Scarica PDF")}
                                     >
                                       <Download className="h-3.5 w-3.5" />
                                     </Button>
                                   )}
                                 </TooltipTrigger>
-                                <TooltipContent>Scarica PDF</TooltipContent>
+                                <TooltipContent>{t("Scarica PDF")}</TooltipContent>
                               </Tooltip>
                             )}
                             {inv.invoiceUrl && (
@@ -794,12 +788,12 @@ function TabPagamenti() {
                                   <Button
                                     variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
                                     onClick={() => window.open(inv.invoiceUrl!, "_blank")}
-                                    aria-label="Apri online"
+                                    aria-label={t("Apri online")}
                                   >
                                     <ExternalLink className="h-3.5 w-3.5" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Apri online</TooltipContent>
+                                <TooltipContent>{t("Apri online")}</TooltipContent>
                               </Tooltip>
                             )}
                           </div>
@@ -816,10 +810,10 @@ function TabPagamenti() {
       </Card>
 
       <p className="text-xs text-muted-foreground text-center">
-        I pagamenti sono gestiti in modo sicuro da{" "}
+        {t("I pagamenti sono gestiti in modo sicuro da")}{" "}
         <a href="https://stripe.com" target="_blank" rel="noopener noreferrer" className="underline">
-          Stripe
-        </a>. Non memorizziamo i dati della carta di credito.
+          {t("Stripe")}
+        </a>{t(". Non memorizziamo i dati della carta di credito.")}
       </p>
     </div>
   );
@@ -871,17 +865,18 @@ function localizzaMotivoRifiuto(reason: string | null): string {
 }
 
 function AutoTopupFailureBanner() {
+  const t = useT();
   const { data: failure } = useAutoTopupFailure();
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
 
   if (!failure) return null;
 
-  const motivo = localizzaMotivoRifiuto(failure.reason);
+  const motivo = t(localizzaMotivoRifiuto(failure.reason));
   const ultimo = failure.lastFailureAt
-    ? format(new Date(failure.lastFailureAt), "d MMM yyyy 'alle' HH:mm", { locale: it })
+    ? format(new Date(failure.lastFailureAt), "d MMM yyyy 'alle' HH:mm", { locale: dateFnsCampo() })
     : null;
   const prossimo = failure.nextAttemptAt
-    ? format(new Date(failure.nextAttemptAt), "d MMM yyyy", { locale: it })
+    ? format(new Date(failure.nextAttemptAt), "d MMM yyyy", { locale: dateFnsCampo() })
     : null;
 
   return (
@@ -893,18 +888,18 @@ function AutoTopupFailureBanner() {
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" aria-hidden="true" />
         <div className="flex-1 space-y-2">
           <div>
-            <h3 className="font-semibold text-rose-900 dark:text-rose-100">Ricarica automatica non riuscita</h3>
+            <h3 className="font-semibold text-rose-900 dark:text-rose-100">{t("Ricarica automatica non riuscita")}</h3>
             <p className="text-sm text-rose-800 dark:text-rose-200">
-              Abbiamo provato ad addebitare la tua carta per ricaricare il credito, ma {motivo}
-              {failure.failureCount > 1 ? ` (${failure.failureCount} tentativi)` : ""}.
-              {ultimo ? ` Ultimo tentativo il ${ultimo}.` : ""}
+              {t("Abbiamo provato ad addebitare la tua carta per ricaricare il credito, ma")} {motivo}
+              {failure.failureCount > 1 ? t(" ({failureCount} tentativi)", { failureCount: String(failure.failureCount ?? "") }) : ""}.
+              {ultimo ? t(" Ultimo tentativo il {ultimo}.", { ultimo: String(ultimo ?? "") }) : ""}
             </p>
             <p className="mt-1 text-sm text-rose-800 dark:text-rose-200">
               {failure.exhausted
-                ? "Abbiamo sospeso i tentativi automatici: aggiorna il metodo di pagamento per riattivarli."
+                ? t("Abbiamo sospeso i tentativi automatici: aggiorna il metodo di pagamento per riattivarli.")
                 : prossimo
-                  ? `Riproveremo automaticamente il ${prossimo}. Per non aspettare, aggiorna subito la carta.`
-                  : "Aggiorna il metodo di pagamento per riprovare subito."}
+                  ? t("Riproveremo automaticamente il {prossimo}. Per non aspettare, aggiorna subito la carta.", { prossimo: String(prossimo ?? "") })
+                  : t("Aggiorna il metodo di pagamento per riprovare subito.")}
             </p>
           </div>
           <Button
@@ -913,7 +908,7 @@ function AutoTopupFailureBanner() {
             className="gap-1.5 bg-rose-600 hover:bg-rose-700 text-white"
           >
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-            Aggiorna il metodo di pagamento
+            {t("Aggiorna il metodo di pagamento")}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
@@ -923,6 +918,7 @@ function AutoTopupFailureBanner() {
 }
 
 export default function SettingsSubscriptionBilling() {
+  const t = useT();
   const { isScopriPlan, isLoading: limitsLoading } = useSubscriptionLimits();
   const permissions = usePermissions();
   const canManagePlan = permissions.isAdmin;
@@ -952,33 +948,33 @@ export default function SettingsSubscriptionBilling() {
   }
 
   if (permissions.loadError || (!canManagePlan && !permissions.canViewBilling)) {
-    return <p role="alert">Non hai i permessi per accedere a questa sezione.</p>;
+    return <p role="alert">{t("Non hai i permessi per accedere a questa sezione.")}</p>;
   }
 
   const pianoScopri = (
       <div className="space-y-6">
         {/* Niente h1 — SettingsLayout monta già "Piano abbonamento" nell'header */}
-        <p className="text-muted-foreground">Stai usando il Piano Scopri gratuito.</p>
+        <p className="text-muted-foreground">{t("Stai usando il Piano Scopri gratuito.")}</p>
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-xl">🔍</div>
               <div>
-                <div className="font-semibold">Piano Scopri</div>
-                <div className="text-sm text-muted-foreground">Gratuito · Per sempre · Nessuna carta</div>
+                <div className="font-semibold">{t("Piano Scopri")}</div>
+                <div className="text-sm text-muted-foreground">{t("Gratuito · Per sempre · Nessuna carta")}</div>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card className="border-orange-200 bg-orange-50/50">
           <CardContent className="pt-6">
-            <h3 className="font-semibold mb-1">Pronto a fare sul serio?</h3>
+            <h3 className="font-semibold mb-1">{t("Pronto a fare sul serio?")}</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Starter a €127/mese: commesse illimitate, fatturazione SDI, banca PSD2, HR, magazzino. Trial 31 giorni.
+              {t("Starter a €127/mese: commesse illimitate, fatturazione SDI, banca PSD2, HR, magazzino. Trial 31 giorni.")}
             </p>
             <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => navigate("/prezzi")}>
               <Sparkles className="h-4 w-4 mr-1.5" />
-              Vedi tutti i piani
+              {t("Vedi tutti i piani")}
               <ArrowRight className="h-4 w-4 ml-1.5" />
             </Button>
           </CardContent>
@@ -996,25 +992,25 @@ export default function SettingsSubscriptionBilling() {
           {canManagePlan && <>
           <TabsTrigger value="abbonamenti" className="gap-1.5">
             <Layers className="h-3.5 w-3.5" />
-            Piano
+            {t("Piano")}
           </TabsTrigger>
           <TabsTrigger value="pagamenti" className="gap-1.5">
             <CreditCard className="h-3.5 w-3.5" />
-            Pagamenti
+            {t("Pagamenti")}
           </TabsTrigger>
           </>}
           <TabsTrigger value="portafoglio" className="gap-1.5">
             <Wallet className="h-3.5 w-3.5" />
-            Crediti
+            {t("Crediti")}
           </TabsTrigger>
         </TabsList>
 
         {canManagePlan && <>
           <TabsContent value="abbonamenti" className="mt-5">
-            {isMobile ? <AvvisoSoloDaComputer titolo="L'abbonamento si gestisce e si rinnova dal computer" /> : isScopriPlan ? pianoScopri : <TabAbbonamenti />}
+            {isMobile ? <AvvisoSoloDaComputer titolo={t("L'abbonamento si gestisce e si rinnova dal computer")} /> : isScopriPlan ? pianoScopri : <TabAbbonamenti />}
           </TabsContent>
           <TabsContent value="pagamenti" className="mt-5">
-            {isMobile ? <AvvisoSoloDaComputer titolo="I pagamenti dell'abbonamento si gestiscono dal computer" /> : <TabPagamenti />}
+            {isMobile ? <AvvisoSoloDaComputer titolo={t("I pagamenti dell'abbonamento si gestiscono dal computer")} /> : <TabPagamenti />}
           </TabsContent>
         </>}
         <TabsContent value="portafoglio" className="mt-5">

@@ -21,6 +21,7 @@ import {
   type ContatoreUnita, type MezzoClasse, type MezzoConAssegnazione, type MezzoTipo, type UnitaQuantita,
 } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const NESSUNO = "__nessuno__";
 
@@ -105,6 +106,7 @@ interface LibrettoLetto {
 }
 
 function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, codiceIniziale, salvataggioRef }: Omit<Props, "open"> & { salvataggioRef: MutableRefObject<boolean> }) {
+  const tr = useT();
   const focusReturn = useDialogFocusReturn();
   const companyId = useEffectiveCompanyId();
   const salva = useSalvaMezzo();
@@ -221,9 +223,9 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
         anno: immatricolazione ? Number(immatricolazione.slice(0, 4)) : f.anno,
         nome: f.nome.trim() ? f.nome : [marca, modello].filter(Boolean).join(" ") || f.nome,
       }));
-      toast.success(targa ? `Libretto letto: targa ${targa}. Controlla i campi prima di salvare.` : "Libretto letto: controlla i campi prima di salvare.");
+      toast.success(targa ? tr("Libretto letto: targa {targa}. Controlla i campi prima di salvare.", { targa: String(targa ?? "") }) : tr("Libretto letto: controlla i campi prima di salvare."));
     } catch (e) {
-      toast.error(e instanceof Error ? `Lettura automatica non riuscita: ${e.message}. Compila a mano.` : "Lettura automatica non riuscita. Compila a mano.");
+      toast.error(e instanceof Error ? tr("Lettura automatica non riuscita: {message}. Compila a mano.", { message: String(e.message ?? "") }) : tr("Lettura automatica non riuscita. Compila a mano."));
     } finally {
       setLeggendo(false);
       if (inputLibretto.current) inputLibretto.current.value = "";
@@ -259,7 +261,7 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
         try {
           await allegaLibretto({ companyId, mezzoId: id, ...libretto });
         } catch (e) {
-          toast.error(e instanceof Error ? `Mezzo salvato, ma non ho allegato il libretto: ${e.message}` : "Mezzo salvato, ma non ho allegato il libretto");
+          toast.error(e instanceof Error ? tr("Mezzo salvato, ma non ho allegato il libretto: {message}", { message: String(e.message ?? "") }) : tr("Mezzo salvato, ma non ho allegato il libretto"));
         }
       }
       salvataggioRef.current = false;
@@ -287,14 +289,14 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
         <DialogTitle>{titolo}</DialogTitle>
         <DialogDescription className="max-sm:sr-only">
           {attrezzo
-            ? "Basta il nome per iniziare. Ponteggi, transenne e reti si registrano a quantità (m², pezzi, metri)."
-            : "Basta il nome per iniziare: documenti, scadenze e tagliandi si aggiungono dalla scheda."}
+            ? tr("Basta il nome per iniziare. Ponteggi, transenne e reti si registrano a quantità (m², pezzi, metri).")
+            : tr("Basta il nome per iniziare: documenti, scadenze e tagliandi si aggiungono dalla scheda.")}
         </DialogDescription>
       </DialogHeader>
 
       <fieldset disabled={salvando} className="space-y-4 max-sm:space-y-3">
         {/* Mezzo o attrezzatura: decide quali campi servono. */}
-        <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="radiogroup" aria-label="Mezzo o attrezzatura">
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="radiogroup" aria-label={tr("Mezzo o attrezzatura")}>
           {(["mezzo", "attrezzatura"] as const).map((c) => (
             <button
               key={c}
@@ -308,7 +310,7 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
                 classe === c ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {c === "mezzo" ? "Mezzo" : "Attrezzatura"}
+              {c === "mezzo" ? tr("Mezzo") : tr("Attrezzatura")}
             </button>
           ))}
         </div>
@@ -321,35 +323,35 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
               accept="image/*,.pdf"
               className="hidden"
               onChange={(e) => leggiLibretto(e.target.files?.[0])}
-              aria-label="Carica il libretto di circolazione"
+              aria-label={tr("Carica il libretto di circolazione")}
             />
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-slate-700 max-sm:text-xs">
                 {libretto
-                  ? "Libretto caricato: lo allego al mezzo quando salvi."
-                  : <><span className="max-sm:hidden">Hai il libretto? Carica una foto o il PDF e compilo io targa, marca, modello e telaio.</span><span className="sm:hidden">Fotografa il libretto: compilo io i dati.</span></>}
+                  ? tr("Libretto caricato: lo allego al mezzo quando salvi.")
+                  : <><span className="max-sm:hidden">{tr("Hai il libretto? Carica una foto o il PDF e compilo io targa, marca, modello e telaio.")}</span><span className="sm:hidden">{tr("Fotografa il libretto: compilo io i dati.")}</span></>}
               </p>
               <Button type="button" size="sm" variant="outline" className="shrink-0 bg-white max-sm:h-8 max-sm:text-xs" onClick={() => inputLibretto.current?.click()} disabled={leggendo}>
                 {leggendo ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ScanLine className="mr-1 h-4 w-4 text-orange-500" />}
-                {leggendo ? "Leggo…" : libretto ? "Cambia" : "Leggi il libretto"}
+                {leggendo ? tr("Leggo…") : libretto ? tr("Cambia") : tr("Leggi il libretto")}
               </Button>
             </div>
           </div>
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor="mezzo-nome">Nome</Label>
+          <Label htmlFor="mezzo-nome">{tr("Nome")}</Label>
           <Input
             id="mezzo-nome"
             value={form.nome}
             onChange={(e) => set("nome", e.target.value)}
-            placeholder={attrezzo ? "es. Demolitore Hilti, Ponteggio a telai" : "es. Ducato bianco, Miniescavatore Kubota"}
+            placeholder={attrezzo ? tr("es. Demolitore Hilti, Ponteggio a telai") : tr("es. Ducato bianco, Miniescavatore Kubota")}
           />
         </div>
 
         {attrezzo && (
           <div className="space-y-3 rounded-xl border bg-muted/30 p-3">
-            <div className="grid grid-cols-2 gap-1 rounded-lg bg-background p-1" role="radiogroup" aria-label="Come si conta">
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-background p-1" role="radiogroup" aria-label={tr("Come si conta")}>
               {(["singola", "quantita"] as const).map((g) => (
                 <button
                   key={g}
@@ -362,7 +364,7 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
                     (form.gestione ?? "singola") === g ? "bg-orange-500 text-white shadow-sm" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {g === "singola" ? "Un pezzo" : "A quantità"}
+                  {g === "singola" ? tr("Un pezzo") : tr("A quantità")}
                 </button>
               ))}
             </div>
@@ -370,36 +372,34 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
               <>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="mezzo-totale">Quanto ne avete</Label>
+                    <Label htmlFor="mezzo-totale">{tr("Quanto ne avete")}</Label>
                     <Input
                       id="mezzo-totale"
                       inputMode="decimal"
                       value={totaleTesto}
                       onChange={(e) => setTotaleTesto(e.target.value)}
-                      placeholder="es. 800"
+                      placeholder={tr("es. 800")}
                       aria-invalid={totaleTesto !== "" && (totale == null || totale <= 0)}
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="mezzo-unita">Unità</Label>
+                    <Label htmlFor="mezzo-unita">{tr("Unità")}</Label>
                     <Select value={form.unita_misura ?? "mq"} onValueChange={(v) => set("unita_misura", v as UnitaQuantita)}>
                       <SelectTrigger id="mezzo-unita"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {UNITA_QUANTITA.map((u) => (
-                          <SelectItem key={u.value} value={u.value}>{u.label} ({u.breve})</SelectItem>
+                          <SelectItem key={u.value} value={u.value}>{tr(u.label)} ({u.breve})</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground max-sm:hidden">
-                  {UNITA_QUANTITA.find((u) => u.value === (form.unita_misura ?? "mq"))?.esempio}. Dalla scheda segni quanto ne monti su ogni cantiere: il resto è in magazzino.
-                </p>
+                <p className="text-xs text-muted-foreground max-sm:hidden">{tr("{esempio}. Dalla scheda segni quanto ne monti su ogni cantiere: il resto è in magazzino.", { esempio: tr(UNITA_QUANTITA.find((u) => u.value === (form.unita_misura ?? "mq"))?.esempio ?? "") })}</p>
               </>
             ) : (
               !mezzo && (
                 <div className="flex flex-wrap gap-1.5 max-sm:hidden">
-                  <span className="text-xs text-muted-foreground">A quantità:</span>
+                  <span className="text-xs text-muted-foreground">{tr("A quantità:")}</span>
                   {ESEMPI_A_QUANTITA.map((e) => (
                     <button
                       key={e.nome}
@@ -419,65 +419,65 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 max-sm:grid-cols-2">
           {attrezzo ? (
             <div className="space-y-1.5">
-              <Label htmlFor="mezzo-categoria">Categoria</Label>
+              <Label htmlFor="mezzo-categoria">{tr("Categoria")}</Label>
               <Select value={form.categoria_id ?? NESSUNO} onValueChange={(v) => set("categoria_id", v === NESSUNO ? null : v)}>
-                <SelectTrigger id="mezzo-categoria"><SelectValue placeholder="Senza categoria" /></SelectTrigger>
+                <SelectTrigger id="mezzo-categoria"><SelectValue placeholder={tr("Senza categoria")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NESSUNO}>Senza categoria</SelectItem>
+                  <SelectItem value={NESSUNO}>{tr("Senza categoria")}</SelectItem>
                   {categorieAttrezzi.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           ) : (
             <div className="space-y-1.5">
-              <Label htmlFor="mezzo-tipo">Tipo</Label>
+              <Label htmlFor="mezzo-tipo">{tr("Tipo")}</Label>
               <Select value={form.tipo ?? "furgone"} onValueChange={(v) => cambiaTipo(v as MezzoTipo)}>
                 <SelectTrigger id="mezzo-tipo"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {TIPI_VEICOLO.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  {TIPI_VEICOLO.map((t) => <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           )}
           {attrezzo ? (
             <div className="space-y-1.5">
-              <Label htmlFor="mezzo-codice">Codice etichetta</Label>
+              <Label htmlFor="mezzo-codice">{tr("Codice etichetta")}</Label>
               <Input
                 id="mezzo-codice"
                 value={form.codice ?? ""}
                 onChange={(e) => set("codice", e.target.value)}
-                placeholder={mezzo ? "" : "automatico"}
+                placeholder={mezzo ? "" : tr("automatico")}
                 className="font-mono uppercase placeholder:font-sans placeholder:normal-case"
                 autoCapitalize="characters"
               />
             </div>
           ) : (
             <div className="space-y-1.5">
-              <Label htmlFor="mezzo-targa">Targa</Label>
+              <Label htmlFor="mezzo-targa">{tr("Targa")}</Label>
               <Input
                 id="mezzo-targa"
                 value={form.targa ?? ""}
                 onChange={(e) => set("targa", e.target.value)}
-                placeholder="es. GA123BC"
+                placeholder={tr("es. GA123BC")}
                 className="uppercase placeholder:normal-case"
                 autoCapitalize="characters"
               />
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="mezzo-marca">Marca</Label>
-            <Input id="mezzo-marca" value={form.marca ?? ""} onChange={(e) => set("marca", e.target.value)} placeholder={attrezzo ? "es. Hilti" : "es. Fiat"} />
+            <Label htmlFor="mezzo-marca">{tr("Marca")}</Label>
+            <Input id="mezzo-marca" value={form.marca ?? ""} onChange={(e) => set("marca", e.target.value)} placeholder={attrezzo ? tr("es. Hilti") : tr("es. Fiat")} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="mezzo-modello">Modello</Label>
-            <Input id="mezzo-modello" value={form.modello ?? ""} onChange={(e) => set("modello", e.target.value)} placeholder={attrezzo ? "es. TE 1000" : "es. Ducato 2.3"} />
+            <Label htmlFor="mezzo-modello">{tr("Modello")}</Label>
+            <Input id="mezzo-modello" value={form.modello ?? ""} onChange={(e) => set("modello", e.target.value)} placeholder={attrezzo ? tr("es. TE 1000") : tr("es. Ducato 2.3")} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="mezzo-matricola">{attrezzo ? "N° di serie" : "Telaio / matricola"}</Label>
+            <Label htmlFor="mezzo-matricola">{attrezzo ? tr("N° di serie") : tr("Telaio / matricola")}</Label>
             <Input id="mezzo-matricola" value={form.matricola ?? ""} onChange={(e) => set("matricola", e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="mezzo-anno">Anno</Label>
+            <Label htmlFor="mezzo-anno">{tr("Anno")}</Label>
             <Input
               id="mezzo-anno"
               type="number"
@@ -490,12 +490,12 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
           </div>
           {!attrezzo && (
             <div className="space-y-1.5 max-sm:hidden">
-              <Label htmlFor="mezzo-codice">Codice etichetta</Label>
+              <Label htmlFor="mezzo-codice">{tr("Codice etichetta")}</Label>
               <Input
                 id="mezzo-codice"
                 value={form.codice ?? ""}
                 onChange={(e) => set("codice", e.target.value)}
-                placeholder={mezzo ? "" : "automatico"}
+                placeholder={mezzo ? "" : tr("automatico")}
                 className="font-mono uppercase placeholder:font-sans placeholder:normal-case"
                 autoCapitalize="characters"
               />
@@ -507,7 +507,7 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
           <div className="grid grid-cols-[1fr_auto] items-end gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="mezzo-contatore">
-                {attrezzo ? "Ore di lavoro (se ha il contaore)" : form.contatore_unita === "ore" ? "Ore di lavoro attuali" : "Km attuali"}
+                {attrezzo ? tr("Ore di lavoro (se ha il contaore)") : form.contatore_unita === "ore" ? tr("Ore di lavoro attuali") : tr("Km attuali")}
               </Label>
               <Input
                 id="mezzo-contatore"
@@ -516,14 +516,14 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
                 min={0}
                 value={form.contatore ?? ""}
                 onChange={(e) => set("contatore", e.target.value === "" ? null : Number(e.target.value))}
-                placeholder={attrezzo ? "" : "Si aggiornano da soli con tagliandi e segnalazioni"}
+                placeholder={attrezzo ? "" : tr("Si aggiornano da soli con tagliandi e segnalazioni")}
               />
             </div>
             <Select value={form.contatore_unita ?? "km"} onValueChange={(v) => set("contatore_unita", v as ContatoreUnita)}>
-              <SelectTrigger className="w-24" aria-label="Unità del contatore"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-24" aria-label={tr("Unità del contatore")}><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="km">km</SelectItem>
-                <SelectItem value="ore">ore</SelectItem>
+                <SelectItem value="km">{tr("km")}</SelectItem>
+                <SelectItem value="ore">{tr("ore")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -531,20 +531,20 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 max-sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="mezzo-possesso">Possesso</Label>
+            <Label htmlFor="mezzo-possesso">{tr("Possesso")}</Label>
             <Select value={form.possesso ?? "proprieta"} onValueChange={(v) => set("possesso", v as MezzoInput["possesso"])}>
               <SelectTrigger id="mezzo-possesso"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {POSSESSI.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                {POSSESSI.map((p) => <SelectItem key={p.value} value={p.value}>{tr(p.label)}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="mezzo-stato">Stato</Label>
+            <Label htmlFor="mezzo-stato">{tr("Stato")}</Label>
             <Select value={form.stato ?? "in_servizio"} onValueChange={(v) => set("stato", v as MezzoInput["stato"])}>
               <SelectTrigger id="mezzo-stato"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {STATI_MEZZO.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                {STATI_MEZZO.map((s) => <SelectItem key={s.value} value={s.value}>{tr(s.label)}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -552,16 +552,16 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
 
         {!aQuantita && (
           <div className="space-y-3 rounded-xl border bg-muted/30 p-3">
-            <p className="text-sm font-medium">Chi lo ha in carico</p>
+            <p className="text-sm font-medium">{tr("Chi lo ha in carico")}</p>
             <div className="space-y-1.5">
-              <Label htmlFor="mezzo-persona">Persona</Label>
+              <Label htmlFor="mezzo-persona">{tr("Persona")}</Label>
               <Select
                 value={form.assegnato_hr_profilo_id ?? NESSUNO}
                 onValueChange={(v) => set("assegnato_hr_profilo_id", v === NESSUNO ? null : v)}
               >
-                <SelectTrigger id="mezzo-persona"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                <SelectTrigger id="mezzo-persona"><SelectValue placeholder={tr("Nessuno")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NESSUNO}>Nessuno</SelectItem>
+                  <SelectItem value={NESSUNO}>{tr("Nessuno")}</SelectItem>
                   {persone.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {[p.cognome, p.nome].filter(Boolean).join(" ")}{p.mansione ? ` · ${p.mansione}` : ""}
@@ -570,23 +570,23 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground max-sm:hidden">
-                {attrezzo ? "Chi lo ha in carico lo vede dal telefono." : "Chi lo ha in carico lo vede dal telefono, con assicurazione e libretto."}
+                {attrezzo ? tr("Chi lo ha in carico lo vede dal telefono.") : tr("Chi lo ha in carico lo vede dal telefono, con assicurazione e libretto.")}
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label>Cantiere (commessa)</Label>
+              <Label>{tr("Cantiere (commessa)")}</Label>
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <OrderSelectCombobox
-                    ariaLabel="Cantiere (commessa)"
+                    ariaLabel={tr("Cantiere (commessa)")}
                     companyId={companyId ?? undefined}
                     value={form.assegnato_order_id ?? undefined}
                     onChange={(orderId) => set("assegnato_order_id", orderId)}
-                    placeholder="Nessun cantiere"
+                    placeholder={tr("Nessun cantiere")}
                   />
                 </div>
                 {form.assegnato_order_id && (
-                  <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={() => set("assegnato_order_id", null)} aria-label="Togli il cantiere">
+                  <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={() => set("assegnato_order_id", null)} aria-label={tr("Togli il cantiere")}>
                     <X className="h-4 w-4" />
                   </Button>
                 )}
@@ -594,15 +594,15 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
             </div>
             {(suCuiCaricare.length > 0 || form.su_mezzo_id) && (
               <div className="space-y-1.5">
-                <Label htmlFor="mezzo-su">Caricato su</Label>
+                <Label htmlFor="mezzo-su">{tr("Caricato su")}</Label>
                 <Select
                   value={form.su_mezzo_id ?? NESSUNO}
                   onValueChange={(v) => set("su_mezzo_id", v === NESSUNO ? null : v)}
                   disabled={haAttrezziSopra}
                 >
-                  <SelectTrigger id="mezzo-su"><SelectValue placeholder="Su nessun mezzo" /></SelectTrigger>
+                  <SelectTrigger id="mezzo-su"><SelectValue placeholder={tr("Su nessun mezzo")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NESSUNO}>Su nessun mezzo</SelectItem>
+                    <SelectItem value={NESSUNO}>{tr("Su nessun mezzo")}</SelectItem>
                     {suCuiCaricare.map((m) => (
                       <SelectItem key={m.id} value={m.id}>{m.nome}{m.targa ? ` · ${m.targa}` : ""}</SelectItem>
                     ))}
@@ -610,8 +610,8 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
                 </Select>
                 <p className="text-xs text-muted-foreground max-sm:hidden">
                   {haAttrezziSopra
-                    ? "Su questo mezzo sono caricati degli attrezzi: non si può caricarlo su un altro."
-                    : "Per gli attrezzi che viaggiano su un furgone: così si sa cosa c'è a bordo."}
+                    ? tr("Su questo mezzo sono caricati degli attrezzi: non si può caricarlo su un altro.")
+                    : tr("Per gli attrezzi che viaggiano su un furgone: così si sa cosa c'è a bordo.")}
                 </p>
               </div>
             )}
@@ -620,10 +620,10 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
 
         {/* Mobile no: i costi d'acquisto e le rate si segnano al computer. */}
         <div className="space-y-3 rounded-xl border bg-muted/30 p-3 max-sm:hidden">
-          <p className="text-sm font-medium">Costi</p>
+          <p className="text-sm font-medium">{tr("Costi")}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 max-sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="mezzo-valore">Valore d'acquisto (€)</Label>
+              <Label htmlFor="mezzo-valore">{tr("Valore d'acquisto (€)")}</Label>
               <Input
                 id="mezzo-valore"
                 type="number"
@@ -635,12 +635,12 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="mezzo-data-acquisto">Acquistato il</Label>
+              <Label htmlFor="mezzo-data-acquisto">{tr("Acquistato il")}</Label>
               <Input id="mezzo-data-acquisto" type="date" value={form.data_acquisto ?? ""} onChange={(e) => set("data_acquisto", e.target.value)} />
             </div>
             {form.possesso !== "proprieta" && (
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="mezzo-rata">Rata mensile di {form.possesso === "leasing" ? "leasing" : "noleggio"} (€)</Label>
+                <Label htmlFor="mezzo-rata">{form.possesso === "leasing" ? tr("Rata mensile di leasing (€)") : tr("Rata mensile di noleggio (€)")}</Label>
                 <Input
                   id="mezzo-rata"
                   type="number"
@@ -656,16 +656,16 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="mezzo-note">Note</Label>
+          <Label htmlFor="mezzo-note">{tr("Note")}</Label>
           <Textarea id="mezzo-note" rows={2} value={form.note ?? ""} onChange={(e) => set("note", e.target.value)} />
         </div>
       </fieldset>
 
       <DialogFooter className="gap-2">
-        <Button variant="outline" className="max-sm:hidden" disabled={salvando} onClick={() => onOpenChange(false)}>Annulla</Button>
+        <Button variant="outline" className="max-sm:hidden" disabled={salvando} onClick={() => onOpenChange(false)}>{tr("Annulla")}</Button>
         <Button onClick={invia} disabled={!nomeValido || !quantitaValida || salvando || salva.isPending || leggendo}>
           {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {mezzo ? "Salva" : attrezzo ? "Crea attrezzatura" : "Crea mezzo"}
+          {mezzo ? tr("Salva") : attrezzo ? tr("Crea attrezzatura") : tr("Crea mezzo")}
         </Button>
       </DialogFooter>
     </DialogContent>

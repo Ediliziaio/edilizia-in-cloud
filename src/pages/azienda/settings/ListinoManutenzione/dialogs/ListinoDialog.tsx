@@ -20,6 +20,7 @@ import {
 import { testoErrore } from "@/lib/impostazioni/testoErrore";
 import { UNITA_OPTIONS, IVA_OPTIONS, UNITA_LABEL } from "../constants";
 import type { ListinoPrezzo, TipoImpianto, TipoIntervento } from "../types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ListinoDialog({
   open, onClose, editing, companyId, tipiImpianto, tipiIntervento, onSaved,
@@ -30,6 +31,7 @@ export function ListinoDialog({
   tipiIntervento: TipoIntervento[];
   onSaved: () => void;
 }) {
+  const tr = useT();
   const idBase = useId();
   const focusReturn = useDialogFocusReturn();
   const pendingRef = useRef(false);
@@ -45,9 +47,9 @@ export function ListinoDialog({
 
   const handleSave = async () => {
     if (pendingRef.current) return;
-    if (!impiantoId) { toast.error("Scegli un tipo di impianto"); return; }
-    if (!interventoId) { toast.error("Scegli un tipo di intervento"); return; }
-    if (!prezzo.trim() || isNaN(parseFloat(prezzo))) { toast.error("Inserisci un prezzo valido"); return; }
+    if (!impiantoId) { toast.error(tr("Scegli un tipo di impianto")); return; }
+    if (!interventoId) { toast.error(tr("Scegli un tipo di intervento")); return; }
+    if (!prezzo.trim() || isNaN(parseFloat(prezzo))) { toast.error(tr("Inserisci un prezzo valido")); return; }
     pendingRef.current = true;
     setSaving(true);
     try {
@@ -67,17 +69,17 @@ export function ListinoDialog({
         const { data, error } = await (supabase.from("listino_prezzi") as any)
           .update(payload).eq("id", editing.id).eq("company_id", companyId).select("id");
         if (error) throw error;
-        if (!data || data.length === 0) throw new Error("Modifica non salvata: verifica i permessi e riprova.");
+        if (!data || data.length === 0) throw new Error(tr("Modifica non salvata: verifica i permessi e riprova."));
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase.from("listino_prezzi") as any).insert(payload);
         if (error) throw error;
       }
-      toast.success(editing ? "Prezzo aggiornato" : "Prezzo creato");
+      toast.success(editing ? tr("Prezzo aggiornato") : tr("Prezzo creato"));
       pendingRef.current = false;
       onSaved(); onClose();
     } catch (err: unknown) {
-      toast.error(testoErrore(err, "Prezzo non salvato."));
+      toast.error(testoErrore(err, tr("Prezzo non salvato.")));
     } finally {
       pendingRef.current = false;
       setSaving(false);
@@ -88,16 +90,16 @@ export function ListinoDialog({
     <Dialog open={open} onOpenChange={(value) => { if (!value) handleClose(); }}>
       <DialogContent {...focusReturn} className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editing ? "Modifica prezzo di manutenzione" : "Nuovo prezzo di manutenzione"}</DialogTitle>
+          <DialogTitle>{editing ? tr("Modifica prezzo di manutenzione") : tr("Nuovo prezzo di manutenzione")}</DialogTitle>
           <DialogDescription>
-            Il prezzo di un intervento su un impianto (per esempio Manutenzione ordinaria su una Caldaia).
+            {tr("Il prezzo di un intervento su un impianto (per esempio Manutenzione ordinaria su una Caldaia).")}
           </DialogDescription>
         </DialogHeader>
         <fieldset disabled={saving} className="min-w-0 space-y-4">
           <div>
-            <Label htmlFor={`${idBase}-impianto`}>Tipo di impianto *</Label>
+            <Label htmlFor={`${idBase}-impianto`}>{tr("Tipo di impianto *")}</Label>
             <Select value={impiantoId} onValueChange={setImpiantoId} disabled={!!editing}>
-              <SelectTrigger id={`${idBase}-impianto`} className="mt-1.5 max-md:h-11"><SelectValue placeholder="Scegli l'impianto…" /></SelectTrigger>
+              <SelectTrigger id={`${idBase}-impianto`} className="mt-1.5 max-md:h-11"><SelectValue placeholder={tr("Scegli l'impianto…")} /></SelectTrigger>
               <SelectContent>
                 {tipiImpianto.filter((t) => t.attivo || t.id === impiantoId).map((t) => (
                   <SelectItem key={t.id} value={t.id}>
@@ -108,9 +110,9 @@ export function ListinoDialog({
             </Select>
           </div>
           <div>
-            <Label htmlFor={`${idBase}-intervento`}>Tipo di intervento *</Label>
+            <Label htmlFor={`${idBase}-intervento`}>{tr("Tipo di intervento *")}</Label>
             <Select value={interventoId} onValueChange={setInterventoId} disabled={!!editing}>
-              <SelectTrigger id={`${idBase}-intervento`} className="mt-1.5 max-md:h-11"><SelectValue placeholder="Scegli l'intervento…" /></SelectTrigger>
+              <SelectTrigger id={`${idBase}-intervento`} className="mt-1.5 max-md:h-11"><SelectValue placeholder={tr("Scegli l'intervento…")} /></SelectTrigger>
               <SelectContent>
                 {tipiIntervento.filter((t) => t.attivo || t.id === interventoId).map((t) => (
                   <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
@@ -120,7 +122,7 @@ export function ListinoDialog({
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <Label htmlFor={`${idBase}-prezzo`}>Prezzo €</Label>
+              <Label htmlFor={`${idBase}-prezzo`}>{tr("Prezzo €")}</Label>
               <Input
                 id={`${idBase}-prezzo`}
                 type="number" min="0" step="0.01"
@@ -131,7 +133,7 @@ export function ListinoDialog({
               />
             </div>
             <div>
-              <Label htmlFor={`${idBase}-iva`}>IVA %</Label>
+              <Label htmlFor={`${idBase}-iva`}>{tr("IVA %")}</Label>
               <Select value={iva} onValueChange={setIva}>
                 <SelectTrigger id={`${idBase}-iva`} className="mt-1.5 max-md:h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -142,39 +144,39 @@ export function ListinoDialog({
               </Select>
             </div>
             <div>
-              <Label htmlFor={`${idBase}-unita`}>Unità</Label>
+              <Label htmlFor={`${idBase}-unita`}>{tr("Unità")}</Label>
               <Select value={unita} onValueChange={setUnita}>
                 <SelectTrigger id={`${idBase}-unita`} className="mt-1.5 max-md:h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {UNITA_OPTIONS.map((u) => (
-                    <SelectItem key={u} value={u}>{UNITA_LABEL[u]}</SelectItem>
+                    <SelectItem key={u} value={u}>{tr(UNITA_LABEL[u])}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <div>
-            <Label htmlFor={`${idBase}-note`}>Note (opzionale)</Label>
+            <Label htmlFor={`${idBase}-note`}>{tr("Note (opzionale)")}</Label>
             <Input
               id={`${idBase}-note`}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Es. prezzo valido solo fuori orario"
+              placeholder={tr("Es. prezzo valido solo fuori orario")}
               className="mt-1.5 max-md:h-11"
             />
           </div>
           <div className="flex items-center gap-3">
-            <Label htmlFor={`${idBase}-attivo`}>Prezzo attivo</Label>
+            <Label htmlFor={`${idBase}-attivo`}>{tr("Prezzo attivo")}</Label>
             <Switch id={`${idBase}-attivo`} aria-describedby={`${idBase}-attivo-testo`} checked={attivo} onCheckedChange={setAttivo} />
             <span id={`${idBase}-attivo-testo`} className="text-xs text-muted-foreground">
-              {attivo ? "Visibile in preventivi e interventi" : "Nascosto (bozza)"}
+              {attivo ? tr("Visibile in preventivi e interventi") : tr("Nascosto (bozza)")}
             </span>
           </div>
         </fieldset>
         <DialogFooter>
-          <Button variant="outline" disabled={saving} onClick={handleClose}>Annulla</Button>
+          <Button variant="outline" disabled={saving} onClick={handleClose}>{tr("Annulla")}</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Salvataggio..." : "Salva"}
+            {saving ? tr("Salvataggio...") : tr("Salva")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -67,6 +67,7 @@ import {
   parseGpsCoordinate,
 } from "@/lib/personale/organizzazione";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const HrSedeMap = lazy(() => import("@/components/hr/HrSedeMap"));
 
 function GpsPreview({
@@ -78,12 +79,12 @@ function GpsPreview({
   lng: string;
   radius: string;
 }) {
+  const t = useT();
   const [showMap, setShowMap] = useState(false);
   if (!lat.trim() || !lng.trim() || validateSedeGps(lat, lng, radius))
     return (
       <p className="text-xs text-orange-700">
-        Area timbratura da configurare: servono entrambe le coordinate e un
-        raggio valido.
+        {t("Area timbratura da configurare: servono entrambe le coordinate e un raggio valido.")}
       </p>
     );
   return (
@@ -93,22 +94,20 @@ function GpsPreview({
           <span className="h-2 w-2 rounded-full bg-orange-500" />
         </div>
         <div>
-          <p className="text-sm font-medium text-blue-900">
-            Raggio {Math.round(Number(radius))} m dal punto GPS
-          </p>
+          <p className="text-sm font-medium text-blue-900">{t("Raggio {valore} m dal punto GPS", { valore: Math.round(Number(radius)) })}</p>
           <p className="text-xs text-blue-700">
             {parseGpsCoordinate(lat).toFixed(6)},{" "}
             {parseGpsCoordinate(lng).toFixed(6)}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            Schema indicativo, non cartografico
+            {t("Schema indicativo, non cartografico")}
           </p>
         </div>
       </div>
       {showMap ? (
         <Suspense
           fallback={
-            <p className="py-6 text-center text-sm">Caricamento mappa…</p>
+            <p className="py-6 text-center text-sm">{t("Caricamento mappa…")}</p>
           }
         >
           <HrSedeMap
@@ -120,12 +119,11 @@ function GpsPreview({
       ) : (
         <Button variant="outline" size="sm" onClick={() => setShowMap(true)}>
           <MapPin className="mr-1.5 h-4 w-4" />
-          Mostra mappa e raggio
+          {t("Mostra mappa e raggio")}
         </Button>
       )}
       <p className="text-[11px] text-muted-foreground">
-        La mappa usa OpenStreetMap e carica l’area geografica da servizi esterni
-        solo quando la apri.
+        {t("La mappa usa OpenStreetMap e carica l’area geografica da servizi esterni solo quando la apri.")}
       </p>
     </div>
   );
@@ -137,6 +135,7 @@ export function TabSedi() {
 }
 
 function SediContent() {
+  const t = useT();
   const sites = useHrSedi();
   const people = useHrSedePeople();
   const sedi = sites.data || [];
@@ -188,11 +187,10 @@ function SediContent() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">
-            Sedi e aree di timbratura
+            {t("Sedi e aree di timbratura")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Indirizzi, persone assegnate e controllo della distanza: tutto nella
-            stessa scheda.
+            {t("Indirizzi, persone assegnate e controllo della distanza: tutto nella stessa scheda.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -204,7 +202,7 @@ function SediContent() {
               if (canEdit) importaMut.mutate();
             }}
           >
-            {importaMut.isPending ? "Importazione…" : "Importa sedi mancanti"}
+            {importaMut.isPending ? t("Importazione…") : t("Importa sedi mancanti")}
           </Button>
           <Button
             size="sm"
@@ -214,24 +212,21 @@ function SediContent() {
             disabled={!canEdit || sites.isError}
           >
             <Plus className="mr-1.5 h-4 w-4" />
-            Nuova sede
+            {t("Nuova sede")}
           </Button>
         </div>
       </div>
       {!canEdit && (
         <p className="text-sm text-muted-foreground">
-          Consultazione in sola lettura.
+          {t("Consultazione in sola lettura.")}
         </p>
       )}
       <details className="text-xs text-muted-foreground">
         <summary className="cursor-pointer">
-          Come si collega alle Sedi aziendali?
+          {t("Come si collega alle Sedi aziendali?")}
         </summary>
         <p className="mt-2 max-w-3xl leading-relaxed">
-          Le sedi HR e le Sedi aziendali nelle Impostazioni sono ancora due
-          anagrafiche distinte. L’importazione aggiunge soltanto i nomi
-          mancanti: non aggiorna indirizzi o GPS già presenti e non è una
-          sincronizzazione automatica.
+          {t("Le sedi HR e le Sedi aziendali nelle Impostazioni sono ancora due anagrafiche distinte. L’importazione aggiunge soltanto i nomi mancanti: non aggiorna indirizzi o GPS già presenti e non è una sincronizzazione automatica.")}
         </p>
       </details>
       {sites.isError ? (
@@ -239,69 +234,68 @@ function SediContent() {
           role="alert"
           className="rounded-xl border border-orange-200 bg-orange-50 p-5"
         >
-          <h3 className="font-semibold">Sedi non disponibili</h3>
+          <h3 className="font-semibold">{t("Sedi non disponibili")}</h3>
           <p className="my-2 text-sm">
-            Non è stato possibile caricare le sedi. I dati non sono stati
-            eliminati.
+            {t("Non è stato possibile caricare le sedi. I dati non sono stati eliminati.")}
           </p>
           <Button variant="outline" onClick={() => sites.refetch()}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       ) : sites.isLoading ? (
         <p className="py-12 text-center text-muted-foreground">
-          Caricamento sedi…
+          {t("Caricamento sedi…")}
         </p>
       ) : (
         <>
           <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3 text-sm">
             <span>
-              <strong>{sedi.length}</strong> sedi configurate
+              <strong>{sedi.length}</strong> {t("sedi configurate")}
             </span>
             <span>
-              <strong>{sedi.filter((s) => s.attiva).length}</strong> attive
+              <strong>{sedi.filter((s) => s.attiva).length}</strong> {t("attive")}
             </span>
             <span className="text-orange-800">
               <strong>
                 {sedi.filter((s) => s.attiva && !hasValidGps(s)).length}
               </strong>{" "}
-              attive con GPS da completare
+              {t("attive con GPS da completare")}
             </span>
           </div>
           <div className="flex flex-wrap gap-2 rounded-xl border bg-white p-3">
             <div className="relative min-w-48 flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                aria-label="Cerca sede"
-                placeholder="Cerca sede, città o indirizzo…"
+                aria-label={t("Cerca sede")}
+                placeholder={t("Cerca sede, città o indirizzo…")}
                 className="pl-9"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
             <UniformSelect
-              aria-label="Filtra sedi"
+              aria-label={t("Filtra sedi")}
               className="h-10 max-w-full rounded-md border bg-white px-3 text-sm"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
             >
-              <option value="all">Tutte le sedi</option>
-              <option value="active">Attive</option>
-              <option value="inactive">Disattivate</option>
-              <option value="missing">GPS da completare</option>
-              <option value="gps">GPS configurato</option>
+              <option value="all">{t("Tutte le sedi")}</option>
+              <option value="active">{t("Attive")}</option>
+              <option value="inactive">{t("Disattivate")}</option>
+              <option value="missing">{t("GPS da completare")}</option>
+              <option value="gps">{t("GPS configurato")}</option>
             </UniformSelect>
             {(search || filter !== "all") && (
               <Button variant="ghost" onClick={reset}>
-                Azzera filtri
+                {t("Azzera filtri")}
               </Button>
             )}
           </div>
           {people.isError && (
             <p role="alert" className="text-sm text-orange-700">
-              Persone assegnate non disponibili.{" "}
+              {t("Persone assegnate non disponibili.")}{" "}
               <button onClick={() => people.refetch()} className="underline">
-                Riprova caricamento persone
+                {t("Riprova caricamento persone")}
               </button>
             </p>
           )}
@@ -309,18 +303,17 @@ function SediContent() {
             <Card>
               <CardContent className="py-12 text-center">
                 <MapPin className="mx-auto mb-3 h-10 w-10 text-blue-500" />
-                <h3 className="font-semibold">Nessuna sede configurata</h3>
+                <h3 className="font-semibold">{t("Nessuna sede configurata")}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Importa le sedi mancanti dalle Impostazioni oppure crea una
-                  nuova sede.
+                  {t("Importa le sedi mancanti dalle Impostazioni oppure crea una nuova sede.")}
                 </p>
               </CardContent>
             </Card>
           ) : !shown.length ? (
             <div className="rounded-xl border border-dashed p-12 text-center">
-              <p>Nessuna sede corrisponde ai filtri.</p>
+              <p>{t("Nessuna sede corrisponde ai filtri.")}</p>
               <Button variant="outline" className="mt-3" onClick={reset}>
-                Mostra tutte le sedi
+                {t("Mostra tutte le sedi")}
               </Button>
             </div>
           ) : (
@@ -344,7 +337,7 @@ function SediContent() {
                               {sede.nome}
                             </h3>
                             <p className="mt-1 text-sm text-muted-foreground">
-                              {sede.indirizzo || "Indirizzo da completare"}
+                              {sede.indirizzo || t("Indirizzo da completare")}
                             </p>
                             <p className="text-xs text-muted-foreground">
                               {[sede.cap, sede.citta, sede.provincia]
@@ -358,7 +351,7 @@ function SediContent() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              aria-label={`Azioni sede ${sede.nome}`}
+                              aria-label={t("Azioni sede {nome}", { nome: String(sede.nome ?? "") })}
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
@@ -368,7 +361,7 @@ function SediContent() {
                               disabled={!canEdit}
                               onSelect={() => setEditSede(sede)}
                             >
-                              Modifica o disattiva
+                              {t("Modifica o disattiva")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive"
@@ -381,7 +374,7 @@ function SediContent() {
                               }
                               onSelect={() => setDeleteId(sede.id)}
                             >
-                              Elimina sede non assegnata
+                              {t("Elimina sede non assegnata")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -395,7 +388,7 @@ function SediContent() {
                               : "text-muted-foreground"
                           }
                         >
-                          {sede.attiva ? "Sede attiva" : "Disattivata"}
+                          {sede.attiva ? t("Sede attiva") : t("Disattivata")}
                         </Badge>
                         <Badge
                           variant="outline"
@@ -406,22 +399,22 @@ function SediContent() {
                           }
                         >
                           {hasValidGps(sede)
-                            ? "GPS configurato"
-                            : "Area timbratura da configurare"}
+                            ? t("GPS configurato")
+                            : t("Area timbratura da configurare")}
                         </Badge>
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
                         <p className="flex items-center gap-1.5">
                           <Users className="h-4 w-4" />
                           {people.isLoading
-                            ? "Caricamento persone…"
+                            ? t("Caricamento persone…")
                             : people.isError
-                              ? "Persone non disponibili"
+                              ? t("Persone non disponibili")
                               : `${active} ${active === 1 ? "persona attiva" : "persone attive"}${persons.length > active ? ` · ${persons.length - active} ${persons.length - active === 1 ? "inattiva" : "inattive"}` : ""}`}
                         </p>
                         <p className="flex items-center gap-1">
                           <CircleDot className="h-3.5 w-3.5" />
-                          Raggio {sede.raggio_mt} m
+                          {t("Raggio")} {sede.raggio_mt} m
                         </p>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -429,19 +422,19 @@ function SediContent() {
                           size="sm"
                           variant="outline"
                           onClick={() => setDetailsId(sede.id)}
-                          aria-label={`Dettagli sede ${sede.nome}`}
+                          aria-label={t("Dettagli sede {nome}", { nome: String(sede.nome ?? "") })}
                         >
-                          Persone e area GPS
+                          {t("Persone e area GPS")}
                         </Button>
                         {canEdit && (
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => setEditSede(sede)}
-                            aria-label={`Configura sede ${sede.nome}`}
+                            aria-label={t("Configura sede {nome}", { nome: String(sede.nome ?? "") })}
                           >
                             <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                            Configura
+                            {t("Configura")}
                           </Button>
                         )}
                       </div>
@@ -463,7 +456,7 @@ function SediContent() {
           <SheetHeader>
             <SheetTitle>{selected?.nome}</SheetTitle>
             <SheetDescription>
-              Persone assegnate e area di timbratura
+              {t("Persone assegnate e area di timbratura")}
             </SheetDescription>
           </SheetHeader>
           {selected && (
@@ -472,12 +465,12 @@ function SediContent() {
                 <p className="text-sm">
                   {[selected.indirizzo, selected.citta, selected.provincia]
                     .filter(Boolean)
-                    .join(", ") || "Indirizzo da completare"}
+                    .join(", ") || t("Indirizzo da completare")}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {selected.attiva
-                    ? "Sede attiva"
-                    : "Sede disattivata: controlla le assegnazioni prima di riattivarla."}
+                    ? t("Sede attiva")
+                    : t("Sede disattivata: controlla le assegnazioni prima di riattivarla.")}
                 </p>
               </div>
               <GpsPreview
@@ -487,13 +480,13 @@ function SediContent() {
               />
               <div>
                 <h3 className="mb-3 text-sm font-semibold">
-                  Persone assegnate
+                  {t("Persone assegnate")}
                 </h3>
                 {people.isLoading ? (
-                  <p className="text-sm">Caricamento persone…</p>
+                  <p className="text-sm">{t("Caricamento persone…")}</p>
                 ) : people.isError ? (
                   <p role="alert" className="text-sm">
-                    Elenco non disponibile.
+                    {t("Elenco non disponibile.")}
                   </p>
                 ) : (
                   <>
@@ -504,7 +497,7 @@ function SediContent() {
                       size="sm"
                       onClick={() => gotoPeople(selected.id)}
                     >
-                      Vedi persone attive nell’organigramma
+                      {t("Vedi persone attive nell’organigramma")}
                     </Button>
                   </>
                 )}
@@ -516,7 +509,7 @@ function SediContent() {
                     setDetailsId(null);
                   }}
                 >
-                  Modifica configurazione
+                  {t("Modifica configurazione")}
                 </Button>
               )}
             </div>
@@ -541,22 +534,19 @@ function SediContent() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questa sede?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare questa sede?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              L’eliminazione è definitiva. Se devi soltanto sospenderne l’uso,
-              scegli Modifica e disattiva la sede. Non si possono eliminare sedi
-              assegnate a profili HR.
+              {t("L’eliminazione è definitiva. Se devi soltanto sospenderne l’uso, scegli Modifica e disattiva la sede. Non si possono eliminare sedi assegnate a profili HR.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteMut.isError && (
             <p role="alert" className="text-sm text-destructive">
-              Eliminazione non riuscita. La sede è ancora presente; verifica le
-              assegnazioni e riprova.
+              {t("Eliminazione non riuscita. La sede è ancora presente; verifica le assegnazioni e riprova.")}
             </p>
           )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteMut.isPending}>
-              Annulla
+              {t("Annulla")}
             </AlertDialogCancel>
             <Button
               variant="destructive"
@@ -569,8 +559,8 @@ function SediContent() {
               }}
             >
               {deleteMut.isPending
-                ? "Eliminazione…"
-                : "Elimina definitivamente"}
+                ? t("Eliminazione…")
+                : t("Elimina definitivamente")}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -580,10 +570,11 @@ function SediContent() {
 }
 
 function PeopleList({ people }: { people: HrSedePersona[] }) {
+  const t = useT();
   if (!people.length)
     return (
       <p className="text-sm text-muted-foreground">
-        Nessuna persona assegnata a questa sede.
+        {t("Nessuna persona assegnata a questa sede.")}
       </p>
     );
   return (
@@ -595,11 +586,11 @@ function PeopleList({ people }: { people: HrSedePersona[] }) {
               {p.nome} {p.cognome}
             </p>
             <p className="text-xs text-muted-foreground">
-              {p.mansione || "Ruolo da definire"}
+              {p.mansione || t("Ruolo da definire")}
             </p>
           </div>
           <span className="text-xs text-muted-foreground">
-            {p.attivo ? "Attivo" : "Inattivo"}
+            {p.attivo ? t("Attivo") : t("Inattivo")}
           </span>
         </li>
       ))}
@@ -616,6 +607,7 @@ function SedeDialog({
   onClose: () => void;
   canEdit: boolean;
 }) {
+  const t = useT();
   const createMut = useCreateHrSede();
   const updateMut = useUpdateHrSede();
   const [nome, setNome] = useState(sede?.nome || "");
@@ -681,7 +673,7 @@ function SedeDialog({
   function getLocation() {
     if (!canEdit || locating) return;
     if (!navigator.geolocation) {
-      toast.error("Geolocalizzazione non supportata");
+      toast.error(t("Geolocalizzazione non supportata"));
       return;
     }
     setLocating(true);
@@ -694,7 +686,7 @@ function SedeDialog({
       () => {
         setLocating(false);
         toast.error(
-          "Posizione non disponibile. Puoi inserire le coordinate manualmente.",
+          t("Posizione non disponibile. Puoi inserire le coordinate manualmente."),
         );
       },
       { timeout: 10000, maximumAge: 0 },
@@ -709,10 +701,9 @@ function SedeDialog({
     >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{sede ? "Configura sede" : "Nuova sede HR"}</DialogTitle>
+          <DialogTitle>{sede ? t("Configura sede") : t("Nuova sede HR")}</DialogTitle>
           <DialogDescription>
-            La sede può esistere senza GPS. Per configurare l’area di timbratura
-            servono entrambe le coordinate.
+            {t("La sede può esistere senza GPS. Per configurare l’area di timbratura servono entrambe le coordinate.")}
           </DialogDescription>
         </DialogHeader>
         <fieldset disabled={!canEdit || pending} className="min-w-0 space-y-4">
@@ -720,7 +711,7 @@ function SedeDialog({
             maxLength: 180,
           })}
           <div>
-            <Label htmlFor="hr-sede-indirizzo">Indirizzo</Label>
+            <Label htmlFor="hr-sede-indirizzo">{t("Indirizzo")}</Label>
             <CampoIndirizzo
               id="hr-sede-indirizzo"
               value={indirizzo}
@@ -745,7 +736,7 @@ function SedeDialog({
           </div>
           <div className="space-y-3 rounded-xl border p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold">Area di timbratura</h3>
+              <h3 className="text-sm font-semibold">{t("Area di timbratura")}</h3>
               <Button
                 type="button"
                 size="sm"
@@ -754,11 +745,11 @@ function SedeDialog({
                 disabled={locating}
               >
                 <Navigation className="mr-1.5 h-3.5 w-3.5" />
-                {locating ? "Acquisizione…" : "Usa la mia posizione"}
+                {locating ? t("Acquisizione…") : t("Usa la mia posizione")}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Usa la tua posizione solo se ti trovi fisicamente nella sede.
+              {t("Usa la tua posizione solo se ti trovi fisicamente nella sede.")}
             </p>
             <div className="grid grid-cols-2 gap-3">
               {field("hr-sede-lat", "Latitudine", lat, setLat, {
@@ -781,9 +772,9 @@ function SedeDialog({
           </div>
           <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3">
             <div>
-              <Label htmlFor="hr-sede-attiva">Sede attiva</Label>
+              <Label htmlFor="hr-sede-attiva">{t("Sede attiva")}</Label>
               <p className="mt-1 text-xs text-muted-foreground">
-                Disattivare non elimina la sede né le assegnazioni esistenti.
+                {t("Disattivare non elimina la sede né le assegnazioni esistenti.")}
               </p>
             </div>
             <Switch
@@ -803,14 +794,14 @@ function SedeDialog({
         )}
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={pending}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button onClick={submit} disabled={!canEdit || pending || locating}>
             {pending
-              ? "Salvataggio…"
+              ? t("Salvataggio…")
               : sede
-                ? "Salva configurazione"
-                : "Crea sede"}
+                ? t("Salva configurazione")
+                : t("Crea sede")}
           </Button>
         </DialogFooter>
       </DialogContent>

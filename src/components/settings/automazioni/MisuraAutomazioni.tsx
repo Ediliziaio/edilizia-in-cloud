@@ -11,6 +11,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { etichettaRegola } from "@/lib/acquisti/verificaCollegamenti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -45,33 +46,34 @@ export function useMisuraAutomazioni(companyId: string) {
 const cella = "px-3 py-2 text-right tabular-nums";
 
 export function MisuraAutomazioni({ companyId }: { companyId: string }) {
+  const t = useT();
   const { data, isLoading } = useMisuraAutomazioni(companyId);
   return (
     <section className="space-y-3" aria-labelledby="misura-automazioni">
       <div>
-        <h3 id="misura-automazioni" className="font-medium">Quanto lavorano da sole · ultimi 30 giorni</h3>
+        <h3 id="misura-automazioni" className="font-medium">{t("Quanto lavorano da sole · ultimi 30 giorni")}</h3>
         <p className="text-sm text-muted-foreground">
-          Quanti lavori si chiudono senza AI, e quanti collegamenti fatti dalle regole una persona ha dovuto correggere.
+          {t("Quanti lavori si chiudono senza AI, e quanti collegamenti fatti dalle regole una persona ha dovuto correggere.")}
         </p>
       </div>
-      {isLoading && <p className="text-sm text-muted-foreground">Carico…</p>}
+      {isLoading && <p className="text-sm text-muted-foreground">{t("Carico…")}</p>}
       {data && (
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-lg border">
-            <p className="border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">Lavori chiusi senza AI</p>
+            <p className="border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">{t("Lavori chiusi senza AI")}</p>
             {data.flussi === null ? (
-              <p className="px-3 py-3 text-sm text-muted-foreground">Non disponibile per il tuo ruolo.</p>
+              <p className="px-3 py-3 text-sm text-muted-foreground">{t("Non disponibile per il tuo ruolo.")}</p>
             ) : data.flussi.length === 0 ? (
-              <p className="px-3 py-3 text-sm text-muted-foreground">Nessun lavoro registrato negli ultimi 30 giorni.</p>
+              <p className="px-3 py-3 text-sm text-muted-foreground">{t("Nessun lavoro registrato negli ultimi 30 giorni.")}</p>
             ) : (
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground">
-                  <tr><th className="px-3 py-2 text-left font-normal">Lavoro</th><th className={cella}>Lavori</th><th className={cella}>Senza AI</th><th className={cella}>Chiamate AI</th></tr>
+                  <tr><th className="px-3 py-2 text-left font-normal">{t("Lavoro")}</th><th className={cella}>{t("Lavori")}</th><th className={cella}>{t("Senza AI")}</th><th className={cella}>{t("Chiamate AI")}</th></tr>
                 </thead>
                 <tbody>
                   {data.flussi.map((f) => (
                     <tr key={f.flusso} className="border-t">
-                      <td className="px-3 py-2">{FLUSSI_ACQUISTI[f.flusso]}</td>
+                      <td className="px-3 py-2">{t(FLUSSI_ACQUISTI[f.flusso])}</td>
                       <td className={cella}>{f.totali}</td>
                       <td className={cella}>{f.pct_senza_ai ?? 0}%</td>
                       <td className={cella}>{f.chiamate_ai}</td>
@@ -82,20 +84,20 @@ export function MisuraAutomazioni({ companyId }: { companyId: string }) {
             )}
           </div>
           <div className="rounded-lg border">
-            <p className="border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">Collegamenti fatti dalle regole</p>
+            <p className="border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">{t("Collegamenti fatti dalle regole")}</p>
             {data.regole === null ? (
-              <p className="px-3 py-3 text-sm text-muted-foreground">Non disponibile per il tuo ruolo.</p>
+              <p className="px-3 py-3 text-sm text-muted-foreground">{t("Non disponibile per il tuo ruolo.")}</p>
             ) : data.regole.length === 0 ? (
-              <p className="px-3 py-3 text-sm text-muted-foreground">Nessun collegamento negli ultimi 30 giorni.</p>
+              <p className="px-3 py-3 text-sm text-muted-foreground">{t("Nessun collegamento negli ultimi 30 giorni.")}</p>
             ) : (
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2 text-left font-normal">Regola</th>
-                    <th className={cella}>Da soli</th>
-                    <th className={cella}>Confermati</th>
-                    <th className={cella}>In attesa</th>
-                    <th className={cella}>Corretti</th>
+                    <th className="px-3 py-2 text-left font-normal">{t("Regola")}</th>
+                    <th className={cella}>{t("Da soli")}</th>
+                    <th className={cella}>{t("Confermati")}</th>
+                    <th className={cella}>{t("In attesa")}</th>
+                    <th className={cella}>{t("Corretti")}</th>
                   </tr>
                 </thead>
                 <tbody>

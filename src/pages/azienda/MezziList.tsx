@@ -52,6 +52,7 @@ import {
   type MezzoClasse, type MezzoConAssegnazione, type MezzoDisponibilita, type MezzoScadenza, type MezzoTipo,
 } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TUTTI = "__tutti__";
 const SENZA = "__senza__";
@@ -88,6 +89,7 @@ const suiCantieriTesto = (n: number) => (n > 0 ? `${n} sui cantieri` : null);
  * contiene; qui restano la frase e il bottone.
  */
 export default function MezziList({ incorporata = false }: { incorporata?: boolean } = {}) {
+  const tr = useT();
   const navigate = useNavigate();
   const perms = usePermissions();
   const puoModificare = (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
@@ -302,15 +304,15 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
           variant="outline"
           className="gap-2 max-sm:h-9 max-sm:w-9 max-sm:p-0"
           onClick={() => navigate("/azienda/mezzi/inventario")}
-          aria-label="Inventario"
-          title="Inventario con lo scanner"
+          aria-label={tr("Inventario")}
+          title={tr("Inventario con lo scanner")}
         >
-          <ClipboardCheck className="h-4 w-4 text-orange-600" /><span className="max-sm:hidden">Inventario</span>
+          <ClipboardCheck className="h-4 w-4 text-orange-600" /><span className="max-sm:hidden">{tr("Inventario")}</span>
         </Button>
       )}
       {puoModificare && diQuesti.length > 0 && (
         <Button size="sm" variant="outline" className="gap-2 max-sm:hidden" onClick={() => setEtichette(true)}>
-          <QrCode className="h-4 w-4 text-orange-600" />Etichette QR
+          <QrCode className="h-4 w-4 text-orange-600" />{tr("Etichette QR")}
         </Button>
       )}
       {puoModificare && (
@@ -331,7 +333,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
     <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:hidden">
       <ScansionaMezzoButton onLibero={(codice) => setNuovo({ codice })} />
       {vista === "attrezzatura" && (
-        <Button size="icon" variant="outline" className="h-9 w-9 rounded-full" onClick={() => navigate("/azienda/mezzi/inventario")} aria-label="Inventario">
+        <Button size="icon" variant="outline" className="h-9 w-9 rounded-full" onClick={() => navigate("/azienda/mezzi/inventario")} aria-label={tr("Inventario")}>
           <ClipboardCheck className="h-4 w-4 text-orange-600" />
         </Button>
       )}
@@ -350,8 +352,8 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
         <div className="flex flex-wrap items-center justify-between gap-3 max-sm:hidden">
           <p className="text-sm text-slate-500 max-sm:hidden">
             {vista === "attrezzatura"
-              ? "Attrezzi e ponteggi: dove sono, chi li ha, manutenzioni e verifiche. Con l'etichetta QR si trovano dal telefono."
-              : "Assicurazioni, revisioni e tagliandi di furgoni e mezzi d'opera, con l'avviso prima che scadano."}
+              ? tr("Attrezzi e ponteggi: dove sono, chi li ha, manutenzioni e verifiche. Con l'etichetta QR si trovano dal telefono.")
+              : tr("Assicurazioni, revisioni e tagliandi di furgoni e mezzi d'opera, con l'avviso prima che scadano.")}
           </p>
           {azioni}
         </div>
@@ -362,9 +364,9 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
               <Truck className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Mezzi e attrezzature</h1>
+              <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">{tr("Mezzi e attrezzature")}</h1>
               <p className="mt-0.5 hidden text-sm text-slate-500 sm:block">
-                Furgoni, mezzi e attrezzi: assicurazioni, revisioni e tagliandi, con l'avviso prima che scadano.
+                {tr("Furgoni, mezzi e attrezzi: assicurazioni, revisioni e tagliandi, con l'avviso prima che scadano.")}
               </p>
             </div>
           </div>
@@ -374,7 +376,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
 
       {/* Due elenchi, mezzi e attrezzature; accanto come raggrupparli (06/10/2026). */}
       <div className="flex items-center gap-2 max-sm:flex-wrap">
-      <div className="grid flex-1 grid-cols-2 gap-1 rounded-xl border bg-muted/60 p-1 sm:inline-grid sm:flex-none max-sm:flex max-sm:flex-none max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0" role="tablist" aria-label="Mezzi o attrezzature">
+      <div className="grid flex-1 grid-cols-2 gap-1 rounded-xl border bg-muted/60 p-1 sm:inline-grid sm:flex-none max-sm:flex max-sm:flex-none max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0" role="tablist" aria-label={tr("Mezzi o attrezzature")}>
         {(["mezzo", "attrezzatura"] as const).map((c) => (
           <button
             key={c}
@@ -388,17 +390,17 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
             )}
           >
             {c === "mezzo" ? <Truck className="h-4 w-4 max-sm:hidden" aria-hidden="true" /> : <Wrench className="h-4 w-4 max-sm:hidden" aria-hidden="true" />}
-            {c === "mezzo" ? "Mezzi" : "Attrezzature"}
+            {c === "mezzo" ? tr("Mezzi") : tr("Attrezzature")}
             <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground max-sm:hidden">{quanti[c]}</span>
             {vista !== c && problemi[c] > 0 && (
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" aria-label={`${problemi[c]} da controllare`} />
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" aria-label={tr("{valore} da controllare", { valore: String(problemi[c] ?? "") })} />
             )}
           </button>
         ))}
       </div>
       {azioniTelefono}
       {diQuesti.length > 0 && (
-        <div role="group" aria-label="Vista" className="ml-auto inline-flex shrink-0 rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm max-sm:ml-0 max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+        <div role="group" aria-label={tr("Vista")} className="ml-auto inline-flex shrink-0 rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm max-sm:ml-0 max-sm:gap-1.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
           {visteRaggruppa.map((v) => {
             const nome = v === "tipo" ? (vista === "attrezzatura" ? "Per categoria" : "Per tipo") : v === "dove" ? "Dove sono" : "Elenco";
             return (
@@ -414,7 +416,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
                 )}
               >
                 {/* Da telefono una parola sola: sta nella riga degli elenchi. */}
-                <span className="sm:hidden">{v === "tipo" ? "Per tipo" : "Dove sono"}</span>
+                <span className="sm:hidden">{v === "tipo" ? tr("Per tipo") : tr("Dove sono")}</span>
                 <span className="max-sm:hidden">{nome}</span>
               </button>
             );
@@ -449,7 +451,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <OperationalKpiCard
               icon={vista === "mezzo" ? Truck : Wrench}
-              label={vista === "mezzo" ? "Mezzi" : "Attrezzature"}
+              label={vista === "mezzo" ? tr("Mezzi") : tr("Attrezzature")}
               value={diQuesti.length}
               hint={[
                 parco && parco.costoAnno > 0 ? `circa ${formatCurrency(parco.costoAnno)} l'anno` : null,
@@ -462,9 +464,9 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
             />
             <OperationalKpiCard
               icon={HardHat}
-              label="Sui cantieri"
+              label={tr("Sui cantieri")}
               value={numeri.cantieri}
-              hint={numeri.commesse > 0 ? (numeri.commesse === 1 ? "su 1 commessa" : `su ${numeri.commesse} commesse`) : "nessuno al lavoro"}
+              hint={numeri.commesse > 0 ? (numeri.commesse === 1 ? tr("su 1 commessa") : tr("su {commesse} commesse", { commesse: String(numeri.commesse ?? "") })) : tr("nessuno al lavoro")}
               tone="green"
               isLoading={isLoading}
               active={filtroRiquadro === "cantieri"}
@@ -473,9 +475,9 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
             {vista === "mezzo" ? (
               <OperationalKpiCard
                 icon={FileWarning}
-                label="Documenti da sistemare"
+                label={tr("Documenti da sistemare")}
                 value={numeri.documenti}
-                hint={numeri.documenti > 0 ? "scaduti, in scadenza o mancanti" : "tutti in regola"}
+                hint={numeri.documenti > 0 ? tr("scaduti, in scadenza o mancanti") : tr("tutti in regola")}
                 tone={numeri.documenti > 0 ? "red" : "green"}
                 isLoading={isLoading}
                 active={filtroRiquadro === "documenti"}
@@ -484,9 +486,9 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
             ) : (
               <OperationalKpiCard
                 icon={EyeOff}
-                label="Non viste"
+                label={tr("Non viste")}
                 value={numeri.nonVisti}
-                hint={numeri.letti ? `da più di ${GIORNI_NON_VISTO} giorni` : "si contano con le etichette QR"}
+                hint={numeri.letti ? tr("da più di {GIORNI_NON_VISTO} giorni", { GIORNI_NON_VISTO: String(GIORNI_NON_VISTO ?? "") }) : tr("si contano con le etichette QR")}
                 tone={numeri.nonVisti > 0 ? "amber" : "slate"}
                 isLoading={isLoading}
                 active={filtroRiquadro === "non_visti"}
@@ -495,9 +497,9 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
             )}
             <OperationalKpiCard
               icon={Wrench}
-              label={vista === "mezzo" ? "Fermi" : "Ferme"}
+              label={vista === "mezzo" ? tr("Fermi") : tr("Ferme")}
               value={numeri.fermi}
-              hint={numeri.fermi > 0 ? "in officina, fuori servizio o con un guasto" : (vista === "mezzo" ? "tutti in servizio" : "tutte in servizio")}
+              hint={numeri.fermi > 0 ? tr("in officina, fuori servizio o con un guasto") : (vista === "mezzo" ? tr("tutti in servizio") : tr("tutte in servizio"))}
               tone={numeri.fermi > 0 ? "amber" : "green"}
               isLoading={isLoading}
               active={filtroRiquadro === "fermi"}
@@ -510,9 +512,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
         <details key={vista} className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2">
           <summary className="cursor-pointer text-sm font-semibold text-amber-900">
             <AlertTriangle className="mx-1 inline h-4 w-4 text-amber-600" aria-hidden="true" />
-            <span>
-              Da controllare: {daControllare.length + guasti.length}
-            </span>
+            <span>{tr("Da controllare: {n}", { n: daControllare.length + guasti.length })}</span>
           </summary>
           <ul className="divide-y divide-amber-200/70">
             {guasti.map((g) => (
@@ -525,11 +525,11 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-slate-900">{nomeMezzo.get(g.mezzo_id)}</span>
                     <span className="block truncate text-xs text-slate-600">
-                      {tipoSegnalazioneLabel(g.tipo)}, {formatData(giornoItaliano(g.created_at))}{g.descrizione ? `: ${g.descrizione}` : ""}
+                      {tr(tipoSegnalazioneLabel(g.tipo))}, {formatData(giornoItaliano(g.created_at))}{g.descrizione ? `: ${g.descrizione}` : ""}
                     </span>
                   </span>
                   <Badge variant="outline" className="shrink-0 border-red-200 bg-red-50 text-[11px] text-red-700">
-                    {g.stato === "in_lavorazione" ? "In lavorazione" : "Da vedere"}
+                    {g.stato === "in_lavorazione" ? tr("In lavorazione") : tr("Da vedere")}
                   </Badge>
                 </Link>
               </li>
@@ -548,7 +548,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
                     <span className="block truncate text-xs text-slate-600">{descriviScadenza(s)}</span>
                   </span>
                   <Badge variant="outline" className={`shrink-0 text-[11px] ${STATO_SCADENZA_BADGE[s.stato].cls}`}>
-                    {STATO_SCADENZA_BADGE[s.stato].label}
+                    {tr(STATO_SCADENZA_BADGE[s.stato].label)}
                   </Badge>
                 </Link>
               </li>
@@ -560,7 +560,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
               className="mt-1 text-sm font-medium text-amber-900 underline underline-offset-2"
               onClick={() => setTutteLeScadenze((v) => !v)}
             >
-              {tutteLeScadenze ? "Mostra meno" : `Mostra tutte (${daControllare.length})`}
+              {tutteLeScadenze ? tr("Mostra meno") : tr("Mostra tutte ({n})", { n: daControllare.length })}
             </button>
           )}
         </details>
@@ -574,9 +574,9 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
             <Input
               value={cerca}
               onChange={(e) => setCerca(e.target.value)}
-              placeholder={vista === "attrezzatura" ? "Cerca nome, codice, persona" : "Cerca nome, targa, persona"}
+              placeholder={vista === "attrezzatura" ? tr("Cerca nome, codice, persona") : tr("Cerca nome, targa, persona")}
               className="pl-9"
-              aria-label={vista === "attrezzatura" ? "Cerca attrezzature" : "Cerca mezzi"}
+              aria-label={vista === "attrezzatura" ? tr("Cerca attrezzature") : tr("Cerca mezzi")}
             />
           </div>
           {/* Da telefono il filtro per tipo lo fanno già i gruppi: una riga in meno. Il bottone delle
@@ -584,27 +584,27 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
           <div className="flex gap-2 empty:hidden max-sm:hidden">
             {!isMobile && (
               <Select value={filtro} onValueChange={setFiltro}>
-                <SelectTrigger className="sm:w-56" aria-label={vista === "attrezzatura" ? "Filtra per categoria" : "Filtra per tipo"}>
+                <SelectTrigger className="sm:w-56" aria-label={vista === "attrezzatura" ? tr("Filtra per categoria") : tr("Filtra per tipo")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {vista === "attrezzatura" ? (
                     <>
-                      <SelectItem value={TUTTI}>Tutte le categorie</SelectItem>
+                      <SelectItem value={TUTTI}>{tr("Tutte le categorie")}</SelectItem>
                       {categorieAttrezzi.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                      <SelectItem value={SENZA}>Senza categoria</SelectItem>
+                      <SelectItem value={SENZA}>{tr("Senza categoria")}</SelectItem>
                     </>
                   ) : (
                     <>
-                      <SelectItem value={TUTTI}>Tutti i tipi</SelectItem>
-                      {TIPI_VEICOLO.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                      <SelectItem value={TUTTI}>{tr("Tutti i tipi")}</SelectItem>
+                      {TIPI_VEICOLO.map((t) => <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>)}
                     </>
                   )}
                 </SelectContent>
               </Select>
             )}
             {vista === "attrezzatura" && puoModificare && (
-              <Button variant="outline" size="icon" className="shrink-0 max-sm:hidden" onClick={() => setGestisciCategorie(true)} aria-label="Gestisci le categorie" title="Gestisci le categorie">
+              <Button variant="outline" size="icon" className="shrink-0 max-sm:hidden" onClick={() => setGestisciCategorie(true)} aria-label={tr("Gestisci le categorie")} title={tr("Gestisci le categorie")}>
                 <Settings2 className="h-4 w-4" />
               </Button>
             )}
@@ -616,8 +616,8 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
         <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">
-          Non riesco a caricare i mezzi.{" "}
-          <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
+          {tr("Non riesco a caricare i mezzi.")}{" "}
+          <button type="button" className="font-semibold underline" onClick={() => refetch()}>{tr("Riprova")}</button>
         </div>
       ) : diQuesti.length === 0 ? (
         // Telefono: una riga e basta. Anche da tablet niente secondo bottone:
@@ -627,20 +627,20 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
             ? <Wrench className="mx-auto h-10 w-10 text-muted-foreground/50 max-sm:hidden" aria-hidden="true" />
             : <Truck className="mx-auto h-10 w-10 text-muted-foreground/50 max-sm:hidden" aria-hidden="true" />}
           <h2 className="mt-3 text-base font-semibold max-sm:mt-0 max-sm:text-sm max-sm:font-normal max-sm:text-muted-foreground">
-            {vista === "attrezzatura" ? "Nessuna attrezzatura ancora" : "Nessun mezzo ancora"}
+            {vista === "attrezzatura" ? tr("Nessuna attrezzatura ancora") : tr("Nessun mezzo ancora")}
           </h2>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground max-sm:hidden">
             {vista === "attrezzatura"
-              ? "Aggiungi trapani, demolitori, betoniere e i ponteggi a metri quadri: poi stampi le etichette QR e dal cantiere si segna dove li lasciate."
-              : "Aggiungi furgoni e mezzi d'opera: poi carichi assicurazione, revisione e tagliandi, e ti avvisiamo prima delle scadenze."}
+              ? tr("Aggiungi trapani, demolitori, betoniere e i ponteggi a metri quadri: poi stampi le etichette QR e dal cantiere si segna dove li lasciate.")
+              : tr("Aggiungi furgoni e mezzi d'opera: poi carichi assicurazione, revisione e tagliandi, e ti avvisiamo prima delle scadenze.")}
           </p>
         </div>
       ) : filtrati.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          {riquadro ? "Nessuno in questo riquadro." : "Niente corrisponde alla ricerca."}
+          {riquadro ? tr("Nessuno in questo riquadro.") : tr("Niente corrisponde alla ricerca.")}
           {riquadro && (
             <button type="button" className="ml-1 font-medium text-orange-700 underline underline-offset-2" onClick={() => setFiltroRiquadro(null)}>
-              Mostra tutti
+              {tr("Mostra tutti")}
             </button>
           )}
         </p>
@@ -670,7 +670,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
                 conteggio={conta(vista, mezziQui.length)}
                 avviso={daSistemareTesto(mezziQui.filter((m) => daSistemare(m) || fermo(m)).length)}
                 dettaglio={g.orderId ? (
-                  <Link to={`/azienda/ordini/${g.orderId}`} className="font-medium text-orange-700 hover:underline">Apri la commessa</Link>
+                  <Link to={`/azienda/ordini/${g.orderId}`} className="font-medium text-orange-700 hover:underline">{tr("Apri la commessa")}</Link>
                 ) : undefined}
                 aperta={apriGruppo(i, filtrati.length)}
               >
@@ -771,10 +771,12 @@ function scadenzaDaMostrare(scadenze: MezzoScadenza[]): MezzoScadenza | undefine
 }
 
 /** Dove si trova, in parole, anche per le attrezzature a quantità (i ponteggi). */
-function dovePerElenco(m: MezzoConAssegnazione, d: MezzoDisponibilita | undefined, libero: string): string {
+function dovePerElenco(m: MezzoConAssegnazione, d: MezzoDisponibilita | undefined, libero: string, t: ReturnType<typeof useT>): string {
   if (m.gestione === "quantita") {
     if (!d || d.in_uso <= 0) return libero;
-    return `${formatQuantita(d.in_uso, m.unita_misura)} montati${d.cantieri > 0 ? ` su ${d.cantieri} ${d.cantieri === 1 ? "cantiere" : "cantieri"}` : ""}`;
+    return d.cantieri > 0
+      ? t(d.cantieri === 1 ? "{quantita} montati su 1 cantiere" : "{quantita} montati su {n} cantieri", { quantita: formatQuantita(d.in_uso, m.unita_misura), n: d.cantieri })
+      : t("{quantita} montati", { quantita: formatQuantita(d.in_uso, m.unita_misura) });
   }
   const posto = doveSiTrova(m, libero);
   return posto.etichetta;
@@ -798,6 +800,7 @@ function RigaMezzo({
   quantitaQui?: { quantita: number; montata: boolean };
   libero: string;
 }) {
+  const t = useT();
   const peggiore = statoPeggiore(scadenze.map((s) => s.stato));
   const urgente = peggiore && peggiore !== "valido" ? scadenzaDaMostrare(scadenze) : undefined;
   const stato = statoMezzo(m.stato);
@@ -808,27 +811,27 @@ function RigaMezzo({
   let dettaglio: string;
   if (aQuantita && quantitaQui) {
     dettaglio = quantitaQui.montata
-      ? `${formatQuantita(quantitaQui.quantita, m.unita_misura)} montati`
-      : `${formatQuantita(quantitaQui.quantita, m.unita_misura)} in magazzino su ${formatQuantita(m.quantita_totale, m.unita_misura)}`;
+      ? t("{quantita} montati", { quantita: formatQuantita(quantitaQui.quantita, m.unita_misura) })
+      : t("{quantita} in magazzino su {totale}", { quantita: formatQuantita(quantitaQui.quantita, m.unita_misura), totale: formatQuantita(m.quantita_totale, m.unita_misura) });
   } else if (aQuantita) {
     const d = disponibilita;
     dettaglio = d
       ? [
           formatQuantita(d.quantita_totale, m.unita_misura),
-          d.in_uso > 0 ? `${formatQuantita(d.in_uso, m.unita_misura)} montati${d.cantieri > 0 ? ` su ${d.cantieri} ${d.cantieri === 1 ? "cantiere" : "cantieri"}` : ""}` : null,
-          `${formatQuantita(d.disponibile, m.unita_misura)} in magazzino`,
+          d.in_uso > 0 ? dovePerElenco(m, d, "", t) : null,
+          t("{quantita} in magazzino", { quantita: formatQuantita(d.disponibile, m.unita_misura) }),
         ].filter(Boolean).join(" · ")
       : formatQuantita(m.quantita_totale, m.unita_misura);
   } else if (mostra === "tipo") {
     // Il posto è il titolo del gruppo: qui il tipo, e chi lo ha se è sul cantiere con qualcuno.
     dettaglio = [
-      attrezzo ? nomeCategoria ?? null : tipoMezzoLabel(m.tipo),
-      m.assegnato_order_id && m.assegnato_persona ? `con ${m.assegnato_persona}` : null,
+      attrezzo ? nomeCategoria ?? null : t(tipoMezzoLabel(m.tipo)),
+      m.assegnato_order_id && m.assegnato_persona ? t("con {persona}", { persona: m.assegnato_persona }) : null,
       contatore,
     ].filter(Boolean).join(" · ");
   } else {
     // Il tipo è il titolo del gruppo: qui dove si trova.
-    dettaglio = [dovePerElenco(m, disponibilita, libero), m.gestione !== "quantita" && m.assegnato_order_id ? m.assegnato_persona : null, contatore].filter(Boolean).join(" · ");
+    dettaglio = [dovePerElenco(m, disponibilita, libero, t), m.gestione !== "quantita" && m.assegnato_order_id ? m.assegnato_persona : null, contatore].filter(Boolean).join(" · ");
   }
 
   // «Non visto da…» solo per gli attrezzi che sono già stati letti almeno una volta:
@@ -842,10 +845,10 @@ function RigaMezzo({
   const pallino = nGuasti > 0 || peggiore === "scaduto" ? "scaduto"
     : peggiore === "in_scadenza" || mancano.length > 0 ? "in_scadenza"
     : peggiore;
-  const pallinoTesto = nGuasti > 0 ? "Segnalazioni da vedere"
-    : peggiore && peggiore !== "valido" ? STATO_SCADENZA_BADGE[peggiore].label
-    : mancano.length > 0 ? "Documenti mancanti"
-    : peggiore ? STATO_SCADENZA_BADGE[peggiore].label : "";
+  const pallinoTesto = nGuasti > 0 ? t("Segnalazioni da vedere")
+    : peggiore && peggiore !== "valido" ? t(STATO_SCADENZA_BADGE[peggiore].label)
+    : mancano.length > 0 ? t("Documenti mancanti")
+    : peggiore ? t(STATO_SCADENZA_BADGE[peggiore].label) : "";
 
   return (
     <li className="flex min-w-0 items-center bg-white">
@@ -867,7 +870,7 @@ function RigaMezzo({
             {m.targa && <span className="shrink-0 rounded border px-1 font-mono text-[11px] text-slate-600">{m.targa}</span>}
             {attrezzo && m.codice && <span className="shrink-0 rounded border px-1 font-mono text-[11px] text-slate-500 max-sm:hidden">{m.codice}</span>}
             {m.stato !== "in_servizio" && (
-              <Badge variant="outline" className={`shrink-0 px-1.5 py-0 text-[10px] ${stato.cls}`}>{stato.label}</Badge>
+              <Badge variant="outline" className={`shrink-0 px-1.5 py-0 text-[10px] ${stato.cls}`}>{t(stato.label)}</Badge>
             )}
           </span>
           {dettaglio && <span className="block truncate text-xs text-muted-foreground">{dettaglio}</span>}
@@ -878,7 +881,7 @@ function RigaMezzo({
           )}
           {nGuasti > 0 && (
             <span className="mt-0.5 block truncate text-xs font-medium text-red-700">
-              {nGuasti === 1 ? "1 segnalazione dal campo da vedere" : `${nGuasti} segnalazioni dal campo da vedere`}
+              {nGuasti === 1 ? t("1 segnalazione dal campo da vedere") : t("{nGuasti} segnalazioni dal campo da vedere", { nGuasti: String(nGuasti ?? "") })}
             </span>
           )}
           {urgente && (
@@ -891,7 +894,7 @@ function RigaMezzo({
             <span className={`mt-0.5 block truncate text-xs font-medium text-amber-700 ${nGuasti > 0 || urgente ? "max-sm:hidden" : ""}`} title={testoMancanze(mancano)}>{testoMancanze(mancano)}</span>
           )}
           {giorniNonVisto > GIORNI_NON_VISTO && (
-            <span className="mt-0.5 block truncate text-xs font-medium text-amber-700">Non visto da {giorniNonVisto} giorni</span>
+            <span className="mt-0.5 block truncate text-xs font-medium text-amber-700">{t("Non visto da {giorniNonVisto} giorni", { giorniNonVisto: String(giorniNonVisto ?? "") })}</span>
           )}
         </span>
         {pallino && (
@@ -905,7 +908,7 @@ function RigaMezzo({
       </Link>
       {/* Lo storico percorsi sul telefono si apre dalla scheda del mezzo (scheda Viaggi). */}
       {mezzoHaRegistroViaggi(m) && <Link className="mr-2 grid size-9 shrink-0 max-sm:hidden place-items-center rounded-md text-slate-600 hover:bg-muted hover:text-primary"
-        to={`/azienda/mezzi/${m.id}?tab=viaggi&vista=mappa`} aria-label={`Storico percorsi di ${m.nome}`} title="Storico percorsi">
+        to={`/azienda/mezzi/${m.id}?tab=viaggi&vista=mappa`} aria-label={t("Storico percorsi di {nome}", { nome: String(m.nome ?? "") })} title={t("Storico percorsi")}>
         <Route className="size-4" />
       </Link>}
     </li>
@@ -929,6 +932,7 @@ function ElencoMezzi({
   nomeCategoria: Map<string, string>;
   ultimeViste: Map<string, string> | undefined;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const [tabella, setTabella] = useState<HTMLDivElement | null>(null);
   const attrezzi = classe === "attrezzatura";
@@ -939,19 +943,19 @@ function ElencoMezzi({
       <Table wrapperRef={setTabella} className="whitespace-nowrap [&_td]:px-3 [&_td]:py-2 [&_th]:px-3">
         <TableHeader>
           <TableRow>
-            <TableHead>{classe === "attrezzatura" ? "Attrezzatura" : "Mezzo"}</TableHead>
-            <TableHead>{attrezzi ? "Codice" : "Targa"}</TableHead>
-            <TableHead>{classe === "attrezzatura" ? "Categoria" : "Tipo"}</TableHead>
-            <TableHead>Dove</TableHead>
-            <TableHead>Assegnato a</TableHead>
-            <TableHead>Stato</TableHead>
-            <TableHead>Scadenza da guardare</TableHead>
+            <TableHead>{classe === "attrezzatura" ? t("Attrezzatura") : t("Mezzo")}</TableHead>
+            <TableHead>{attrezzi ? t("Codice") : t("Targa")}</TableHead>
+            <TableHead>{classe === "attrezzatura" ? t("Categoria") : t("Tipo")}</TableHead>
+            <TableHead>{t("Dove")}</TableHead>
+            <TableHead>{t("Assegnato a")}</TableHead>
+            <TableHead>{t("Stato")}</TableHead>
+            <TableHead>{t("Scadenza da guardare")}</TableHead>
             {/* Gli attrezzi quasi mai hanno documenti obbligatori: per loro conta quando si sono visti l'ultima volta. */}
-            <TableHead>{attrezzi ? "Ultima lettura QR" : "Documenti"}</TableHead>
-            <TableHead className="text-right">{attrezzi ? "Quantità / ore" : "Km / ore"}</TableHead>
-            <TableHead>Marca</TableHead>
-            <TableHead>Modello</TableHead>
-            {attrezzi && <TableHead>Matricola</TableHead>}
+            <TableHead>{attrezzi ? t("Ultima lettura QR") : t("Documenti")}</TableHead>
+            <TableHead className="text-right">{attrezzi ? t("Quantità / ore") : t("Km / ore")}</TableHead>
+            <TableHead>{t("Marca")}</TableHead>
+            <TableHead>{t("Modello")}</TableHead>
+            {attrezzi && <TableHead>{t("Matricola")}</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -971,20 +975,20 @@ function ElencoMezzi({
                   </Link>
                   {mezzoHaRegistroViaggi(m) && <Link to={`/azienda/mezzi/${m.id}?tab=viaggi&vista=mappa`} onClick={e => e.stopPropagation()}
                     className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-                    <Route className="size-3" /> Storico percorsi
+                    <Route className="size-3" /> {t("Storico percorsi")}
                   </Link>}
                 </TableCell>
                 <TableCell className="font-mono text-xs">{(attrezzi ? m.codice : m.targa) || "—"}</TableCell>
                 <TableCell className="text-sm text-slate-600">
-                  {classe === "attrezzatura" ? (m.categoria_id ? nomeCategoria.get(m.categoria_id) : null) ?? "—" : tipoMezzoLabel(m.tipo)}
+                  {classe === "attrezzatura" ? (m.categoria_id ? nomeCategoria.get(m.categoria_id) : null) ?? "—" : t(tipoMezzoLabel(m.tipo))}
                 </TableCell>
                 <TableCell className="max-w-[220px] truncate text-sm text-slate-600">{dovePerElenco(m, disponibilita?.get(m.id), libero)}</TableCell>
                 <TableCell>{m.assegnato_persona || "—"}</TableCell>
                 <TableCell className="whitespace-nowrap text-sm">
                   {m.stato !== "in_servizio"
-                    ? <Badge variant="outline" className={`px-1.5 py-0 text-[11px] ${stato.cls}`}>{stato.label}</Badge>
-                    : <span className="text-emerald-700">In servizio</span>}
-                  {guasti > 0 && <span className="ml-1.5 text-xs font-medium text-red-700">{guasti === 1 ? "1 guasto" : `${guasti} guasti`}</span>}
+                    ? <Badge variant="outline" className={`px-1.5 py-0 text-[11px] ${stato.cls}`}>{t(stato.label)}</Badge>
+                    : <span className="text-emerald-700">{t("In servizio")}</span>}
+                  {guasti > 0 && <span className="ml-1.5 text-xs font-medium text-red-700">{guasti === 1 ? t("1 guasto") : t("{guasti} guasti", { guasti: String(guasti ?? "") })}</span>}
                 </TableCell>
                 <TableCell className="max-w-[260px] text-sm">
                   {scadenza ? (
@@ -1001,7 +1005,7 @@ function ElencoMezzi({
                       : <span className="text-muted-foreground">—</span>
                   ) : mancano && mancano.length > 0
                     ? <span className="block truncate font-medium text-amber-700" title={testoMancanze(mancano)}>{testoMancanze(mancano)}</span>
-                    : richiesti && mancano ? <span className="text-emerald-700" title="Ci sono tutti i documenti richiesti">Completi</span>
+                    : richiesti && mancano ? <span className="text-emerald-700" title={t("Ci sono tutti i documenti richiesti")}>{t("Completi")}</span>
                     : <span className="text-muted-foreground">—</span>}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-right text-sm tabular-nums text-slate-600">

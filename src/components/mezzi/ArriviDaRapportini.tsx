@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { useArriviDaRapportini, useCollegaArrivoRapportino } from "@/hooks/useMezziViaggi";
 import { formatData, giornoItaliano } from "@/types/mezzi";
 import type { ArrivoDaRapportino } from "@/lib/campo/arrivoRapportino";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const orario = new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" });
+const orario = new Intl.DateTimeFormat(intlCampo(), { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" });
 
 function ArrivoRiga({ arrivo, readOnly, onCompleta, onCollega, occupato }: {
   arrivo: ArrivoDaRapportino;
@@ -16,6 +17,7 @@ function ArrivoRiga({ arrivo, readOnly, onCompleta, onCollega, occupato }: {
   onCollega: (viaggioId: string) => void;
   occupato: boolean;
 }) {
+  const t = useT();
   const [collega, setCollega] = useState(false);
   const dettaglio = (id: string, giorno: string) =>
     `/azienda/mezzi/${arrivo.mezzoId}?tab=viaggi&giorno=${giorno}&viaggio=${id}`;
@@ -26,27 +28,27 @@ function ArrivoRiga({ arrivo, readOnly, onCompleta, onCollega, occupato }: {
         <div className="min-w-0">
           <p className="break-words text-sm font-semibold">{arrivo.nomeMezzo} <span className="ml-1 font-normal tabular-nums text-muted-foreground">{formatData(arrivo.giorno)}</span></p>
           <p className="mt-0.5 break-words text-xs text-muted-foreground">
-            {arrivo.partenza ? `Da ${arrivo.partenza} · ` : ""}
-            {arrivo.km == null ? "Km da completare" : `${arrivo.km.toLocaleString("it-IT")} km dichiarati`} · {arrivo.rapportini === 1 ? "1 rapportino" : `${arrivo.rapportini} rapportini`}
+            {arrivo.partenza ? t("Da {partenza} · ", { partenza: String(arrivo.partenza ?? "") }) : ""}
+            {arrivo.km == null ? t("Km da completare") : t("{km} km dichiarati", { km: arrivo.km.toLocaleString(intlCampo()) })} · {arrivo.rapportini === 1 ? t("1 rapportino") : t("{rapportini} rapportini", { rapportini: String(arrivo.rapportini ?? "") })}
           </p>
         </div>
       </div>
-      {arrivo.viaggioId ? <Button asChild variant="outline" size="sm" className="ml-auto"><Link to={dettaglio(arrivo.viaggioId, arrivo.viaggioGiorno ?? arrivo.giorno)}>{arrivo.viaggioStato === "bozza" ? "Apri bozza" : "Apri viaggio"}</Link></Button>
+      {arrivo.viaggioId ? <Button asChild variant="outline" size="sm" className="ml-auto"><Link to={dettaglio(arrivo.viaggioId, arrivo.viaggioGiorno ?? arrivo.giorno)}>{arrivo.viaggioStato === "bozza" ? t("Apri bozza") : t("Apri viaggio")}</Link></Button>
         : !readOnly && (!arrivo.richiedeCollegamento || arrivo.viaggiCompatibili.length > 0) && <Button type="button" variant="outline" size="sm" className="ml-auto text-primary"
           aria-expanded={arrivo.viaggiCompatibili.length ? collega : undefined} onClick={arrivo.viaggiCompatibili.length ? () => setCollega(v => !v) : onCompleta}>
-          {arrivo.viaggiCompatibili.length ? "Confronta viaggi" : "Completa viaggio"}
+          {arrivo.viaggiCompatibili.length ? t("Confronta viaggi") : t("Completa viaggio")}
           <ArrowRight className="size-3.5" aria-hidden="true" />
         </Button>}
     </div>
-    {arrivo.datiDiscordanti && <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">I rapportini indicano dati diversi. Verifica il tragitto prima di completarlo.</p>}
-    {arrivo.richiedeCollegamento && !arrivo.viaggiCompatibili.length && <p className="text-xs text-muted-foreground">Per completare questo arrivo, registra un viaggio nella stessa data e collegalo qui.</p>}
+    {arrivo.datiDiscordanti && <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">{t("I rapportini indicano dati diversi. Verifica il tragitto prima di completarlo.")}</p>}
+    {arrivo.richiedeCollegamento && !arrivo.viaggiCompatibili.length && <p className="text-xs text-muted-foreground">{t("Per completare questo arrivo, registra un viaggio nella stessa data e collegalo qui.")}</p>}
     {collega && !arrivo.viaggioId && <div className="space-y-2 rounded-lg bg-muted/50 p-2.5 text-xs">
-      <p>Ci sono viaggi dello stesso mezzo in questa data. Collega quello che corrisponde all’arrivo.</p>
+      <p>{t("Ci sono viaggi dello stesso mezzo in questa data. Collega quello che corrisponde all’arrivo.")}</p>
       {arrivo.viaggiCompatibili.map(v => <div key={v.id} className="flex flex-wrap items-center justify-between gap-2">
-        <Link to={dettaglio(v.id, giornoItaliano(v.partenza))} className="underline underline-offset-2">Dalle {orario.format(new Date(v.partenza))} alle {orario.format(new Date(v.arrivo))}</Link>
-        <Button type="button" variant="outline" size="sm" disabled={occupato} onClick={() => onCollega(v.id)}><Link2 className="mr-1 h-3.5 w-3.5" />Collega questo viaggio</Button>
+        <Link to={dettaglio(v.id, giornoItaliano(v.partenza))} className="underline underline-offset-2">{t("Dalle {orario} alle {orario2}", { orario: String(orario.format(new Date(v.partenza)) ?? ""), orario2: String(orario.format(new Date(v.arrivo)) ?? "") })}</Link>
+        <Button type="button" variant="outline" size="sm" disabled={occupato} onClick={() => onCollega(v.id)}><Link2 className="mr-1 h-3.5 w-3.5" />{t("Collega questo viaggio")}</Button>
       </div>)}
-      {!arrivo.richiedeCollegamento && <Button type="button" variant="ghost" size="sm" onClick={onCompleta}>È un altro viaggio</Button>}
+      {!arrivo.richiedeCollegamento && <Button type="button" variant="ghost" size="sm" onClick={onCompleta}>{t("È un altro viaggio")}</Button>}
     </div>}
   </li>;
 }
@@ -54,6 +56,7 @@ function ArrivoRiga({ arrivo, readOnly, onCompleta, onCollega, occupato }: {
 export function ArriviDaRapportini({ companyId, orderId, dal, al, readOnly, onCompleta }: {
   companyId: string; orderId: string; dal: string; al: string; readOnly: boolean; onCompleta: (arrivo: ArrivoDaRapportino) => void;
 }) {
+  const t = useT();
   const [offset, setOffset] = useState(0);
   const query = useArriviDaRapportini({ companyId, orderId, dal, al, offset, enabled: true });
   const collega = useCollegaArrivoRapportino(companyId, orderId);
@@ -63,31 +66,31 @@ export function ArriviDaRapportini({ companyId, orderId, dal, al, readOnly, onCo
   const renderArrivo = (arrivo: ArrivoDaRapportino) => <ArrivoRiga key={arrivo.id} arrivo={arrivo} readOnly={readOnly} occupato={collega.isPending}
     onCompleta={() => onCompleta(arrivo)} onCollega={viaggioId => collega.mutate({ arrivo, viaggioId })} />;
   if (query.isSuccess && !arrivi.length && offset === 0) return null;
-  return <section className="rounded-xl border bg-background" aria-label="Arrivi dai rapportini">
+  return <section className="rounded-xl border bg-background" aria-label={t("Arrivi dai rapportini")}>
     <header className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border-b bg-muted/30 px-3 py-2.5">
-      <h4 className="flex items-center gap-2 text-sm font-semibold"><CarFront className="size-4 text-primary" aria-hidden="true" />Arrivi dai rapportini</h4>
+      <h4 className="flex items-center gap-2 text-sm font-semibold"><CarFront className="size-4 text-primary" aria-hidden="true" />{t("Arrivi dai rapportini")}</h4>
       {query.isSuccess && daCompletare.length > 0 && <Badge variant="outline" className="rounded-md border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-        {daCompletare.length} da completare{(offset > 0 || query.data?.has_more) && " in questa pagina"}
+        {daCompletare.length} {t("da completare")}{(offset > 0 || query.data?.has_more) && ` ${t("in questa pagina")}`}
       </Badge>}
     </header>
-    {query.isPending && <p role="status" className="p-3 text-sm text-muted-foreground">Carico gli arrivi…</p>}
+    {query.isPending && <p role="status" className="p-3 text-sm text-muted-foreground">{t("Carico gli arrivi…")}</p>}
     {query.isError && <p role="alert" className="p-3 text-sm text-amber-900 dark:text-amber-200">{query.error.message}
-      {query.error.cause !== "PGRST202" && <> <button type="button" className="underline" onClick={() => void query.refetch()}>Riprova</button></>}
+      {query.error.cause !== "PGRST202" && <> <button type="button" className="underline" onClick={() => void query.refetch()}>{t("Riprova")}</button></>}
     </p>}
     {collega.isError && <p role="alert" className="p-3 text-sm text-destructive">{collega.error.message}</p>}
     {query.isSuccess && <>
-      {daCompletare.length > 0 ? <ul className="divide-y" aria-label="Arrivi da completare">{daCompletare.map(renderArrivo)}</ul>
-        : <p className="p-3 text-sm text-muted-foreground">{arrivi.length ? "Tutti gli arrivi di questa pagina sono collegati." : "Nessun arrivo dichiarato nei rapportini del periodo."}</p>}
+      {daCompletare.length > 0 ? <ul className="divide-y" aria-label={t("Arrivi da completare")}>{daCompletare.map(renderArrivo)}</ul>
+        : <p className="p-3 text-sm text-muted-foreground">{arrivi.length ? t("Tutti gli arrivi di questa pagina sono collegati.") : t("Nessun arrivo dichiarato nei rapportini del periodo.")}</p>}
       {collegati.length > 0 && <details className="group/collegati border-t">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-          Arrivi collegati · {collegati.length}<ChevronDown className="size-4 group-open/collegati:rotate-180" aria-hidden="true" />
+          {t("Arrivi collegati ·")} {collegati.length}<ChevronDown className="size-4 group-open/collegati:rotate-180" aria-hidden="true" />
         </summary>
         <ul className="divide-y border-t">{collegati.map(renderArrivo)}</ul>
       </details>}
     </>}
     {(offset > 0 || query.data?.has_more) && <div className="flex justify-between gap-2 border-t p-2">
-      <Button type="button" variant="outline" size="sm" disabled={!offset || query.isFetching} onClick={() => setOffset(v => Math.max(0, v - 50))}>Precedenti</Button>
-      <Button type="button" variant="outline" size="sm" disabled={!query.data?.has_more || query.isFetching} onClick={() => setOffset(v => v + 50)}>Successivi</Button>
+      <Button type="button" variant="outline" size="sm" disabled={!offset || query.isFetching} onClick={() => setOffset(v => Math.max(0, v - 50))}>{t("Precedenti")}</Button>
+      <Button type="button" variant="outline" size="sm" disabled={!query.data?.has_more || query.isFetching} onClick={() => setOffset(v => v + 50)}>{t("Successivi")}</Button>
     </div>}
   </section>;
 }

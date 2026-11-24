@@ -18,6 +18,7 @@ import {
   useCaselleCalendario,
   type ProviderCalendario,
 } from "@/hooks/useCalendariEsterni";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface SceltaCalendarioEsterno {
   external_provider: ProviderCalendario | null;
@@ -42,6 +43,7 @@ export function CalendarioEsternoPicker({
   onChange: (next: SceltaCalendarioEsterno) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const { data: caselle = [], isLoading: caricoCaselle } = useCaselleCalendario();
   // Nessun effect: finché l'utente non tocca la tendina vale la casella salvata
   // sul calendario, così aprendo un calendario già collegato si vede subito.
@@ -71,14 +73,13 @@ export function CalendarioEsternoPicker({
   // permessi cambiati): resta comunque selezionabile, altrimenti la tendina
   // sembrerebbe vuota e si perderebbe il collegamento salvando.
   const calendariVisibili = value.external_calendar_id && !calendari.some((c) => c.id === value.external_calendar_id)
-    ? [...calendari, { id: value.external_calendar_id, nome: value.external_calendar_name || "Calendario collegato", colore: null }]
+    ? [...calendari, { id: value.external_calendar_id, nome: value.external_calendar_name || t("Calendario collegato"), colore: null }]
     : calendari;
 
   if (!caricoCaselle && caselle.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
-        Nessun account calendario collegato. Collegane uno da <strong>Il mio profilo → Calendari</strong> (Google, Outlook o Apple),
-        poi torna qui a scegliere in quale calendario finiscono gli appuntamenti.
+        {t("Nessun account calendario collegato. Collegane uno da")} <strong>{t("Il mio profilo → Calendari")}</strong> {t("(Google, Outlook o Apple), poi torna qui a scegliere in quale calendario finiscono gli appuntamenti.")}
       </p>
     );
   }
@@ -87,7 +88,7 @@ export function CalendarioEsternoPicker({
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Account</Label>
+          <Label className="text-xs text-muted-foreground">{t("Account")}</Label>
           <Select
             key={chiaveCaselle}
             value={connectionId ?? ""}
@@ -99,7 +100,7 @@ export function CalendarioEsternoPicker({
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder={caricoCaselle ? "Carico gli account…" : "Scegli l'account"} />
+              <SelectValue placeholder={caricoCaselle ? t("Carico gli account…") : t("Scegli l'account")} />
             </SelectTrigger>
             <SelectContent>
               {caselle.map((c) => (
@@ -107,8 +108,8 @@ export function CalendarioEsternoPicker({
                   <span className="flex items-center gap-2">
                     <span className="rounded bg-muted px-1 text-[10px] font-medium uppercase">{PROVIDER_LABEL[c.provider]}</span>
                     {c.email}
-                    {c.status !== "connected" && <span className="text-[10px] text-amber-700">· da ricollegare</span>}
-                    {!PROVIDER_SCRIVE_APPUNTAMENTI[c.provider] && <span className="text-[10px] text-muted-foreground">· solo lettura</span>}
+                    {c.status !== "connected" && <span className="text-[10px] text-amber-700">{t("· da ricollegare")}</span>}
+                    {!PROVIDER_SCRIVE_APPUNTAMENTI[c.provider] && <span className="text-[10px] text-muted-foreground">{t("· solo lettura")}</span>}
                   </span>
                 </SelectItem>
               ))}
@@ -117,7 +118,7 @@ export function CalendarioEsternoPicker({
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Calendario</Label>
+          <Label className="text-xs text-muted-foreground">{t("Calendario")}</Label>
           <Select
             key={chiaveCalendari}
             value={value.external_calendar_id ?? ""}
@@ -135,10 +136,10 @@ export function CalendarioEsternoPicker({
             <SelectTrigger>
               {caricoCalendari ? (
                 <span className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Leggo i calendari…
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("Leggo i calendari…")}
                 </span>
               ) : (
-                <SelectValue placeholder={casella ? "Scegli il calendario" : "Prima l'account"} />
+                <SelectValue placeholder={casella ? t("Scegli il calendario") : t("Prima l'account")} />
               )}
             </SelectTrigger>
             <SelectContent>
@@ -150,7 +151,7 @@ export function CalendarioEsternoPicker({
                       style={{ backgroundColor: c.colore ?? "#94a3b8" }}
                     />
                     {c.nome}
-                    {c.principale ? " (principale)" : ""}
+                    {c.principale ? ` ${t("(principale)")}` : ""}
                   </span>
                 </SelectItem>
               ))}
@@ -165,9 +166,9 @@ export function CalendarioEsternoPicker({
             <CalendarDays className="h-3.5 w-3.5 shrink-0 text-primary" />
             <span className="truncate">
               {casella && !PROVIDER_SCRIVE_APPUNTAMENTI[casella.provider] ? (
-                <>Gli impegni di <strong>{value.external_calendar_name || "questo calendario"}</strong> bloccano gli orari; gli appuntamenti non vengono ancora scritti su {PROVIDER_LABEL[casella.provider]}.</>
+                <>{t("Gli impegni di")} <strong>{value.external_calendar_name || t("questo calendario")}</strong> {t("bloccano gli orari; gli appuntamenti non vengono ancora scritti su")} {PROVIDER_LABEL[casella.provider]}.</>
               ) : (
-                <>Gli appuntamenti finiscono in <strong>{value.external_calendar_name || "questo calendario"}</strong>{casella && <> di {casella.email}</>}</>
+                <>{t("Gli appuntamenti finiscono in")} <strong>{value.external_calendar_name || t("questo calendario")}</strong>{casella && <>{" "}{t("di {email}", { email: String(casella.email ?? "") })}</>}</>
               )}
             </span>
           </span>
@@ -179,7 +180,7 @@ export function CalendarioEsternoPicker({
               className="shrink-0 text-muted-foreground"
               onClick={() => onChange({ ...NESSUN_CALENDARIO_ESTERNO })}
             >
-              <Link2Off className="mr-1 h-3.5 w-3.5" /> Scollega
+              <Link2Off className="mr-1 h-3.5 w-3.5" /> {t("Scollega")}
             </Button>
           )}
         </div>

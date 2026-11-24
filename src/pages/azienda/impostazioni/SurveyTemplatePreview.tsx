@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { SectionRenderer } from "@/components/surveys/engine/SectionRenderer";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface PreviewElement {
   id: string;
@@ -54,6 +55,7 @@ interface SurveyTemplatePreviewProps {
 }
 
 export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePreviewProps) {
+  const tr = useT();
   const schema = template.schema as TemplateSchema;
   const [headerData, setHeaderData] = useState<Record<string, unknown>>({});
   // Auto-crea 1 elemento di esempio sul primo element_type così
@@ -154,33 +156,32 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <Eye className="h-4 w-4 text-orange-600" />
-              <DialogTitle className="text-base">Anteprima — {template.name}</DialogTitle>
+              <DialogTitle className="text-base">{tr("Anteprima — {name}", { name: String(template.name ?? "") })}</DialogTitle>
               <Badge variant="outline" className="text-[10px] bg-amber-100 text-amber-800 border-amber-300">
                 <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                Prova: non si salva niente
+                {tr("Prova: non si salva niente")}
               </Badge>
             </div>
             <div className="flex items-center gap-1.5">
               <Button variant="outline" size="sm" onClick={() => setShowState((v) => !v)} className="gap-1.5">
                 <Code className="h-3.5 w-3.5" />
-                {showState ? "Nascondi i dati inseriti" : "Mostra i dati inseriti"}
+                {showState ? tr("Nascondi i dati inseriti") : tr("Mostra i dati inseriti")}
               </Button>
               <Button variant="outline" size="sm" onClick={reset} className="gap-1.5">
                 <RotateCcw className="h-3.5 w-3.5" />
-                Azzera
+                {tr("Azzera")}
               </Button>
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Compila i campi per provare come si vede il modulo e quali campi compaiono a seconda delle risposte.
-            Foto e note vocali sono disattivate in anteprima.
+            {tr("Compila i campi per provare come si vede il modulo e quali campi compaiono a seconda delle risposte. Foto e note vocali sono disattivate in anteprima.")}
           </p>
         </DialogHeader>
 
         <Tabs defaultValue="form" className="flex-1 flex flex-col overflow-hidden">
           <TabsList className="w-full justify-start rounded-none border-b bg-muted/30 px-3 shrink-0">
-            <TabsTrigger value="form" className="gap-1.5"><Eye className="h-3.5 w-3.5" /> Modulo (come lo vede il tecnico)</TabsTrigger>
-            <TabsTrigger value="summary" className="gap-1.5"><FileSignature className="h-3.5 w-3.5" /> Riepilogo</TabsTrigger>
+            <TabsTrigger value="form" className="gap-1.5"><Eye className="h-3.5 w-3.5" /> {tr("Modulo (come lo vede il tecnico)")}</TabsTrigger>
+            <TabsTrigger value="summary" className="gap-1.5"><FileSignature className="h-3.5 w-3.5" /> {tr("Riepilogo")}</TabsTrigger>
           </TabsList>
 
           {/* Native overflow-y-auto — ScrollArea Radix non funzionava
@@ -192,9 +193,7 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
                 {/* Header sections */}
                 {(schema?.header_schema?.length ?? 0) > 0 && (
                   <section>
-                    <h3 className="text-sm font-bold uppercase tracking-wide text-orange-700 mb-2">
-                      Dati iniziali del sopralluogo ({schema.header_schema.length} sezioni)
-                    </h3>
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-orange-700 mb-2">{tr("Dati iniziali del sopralluogo ({n} sezioni)", { n: schema.header_schema.length })}</h3>
                     <div className="space-y-2">
                       {schema.header_schema.map((sec) => (
                         <SectionRenderer
@@ -233,7 +232,7 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
                       className="w-full gap-2 border-dashed border-2 border-orange-300 hover:bg-orange-50"
                     >
                       <Plus className="h-4 w-4" />
-                      Aggiungi {template.area_label.toLowerCase()}
+                      {tr("Aggiungi {cosa}", { cosa: template.area_label.toLowerCase() })}
                     </Button>
                   </div>
                 </section>
@@ -243,7 +242,7 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
                   <section>
                     <h3 className="text-sm font-bold uppercase tracking-wide text-orange-700 mb-2 flex items-center gap-2">
                       <Camera className="h-3.5 w-3.5" />
-                      Foto generali ({schema.general_required_photos.length})
+                      {tr("Foto generali ({n})", { n: schema.general_required_photos.length })}
                     </h3>
                     <MockPhotoChecklist photos={schema.general_required_photos} />
                   </section>
@@ -260,7 +259,7 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
                   <CardHeader className="p-3 pb-2">
                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-violet-700">
                       <Code className="h-3 w-3" />
-                      Dati inseriti (per i tecnici)
+                      {tr("Dati inseriti (per i tecnici)")}
                     </div>
                   </CardHeader>
                   <CardContent className="p-3 pt-0">
@@ -275,7 +274,7 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
         </Tabs>
 
         <DialogFooter className="px-5 py-3 border-t shrink-0">
-          <Button variant="outline" onClick={onClose}>Chiudi anteprima</Button>
+          <Button variant="outline" onClick={onClose}>{tr("Chiudi anteprima")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -296,6 +295,7 @@ function PreviewAreaCard({
   onUpdateElement: (elementId: string, k: string, v: unknown) => void;
   onRemoveElement: (elementId: string) => void;
 }) {
+  const t = useT();
   const areaFields = schema?.area_definition?.fields ?? [];
 
   return (
@@ -304,7 +304,7 @@ function PreviewAreaCard({
         <MapPin className="h-4 w-4 text-orange-600 shrink-0" />
         <span className="font-semibold text-sm flex-1">{area.name}</span>
         <Badge variant="outline" className="text-[10px]">
-          {area.elements.length} {area.elements.length === 1 ? "elemento" : "elementi"}
+          {t(area.elements.length === 1 ? "{n} elemento" : "{n} elementi", { n: area.elements.length })}
         </Badge>
       </CardHeader>
       <CardContent className="p-3 space-y-3">
@@ -312,7 +312,7 @@ function PreviewAreaCard({
           <SectionRenderer
             section={{
               key: "area_fields",
-              label: "Dati area",
+              label: t("Dati area"),
               fields: areaFields,
               collapsible: false,
               default_open: true,
@@ -326,7 +326,7 @@ function PreviewAreaCard({
         {area.elements.length > 0 && (
           <div className="space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Elementi rilevati ({area.elements.length})
+              {t("Elementi rilevati ({n})", { n: area.elements.length })}
             </p>
             {area.elements.map((el, idx) => {
               const type = elementTypeByKey.get(el.type);
@@ -353,7 +353,7 @@ function PreviewAreaCard({
             className="w-full gap-2 border-dashed border-2 border-orange-400 bg-orange-50/40 hover:bg-orange-100 text-orange-800 font-semibold py-5"
           >
             <Plus className="h-5 w-5" />
-            Aggiungi {schema.element_types[0].label}
+            {t("Aggiungi {cosa}", { cosa: schema.element_types[0].label })}
           </Button>
         ) : (
           <DropdownMenu>
@@ -363,7 +363,7 @@ function PreviewAreaCard({
                 className="w-full gap-2 border-dashed border-2 border-orange-400 bg-orange-50/40 hover:bg-orange-100 text-orange-800 font-semibold py-5"
               >
                 <Plus className="h-5 w-5" />
-                {area.elements.length > 0 ? "Aggiungi un altro elemento" : "Aggiungi elemento (Infisso, Tapparella, Persiana, ecc.)"}
+                {area.elements.length > 0 ? t("Aggiungi un altro elemento") : t("Aggiungi elemento (Infisso, Tapparella, Persiana, ecc.)")}
                 <ChevronDown className="h-4 w-4 ml-auto" />
               </Button>
             </DropdownMenuTrigger>
@@ -402,6 +402,7 @@ function PreviewElementCard({
   onUpdate: (k: string, v: unknown) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   return (
     <Card className="border-2 border-amber-200">
       <CardHeader className="p-3 pb-2 flex-row items-center gap-2 space-y-0">
@@ -425,7 +426,7 @@ function PreviewElementCard({
         )}
         <div className="rounded-lg border bg-muted/10 p-2 flex items-center gap-2 text-xs">
           <Mic className="h-3.5 w-3.5 text-violet-600" />
-          <span className="text-muted-foreground">Nota vocale (disattivata in anteprima)</span>
+          <span className="text-muted-foreground">{t("Nota vocale (disattivata in anteprima)")}</span>
         </div>
       </CardContent>
     </Card>
@@ -433,11 +434,12 @@ function PreviewElementCard({
 }
 
 function MockPhotoChecklist({ photos }: { photos: PhotoChecklistItem[] }) {
+  const t = useT();
   return (
     <div className="space-y-1.5">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
         <Camera className="h-3 w-3" />
-        Foto richieste ({photos.length})
+        {t("Foto richieste ({n})", { n: photos.length })}
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {photos.map((item) => (
@@ -463,6 +465,7 @@ function MockPhotoChecklist({ photos }: { photos: PhotoChecklistItem[] }) {
 }
 
 function SummaryStats({ template, schema }: { template: SurveyTemplateRow; schema: TemplateSchema }) {
+  const t = useT();
   const headerSectionsCount = schema?.header_schema?.length ?? 0;
   const headerFieldsCount = (schema?.header_schema ?? []).reduce((s, sec) => s + (sec.fields?.length ?? 0), 0);
   const headerRequired = (schema?.header_schema ?? []).reduce(
@@ -486,17 +489,17 @@ function SummaryStats({ template, schema }: { template: SurveyTemplateRow; schem
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-        <StatCard label="Sezioni iniziali" value={headerSectionsCount} sub={`${headerFieldsCount} campi, ${headerRequired} obbligatori`} />
-        <StatCard label="Campi area" value={areaFieldsCount} sub={`${areaPhotosCount} foto richieste`} />
-        <StatCard label="Tipologie elementi" value={elementTypesCount} sub={`${totalElementFields} campi totali`} />
-        <StatCard label="Totale foto" value={totalPhotos} sub={`${genPhotosCount} generali · ${areaPhotosCount} area · ${totalElementPhotos} per elemento`} />
-        <StatCard label="Sezioni condizionali" value={conditionalSections} sub="compaiono solo in certi casi" highlight={conditionalSections > 0} />
-        <StatCard label="Versione" value={template.version} sub={template.is_system ? "Di serie" : "Tuo"} />
+        <StatCard label={t("Sezioni iniziali")} value={headerSectionsCount} sub={t("{campi} campi, {obbligatori} obbligatori", { campi: headerFieldsCount, obbligatori: headerRequired })} />
+        <StatCard label={t("Campi area")} value={areaFieldsCount} sub={t("{n} foto richieste", { n: areaPhotosCount })} />
+        <StatCard label={t("Tipologie elementi")} value={elementTypesCount} sub={t("{n} campi totali", { n: totalElementFields })} />
+        <StatCard label={t("Totale foto")} value={totalPhotos} sub={t("{generali} generali · {area} area · {elemento} per elemento", { generali: genPhotosCount, area: areaPhotosCount, elemento: totalElementPhotos })} />
+        <StatCard label={t("Sezioni condizionali")} value={conditionalSections} sub={t("compaiono solo in certi casi")} highlight={conditionalSections > 0} />
+        <StatCard label={t("Versione")} value={template.version} sub={template.is_system ? t("Di serie") : t("Tuo")} />
       </div>
 
       <Card>
         <CardHeader className="p-3 pb-2">
-          <div className="text-xs font-bold uppercase tracking-wide text-orange-700">Elementi disponibili</div>
+          <div className="text-xs font-bold uppercase tracking-wide text-orange-700">{t("Elementi disponibili")}</div>
         </CardHeader>
         <CardContent className="p-3 pt-0 space-y-1.5">
           {(schema?.element_types ?? []).map((et) => (
@@ -504,8 +507,7 @@ function SummaryStats({ template, schema }: { template: SurveyTemplateRow; schem
               <Badge variant="outline" className="text-[10px] font-mono">{et.key}</Badge>
               <span className="font-medium">{et.label}</span>
               <span className="text-muted-foreground ml-auto">
-                {et.sections?.length ?? 0} sezioni · {(et.sections ?? []).filter((s) => s.show_if).length} condizionali
-                · {et.required_photos?.length ?? 0} foto
+                {t("{sezioni} sezioni · {condizionali} condizionali · {foto} foto", { sezioni: et.sections?.length ?? 0, condizionali: (et.sections ?? []).filter((s) => s.show_if).length, foto: et.required_photos?.length ?? 0 })}
               </span>
             </div>
           ))}

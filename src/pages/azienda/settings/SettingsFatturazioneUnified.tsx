@@ -21,6 +21,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ComeFatturi } from "@/components/fatturazione/ComeFatturi";
 import { vaiAllaScelta } from "@/lib/fatturazione/sceltaCheFatturi";
 import { ContabilitaInCasa } from "@/components/contabilita/ContabilitaInCasa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Code-split: le due schede sono pesanti. Carico solo quella che si vede.
 const SettingsBilling = lazy(() => import("@/pages/azienda/settings/SettingsBilling"));
@@ -36,6 +37,7 @@ const TabFallback = () => (
 const VALID_TABS = new Set(["esterna", "nativa", "cassa"]);
 
 export default function SettingsFatturazioneUnified() {
+  const t = useT();
   const [params, setParams] = useSearchParams();
   const tabParam = params.get("tab") ?? "";
   const { isNative, isChosen, isLoading } = useBillingMode();
@@ -57,12 +59,12 @@ export default function SettingsFatturazioneUnified() {
       <div className="flex items-start gap-3 rounded-xl border bg-card p-3">
         <Monitor className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <div className="min-w-0">
-          <p className="text-sm font-medium">Si imposta da computer o tablet</p>
+          <p className="text-sm font-medium">{t("Si imposta da computer o tablet")}</p>
           {!isLoading && (
             <p className="mt-0.5 text-xs text-muted-foreground">
               {isChosen
-                ? isNative ? "Oggi fatturi con Edilizia in Cloud." : "Oggi fatturi con un altro programma."
-                : "Non hai ancora scelto come fatturi."}
+                ? isNative ? t("Oggi fatturi con Edilizia in Cloud.") : t("Oggi fatturi con un altro programma.")
+                : t("Non hai ancora scelto come fatturi.")}
             </p>
           )}
         </div>
@@ -74,7 +76,7 @@ export default function SettingsFatturazioneUnified() {
     <div className="space-y-6">
       <details className="rounded-xl border bg-card" open={!isChosen || undefined}>
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
-          {isLoading ? "Caricamento della modalità…" : isChosen ? `Fatturi ${isNative ? "con Edilizia in Cloud" : "con un altro programma"} · Cambia modalità` : "Scegli come fatturare"}
+          {isLoading ? t("Caricamento della modalità…") : isChosen ? (isNative ? t("Fatturi con Edilizia in Cloud · Cambia modalità") : t("Fatturi con un altro programma · Cambia modalità")) : t("Scegli come fatturare")}
         </summary>
         <div className="border-t p-4"><ComeFatturi onScelta={(modo) => setTab(modo === "native" ? "nativa" : "esterna")} /></div>
       </details>
@@ -83,12 +85,12 @@ export default function SettingsFatturazioneUnified() {
         <TabsList className="grid h-auto w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="esterna" className="gap-1.5 whitespace-normal py-2 text-xs sm:text-sm">
             <Plug className="h-3.5 w-3.5 shrink-0" />
-            Con un altro programma
+            {t("Con un altro programma")}
           </TabsTrigger>
           <TabsTrigger value="nativa" className="gap-1.5 whitespace-normal py-2 text-xs sm:text-sm">
             <FileSignature className="h-3.5 w-3.5 shrink-0" />
-            Con Edilizia in Cloud
-            {!isLoading && !isNative && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Sola lettura" />}
+            {t("Con Edilizia in Cloud")}
+            {!isLoading && !isNative && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" aria-label={t("Sola lettura")} />}
           </TabsTrigger>
           <TabsTrigger value="cassa" className="gap-1.5 whitespace-normal py-2 text-xs sm:text-sm">
             <ReceiptText className="h-3.5 w-3.5 shrink-0" />
@@ -107,15 +109,15 @@ export default function SettingsFatturazioneUnified() {
           {!isLoading && !isNative && (
             <Alert>
               <Lock className="h-4 w-4" />
-              <AlertTitle>Per ora si possono solo guardare</AlertTitle>
+              <AlertTitle>{t("Per ora si possono solo guardare")}</AlertTitle>
               <AlertDescription className="space-y-2 text-sm">
                 <p>
                   {isChosen
-                    ? "Oggi fatturi con un altro programma, quindi queste impostazioni non servono. Le usi se scegli «Con Edilizia in Cloud»."
-                    : "Non hai ancora scelto come fatturi. Queste impostazioni servono se scegli «Con Edilizia in Cloud»."}
+                    ? t("Oggi fatturi con un altro programma, quindi queste impostazioni non servono. Le usi se scegli «Con Edilizia in Cloud».")
+                    : t("Non hai ancora scelto come fatturi. Queste impostazioni servono se scegli «Con Edilizia in Cloud».")}
                 </p>
                 <Button variant="link" size="sm" className="h-auto px-0" onClick={() => vaiAllaScelta()}>
-                  Scegli «Con Edilizia in Cloud»
+                  {t("Scegli «Con Edilizia in Cloud»")}
                   <ArrowRight className="ml-1 h-3 w-3" />
                 </Button>
               </AlertDescription>

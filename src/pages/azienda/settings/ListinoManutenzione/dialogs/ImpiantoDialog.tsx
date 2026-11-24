@@ -18,6 +18,7 @@ import {
 import { testoErrore } from "@/lib/impostazioni/testoErrore";
 import { ICONE_IMPIANTO } from "../constants";
 import type { TipoImpianto } from "../types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ImpiantoDialog({
   open, onClose, editing, companyId, onSaved,
@@ -25,6 +26,7 @@ export function ImpiantoDialog({
   open: boolean; onClose: () => void; editing: TipoImpianto | null;
   companyId: string; onSaved: () => void;
 }) {
+  const t = useT();
   const idBase = useId();
   const focusReturn = useDialogFocusReturn();
   const pendingRef = useRef(false);
@@ -37,7 +39,7 @@ export function ImpiantoDialog({
 
   const handleSave = async () => {
     if (pendingRef.current) return;
-    if (!nome.trim()) { toast.error("Il nome è obbligatorio"); return; }
+    if (!nome.trim()) { toast.error(t("Il nome è obbligatorio")); return; }
     pendingRef.current = true;
     setSaving(true);
     try {
@@ -54,17 +56,17 @@ export function ImpiantoDialog({
         const { data, error } = await (supabase.from("tipi_impianto") as any)
           .update(payload).eq("id", editing.id).eq("company_id", companyId).select("id");
         if (error) throw error;
-        if (!data || data.length === 0) throw new Error("Modifica non salvata: verifica i permessi e riprova.");
+        if (!data || data.length === 0) throw new Error(t("Modifica non salvata: verifica i permessi e riprova."));
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase.from("tipi_impianto") as any).insert(payload);
         if (error) throw error;
       }
-      toast.success(editing ? "Tipo di impianto aggiornato" : "Tipo di impianto creato");
+      toast.success(editing ? t("Tipo di impianto aggiornato") : t("Tipo di impianto creato"));
       pendingRef.current = false;
       onSaved(); onClose();
     } catch (err: unknown) {
-      toast.error(testoErrore(err, "Tipo di impianto non salvato."));
+      toast.error(testoErrore(err, t("Tipo di impianto non salvato.")));
     } finally {
       pendingRef.current = false;
       setSaving(false);
@@ -75,32 +77,32 @@ export function ImpiantoDialog({
     <Dialog open={open} onOpenChange={(value) => { if (!value) handleClose(); }}>
       <DialogContent {...focusReturn} className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editing ? "Modifica tipo di impianto" : "Nuovo tipo di impianto"}</DialogTitle>
+          <DialogTitle>{editing ? t("Modifica tipo di impianto") : t("Nuovo tipo di impianto")}</DialogTitle>
           <DialogDescription>
-            Gli impianti che segui in manutenzione (per esempio Caldaia, Condizionatore): a ognuno si collegano i prezzi.
+            {t("Gli impianti che segui in manutenzione (per esempio Caldaia, Condizionatore): a ognuno si collegano i prezzi.")}
           </DialogDescription>
         </DialogHeader>
         <fieldset disabled={saving} className="min-w-0 space-y-4">
           <div>
-            <Label htmlFor={`${idBase}-nome`}>Nome *</Label>
+            <Label htmlFor={`${idBase}-nome`}>{t("Nome *")}</Label>
             <Input
               id={`${idBase}-nome`}
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              placeholder="Es. Caldaia"
+              placeholder={t("Es. Caldaia")}
               aria-required="true"
               className="mt-1.5 max-md:h-11"
             />
           </div>
           <div>
-            <Label id={`${idBase}-icona`}>Icona</Label>
+            <Label id={`${idBase}-icona`}>{t("Icona")}</Label>
             <div className="flex flex-wrap gap-2 mt-1" role="group" aria-labelledby={`${idBase}-icona`}>
               {ICONE_IMPIANTO.map((ic) => (
                 <button
                   key={ic}
                   type="button"
                   onClick={() => setIcona(ic)}
-                  aria-label={`Icona ${ic}`}
+                  aria-label={t("Icona {ic}", { ic: String(ic ?? "") })}
                   aria-pressed={icona === ic}
                   className={`text-xl p-1.5 rounded border-2 transition-colors ${
                     icona === ic ? "border-orange-500 bg-orange-50" : "border-transparent hover:border-gray-200"
@@ -113,7 +115,7 @@ export function ImpiantoDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor={`${idBase}-ordine`}>Ordine</Label>
+              <Label htmlFor={`${idBase}-ordine`}>{t("Ordine")}</Label>
               <Input
                 id={`${idBase}-ordine`}
                 type="number" min="0"
@@ -124,15 +126,15 @@ export function ImpiantoDialog({
               />
             </div>
             <div className="flex flex-col gap-2 justify-end">
-              <Label htmlFor={`${idBase}-attivo`}>Attivo</Label>
+              <Label htmlFor={`${idBase}-attivo`}>{t("Attivo")}</Label>
               <Switch id={`${idBase}-attivo`} checked={attivo} onCheckedChange={setAttivo} />
             </div>
           </div>
         </fieldset>
         <DialogFooter>
-          <Button variant="outline" disabled={saving} onClick={handleClose}>Annulla</Button>
+          <Button variant="outline" disabled={saving} onClick={handleClose}>{t("Annulla")}</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Salvataggio..." : "Salva"}
+            {saving ? t("Salvataggio...") : t("Salva")}
           </Button>
         </DialogFooter>
       </DialogContent>

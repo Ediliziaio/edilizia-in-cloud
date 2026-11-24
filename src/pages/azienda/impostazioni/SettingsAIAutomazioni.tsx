@@ -60,6 +60,7 @@ import {
   ShieldAlert, ShieldCheck, Save, RotateCcw, History, Lock,
   AlertTriangle, CheckCircle2, XCircle, Hourglass,
 } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type ActionMode =
   | "disabled"
@@ -236,9 +237,8 @@ interface PermissionDraft {
   max_daily_executions: number | null;
 }
 
-const scelte = (n: number) => (n === 1 ? "1 scelta" : `${n} scelte`);
-
 export default function SettingsAIAutomazioni() {
+  const tr = useT();
   const { effectiveCompany, role } = useAuth();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
@@ -275,7 +275,7 @@ export default function SettingsAIAutomazioni() {
 
   const setMutation = useMutation({
     mutationFn: async (input: { action_type: string; mode: ActionMode; risk_level: RiskLevel; max_daily_executions: number | null }) => {
-      if (!companyId) throw new Error("Nessuna azienda attiva");
+      if (!companyId) throw new Error(tr("Nessuna azienda attiva"));
       const action = ACTIONS.find((a) => a.type === input.action_type);
       const allowedRoles = action?.defaultRisk === "red"
         ? ["super_admin", "company_admin"]
@@ -361,7 +361,7 @@ export default function SettingsAIAutomazioni() {
       };
     }
     setDrafts(next);
-    toast.info(`Scelta «${PRESETS[preset].label}» caricata: controlla le azioni e premi «Salva tutte».`);
+    toast.info(tr("Scelta «{label}» caricata: controlla le azioni e premi «Salva tutte».", { label: tr(PRESETS[preset].label) }));
   };
 
   /** Salva le scelte indicate, una dopo l'altra, e dà UN solo messaggio alla fine. */
@@ -377,26 +377,26 @@ export default function SettingsAIAutomazioni() {
           risk_level: r.risk,
           max_daily_executions: r.maxDaily,
         });
-        riuscite.push(r.action.label);
+        riuscite.push(tr(r.action.label));
       } catch (e) {
-        fallite.push({ nome: r.action.label, motivo: motivoDelRifiuto(e, "Riprova tra poco.") });
+        fallite.push({ nome: tr(r.action.label), motivo: motivoDelRifiuto(e, tr("Riprova tra poco.")) });
       }
     }
     if (fallite.length === 0) {
-      toast.success(riuscite.length === 1 ? `Scelta salvata: ${riuscite[0]}` : `${scelte(riuscite.length)} salvate`);
+      toast.success(riuscite.length === 1 ? tr("Scelta salvata: {valore}", { valore: String(riuscite[0] ?? "") }) : tr("{n} scelte salvate", { n: riuscite.length }));
       return;
     }
     const titolo = riuscite.length > 0
-      ? `Salvate ${scelte(riuscite.length)} su ${da.length}`
-      : da.length === 1 ? `Non sono riuscito a salvare «${fallite[0].nome}»` : "Non sono riuscito a salvare le scelte";
+      ? (riuscite.length === 1 ? tr("Salvata 1 scelta su {totale}", { totale: da.length }) : tr("Salvate {n} scelte su {totale}", { n: riuscite.length, totale: da.length }))
+      : da.length === 1 ? tr("Non sono riuscito a salvare «{nome}»", { nome: fallite[0].nome }) : tr("Non sono riuscito a salvare le scelte");
     toast.error(titolo, { description: fallite.slice(0, 3).map((f) => `«${f.nome}»: ${f.motivo}`).join(" · ") });
   };
 
   if (!companyId) {
     return (
       <Alert>
-        <AlertTitle>Azienda non selezionata</AlertTitle>
-        <AlertDescription>Scegli un'azienda dalla barra laterale per vedere cosa fa Silvio da solo.</AlertDescription>
+        <AlertTitle>{tr("Azienda non selezionata")}</AlertTitle>
+        <AlertDescription>{tr("Scegli un'azienda dalla barra laterale per vedere cosa fa Silvio da solo.")}</AlertDescription>
       </Alert>
     );
   }
@@ -404,18 +404,17 @@ export default function SettingsAIAutomazioni() {
   return (
     <div className="max-w-4xl space-y-4">
       <p className="text-sm text-muted-foreground">
-        Per ogni azione scegli se Silvio la propone, chiede conferma o la esegue da solo, con un limite al giorno.
+        {tr("Per ogni azione scegli se Silvio la propone, chiede conferma o la esegue da solo, con un limite al giorno.")}
       </p>
 
       <details className="rounded-lg border bg-card px-4 py-3 text-sm">
-        <summary className="cursor-pointer select-none font-medium">Come funziona</summary>
+        <summary className="cursor-pointer select-none font-medium">{tr("Come funziona")}</summary>
         <div className="mt-2 space-y-2 text-muted-foreground">
-          <p>Silvio è l'assistente AI: legge cosa succede in azienda e propone azioni, per esempio un sollecito o una bozza di preventivo.</p>
+          <p>{tr("Silvio è l'assistente AI: legge cosa succede in azienda e propone azioni, per esempio un sollecito o una bozza di preventivo.")}</p>
           <p>
-            Le azioni a rischio alto (registrare un pagamento, l'email libera) chiedono sempre di scrivere CONFERMO e le
-            cambia solo EdiliziaInCloud, su richiesta. Lo stesso vale per l'esecuzione automatica.
+            {tr("Le azioni a rischio alto (registrare un pagamento, l'email libera) chiedono sempre di scrivere CONFERMO e le cambia solo EdiliziaInCloud, su richiesta. Lo stesso vale per l'esecuzione automatica.")}
           </p>
-          <p>Le azioni portate a termine o andate male, anche quelle fatte da te con un tocco, restano elencate nella scheda «Cosa ha fatto».</p>
+          <p>{tr("Le azioni portate a termine o andate male, anche quelle fatte da te con un tocco, restano elencate nella scheda «Cosa ha fatto».")}</p>
         </div>
       </details>
 
@@ -428,7 +427,7 @@ export default function SettingsAIAutomazioni() {
         <Alert>
           <Lock className="h-4 w-4" />
           <AlertDescription>
-            Stai consultando le scelte di Silvio: le cambia l'amministratore dell'azienda.
+            {tr("Stai consultando le scelte di Silvio: le cambia l'amministratore dell'azienda.")}
           </AlertDescription>
         </Alert>
       )}
@@ -436,16 +435,16 @@ export default function SettingsAIAutomazioni() {
       {isError ? (
         <Alert variant="destructive">
           <AlertDescription className="flex flex-wrap items-center gap-3">
-            Non riesco a leggere le scelte salvate, quindi non le mostro: quelle di partenza potrebbero essere diverse.
-            <Button size="sm" variant="outline" onClick={() => void refetch()}>Riprova</Button>
+            {tr("Non riesco a leggere le scelte salvate, quindi non le mostro: quelle di partenza potrebbero essere diverse.")}
+            <Button size="sm" variant="outline" onClick={() => void refetch()}>{tr("Riprova")}</Button>
           </AlertDescription>
         </Alert>
       ) : (
         <Tabs defaultValue="scelte">
           <TabsList>
-            <TabsTrigger value="scelte">Cosa può fare</TabsTrigger>
+            <TabsTrigger value="scelte">{tr("Cosa può fare")}</TabsTrigger>
             <TabsTrigger value="storico">
-              <History className="h-4 w-4 mr-1" aria-hidden="true" /> Cosa ha fatto
+              <History className="h-4 w-4 mr-1" aria-hidden="true" /> {tr("Cosa ha fatto")}
             </TabsTrigger>
           </TabsList>
 
@@ -455,8 +454,8 @@ export default function SettingsAIAutomazioni() {
               <div className="sticky top-2 z-20 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
                 <p role="status" className="mr-auto min-w-0 text-xs">
                   {daSalvare.length > 0
-                    ? <span className="text-amber-700">{scelte(daSalvare.length)} da salvare</span>
-                    : <span className="text-muted-foreground">Nessuna modifica da salvare</span>}
+                    ? <span className="text-amber-700">{daSalvare.length === 1 ? tr("1 scelta da salvare") : tr("{n} scelte da salvare", { n: daSalvare.length })}</span>
+                    : <span className="text-muted-foreground">{tr("Nessuna modifica da salvare")}</span>}
                 </p>
                 <Button
                   size="sm"
@@ -464,22 +463,22 @@ export default function SettingsAIAutomazioni() {
                   disabled={daSalvare.length === 0 || setMutation.isPending}
                   onClick={() => setDrafts({})}
                 >
-                  <RotateCcw className="h-3 w-3 mr-1" aria-hidden="true" /> Annulla modifiche
+                  <RotateCcw className="h-3 w-3 mr-1" aria-hidden="true" /> {tr("Annulla modifiche")}
                 </Button>
                 <Button
                   size="sm"
                   disabled={daSalvare.length === 0 || setMutation.isPending}
                   onClick={() => void salva(daSalvare)}
                 >
-                  <Save className="h-3 w-3 mr-1" aria-hidden="true" /> Salva tutte
+                  <Save className="h-3 w-3 mr-1" aria-hidden="true" /> {tr("Salva tutte")}
                 </Button>
               </div>
             )}
 
             <SezioneImpostazione
               id="scelte-pronte"
-              titolo="Scelte pronte"
-              descrizione="Un modo veloce per impostare tutte le azioni insieme: ne scegli una e poi cambi le singole azioni se vuoi. Rimette anche i limiti al giorno a quelli consigliati. Non salva niente finché non premi «Salva tutte»."
+              titolo={tr("Scelte pronte")}
+              descrizione={tr("Un modo veloce per impostare tutte le azioni insieme: ne scegli una e poi cambi le singole azioni se vuoi. Rimette anche i limiti al giorno a quelli consigliati. Non salva niente finché non premi «Salva tutte».")}
             >
               <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
                 {(Object.keys(PRESETS) as PresetKey[])
@@ -493,9 +492,9 @@ export default function SettingsAIAutomazioni() {
                       onClick={() => applyPreset(k)}
                       className="h-auto flex-col items-start gap-1 p-4 text-left"
                     >
-                      <span className="font-semibold">{PRESETS[k].label}</span>
+                      <span className="font-semibold">{tr(PRESETS[k].label)}</span>
                       <span className="text-xs text-muted-foreground font-normal whitespace-normal">
-                        {PRESETS[k].description}
+                        {tr(PRESETS[k].description)}
                       </span>
                     </Button>
                   ))}
@@ -504,8 +503,8 @@ export default function SettingsAIAutomazioni() {
 
             <SezioneImpostazione
               id="azioni"
-              titolo="Le azioni di Silvio"
-              descrizione="Per ognuna: cosa fa Silvio e quante volte al giorno."
+              titolo={tr("Le azioni di Silvio")}
+              descrizione={tr("Per ognuna: cosa fa Silvio e quante volte al giorno.")}
             >
               {isLoading && (
                 <div className="space-y-2 p-4">
@@ -522,31 +521,31 @@ export default function SettingsAIAutomazioni() {
                     <div className="flex items-start justify-between gap-3 flex-wrap">
                       <div className="flex-1 min-w-0 md:min-w-[260px] max-w-full">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-base font-semibold leading-tight">{a.label}</h3>
+                          <h3 className="text-base font-semibold leading-tight">{tr(a.label)}</h3>
                           <Badge variant="outline" className={RISK_COLORS[r.risk]}>
                             {r.risk === "red" && <ShieldAlert className="h-3 w-3 mr-1" aria-hidden="true" />}
                             {r.risk === "yellow" && <AlertTriangle className="h-3 w-3 mr-1" aria-hidden="true" />}
                             {r.risk === "green" && <ShieldCheck className="h-3 w-3 mr-1" aria-hidden="true" />}
-                            Rischio {RISK_LABELS[r.risk]}
+                            {tr("Rischio {livello}", { livello: tr(RISK_LABELS[r.risk]) })}
                           </Badge>
                           {r.current?.source === "company_override" && (
-                            <Badge variant="secondary" className="text-xs">Personalizzato</Badge>
+                            <Badge variant="secondary" className="text-xs">{tr("Personalizzato")}</Badge>
                           )}
                           {r.dirty && (
-                            <Badge className="bg-amber-500 text-white text-xs">Modificato</Badge>
+                            <Badge className="bg-amber-500 text-white text-xs">{tr("Modificato")}</Badge>
                           )}
                         </div>
-                        <p className="mt-1 text-xs text-muted-foreground">{a.description}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{tr(a.description)}</p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          <strong>Cosa succede:</strong> {a.effect}
+                          <strong>{tr("Cosa succede:")}</strong> {tr(a.effect)}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         {r.current && r.current.max_daily_executions !== null && (
                           <span>
-                            Oggi: <strong>{r.current.daily_executions}/{r.current.max_daily_executions}</strong>
+                            {tr("Oggi:")} <strong>{r.current.daily_executions}/{r.current.max_daily_executions}</strong>
                             {r.current.daily_limit_reached && (
-                              <span className="ml-1 text-rose-600 font-semibold">limite raggiunto</span>
+                              <span className="ml-1 text-rose-600 font-semibold">{tr("limite raggiunto")}</span>
                             )}
                           </span>
                         )}
@@ -555,14 +554,14 @@ export default function SettingsAIAutomazioni() {
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor={`mode-${a.type}`}>Cosa fa Silvio</Label>
+                        <Label htmlFor={`mode-${a.type}`}>{tr("Cosa fa Silvio")}</Label>
                         <Select
                           value={r.mode}
                           disabled={!canEdit || lockedRed}
                           onValueChange={(v) => {
                             const newMode = v as ActionMode;
                             if (newMode === "auto_execute" && !isSuperAdmin) {
-                              toast.error("L'esecuzione automatica la attiva solo EdiliziaInCloud, su richiesta.");
+                              toast.error(tr("L'esecuzione automatica la attiva solo EdiliziaInCloud, su richiesta."));
                               return;
                             }
                             setDrafts((d) => ({
@@ -578,31 +577,31 @@ export default function SettingsAIAutomazioni() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="disabled">{MODE_LABELS.disabled}</SelectItem>
-                            <SelectItem value="propose">{MODE_LABELS.propose}</SelectItem>
-                            <SelectItem value="require_confirmation">{MODE_LABELS.require_confirmation}</SelectItem>
-                            <SelectItem value="require_strong_confirmation">{MODE_LABELS.require_strong_confirmation}</SelectItem>
+                            <SelectItem value="disabled">{tr(MODE_LABELS.disabled)}</SelectItem>
+                            <SelectItem value="propose">{tr(MODE_LABELS.propose)}</SelectItem>
+                            <SelectItem value="require_confirmation">{tr(MODE_LABELS.require_confirmation)}</SelectItem>
+                            <SelectItem value="require_strong_confirmation">{tr(MODE_LABELS.require_strong_confirmation)}</SelectItem>
                             <SelectItem value="auto_execute" disabled={!isSuperAdmin}>
-                              {MODE_LABELS.auto_execute}{!isSuperAdmin && " — su richiesta all'assistenza"}
+                              {tr(MODE_LABELS.auto_execute)}{!isSuperAdmin && ` ${tr("— su richiesta all'assistenza")}`}
                             </SelectItem>
                           </SelectContent>
                         </Select>
-                        <p className="text-xs text-muted-foreground">{MODE_DESCRIPTIONS[r.mode]}</p>
+                        <p className="text-xs text-muted-foreground">{tr(MODE_DESCRIPTIONS[r.mode])}</p>
                         {lockedRed && (
                           <p className="text-xs text-rose-600 flex items-center gap-1">
-                            <Lock className="h-3 w-3" aria-hidden="true" /> Azione a rischio alto: la scelta la cambia solo EdiliziaInCloud, su richiesta.
+                            <Lock className="h-3 w-3" aria-hidden="true" /> {tr("Azione a rischio alto: la scelta la cambia solo EdiliziaInCloud, su richiesta.")}
                           </p>
                         )}
                         {lockedAutoExec && (
                           <p className="text-xs text-amber-600 flex items-center gap-1">
-                            <Lock className="h-3 w-3" aria-hidden="true" /> Questa azione si esegue da sola, attivata da EdiliziaInCloud: se scegli un'altra modalità, per riaverla devi chiederlo all'assistenza.
+                            <Lock className="h-3 w-3" aria-hidden="true" /> {tr("Questa azione si esegue da sola, attivata da EdiliziaInCloud: se scegli un'altra modalità, per riaverla devi chiederlo all'assistenza.")}
                           </p>
                         )}
                       </div>
 
                       <div className="space-y-2">
                         <Label htmlFor={`limit-${a.type}`}>
-                          Limite al giorno {a.defaultMaxDaily === null && "(non c'è un limite consigliato)"}
+                          {tr("Limite al giorno")} {a.defaultMaxDaily === null && tr("(non c'è un limite consigliato)")}
                         </Label>
                         <Input
                           id={`limit-${a.type}`}
@@ -611,7 +610,7 @@ export default function SettingsAIAutomazioni() {
                           min={0}
                           max={500}
                           disabled={!canEdit || lockedRed || r.mode === "disabled"}
-                          placeholder="es. 50"
+                          placeholder={tr("es. 50")}
                           value={r.maxDaily ?? ""}
                           onChange={(e) => {
                             const v = e.target.value;
@@ -626,8 +625,7 @@ export default function SettingsAIAutomazioni() {
                           }}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Raggiunto questo numero in una giornata, Silvio smette di proporre e di eseguire questa azione fino
-                          a domani. Vuoto = nessun limite (sconsigliato).
+                          {tr("Raggiunto questo numero in una giornata, Silvio smette di proporre e di eseguire questa azione fino a domani. Vuoto = nessun limite (sconsigliato).")}
                         </p>
                       </div>
                     </div>
@@ -637,7 +635,7 @@ export default function SettingsAIAutomazioni() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          aria-label={`Annulla modifica: ${a.label}`}
+                          aria-label={tr("Annulla modifica: {label}", { label: tr(a.label) })}
                           onClick={() => {
                             setDrafts((d) => {
                               const copy = { ...d };
@@ -646,15 +644,15 @@ export default function SettingsAIAutomazioni() {
                             });
                           }}
                         >
-                          <RotateCcw className="h-3 w-3 mr-1" aria-hidden="true" /> Annulla modifica
+                          <RotateCcw className="h-3 w-3 mr-1" aria-hidden="true" /> {tr("Annulla modifica")}
                         </Button>
                         <Button
                           size="sm"
-                          aria-label={`Salva: ${a.label}`}
+                          aria-label={tr("Salva: {label}", { label: tr(a.label) })}
                           disabled={setMutation.isPending}
                           onClick={() => void salva([r])}
                         >
-                          <Save className="h-3 w-3 mr-1" aria-hidden="true" /> Salva
+                          <Save className="h-3 w-3 mr-1" aria-hidden="true" /> {tr("Salva")}
                         </Button>
                       </div>
                     )}
@@ -667,13 +665,13 @@ export default function SettingsAIAutomazioni() {
           <TabsContent value="storico" className="space-y-3">
             <SezioneImpostazione
               id="storico"
-              titolo="Le ultime azioni di Silvio"
-              descrizione="Le ultime 20 azioni portate a termine o andate male, per questa azienda."
+              titolo={tr("Le ultime azioni di Silvio")}
+              descrizione={tr("Le ultime 20 azioni portate a termine o andate male, per questa azienda.")}
             >
               {storicoErrore ? (
                 <div className="flex flex-wrap items-center gap-3 p-4 text-sm text-muted-foreground">
-                  Non riesco a leggere lo storico.
-                  <Button size="sm" variant="outline" onClick={() => void riprovaStorico()}>Riprova</Button>
+                  {tr("Non riesco a leggere lo storico.")}
+                  <Button size="sm" variant="outline" onClick={() => void riprovaStorico()}>{tr("Riprova")}</Button>
                 </div>
               ) : !recentExecutions ? (
                 <div className="space-y-2 p-4">
@@ -681,7 +679,7 @@ export default function SettingsAIAutomazioni() {
                 </div>
               ) : recentExecutions.length === 0 ? (
                 <p className="p-4 text-sm text-muted-foreground">
-                  Silvio non ha ancora eseguito azioni.
+                  {tr("Silvio non ha ancora eseguito azioni.")}
                 </p>
               ) : (
                 recentExecutions.map((row) => {
@@ -695,15 +693,15 @@ export default function SettingsAIAutomazioni() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-sm">{a?.label ?? row.action_type}</span>
+                          <span className="font-medium text-sm">{a ? tr(a.label) : row.action_type}</span>
                           <span className={cn("text-xs font-medium", row.status === "failed" ? "text-rose-600" : row.status === "applied" ? "text-emerald-700" : "text-muted-foreground")}>
-                            {row.status === "applied" ? "Eseguita" : row.status === "failed" ? "Non riuscita" : "In attesa"}
+                            {row.status === "applied" ? tr("Eseguita") : row.status === "failed" ? tr("Non riuscita") : tr("In attesa")}
                           </span>
                           {row.risk_level === "red" && (
-                            <Badge variant="outline" className={RISK_COLORS.red}>Rischio alto</Badge>
+                            <Badge variant="outline" className={RISK_COLORS.red}>{tr("Rischio alto")}</Badge>
                           )}
                           <span className="text-xs text-muted-foreground">
-                            {row.applied_at ? new Date(row.applied_at).toLocaleString("it-IT") : "—"}
+                            {row.applied_at ? new Date(row.applied_at).toLocaleString(intlCampo()) : "—"}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{row.summary}</p>

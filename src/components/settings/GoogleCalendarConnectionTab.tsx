@@ -22,6 +22,7 @@ import { Plus, Trash2, CheckCircle2, AlertTriangle, Settings2, CalendarDays, Ref
 import GoogleCalendarSyncPrefsDialog from "./GoogleCalendarSyncPrefsDialog";
 import { useUserCalendarPrefs } from "@/hooks/useUserCalendarPrefs";
 import type { DirezioneSync } from "@/lib/calendar/direzioneSync";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type GoogleCalendar = {
   id: string;
@@ -50,6 +51,7 @@ function withConnectionTimeout<T>(promise: PromiseLike<T>, label: string): Promi
 }
 
 export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }: { ambito?: "appuntamenti" | "lavori" }) {
+  const t = useT();
   const perLavori = ambito === "lavori";
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -68,7 +70,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
 
   const getAccessToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error("Sessione scaduta: accedi di nuovo.");
+    if (!session?.access_token) throw new Error(t("Sessione scaduta: accedi di nuovo."));
     return session.access_token;
   };
 
@@ -115,7 +117,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
     queryKey: ["google-calendar-policies"],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Sessione scaduta: accedi di nuovo.");
+      if (!session?.access_token) throw new Error(t("Sessione scaduta: accedi di nuovo."));
       const res = await supabase.functions.invoke("manage-super-admins", {
         body: { action: "get-settings" },
         headers: { Authorization: `Bearer ${session?.access_token}` },
@@ -158,7 +160,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.error || !res.data?.url) {
-        toast.error("Impossibile avviare il collegamento Google Calendar");
+        toast.error(t("Impossibile avviare il collegamento Google Calendar"));
         return;
       }
       const w = 600, h = 700;
@@ -166,7 +168,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
       const top = (screen.height - h) / 2;
       const popup = window.open(res.data.url, "google_oauth", `width=${w},height=${h},left=${left},top=${top}`);
       if (!popup) {
-        toast.error("Il popup è stato bloccato dal browser. Consenti i popup per questo sito e riprova.");
+        toast.error(t("Il popup è stato bloccato dal browser. Consenti i popup per questo sito e riprova."));
         return;
       }
       popupRef.current = popup;
@@ -190,7 +192,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
       // Safety: stop polling after 5 minutes regardless of popup state
       maxPollTimeoutRef.current = window.setTimeout(stopPolling, 5 * 60 * 1000);
     } catch (e: any) {
-      toast.error(e.message || "Impossibile avviare il collegamento Google Calendar");
+      toast.error(e.message || t("Impossibile avviare il collegamento Google Calendar"));
       return;
     }
   }, [companyId, queryClient]);
@@ -203,12 +205,12 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
       if (!trustedOrigins.includes(event.origin)) return;
       if (event.data?.type === "GOOGLE_OAUTH_RESULT") {
         if (event.data.status === "success") {
-          toast.success("Google Calendar collegato!");
+          toast.success(t("Google Calendar collegato!"));
           queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
           queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
           queryClient.invalidateQueries({ queryKey: ["google-calendars-list"] });
         } else {
-          toast.error("Errore nel collegamento: " + (event.data.error || "sconosciuto"));
+          toast.error(t("Errore nel collegamento: {errore}", { errore: event.data.error || t("sconosciuto") }));
         }
         popupRef.current = null;
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -221,7 +223,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       if (maxPollTimeoutRef.current) { clearTimeout(maxPollTimeoutRef.current); maxPollTimeoutRef.current = null; }
     };
-  }, [queryClient]);
+  }, [queryClient, t]);
 
   // Disconnect
   const disconnectMut = useMutation({
@@ -234,7 +236,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
       if (res.error) throw new Error(res.error.message);
     },
     onSuccess: () => {
-      toast.success("Google Calendar disconnesso");
+      toast.success(t("Google Calendar disconnesso"));
       queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
       queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
       setDisconnectOpen(false);
@@ -252,10 +254,10 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.error || res.data?.error) {
-        throw new Error(res.data?.error || res.error?.message || "Sincronizzazione non riuscita");
+        throw new Error(res.data?.error || res.error?.message || t("Sincronizzazione non riuscita"));
       }
-      toast.success("Slot occupati aggiornati", {
-        description: `${res.data?.pulled ?? 0} eventi importati da Google Calendar.`,
+      toast.success(t("Slot occupati aggiornati"), {
+        description: t("{n} eventi importati da Google Calendar.", { n: res.data?.pulled ?? 0 }),
       });
       // 2026-05-27 (audit fix): invalida le query così il calendario CRM
       // si aggiorna immediatamente con i nuovi slot Google. Prima l'utente
@@ -268,7 +270,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       queryClient.invalidateQueries({ queryKey: ["marketing-calendar"] });
     } catch (e: any) {
-      toast.error(e.message || "Errore sincronizzazione Google Calendar");
+      toast.error(e.message || t("Errore sincronizzazione Google Calendar"));
     } finally {
       setSyncingBusy(false);
     }
@@ -298,7 +300,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
       }
     },
     onSuccess: () => {
-      toast.success("Impostazioni salvate");
+      toast.success(t("Impostazioni salvate"));
       queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
       queryClient.invalidateQueries({ queryKey: ["user-calendar-prefs", userId] });
     },
@@ -309,8 +311,8 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Calendari collegati</CardTitle>
-          <CardDescription>Controllo lo stato del collegamento Google Calendar...</CardDescription>
+          <CardTitle>{t("Calendari collegati")}</CardTitle>
+          <CardDescription>{t("Controllo lo stato del collegamento Google Calendar...")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Skeleton className="h-12 w-full" />
@@ -324,17 +326,17 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
     return (
       <Card className="border-destructive/30">
         <CardHeader>
-          <CardTitle>Calendari collegati</CardTitle>
-          <CardDescription>Non riesco a controllare Google Calendar in questo momento.</CardDescription>
+          <CardTitle>{t("Calendari collegati")}</CardTitle>
+          <CardDescription>{t("Non riesco a controllare Google Calendar in questo momento.")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2 rounded-lg bg-destructive/5 p-3 text-sm text-destructive">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{connectionLoadError instanceof Error ? connectionLoadError.message : "Controllo collegamento non riuscito."}</span>
+            <span>{connectionLoadError instanceof Error ? connectionLoadError.message : t("Controllo collegamento non riuscito.")}</span>
           </div>
           <Button variant="outline" onClick={() => refetchConnection()} disabled={connectionFetching}>
             {connectionFetching ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Riprova
+            {t("Riprova")}
           </Button>
         </CardContent>
       </Card>
@@ -346,18 +348,18 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Calendari collegati</CardTitle>
-          <CardDescription>{perLavori ? "Collega l’account aziendale, poi scegli i calendari per le squadre e per tutte le pose." : "Collega Google Calendar per sincronizzare appuntamenti e bloccare slot occupati."}</CardDescription>
+          <CardTitle>{t("Calendari collegati")}</CardTitle>
+          <CardDescription>{perLavori ? t("Collega l’account aziendale, poi scegli i calendari per le squadre e per tutte le pose.") : t("Collega Google Calendar per sincronizzare appuntamenti e bloccare slot occupati.")}</CardDescription>
         </CardHeader>
         <CardContent className={`flex flex-col items-center justify-center text-center ${perLavori ? "py-6" : "py-12"}`}>
           <CalendarDays className={`${perLavori ? "h-8 w-8 mb-3" : "h-12 w-12 mb-4"} text-muted-foreground`} />
-          <h3 className="text-lg font-medium mb-2">Nessun calendario collegato</h3>
+          <h3 className="text-lg font-medium mb-2">{t("Nessun calendario collegato")}</h3>
           <p className="text-sm text-muted-foreground max-w-sm mb-6">
-            {perLavori ? "Dopo il collegamento, torna nella scheda Squadre per associare il calendario di ogni squadra." : "Collega il tuo account Google Calendar per vedere gli slot occupati e sincronizzare gli appuntamenti."}
+            {perLavori ? t("Dopo il collegamento, torna nella scheda Squadre per associare il calendario di ogni squadra.") : t("Collega il tuo account Google Calendar per vedere gli slot occupati e sincronizzare gli appuntamenti.")}
           </p>
           <Button onClick={handleConnect} className="gap-2">
             <Plus className="h-4 w-4" />
-            {perLavori ? "Collega account Google" : "Aggiungi nuovo"}
+            {perLavori ? t("Collega account Google") : t("Aggiungi nuovo")}
           </Button>
         </CardContent>
       </Card>
@@ -374,8 +376,8 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
       {/* Connected account card */}
       <Card>
         <CardHeader>
-          <CardTitle>Calendari collegati</CardTitle>
-          <CardDescription>Il tuo account Google Calendar è collegato.</CardDescription>
+          <CardTitle>{t("Calendari collegati")}</CardTitle>
+          <CardDescription>{t("Il tuo account Google Calendar è collegato.")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
@@ -385,16 +387,14 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">Google Calendar</span>
+                  <span className="font-medium text-sm">{t("Google Calendar")}</span>
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {connection?.google_account_email || "Account collegato"}
+                  {connection?.google_account_email || t("Account collegato")}
                 </p>
                 {connection?.last_sync_at && (
-                  <p className="text-xs text-muted-foreground">
-                    Ultima sync: {new Date(connection.last_sync_at).toLocaleString("it-IT")}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t("Ultima sync: {valore}", { valore: new Date(connection.last_sync_at).toLocaleString(intlCampo()) })}</p>
                 )}
               </div>
             </div>
@@ -407,7 +407,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
                 className="gap-1.5"
               >
                 <RefreshCw className={`h-4 w-4 ${syncingBusy ? "animate-spin" : ""}`} />
-                <span className="hidden sm:inline">Aggiorna busy</span>
+                <span className="hidden sm:inline">{t("Aggiorna busy")}</span>
               </Button>
               <Button
                 variant="ghost"
@@ -424,9 +424,9 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
           {connection?.status === "error" || connection?.status === "token_expired" ? (
             <div className="flex items-center gap-2 mt-3 p-2 rounded bg-destructive/10 text-destructive text-xs">
               <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span>{connection.last_error || "Token scaduto. Ricollega il tuo account."}</span>
+              <span>{connection.last_error || t("Token scaduto. Ricollega il tuo account.")}</span>
               <Button size="sm" variant="outline" onClick={handleConnect} className="ml-auto">
-                Ricollega
+                {t("Ricollega")}
               </Button>
             </div>
           ) : null}
@@ -436,12 +436,9 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
       {/* Calendar configuration */}
       <Card>
         <CardHeader>
-          <CardTitle>Impostazioni generali dell'account</CardTitle>
+          <CardTitle>{t("Impostazioni generali dell'account")}</CardTitle>
           <CardDescription>
-            Il calendario di ogni singolo calendario marketing si sceglie dentro il calendario stesso
-            (Calendari marketing → apri il calendario → <strong>Calendario esterno</strong>).
-            Qui imposti il ripiego per chi non ha scelto, e quali calendari vuoi vedere come
-            &quot;occupati&quot;.
+            {t("Il calendario di ogni singolo calendario marketing si sceglie dentro il calendario stesso (Calendari marketing → apri il calendario →")} <strong>{t("Calendario esterno")}</strong>{t("). Qui imposti il ripiego per chi non ha scelto, e quali calendari vuoi vedere come \"occupati\".")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -454,10 +451,10 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
             <div className="mb-2 flex items-start justify-between gap-3">
               <div className="flex-1">
                 <p className="text-sm font-semibold">
-                  📤 Calendario di ripiego
+                  {t("📤 Calendario di ripiego")}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Usato solo dagli appuntamenti dei calendari che non hanno scelto un calendario esterno proprio.
+                  {t("Usato solo dagli appuntamenti dei calendari che non hanno scelto un calendario esterno proprio.")}
                 </p>
               </div>
               <Button
@@ -466,7 +463,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
                 onClick={() => setEditingPrimary((v) => !v)}
                 disabled={loadingCals}
               >
-                {editingPrimary ? "Annulla" : (primaryCal ? "Cambia" : "Seleziona")}
+                {editingPrimary ? t("Annulla") : (primaryCal ? t("Cambia") : t("Seleziona"))}
               </Button>
             </div>
             <div className="flex items-center gap-2">
@@ -475,8 +472,8 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
                 {primaryCal
                   ? `${primaryCal.summary}${primaryCal.primary ? " (calendario principale)" : ""}`
                   : (settings?.primary_calendar_id === "primary"
-                      ? "Calendario principale Google"
-                      : <span className="text-amber-700">⚠ Nessun calendario selezionato</span>)}
+                      ? t("Calendario principale Google")
+                      : <span className="text-amber-700">{t("⚠ Nessun calendario selezionato")}</span>)}
               </span>
             </div>
             {editingPrimary && (
@@ -489,12 +486,12 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
                   }}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Scegli un calendario Google…" />
+                    <SelectValue placeholder={t("Scegli un calendario Google…")} />
                   </SelectTrigger>
                   <SelectContent>
                     {googleCalendars.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        {c.summary} {c.primary ? "· Principale" : ""}
+                        {c.summary} {c.primary ? `· ${t("Principale")}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -508,11 +505,10 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
             <div className="mb-2 flex items-start justify-between gap-3">
               <div className="flex-1">
                 <p className="text-sm font-semibold">
-                  📥 Altri calendari da visualizzare nel CRM
+                  {t("📥 Altri calendari da visualizzare nel CRM")}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Gli eventi di questi calendari appariranno come slot "occupati" nel calendario
-                  marketing, così eviti di prendere appuntamenti sovrapposti.
+                  {t("Gli eventi di questi calendari appariranno come slot \"occupati\" nel calendario marketing, così eviti di prendere appuntamenti sovrapposti.")}
                 </p>
               </div>
               <Button
@@ -521,7 +517,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
                 onClick={() => setEditingConflict((v) => !v)}
                 disabled={loadingCals}
               >
-                {editingConflict ? "Chiudi" : (conflictCals.length > 0 ? "Modifica" : "Configura")}
+                {editingConflict ? t("Chiudi") : (conflictCals.length > 0 ? t("Modifica") : t("Configura"))}
               </Button>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -537,7 +533,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
                 ))
               ) : (
                 <span className="text-xs text-muted-foreground italic">
-                  Nessun altro calendario selezionato — solo il calendario di destinazione viene mostrato.
+                  {t("Nessun altro calendario selezionato — solo il calendario di destinazione viene mostrato.")}
                 </span>
               )}
             </div>
@@ -546,7 +542,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
                 {loadingCals ? (
                   <Skeleton className="h-8 w-full" />
                 ) : googleCalendars.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Nessun calendario disponibile</p>
+                  <p className="text-xs text-muted-foreground">{t("Nessun calendario disponibile")}</p>
                 ) : (
                   <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                     {googleCalendars
@@ -567,7 +563,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
                         />
                         <span className="truncate">{c.summary}</span>
                         {c.primary && (
-                          <span className="text-[10px] text-muted-foreground">(principale)</span>
+                          <span className="text-[10px] text-muted-foreground">{t("(principale)")}</span>
                         )}
                       </label>
                     ))}
@@ -585,7 +581,7 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
               onClick={() => setSyncPrefsOpen(true)}
             >
               <Settings2 className="h-3.5 w-3.5" />
-              Preferenze del calendario
+              {t("Preferenze del calendario")}
             </Button>
           </div>
         </CardContent>
@@ -609,18 +605,18 @@ export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }:
       <AlertDialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disconnettere Google Calendar?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Disconnettere Google Calendar?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              La sincronizzazione verrà interrotta e i nuovi appuntamenti CRM non saranno più inviati a Google Calendar finché non ricolleghi l'account.
+              {t("La sincronizzazione verrà interrotta e i nuovi appuntamenti CRM non saranno più inviati a Google Calendar finché non ricolleghi l'account.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => disconnectMut.mutate()}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Disconnetti
+              {t("Disconnetti")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

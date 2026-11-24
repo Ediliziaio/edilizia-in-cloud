@@ -14,11 +14,13 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
 const ManutenzioneList = lazy(() => import("@/pages/azienda/ManutenzioneList"));
 
 export default function AssistenzaPage() {
+  const t = useT();
   const perms = usePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
   // Slot a destra della riga delle schede: ogni pagina ci "teletrasporta" i
@@ -54,12 +56,12 @@ export default function AssistenzaPage() {
 
   return (
     <Tabs value={attiva} onValueChange={(value) => vaiA(value as "assistenza" | "manutenzioni")} className="space-y-4 max-sm:space-y-3">
-      <h1 className="sr-only">Assistenza e manutenzioni</h1>
+      <h1 className="sr-only">{t("Assistenza e manutenzioni")}</h1>
       <div className="flex flex-wrap items-center justify-between gap-2 max-sm:flex-nowrap">
-        <TabsList className="h-auto gap-2 bg-transparent p-0 max-sm:gap-1.5" aria-label="Assistenza e Manutenzione">
+        <TabsList className="h-auto gap-2 bg-transparent p-0 max-sm:gap-1.5" aria-label={t("Assistenza e Manutenzione")}>
           {[
-            { key: "assistenza" as const, label: "Assistenza", icon: LifeBuoy },
-            { key: "manutenzioni" as const, label: "Manutenzioni", icon: Wrench },
+            { key: "assistenza" as const, label: t("Assistenza"), icon: LifeBuoy },
+            { key: "manutenzioni" as const, label: t("Manutenzioni"), icon: Wrench },
           ].map((s) => {
             const on = s.key === attiva;
             const Icona = s.icon;

@@ -20,6 +20,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Loader2, Pencil, X, Briefcase } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const UNITA: KpiUnita[] = ["num", "%", "ore", "€"];
 const PERIODI: KpiPeriodo[] = ["mensile", "trimestrale", "annuale"];
@@ -33,6 +34,7 @@ interface Props {
 const EMPTY_FORM: MansioneInput = { nome: "", area: "", descrizione: "", responsabilita: [], kpi_suggeriti: [] };
 
 export function HrMansioniCatalogDialog({ open, onOpenChange, companyId }: Props) {
+  const t = useT();
   const { data: mansioni = [], isLoading } = useHrMansioni(companyId);
   const { upsert, remove } = useHrMansioneMutations(companyId);
 
@@ -79,36 +81,36 @@ export function HrMansioniCatalogDialog({ open, onOpenChange, companyId }: Props
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
-        <DialogHeader><DialogTitle>Catalogo mansioni</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Catalogo mansioni")}</DialogTitle></DialogHeader>
 
         {editing ? (
           <ScrollArea className="flex-1 pr-3 -mr-3">
             <div className="space-y-4 pb-2">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
-                  <Label>Nome mansione *</Label>
-                  <Input value={editing.nome} onChange={(e) => patch({ nome: e.target.value })} placeholder="es. Capocantiere" />
+                  <Label>{t("Nome mansione *")}</Label>
+                  <Input value={editing.nome} onChange={(e) => patch({ nome: e.target.value })} placeholder={t("es. Capocantiere")} />
                 </div>
                 <div>
-                  <Label>Area</Label>
-                  <Input value={editing.area ?? ""} onChange={(e) => patch({ area: e.target.value })} placeholder="es. Cantiere" />
+                  <Label>{t("Area")}</Label>
+                  <Input value={editing.area ?? ""} onChange={(e) => patch({ area: e.target.value })} placeholder={t("es. Cantiere")} />
                 </div>
               </div>
               <div>
-                <Label>Descrizione</Label>
+                <Label>{t("Descrizione")}</Label>
                 <Textarea rows={2} value={editing.descrizione ?? ""} onChange={(e) => patch({ descrizione: e.target.value })} />
               </div>
 
               <Separator />
 
               <div>
-                <Label>Responsabilità</Label>
+                <Label>{t("Responsabilità")}</Label>
                 <div className="flex gap-2 mt-1">
                   <Input
                     value={respInput}
                     onChange={(e) => setRespInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addResp(); } }}
-                    placeholder="Aggiungi una responsabilità e premi Invio"
+                    placeholder={t("Aggiungi una responsabilità e premi Invio")}
                   />
                   <Button type="button" variant="outline" onClick={addResp}><Plus className="h-4 w-4" /></Button>
                 </div>
@@ -120,7 +122,7 @@ export function HrMansioniCatalogDialog({ open, onOpenChange, companyId }: Props
                     </Badge>
                   ))}
                   {(editing.responsabilita ?? []).length === 0 && (
-                    <span className="text-xs text-muted-foreground">Nessuna responsabilità.</span>
+                    <span className="text-xs text-muted-foreground">{t("Nessuna responsabilità.")}</span>
                   )}
                 </div>
               </div>
@@ -129,35 +131,35 @@ export function HrMansioniCatalogDialog({ open, onOpenChange, companyId }: Props
 
               <div>
                 <div className="flex items-center justify-between">
-                  <Label>KPI suggeriti</Label>
+                  <Label>{t("KPI suggeriti")}</Label>
                   <Button type="button" size="sm" variant="outline" onClick={addKpi}><Plus className="h-4 w-4 mr-1" />KPI</Button>
                 </div>
                 <div className="space-y-2 mt-2">
                   {(editing.kpi_suggeriti ?? []).map((k, i) => (
                     <div key={i} className="grid grid-cols-12 gap-2 items-center rounded-md border p-2">
-                      <Input className="col-span-4" value={k.nome} placeholder="Nome KPI" onChange={(e) => patchKpi(i, { nome: e.target.value })} />
+                      <Input className="col-span-4" value={k.nome} placeholder={t("Nome KPI")} onChange={(e) => patchKpi(i, { nome: e.target.value })} />
                       <UniformSelect className="col-span-2 h-9 rounded-md border border-input bg-background px-2 text-sm"
                         value={k.unita} onChange={(e) => patchKpi(i, { unita: e.target.value as KpiUnita })}>
-                        {UNITA.map((u) => <option key={u} value={u}>{u}</option>)}
+                        {UNITA.map((u) => <option key={u} value={u}>{t(u)}</option>)}
                       </UniformSelect>
-                      <Input className="col-span-2" type="number" step="0.1" placeholder="target"
+                      <Input className="col-span-2" type="number" step="0.1" placeholder={t("target")}
                         value={k.target ?? ""} onChange={(e) => patchKpi(i, { target: e.target.value === "" ? null : Number(e.target.value) })} />
                       <UniformSelect className="col-span-3 h-9 rounded-md border border-input bg-background px-2 text-sm"
                         value={k.periodo} onChange={(e) => patchKpi(i, { periodo: e.target.value as KpiPeriodo })}>
-                        {PERIODI.map((p) => <option key={p} value={p}>{p}</option>)}
+                        {PERIODI.map((p) => <option key={p} value={p}>{t(p)}</option>)}
                       </UniformSelect>
                       <button type="button" className="col-span-1 text-destructive flex justify-center" onClick={() => removeKpi(i)}>
                         <Trash2 className="h-4 w-4" />
                       </button>
                       <UniformSelect className="col-span-4 h-9 rounded-md border border-input bg-background px-2 text-sm"
                         value={k.direzione} onChange={(e) => patchKpi(i, { direzione: e.target.value as KpiDirezione })}>
-                        <option value="su">Più alto è meglio</option>
-                        <option value="giu">Più basso è meglio</option>
+                        <option value="su">{t("Più alto è meglio")}</option>
+                        <option value="giu">{t("Più basso è meglio")}</option>
                       </UniformSelect>
                     </div>
                   ))}
                   {(editing.kpi_suggeriti ?? []).length === 0 && (
-                    <span className="text-xs text-muted-foreground">Nessun KPI suggerito.</span>
+                    <span className="text-xs text-muted-foreground">{t("Nessun KPI suggerito.")}</span>
                   )}
                 </div>
               </div>
@@ -170,7 +172,7 @@ export function HrMansioniCatalogDialog({ open, onOpenChange, companyId }: Props
             ) : mansioni.length === 0 ? (
               <div className="text-center py-10 text-sm text-muted-foreground">
                 <Briefcase className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                Nessuna mansione nel catalogo. Creane una.
+                {t("Nessuna mansione nel catalogo. Creane una.")}
               </div>
             ) : (
               <div className="space-y-2 pb-2">
@@ -181,30 +183,26 @@ export function HrMansioniCatalogDialog({ open, onOpenChange, companyId }: Props
                         <span className="font-medium text-sm">{m.nome}</span>
                         {m.area && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{m.area}</Badge>}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {(m.responsabilita ?? []).length} responsabilità · {(m.kpi_suggeriti ?? []).length} KPI suggeriti
-                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">{t("{n} responsabilità · {n2} KPI suggeriti", { n: (m.responsabilita ?? []).length, n2: (m.kpi_suggeriti ?? []).length })}</div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => startEdit(m)} title="Modifica">
+                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => startEdit(m)} title={t("Modifica")}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title="Elimina">
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title={t("Elimina")}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Eliminare la mansione?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {m.nome}. I profili collegati manterranno l'etichetta ma perderanno il link al catalogo.
-                            </AlertDialogDescription>
+                            <AlertDialogTitle>{t("Eliminare la mansione?")}</AlertDialogTitle>
+                            <AlertDialogDescription>{t("{nome}. I profili collegati manterranno l'etichetta ma perderanno il link al catalogo.", { nome: String(m.nome ?? "") })}</AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Annulla</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => remove.mutate(m.id)}>Elimina</AlertDialogAction>
+                            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => remove.mutate(m.id)}>{t("Elimina")}</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
@@ -219,15 +217,15 @@ export function HrMansioniCatalogDialog({ open, onOpenChange, companyId }: Props
         <DialogFooter className="flex-row justify-between sm:justify-between">
           {editing ? (
             <>
-              <Button variant="ghost" onClick={() => setEditing(null)}>Indietro</Button>
+              <Button variant="ghost" onClick={() => setEditing(null)}>{t("Indietro")}</Button>
               <Button onClick={save} disabled={upsert.isPending || !editing.nome.trim()}>
-                {upsert.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Salva mansione
+                {upsert.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{t("Salva mansione")}
               </Button>
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Chiudi</Button>
-              <Button onClick={startNew}><Plus className="h-4 w-4 mr-1" />Nuova mansione</Button>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Chiudi")}</Button>
+              <Button onClick={startNew}><Plus className="h-4 w-4 mr-1" />{t("Nuova mansione")}</Button>
             </>
           )}
         </DialogFooter>

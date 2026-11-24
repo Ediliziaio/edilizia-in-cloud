@@ -40,6 +40,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Una scheda per argomento. Le àncore vecchie (#ore, #giorni…) continuano a portare alla scheda giusta.
 type Scheda = "compila" | "ore" | "moduli" | "voci" | "verbali" | "giornale";
@@ -79,40 +80,40 @@ function Opzione({
 }
 
 /** «In pratica»: cosa vedranno operai e capi con queste scelte, a parole. */
-function inPratica(r: RegoleCampo): string[] {
+function inPratica(r: RegoleCampo, t: (testo: string, valori?: Record<string, string | number>) => string): string[] {
   const righe: string[] = [];
   righe.push(
     r.chiCompila === "capo"
-      ? "Dove c’è un responsabile, gli operai timbrano entrata e uscita: niente promemoria del rapportino e niente ore da scrivere. Il capocantiere racconta il cantiere; i capisquadra rendicontano la propria squadra."
+      ? t("Dove c’è un responsabile, gli operai timbrano entrata e uscita: niente promemoria del rapportino e niente ore da scrivere. Il capocantiere racconta il cantiere; i capisquadra rendicontano la propria squadra.")
       : r.chiCompila === "ore_proprie"
-        ? "Dove c’è un responsabile, ogni operaio manda solo le proprie ore; il responsabile racconta lavori, foto e avanzamento. Senza un responsabile assegnato resta il flusso «ognuno il suo»."
-        : "Ogni operaio scrive il rapportino della sua giornata. Il capocantiere può aggiungere la squadra.",
+        ? t("Dove c’è un responsabile, ogni operaio manda solo le proprie ore; il responsabile racconta lavori, foto e avanzamento. Senza un responsabile assegnato resta il flusso «ognuno il suo».")
+        : t("Ogni operaio scrive il rapportino della sua giornata. Il capocantiere può aggiungere la squadra."),
   );
   righe.push(
     r.chiCompila === "ore_proprie"
-      ? "Con il flusso misto anche il responsabile conferma solo le proprie ore: non inserisce le presenze degli altri."
+      ? t("Con il flusso misto anche il responsabile conferma solo le proprie ore: non inserisce le presenze degli altri.")
       : r.oreDalle === "timbrature"
-      ? "Nel rapportino di squadra le ore partono da quelle timbrate: il capo le controlla, aggiunge chi non ha timbrato e può correggerle."
-      : "Nel rapportino di squadra il capo scrive a mano le ore di ognuno.",
+      ? t("Nel rapportino di squadra le ore partono da quelle timbrate: il capo le controlla, aggiunge chi non ha timbrato e può correggerle.")
+      : t("Nel rapportino di squadra il capo scrive a mano le ore di ognuno."),
   );
   righe.push(
     r.chiCompila === "ore_proprie"
-      ? "Il controllo degli scostamenti riguarda le presenze di squadra: nel flusso misto la preferenza è conservata per gli altri flussi."
+      ? t("Il controllo degli scostamenti riguarda le presenze di squadra: nel flusso misto la preferenza è conservata per gli altri flussi.")
       : r.avvisoScostamentoMinuti != null
-      ? `Se le ore scritte sono diverse da quelle timbrate di più di ${oreInTesto(r.avvisoScostamentoMinuti / 60)}, il capo vede un avviso.`
-      : "Nessun avviso sulle differenze tra ore scritte e ore timbrate.",
+      ? t("Se le ore scritte sono diverse da quelle timbrate di più di {ore}, il capo vede un avviso.", { ore: oreInTesto(r.avvisoScostamentoMinuti / 60) })
+      : t("Nessun avviso sulle differenze tra ore scritte e ore timbrate."),
   );
   const giorni = giorniIndietroValidi(r.giorniIndietro);
   righe.push(
     giorni === 0
-      ? "Il rapportino si manda nel giorno del lavoro; le giornate passate le sistema l’ufficio."
+      ? t("Il rapportino si manda nel giorno del lavoro; le giornate passate le sistema l’ufficio.")
       : giorni === 1
-        ? "Il rapportino si manda oggi o il giorno dopo; anche una timbratura dimenticata si chiede entro ieri."
-        : `Il rapportino e le correzioni delle timbrature si mandano fino a ${giorni} giorni dopo; l’ufficio approva.`,
+        ? t("Il rapportino si manda oggi o il giorno dopo; anche una timbratura dimenticata si chiede entro ieri.")
+        : t("Il rapportino e le correzioni delle timbrature si mandano fino a {giorni} giorni dopo; l’ufficio approva.", { giorni }),
   );
   // Vale qualunque sia la scelta: una riga in più, non un riquadro a parte.
-  righe.push("Se il capo ha già registrato le ore di una persona, il giornaliero personale non le ripropone. Eventuali ore aggiuntive devono essere indicate esplicitamente.");
-  righe.push("Le ditte subappaltatrici rendicontano il proprio incarico; queste scelte organizzano il lavoro dei dipendenti. L’approvazione resta all’ufficio secondo i permessi Ordini, separata dalla firma del cliente.");
+  righe.push(t("Se il capo ha già registrato le ore di una persona, il giornaliero personale non le ripropone. Eventuali ore aggiuntive devono essere indicate esplicitamente."));
+  righe.push(t("Le ditte subappaltatrici rendicontano il proprio incarico; queste scelte organizzano il lavoro dei dipendenti. L’approvazione resta all’ufficio secondo i permessi Ordini, separata dalla firma del cliente."));
   return righe;
 }
 
@@ -125,6 +126,7 @@ function messaggioErroreSalvataggio(errore: unknown): string {
 }
 
 export default function RegoleCampoConfig() {
+  const t = useT();
   const { effectiveCompany, role } = useAuth();
   const permissions = usePermissions();
   const mobile = useIsMobile();
@@ -168,14 +170,14 @@ export default function RegoleCampoConfig() {
   const salvaModelli = async () => {
     let tutti = true;
     for (const m of modelliCambiati) tutti = (await m.salva()) && tutti;
-    if (tutti) toast.success("Impostazioni salvate");
+    if (tutti) toast.success(t("Impostazioni salvate"));
   };
   const conferma = () => {
     if (!puoModificare || !companyId || !data || !daSalvare || inCorso) return;
     if (!modificato) { void salvaModelli(); return; }
     salva.mutate(regole, {
       onSuccess: () => { setBozzaAzienda((precedente) => precedente?.companyId === companyId ? null : precedente); void salvaModelli(); },
-      onError: (errore) => toast.error(messaggioErroreSalvataggio(errore)),
+      onError: (errore) => toast.error(t(messaggioErroreSalvataggio(errore))),
     });
   };
 
@@ -185,22 +187,22 @@ export default function RegoleCampoConfig() {
   const soglie = [...new Set<number>([...SCOSTAMENTI_PROPOSTI, ...(regole.avvisoScostamentoMinuti == null ? [] : [regole.avvisoScostamentoMinuti])])].sort((a, b) => a - b);
   const esempio = scostamento(9, 8, regole.avvisoScostamentoMinuti);
   const collegamenti = [
-    { titolo: "Operai e squadre", descrizione: "Persone, composizione e responsabile delle squadre interne.", to: "/azienda/manodopera?tab=operai&vista=squadre", icona: Users, visibile: isAdmin || permissions.canViewOperai },
-    { titolo: "Squadre e calendari lavori", descrizione: "Disponibilità e calendari delle risorse: usa le stesse squadre.", to: "/azienda/impostazioni/calendari-lavori?tab=squadre", icona: CalendarDays, visibile: isAdmin || permissions.canViewSettingsOrders },
-    { titolo: "Commesse e rapportini", descrizione: "Assegna persone e responsabili alla commessa; qui l’ufficio controlla e approva i rapportini.", to: "/azienda/ordini", icona: ClipboardCheck, visibile: isAdmin || permissions.canViewOrders },
-    { titolo: "Fasi e avanzamento", descrizione: "Modelli delle fasi e chi può spuntare le sottofasi nell’app.", to: "/azienda/impostazioni/modelli-fasi#regole", icona: ListChecks, visibile: isAdmin || permissions.canViewSettingsOrders },
+    { titolo: t("Operai e squadre"), descrizione: t("Persone, composizione e responsabile delle squadre interne."), to: "/azienda/manodopera?tab=operai&vista=squadre", icona: Users, visibile: isAdmin || permissions.canViewOperai },
+    { titolo: t("Squadre e calendari lavori"), descrizione: t("Disponibilità e calendari delle risorse: usa le stesse squadre."), to: "/azienda/impostazioni/calendari-lavori?tab=squadre", icona: CalendarDays, visibile: isAdmin || permissions.canViewSettingsOrders },
+    { titolo: t("Commesse e rapportini"), descrizione: t("Assegna persone e responsabili alla commessa; qui l’ufficio controlla e approva i rapportini."), to: "/azienda/ordini", icona: ClipboardCheck, visibile: isAdmin || permissions.canViewOrders },
+    { titolo: t("Fasi e avanzamento"), descrizione: t("Modelli delle fasi e chi può spuntare le sottofasi nell’app."), to: "/azienda/impostazioni/modelli-fasi#regole", icona: ListChecks, visibile: isAdmin || permissions.canViewSettingsOrders },
   ].filter((link) => link.visibile);
 
-  if (!companyId) return <Alert><AlertDescription>Seleziona un’azienda per consultare le regole dei rapportini.</AlertDescription></Alert>;
+  if (!companyId) return <Alert><AlertDescription>{t("Seleziona un’azienda per consultare le regole dei rapportini.")}</AlertDescription></Alert>;
   if (isLoading || (!data && !isError)) {
-    return <div className="space-y-4" role="status" aria-label="Caricamento delle scelte"><Skeleton className="h-40 w-full" /><Skeleton className="h-40 w-full" /></div>;
+    return <div className="space-y-4" role="status" aria-label={t("Caricamento delle scelte")}><Skeleton className="h-40 w-full" /><Skeleton className="h-40 w-full" /></div>;
   }
   if (isError) {
     return (
       <Alert variant="destructive">
         <AlertDescription className="flex flex-wrap items-center gap-3">
-          Non riesco a leggere le impostazioni.
-          <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+          {t("Non riesco a leggere le impostazioni.")}
+          <Button size="sm" variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button>
         </AlertDescription>
       </Alert>
     );
@@ -212,17 +214,17 @@ export default function RegoleCampoConfig() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            Non hai ancora scelto: per ora tutto funziona come sempre. Puoi cambiare idea quando vuoi.
+            {t("Non hai ancora scelto: per ora tutto funziona come sempre. Puoi cambiare idea quando vuoi.")}
           </AlertDescription>
         </Alert>
       )}
       {!permissions.isLoading && !puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
 
-      <div role="tablist" aria-label="Argomenti" className="flex min-w-0 max-w-full gap-1 overflow-x-auto border-b">
+      <div role="tablist" aria-label={t("Argomenti")} className="flex min-w-0 max-w-full gap-1 overflow-x-auto border-b">
         {SCHEDE.filter((x) => !(mobile && x.soloScrivania)).map((x) => (
           <button key={x.id} type="button" role="tab" aria-selected={scheda === x.id} onClick={() => setScheda(x.id)}
             className={cn("tap-compact -mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors", scheda === x.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
-            {x.etichetta}
+            {t(x.etichetta)}
           </button>
         ))}
       </div>
@@ -232,10 +234,10 @@ export default function RegoleCampoConfig() {
         <div className={cn("fixed inset-x-4 bottom-24 z-40 flex items-center justify-between gap-3 rounded-lg border bg-card p-2 pl-3 shadow-lg md:inset-x-auto md:bottom-6 md:left-1/2 md:-translate-x-1/2", !daSalvare && "hidden")}>
           <StatoSalvataggio modificato={daSalvare} inCorso={inCorso} />
           <div className="flex shrink-0 items-center gap-1">
-            <Button size="sm" variant="ghost" aria-label="Annulla le modifiche" onClick={annulla} disabled={inCorso}>Annulla</Button>
-            <Button size="sm" aria-label="Salva modifiche" onClick={conferma} disabled={!daSalvare || inCorso}>
+            <Button size="sm" variant="ghost" aria-label={t("Annulla le modifiche")} onClick={annulla} disabled={inCorso}>{t("Annulla")}</Button>
+            <Button size="sm" aria-label={t("Salva modifiche")} onClick={conferma} disabled={!daSalvare || inCorso}>
               {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salva
+              {t("Salva")}
             </Button>
           </div>
         </div>
@@ -249,8 +251,8 @@ export default function RegoleCampoConfig() {
         <SezioneImpostazione
           id="chi-scrive"
           evidenziata={evidenziata === "chi-scrive"}
-          titolo="Chi scrive il rapportino?"
-          descrizione="Vale per tutti i cantieri. Dove manca il capocantiere, ognuno scrive il suo."
+          titolo={t("Chi scrive il rapportino?")}
+          descrizione={t("Vale per tutti i cantieri. Dove manca il capocantiere, ognuno scrive il suo.")}
         >
           <div className="px-4 py-4">
             <RadioGroup
@@ -260,18 +262,18 @@ export default function RegoleCampoConfig() {
               className="grid gap-3"
             >
               <Opzione
-                value="ognuno" titolo="Ogni operaio scrive il suo"
-                descrizione="Ognuno scrive ore, lavori e foto della sua giornata."
+                value="ognuno" titolo={t("Ogni operaio scrive il suo")}
+                descrizione={t("Ognuno scrive ore, lavori e foto della sua giornata.")}
                 scelta={regole.chiCompila === "ognuno"} disabilitata={bloccato}
               />
               <Opzione
-                value="capo" titolo="Scrive tutto il capocantiere"
-                descrizione="Il capocantiere scrive il rapportino della squadra, con le ore di ognuno. Gli operai timbrano e basta."
+                value="capo" titolo={t("Scrive tutto il capocantiere")}
+                descrizione={t("Il capocantiere scrive il rapportino della squadra, con le ore di ognuno. Gli operai timbrano e basta.")}
                 scelta={regole.chiCompila === "capo"} disabilitata={bloccato}
               />
               <Opzione
-                value="ore_proprie" titolo="Il capocantiere scrive i lavori, ognuno le sue ore"
-                descrizione="Il capocantiere racconta cosa si è fatto, con foto e avanzamento. Ogni operaio manda solo le sue ore."
+                value="ore_proprie" titolo={t("Il capocantiere scrive i lavori, ognuno le sue ore")}
+                descrizione={t("Il capocantiere racconta cosa si è fatto, con foto e avanzamento. Ogni operaio manda solo le sue ore.")}
                 scelta={regole.chiCompila === "ore_proprie"} disabilitata={bloccato}
               />
             </RadioGroup>
@@ -279,7 +281,7 @@ export default function RegoleCampoConfig() {
         </SezioneImpostazione>
 
         <details className="group">
-          <summary className="cursor-pointer px-1 text-sm font-medium text-primary">Vedi cosa fa ognuno con questa scelta</summary>
+          <summary className="cursor-pointer px-1 text-sm font-medium text-primary">{t("Vedi cosa fa ognuno con questa scelta")}</summary>
           <div className="mt-3 space-y-4">
       <ChiFaCosaRiquadro
         regole={regole}
@@ -293,18 +295,18 @@ export default function RegoleCampoConfig() {
         }}
       />
 
-            <RegoleCampoAnteprima regole={regole} modificato={modificato} dettagli={inPratica(regole)} evidenziata={evidenziata === "in-pratica"} />
+            <RegoleCampoAnteprima regole={regole} modificato={modificato} dettagli={inPratica(regole, t)} evidenziata={evidenziata === "in-pratica"} />
           </div>
         </details>
         </div>
 
         <div className={pannello("ore")}>
-        {flussoMisto && <p role="status" className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">Ogni persona manda le proprie ore: il capocantiere non le scrive per gli altri, quindi non c’è altro da impostare qui oltre ai giorni indietro.</p>}
+        {flussoMisto && <p role="status" className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">{t("Ogni persona manda le proprie ore: il capocantiere non le scrive per gli altri, quindi non c’è altro da impostare qui oltre ai giorni indietro.")}</p>}
         <div className={flussoMisto ? "hidden" : "space-y-4"}>
         <SezioneImpostazione
           id="ore"
           evidenziata={evidenziata === "ore"}
-          titolo="Il capocantiere come segna le ore della squadra?"
+          titolo={t("Il capocantiere come segna le ore della squadra?")}
         >
           <div className="px-4 py-4">
             <RadioGroup
@@ -314,13 +316,13 @@ export default function RegoleCampoConfig() {
               className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2"
             >
               <Opzione
-                value="capo" titolo="Le scrive a mano"
-                descrizione="Per ogni persona che era in cantiere."
+                value="capo" titolo={t("Le scrive a mano")}
+                descrizione={t("Per ogni persona che era in cantiere.")}
                 scelta={regole.oreDalle === "capo"} disabilitata={bloccato || flussoMisto}
               />
               <Opzione
-                value="timbrature" titolo="Partono dalle timbrature"
-                descrizione="Le controlla, corregge e aggiunge chi non ha timbrato."
+                value="timbrature" titolo={t("Partono dalle timbrature")}
+                descrizione={t("Le controlla, corregge e aggiunge chi non ha timbrato.")}
                 scelta={regole.oreDalle === "timbrature"} disabilitata={bloccato || flussoMisto}
               />
             </RadioGroup>
@@ -330,7 +332,7 @@ export default function RegoleCampoConfig() {
         <SezioneImpostazione
           id="avviso"
           evidenziata={evidenziata === "avviso"}
-          titolo="Avviso se le ore non tornano con le timbrature"
+          titolo={t("Avviso se le ore non tornano con le timbrature")}
         >
           <div className="space-y-3 px-4 py-4">
             <div className="flex items-center gap-3">
@@ -341,18 +343,18 @@ export default function RegoleCampoConfig() {
                 onCheckedChange={(acceso) => cambia({ avvisoScostamentoMinuti: acceso ? SCOSTAMENTO_PREDEFINITO : null })}
               />
               <Label htmlFor="avviso-scostamento" className="text-sm">
-                Avvisa il capo quando le ore scritte sono diverse da quelle timbrate
+                {t("Avvisa il capo quando le ore scritte sono diverse da quelle timbrate")}
               </Label>
             </div>
             {regole.avvisoScostamentoMinuti != null && (
               <div className="flex flex-wrap items-center gap-2 pl-12 text-sm">
-                <span className="text-muted-foreground">Se la differenza supera</span>
+                <span className="text-muted-foreground">{t("Se la differenza supera")}</span>
                 <Select
                   value={String(regole.avvisoScostamentoMinuti)}
                   onValueChange={(v) => cambia({ avvisoScostamentoMinuti: Number(v) })}
                   disabled={bloccato || flussoMisto}
                 >
-                  <SelectTrigger className="h-9 w-32" aria-label="Differenza che fa scattare l’avviso">
+                  <SelectTrigger className="h-9 w-32" aria-label={t("Differenza che fa scattare l’avviso")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -364,12 +366,12 @@ export default function RegoleCampoConfig() {
               </div>
             )}
             {!flussoMisto && regole.avvisoScostamentoMinuti != null && (
-              <div className="rounded-lg border bg-muted/30 p-3 text-xs" role="region" aria-label="Esempio del controllo ore">
-                <p className="font-medium">Esempio: 8 h timbrate · 9 h registrate</p>
+              <div className="rounded-lg border bg-muted/30 p-3 text-xs" role="region" aria-label={t("Esempio del controllo ore")}>
+                <p className="font-medium">{t("Esempio: 8 h timbrate · 9 h registrate")}</p>
                 <p className={cn("mt-1", esempio?.fuori ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
-                  {esempio?.fuori ? "Il capo vede un avviso: la differenza di 1 h supera la soglia scelta." : "Nessun avviso: la differenza di 1 h non supera la soglia scelta."}
+                  {esempio?.fuori ? t("Il capo vede un avviso: la differenza di 1 h supera la soglia scelta.") : t("Nessun avviso: la differenza di 1 h non supera la soglia scelta.")}
                 </p>
-                <p className="mt-1 text-muted-foreground">Se manca una timbratura, il confronto non è disponibile. La prova non registra ore.</p>
+                <p className="mt-1 text-muted-foreground">{t("Se manca una timbratura, il confronto non è disponibile. La prova non registra ore.")}</p>
               </div>
             )}
           </div>
@@ -379,23 +381,23 @@ export default function RegoleCampoConfig() {
         <SezioneImpostazione
           id="giorni"
           evidenziata={evidenziata === "giorni"}
-          titolo="Fino a quanti giorni indietro dal cantiere?"
-          descrizione="Oltre, sistema l’ufficio."
+          titolo={t("Fino a quanti giorni indietro dal cantiere?")}
+          descrizione={t("Oltre, sistema l’ufficio.")}
         >
           <div className="flex flex-wrap items-center gap-2 px-4 py-4 text-sm">
-            <span className="text-muted-foreground">Si può mandare</span>
+            <span className="text-muted-foreground">{t("Si può mandare")}</span>
             <Select
               value={String(giorniIndietroValidi(regole.giorniIndietro))}
               onValueChange={(v) => cambia({ giorniIndietro: Number(v) })}
               disabled={bloccato}
             >
-              <SelectTrigger className="h-9 w-52" aria-label="Giorni indietro ammessi dall’app">
+              <SelectTrigger className="h-9 w-52" aria-label={t("Giorni indietro ammessi dall’app")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {[...new Set<number>([...GIORNI_INDIETRO_PROPOSTI, giorniIndietroValidi(regole.giorniIndietro)])].sort((a, b) => a - b).map((g) => (
                   <SelectItem key={g} value={String(g)}>
-                    {g === 0 ? "solo il giorno stesso" : g === 1 ? "oggi e ieri" : `fino a ${g} giorni prima`}
+                    {g === 0 ? t("solo il giorno stesso") : g === 1 ? t("oggi e ieri") : t("fino a {g} giorni prima", { g: String(g ?? "") })}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -411,13 +413,13 @@ export default function RegoleCampoConfig() {
           <BozzaGiornaleSerale companyId={companyId} canEdit={isAdmin || permissions.canEditSettingsProfile} evidenziata={evidenziata === "bozza-giornale"} />
         </div>
 
-        <details className={scheda === "compila" ? "group" : "hidden"} aria-label="Collegamenti">
-          <summary className="cursor-pointer px-1 text-sm font-medium text-muted-foreground">Persone, squadre e incarichi</summary>
+        <details className={scheda === "compila" ? "group" : "hidden"} aria-label={t("Collegamenti")}>
+          <summary className="cursor-pointer px-1 text-sm font-medium text-muted-foreground">{t("Persone, squadre e incarichi")}</summary>
           <div className="mt-3 space-y-4">
           {collegamenti.length > 0 && <section className="rounded-lg border bg-card" aria-labelledby="collegamenti-campo-titolo">
             <header className="border-b px-4 py-3">
-              <h2 id="collegamenti-campo-titolo" className="text-base font-semibold">Completa l’organizzazione del cantiere</h2>
-              <p className="mt-1 text-xs text-muted-foreground">Queste regole usano persone, squadre e incarichi già presenti nel gestionale.</p>
+              <h2 id="collegamenti-campo-titolo" className="text-base font-semibold">{t("Completa l’organizzazione del cantiere")}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">{t("Queste regole usano persone, squadre e incarichi già presenti nel gestionale.")}</p>
             </header>
             <div className="divide-y">
               {collegamenti.map(({ titolo, descrizione, to, icona: Icona }) => (
@@ -429,8 +431,8 @@ export default function RegoleCampoConfig() {
               ))}
             </div>
           </section>}
-          <p className="px-1 text-xs text-muted-foreground">Le ore approvate alimentano la manodopera della commessa secondo i costi delle persone e degli incarichi. Le tariffe di vendita del listino servono invece a preparare i preventivi.</p>
-          {(isAdmin || permissions.canViewSettingsOrders) && <p className="px-1 text-xs text-muted-foreground">Altre regole dell’app: <Link to="/azienda/impostazioni/modelli-fasi#regole" className="font-medium text-primary underline">chi può spuntare le sottofasi</Link>.</p>}
+          <p className="px-1 text-xs text-muted-foreground">{t("Le ore approvate alimentano la manodopera della commessa secondo i costi delle persone e degli incarichi. Le tariffe di vendita del listino servono invece a preparare i preventivi.")}</p>
+          {(isAdmin || permissions.canViewSettingsOrders) && <p className="px-1 text-xs text-muted-foreground">{t("Altre regole dell’app:")} <Link to="/azienda/impostazioni/modelli-fasi#regole" className="font-medium text-primary underline">{t("chi può spuntare le sottofasi")}</Link>.</p>}
           </div>
         </details>
       </div>

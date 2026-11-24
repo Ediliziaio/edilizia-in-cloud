@@ -6,6 +6,7 @@ import { AmbitoImpostazione, SezioneImpostazione } from "@/components/impostazio
 import { useImpostazioniAvvio } from "@/hooks/useImpostazioniAvvio";
 import { useProfiloLavori } from "@/hooks/useProfiloLavori";
 import { ETICHETTE_TIPI, regolaDiPartenzaMisure, TIPI_CON_MISURE, TIPI_LAVORO, type TipoLavoro } from "@/lib/orders/tipiLavoro";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   puoModificare: boolean;
@@ -18,6 +19,7 @@ interface Props {
  * Finché l'azienda non sceglie, valgono i lavori del suo settore.
  */
 export default function TipiLavoroConfig({ puoModificare, evidenziata = false }: Props) {
+  const tr = useT();
   const { salva, misureRegola } = useImpostazioniAvvio();
   const { profilo } = useProfiloLavori();
   const attivi = new Set(profilo.tipi);
@@ -33,40 +35,40 @@ export default function TipiLavoroConfig({ puoModificare, evidenziata = false }:
     salva.mutate({ misureRegola: { ...misureRegola, [t]: sopralluogo ? "sopralluogo" : "definitive" } });
 
   const spiegazione = profilo.origine === "scelti"
-    ? "Scelti dall'azienda."
+    ? tr("Scelti dall'azienda.")
     : profilo.origine === "settore"
-      ? "Per ora li deduciamo dal settore dell'azienda: confermali o cambiali."
-      : "Non sappiamo ancora che lavori fate, quindi ti proponiamo tutti i modelli. Spunta i vostri e vedrai solo quelli.";
+      ? tr("Per ora li deduciamo dal settore dell'azienda: confermali o cambiali.")
+      : tr("Non sappiamo ancora che lavori fate, quindi ti proponiamo tutti i modelli. Spunta i vostri e vedrai solo quelli.");
 
   return (
     <SezioneImpostazione
       id="lavori"
-      titolo="I lavori che facciamo"
-      descrizione="Quando apri una commessa ti proponiamo solo i modelli standard di questi lavori. I modelli già nella lista della tua azienda restano tutti."
-      ambito={<AmbitoImpostazione>Commesse nuove</AmbitoImpostazione>}
-      azione={<span role="status" aria-live="polite">{salva.isPending ? "Salvataggio…" : "Si salva subito"}</span>}
+      titolo={tr("I lavori che facciamo")}
+      descrizione={tr("Quando apri una commessa ti proponiamo solo i modelli standard di questi lavori. I modelli già nella lista della tua azienda restano tutti.")}
+      ambito={<AmbitoImpostazione>{tr("Commesse nuove")}</AmbitoImpostazione>}
+      azione={<span role="status" aria-live="polite">{salva.isPending ? tr("Salvataggio…") : tr("Si salva subito")}</span>}
       evidenziata={evidenziata}
     >
       <div className="px-4 py-4">
         <fieldset className="m-0 min-w-0 space-y-2 border-0 p-0" disabled={!puoModificare || salva.isPending}>
-          <legend className="sr-only">I lavori che facciamo</legend>
+          <legend className="sr-only">{tr("I lavori che facciamo")}</legend>
           <div className="grid gap-2 sm:grid-cols-2">
             {TIPI_LAVORO.map((t) => (
               <div key={t} className="flex min-h-11 items-center gap-3 rounded-md px-2 transition-colors hover:bg-muted/50">
                 <Checkbox id={`tipo-lavoro-${t}`} checked={attivi.has(t)} onCheckedChange={(v) => cambia(t, v === true)} disabled={!puoModificare || salva.isPending} />
-                <Label htmlFor={`tipo-lavoro-${t}`} className="flex min-h-11 flex-1 cursor-pointer items-center text-sm font-normal">{ETICHETTE_TIPI[t]}</Label>
+                <Label htmlFor={`tipo-lavoro-${t}`} className="flex min-h-11 flex-1 cursor-pointer items-center text-sm font-normal">{tr(ETICHETTE_TIPI[t])}</Label>
               </div>
             ))}
           </div>
           {profilo.tipi.some((t) => TIPI_CON_MISURE.includes(t)) && (
             <div className="space-y-2 pt-2">
-              <p className="text-sm font-medium">Si ordina dopo il sopralluogo</p>
-              <p className="text-xs text-muted-foreground">Spunta se le misure definitive le prende un tecnico dopo il contratto: l'ordine aspetta la conferma. Senza spunta valgono quelle del preventivo.</p>
+              <p className="text-sm font-medium">{tr("Si ordina dopo il sopralluogo")}</p>
+              <p className="text-xs text-muted-foreground">{tr("Spunta se le misure definitive le prende un tecnico dopo il contratto: l'ordine aspetta la conferma. Senza spunta valgono quelle del preventivo.")}</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {profilo.tipi.filter((t) => TIPI_CON_MISURE.includes(t)).map((t) => (
                   <div key={t} className="flex min-h-11 items-center gap-3 rounded-md px-2 transition-colors hover:bg-muted/50">
-                    <Checkbox id={`misure-regola-${t}`} aria-label={`Sopralluogo per ${ETICHETTE_TIPI[t]}`} checked={regolaDi(t) === "sopralluogo"} onCheckedChange={(v) => cambiaRegola(t, v === true)} disabled={!puoModificare || salva.isPending} />
-                    <Label htmlFor={`misure-regola-${t}`} className="flex min-h-11 flex-1 cursor-pointer items-center text-sm font-normal">{ETICHETTE_TIPI[t]}</Label>
+                    <Checkbox id={`misure-regola-${t}`} aria-label={tr("Sopralluogo per {valore}", { valore: tr(ETICHETTE_TIPI[t]) })} checked={regolaDi(t) === "sopralluogo"} onCheckedChange={(v) => cambiaRegola(t, v === true)} disabled={!puoModificare || salva.isPending} />
+                    <Label htmlFor={`misure-regola-${t}`} className="flex min-h-11 flex-1 cursor-pointer items-center text-sm font-normal">{tr(ETICHETTE_TIPI[t])}</Label>
                   </div>
                 ))}
               </div>
@@ -76,7 +78,7 @@ export default function TipiLavoroConfig({ puoModificare, evidenziata = false }:
             <p role="status">{spiegazione}</p>
             {profilo.origine === "scelti" && puoModificare && (
               <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => salva.mutate({ tipiLavoro: null })}>
-                Torna a quelli del settore
+                {tr("Torna a quelli del settore")}
               </Button>
             )}
           </div>

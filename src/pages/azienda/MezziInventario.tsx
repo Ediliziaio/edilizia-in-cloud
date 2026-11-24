@@ -37,6 +37,7 @@ import {
 } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
 import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TUTTE = "__tutte__";
 
@@ -48,6 +49,7 @@ export default function MezziInventario() {
 // ── Elenco e nuovo giro ──────────────────────────────────────────────────────
 
 function ElencoInventari() {
+  const t = useT();
   const navigate = useNavigate();
   const perms = usePermissions();
   const puoModificare = (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
@@ -57,26 +59,26 @@ function ElencoInventari() {
   return (
     <div className="mx-auto max-w-3xl space-y-4 max-sm:space-y-3">
       <Link to="/azienda/manodopera?tab=mezzi&vista=attrezzature" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-sm:hidden">
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />Attrezzature
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />{t("Attrezzature")}
       </Link>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight max-sm:text-lg">Inventario</h1>
+          <h1 className="text-2xl font-bold tracking-tight max-sm:text-lg">{t("Inventario")}</h1>
           <p className="text-sm text-muted-foreground max-sm:hidden">
-            Leggi le etichette di quello che trovi: alla fine sai cosa manca, e l'ufficio riceve l'elenco.
+            {t("Leggi le etichette di quello che trovi: alla fine sai cosa manca, e l'ufficio riceve l'elenco.")}
           </p>
         </div>
         {puoModificare && (
           <Button onClick={() => setNuovo(true)} className="shrink-0 gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
-            <Plus className="h-4 w-4" />Nuovo giro
+            <Plus className="h-4 w-4" />{t("Nuovo giro")}
           </Button>
         )}
       </div>
 
       {error && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <p>Impossibile aggiornare gli inventari. L’eventuale elenco è l’ultimo caricato.</p>
-          <Button variant="outline" onClick={() => void refetch()} aria-label="Riprova caricamento inventari">Riprova</Button>
+          <p>{t("Impossibile aggiornare gli inventari. L’eventuale elenco è l’ultimo caricato.")}</p>
+          <Button variant="outline" onClick={() => void refetch()} aria-label={t("Riprova caricamento inventari")}>{t("Riprova")}</Button>
         </div>
       )}
       {isLoading ? (
@@ -84,7 +86,7 @@ function ElencoInventari() {
       ) : inventari.length === 0 ? error ? null : (
         <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground max-sm:py-5">
           <ClipboardCheck className="mx-auto mb-2 h-8 w-8 opacity-40 max-sm:hidden" />
-          Nessun inventario fatto finora.
+          {t("Nessun inventario fatto finora.")}
         </div>
       ) : (
         <ul className="space-y-2">
@@ -98,12 +100,12 @@ function ElencoInventari() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">{i.titolo}</span>
                   <span className="block truncate text-xs text-muted-foreground">
-                    {formatData(giornoItaliano(i.created_at))} · {i.contati} {i.contati === 1 ? "contato" : "contati"}
-                    {i.dove === "magazzino" ? " · in magazzino" : " · ovunque"}
+                    {formatData(giornoItaliano(i.created_at))} · {i.contati} {i.contati === 1 ? t("contato") : t("contati")}
+                    {i.dove === "magazzino" ? ` ${t("· in magazzino")}` : ` ${t("· ovunque")}`}
                   </span>
                 </span>
                 <Badge variant="outline" className={cn("shrink-0 text-[11px]", i.chiuso_at ? "" : "border-orange-200 bg-orange-50 text-orange-800")}>
-                  {i.chiuso_at ? "Chiuso" : "In corso"}
+                  {i.chiuso_at ? t("Chiuso") : t("In corso")}
                 </Badge>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
               </Link>
@@ -118,6 +120,7 @@ function ElencoInventari() {
 }
 
 function DialogNuovoGiro({ onClose, onCreato }: { onClose: () => void; onCreato: (id: string) => void }) {
+  const t = useT();
   const focusReturn = useDialogFocusReturn();
   const crea = useCreaInventario();
   const { data: categorie = [] } = useMezziCategorie();
@@ -145,39 +148,39 @@ function DialogNuovoGiro({ onClose, onCreato }: { onClose: () => void; onCreato:
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent {...focusReturn} className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Nuovo giro di inventario</DialogTitle>
-          <DialogDescription>Scegli cosa contare: l'elenco di quello che manca si costruisce da qui.</DialogDescription>
+          <DialogTitle>{t("Nuovo giro di inventario")}</DialogTitle>
+          <DialogDescription>{t("Scegli cosa contare: l'elenco di quello che manca si costruisce da qui.")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="inv-titolo">Nome</Label>
+            <Label htmlFor="inv-titolo">{t("Nome")}</Label>
             <Input id="inv-titolo" value={titolo} onChange={(e) => setTitolo(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="inv-classe">Cosa</Label>
+              <Label htmlFor="inv-classe">{t("Cosa")}</Label>
               <Select value={classe} onValueChange={(v) => setClasse(v as typeof classe)}>
                 <SelectTrigger id="inv-classe"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="attrezzatura">Attrezzature</SelectItem>
-                  <SelectItem value="mezzo">Mezzi</SelectItem>
-                  <SelectItem value="tutto">Tutto</SelectItem>
+                  <SelectItem value="attrezzatura">{t("Attrezzature")}</SelectItem>
+                  <SelectItem value="mezzo">{t("Mezzi")}</SelectItem>
+                  <SelectItem value="tutto">{t("Tutto")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="inv-categoria">Categoria</Label>
+              <Label htmlFor="inv-categoria">{t("Categoria")}</Label>
               <Select value={categoria} onValueChange={setCategoria} disabled={classe !== "attrezzatura"}>
                 <SelectTrigger id="inv-categoria"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={TUTTE}>Tutte</SelectItem>
+                  <SelectItem value={TUTTE}>{t("Tutte")}</SelectItem>
                   {categorie.filter((c) => c.classe === "attrezzatura").map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Dove</Label>
+            <Label>{t("Dove")}</Label>
             <div className="grid grid-cols-1 gap-2">
               {([
                 ["magazzino", "In magazzino", "Si aspetta solo quello che risulta in magazzino (non in cantiere, non in carico a qualcuno)."],
@@ -190,17 +193,17 @@ function DialogNuovoGiro({ onClose, onCreato }: { onClose: () => void; onCreato:
                   aria-pressed={dove === v}
                   className={cn("rounded-lg border px-3 py-2 text-left transition-colors", dove === v ? "border-orange-400 bg-orange-50" : "hover:bg-muted/50")}
                 >
-                  <span className="block text-sm font-medium">{label}</span>
-                  <span className="block text-xs text-muted-foreground">{testo}</span>
+                  <span className="block text-sm font-medium">{t(label)}</span>
+                  <span className="block text-xs text-muted-foreground">{t(testo)}</span>
                 </button>
               ))}
             </div>
           </div>
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
           <Button onClick={avvia} disabled={!titolo.trim() || crea.isPending}>
-            {crea.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Inizia
+            {crea.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t("Inizia")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -242,6 +245,7 @@ function attesi(
 }
 
 function GiroDiConta({ id }: { id: string }) {
+  const tr = useT();
   const perms = usePermissions();
   const puoModificare = (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
   const { data, isLoading, error, refetch } = useInventario(id);
@@ -278,16 +282,18 @@ function GiroDiConta({ id }: { id: string }) {
 
   const esito = useCallback((r: EsitoConta, nome: string) => {
     if (r.esito === "sconosciuto") {
-      setUltimo({ testo: `${r.codice ?? "Codice"}: non è un attrezzo dell'azienda.`, tono: "errore" });
+      setUltimo({ testo: tr("{codice}: non è un attrezzo dell'azienda.", { codice: r.codice ?? tr("Codice") }), tono: "errore" });
     } else if (r.esito === "gia_contato") {
-      setUltimo({ testo: `${nome}: già contato.`, tono: "info" });
+      setUltimo({ testo: tr("{nome}: già contato.", { nome }), tono: "info" });
     } else {
       setUltimo({
-        testo: `${nome}: ${r.esito === "aggiornato" ? "quantità corretta" : "trovato"}${r.atteso === false ? " (non era nell'elenco: risultava altrove)" : ""}.`,
+        testo: r.atteso === false
+          ? tr(r.esito === "aggiornato" ? "{nome}: quantità corretta (non era nell'elenco: risultava altrove)." : "{nome}: trovato (non era nell'elenco: risultava altrove).", { nome })
+          : tr(r.esito === "aggiornato" ? "{nome}: quantità corretta." : "{nome}: trovato.", { nome }),
         tono: r.atteso === false ? "info" : "ok",
       });
     }
-  }, []);
+  }, [tr]);
 
   const letto = useCallback(
     async (testo: string) => {
@@ -347,10 +353,10 @@ function GiroDiConta({ id }: { id: string }) {
   if (error || !inv) {
     return (
       <div className="mx-auto max-w-md space-y-3 rounded-2xl border bg-card p-6 text-center">
-        <p className="text-sm text-muted-foreground">{error ? "Non riesco a caricare l'inventario." : "Questo inventario non c'è."}</p>
+        <p className="text-sm text-muted-foreground">{error ? tr("Non riesco a caricare l'inventario.") : tr("Questo inventario non c'è.")}</p>
         <div className="flex justify-center gap-2">
-          {error && <Button variant="outline" onClick={() => refetch()}>Riprova</Button>}
-          <Button asChild><Link to="/azienda/mezzi/inventario">Inventari</Link></Button>
+          {error && <Button variant="outline" onClick={() => refetch()}>{tr("Riprova")}</Button>}
+          <Button asChild><Link to="/azienda/mezzi/inventario">{tr("Inventari")}</Link></Button>
         </div>
       </div>
     );
@@ -359,7 +365,7 @@ function GiroDiConta({ id }: { id: string }) {
   return (
     <div className="mx-auto max-w-4xl space-y-4 pb-24 max-sm:space-y-3">
       <Link to="/azienda/mezzi/inventario" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-sm:hidden">
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />Inventari
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />{tr("Inventari")}
       </Link>
 
       <div className="rounded-2xl border bg-card p-4 max-sm:p-3">
@@ -367,17 +373,17 @@ function GiroDiConta({ id }: { id: string }) {
           <div className="min-w-0">
             <h1 className="text-xl font-bold tracking-tight max-sm:text-base">{inv.titolo}</h1>
             <p className="text-sm text-muted-foreground max-sm:text-xs">
-              {inv.classe === "attrezzatura" ? "Attrezzature" : inv.classe === "mezzo" ? "Mezzi" : "Mezzi e attrezzature"}
-              {inv.dove === "magazzino" ? " · in magazzino" : " · ovunque"}
-              {inv.chiuso_at ? ` · chiuso il ${formatData(giornoItaliano(inv.chiuso_at))}` : ""}
+              {inv.classe === "attrezzatura" ? tr("Attrezzature") : inv.classe === "mezzo" ? tr("Mezzi") : tr("Mezzi e attrezzature")}
+              {inv.dove === "magazzino" ? ` ${tr("· in magazzino")}` : ` ${tr("· ovunque")}`}
+              {inv.chiuso_at ? tr(" · chiuso il {valore}", { valore: formatData(giornoItaliano(inv.chiuso_at)) }) : ""}
             </p>
           </div>
           {aperto && (
-            <Button variant="outline" onClick={() => setChiusura(true)} className="shrink-0">Chiudi il giro</Button>
+            <Button variant="outline" onClick={() => setChiusura(true)} className="shrink-0">{tr("Chiudi il giro")}</Button>
           )}
         </div>
         <div className="mt-3 flex items-center gap-3">
-          <Progress value={percentuale} className="h-2 flex-1 bg-slate-100" indicatorClassName="bg-emerald-500" aria-label={`${percentuale}% trovato`} />
+          <Progress value={percentuale} className="h-2 flex-1 bg-slate-100" indicatorClassName="bg-emerald-500" aria-label={tr("{percentuale}% trovato", { percentuale: String(percentuale ?? "") })} />
           <span className="shrink-0 text-sm font-medium tabular-nums">{trovati.length} / {attesiMap.size}</span>
         </div>
       </div>
@@ -387,11 +393,11 @@ function GiroDiConta({ id }: { id: string }) {
           <div className="flex items-center gap-2">
             <Button onClick={() => setScanner(true)} className="h-12 flex-1 gap-2 text-base" disabled={conta.isPending}>
               {conta.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ScanLine className="h-5 w-5" />}
-              Scansiona
+              {tr("Scansiona")}
             </Button>
             <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
               <Checkbox checked={continua} onCheckedChange={(c) => setContinua(!!c)} />
-              <span>Una dopo l'altra</span>
+              <span>{tr("Una dopo l'altra")}</span>
             </label>
           </div>
           {ultimo && (
@@ -413,16 +419,16 @@ function GiroDiConta({ id }: { id: string }) {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="space-y-2" aria-labelledby="da-trovare">
           <h2 id="da-trovare" className="flex items-center gap-2 text-sm font-semibold">
-            <CircleDashed className="h-4 w-4 text-amber-600" />Da trovare ({daTrovare.length})
+            <CircleDashed className="h-4 w-4 text-amber-600" />{tr("Da trovare ({n})", { n: daTrovare.length })}
           </h2>
           {daTrovare.length > 8 && (
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-              <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca per segnarlo a mano" className="pl-9" aria-label="Cerca tra quelli da trovare" />
+              <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={tr("Cerca per segnarlo a mano")} className="pl-9" aria-label={tr("Cerca tra quelli da trovare")} />
             </div>
           )}
           {daTrovare.length === 0 ? (
-            <p className="rounded-xl border border-dashed py-6 text-center text-sm text-muted-foreground">Trovato tutto.</p>
+            <p className="rounded-xl border border-dashed py-6 text-center text-sm text-muted-foreground">{tr("Trovato tutto.")}</p>
           ) : (
             <ul className="divide-y rounded-xl border">
               {cercati.map((m) => (
@@ -436,8 +442,8 @@ function GiroDiConta({ id }: { id: string }) {
                     </span>
                   </span>
                   {aperto && (
-                    <Button size="sm" variant="ghost" className="shrink-0" onClick={() => segnaAMano(m)} disabled={conta.isPending} title="Trovato, senza etichetta">
-                      Trovato
+                    <Button size="sm" variant="ghost" className="shrink-0" onClick={() => segnaAMano(m)} disabled={conta.isPending} title={tr("Trovato, senza etichetta")}>
+                      {tr("Trovato")}
                     </Button>
                   )}
                 </li>
@@ -448,10 +454,10 @@ function GiroDiConta({ id }: { id: string }) {
 
         <section className="space-y-2" aria-labelledby="trovati">
           <h2 id="trovati" className="flex items-center gap-2 text-sm font-semibold">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />Trovati ({trovati.length + fuoriElenco.length})
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />{tr("Trovati ({n})", { n: trovati.length + fuoriElenco.length })}
           </h2>
           {trovati.length + fuoriElenco.length === 0 ? (
-            <p className="rounded-xl border border-dashed py-6 text-center text-sm text-muted-foreground">Ancora niente.</p>
+            <p className="rounded-xl border border-dashed py-6 text-center text-sm text-muted-foreground">{tr("Ancora niente.")}</p>
           ) : (
             <ul className="divide-y rounded-xl border">
               {[...fuoriElenco, ...trovati].map((c) => {
@@ -462,7 +468,7 @@ function GiroDiConta({ id }: { id: string }) {
                 return (
                   <li key={c.id} className="flex items-center gap-3 px-3 py-2">
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{m?.nome ?? "Attrezzo"}</span>
+                      <span className="block truncate text-sm font-medium">{m?.nome ?? tr("Attrezzo")}</span>
                       <span className={cn("block truncate text-xs", fuori || manca ? "text-amber-700" : "text-muted-foreground")}>
                         {[
                           m?.codice,
@@ -472,7 +478,7 @@ function GiroDiConta({ id }: { id: string }) {
                       </span>
                     </span>
                     {aperto && (
-                      <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground" onClick={() => annulla.mutate(c.id)} aria-label={`Togli ${m?.nome ?? "la conta"}`} title="Togli (contato per sbaglio)">
+                      <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground" onClick={() => annulla.mutate(c.id)} aria-label={m?.nome ? tr("Togli {nome}", { nome: m.nome }) : tr("Togli la conta")} title={tr("Togli (contato per sbaglio)")}>
                         <Undo2 className="h-4 w-4" />
                       </Button>
                     )}
@@ -528,6 +534,7 @@ function GiroDiConta({ id }: { id: string }) {
 function DialogQuantita({ nome, unita, atteso, onClose, onConferma, inAttesa }: {
   nome: string; unita: string | null; atteso: number | null; onClose: () => void; onConferma: (q: number) => void; inAttesa: boolean;
 }) {
+  const t = useT();
   const [valore, setValore] = useState(atteso != null ? String(atteso).replace(".", ",") : "");
   const n = numeroLetto(valore);
   const valido = n != null && n >= 0;
@@ -535,19 +542,19 @@ function DialogQuantita({ nome, unita, atteso, onClose, onConferma, inAttesa }: 
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Quanti ne hai contati?</DialogTitle>
+          <DialogTitle>{t("Quanti ne hai contati?")}</DialogTitle>
           <DialogDescription>
-            {nome}{atteso != null ? ` · dovrebbero essercene ${formatQuantita(atteso, unita)}` : ""}.
+            {nome}{atteso != null ? t(" · dovrebbero essercene {atteso}", { atteso: formatQuantita(atteso, unita) }) : ""}.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5">
-          <Label htmlFor="conta-quantita">{unitaBreve(unita) || "Quantità"}</Label>
+          <Label htmlFor="conta-quantita">{unitaBreve(unita) || t("Quantità")}</Label>
           <Input id="conta-quantita" inputMode="decimal" value={valore} onChange={(e) => setValore(e.target.value)} className="h-12 text-lg" autoFocus />
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
           <Button onClick={() => valido && onConferma(n!)} disabled={!valido || inAttesa}>
-            {inAttesa && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Conta
+            {inAttesa && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t("Conta")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -558,6 +565,7 @@ function DialogQuantita({ nome, unita, atteso, onClose, onConferma, inAttesa }: 
 function DialogChiusura({ inventarioId, dove, mancanti, altrove, onClose }: {
   inventarioId: string; dove: MezzoInventario["dove"]; mancanti: number; altrove: number; onClose: () => void;
 }) {
+  const t = useT();
   const chiudi = useChiudiInventario(inventarioId);
   const [segnala, setSegnala] = useState(mancanti > 0);
   const [riporta, setRiporta] = useState(dove === "magazzino" && altrove > 0);
@@ -575,37 +583,37 @@ function DialogChiusura({ inventarioId, dove, mancanti, altrove, onClose }: {
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Chiudere il giro?</DialogTitle>
-          <DialogDescription>Dopo non si possono più aggiungere conte.</DialogDescription>
+          <DialogTitle>{t("Chiudere il giro?")}</DialogTitle>
+          <DialogDescription>{t("Dopo non si possono più aggiungere conte.")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           {mancanti > 0 ? (
             <label className="flex items-start gap-3 rounded-lg border p-3">
               <Checkbox checked={segnala} onCheckedChange={(c) => setSegnala(!!c)} className="mt-0.5" />
               <span className="text-sm">
-                <span className="font-medium">Segnala all'ufficio i {mancanti} che mancano</span>
-                <span className="block text-xs text-muted-foreground">Una segnalazione «non si trova» per ciascuno (per i ponteggi, la quantità che manca).</span>
+                <span className="font-medium">{t("Segnala all'ufficio i {mancanti} che mancano", { mancanti: String(mancanti ?? "") })}</span>
+                <span className="block text-xs text-muted-foreground">{t("Una segnalazione «non si trova» per ciascuno (per i ponteggi, la quantità che manca).")}</span>
               </span>
             </label>
           ) : (
             <p className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
-              <CheckCircle2 className="h-4 w-4" />Non manca niente.
+              <CheckCircle2 className="h-4 w-4" />{t("Non manca niente.")}
             </p>
           )}
           {dove === "magazzino" && altrove > 0 && (
             <label className="flex items-start gap-3 rounded-lg border p-3">
               <Checkbox checked={riporta} onCheckedChange={(c) => setRiporta(!!c)} className="mt-0.5" />
               <span className="text-sm">
-                <span className="font-medium">Segna in magazzino i {altrove} trovati qui</span>
-                <span className="block text-xs text-muted-foreground">Risultavano in cantiere o in carico a qualcuno: si aggiorna dove sono.</span>
+                <span className="font-medium">{t("Segna in magazzino i {altrove} trovati qui", { altrove: String(altrove ?? "") })}</span>
+                <span className="block text-xs text-muted-foreground">{t("Risultavano in cantiere o in carico a qualcuno: si aggiorna dove sono.")}</span>
               </span>
             </label>
           )}
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
           <Button onClick={conferma} disabled={chiudi.isPending}>
-            {chiudi.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Chiudi il giro
+            {chiudi.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t("Chiudi il giro")}
           </Button>
         </DialogFooter>
       </DialogContent>

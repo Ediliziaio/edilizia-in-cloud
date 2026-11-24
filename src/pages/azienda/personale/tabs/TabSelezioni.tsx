@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, BarChart3, BrainCircuit, CheckCircle2, ClipboardCheck, Clock3, Copy, ExternalLink, FileText, Link2, Plus, Printer, RefreshCcw, ShieldCheck, Sparkles, Target, UserRoundSearch } from "lucide-react";
 import { toast } from "sonner";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type TalentCandidateStatus = "draft" | "invited" | "in_progress" | "completed" | "archived";
 
@@ -113,6 +114,7 @@ const STATUS_CLASSES: Record<TalentCandidateStatus, string> = {
 /** embedded: montata dentro la tab Candidati — niente testata gigante né
  *  KPI doppi: la parte alta la fa la tab ospite, qui resta l'operativo. */
 export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -182,13 +184,13 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Candidato creato in Selezioni");
+      toast.success(t("Candidato creato in Selezioni"));
       setDialogOpen(false);
       setForm({ nome: "", cognome: "", email: "", telefono: "", ruolo_richiesto: "Venditore/Commerciale", seniority: "Candidato" });
       queryClient.invalidateQueries({ queryKey: ["hr-talent-candidates"] });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Errore creazione candidato");
+      toast.error(error instanceof Error ? error.message : t("Errore creazione candidato"));
     },
   });
 
@@ -208,11 +210,11 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
     },
     onSuccess: (link) => {
       setPublicLink(link);
-      toast.success("Link candidato generato");
+      toast.success(t("Link candidato generato"));
       queryClient.invalidateQueries({ queryKey: ["hr-talent-candidates"] });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Errore generazione link candidato");
+      toast.error(error instanceof Error ? error.message : t("Errore generazione link candidato"));
     },
   });
 
@@ -272,15 +274,15 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
     },
     onSuccess: ({ generated, failed }) => {
       if (generated > 0) {
-        toast.success(`${generated} report Talent Assessment generati automaticamente`);
+        toast.success(t("{generated} report Talent Assessment generati automaticamente", { generated: String(generated ?? "") }));
         queryClient.invalidateQueries({ queryKey: ["hr-talent-reports"] });
       }
       if (failed > 0) {
-        toast.info(`${failed} report non generati: dati assessment incompleti o non validi.`);
+        toast.info(t("{failed} report non generati: dati assessment incompleti o non validi.", { failed: String(failed ?? "") }));
       }
     },
     onError: () => {
-      toast.error("Non sono riuscito a generare i report automatici");
+      toast.error(t("Non sono riuscito a generare i report automatici"));
     },
   });
 
@@ -304,8 +306,8 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
           {embedded ? (
             <div className="flex items-center gap-2 text-sm text-slate-600">
               <BrainCircuit className="h-4 w-4 shrink-0 text-orange-500" />
-              <span className="font-semibold text-slate-900">Test attitudinale</span>
-              <span className="hidden sm:inline">— {DOMANDE.length} domande, matching su {roleNames.length} ruoli</span>
+              <span className="font-semibold text-slate-900">{t("Test attitudinale")}</span>
+              <span className="hidden sm:inline">{t("— {n} domande, matching su {n2} ruoli", { n: DOMANDE.length, n2: roleNames.length })}</span>
             </div>
           ) : (
           <div className="flex items-start gap-3">
@@ -314,12 +316,10 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-2xl font-bold tracking-tight text-slate-950">Selezioni</h2>
-                <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Talent Assessment</Badge>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-950">{t("Selezioni")}</h2>
+                <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">{t("Talent Assessment")}</Badge>
               </div>
-              <p className="mt-1 max-w-3xl text-sm text-slate-600">
-                Assessment attitudinale per assunzioni e crescita interna: 242 domande V5, attendibilità, sindromi, matching su {roleNames.length} ruoli e aggancio ai profili HR dopo l'assunzione.
-              </p>
+              <p className="mt-1 max-w-3xl text-sm text-slate-600">{t("Assessment attitudinale per assunzioni e crescita interna: 242 domande V5, attendibilità, sindromi, matching su {n} ruoli e aggancio ai profili HR dopo l'assunzione.", { n: roleNames.length })}</p>
             </div>
           </div>
           )}
@@ -328,7 +328,7 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
             {completedWithoutReports.length > 0 && <Button variant="outline" size="sm"
               disabled={candidatesQuery.isLoading || reportsQuery.isLoading || candidatesQuery.isError || reportsQuery.isError || autoGenerateMissingReports.isPending}
               onClick={() => autoGenerateMissingReports.mutate(completedWithoutReports)}>
-              {autoGenerateMissingReports.isPending ? "Generazione…" : `Genera ${completedWithoutReports.length} report mancanti`}
+              {autoGenerateMissingReports.isPending ? t("Generazione…") : t("Genera {n} report mancanti", { n: completedWithoutReports.length })}
             </Button>}
             <Button
               variant="outline"
@@ -339,36 +339,36 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
               }}
             >
               <RefreshCcw className="mr-2 h-4 w-4" />
-              Aggiorna
+              {t("Aggiorna")}
             </Button>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm" className="bg-orange-600 hover:bg-orange-700">
                   <Plus className="mr-2 h-4 w-4" />
-                  {embedded ? "Invita al test" : "Nuovo candidato"}
+                  {embedded ? t("Invita al test") : t("Nuovo candidato")}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Nuovo candidato Talent Assessment</DialogTitle>
+                  <DialogTitle>{t("Nuovo candidato Talent Assessment")}</DialogTitle>
                   <DialogDescription>
-                    Crea la scheda selezione. Il link pubblico del questionario verrà generato dal flusso invito.
+                    {t("Crea la scheda selezione. Il link pubblico del questionario verrà generato dal flusso invito.")}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Nome">
-                    <Input value={form.nome} onChange={(event) => setForm((prev) => ({ ...prev, nome: event.target.value }))} placeholder="Nome" />
+                  <Field label={t("Nome")}>
+                    <Input value={form.nome} onChange={(event) => setForm((prev) => ({ ...prev, nome: event.target.value }))} placeholder={t("Nome")} />
                   </Field>
-                  <Field label="Cognome">
-                    <Input value={form.cognome} onChange={(event) => setForm((prev) => ({ ...prev, cognome: event.target.value }))} placeholder="Cognome" />
+                  <Field label={t("Cognome")}>
+                    <Input value={form.cognome} onChange={(event) => setForm((prev) => ({ ...prev, cognome: event.target.value }))} placeholder={t("Cognome")} />
                   </Field>
                   <Field label="Email">
                     <Input type="email" value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="candidato@email.it" />
                   </Field>
-                  <Field label="Telefono">
+                  <Field label={t("Telefono")}>
                     <Input value={form.telefono} onChange={(event) => setForm((prev) => ({ ...prev, telefono: event.target.value }))} placeholder="+39..." />
                   </Field>
-                  <Field label="Ruolo da valutare">
+                  <Field label={t("Ruolo da valutare")}>
                     <Select value={form.ruolo_richiesto} onValueChange={(value) => setForm((prev) => ({ ...prev, ruolo_richiesto: value }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent className="max-h-72">
@@ -378,23 +378,23 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
                       </SelectContent>
                     </Select>
                   </Field>
-                  <Field label="Livello">
+                  <Field label={t("Livello")}>
                     <Select value={form.seniority} onValueChange={(value) => setForm((prev) => ({ ...prev, seniority: value }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Candidato">Candidato</SelectItem>
-                        <SelectItem value="Junior">Junior</SelectItem>
-                        <SelectItem value="Intermedio">Intermedio</SelectItem>
-                        <SelectItem value="Senior">Senior</SelectItem>
-                        <SelectItem value="Manager">Manager</SelectItem>
+                        <SelectItem value="Candidato">{t("Candidato")}</SelectItem>
+                        <SelectItem value="Junior">{t("Junior")}</SelectItem>
+                        <SelectItem value="Intermedio">{t("Intermedio")}</SelectItem>
+                        <SelectItem value="Senior">{t("Senior")}</SelectItem>
+                        <SelectItem value="Manager">{t("Manager")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("Annulla")}</Button>
                   <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => createCandidate.mutate()} disabled={createCandidate.isPending}>
-                    {createCandidate.isPending ? "Creazione..." : "Crea selezione"}
+                    {createCandidate.isPending ? t("Creazione...") : t("Crea selezione")}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -405,11 +405,11 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
 
       {!embedded && (
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricCard icon={UserRoundSearch} label="Candidati" value={stats.total} detail="nel perimetro azienda" />
-        <MetricCard icon={Clock3} label="Da completare" value={stats.inProgress} detail="invitati o in corso" tone="amber" />
-        <MetricCard icon={CheckCircle2} label="Completati" value={stats.completed} detail="con questionario chiuso" tone="emerald" />
-        <MetricCard icon={ShieldCheck} label="Attendibili" value={stats.reliable} detail="report con indice YES" tone="blue" />
-        <MetricCard icon={Target} label="Best fit" value={`${stats.bestFit}%`} detail="compatibilità più alta" tone="orange" />
+        <MetricCard icon={UserRoundSearch} label={t("Candidati")} value={stats.total} detail="nel perimetro azienda" />
+        <MetricCard icon={Clock3} label={t("Da completare")} value={stats.inProgress} detail="invitati o in corso" tone="amber" />
+        <MetricCard icon={CheckCircle2} label={t("Completati")} value={stats.completed} detail="con questionario chiuso" tone="emerald" />
+        <MetricCard icon={ShieldCheck} label={t("Attendibili")} value={stats.reliable} detail="report con indice YES" tone="blue" />
+        <MetricCard icon={Target} label={t("Best fit")} value={`${stats.bestFit}%`} detail="compatibilità più alta" tone="orange" />
       </div>
       )}
 
@@ -417,10 +417,10 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle className="text-base">Pipeline selezioni</CardTitle>
-              <p className="text-sm text-slate-500">Candidati, stato test e primo esito del report.</p>
+              <CardTitle className="text-base">{t("Pipeline selezioni")}</CardTitle>
+              <p className="text-sm text-slate-500">{t("Candidati, stato test e primo esito del report.")}</p>
             </div>
-            <Badge variant="outline">{DOMANDE.length} domande</Badge>
+            <Badge variant="outline">{t("{n} domande", { n: DOMANDE.length })}</Badge>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -431,18 +431,18 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
               </div>
             ) : hasError ? (
               <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                Errore nel caricamento delle selezioni. Verifica che la migrazione `hr_talent_profile` sia applicata.
+                {t("Errore nel caricamento delle selezioni. Verifica che la migrazione `hr_talent_profile` sia applicata.")}
               </div>
             ) : candidates.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
                 <Sparkles className="mx-auto h-9 w-9 text-orange-500" />
-                <h3 className="mt-3 text-lg font-semibold text-slate-900">Nessuna selezione ancora</h3>
+                <h3 className="mt-3 text-lg font-semibold text-slate-900">{t("Nessuna selezione ancora")}</h3>
                 <p className="mx-auto mt-1 max-w-xl text-sm text-slate-600">
-                  Crea il primo candidato, scegli il ruolo e prepara l'invito al Talent Assessment.
+                  {t("Crea il primo candidato, scegli il ruolo e prepara l'invito al Talent Assessment.")}
                 </p>
                 <Button className="mt-4 bg-orange-600 hover:bg-orange-700" onClick={() => setDialogOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Nuovo candidato
+                  {t("Nuovo candidato")}
                 </Button>
               </div>
             ) : (
@@ -469,25 +469,25 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Motore V5 attivo</CardTitle>
+              <CardTitle className="text-base">{t("Motore V5 attivo")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-slate-600">
-              <CheckLine icon={ClipboardCheck} title={`${DOMANDE.length} domande`} detail="versionate e pronte per seed DB" />
-              <CheckLine icon={Target} title={`${roleNames.length} ruoli`} detail="matching mansione con soglie, ruoli edilizia e disqualifier" />
-              <CheckLine icon={ShieldCheck} title="Controlli attendibilità" detail="5 domande CTRL + indice YES/CAUTION/NO/ZERO" />
-              <CheckLine icon={Link2} title="Invito pubblico" detail="link candidato con privacy, autosalvataggio e completamento" />
+              <CheckLine icon={ClipboardCheck} title={t("{n} domande", { n: DOMANDE.length })} detail="versionate e pronte per seed DB" />
+              <CheckLine icon={Target} title={t("{n} ruoli", { n: roleNames.length })} detail="matching mansione con soglie, ruoli edilizia e disqualifier" />
+              <CheckLine icon={ShieldCheck} title={t("Controlli attendibilità")} detail="5 domande CTRL + indice YES/CAUTION/NO/ZERO" />
+              <CheckLine icon={Link2} title={t("Invito pubblico")} detail="link candidato con privacy, autosalvataggio e completamento" />
             </CardContent>
           </Card>
 
           <Card className="border-orange-200 bg-orange-50/40">
             <CardHeader>
-              <CardTitle className="text-base">Flusso operativo</CardTitle>
+              <CardTitle className="text-base">{t("Flusso operativo")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-slate-700">
               <p>
-                Da qui crei il candidato, invii il link esterno, rivedi le risposte e generi il report con fit ruolo quando il test e completo.
+                {t("Da qui crei il candidato, invii il link esterno, rivedi le risposte e generi il report con fit ruolo quando il test e completo.")}
               </p>
-              <Badge className="bg-white text-orange-700 hover:bg-white">Questionario interno + link pubblico attivi</Badge>
+              <Badge className="bg-white text-orange-700 hover:bg-white">{t("Questionario interno + link pubblico attivi")}</Badge>
             </CardContent>
           </Card>
         </div>
@@ -527,17 +527,13 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
       }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Link Talent Assessment generato</DialogTitle>
-            <DialogDescription>
-              Condividi questo link con {publicLink?.candidateName}. Per sicurezza il token completo viene mostrato solo ora.
-            </DialogDescription>
+            <DialogTitle>{t("Link Talent Assessment generato")}</DialogTitle>
+            <DialogDescription>{t("Condividi questo link con {candidateName}. Per sicurezza il token completo viene mostrato solo ora.", { candidateName: String(publicLink?.candidateName ?? "") })}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <Input readOnly value={publicLink?.url || ""} onFocus={(event) => event.currentTarget.select()} />
             {publicLink?.expiresAt && (
-              <p className="text-xs text-slate-500">
-                Scade il {new Date(publicLink.expiresAt).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" })}.
-              </p>
+              <p className="text-xs text-slate-500">{t("Scade il {valore}.", { valore: new Date(publicLink.expiresAt).toLocaleDateString(intlCampo(), { day: "2-digit", month: "2-digit", year: "numeric" }) })}</p>
             )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
@@ -549,18 +545,18 @@ export function TabSelezioni({ embedded = false }: { embedded?: boolean } = {}) 
               }}
             >
               <ExternalLink className="mr-2 h-4 w-4" />
-              Apri link
+              {t("Apri link")}
             </Button>
             <Button
               className="bg-orange-600 hover:bg-orange-700"
               onClick={async () => {
                 if (!publicLink?.url) return;
                 await navigator.clipboard.writeText(publicLink.url);
-                toast.success("Link copiato");
+                toast.success(t("Link copiato"));
               }}
             >
               <Copy className="mr-2 h-4 w-4" />
-              Copia link
+              {t("Copia link")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -632,6 +628,7 @@ function CandidateRow({
   onGenerateLink: () => void;
   isGeneratingLink: boolean;
 }) {
+  const t = useT();
   const score = Number(report?.role_match?.compatibilitaPct || 0);
   const decision = report ? buildTalentReportDecision(report) : null;
   const questionnaireActionLabel = report
@@ -645,9 +642,9 @@ function CandidateRow({
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-semibold text-slate-900">{candidate.nome} {candidate.cognome}</p>
-          <Badge variant="outline" className={STATUS_CLASSES[candidate.status]}>{STATUS_LABELS[candidate.status]}</Badge>
-          {report && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Report pronto</Badge>}
-          {decision && <Badge variant="outline" className={decision.tone === "red" ? "border-red-200 bg-red-50 text-red-700" : decision.tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}>{decision.label}</Badge>}
+          <Badge variant="outline" className={STATUS_CLASSES[candidate.status]}>{t(STATUS_LABELS[candidate.status])}</Badge>
+          {report && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">{t("Report pronto")}</Badge>}
+          {decision && <Badge variant="outline" className={decision.tone === "red" ? "border-red-200 bg-red-50 text-red-700" : decision.tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}>{t(decision.label)}</Badge>}
         </div>
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
           <span>{candidate.ruolo_richiesto}</span>
@@ -658,18 +655,18 @@ function CandidateRow({
       <div className="flex items-center gap-2">
         <div className="min-w-20 text-right">
           <p className="text-sm font-semibold text-slate-900">{report ? `${score}%` : "..."}</p>
-          <p className="text-xs text-slate-500">fit ruolo</p>
+          <p className="text-xs text-slate-500">{t("fit ruolo")}</p>
         </div>
         <Button variant="outline" size="sm" onClick={onOpenQuestionnaire}>
           {questionnaireActionLabel}
         </Button>
         <Button variant="outline" size="sm" onClick={onGenerateLink} disabled={isGeneratingLink || candidate.status === "completed"}>
           <Link2 className="mr-2 h-4 w-4" />
-          Genera link
+          {t("Genera link")}
         </Button>
         <Button variant="outline" size="sm" disabled={!report} onClick={onOpenReport}>
           <FileText className="mr-2 h-4 w-4" />
-          Apri report
+          {t("Apri report")}
         </Button>
         {report && <PremiumReportButton candidate={candidate} report={report} />}
       </div>
@@ -739,6 +736,7 @@ function ReportDecisionDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const decision = buildTalentReportDecision(report);
   const topRoles = (report.all_roles || []).slice(0, 5);
   const missingRequirements = report.role_match?.requisitiMancanti || [];
@@ -767,17 +765,15 @@ function ReportDecisionDialog({
         <DialogHeader>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <DialogTitle>Report Talent Assessment</DialogTitle>
+              <DialogTitle>{t("Report Talent Assessment")}</DialogTitle>
               <DialogDescription>
                 {candidate.nome} {candidate.cognome} · {report.role_requested || candidate.ruolo_richiesto}
               </DialogDescription>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className={toneClass}>{decision.label}</Badge>
-              <Badge variant="outline">Attendibilita {report.reliability_index}</Badge>
-              <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">
-                {Number(report.role_match?.compatibilitaPct || 0)}% fit
-              </Badge>
+              <Badge variant="outline" className={toneClass}>{t(decision.label)}</Badge>
+              <Badge variant="outline">{t("Attendibilita {reliability_index}", { reliability_index: String(report.reliability_index ?? "") })}</Badge>
+              <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">{t("{valore}% fit", { valore: Number(report.role_match?.compatibilitaPct || 0) })}</Badge>
             </div>
           </div>
         </DialogHeader>
@@ -807,15 +803,15 @@ function ReportDecisionDialog({
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <BrainCircuit className="h-4 w-4" />
-                Decisione HR — dettaglio
+                {t("Decisione HR — dettaglio")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm leading-6 text-slate-800">{decision.executiveSummary}</p>
               <div className="grid gap-3 sm:grid-cols-3">
-                <MiniKpi label="Profilo" value={report.profile_type} />
-                <MiniKpi label="Controlli" value={`${report.control_unexpected_count} anomalie`} />
-                <MiniKpi label="Verdetto" value={report.role_match?.verdict || "Da valutare"} />
+                <MiniKpi label={t("Profilo")} value={report.profile_type} />
+                <MiniKpi label={t("Controlli")} value={`${report.control_unexpected_count} anomalie`} />
+                <MiniKpi label={t("Verdetto")} value={report.role_match?.verdict || "Da valutare"} />
               </div>
             </CardContent>
           </Card>
@@ -824,7 +820,7 @@ function ReportDecisionDialog({
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <AlertTriangle className="h-4 w-4 text-amber-600" />
-                Rischi e verifiche
+                {t("Rischi e verifiche")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -839,22 +835,22 @@ function ReportDecisionDialog({
 
         <div className="grid gap-4 xl:grid-cols-3">
           <ReportInsightCard
-            title="Punti forti"
-            description="Leve da usare subito in selezione e inserimento."
+            title={t("Punti forti")}
+            description={t("Leve da usare subito in selezione e inserimento.")}
             items={report.strengths}
             fallback="Nessun punto forte dominante: usare colloquio e referenze per completare la valutazione."
             tone="emerald"
           />
           <ReportInsightCard
-            title="Aree da allenare"
-            description="Competenze o abitudini da trasformare in piano operativo."
+            title={t("Aree da allenare")}
+            description={t("Competenze o abitudini da trasformare in piano operativo.")}
             items={report.improvements}
             fallback="Nessuna area critica dominante rilevata."
             tone="amber"
           />
           <ReportInsightCard
-            title="Tratti sensibili"
-            description="Punti bassi da non ignorare prima della decisione finale."
+            title={t("Tratti sensibili")}
+            description={t("Punti bassi da non ignorare prima della decisione finale.")}
             items={report.valleys}
             fallback="Nessun tratto basso prioritario."
             tone="slate"
@@ -867,9 +863,9 @@ function ReportDecisionDialog({
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Target className="h-4 w-4 text-orange-600" />
-                Prossime azioni HR
+                {t("Prossime azioni HR")}
               </CardTitle>
-              <p className="text-sm text-slate-500">Checklist operativa per trasformare il report in una decisione controllata.</p>
+              <p className="text-sm text-slate-500">{t("Checklist operativa per trasformare il report in una decisione controllata.")}</p>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-3">
               {decision.nextActions.map((action) => (
@@ -886,7 +882,7 @@ function ReportDecisionDialog({
         <div className="grid gap-4 xl:grid-cols-3">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Domande colloquio</CardTitle>
+              <CardTitle className="text-base">{t("Domande colloquio")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {decision.interviewQuestions.map((question, index) => (
@@ -900,7 +896,7 @@ function ReportDecisionDialog({
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Confronto ruoli</CardTitle>
+              <CardTitle className="text-base">{t("Confronto ruoli")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {topRoles.map((role, index) => (
@@ -917,17 +913,17 @@ function ReportDecisionDialog({
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Punti da approfondire</CardTitle>
+              <CardTitle className="text-base">{t("Punti da approfondire")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {missingRequirements.length === 0 ? (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                  Requisiti principali soddisfatti. Validare esperienza, referenze e disponibilita.
+                  {t("Requisiti principali soddisfatti. Validare esperienza, referenze e disponibilita.")}
                 </div>
               ) : (
                 missingRequirements.slice(0, 5).map((requirement) => (
                   <div key={requirement.trait} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                    {requirement.label}: {requirement.valore}/{requirement.soglia}
+                    {t(requirement.label)}: {requirement.valore}/{requirement.soglia}
                   </div>
                 ))
               )}
@@ -948,7 +944,7 @@ function ReportDecisionDialog({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Piano 30/60/90</CardTitle>
+            <CardTitle className="text-base">{t("Piano 30/60/90")}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
             {decision.onboardingPlan.map((step) => (
@@ -973,15 +969,15 @@ function ReportDecisionDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => copyTalentReportSummary(report)}>
             <Copy className="mr-2 h-4 w-4" />
-            Copia sintesi
+            {t("Copia sintesi")}
           </Button>
           <Button variant="outline" onClick={() => openTalentReportPrintView(candidate, report)}>
             <Printer className="mr-2 h-4 w-4" />
-            Stampa rapida
+            {t("Stampa rapida")}
           </Button>
           <PremiumReportButton candidate={candidate} report={report} />
           <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => onOpenChange(false)}>
-            Chiudi report
+            {t("Chiudi report")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -990,24 +986,25 @@ function ReportDecisionDialog({
 }
 
 function ReportMacroAreas({ report }: { report: TalentReport }) {
+  const t = useT();
   const areas = [
-    { label: "Essere", value: clampTalentPercent(report.macro_areas?.essere_pct), detail: "Obiettivi, energia e stabilita" },
-    { label: "Fare", value: clampTalentPercent(report.macro_areas?.fare_pct), detail: "Esecuzione, vendita e iniziativa" },
-    { label: "Avere", value: clampTalentPercent(report.macro_areas?.avere_pct), detail: "Relazione, influenza e collaborazione" },
+    { label: t("Essere"), value: clampTalentPercent(report.macro_areas?.essere_pct), detail: t("Obiettivi, energia e stabilita") },
+    { label: t("Fare"), value: clampTalentPercent(report.macro_areas?.fare_pct), detail: t("Esecuzione, vendita e iniziativa") },
+    { label: t("Avere"), value: clampTalentPercent(report.macro_areas?.avere_pct), detail: t("Relazione, influenza e collaborazione") },
   ];
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Macro aree</CardTitle>
-        <p className="text-sm text-slate-500">Equilibrio del profilo tra spinta personale, azione e relazione.</p>
+        <CardTitle className="text-base">{t("Macro aree")}</CardTitle>
+        <p className="text-sm text-slate-500">{t("Equilibrio del profilo tra spinta personale, azione e relazione.")}</p>
       </CardHeader>
       <CardContent className="space-y-4">
         {areas.map((area) => (
           <div key={area.label} className="space-y-2">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-950">{area.label}</p>
+                <p className="text-sm font-semibold text-slate-950">{t(area.label)}</p>
                 <p className="text-xs text-slate-500">{area.detail}</p>
               </div>
               <Badge variant="outline">{area.value}%</Badge>
@@ -1036,25 +1033,26 @@ const TRAIT_MACRO: Record<TraitCode, "ESSERE" | "FARE" | "AVERE" | "INDICATOR" |
 };
 
 function ReportTraitsPanel({ report }: { report: TalentReport }) {
+  const t = useT();
   const traits = (report.traits_v5 || {}) as Record<string, number>;
   const groups: { label: string; code: "ESSERE" | "FARE" | "AVERE" | "INDICATOR" }[] = [
-    { label: "Essere — concentrazione obiettivi", code: "ESSERE" },
-    { label: "Fare — azione concreta", code: "FARE" },
-    { label: "Avere — relazioni di valore", code: "AVERE" },
-    { label: "Indicatori comportamentali", code: "INDICATOR" },
+    { label: t("Essere — concentrazione obiettivi"), code: "ESSERE" },
+    { label: t("Fare — azione concreta"), code: "FARE" },
+    { label: t("Avere — relazioni di valore"), code: "AVERE" },
+    { label: t("Indicatori comportamentali"), code: "INDICATOR" },
   ];
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">15 tratti psicometrici</CardTitle>
-        <p className="text-sm text-slate-500">Profilo dettagliato del candidato. Verde = punto forte (≥65), ambra = medio (40–64), rosso = leva critica (&lt;40).</p>
+        <CardTitle className="text-base">{t("15 tratti psicometrici")}</CardTitle>
+        <p className="text-sm text-slate-500">{t("Profilo dettagliato del candidato. Verde = punto forte (≥65), ambra = medio (40–64), rosso = leva critica (<40).")}</p>
       </CardHeader>
       <CardContent className="space-y-5">
         {groups.map((group) => {
           const codes = TRAIT_ORDER.filter((c) => TRAIT_MACRO[c] === group.code);
           return (
             <div key={group.code} className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.label}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t(group.label)}</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {codes.map((code) => {
                   const value = clampTalentPercent(traits[code]);
@@ -1097,6 +1095,7 @@ const RELIABILITY_LABELS: Record<string, string> = {
 };
 
 function SelezioniAnalytics({ candidates, reports }: { candidates: TalentCandidate[]; reports: TalentReport[] }) {
+  const t = useT();
   const trendData = useMemo(() => {
     const days = 30;
     const now = new Date();
@@ -1173,34 +1172,34 @@ function SelezioniAnalytics({ candidates, reports }: { candidates: TalentCandida
       <CardHeader>
         <div className="flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-orange-600" />
-          <CardTitle className="text-base">Analytics selezioni</CardTitle>
+          <CardTitle className="text-base">{t("Analytics selezioni")}</CardTitle>
         </div>
         <p className="text-sm text-slate-500">
-          Trend candidati, conversion e distribuzione dei report sulle ultime selezioni.
+          {t("Trend candidati, conversion e distribuzione dei report sulle ultime selezioni.")}
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Conversion test</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("Conversion test")}</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{conversion.completedPct}%</p>
-            <p className="mt-1 text-xs text-slate-500">{conversion.completed}/{conversion.total} candidati completati</p>
+            <p className="mt-1 text-xs text-slate-500">{t("{completed}/{total} candidati completati", { completed: String(conversion.completed ?? ""), total: String(conversion.total ?? "") })}</p>
           </div>
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Tasso attendibilità</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{t("Tasso attendibilità")}</p>
             <p className="mt-1 text-2xl font-bold text-emerald-900">{conversion.reliablePct}%</p>
-            <p className="mt-1 text-xs text-emerald-700">{conversion.reliable} report con indice YES</p>
+            <p className="mt-1 text-xs text-emerald-700">{t("{reliable} report con indice YES", { reliable: String(conversion.reliable ?? "") })}</p>
           </div>
           <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Report totali</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">{t("Report totali")}</p>
             <p className="mt-1 text-2xl font-bold text-orange-900">{reports.length}</p>
-            <p className="mt-1 text-xs text-orange-700">su {conversion.total} candidati totali</p>
+            <p className="mt-1 text-xs text-orange-700">{t("su {total} candidati totali", { total: String(conversion.total ?? "") })}</p>
           </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <div>
-            <p className="mb-2 text-sm font-semibold text-slate-900">Nuovi candidati ultimi 30 giorni</p>
+            <p className="mb-2 text-sm font-semibold text-slate-900">{t("Nuovi candidati ultimi 30 giorni")}</p>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={trendData}>
                 <XAxis dataKey="date" stroke="#94A3B8" fontSize={10} interval={4} />
@@ -1212,9 +1211,9 @@ function SelezioniAnalytics({ candidates, reports }: { candidates: TalentCandida
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-semibold text-slate-900">Fit medio per ruolo</p>
+            <p className="mb-2 text-sm font-semibold text-slate-900">{t("Fit medio per ruolo")}</p>
             {fitByRole.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">Nessun report ancora generato.</p>
+              <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">{t("Nessun report ancora generato.")}</p>
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={fitByRole} layout="vertical">
@@ -1228,9 +1227,9 @@ function SelezioniAnalytics({ candidates, reports }: { candidates: TalentCandida
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-semibold text-slate-900">Attendibilità report</p>
+            <p className="mb-2 text-sm font-semibold text-slate-900">{t("Attendibilità report")}</p>
             {reliabilityData.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">Nessun report ancora generato.</p>
+              <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">{t("Nessun report ancora generato.")}</p>
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
@@ -1253,9 +1252,9 @@ function SelezioniAnalytics({ candidates, reports }: { candidates: TalentCandida
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-semibold text-slate-900">Distribuzione profili</p>
+            <p className="mb-2 text-sm font-semibold text-slate-900">{t("Distribuzione profili")}</p>
             {profileTypeData.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">Nessun report ancora generato.</p>
+              <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">{t("Nessun report ancora generato.")}</p>
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
@@ -1276,6 +1275,7 @@ function SelezioniAnalytics({ candidates, reports }: { candidates: TalentCandida
 }
 
 function SilvioReportActions({ candidate, report }: { candidate: TalentCandidate; report: TalentReport }) {
+  const t = useT();
   const name = `${candidate.nome} ${candidate.cognome}`.trim();
   const ruolo = report.role_requested || candidate.ruolo_richiesto || "il ruolo richiesto";
   const fitPct = Number(report.role_match?.compatibilitaPct || 0);
@@ -1297,7 +1297,7 @@ function SilvioReportActions({ candidate, report }: { candidate: TalentCandidate
     {
       id: "sintesi",
       emoji: "📋",
-      label: "Sintetizza in 60s",
+      label: t("Sintetizza in 60s"),
       tone: "border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100",
       build: () =>
         `${baseContext}\n\nRiassumi questo candidato in 60 secondi: verdetto, 3 punti forti concreti, 2 rischi reali, 1 raccomandazione operativa. Parla in italiano colloquiale per imprenditore (non psicologico/tecnico). Massimo 8 righe.`,
@@ -1305,7 +1305,7 @@ function SilvioReportActions({ candidate, report }: { candidate: TalentCandidate
     {
       id: "domande",
       emoji: "❓",
-      label: "Domande colloquio",
+      label: t("Domande colloquio"),
       tone: "border-purple-200 bg-purple-50 text-purple-800 hover:bg-purple-100",
       build: () =>
         `${baseContext}\n\nGenera 5 domande critiche di colloquio personalizzate per questo candidato. Per ciascuna: (1) la domanda concreta da fare, (2) cosa stai osservando dietro la domanda, (3) cosa significa una risposta "rossa". Focalizzati sui tratti più sensibili e sulle sindromi attive.`,
@@ -1313,7 +1313,7 @@ function SilvioReportActions({ candidate, report }: { candidate: TalentCandidate
     {
       id: "email_offerta",
       emoji: "✉️",
-      label: "Email offerta",
+      label: t("Email offerta"),
       tone: "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100",
       build: () =>
         `${baseContext}\n\nScrivi una bozza di email di offerta di lavoro per ${name}. Tono caldo ma professionale, personalizza sui suoi tratti dominanti. Includi: ruolo, sede di lavoro generica "il nostro cantiere", prossimo passo "fissiamo un colloquio finale". Massimo 150 parole. Saluti firmati "HR — EdiliziaInCloud".`,
@@ -1321,7 +1321,7 @@ function SilvioReportActions({ candidate, report }: { candidate: TalentCandidate
     {
       id: "email_rifiuto",
       emoji: "📧",
-      label: "Email rifiuto",
+      label: t("Email rifiuto"),
       tone: "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
       build: () =>
         `${baseContext}\n\nScrivi una bozza di email di rifiuto educata e rispettosa per ${name}. NON dire le ragioni vere (sindromi, fit basso): usa formula tipo "altri profili più allineati al ruolo in questo momento". Lascia porta aperta per il futuro. Tono umano, non robotico. Massimo 100 parole. Saluti firmati "HR — EdiliziaInCloud".`,
@@ -1333,10 +1333,10 @@ function SilvioReportActions({ candidate, report }: { candidate: TalentCandidate
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <BrainCircuit className="h-4 w-4 text-orange-600" />
-          Chiedi a Silvio
+          {t("Chiedi a Silvio")}
         </CardTitle>
         <p className="text-sm text-slate-600">
-          Apre la chat con un prompt già scritto + contesto del candidato. Modifica prima di inviare se vuoi.
+          {t("Apre la chat con un prompt già scritto + contesto del candidato. Modifica prima di inviare se vuoi.")}
         </p>
       </CardHeader>
       <CardContent>
@@ -1350,8 +1350,8 @@ function SilvioReportActions({ candidate, report }: { candidate: TalentCandidate
             >
               <span className="text-xl">{a.emoji}</span>
               <span>
-                <span className="block text-sm font-semibold">{a.label}</span>
-                <span className="text-xs opacity-80">Click per aprire Silvio</span>
+                <span className="block text-sm font-semibold">{t(a.label)}</span>
+                <span className="text-xs opacity-80">{t("Click per aprire Silvio")}</span>
               </span>
             </button>
           ))}
@@ -1423,6 +1423,7 @@ function TalentQuestionnaireDialog({
   onOpenChange: (open: boolean) => void;
   onCompleted: () => void;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [block, setBlock] = useState(1);
   const [draft, setDraft] = useState<{ candidateId: string; answers: Record<number, "A" | "B" | "C" | "D"> } | null>(null);
@@ -1482,11 +1483,11 @@ function TalentQuestionnaireDialog({
       }
     },
     onSuccess: () => {
-      toast.success("Risposte salvate");
+      toast.success(t("Risposte salvate"));
       queryClient.invalidateQueries({ queryKey: ["hr-talent-answers", candidate.id] });
       queryClient.invalidateQueries({ queryKey: ["hr-talent-candidates"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Errore salvataggio risposte"),
+    onError: (error) => toast.error(error instanceof Error ? error.message : t("Errore salvataggio risposte")),
   });
 
   const completeAssessment = useMutation({
@@ -1517,12 +1518,12 @@ function TalentQuestionnaireDialog({
       if (candidateError) throw candidateError;
     },
     onSuccess: () => {
-      toast.success("Report Talent Assessment generato");
+      toast.success(t("Report Talent Assessment generato"));
       queryClient.invalidateQueries({ queryKey: ["hr-talent-reports"] });
       queryClient.invalidateQueries({ queryKey: ["hr-talent-candidates"] });
       onCompleted();
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Errore generazione report"),
+    onError: (error) => toast.error(error instanceof Error ? error.message : t("Errore generazione report")),
   });
 
   const goToBlock = async (nextBlock: number) => {
@@ -1542,12 +1543,12 @@ function TalentQuestionnaireDialog({
         <DialogHeader className="border-b border-slate-200 px-5 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <DialogTitle>Questionario Talent Assessment</DialogTitle>
+              <DialogTitle>{t("Questionario Talent Assessment")}</DialogTitle>
               <DialogDescription>
                 {candidate.nome} {candidate.cognome} · {candidate.ruolo_richiesto}
               </DialogDescription>
             </div>
-            <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">{answeredCount}/{DOMANDE.length} risposte</Badge>
+            <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">{t("{answeredCount}/{n} risposte", { answeredCount: String(answeredCount ?? ""), n: DOMANDE.length })}</Badge>
           </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
             <div className="h-full bg-orange-500 transition-all" style={{ width: `${progressPct}%` }} />
@@ -1567,7 +1568,7 @@ function TalentQuestionnaireDialog({
                     onClick={() => void goToBlock(item)}
                     className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${block === item ? "bg-orange-100 text-orange-800" : "text-slate-600 hover:bg-white"}`}
                   >
-                    <span>Blocco {item}</span>
+                    <span>{t("Blocco {item}", { item: String(item ?? "") })}</span>
                     <span className="text-xs">{blockAnswered}/{blockTotal}</span>
                   </button>
                 );
@@ -1578,13 +1579,13 @@ function TalentQuestionnaireDialog({
           <div className="overflow-y-auto p-5">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Blocco {block}</p>
-                <p className="text-xs text-slate-500">Rispondi con la scelta più naturale. Le domande speciali mostrano testi dedicati.</p>
+                <p className="text-sm font-semibold text-slate-900">{t("Blocco {block}", { block: String(block ?? "") })}</p>
+                <p className="text-xs text-slate-500">{t("Rispondi con la scelta più naturale. Le domande speciali mostrano testi dedicati.")}</p>
               </div>
               <Select value={String(block)} onValueChange={(value) => void goToBlock(Number(value))}>
                 <SelectTrigger className="w-36 lg:hidden"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {blocks.map((item) => <SelectItem key={item} value={String(item)}>Blocco {item}</SelectItem>)}
+                  {blocks.map((item) => <SelectItem key={item} value={String(item)}>{t("Blocco {item}", { item: String(item ?? "") })}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -1594,7 +1595,7 @@ function TalentQuestionnaireDialog({
                 <div key={domanda.id} className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Domanda {domanda.id} · {domanda.scala_primaria}</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t("Domanda {id} · {scala_primaria}", { id: String(domanda.id ?? ""), scala_primaria: String(domanda.scala_primaria ?? "") })}</p>
                       <p className="mt-1 text-sm font-medium text-slate-900">{domanda.testo}</p>
                     </div>
                     <AnswerButtons
@@ -1611,18 +1612,18 @@ function TalentQuestionnaireDialog({
 
         <DialogFooter className="border-t border-slate-200 px-5 py-4">
           <Button variant="outline" disabled={blockIndex <= 0 || saveAnswers.isPending} onClick={() => void goToBlock(blocks[Math.max(0, blockIndex - 1)])}>
-            Indietro
+            {t("Indietro")}
           </Button>
           <Button variant="outline" onClick={() => saveAnswers.mutate("in_progress")} disabled={saveAnswers.isPending}>
-            Salva bozza
+            {t("Salva bozza")}
           </Button>
           {blockIndex < blocks.length - 1 ? (
             <Button disabled={saveAnswers.isPending} onClick={() => void goToBlock(blocks[Math.min(blocks.length - 1, blockIndex + 1)])}>
-              Avanti
+              {t("Avanti")}
             </Button>
           ) : (
             <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => completeAssessment.mutate()} disabled={completeAssessment.isPending}>
-              Genera report
+              {t("Genera report")}
             </Button>
           )}
         </DialogFooter>
@@ -1640,10 +1641,11 @@ function AnswerButtons({
   custom?: { a: string; b: string; c: string };
   onChange: (value: "A" | "B" | "C") => void;
 }) {
+  const t = useT();
   const options = [
-    { value: "A" as const, label: custom?.a || "Vero / Sì" },
-    { value: "B" as const, label: custom?.b || "A volte / Incerto" },
-    { value: "C" as const, label: custom?.c || "Falso / No" },
+    { value: "A" as const, label: custom?.a || t("Vero / Sì") },
+    { value: "B" as const, label: custom?.b || t("A volte / Incerto") },
+    { value: "C" as const, label: custom?.c || t("Falso / No") },
   ];
 
   return (
@@ -1660,7 +1662,7 @@ function AnswerButtons({
           }`}
         >
           <span className="block text-[11px] font-bold">{option.value}</span>
-          {option.label}
+          {t(option.label)}
         </button>
       ))}
     </div>

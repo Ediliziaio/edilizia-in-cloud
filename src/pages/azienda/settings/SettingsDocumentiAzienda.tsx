@@ -60,6 +60,7 @@ import {
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { useT, sostituisci } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Aiutanti ─────────────────────────────────────────────────────────────────
 
@@ -97,20 +98,23 @@ function dataItaliana(iso: string | null): string {
  * Oltre l'anno non si conta più: «fra 1005 giorni» non dice niente a nessuno, e la data da sola
  * basta. Sopra i due mesi si passa ai mesi, che è come si parla di queste scadenze.
  */
-function quantoManca(giorni: number | null): string {
+function quantoManca(giorni: number | null, t: (testo: string, valori?: Record<string, string | number>) => string = sostituisci): string {
   if (giorni === null) return '';
-  if (giorni === 0) return 'scade oggi';
+  if (giorni === 0) return t("scade oggi");
   if (giorni > 365) return '';
-  const mesi = (n: number) => (n === 1 ? '1 mese' : `${n} mesi`);
   if (giorni > 0) {
-    if (giorni <= 60) return giorni === 1 ? 'fra 1 giorno' : `fra ${giorni} giorni`;
-    return `fra ${mesi(Math.round(giorni / 30))}`;
+    if (giorni <= 60) return giorni === 1 ? t("fra 1 giorno") : t("fra {n} giorni", { n: giorni });
+    const m = Math.round(giorni / 30);
+    return m === 1 ? t("fra 1 mese") : t("fra {n} mesi", { n: m });
   }
   const passati = Math.abs(giorni);
-  if (passati <= 60) return passati === 1 ? 'scaduto da 1 giorno' : `scaduto da ${passati} giorni`;
-  if (passati <= 365) return `scaduto da ${mesi(Math.round(passati / 30))}`;
+  if (passati <= 60) return passati === 1 ? t("scaduto da 1 giorno") : t("scaduto da {n} giorni", { n: passati });
+  if (passati <= 365) {
+    const m = Math.round(passati / 30);
+    return m === 1 ? t("scaduto da 1 mese") : t("scaduto da {n} mesi", { n: m });
+  }
   const anni = Math.floor(passati / 365);
-  return anni === 1 ? 'scaduto da oltre un anno' : `scaduto da oltre ${anni} anni`;
+  return anni === 1 ? t("scaduto da oltre un anno") : t("scaduto da oltre {n} anni", { n: anni });
 }
 
 /** Il semaforo: rosso scaduto, giallo in scadenza, verde a posto, grigio senza scadenza. */
@@ -129,13 +133,13 @@ const BORDO_RIGA: Record<StatoDocumento, string> = {
   senza_scadenza: 'border-l-transparent',
 };
 
-function mesiLeggibili(mesi: number | null): string {
-  if (!mesi) return 'Non si rinnova da solo';
-  if (mesi === 12) return 'Ogni anno';
-  if (mesi === 6) return 'Ogni sei mesi';
-  if (mesi === 3) return 'Ogni tre mesi';
-  if (mesi % 12 === 0) return `Ogni ${mesi / 12} anni`;
-  return `Ogni ${mesi} mesi`;
+function mesiLeggibili(mesi: number | null, t: (testo: string, valori?: Record<string, string | number>) => string = sostituisci): string {
+  if (!mesi) return t("Non si rinnova da solo");
+  if (mesi === 12) return t("Ogni anno");
+  if (mesi === 6) return t("Ogni sei mesi");
+  if (mesi === 3) return t("Ogni tre mesi");
+  if (mesi % 12 === 0) return t("Ogni {n} anni", { n: mesi / 12 });
+  return t("Ogni {n} mesi", { n: mesi });
 }
 
 const SCELTE_RINNOVO = [
@@ -173,14 +177,14 @@ function scadenzaDaRinnovo(dataDocumento: string, mesi: number | null): string {
  * se si aspetta prima di aprirla, il browser la prende per una finestra che non ha chiesto
  * nessuno e la blocca (Safari sempre, Chrome a volte), e all'utente non succede niente.
  */
-async function apriFile(path: string | null) {
+async function apriFile(path: string | null, t: (testo: string) => string = (testo) => testo) {
   if (!path) return;
   const scheda = window.open('', '_blank');
   if (scheda) scheda.opener = null;
   const url = await linkFileDocumento(path);
   if (!url) {
     scheda?.close();
-    toast.error('Non è riuscito ad aprire il file');
+    toast.error(t("Non è riuscito ad aprire il file"));
     return;
   }
   if (scheda && !scheda.closed) scheda.location.href = url;
@@ -242,6 +246,7 @@ async function fileDalTrascinamento(dt: DataTransfer): Promise<File[]> {
 type Filtro = 'tutti' | 'scaduto' | 'in_scadenza' | 'valido';
 
 export default function SettingsDocumentiAzienda() {
+  const t = useT();
   const permissions = usePermissions();
   const puoModificare = permissions.isAdmin || permissions.canEditSettingsProfile;
 
@@ -315,7 +320,7 @@ export default function SettingsDocumentiAzienda() {
     setSottoIlFile(false);
     const file = await fileDalTrascinamento(e.dataTransfer);
     if (file.length === 0) {
-      toast.error('Non ho trovato nessun file da caricare');
+      toast.error(t("Non ho trovato nessun file da caricare"));
       return;
     }
     setDaAbbinare(file);
@@ -342,9 +347,9 @@ export default function SettingsDocumentiAzienda() {
         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-6 backdrop-blur-sm">
           <div className="rounded-xl border-2 border-dashed border-primary bg-card px-10 py-8 text-center shadow-lg">
             <FolderUp className="mx-auto h-9 w-9 text-primary" />
-            <p className="mt-3 font-medium">Lascia qui i file</p>
+            <p className="mt-3 font-medium">{t("Lascia qui i file")}</p>
             <p className="text-sm text-muted-foreground">
-              Guardo il nome e ti dico a quale carta va ciascuno
+              {t("Guardo il nome e ti dico a quale carta va ciascuno")}
             </p>
           </div>
         </div>
@@ -354,8 +359,8 @@ export default function SettingsDocumentiAzienda() {
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            <p>Impossibile caricare i documenti aziendali. Eventuali documenti già visibili risalgono all’ultimo caricamento riuscito.</p>
-            <Button variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>Riprova caricamento</Button>
+            <p>{t("Impossibile caricare i documenti aziendali. Eventuali documenti già visibili risalgono all’ultimo caricamento riuscito.")}</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>{t("Riprova caricamento")}</Button>
           </AlertDescription>
         </Alert>
       )}
@@ -364,8 +369,7 @@ export default function SettingsDocumentiAzienda() {
         <Alert>
           <Lock className="h-4 w-4" />
           <AlertDescription>
-            Stai consultando i documenti della ditta: li cambia chi ha il permesso «Profilo
-            aziendale» in modifica.
+            {t("Stai consultando i documenti della ditta: li cambia chi ha il permesso «Profilo aziendale» in modifica.")}
           </AlertDescription>
         </Alert>
       )}
@@ -373,17 +377,17 @@ export default function SettingsDocumentiAzienda() {
       {documenti.length >= DOCUMENTI_PER_FILTRARE && (
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <Contatore
-            etichetta="Scaduti" valore={conti.scaduto} icona={<AlertTriangle className="h-4 w-4" />}
+            etichetta={t("Scaduti")} valore={conti.scaduto} icona={<AlertTriangle className="h-4 w-4" />}
             tono="text-destructive" rail="bg-destructive" attivo={filtro === 'scaduto'}
             onClick={() => setFiltro(filtro === 'scaduto' ? 'tutti' : 'scaduto')}
           />
           <Contatore
-            etichetta="In scadenza" valore={conti.in_scadenza} icona={<Clock className="h-4 w-4" />}
+            etichetta={t("In scadenza")} valore={conti.in_scadenza} icona={<Clock className="h-4 w-4" />}
             tono="text-warning" rail="bg-warning" attivo={filtro === 'in_scadenza'}
             onClick={() => setFiltro(filtro === 'in_scadenza' ? 'tutti' : 'in_scadenza')}
           />
           <Contatore
-            etichetta="A posto" valore={conti.valido} icona={<CheckCircle2 className="h-4 w-4" />}
+            etichetta={t("A posto")} valore={conti.valido} icona={<CheckCircle2 className="h-4 w-4" />}
             tono="text-success" rail="bg-success" attivo={filtro === 'valido'}
             onClick={() => setFiltro(filtro === 'valido' ? 'tutti' : 'valido')}
           />
@@ -396,7 +400,7 @@ export default function SettingsDocumentiAzienda() {
           className="-mt-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" />
-          Mostra tutti i documenti
+          {t("Mostra tutti i documenti")}
         </button>
       )}
 
@@ -411,7 +415,7 @@ export default function SettingsDocumentiAzienda() {
           <Input
             value={cerca}
             onChange={(e) => setCerca(e.target.value)}
-            placeholder="Filtra: nome, ente, numero…"
+            placeholder={t("Filtra: nome, ente, numero…")}
             className="pl-9"
           />
           {cerca && (
@@ -419,7 +423,7 @@ export default function SettingsDocumentiAzienda() {
               type="button"
               onClick={() => setCerca('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label="Pulisci la ricerca"
+              aria-label={t("Pulisci la ricerca")}
             >
               <X className="h-4 w-4" />
             </button>
@@ -445,14 +449,14 @@ export default function SettingsDocumentiAzienda() {
             />
             <Button type="button" variant="outline" className="shrink-0" onClick={() => bulkInputRef.current?.click()}>
               <FolderUp className="mr-2 h-4 w-4" />
-              Carica più file
+              {t("Carica più file")}
             </Button>
           </>
         )}
         {puoModificare && (
           <Button onClick={() => setNuovo(true)} className="shrink-0">
             <Plus className="mr-2 h-4 w-4" />
-            Aggiungi documento
+            {t("Aggiungi documento")}
           </Button>
         )}
       </div>
@@ -464,9 +468,9 @@ export default function SettingsDocumentiAzienda() {
         <p className="-mt-3 flex items-center gap-1.5 text-sm text-muted-foreground">
           <Paperclip className="h-3.5 w-3.5 shrink-0" />
           {conti.senzaFile === 1
-            ? 'Una carta non ha il file.'
-            : `${conti.senzaFile} carte non hanno il file.`}
-          {' '}Trascina qui i PDF: guardo il nome e li abbino io.
+            ? t("Una carta non ha il file.")
+            : t("{senzaFile} carte non hanno il file.", { senzaFile: String(conti.senzaFile ?? "") })}
+          {' '}{t("Trascina qui i PDF: guardo il nome e li abbino io.")}
         </p>
       )}
 
@@ -478,12 +482,12 @@ export default function SettingsDocumentiAzienda() {
           <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
             <FileText className="h-8 w-8 text-muted-foreground" />
             <p className="font-medium">
-              {documenti.length === 0 ? 'Non c’è ancora nessun documento' : 'Nessun documento con questi filtri'}
+              {documenti.length === 0 ? t("Non c’è ancora nessun documento") : t("Nessun documento con questi filtri")}
             </p>
             <p className="max-w-sm text-sm text-muted-foreground">
               {documenti.length === 0
-                ? 'Aggiungi la prima carta della ditta: il DURC, la visura, una polizza.'
-                : 'Prova a togliere la ricerca o a cambiare filtro.'}
+                ? t("Aggiungi la prima carta della ditta: il DURC, la visura, una polizza.")
+                : t("Prova a togliere la ricerca o a cambiare filtro.")}
             </p>
           </CardContent>
         </Card>
@@ -540,14 +544,13 @@ export default function SettingsDocumentiAzienda() {
       <AlertDialog open={!!daEliminare} onOpenChange={(v) => !v && setDaEliminare(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimino «{daEliminare?.titolo}»?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Elimino «{titolo}»?", { titolo: String(daEliminare?.titolo ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Sparisce dall’elenco insieme ai file che hai caricato, anche quelli delle versioni
-              precedenti. Non si torna indietro.
+              {t("Sparisce dall’elenco insieme ai file che hai caricato, anche quelli delle versioni precedenti. Non si torna indietro.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Lascia stare</AlertDialogCancel>
+            <AlertDialogCancel>{t("Lascia stare")}</AlertDialogCancel>
             <BottoneElimina documento={daEliminare} onFatto={() => setDaEliminare(null)} />
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -594,6 +597,7 @@ function Riga({ documento, aperta, onApri, puoModificare, onModifica, onRinnova,
   onRinnova: () => void;
   onElimina: () => void;
 }) {
+  const t = useT();
   const { data: storico = [] } = useStoricoDocumento(aperta ? documento.id : undefined);
   const dettagli = [documento.ente, documento.numero, documento.sede_nome].filter(Boolean).join(' · ');
   // «Rinnovato» sta in riga solo dove è la mossa del giorno. Sugli altri si trova aprendo la riga:
@@ -617,9 +621,7 @@ function Riga({ documento, aperta, onApri, puoModificare, onModifica, onRinnova,
               </span>
               {documento.file_path && <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
               {documento.versioni_precedenti > 0 && (
-                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">
-                  {documento.versioni_precedenti + 1}ª versione
-                </span>
+                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">{t("{versioni_precedenti}ª versione", { versioni_precedenti: documento.versioni_precedenti + 1 })}</span>
               )}
             </span>
             {dettagli && (
@@ -640,25 +642,25 @@ function Riga({ documento, aperta, onApri, puoModificare, onModifica, onRinnova,
                   : documento.stato === 'in_scadenza' ? 'text-warning'
                   : 'text-muted-foreground'
                 }>
-                  {quantoManca(documento.giorni_mancanti)}
+                  {quantoManca(documento.giorni_mancanti, t)}
                 </p>
               </>
             ) : (
-              <p className="text-muted-foreground">Senza scadenza</p>
+              <p className="text-muted-foreground">{t("Senza scadenza")}</p>
             )}
           </div>
           {puoModificare && (
             <div className="flex items-center gap-1">
               {daRinnovare && (
-                <Button variant="outline" size="sm" onClick={onRinnova} title="Segna il documento come rinnovato">
+                <Button variant="outline" size="sm" onClick={onRinnova} title={t("Segna il documento come rinnovato")}>
                   <RotateCw className="h-4 w-4" />
-                  <span className="ml-1 hidden lg:inline">Rinnovato</span>
+                  <span className="ml-1 hidden lg:inline">{t("Rinnovato")}</span>
                 </Button>
               )}
-              <Button variant="ghost" size="icon" onClick={onModifica} aria-label={`Modifica documento ${documento.titolo}`}>
+              <Button variant="ghost" size="icon" onClick={onModifica} aria-label={t("Modifica documento {titolo}", { titolo: String(documento.titolo ?? "") })}>
                 <Pencil className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={onElimina} aria-label={`Elimina documento ${documento.titolo}`}>
+              <Button variant="ghost" size="icon" onClick={onElimina} aria-label={t("Elimina documento {valore}", { valore: String(documento.titolo ?? "") })}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -669,31 +671,31 @@ function Riga({ documento, aperta, onApri, puoModificare, onModifica, onRinnova,
       {aperta && (
         <div className="space-y-3 border-t bg-muted/30 px-4 py-3 text-sm">
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
-            <Dato etichetta="Data del documento" valore={dataItaliana(documento.data_documento)} />
-            <Dato etichetta="Rinnovo" valore={mesiLeggibili(documento.rinnovo_mesi)} />
+            <Dato etichetta={t("Data del documento")} valore={dataItaliana(documento.data_documento)} />
+            <Dato etichetta={t("Rinnovo")} valore={mesiLeggibili(documento.rinnovo_mesi, t)} />
             <Dato
-              etichetta="Avvisa"
+              etichetta={t("Avvisa")}
               valore={
                 documento.data_scadenza
-                  ? `${documento.alert_giorni_prima} giorni prima · ${
+                  ? `${t("{n} giorni prima", { n: documento.alert_giorni_prima ?? "" })} · ${
                       documento.alert_destinatari.length > 0
-                        ? `${documento.alert_destinatari.length} ${documento.alert_destinatari.length === 1 ? 'persona' : 'persone'}`
-                        : 'gli amministratori'
+                        ? t(documento.alert_destinatari.length === 1 ? "{n} persona" : "{n} persone", { n: documento.alert_destinatari.length })
+                        : t("gli amministratori")
                     }`
-                  : 'Non avvisa'
+                  : t("Non avvisa")
               }
             />
-            <Dato etichetta="Sede" valore={documento.sede_nome ?? 'Tutta l’azienda'} />
+            <Dato etichetta={t("Sede")} valore={documento.sede_nome ?? t("Tutta l’azienda")} />
           </div>
           {documento.note && <p className="whitespace-pre-wrap text-muted-foreground">{documento.note}</p>}
           <div className="flex flex-wrap items-center gap-2">
             {documento.file_path ? (
-              <Button variant="outline" size="sm" onClick={() => apriFile(documento.file_path)}>
+              <Button variant="outline" size="sm" onClick={() => apriFile(documento.file_path, t)}>
                 <Paperclip className="mr-2 h-4 w-4" />
-                {documento.file_name ?? 'Apri il file'}
+                {documento.file_name ?? t("Apri il file")}
               </Button>
             ) : (
-              !puoModificare && <span className="text-muted-foreground">Nessun file caricato</span>
+              !puoModificare && <span className="text-muted-foreground">{t("Nessun file caricato")}</span>
             )}
             {puoModificare && (
               <CaricaQui documento={documento} ha={!!documento.file_path} />
@@ -701,13 +703,13 @@ function Riga({ documento, aperta, onApri, puoModificare, onModifica, onRinnova,
             {puoModificare && !daRinnovare && (
               <Button variant="outline" size="sm" onClick={onRinnova}>
                 <RotateCw className="mr-2 h-4 w-4" />
-                Rinnovato
+                {t("Rinnovato")}
               </Button>
             )}
           </div>
           {storico.length > 0 && (
             <div className="space-y-1 pt-1">
-              <p className="font-medium">Versioni precedenti</p>
+              <p className="font-medium">{t("Versioni precedenti")}</p>
               <ul className="space-y-1">
                 {storico.map((v) => (
                   <li key={v.id} className="flex flex-wrap items-center gap-2 text-muted-foreground">
@@ -719,10 +721,10 @@ function Riga({ documento, aperta, onApri, puoModificare, onModifica, onRinnova,
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline"
-                        onClick={() => apriFile(v.file_path)}
+                        onClick={() => apriFile(v.file_path, t)}
                       >
                         <Paperclip className="h-3 w-3" />
-                        {v.file_name ?? 'file'}
+                        {v.file_name ?? t("file")}
                       </button>
                     )}
                   </li>
@@ -764,6 +766,7 @@ function cartaDaLeggere(
  * file e parte, senza conferme.
  */
 function CaricaQui({ documento, ha }: { documento: DocumentoAzienda; ha: boolean }) {
+  const t = useT();
   const campo = useRef<HTMLInputElement>(null);
   const allega = useAllegaFileDocumento();
   const id = `carica-${documento.id}`;
@@ -797,7 +800,7 @@ function CaricaQui({ documento, ha }: { documento: DocumentoAzienda; ha: boolean
       <Button asChild variant={ha ? 'ghost' : 'outline'} size="sm" disabled={allega.isPending}>
         <label htmlFor={id} className="cursor-pointer">
           <Upload className="mr-2 h-4 w-4" />
-          {allega.isPending ? 'Carico…' : ha ? 'Sostituisci' : 'Carica il file'}
+          {allega.isPending ? t("Carico…") : ha ? t("Sostituisci") : t("Carica il file")}
         </label>
       </Button>
     </>
@@ -832,6 +835,7 @@ function CaricaInBlocco({ file, documenti, onChiudi }: {
   documenti: DocumentoAzienda[];
   onChiudi: () => void;
 }) {
+  const t = useT();
   const carica = useAllegaFileInBlocco();
   const [fatti, setFatti] = useState(0);
   const [daLeggere, setDaLeggere] = useState<CartaDaLeggere[]>([]);
@@ -908,20 +912,17 @@ function CaricaInBlocco({ file, documenti, onChiudi }: {
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>
-            {file.length === 1 ? 'Un file da caricare' : `${file.length} file da caricare`}
+            {file.length === 1 ? t("Un file da caricare") : t("{n} file da caricare", { n: file.length })}
           </DialogTitle>
           <DialogDescription>
-            Ho provato a capire dal nome a quale carta va ciascuno. Controlla prima di partire:
-            quello che non ho riconosciuto diventa un documento nuovo.
+            {t("Ho provato a capire dal nome a quale carta va ciascuno. Controlla prima di partire: quello che non ho riconosciuto diventa un documento nuovo.")}
           </DialogDescription>
         </DialogHeader>
 
         {carica.isPending ? (
           <div className="space-y-3 py-6">
             <Progress value={buoni.length > 0 ? (fatti / buoni.length) * 100 : 0} />
-            <p className="text-center text-sm text-muted-foreground tabular-nums">
-              {fatti} di {daCaricare}
-            </p>
+            <p className="text-center text-sm text-muted-foreground tabular-nums">{t("{n} di {totale}", { n: String(fatti ?? ""), totale: String(daCaricare ?? "") })}</p>
           </div>
         ) : (
           <>
@@ -930,9 +931,8 @@ function CaricaInBlocco({ file, documenti, onChiudi }: {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
                   {troppoGrandi.length === 1
-                    ? `«${troppoGrandi[0].name}» pesa troppo`
-                    : `${troppoGrandi.length} file pesano troppo`}: oltre {MASSIMO_MB} MB non si
-                  carica. Riscansionali più leggeri.
+                    ? t("«{name}» pesa troppo", { name: String(troppoGrandi[0].name ?? "") })
+                    : t("{n} file pesano troppo", { n: troppoGrandi.length })}{t(": oltre {mb} MB non si carica. Riscansionali più leggeri.", { mb: MASSIMO_MB })}
                 </AlertDescription>
               </Alert>
             )}
@@ -950,8 +950,8 @@ function CaricaInBlocco({ file, documenti, onChiudi }: {
                         <p className="truncate text-sm font-medium">{f.name}</p>
                         <p className="text-xs text-muted-foreground">
                           {pesoLeggibile(f.size)}
-                          {proposto && ' · riconosciuto dal nome'}
-                          {bersaglio?.file_path && ' · sostituisce il file che c’è adesso'}
+                          {proposto && ` ${t("· riconosciuto dal nome")}`}
+                          {bersaglio?.file_path && ` ${t("· sostituisce il file che c’è adesso")}`}
                         </p>
                       </div>
                       <div className="sm:w-80">
@@ -965,8 +965,8 @@ function CaricaInBlocco({ file, documenti, onChiudi }: {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value={NUOVO}>Documento nuovo con questo nome</SelectItem>
-                            <SelectItem value={SALTA}>Non caricarlo</SelectItem>
+                            <SelectItem value={NUOVO}>{t("Documento nuovo con questo nome")}</SelectItem>
+                            <SelectItem value={SALTA}>{t("Non caricarlo")}</SelectItem>
                             {perCategoria.map(([categoria, righe]) => (
                               <SelectGroup key={categoria}>
                                 <SelectLabel>{ETICHETTA_CATEGORIA[categoria]}</SelectLabel>
@@ -979,7 +979,7 @@ function CaricaInBlocco({ file, documenti, onChiudi }: {
                         </Select>
                         {doppioni.has(scelta) && (
                           <p className="mt-1 text-xs text-destructive">
-                            Due file su questa carta: scegline uno.
+                            {t("Due file su questa carta: scegline uno.")}
                           </p>
                         )}
                       </div>
@@ -990,21 +990,21 @@ function CaricaInBlocco({ file, documenti, onChiudi }: {
             </ScrollArea>
 
             <p className="text-sm text-muted-foreground">
-              {abbinati > 0 && `${abbinati} su carte che hai già`}
+              {abbinati > 0 && t("{abbinati} su carte che hai già", { abbinati: String(abbinati ?? "") })}
               {abbinati > 0 && nuovi > 0 && ', '}
-              {nuovi > 0 && `${nuovi} ${nuovi === 1 ? 'documento nuovo' : 'documenti nuovi'}`}
-              {daCaricare === 0 && 'Non hai scelto niente da caricare'}
+              {nuovi > 0 && t(nuovi === 1 ? "{n} documento nuovo" : "{n} documenti nuovi", { n: nuovi })}
+              {daCaricare === 0 && t("Non hai scelto niente da caricare")}
             </p>
           </>
         )}
 
         <DialogFooter>
           <Button variant="outline" onClick={onChiudi} disabled={carica.isPending}>
-            Lascia stare
+            {t("Lascia stare")}
           </Button>
           <Button onClick={avvia} disabled={carica.isPending || daCaricare === 0 || doppioni.size > 0}>
             <Upload className="mr-2 h-4 w-4" />
-            {carica.isPending ? 'Carico…' : `Carica ${daCaricare} file`}
+            {carica.isPending ? t("Carico…") : t("Carica {n} file", { n: String(daCaricare ?? "") })}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1025,6 +1025,7 @@ function SceltaFile({ id, file, nomeAttuale, onFile }: {
   nomeAttuale?: string | null;
   onFile: (f: File | null) => void;
 }) {
+  const t = useT();
   const campo = useRef<HTMLInputElement>(null);
 
   return (
@@ -1040,7 +1041,7 @@ function SceltaFile({ id, file, nomeAttuale, onFile }: {
       <Button asChild variant="outline" size="sm">
         <label htmlFor={id} className="cursor-pointer">
           <Upload className="mr-2 h-4 w-4" />
-          {file ?? nomeAttuale ? 'Cambia il file' : 'Scegli il file'}
+          {file ?? nomeAttuale ? t("Cambia il file") : t("Scegli il file")}
         </label>
       </Button>
       {file ? (
@@ -1049,7 +1050,7 @@ function SceltaFile({ id, file, nomeAttuale, onFile }: {
           <span className="truncate">{file.name}</span>
           <button
             type="button"
-            aria-label="Togli il file"
+            aria-label={t("Togli il file")}
             className="shrink-0 text-muted-foreground hover:text-foreground"
             onClick={() => {
               // Senza svuotare anche il campo, riscegliere lo stesso file non farebbe scattare niente.
@@ -1061,9 +1062,9 @@ function SceltaFile({ id, file, nomeAttuale, onFile }: {
           </button>
         </span>
       ) : nomeAttuale ? (
-        <span className="min-w-0 truncate text-sm text-muted-foreground">Ora c’è {nomeAttuale}</span>
+        <span className="min-w-0 truncate text-sm text-muted-foreground">{t("Ora c’è {nomeAttuale}", { nomeAttuale: String(nomeAttuale ?? "") })}</span>
       ) : (
-        <span className="text-sm text-muted-foreground">PDF o foto</span>
+        <span className="text-sm text-muted-foreground">{t("PDF o foto")}</span>
       )}
     </div>
   );
@@ -1079,6 +1080,7 @@ function Dato({ etichetta, valore }: { etichetta: string; valore: string }) {
 }
 
 function BottoneElimina({ documento, onFatto }: { documento: DocumentoAzienda | null; onFatto: () => void }) {
+  const t = useT();
   const elimina = useEliminaDocumentoAzienda();
   return (
     <AlertDialogAction
@@ -1089,7 +1091,7 @@ function BottoneElimina({ documento, onFatto }: { documento: DocumentoAzienda | 
         onFatto();
       }}
     >
-      Elimina
+      {t("Elimina")}
     </AlertDialogAction>
   );
 }
@@ -1097,6 +1099,7 @@ function BottoneElimina({ documento, onFatto }: { documento: DocumentoAzienda | 
 // ── L'elenco di partenza ─────────────────────────────────────────────────────
 
 function ElencoDiPartenza() {
+  const t = useT();
   const aggiungi = useAggiungiDaElencoDiPartenza();
   const [scelte, setScelte] = useState<Set<string>>(new Set());
 
@@ -1125,10 +1128,9 @@ function ElencoDiPartenza() {
     <Card className="border-dashed">
       <CardContent className="space-y-4 p-4 sm:p-6">
         <div className="space-y-1">
-          <p className="text-base font-semibold">Quali di queste carte ha la tua azienda?</p>
+          <p className="text-base font-semibold">{t("Quali di queste carte ha la tua azienda?")}</p>
           <p className="text-sm text-muted-foreground">
-            Spunta quelle che hai: le aggiungiamo all’elenco e tu ci metti le scadenze.
-            Quelle che non spunti non le vedrai più.
+            {t("Spunta quelle che hai: le aggiungiamo all’elenco e tu ci metti le scadenze. Quelle che non spunti non le vedrai più.")}
           </p>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1155,14 +1157,14 @@ function ElencoDiPartenza() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={conferma} disabled={aggiungi.isPending || scelte.size === 0}>
-            Aggiungi {scelte.size > 0 ? `(${scelte.size})` : ''}
+            {t("Aggiungi")} {scelte.size > 0 ? `(${scelte.size})` : ''}
           </Button>
           <Button
             variant="ghost"
             disabled={aggiungi.isPending}
             onClick={() => aggiungi.mutate([])}
           >
-            Non mi serve, li metto io
+            {t("Non mi serve, li metto io")}
           </Button>
         </div>
       </CardContent>
@@ -1176,6 +1178,7 @@ function ModuloDocumento({ documento, onChiudi }: {
   documento: DocumentoAzienda | null;
   onChiudi: () => void;
 }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const salva = useSalvaDocumentoAzienda();
   const { data: sedi = [] } = useSediList();
@@ -1215,12 +1218,12 @@ function ModuloDocumento({ documento, onChiudi }: {
   const salvaTutto = async () => {
     if (richiestaInCorso.current) return;
     if (!titolo.trim()) {
-      toast.error('Dai un nome al documento');
+      toast.error(t("Dai un nome al documento"));
       return;
     }
     const giorniPreavviso = preavviso.trim() === '' ? 30 : Number(preavviso);
     if (!Number.isInteger(giorniPreavviso) || giorniPreavviso < 0 || giorniPreavviso > 365) {
-      toast.error('Scegli un preavviso intero tra 0 e 365 giorni');
+      toast.error(t("Scegli un preavviso intero tra 0 e 365 giorni"));
       return;
     }
     richiestaInCorso.current = true;
@@ -1283,23 +1286,23 @@ function ModuloDocumento({ documento, onChiudi }: {
     <Dialog open onOpenChange={(v) => { if (!v && !richiestaInCorso.current) onChiudi(); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{documento ? 'Modifica il documento' : 'Aggiungi un documento'}</DialogTitle>
+          <DialogTitle>{documento ? t("Modifica il documento") : t("Aggiungi un documento")}</DialogTitle>
           <DialogDescription>
-            Bastano il nome e, se ce l’ha, la scadenza. Il resto puoi metterlo dopo.
+            {t("Bastano il nome e, se ce l’ha, la scadenza. Il resto puoi metterlo dopo.")}
           </DialogDescription>
         </DialogHeader>
 
-        <fieldset disabled={inCorso} aria-label="Dati del documento" className="space-y-4">
+        <fieldset disabled={inCorso} aria-label={t("Dati del documento")} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="titolo">Nome del documento</Label>
+            <Label htmlFor="titolo">{t("Nome del documento")}</Label>
             <Input
               id="titolo" value={titolo} onChange={(e) => setTitolo(e.target.value)}
-              placeholder="DURC, SOA, polizza RC…"
+              placeholder={t("DURC, SOA, polizza RC…")}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="documento-categoria">Dove lo metto</Label>
+            <Label htmlFor="documento-categoria">{t("Dove lo metto")}</Label>
             <Select value={categoria} onValueChange={(v) => cambiaCategoria(v as CategoriaDocumento)}>
               <SelectTrigger id="documento-categoria"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -1312,18 +1315,18 @@ function ModuloDocumento({ documento, onChiudi }: {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="ente">Chi lo rilascia</Label>
-              <Input id="ente" value={ente} onChange={(e) => setEnte(e.target.value)} placeholder="INAIL, Helvetia…" />
+              <Label htmlFor="ente">{t("Chi lo rilascia")}</Label>
+              <Input id="ente" value={ente} onChange={(e) => setEnte(e.target.value)} placeholder={t("INAIL, Helvetia…")} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="numero">Numero</Label>
+              <Label htmlFor="numero">{t("Numero")}</Label>
               <Input id="numero" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="50937496" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="data-doc">Data del documento</Label>
+              <Label htmlFor="data-doc">{t("Data del documento")}</Label>
               <Input
                 id="data-doc" type="date" value={dataDocumento}
                 onChange={(e) => {
@@ -1334,29 +1337,29 @@ function ModuloDocumento({ documento, onChiudi }: {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="data-scad">Scade il</Label>
+              <Label htmlFor="data-scad">{t("Scade il")}</Label>
               <Input
                 id="data-scad" type="date" value={dataScadenza}
                 onChange={(e) => setDataScadenza(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Lascialo vuoto se non scade mai.</p>
+              <p className="text-xs text-muted-foreground">{t("Lascialo vuoto se non scade mai.")}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="documento-rinnovo">Si rinnova</Label>
+              <Label htmlFor="documento-rinnovo">{t("Si rinnova")}</Label>
               <Select value={rinnovo} onValueChange={cambiaRinnovo}>
                 <SelectTrigger id="documento-rinnovo"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {SCELTE_RINNOVO.map((s) => (
-                    <SelectItem key={s.valore} value={s.valore}>{s.etichetta}</SelectItem>
+                    <SelectItem key={s.valore} value={s.valore}>{t(s.etichetta)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="preavviso">Avvisami (giorni prima)</Label>
+              <Label htmlFor="preavviso">{t("Avvisami (giorni prima)")}</Label>
               <Input
                 id="preavviso" type="number" min={0} max={365} value={preavviso}
                 onChange={(e) => setPreavviso(e.target.value)}
@@ -1367,10 +1370,10 @@ function ModuloDocumento({ documento, onChiudi }: {
 
           {dataScadenza && persone.length > 0 && (
             <div className="space-y-2">
-              <Label>Chi avvisare</Label>
+              <Label>{t("Chi avvisare")}</Label>
               <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border p-2">
                 {persone.map((p) => {
-                  const nome = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email || 'Senza nome';
+                  const nome = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email || t("Senza nome");
                   const scelto = destinatari.includes(p.id);
                   return (
                     <label
@@ -1393,19 +1396,19 @@ function ModuloDocumento({ documento, onChiudi }: {
               </div>
               <p className="text-xs text-muted-foreground">
                 {destinatari.length === 0
-                  ? 'Se non scegli nessuno avvisiamo gli amministratori.'
-                  : `L’avviso arriva a ${destinatari.length === 1 ? 'una persona' : `${destinatari.length} persone`}, nella campanella e per email.`}
+                  ? t("Se non scegli nessuno avvisiamo gli amministratori.")
+                  : destinatari.length === 1 ? t("L’avviso arriva a una persona, nella campanella e per email.") : t("L’avviso arriva a {n} persone, nella campanella e per email.", { n: destinatari.length })}
               </p>
             </div>
           )}
 
           {sedi.length > 0 && (
             <div className="space-y-2">
-              <Label htmlFor="documento-sede">Vale per</Label>
+              <Label htmlFor="documento-sede">{t("Vale per")}</Label>
               <Select value={sedeId} onValueChange={setSedeId}>
                 <SelectTrigger id="documento-sede"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="nessuna">Tutta l’azienda</SelectItem>
+                  <SelectItem value="nessuna">{t("Tutta l’azienda")}</SelectItem>
                   {sedi.map((s: { id: string; nome: string }) => (
                     <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
                   ))}
@@ -1415,20 +1418,20 @@ function ModuloDocumento({ documento, onChiudi }: {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="file">Il file</Label>
+            <Label htmlFor="file">{t("Il file")}</Label>
             <SceltaFile id="file" file={file} nomeAttuale={documento?.file_name} onFile={setFile} />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="note">Note</Label>
+            <Label htmlFor="note">{t("Note")}</Label>
             <Textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
           </div>
         </fieldset>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onChiudi} disabled={inCorso}>Annulla</Button>
+          <Button variant="outline" onClick={onChiudi} disabled={inCorso}>{t("Annulla")}</Button>
           <Button onClick={salvaTutto} disabled={inCorso || !titolo.trim()}>
-            {inCorso ? 'Salvo…' : 'Salva'}
+            {inCorso ? t("Salvo…") : t("Salva")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1439,6 +1442,7 @@ function ModuloDocumento({ documento, onChiudi }: {
 // ── Rinnovo ──────────────────────────────────────────────────────────────────
 
 function ModuloRinnovo({ documento, onChiudi }: { documento: DocumentoAzienda; onChiudi: () => void }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const rinnova = useRinnovaDocumentoAzienda();
 
@@ -1454,7 +1458,7 @@ function ModuloRinnovo({ documento, onChiudi }: { documento: DocumentoAzienda; o
   const conferma = async () => {
     if (richiestaInCorso.current) return;
     if (!dataScadenza) {
-      toast.error('Metti la nuova scadenza');
+      toast.error(t("Metti la nuova scadenza"));
       return;
     }
     richiestaInCorso.current = true;
@@ -1483,16 +1487,16 @@ function ModuloRinnovo({ documento, onChiudi }: { documento: DocumentoAzienda; o
     <Dialog open onOpenChange={(v) => { if (!v && !richiestaInCorso.current) onChiudi(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Hai rinnovato «{documento.titolo}»</DialogTitle>
+          <DialogTitle>{t("Hai rinnovato «{titolo}»", { titolo: String(documento.titolo ?? "") })}</DialogTitle>
           <DialogDescription>
-            La versione di prima resta nello storico col suo file. Non devi rifare la scheda.
+            {t("La versione di prima resta nello storico col suo file. Non devi rifare la scheda.")}
           </DialogDescription>
         </DialogHeader>
 
-        <fieldset disabled={inCorso} aria-label="Dati del rinnovo" className="space-y-4">
+        <fieldset disabled={inCorso} aria-label={t("Dati del rinnovo")} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="rin-data">Rinnovato il</Label>
+              <Label htmlFor="rin-data">{t("Rinnovato il")}</Label>
               <Input
                 id="rin-data" type="date" value={dataDocumento}
                 onChange={(e) => {
@@ -1504,7 +1508,7 @@ function ModuloRinnovo({ documento, onChiudi }: { documento: DocumentoAzienda; o
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="rin-scad">Nuova scadenza</Label>
+              <Label htmlFor="rin-scad">{t("Nuova scadenza")}</Label>
               <Input
                 id="rin-scad" type="date" value={dataScadenza}
                 onChange={(e) => setDataScadenza(e.target.value)}
@@ -1512,25 +1516,23 @@ function ModuloRinnovo({ documento, onChiudi }: { documento: DocumentoAzienda; o
             </div>
           </div>
           {documento.rinnovo_mesi && (
-            <p className="text-xs text-muted-foreground">
-              Calcolata da sola: {mesiLeggibili(documento.rinnovo_mesi).toLowerCase()}. Puoi cambiarla.
-            </p>
+            <p className="text-xs text-muted-foreground">{t("Calcolata da sola: {valore}. Puoi cambiarla.", { valore: mesiLeggibili(documento.rinnovo_mesi, t).toLowerCase() })}</p>
           )}
           <div className="space-y-2">
-            <Label htmlFor="rin-numero">Numero nuovo</Label>
+            <Label htmlFor="rin-numero">{t("Numero nuovo")}</Label>
             <Input id="rin-numero" value={numero} onChange={(e) => setNumero(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="rin-file">Il file nuovo</Label>
+            <Label htmlFor="rin-file">{t("Il file nuovo")}</Label>
             <SceltaFile id="rin-file" file={file} onFile={setFile} />
           </div>
         </fieldset>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onChiudi} disabled={inCorso}>Annulla</Button>
+          <Button variant="outline" onClick={onChiudi} disabled={inCorso}>{t("Annulla")}</Button>
           <Button onClick={conferma} disabled={inCorso || !dataScadenza}>
             <Upload className="mr-2 h-4 w-4" />
-            {inCorso ? 'Salvo…' : 'Registra il rinnovo'}
+            {inCorso ? t("Salvo…") : t("Registra il rinnovo")}
           </Button>
         </DialogFooter>
       </DialogContent>

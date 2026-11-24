@@ -43,6 +43,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { htmlPerEditorContratto } from "@/lib/preventivi/contrattoEditor";
 import DOMPurify from "dompurify";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Il testo di una clausola può essere vecchio (Markdown importato) o nuovo (HTML dell'editor):
@@ -70,6 +71,7 @@ type SchedaCondizioni = "modelli" | "clausole" | "firma" | "firma-elettronica";
 const SCHEDE: readonly SchedaCondizioni[] = ["modelli", "clausole", "firma", "firma-elettronica"];
 
 export default function SettingsCondizioni() {
+  const t = useT();
   const permessi = usePermissions();
   const puoGestire = !permessi.isLoading && (!!permessi.isAdmin || !!permessi.canManageCondizioni);
   const puoVedereFirma = !permessi.isLoading && (!!permessi.isAdmin || !!permessi.canViewSettingsPricing);
@@ -127,7 +129,7 @@ export default function SettingsCondizioni() {
     return (
       <div className="p-4">
         <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          L'archivio delle condizioni non è ancora attivo su questo database.
+          {t("L'archivio delle condizioni non è ancora attivo su questo database.")}
         </p>
       </div>
     );
@@ -136,12 +138,12 @@ export default function SettingsCondizioni() {
   return (
     <div className="space-y-4 p-3 sm:p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-lg border p-0.5" role="tablist" aria-label="Contratti e condizioni">
+        <div className="flex rounded-lg border p-0.5" role="tablist" aria-label={t("Contratti e condizioni")}>
           {([
-            ["modelli", `Modelli (${attivi.length})`],
-            ["clausole", `Clausole (${archivio.clausole.length})`],
-            ...(puoVedereFirma ? [["firma", "Firma del preventivo"] as const] : []),
-            ...(puoVedereFea ? [["firma-elettronica", "Firma elettronica"] as const] : []),
+            ["modelli", t("Modelli ({n})", { n: attivi.length })],
+            ["clausole", t("Clausole ({n})", { n: archivio.clausole.length })],
+            ...(puoVedereFirma ? [["firma", t("Firma del preventivo")] as const] : []),
+            ...(puoVedereFea ? [["firma-elettronica", t("Firma elettronica")] as const] : []),
           ] as ReadonlyArray<readonly [SchedaCondizioni, string]>).map(([id, nome]) => (
             <button key={id} type="button" role="tab" aria-selected={scheda === id} onClick={() => setScheda(id)}
               className={cn("rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
@@ -152,38 +154,38 @@ export default function SettingsCondizioni() {
         </div>
         {scheda === "clausole" && puoGestire && (
           <Button size="sm" variant="outline" onClick={() => setClausola({ titolo: "", testo: "", vessatoria: false, attiva: true })}>
-            <Plus className="mr-1.5 h-4 w-4" />Nuova clausola
+            <Plus className="mr-1.5 h-4 w-4" />{t("Nuova clausola")}
           </Button>
         )}
       </div>
 
       {quante > 0 && (scheda === "modelli" || scheda === "clausole") && (
         <section className="rounded-lg border border-sky-200 bg-sky-50/60 p-3">
-          <h2 className="text-sm font-semibold text-sky-950">Le condizioni che hai già</h2>
+          <h2 className="text-sm font-semibold text-sky-950">{t("Le condizioni che hai già")}</h2>
           <p className="mt-0.5 text-xs text-sky-900">
-            Ho trovato {importa.trovate.modelli.length === 1 ? "1 testo" : `${importa.trovate.modelli.length} testi`} e{" "}
-            {importa.trovate.clausole.length === 1 ? "1 clausola" : `${importa.trovate.clausole.length} clausole`} già
-            scritti nei modelli di preventivo e nelle condizioni della firma. Portarli qui ne fa una copia:
-            gli originali restano dove sono e i documenti continuano a uscire come adesso.
+            {t("Ho trovato {testi} e {clausole} già scritti nei modelli di preventivo e nelle condizioni della firma. Portarli qui ne fa una copia: gli originali restano dove sono e i documenti continuano a uscire come adesso.", {
+              testi: importa.trovate.modelli.length === 1 ? t("1 testo") : t("{n} testi", { n: importa.trovate.modelli.length }),
+              clausole: importa.trovate.clausole.length === 1 ? t("1 clausola") : t("{n} clausole", { n: importa.trovate.clausole.length }),
+            })}
           </p>
           <ul className="mt-2 space-y-1">
             {importa.trovate.modelli.slice(0, 6).map((m) => (
               <li key={m.nome} className="truncate text-xs text-sky-900">
                 <span className="font-medium">{m.nome}</span>
-                <span className="text-sky-700"> — {m.fonte}, {testoLeggibile(m.clausole[0]?.testo).length.toLocaleString("it-IT")} caratteri</span>
+                <span className="text-sky-700">{" "}{t("— {fonte}, {n} caratteri", { fonte: String(m.fonte ?? ""), n: testoLeggibile(m.clausole[0]?.testo).length.toLocaleString(intlCampo()) })}</span>
               </li>
             ))}
             {importa.trovate.clausole.length > 0 && (
               <li className="truncate text-xs text-sky-900">
-                <span className="font-medium">{importa.trovate.clausole.length} clausole</span>
+                <span className="font-medium">{t("{n} clausole", { n: importa.trovate.clausole.length })}</span>
                 <span className="text-sky-700"> — {importa.trovate.clausole.slice(0, 4).map((c) => c.titolo).join(", ")}{importa.trovate.clausole.length > 4 ? "…" : ""}</span>
               </li>
             )}
-            {importa.trovate.modelli.length > 6 && <li className="text-xs text-sky-700">e altri {importa.trovate.modelli.length - 6}…</li>}
+            {importa.trovate.modelli.length > 6 && <li className="text-xs text-sky-700">{t("e altri {n}…", { n: importa.trovate.modelli.length - 6 })}</li>}
           </ul>
           <Button size="sm" className="mt-2" disabled={importa.importa.isPending}
             onClick={() => importa.importa.mutate(importa.trovate)}>
-            <Download className="mr-1.5 h-4 w-4" />{importa.importa.isPending ? "Importo…" : "Portali nell'archivio"}
+            <Download className="mr-1.5 h-4 w-4" />{importa.importa.isPending ? t("Importo…") : t("Portali nell'archivio")}
           </Button>
         </section>
       )}
@@ -195,24 +197,24 @@ export default function SettingsCondizioni() {
           <div className="min-w-0 space-y-4">
             {datiMancanti.length > 0 && (
               <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                Nel piè di pagina mancano {datiMancanti.join(" e ")}.{" "}
-                <Link to="/azienda/impostazioni/fatturazione" className="underline">Completa i dati fiscali</Link>
+                {t("Nel piè di pagina mancano {dati}.", { dati: datiMancanti.length === 2 ? t("{a} e {b}", { a: t(datiMancanti[0]), b: t(datiMancanti[1]) }) : datiMancanti.map((d) => t(d)).join(", ") })}{" "}
+                <Link to="/azienda/impostazioni/fatturazione" className="underline">{t("Completa i dati fiscali")}</Link>
               </p>
             )}
 
             {gruppi.map((g) => (
               <section key={g.chi} className="space-y-1.5">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.nome}</h2>
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t(g.nome)}</h2>
                 <div className="divide-y rounded-lg border">
                   {g.ambiti.map(({ ambito, predefinito, altri }) => (
                     <article key={ambito} className="space-y-1.5 px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
-                        <h3 className="min-w-0 truncate text-sm font-semibold" title={DOVE_SI_USA[ambito]}>{NOMI_AMBITI[ambito]}</h3>
+                        <h3 className="min-w-0 truncate text-sm font-semibold" title={t(DOVE_SI_USA[ambito])}>{t(NOMI_AMBITI[ambito])}</h3>
                         <div className="flex shrink-0 items-center gap-1.5">
                           <StatoTipo ambito={ambito} haModello={!!predefinito} />
                           {puoGestire && (
                             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => nuovo(ambito)}>
-                              <Plus className="mr-1 h-3.5 w-3.5" />Modello
+                              <Plus className="mr-1 h-3.5 w-3.5" />{t("Modello")}
                             </Button>
                           )}
                         </div>
@@ -225,7 +227,7 @@ export default function SettingsCondizioni() {
                       {altri.length > 0 && (
                         <details className="group">
                           <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-                            {altri.length === 1 ? "1 altro modello" : `${altri.length} altri modelli`}
+                            {altri.length === 1 ? t("1 altro modello") : t("{n} altri modelli", { n: altri.length })}
                           </summary>
                           <div className="mt-1 space-y-1.5">
                             {altri.map((m) => (
@@ -244,27 +246,26 @@ export default function SettingsCondizioni() {
             ))}
           </div>
 
-          <aside aria-label="Anteprima del modello scelto" className="min-w-0 lg:sticky lg:top-4 lg:self-start">
+          <aside aria-label={t("Anteprima del modello scelto")} className="min-w-0 lg:sticky lg:top-4 lg:self-start">
             {mostrato ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">{mostrato.nome}</p>
-                    <p className="text-xs text-muted-foreground">{NOMI_AMBITI[mostrato.ambito]} · versione {mostrato.versione} · com'esce, con dati d'esempio</p>
+                    <p className="text-xs text-muted-foreground">{t("{valore} · versione {versione} · com'esce, con dati d'esempio", { valore: t(NOMI_AMBITI[mostrato.ambito]), versione: String(mostrato.versione ?? "") })}</p>
                   </div>
                   <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => apriModello(mostrato)}>
-                    <Pencil className="mr-1.5 h-3.5 w-3.5" />{puoGestire ? "Modifica" : "Apri"}
+                    <Pencil className="mr-1.5 h-3.5 w-3.5" />{puoGestire ? t("Modifica") : t("Apri")}
                   </Button>
                 </div>
                 <div className="h-[72dvh] min-h-[420px]">
                   <PdfBlobLivePreviewPanel renderBlobUrl={anteprima} depsKey={`${mostrato.id}:${mostrato.versione}`} debounceMs={150}
-                    downloadFileName={`${mostrato.nome.replace(/[^\w-]+/g, "-")}.pdf`} headerLabel="Anteprima" />
+                    downloadFileName={`${mostrato.nome.replace(/[^\w-]+/g, "-")}.pdf`} headerLabel={t("Anteprima")} />
                 </div>
               </div>
             ) : (
               <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                Ancora nessun modello. Crea il primo con «+ Modello» accanto al documento che ti serve: qui vedrai il PDF
-                come lo riceve il cliente.
+                {t("Ancora nessun modello. Crea il primo con «+ Modello» accanto al documento che ti serve: qui vedrai il PDF come lo riceve il cliente.")}
               </div>
             )}
           </aside>
@@ -275,7 +276,7 @@ export default function SettingsCondizioni() {
           onElimina={(id) => archivio.eliminaClausola.mutate(id)}
           onPartenza={() => archivio.clausoleDiPartenza.mutate(CLAUSOLE_DI_PARTENZA)} />
       ) : (
-        <Suspense fallback={<p className="p-3 text-sm text-muted-foreground" role="status">Carico…</p>}>
+        <Suspense fallback={<p className="p-3 text-sm text-muted-foreground" role="status">{t("Carico…")}</p>}>
           {scheda === "firma" ? <CondizioniDellaFirma dentroArchivio /> : <FirmaElettronica />}
         </Suspense>
       )}
@@ -288,11 +289,12 @@ export default function SettingsCondizioni() {
 
 /** Una riga, senza spiegazioni: serve sapere se questo tipo di documento esce davvero col modello. */
 function StatoTipo({ ambito, haModello }: { ambito: AmbitoCondizioni; haModello: boolean }) {
+  const t = useT();
   const [testo, classe] = !AMBITI_COLLEGATI.has(ambito)
     ? ["Non ancora collegato", "border-slate-200 bg-slate-50 text-slate-600"]
     : haModello ? ["In uso sui documenti", "border-emerald-200 bg-emerald-50 text-emerald-800"]
       : ["Nessun modello", "border-amber-200 bg-amber-50 text-amber-900"];
-  return <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", classe)}>{testo}</span>;
+  return <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", classe)}>{t(testo)}</span>;
 }
 
 function RigaModello({ m, puoGestire, predefinito, scelto, onScegli, onApri, onArchivia, onUsa }: {
@@ -301,27 +303,28 @@ function RigaModello({ m, puoGestire, predefinito, scelto, onScegli, onApri, onA
   /** Lo fa diventare il modello in uso per questo tipo di documento. */
   onUsa?: () => void;
 }) {
+  const t = useT();
   const vessatorie = m.clausole.filter((c) => c.vessatoria).length;
   return (
     <div className={cn("flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 transition-colors",
       scelto ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "bg-muted/30 hover:bg-muted/60")}>
       {/* Un clic mostra il PDF a destra; doppio clic, o la matita, lo apre. */}
       <button type="button" className="min-w-0 flex-1 text-left" onClick={onScegli} onDoubleClick={onApri}
-        aria-pressed={scelto} aria-label={`Mostra l'anteprima di ${m.nome}`}>
+        aria-pressed={scelto} aria-label={t("Mostra l'anteprima di {nome}", { nome: String(m.nome ?? "") })}>
         <span className="flex items-center gap-1.5 truncate text-sm font-medium">
-          {predefinito && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-500" aria-label="Predefinito" />}
+          {predefinito && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-500" aria-label={t("Predefinito")} />}
           {m.nome}
         </span>
         <span className="block text-[11px] text-muted-foreground">
-          {predefinito ? "Predefinito · " : ""}{m.clausole.length} {m.clausole.length === 1 ? "clausola" : "clausole"}
-          {vessatorie > 0 && ` · ${vessatorie} da approvare a parte`}
-          {" · "}versione {m.versione}
+          {predefinito ? `${t("Predefinito ·")} ` : ""}{m.clausole.length === 1 ? t("1 clausola") : t("{n} clausole", { n: m.clausole.length })}
+          {vessatorie > 0 && t(" · {vessatorie} da approvare a parte", { vessatorie: String(vessatorie ?? "") })}
+          {" · "}{t("versione {n}", { n: m.versione })}
         </span>
       </button>
       <div className="flex shrink-0 items-center gap-0.5">
-        {puoGestire && onUsa && <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" aria-label={`Usa ${m.nome}`} onClick={onUsa}>Usa</Button>}
-        <Button variant="ghost" size="sm" className="h-7 px-2" aria-label={`${puoGestire ? "Modifica" : "Apri"} ${m.nome}`} onClick={onApri}><Pencil className="h-3.5 w-3.5" /></Button>
-        {puoGestire && <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground" aria-label={`Archivia ${m.nome}`} onClick={onArchivia}><Archive className="h-3.5 w-3.5" /></Button>}
+        {puoGestire && onUsa && <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" aria-label={t("Usa {nome}", { nome: String(m.nome ?? "") })} onClick={onUsa}>{t("Usa")}</Button>}
+        <Button variant="ghost" size="sm" className="h-7 px-2" aria-label={puoGestire ? t("Modifica {nome}", { nome: m.nome }) : t("Apri {nome}", { nome: m.nome })} onClick={onApri}><Pencil className="h-3.5 w-3.5" /></Button>
+        {puoGestire && <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground" aria-label={t("Archivia {nome}", { nome: String(m.nome ?? "") })} onClick={onArchivia}><Archive className="h-3.5 w-3.5" /></Button>}
       </div>
     </div>
   );
@@ -331,6 +334,7 @@ function Libreria({ clausole, modelli, puoGestire, onApri, onElimina, onPartenza
   clausole: ClausolaArchivio[]; modelli: ModelloCondizioni[]; puoGestire: boolean;
   onApri: (c: ClausolaArchivio) => void; onElimina: (id: string) => void; onPartenza: () => void;
 }) {
+  const t = useT();
   const [cerca, setCerca] = useState("");
   const quanteVolte = (id: string): number => modelli.filter((m) => m.clausole.some((c) => c.clausola_id === id)).length;
   const filtrate = useMemo(() => {
@@ -346,13 +350,12 @@ function Libreria({ clausole, modelli, puoGestire, onApri, onElimina, onPartenza
   if (clausole.length === 0) {
     return (
       <div className="space-y-3 rounded-lg border border-dashed p-6 text-center">
-        <p className="text-sm font-medium">La libreria è vuota.</p>
+        <p className="text-sm font-medium">{t("La libreria è vuota.")}</p>
         <p className="mx-auto max-w-xl text-sm text-muted-foreground">
-          Le clausole sono i pezzi che componi nei modelli: pagamenti, tempi, varianti, garanzie, foro competente.
-          Scrivile tu, oppure parti da sette clausole già pronte e correggile come vuoi.
+          {t("Le clausole sono i pezzi che componi nei modelli: pagamenti, tempi, varianti, garanzie, foro competente. Scrivile tu, oppure parti da sette clausole già pronte e correggile come vuoi.")}
         </p>
         {puoGestire && (
-          <Button size="sm" onClick={onPartenza}><Sparkles className="mr-1.5 h-4 w-4" />Parti dalle clausole di base</Button>
+          <Button size="sm" onClick={onPartenza}><Sparkles className="mr-1.5 h-4 w-4" />{t("Parti dalle clausole di base")}</Button>
         )}
       </div>
     );
@@ -362,12 +365,12 @@ function Libreria({ clausole, modelli, puoGestire, onApri, onElimina, onPartenza
     <div className="space-y-3">
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <Input className="pl-8" placeholder="Cerca una clausola…" aria-label="Cerca una clausola" value={cerca} onChange={(e) => setCerca(e.target.value)} />
+        <Input className="pl-8" placeholder={t("Cerca una clausola…")} aria-label={t("Cerca una clausola")} value={cerca} onChange={(e) => setCerca(e.target.value)} />
       </div>
-      {filtrate.length === 0 && <p className="text-sm text-muted-foreground">Nessuna clausola con «{cerca}».</p>}
+      {filtrate.length === 0 && <p className="text-sm text-muted-foreground">{t("Nessuna clausola con «{cerca}».", { cerca: String(cerca ?? "") })}</p>}
       {categorie.map(([categoria, righe]) => (
         <section key={categoria} className="space-y-1.5">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{categoria}</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{categoria === "Senza categoria" ? t(categoria) : categoria}</h2>
           {righe.map((c) => {
             const usata = quanteVolte(c.id);
             return (
@@ -375,9 +378,9 @@ function Libreria({ clausole, modelli, puoGestire, onApri, onElimina, onPartenza
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
                     {c.titolo}
-                    {c.vessatoria && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-[10px] font-medium text-amber-900">da approvare a parte</Badge>}
+                    {c.vessatoria && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-[10px] font-medium text-amber-900">{t("da approvare a parte")}</Badge>}
                     <span className="text-[11px] font-normal text-muted-foreground">
-                      {usata === 0 ? "non è in nessun modello" : usata === 1 ? "in 1 modello" : `in ${usata} modelli`}
+                      {usata === 0 ? t("non è in nessun modello") : usata === 1 ? t("in 1 modello") : t("in {usata} modelli", { usata: String(usata ?? "") })}
                     </span>
                   </p>
                   {/* Il testo com'è scritto: grassetti e titoli si vedono già qui (07/11/2026; prima i tag HTML uscivano a vista). */}
@@ -386,8 +389,8 @@ function Libreria({ clausole, modelli, puoGestire, onApri, onElimina, onPartenza
                 </div>
                 {puoGestire && (
                   <div className="flex shrink-0 gap-0.5">
-                    <Button variant="ghost" size="sm" className="h-7 px-2" aria-label={`Modifica ${c.titolo}`} onClick={() => onApri(c)}><Pencil className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground" aria-label={`Elimina ${c.titolo}`} onClick={() => onElimina(c.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-2" aria-label={t("Modifica {titolo}", { titolo: String(c.titolo ?? "") })} onClick={() => onApri(c)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground" aria-label={t("Elimina {titolo}", { titolo: String(c.titolo ?? "") })} onClick={() => onElimina(c.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 )}
               </div>
@@ -404,6 +407,7 @@ function DialogClausola({ clausola, onChiudi, onSalva }: {
   onChiudi: () => void;
   onSalva: (c: Partial<ClausolaArchivio> & { titolo: string; testo: string }) => void;
 }) {
+  const t = useT();
   const [bozza, setBozza] = useState<Partial<ClausolaArchivio>>({});
   const attiva = clausola ? { ...clausola, ...bozza } : null;
   const valida = !!attiva?.titolo?.trim() && !!attiva?.testo?.trim();
@@ -412,35 +416,35 @@ function DialogClausola({ clausola, onChiudi, onSalva }: {
     <Dialog open={!!clausola} onOpenChange={(o) => { if (!o) chiudi(); }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{clausola?.id ? "Modifica la clausola" : "Nuova clausola"}</DialogTitle>
-          <DialogDescription>Un pezzo di contratto che riusi in più modelli.</DialogDescription>
+          <DialogTitle>{clausola?.id ? t("Modifica la clausola") : t("Nuova clausola")}</DialogTitle>
+          <DialogDescription>{t("Un pezzo di contratto che riusi in più modelli.")}</DialogDescription>
         </DialogHeader>
         {attiva && (
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-[2fr,1fr]">
-              <div className="space-y-1"><Label htmlFor="cl-titolo">Titolo</Label>
-                <Input id="cl-titolo" value={attiva.titolo ?? ""} onChange={(e) => setBozza({ ...bozza, titolo: e.target.value })} placeholder="Es. Modalità di pagamento" /></div>
-              <div className="space-y-1"><Label htmlFor="cl-categoria">Categoria</Label>
-                <Input id="cl-categoria" value={attiva.categoria ?? ""} onChange={(e) => setBozza({ ...bozza, categoria: e.target.value })} placeholder="Pagamenti" /></div>
+              <div className="space-y-1"><Label htmlFor="cl-titolo">{t("Titolo")}</Label>
+                <Input id="cl-titolo" value={attiva.titolo ?? ""} onChange={(e) => setBozza({ ...bozza, titolo: e.target.value })} placeholder={t("Es. Modalità di pagamento")} /></div>
+              <div className="space-y-1"><Label htmlFor="cl-categoria">{t("Categoria")}</Label>
+                <Input id="cl-categoria" value={attiva.categoria ?? ""} onChange={(e) => setBozza({ ...bozza, categoria: e.target.value })} placeholder={t("Pagamenti")} /></div>
             </div>
             <div className="space-y-1">
-              <Label>Testo</Label>
+              <Label>{t("Testo")}</Label>
               {/* L'editor vero (07/11/2026): grassetto, corsivo, dimensione e carattere, elenchi. */}
               {/* Finché non si scrive, si mostra il testo di prima convertito; poi vale quello dell'editor,
                   identico a quello che l'editor ha appena emesso (altrimenti il cursore salterebbe). */}
               <RichTextEditor value={bozza.testo ?? perVedere(clausola?.testo)} minHeight={200}
-                placeholder="Scrivi qui la clausola, come la vuoi sul documento."
+                placeholder={t("Scrivi qui la clausola, come la vuoi sul documento.")}
                 onChange={(html) => setBozza({ ...bozza, testo: html })} />
             </div>
             <label className="flex items-center gap-2 text-sm">
               <Switch checked={!!attiva.vessatoria} onCheckedChange={(v) => setBozza({ ...bozza, vessatoria: v })} />
-              Il cliente la approva a parte (clausola vessatoria, art. 1341 c.c.)
+              {t("Il cliente la approva a parte (clausola vessatoria, art. 1341 c.c.)")}
             </label>
           </div>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={chiudi}>Annulla</Button>
-          <Button disabled={!valida} onClick={() => { if (attiva?.titolo && attiva.testo) { onSalva({ ...attiva, titolo: attiva.titolo, testo: attiva.testo }); setBozza({}); } }}>Salva</Button>
+          <Button variant="outline" onClick={chiudi}>{t("Annulla")}</Button>
+          <Button disabled={!valida} onClick={() => { if (attiva?.titolo && attiva.testo) { onSalva({ ...attiva, titolo: attiva.titolo, testo: attiva.testo }); setBozza({}); } }}>{t("Salva")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Loader2, Plus, Trash2, Clock, CalendarOff, Globe, Zap, Save } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const DAYS = [
   { id: 1, label: "Lunedì", short: "Lun" },
@@ -66,6 +67,7 @@ const PRESETS: { label: string; slots: AvailabilitySlot[] }[] = [
 ];
 
 export function UserAvailabilityTab() {
+  const t = useT();
   const { userId } = useParams<{ userId: string }>();
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id as string | undefined;
@@ -155,9 +157,9 @@ export function UserAvailabilityTab() {
   const handleSave = async () => {
     try {
       await saveMutation.mutateAsync({ timezone, slots, exceptions });
-      toast({ title: "Disponibilità salvata", description: "Gli orari sono stati aggiornati." });
+      toast({ title: t("Disponibilità salvata"), description: t("Gli orari sono stati aggiornati.") });
     } catch {
-      toast({ title: "Errore", description: "Impossibile salvare la disponibilità.", variant: "destructive" });
+      toast({ title: t("Errore"), description: t("Impossibile salvare la disponibilità."), variant: "destructive" });
     }
   };
 
@@ -178,19 +180,19 @@ export function UserAvailabilityTab() {
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-2xl font-bold text-primary">{totalHours}h{totalMins > 0 ? ` ${totalMins}m` : ""}</p>
-            <p className="text-xs text-muted-foreground mt-1">Ore settimanali</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("Ore settimanali")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-2xl font-bold text-primary">{activeDaysCount}/7</p>
-            <p className="text-xs text-muted-foreground mt-1">Giorni attivi</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("Giorni attivi")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-2xl font-bold text-primary">{exceptions.length}</p>
-            <p className="text-xs text-muted-foreground mt-1">Eccezioni</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("Eccezioni")}</p>
           </CardContent>
         </Card>
       </div>
@@ -201,7 +203,7 @@ export function UserAvailabilityTab() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Globe className="h-4 w-4" />
-              Fuso Orario
+              {t("Fuso Orario")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -211,7 +213,7 @@ export function UserAvailabilityTab() {
               </SelectTrigger>
               <SelectContent>
                 {TIMEZONES.map((tz) => (
-                  <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                  <SelectItem key={tz.value} value={tz.value}>{t(tz.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -222,7 +224,7 @@ export function UserAvailabilityTab() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Zap className="h-4 w-4" />
-              Preset Rapidi
+              {t("Preset Rapidi")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -234,7 +236,7 @@ export function UserAvailabilityTab() {
                   className="cursor-pointer hover:bg-accent transition-colors px-3 py-1.5"
                   onClick={() => applyPreset(preset.slots)}
                 >
-                  {preset.label}
+                  {t(preset.label)}
                 </Badge>
               ))}
             </div>
@@ -247,9 +249,9 @@ export function UserAvailabilityTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
-            Orari Settimanali
+            {t("Orari Settimanali")}
           </CardTitle>
-          <CardDescription>Configura gli orari di disponibilità per ogni giorno.</CardDescription>
+          <CardDescription>{t("Configura gli orari di disponibilità per ogni giorno.")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-0">
           {DAYS.map((day, idx) => {
@@ -266,12 +268,12 @@ export function UserAvailabilityTab() {
                         onCheckedChange={(v) => toggleDay(day.id, v)}
                       />
                       <span className={`text-sm font-medium ${!dayEnabled ? "text-muted-foreground" : ""}`}>
-                        {day.label}
+                        {t(day.label)}
                       </span>
                     </div>
 
                     {!dayEnabled ? (
-                      <span className="text-sm text-muted-foreground pt-1">Non disponibile</span>
+                      <span className="text-sm text-muted-foreground pt-1">{t("Non disponibile")}</span>
                     ) : (
                       <div className="flex-1 space-y-2">
                         {daySlots.map((slot, slotIdx) => (
@@ -298,7 +300,7 @@ export function UserAvailabilityTab() {
                         ))}
                         <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => addSlotToDay(day.id)}>
                           <Plus className="h-3 w-3 mr-1" />
-                          Aggiungi pausa
+                          {t("Aggiungi pausa")}
                         </Button>
                       </div>
                     )}
@@ -317,20 +319,20 @@ export function UserAvailabilityTab() {
             <div className="flex items-center gap-2">
               <CalendarOff className="h-4 w-4" />
               <div>
-                <CardTitle>Eccezioni</CardTitle>
-                <CardDescription>Giorni liberi o orari speciali per date specifiche.</CardDescription>
+                <CardTitle>{t("Eccezioni")}</CardTitle>
+                <CardDescription>{t("Giorni liberi o orari speciali per date specifiche.")}</CardDescription>
               </div>
             </div>
             <Button variant="outline" size="sm" onClick={addException}>
               <Plus className="h-3.5 w-3.5 mr-1" />
-              Aggiungi
+              {t("Aggiungi")}
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           {exceptions.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Nessuna eccezione configurata.
+              {t("Nessuna eccezione configurata.")}
             </p>
           ) : (
             <div className="space-y-3">
@@ -353,7 +355,7 @@ export function UserAvailabilityTab() {
                             end_time: v ? null : "18:00",
                           })}
                         />
-                        <span className="text-sm">{exc.is_day_off ? "Giorno libero" : "Orari custom"}</span>
+                        <span className="text-sm">{exc.is_day_off ? t("Giorno libero") : t("Orari custom")}</span>
                       </div>
                       {!exc.is_day_off && (
                         <div className="flex items-center gap-2">
@@ -374,7 +376,7 @@ export function UserAvailabilityTab() {
                       )}
                     </div>
                     <Input
-                      placeholder="Motivo (opzionale)"
+                      placeholder={t("Motivo (opzionale)")}
                       value={exc.reason || ""}
                       onChange={(e) => updateException(idx, { reason: e.target.value })}
                       className="max-w-xs h-8 text-sm"
@@ -394,7 +396,7 @@ export function UserAvailabilityTab() {
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saveMutation.isPending}>
           {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          Salva Disponibilità
+          {t("Salva Disponibilità")}
         </Button>
       </div>
     </div>

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Eye, Lock } from "lucide-react";
 import { DIREZIONI_SYNC, direzioneDaModo, modoDaDirezione, type DirezioneSync } from "@/lib/calendar/direzioneSync";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Preferenze del collegamento con Google Calendar.
@@ -35,11 +36,12 @@ interface SyncPrefsDialogProps {
 }
 
 export default function GoogleCalendarSyncPrefsDialog(props: SyncPrefsDialogProps) {
+  const t = useT();
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Preferenze del calendario</DialogTitle>
+          <DialogTitle>{t("Preferenze del calendario")}</DialogTitle>
         </DialogHeader>
         {/* Il contenuto nasce all'apertura: cosi' parte dai valori salvati
             senza un effetto che ricopia i prop nello stato a ogni render. */}
@@ -59,6 +61,7 @@ function ContenutoPreferenze({
   onSave,
   isSaving,
 }: SyncPrefsDialogProps) {
+  const t = useT();
   const [scelta, setScelta] = useState<DirezioneSync>(direzione || direzioneDaModo(syncMode));
   const [importEvents, setImportEvents] = useState(importGoogleEvents);
 
@@ -70,7 +73,7 @@ function ContenutoPreferenze({
     <>
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            In che verso devono muoversi gli appuntamenti fra il gestionale e il tuo Google Calendar.
+            {t("In che verso devono muoversi gli appuntamenti fra il gestionale e il tuo Google Calendar.")}
           </p>
 
           <div className="space-y-2">
@@ -99,11 +102,11 @@ function ContenutoPreferenze({
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{opt.label}</span>
                       {opt.value === "both" && !bloccata && (
-                        <Badge variant="secondary" className="text-xs">Consigliata</Badge>
+                        <Badge variant="secondary" className="text-xs">{t("Consigliata")}</Badge>
                       )}
                       {bloccata && (
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                          <Lock className="h-3 w-3" /> disattivata dalla piattaforma
+                          <Lock className="h-3 w-3" /> {t("disattivata dalla piattaforma")}
                         </span>
                       )}
                     </div>
@@ -117,10 +120,9 @@ function ContenutoPreferenze({
           {importaDaGoogle && allowGoogleToImport && (
             <div className="flex items-start justify-between gap-4 border-l-2 border-primary/20 pl-4">
               <Label htmlFor="import-events" className="cursor-pointer text-sm leading-snug">
-                Importa tutti gli eventi di Google come appuntamenti
+                {t("Importa tutti gli eventi di Google come appuntamenti")}
                 <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                  Se è acceso, ogni evento del tuo Google Calendar diventa un appuntamento nel gestionale, anche quelli
-                  personali. Se è spento, entrano solo gli eventi che iniziano con [CRM].
+                  {t("Se è acceso, ogni evento del tuo Google Calendar diventa un appuntamento nel gestionale, anche quelli personali. Se è spento, entrano solo gli eventi che iniziano con [CRM].")}
                 </span>
               </Label>
               <Switch id="import-events" checked={importEvents} onCheckedChange={setImportEvents} className="mt-0.5" />
@@ -130,13 +132,13 @@ function ContenutoPreferenze({
           {/* Vale in ogni direzione: gli impegni personali entrano comunque come fasce occupate, col loro titolo. */}
           <p className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
             <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            Per ora i colleghi dell'azienda vedono il titolo degli eventi di Google nel calendario.
+            {t("Per ora i colleghi dell'azienda vedono il titolo degli eventi di Google nel calendario.")}
           </p>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             onClick={() =>
@@ -148,7 +150,7 @@ function ContenutoPreferenze({
             }
             disabled={isSaving}
           >
-            {isSaving ? "Salvataggio..." : "Salva"}
+            {isSaving ? t("Salvataggio...") : t("Salva")}
           </Button>
         </DialogFooter>
     </>

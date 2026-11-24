@@ -24,6 +24,7 @@ import {
 import { OfficeAccessSummary } from "./OfficeAccessSummary";
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 import { PermessiDistintiToggle } from "@/components/users/PermessiDistintiToggle";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface StaffPermissions {
   // ── Cruscotto ──────────────────────────────────────────
@@ -180,6 +181,7 @@ interface PermGroupProps {
 }
 
 function PermGroup({ label, icon: Icon, iconColor, sections: originali, permissions, onToggle }: PermGroupProps) {
+  const t = useT();
   const sections = sezioniConPermessiDistinti(originali, permissions);
   const [open, setOpen] = useState(true);
 
@@ -220,9 +222,9 @@ function PermGroup({ label, icon: Icon, iconColor, sections: originali, permissi
           </button>
         </CollapsibleTrigger>
         <div className="flex items-center gap-2 pl-2">
-          <Switch checked={allActive} onCheckedChange={handleToggleAll} aria-label={`Attiva tutti i permessi di ${label}`} />
+          <Switch checked={allActive} onCheckedChange={handleToggleAll} aria-label={t("Attiva tutti i permessi di {label}", { label: String(label ?? "") })} />
           <CollapsibleTrigger asChild>
-            <button type="button" aria-label={open ? `Comprimi ${label}` : `Espandi ${label}`} className="text-muted-foreground">
+            <button type="button" aria-label={open ? t("Comprimi {label}", { label: String(label ?? "") }) : t("Espandi {label}", { label: String(label ?? "") })} className="text-muted-foreground">
               {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </button>
           </CollapsibleTrigger>
@@ -239,12 +241,12 @@ function PermGroup({ label, icon: Icon, iconColor, sections: originali, permissi
                 onCheckedChange={(checked) => onToggle(section.viewKey, checked)}
               />
               <div className="min-w-0">
-                <Label htmlFor={section.viewKey} className="text-sm cursor-pointer">{section.label}</Label>
+                <Label htmlFor={section.viewKey} className="text-sm cursor-pointer">{t(section.label)}</Label>
                 {/* La riga di spiegazione c'è da sempre nei dati e la mostrava
                     solo la creazione utente: qui, dove si modificano i permessi
                     di chi lavora già, restavano due interruttori senza contesto. */}
                 {section.description && (
-                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{section.description}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{t(section.description)}</p>
                 )}
                 {(bloccato(section.viewKey) || (section.editKey && bloccato(section.editKey))) && (
                   <p className="text-[11px] text-amber-600 mt-0.5">{SOLA_LETTURA_BLOCKED_NOTE}</p>
@@ -259,7 +261,7 @@ function PermGroup({ label, icon: Icon, iconColor, sections: originali, permissi
                   disabled={bloccato(section.editKey)}
                   onCheckedChange={(checked) => onToggle(section.editKey!, checked)}
                 />
-                <Label htmlFor={section.editKey} className="text-xs text-muted-foreground cursor-pointer">Modifica</Label>
+                <Label htmlFor={section.editKey} className="text-xs text-muted-foreground cursor-pointer">{t("Modifica")}</Label>
               </div>
             )}
           </div>
@@ -272,6 +274,7 @@ function PermGroup({ label, icon: Icon, iconColor, sections: originali, permissi
 export function PermissionsDialog({
   open, onOpenChange, userName, currentPermissions, onSave, isLoading, userRole,
 }: PermissionsDialogProps) {
+  const t = useT();
   const [permissions, setPermissions] = useState<StaffPermissions>(currentPermissions);
 
   const [permissionSource, setPermissionSource] = useState(currentPermissions);
@@ -351,18 +354,18 @@ export function PermissionsDialog({
       <DialogContent className="sm:max-w-[520px] max-h-[85vh] !flex !flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <span>Permessi — {userName}</span>
-            <Badge variant="outline">{totalActive} attivi</Badge>
+            <span>{t("Permessi — {userName}", { userName: String(userName ?? "") })}</span>
+            <Badge variant="outline">{t("{totalActive} attivi", { totalActive: String(totalActive ?? "") })}</Badge>
           </DialogTitle>
-          <DialogDescription>Seleziona le sezioni a cui l'utente può accedere</DialogDescription>
+          <DialogDescription>{t("Seleziona le sezioni a cui l'utente può accedere")}</DialogDescription>
         </DialogHeader>
 
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={handleSelectAll}>Seleziona tutti</Button>
-          <Button variant="outline" size="sm" onClick={handleDeselectAll}>Deseleziona tutti</Button>
+          <Button variant="outline" size="sm" onClick={handleSelectAll}>{t("Seleziona tutti")}</Button>
+          <Button variant="outline" size="sm" onClick={handleDeselectAll}>{t("Deseleziona tutti")}</Button>
           {userRole && userRole !== "company_admin" && (
             <Button variant="outline" size="sm" onClick={handleResetPreset}>
-              Ripristina preset {roleLabel[userRole] || ""}
+              {t("Ripristina preset")} {roleLabel[userRole] || ""}
             </Button>
           )}
         </div>
@@ -376,19 +379,19 @@ export function PermissionsDialog({
             <MagazzinoCampoPermission value={permissions.magazzino_campo} soloLettura={permissions.sola_lettura}
               readOnly={isLoading} onChange={(magazzino_campo) => setPermissions((prev) => ({ ...prev, magazzino_campo }))} />
           )}
-          <PermGroup label="Cruscotto" icon={LayoutGrid} iconColor="text-indigo-600"
+          <PermGroup label={t("Cruscotto")} icon={LayoutGrid} iconColor="text-indigo-600"
             sections={CRUSCOTTO_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-          <PermGroup label="Cantieri & Lavori" icon={HardHat} iconColor="text-blue-600"
+          <PermGroup label={t("Cantieri & Lavori")} icon={HardHat} iconColor="text-blue-600"
             sections={CANTIERI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-          <PermGroup label="Finanza" icon={Euro} iconColor="text-emerald-600"
+          <PermGroup label={t("Finanza")} icon={Euro} iconColor="text-emerald-600"
             sections={FINANZA_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-          <PermGroup label="Persone" icon={Users2} iconColor="text-amber-600"
+          <PermGroup label={t("Persone")} icon={Users2} iconColor="text-amber-600"
             sections={PERSONE_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-          <PermGroup label="Marketing & Vendita" icon={Megaphone} iconColor="text-purple-600"
+          <PermGroup label={t("Marketing & Vendita")} icon={Megaphone} iconColor="text-purple-600"
             sections={MARKETING_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-          <PermGroup label="Automazioni & AI" icon={Zap} iconColor="text-orange-600"
+          <PermGroup label={t("Automazioni & AI")} icon={Zap} iconColor="text-orange-600"
             sections={AUTOMAZIONI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
-          <PermGroup label="Impostazioni" icon={Settings} iconColor="text-slate-600"
+          <PermGroup label={t("Impostazioni")} icon={Settings} iconColor="text-slate-600"
             sections={IMPOSTAZIONI_SECTIONS} permissions={permissions} onToggle={handleToggle} />
 
           <Separator />
@@ -397,13 +400,13 @@ export function PermissionsDialog({
           <div className="space-y-1 py-2">
             <div className="flex items-center gap-2">
               <Users2 className="h-4 w-4 text-violet-600" />
-              <Label className="font-medium">Visibilità sul team</Label>
+              <Label className="font-medium">{t("Visibilità sul team")}</Label>
             </div>
             {TEAM_VISIBILITY_SECTIONS.map((s) => (
               <div key={s.viewKey} className="flex items-center justify-between py-1.5">
                 <div>
-                  <Label htmlFor={s.viewKey} className="text-sm cursor-pointer">{s.label}</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
+                  <Label htmlFor={s.viewKey} className="text-sm cursor-pointer">{t(s.label)}</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t(s.description)}</p>
                 </div>
                 <Switch
                   id={s.viewKey}
@@ -418,9 +421,9 @@ export function PermissionsDialog({
 
           <div className="flex items-center justify-between py-2">
             <div>
-              <Label htmlFor="only_assigned" className="font-medium cursor-pointer">Solo il portafoglio CRM assegnato</Label>
+              <Label htmlFor="only_assigned" className="font-medium cursor-pointer">{t("Solo il portafoglio CRM assegnato")}</Label>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Limita contatti, opportunità e attività commerciali. Non restringe le commesse degli uffici.
+                {t("Limita contatti, opportunità e attività commerciali. Non restringe le commesse degli uffici.")}
               </p>
             </div>
             <Switch
@@ -447,10 +450,10 @@ export function PermissionsDialog({
                 htmlFor="only_my_warehouse"
                 className="font-medium cursor-pointer"
               >
-                Solo commesse del suo magazzino
+                {t("Solo commesse del suo magazzino")}
               </Label>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Limite separato sulle commesse dei magazzini assegnati, più le proprie. Non dipende dal portafoglio CRM.
+                {t("Limite separato sulle commesse dei magazzini assegnati, più le proprie. Non dipende dal portafoglio CRM.")}
               </p>
             </div>
             <Switch
@@ -465,18 +468,17 @@ export function PermissionsDialog({
           <div className="space-y-3 py-2">
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-blue-600" />
-              <Label className="font-medium">Aree visibili</Label>
+              <Label className="font-medium">{t("Aree visibili")}</Label>
             </div>
             <p className="text-xs text-muted-foreground">
-              Seleziona le aree aziendali che l'utente può vedere nel calendario e nei dropdown di assegnazione.
-              Se nessuna è selezionata, l'utente vede tutte le aree.
+              {t("Seleziona le aree aziendali che l'utente può vedere nel calendario e nei dropdown di assegnazione. Se nessuna è selezionata, l'utente vede tutte le aree.")}
             </p>
             <div className="grid grid-cols-2 gap-2">
               {([
-                { value: "cantiere", label: "🏗️ Cantiere", desc: "Operai e tecnici in cantiere" },
-                { value: "commerciale", label: "💼 Commerciale", desc: "Venditori e agenti" },
-                { value: "amministrazione", label: "🏢 Amministrazione", desc: "Staff ufficio" },
-                { value: "tecnico", label: "🔧 Tecnico", desc: "Personale tecnico" },
+                { value: "cantiere", label: t("🏗️ Cantiere"), desc: t("Operai e tecnici in cantiere") },
+                { value: "commerciale", label: t("💼 Commerciale"), desc: t("Venditori e agenti") },
+                { value: "amministrazione", label: t("🏢 Amministrazione"), desc: t("Staff ufficio") },
+                { value: "tecnico", label: t("🔧 Tecnico"), desc: t("Personale tecnico") },
               ] as const).map(area => {
                 const checked = (permissions.visible_areas || []).includes(area.value);
                 return (
@@ -500,8 +502,8 @@ export function PermissionsDialog({
                       className="mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-medium">{area.label}</span>
-                      <p className="text-xs text-muted-foreground">{area.desc}</p>
+                      <span className="text-sm font-medium">{t(area.label)}</span>
+                      <p className="text-xs text-muted-foreground">{t(area.desc)}</p>
                     </div>
                   </label>
                 );
@@ -509,17 +511,17 @@ export function PermissionsDialog({
             </div>
             {(permissions.visible_areas || []).length === 0 && (
               <p className="text-xs text-blue-600 bg-blue-50 rounded p-2">
-                Nessuna area selezionata = accesso a tutte le aree (comportamento admin)
+                {t("Nessuna area selezionata = accesso a tutte le aree (comportamento admin)")}
               </p>
             )}
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>{t("Annulla")}</Button>
           <Button onClick={handleSubmit} disabled={isLoading}>
             {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Salva permessi
+            {t("Salva permessi")}
           </Button>
         </DialogFooter>
       </DialogContent>

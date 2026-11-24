@@ -27,6 +27,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { LogOut, ChevronRight, Loader2, Search } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 
 // Sezioni NASCOSTE nell'hub mobile: configurazioni avanzate/desktop che sul
@@ -70,6 +71,7 @@ const HIDDEN_ON_MOBILE = new Set<string>([
 const nascostaDaTelefono = (voce: SettingsNavItem): boolean => (voce.indirizzi ?? [voce.to]).some((a) => HIDDEN_ON_MOBILE.has(a));
 
 export default function SettingsMobileHub() {
+  const t = useT();
   const { signOut, user, profile, effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const isMobile = useIsMobile();
@@ -100,7 +102,7 @@ export default function SettingsMobileHub() {
   const iconaDi = new Map<string, ReactNode>(sezioni.flatMap((s) => s.items.map((i) => [i.to, i.icon] as const)));
 
   if (permissions.isLoading) {
-    return <div role="status" className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Caricamento impostazioni…</div>;
+    return <div role="status" className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{t("Caricamento impostazioni…")}</div>;
   }
 
   // A righe, come le Impostazioni del telefono: icona piccola, nome, freccia.
@@ -114,22 +116,22 @@ export default function SettingsMobileHub() {
         type="text"
         value={filtro}
         onChange={(e) => setFiltro(e.target.value)}
-        placeholder="Cerca un'impostazione (es. password, logo, firma)"
-        aria-label="Cerca un'impostazione"
+        placeholder={t("Cerca un'impostazione (es. password, logo, firma)")}
+        aria-label={t("Cerca un'impostazione")}
         className="w-full h-9 rounded-lg border border-border/60 bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary md:hidden"
       />
 
       {q && risultati.length === 0 && (
         <p className="px-1 text-sm text-muted-foreground">
           {soloDaComputer
-            ? `Le impostazioni per «${q}» si cambiano da computer o tablet.`
-            : `Nessuna impostazione trovata per «${q}». Prova con un'altra parola, per esempio «password» o «logo».`}
+            ? t("Le impostazioni per «{q}» si cambiano da computer o tablet.", { q: String(q ?? "") })
+            : t("Nessuna impostazione trovata per «{q}». Prova con un'altra parola, per esempio «password» o «logo».", { q: String(q ?? "") })}
         </p>
       )}
 
       {q && risultati.length > 0 && (
-        <section className="space-y-1.5" aria-label="Risultati della ricerca">
-          <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Risultati</h2>
+        <section className="space-y-1.5" aria-label={t("Risultati della ricerca")}>
+          <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("Risultati")}</h2>
           <div className="divide-y overflow-hidden rounded-xl border bg-card">
             {risultati.map((voce) => (
               <Link
@@ -141,8 +143,8 @@ export default function SettingsMobileHub() {
                   {(voce.madre && iconaDi.get(voce.madre)) || <Search className="h-4 w-4" />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm">{voce.title}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{voce.description ?? voce.group}</span>
+                  <span className="block truncate text-sm">{t(voce.title)}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{t(voce.description ?? voce.group ?? "")}</span>
                 </span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               </Link>
@@ -156,7 +158,7 @@ export default function SettingsMobileHub() {
       {sezioni.map((section) => (
         <section key={section.label} className="space-y-1.5">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
-            {section.label}
+            {t(section.label)}
           </h2>
           <div className="divide-y overflow-hidden rounded-xl border bg-card">
             {section.items.map((item) => {
@@ -169,7 +171,7 @@ export default function SettingsMobileHub() {
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary" aria-hidden="true">
                     {item.icon}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm">{item.label}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{t(item.label)}</span>
                   <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 </Link>
               );
@@ -184,7 +186,7 @@ export default function SettingsMobileHub() {
           punto di accesso al logout (la sidebar con il menu utente è md+). */}
       <section className="space-y-1.5">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
-          Account corrente
+          {t("Account corrente")}
         </h2>
         <div className="divide-y overflow-hidden rounded-xl border bg-card">
           <div className="flex items-center gap-3 px-3 py-2">
@@ -193,7 +195,7 @@ export default function SettingsMobileHub() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium truncate">
-                {profile?.first_name ? `${profile.first_name} ${profile.last_name ?? ""}`.trim() : "Utente"}
+                {profile?.first_name ? `${profile.first_name} ${profile.last_name ?? ""}`.trim() : t("Utente")}
               </p>
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
             </div>
@@ -204,7 +206,7 @@ export default function SettingsMobileHub() {
             className="tap-compact flex min-h-[44px] w-full items-center gap-3 px-3 py-2 text-left text-sm font-medium text-destructive active:bg-muted"
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />
-            Esci dall'account
+            {t("Esci dall'account")}
           </button>
         </div>
       </section>
@@ -213,18 +215,18 @@ export default function SettingsMobileHub() {
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Uscire dall'account?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Uscire dall'account?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Verrai disconnesso e dovrai inserire di nuovo le credenziali per tornare.
+              {t("Verrai disconnesso e dovrai inserire di nuovo le credenziali per tornare.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => { void signOut(); }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Esci
+              {t("Esci")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

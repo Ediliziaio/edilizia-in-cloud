@@ -57,6 +57,7 @@ const COMMISSION_TYPE_LABELS: Record<string, { label: string; icon: React.ReactN
 };
 
 import { DEFAULT_PERMISSIONS, ROLE_PRESETS } from "@/components/users/permissionsDefaults";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Il venditore nasce col suo standard (solo Marketing & Vendita), come dalla
  *  creazione utente: prima qui partiva da tutto spento. */
@@ -71,6 +72,7 @@ const INTERNAL_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => !MARKETING_SECTION
 const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => MARKETING_SECTION_KEYS.includes(s.viewKey as string));
 
 export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boolean } = {}) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   
   const queryClient = useQueryClient();
@@ -137,11 +139,11 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
     },
     onSuccess: () => {
       aggiornaVenditori();
-      toast.success(editingSalesperson ? "Venditore aggiornato" : "Venditore creato");
+      toast.success(editingSalesperson ? t("Venditore aggiornato") : t("Venditore creato"));
       setDialogOpen(false); setEditingSalesperson(null);
     },
     onError: () => {
-      toast.error("Non sono riuscito a salvare il venditore. Riprova tra un attimo.");
+      toast.error(t("Non sono riuscito a salvare il venditore. Riprova tra un attimo."));
     },
   });
 
@@ -151,7 +153,7 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
       if (error) throw error;
     },
     onSuccess: aggiornaVenditori,
-    onError: () => { toast.error("Non sono riuscito a cambiare lo stato del venditore. Riprova tra un attimo."); },
+    onError: () => { toast.error(t("Non sono riuscito a cambiare lo stato del venditore. Riprova tra un attimo.")); },
   });
 
   const deleteMutation = useMutation({
@@ -161,12 +163,12 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
     },
     onSuccess: () => {
       aggiornaVenditori();
-      toast.success("Venditore eliminato");
+      toast.success(t("Venditore eliminato"));
     },
     onError: (error: Error) => {
       toast.error(error.message?.includes("order_salespeople")
-        ? "Non si può eliminare: il venditore ha delle commesse collegate. Disattivalo, così non compare più ma le commesse restano."
-        : "Non sono riuscito a eliminare il venditore. Riprova tra un attimo.");
+        ? t("Non si può eliminare: il venditore ha delle commesse collegate. Disattivalo, così non compare più ma le commesse restano.")
+        : t("Non sono riuscito a eliminare il venditore. Riprova tra un attimo."));
     },
   });
 
@@ -177,8 +179,8 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
       const response = await supabase.functions.invoke("create-salesperson-user", {
         body: { salesperson_id, email, password: password || undefined, phone: phone || undefined, permissions },
       });
-      if (response.error) throw new Error(response.error.message || "Errore nella creazione dell'accesso");
-      if (!response.data?.success) throw new Error(response.data?.error || "Non sono riuscito a creare l'accesso");
+      if (response.error) throw new Error(response.error.message || t("Errore nella creazione dell'accesso"));
+      if (!response.data?.success) throw new Error(response.data?.error || t("Non sono riuscito a creare l'accesso"));
       return response.data;
     },
     onSuccess: (data) => {
@@ -191,11 +193,11 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
       if (data.temp_password) {
         setPasswordDialog({ open: true, password: data.temp_password, name: sp ? `${sp.first_name} ${sp.last_name}` : "" });
       } else {
-        toast.success(data.message || "Accesso creato");
+        toast.success(data.message || t("Accesso creato"));
       }
     },
     onError: (error: Error) => {
-      toast.error(messaggioErrorePersone(error, "Non sono riuscito a creare l'accesso. Riprova tra un attimo."));
+      toast.error(messaggioErrorePersone(error, t("Non sono riuscito a creare l'accesso. Riprova tra un attimo.")));
     },
   });
 
@@ -259,7 +261,7 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
 
   const copyPassword = () => {
     navigator.clipboard.writeText(passwordDialog.password);
-    toast.success("Password copiata negli appunti");
+    toast.success(t("Password copiata negli appunti"));
   };
 
   const formatCommissionValue = (type: string, value: number) => {
@@ -286,7 +288,7 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
           <Checkbox id={`sp-${section.editKey}`} checked={accountPermissions[section.editKey] as boolean}
             disabled={permBloccato(section.editKey)}
             onCheckedChange={(checked) => handleTogglePermission(section.editKey!, checked as boolean)} />
-          <Label htmlFor={`sp-${section.editKey}`} className="text-xs text-muted-foreground">Può modificare</Label>
+          <Label htmlFor={`sp-${section.editKey}`} className="text-xs text-muted-foreground">{t("Può modificare")}</Label>
         </div>
       )}
     </div>
@@ -298,20 +300,18 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
         {/* v8.6.74 — flex-wrap su mobile */}
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0 max-w-2xl">
-            <h2 className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight"><UserCheck className="h-5 w-5 shrink-0" aria-hidden="true" />Venditori</h2>
-            <CardDescription className="mt-1.5">Chi vende per te e come viene pagato.</CardDescription>
+            <h2 className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight"><UserCheck className="h-5 w-5 shrink-0" aria-hidden="true" />{t("Venditori")}</h2>
+            <CardDescription className="mt-1.5">{t("Chi vende per te e come viene pagato.")}</CardDescription>
             <p className="mt-1 text-xs text-muted-foreground">
-              La provvigione di ogni commessa si calcola con il tipo e il valore scritti su ogni venditore. Le «Regole
-              provvigioni» (scaglioni, bonus, penali) per ora servono a provare gli scenari: non cambiano le provvigioni
-              delle commesse.
+              {t("La provvigione di ogni commessa si calcola con il tipo e il valore scritti su ogni venditore. Le «Regole provvigioni» (scaglioni, bonus, penali) per ora servono a provare gli scenari: non cambiano le provvigioni delle commesse.")}
             </p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <Button onClick={() => setRulesDialogOpen(true)} size="sm" variant="outline" className="w-full sm:w-auto shrink-0">
-              <Settings2 className="h-4 w-4 mr-2" aria-hidden="true" />Regole provvigioni
+              <Settings2 className="h-4 w-4 mr-2" aria-hidden="true" />{t("Regole provvigioni")}
             </Button>
             <Button onClick={handleCreate} size="sm" className="w-full sm:w-auto shrink-0" disabled={soloLettura}>
-              <Plus className="h-4 w-4 mr-2" aria-hidden="true" />Nuovo venditore
+              <Plus className="h-4 w-4 mr-2" aria-hidden="true" />{t("Nuovo venditore")}
             </Button>
           </div>
         </div>
@@ -320,31 +320,31 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
         {(isLoadingError || isRefetchError || isPaused) && (
           <Alert role="alert" className="mb-3">
             <AlertDescription className="flex flex-wrap items-center gap-2">
-              {isPaused ? "Connessione assente. L’elenco si aggiornerà al ripristino della rete." : isRefetchError
-                ? "Aggiornamento dei venditori non riuscito. Sono visibili gli ultimi dati caricati."
-                : "Impossibile caricare i venditori."}
-              <Button size="sm" variant="outline" disabled={isFetching || isPaused} onClick={() => void refetch()}>Riprova</Button>
+              {isPaused ? t("Connessione assente. L’elenco si aggiornerà al ripristino della rete.") : isRefetchError
+                ? t("Aggiornamento dei venditori non riuscito. Sono visibili gli ultimi dati caricati.")
+                : t("Impossibile caricare i venditori.")}
+              <Button size="sm" variant="outline" disabled={isFetching || isPaused} onClick={() => void refetch()}>{t("Riprova")}</Button>
             </AlertDescription>
           </Alert>
         )}
         <fieldset disabled={soloLettura} className="m-0 min-w-0 border-0 p-0">
         {isLoading ? (
-          <div role="status" className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" /><span className="sr-only">Caricamento dei venditori…</span></div>
+          <div role="status" className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" /><span className="sr-only">{t("Caricamento dei venditori…")}</span></div>
         ) : isLoadingError || (isPaused && salespeople.length === 0) ? null : salespeople.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground border rounded-lg">
             <UserCheck className="h-12 w-12 mx-auto mb-4 opacity-50" aria-hidden="true" />
-            <p>Nessun venditore ancora.</p>
-            <p className="text-sm">Aggiungi i tuoi venditori per tenere il conto delle provvigioni.</p>
+            <p>{t("Nessun venditore ancora.")}</p>
+            <p className="text-sm">{t("Aggiungi i tuoi venditori per tenere il conto delle provvigioni.")}</p>
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead><TableHead>Contatto</TableHead>
-                <TableHead>Modalità</TableHead>
-                <TableHead>Tipo di provvigione</TableHead><TableHead>Valore</TableHead>
-                <TableHead>Attivo</TableHead>
-                <TableHead className="text-right"><span className="sr-only">Azioni</span></TableHead>
+                <TableHead>{t("Nome")}</TableHead><TableHead>{t("Contatto")}</TableHead>
+                <TableHead>{t("Modalità")}</TableHead>
+                <TableHead>{t("Tipo di provvigione")}</TableHead><TableHead>{t("Valore")}</TableHead>
+                <TableHead>{t("Attivo")}</TableHead>
+                <TableHead className="text-right"><span className="sr-only">{t("Azioni")}</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -360,9 +360,9 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="text-xs">
-                      {sp.compensation_mode === "fixed_only" ? "Solo fisso" :
+                      {sp.compensation_mode === "fixed_only" ? t("Solo fisso") :
                        sp.compensation_mode === "fixed_plus_commission" ? `Fisso+provv ${sp.fixed_monthly_eur ? `(€${sp.fixed_monthly_eur}/mese)` : ""}` :
-                       "Solo provvigioni"}
+                       t("Solo provvigioni")}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -371,7 +371,7 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
                     ) : (
                       <Badge variant="outline" className="gap-1">
                         {COMMISSION_TYPE_LABELS[sp.commission_type]?.icon}
-                        {COMMISSION_TYPE_LABELS[sp.commission_type]?.label}
+                        {t(COMMISSION_TYPE_LABELS[sp.commission_type]?.label ?? "")}
                       </Badge>
                     )}
                   </TableCell>
@@ -379,30 +379,28 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
                     {sp.compensation_mode === "fixed_only" ? "—" : formatCommissionValue(sp.commission_type, sp.commission_value)}
                   </TableCell>
                   <TableCell>
-                    <Switch checked={sp.is_active} disabled={soloLettura || toggleActiveMutation.isPending} aria-label={`${sp.first_name} ${sp.last_name}: attivo`} onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: sp.id, is_active: checked })} />
+                    <Switch checked={sp.is_active} disabled={soloLettura || toggleActiveMutation.isPending} aria-label={t("{first_name} {last_name}: attivo", { first_name: String(sp.first_name ?? ""), last_name: String(sp.last_name ?? "") })} onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: sp.id, is_active: checked })} />
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex gap-1 justify-end">
                       {!sp.user_id && (
-                        <Button variant="ghost" size="icon" onClick={() => handleOpenCreateAccount(sp)} disabled={createAccountMutation.isPending} title="Crea l'accesso" aria-label={`Crea l'accesso per ${sp.first_name} ${sp.last_name}`}>
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenCreateAccount(sp)} disabled={createAccountMutation.isPending} title={t("Crea l'accesso")} aria-label={t("Crea l'accesso per {first_name} {last_name}", { first_name: String(sp.first_name ?? ""), last_name: String(sp.last_name ?? "") })}>
                           <UserPlus className="h-4 w-4 text-primary" aria-hidden="true" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(sp)} title="Modifica" aria-label={`Modifica ${sp.first_name} ${sp.last_name}`}><Pencil className="h-4 w-4" aria-hidden="true" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(sp)} title={t("Modifica")} aria-label={t("Modifica {first_name} {last_name}", { first_name: String(sp.first_name ?? ""), last_name: String(sp.last_name ?? "") })}><Pencil className="h-4 w-4" aria-hidden="true" /></Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" title="Elimina" aria-label={`Elimina ${sp.first_name} ${sp.last_name}`}><Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" /></Button>
+                          <Button variant="ghost" size="icon" title={t("Elimina")} aria-label={t("Elimina {first_name} {last_name}", { first_name: String(sp.first_name ?? ""), last_name: String(sp.last_name ?? "") })}><Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" /></Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Eliminare il venditore?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {sp.first_name} {sp.last_name} verrà eliminato e non si può recuperare. Se ha commesse collegate non si può eliminare: in quel caso disattivalo.
-                            </AlertDialogDescription>
+                            <AlertDialogTitle>{t("Eliminare il venditore?")}</AlertDialogTitle>
+                            <AlertDialogDescription>{t("{first_name} {last_name} verrà eliminato e non si può recuperare. Se ha commesse collegate non si può eliminare: in quel caso disattivalo.", { first_name: String(sp.first_name ?? ""), last_name: String(sp.last_name ?? "") })}</AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Annulla</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => deleteMutation.mutate(sp.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Elimina</AlertDialogAction>
+                            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteMutation.mutate(sp.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{t("Elimina")}</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
@@ -432,42 +430,40 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
       }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Crea l'accesso del venditore</DialogTitle>
-            <DialogDescription>
-              Verrà creato l'accesso all'app per {createAccountDialog.salesperson?.first_name} {createAccountDialog.salesperson?.last_name}
-            </DialogDescription>
+            <DialogTitle>{t("Crea l'accesso del venditore")}</DialogTitle>
+            <DialogDescription>{t("Verrà creato l'accesso all'app per {first_name} {last_name}", { first_name: String(createAccountDialog.salesperson?.first_name ?? ""), last_name: String(createAccountDialog.salesperson?.last_name ?? "") })}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="sp-email">Email *</Label>
+              <Label htmlFor="sp-email">{t("Email *")}</Label>
               <Input id="sp-email" type="email" value={accountEmail} onChange={(e) => setAccountEmail(e.target.value)} placeholder="email@esempio.com" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sp-phone">Cellulare</Label>
+              <Label htmlFor="sp-phone">{t("Cellulare")}</Label>
               <Input id="sp-phone" type="tel" value={accountPhone} onChange={(e) => setAccountPhone(e.target.value)} placeholder="+39 333 1234567" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sp-password">Password</Label>
-              <Input id="sp-password" type="password" value={accountPassword} onChange={(e) => setAccountPassword(e.target.value)} placeholder="Lascia vuoto per generarla automaticamente" />
-              <p className="text-xs text-muted-foreground">Se lasci vuoto, verrà generata automaticamente e mostrata dopo la creazione</p>
+              <Label htmlFor="sp-password">{t("Password")}</Label>
+              <Input id="sp-password" type="password" value={accountPassword} onChange={(e) => setAccountPassword(e.target.value)} placeholder={t("Lascia vuoto per generarla automaticamente")} />
+              <p className="text-xs text-muted-foreground">{t("Se lasci vuoto, verrà generata automaticamente e mostrata dopo la creazione")}</p>
             </div>
 
             <Separator />
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-semibold">Permessi</Label>
+                <Label className="text-base font-semibold">{t("Permessi")}</Label>
                 <div className="flex gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={handleSelectAllPerms}>Seleziona tutti</Button>
-                  <Button type="button" variant="outline" size="sm" onClick={handleDeselectAllPerms}>Deseleziona tutti</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={handleSelectAllPerms}>{t("Seleziona tutti")}</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={handleDeselectAllPerms}>{t("Deseleziona tutti")}</Button>
                 </div>
               </div>
 
               <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gestione Interna</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("Gestione Interna")}</p>
                 {INTERNAL_SECTIONS.map(renderPermSection)}
                 <Separator />
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Marketing e Vendita</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("Marketing e Vendita")}</p>
                 {MARKETING_SECTIONS.map(renderPermSection)}
                 <Separator />
                 <SolaLetturaToggle
@@ -479,17 +475,17 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
                   <div className="flex items-center space-x-2">
                     <Checkbox id="sp-only_assigned" checked={accountPermissions.only_assigned || false}
                       onCheckedChange={(checked) => setAccountPermissions((prev) => ({ ...prev, only_assigned: checked as boolean }))} />
-                    <Label htmlFor="sp-only_assigned" className="font-medium text-sm">Solo il portafoglio CRM assegnato</Label>
+                    <Label htmlFor="sp-only_assigned" className="font-medium text-sm">{t("Solo il portafoglio CRM assegnato")}</Label>
                   </div>
-                  <p className="text-xs text-muted-foreground ml-6">Limita contatti, opportunità e attività commerciali. Gli uffici vedono le commesse secondo i permessi salvati.</p>
+                  <p className="text-xs text-muted-foreground ml-6">{t("Limita contatti, opportunità e attività commerciali. Gli uffici vedono le commesse secondo i permessi salvati.")}</p>
                 </div>
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setCreateAccountDialog({ open: false, salesperson: null }); resetAccountForm(); }}>Annulla</Button>
+            <Button variant="outline" onClick={() => { setCreateAccountDialog({ open: false, salesperson: null }); resetAccountForm(); }}>{t("Annulla")}</Button>
             <Button onClick={handleCreateAccount} disabled={!accountEmail || createAccountMutation.isPending}>
-              {createAccountMutation.isPending ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creazione…</>) : "Crea l'accesso"}
+              {createAccountMutation.isPending ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("Creazione…")}</>) : t("Crea l'accesso")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -499,23 +495,23 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
       <Dialog open={passwordDialog.open} onOpenChange={(open) => { if (!open) setPasswordDialog({ open: false, password: "", name: "" }); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Check className="h-5 w-5 text-primary" aria-hidden="true" />Accesso creato</DialogTitle>
-            <DialogDescription>L'accesso di {passwordDialog.name} è stato creato.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><Check className="h-5 w-5 text-primary" aria-hidden="true" />{t("Accesso creato")}</DialogTitle>
+            <DialogDescription>{t("L'accesso di {name} è stato creato.", { name: String(passwordDialog.name ?? "") })}</DialogDescription>
           </DialogHeader>
           <Alert>
             <AlertDescription className="space-y-3">
-              <p className="font-medium">Password temporanea:</p>
+              <p className="font-medium">{t("Password temporanea:")}</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 p-3 bg-muted rounded-md font-mono text-lg">{passwordDialog.password}</code>
-                <Button variant="outline" size="icon" onClick={copyPassword} aria-label="Copia la password"><Copy className="h-4 w-4" aria-hidden="true" /></Button>
+                <Button variant="outline" size="icon" onClick={copyPassword} aria-label={t("Copia la password")}><Copy className="h-4 w-4" aria-hidden="true" /></Button>
               </div>
               <p className="text-sm text-muted-foreground">
-                Comunica questa password al venditore: gli è arrivata anche per email. Gli consigliamo di cambiarla al primo accesso.
+                {t("Comunica questa password al venditore: gli è arrivata anche per email. Gli consigliamo di cambiarla al primo accesso.")}
               </p>
             </AlertDescription>
           </Alert>
           <DialogFooter>
-            <Button onClick={() => setPasswordDialog({ open: false, password: "", name: "" })}>Ho capito</Button>
+            <Button onClick={() => setPasswordDialog({ open: false, password: "", name: "" })}>{t("Ho capito")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

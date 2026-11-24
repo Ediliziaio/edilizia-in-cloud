@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatDistanceToNow, format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Loader2, Monitor, Smartphone, Tablet, Wifi, WifiOff, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +17,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface UserSessionsTabProps {
   userId: string;
@@ -32,6 +32,7 @@ const deviceIcon = (type: string | null) => {
 };
 
 export function UserSessionsTab({ userId, puoChiudere = true }: UserSessionsTabProps) {
+  const t = useT();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showAll, setShowAll] = useState(false);
@@ -61,13 +62,13 @@ export function UserSessionsTab({ userId, puoChiudere = true }: UserSessionsTabP
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.userSessions.byUser(userId) });
       toast({
-        title: "Sessione chiusa",
+        title: t("Sessione chiusa"),
         // Una sessione non collegata a un dispositivo preciso chiude tutti gli accessi.
-        description: data?.tutti_i_dispositivi ? "L'utente è stato disconnesso da tutti i dispositivi." : undefined,
+        description: data?.tutti_i_dispositivi ? t("L'utente è stato disconnesso da tutti i dispositivi.") : undefined,
       });
     },
     onError: (e: unknown) => {
-      toast({ title: "Non sono riuscito a chiudere la sessione", description: userErrorMessage(e, "Riprova tra un attimo."), variant: "destructive" });
+      toast({ title: t("Non sono riuscito a chiudere la sessione"), description: userErrorMessage(e, "Riprova tra un attimo."), variant: "destructive" });
     },
   });
 
@@ -80,10 +81,10 @@ export function UserSessionsTab({ userId, puoChiudere = true }: UserSessionsTabP
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.userSessions.byUser(userId) });
-      toast({ title: "Tutte le sessioni chiuse" });
+      toast({ title: t("Tutte le sessioni chiuse") });
     },
     onError: (e: unknown) => {
-      toast({ title: "Non sono riuscito a chiudere le sessioni", description: userErrorMessage(e, "Riprova tra un attimo."), variant: "destructive" });
+      toast({ title: t("Non sono riuscito a chiudere le sessioni"), description: userErrorMessage(e, "Riprova tra un attimo."), variant: "destructive" });
     },
   });
 
@@ -91,7 +92,7 @@ export function UserSessionsTab({ userId, puoChiudere = true }: UserSessionsTabP
     return (
       <div role="status" className="flex items-center justify-center h-40">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
-        <span className="sr-only">Caricamento delle sessioni…</span>
+        <span className="sr-only">{t("Caricamento delle sessioni…")}</span>
       </div>
     );
   }
@@ -105,30 +106,30 @@ export function UserSessionsTab({ userId, puoChiudere = true }: UserSessionsTabP
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-base">Sessioni</CardTitle>
+            <CardTitle className="text-base">{t("Sessioni")}</CardTitle>
             <CardDescription className="mt-1.5">
-              {activeSessions.length === 1 ? "1 sessione aperta" : `${activeSessions.length} sessioni aperte`}
-              {" "}(una sessione resta aperta finché la persona non esce o non la chiudi tu)
+              {activeSessions.length === 1 ? t("1 sessione aperta") : t("{n} sessioni aperte", { n: activeSessions.length })}
+              {" "}{t("(una sessione resta aperta finché la persona non esce o non la chiudi tu)")}
             </CardDescription>
           </div>
           {puoChiudere && activeSessions.length > 0 && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm" disabled={revokeAllMutation.isPending}>
-                  Chiudi tutte
+                  {t("Chiudi tutte")}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Chiudere tutte le sessioni?</AlertDialogTitle>
+                  <AlertDialogTitle>{t("Chiudere tutte le sessioni?")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    La persona esce da tutti i dispositivi.
+                    {t("La persona esce da tutti i dispositivi.")}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                   <AlertDialogAction onClick={() => revokeAllMutation.mutate()}>
-                    Chiudi tutte
+                    {t("Chiudi tutte")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -137,26 +138,24 @@ export function UserSessionsTab({ userId, puoChiudere = true }: UserSessionsTabP
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-4">
-            <Button variant={!showAll ? "default" : "outline"} size="sm" onClick={() => setShowAll(false)}>
-              Aperte ({activeSessions.length})
-            </Button>
+            <Button variant={!showAll ? "default" : "outline"} size="sm" onClick={() => setShowAll(false)}>{t("Aperte ({n})", { n: activeSessions.length })}</Button>
             <Button variant={showAll ? "default" : "outline"} size="sm" onClick={() => setShowAll(true)}>
-              Tutte ({sessions?.length || 0})
+              {t("Tutte ({n})", { n: sessions?.length || 0 })}
             </Button>
           </div>
 
           {(!displaySessions || displaySessions.length === 0) ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Nessuna sessione trovata.</p>
+            <p className="text-sm text-muted-foreground text-center py-8">{t("Nessuna sessione trovata.")}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Dispositivo</TableHead>
-                  <TableHead>Indirizzo (IP)</TableHead>
-                  <TableHead>Iniziata</TableHead>
-                  <TableHead>Ultima attività</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead className="text-right"><span className="sr-only">Azioni</span></TableHead>
+                  <TableHead>{t("Dispositivo")}</TableHead>
+                  <TableHead>{t("Indirizzo (IP)")}</TableHead>
+                  <TableHead>{t("Iniziata")}</TableHead>
+                  <TableHead>{t("Ultima attività")}</TableHead>
+                  <TableHead>{t("Stato")}</TableHead>
+                  <TableHead className="text-right"><span className="sr-only">{t("Azioni")}</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -166,7 +165,7 @@ export function UserSessionsTab({ userId, puoChiudere = true }: UserSessionsTabP
                       <div className="flex items-center gap-2">
                         {deviceIcon(session.device_type)}
                         <div>
-                          <p className="text-sm font-medium">{session.browser || "Sconosciuto"}</p>
+                          <p className="text-sm font-medium">{session.browser || t("Sconosciuto")}</p>
                           <p className="text-xs text-muted-foreground">{session.os || "—"}</p>
                         </div>
                       </div>
@@ -176,16 +175,16 @@ export function UserSessionsTab({ userId, puoChiudere = true }: UserSessionsTabP
                       {format(new Date(session.started_at), "dd/MM/yy HH:mm")}
                     </TableCell>
                     <TableCell className="text-xs">
-                      {formatDistanceToNow(new Date(session.last_active_at), { addSuffix: true, locale: it })}
+                      {formatDistanceToNow(new Date(session.last_active_at), { addSuffix: true, locale: dateFnsCampo() })}
                     </TableCell>
                     <TableCell>
                       {session.is_active ? (
                         <Badge variant="default" className="bg-green-600/10 text-green-700 border-green-600/20">
-                          <Wifi className="h-3 w-3 mr-1" aria-hidden="true" /> Aperta
+                          <Wifi className="h-3 w-3 mr-1" aria-hidden="true" /> {t("Aperta")}
                         </Badge>
                       ) : (
                         <Badge variant="secondary">
-                          <WifiOff className="h-3 w-3 mr-1" aria-hidden="true" /> Chiusa
+                          <WifiOff className="h-3 w-3 mr-1" aria-hidden="true" /> {t("Chiusa")}
                         </Badge>
                       )}
                     </TableCell>
@@ -196,8 +195,8 @@ export function UserSessionsTab({ userId, puoChiudere = true }: UserSessionsTabP
                           size="sm"
                           onClick={() => revokeMutation.mutate(session.id)}
                           disabled={revokeMutation.isPending}
-                          aria-label="Chiudi questa sessione"
-                          title="Chiudi questa sessione"
+                          aria-label={t("Chiudi questa sessione")}
+                          title={t("Chiudi questa sessione")}
                         >
                           <XCircle className="h-4 w-4 text-destructive" aria-hidden="true" />
                         </Button>

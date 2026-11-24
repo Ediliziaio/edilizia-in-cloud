@@ -14,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, Clock, CheckCircle2, XCircle, AlertCircle, Filter, Calendar, type LucideIcon } from "lucide-react";
 import { format, differenceInCalendarDays } from "date-fns";
-import { it } from "date-fns/locale";
 import type { HrProfilo, RichiestaTipo, RichiestaStato } from "@/types/hr";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
@@ -23,6 +22,7 @@ import { useHrFestivita } from "@/hooks/useHrFestivita";
 import { workingDates } from "@/lib/personale/calendarioLavorativo";
 import { usePermissions } from "@/hooks/usePermissions";
 import { SpeseCantiereUfficio } from "@/components/personale/SpeseCantiereUfficio";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPO_LABELS: Record<RichiestaTipo, string> = {
   ferie: "Ferie",
@@ -64,6 +64,7 @@ function getErrorMessage(error: unknown) {
 }
 
 export function TabRichieste() {
+  const t = useT();
   const permissions=usePermissions();
   const canApprove=!permissions.isLoading && !permissions.solaLettura && permissions.isAdmin;
   const canCreate=!permissions.isLoading && !permissions.solaLettura && (permissions.isAdmin || permissions.canViewPersone);
@@ -119,10 +120,10 @@ export function TabRichieste() {
       {canApprove && <SpeseCantiereUfficio />}
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-sm:hidden">
-        <KpiCard title="Totali" value={kpis.totali} icon={Calendar} />
-        <KpiCard title="In attesa" value={kpis.in_attesa} icon={Clock} className="border-amber-200" />
-        <KpiCard title="Approvate" value={kpis.approvate} icon={CheckCircle2} className="border-emerald-200" />
-        <KpiCard title="Rifiutate" value={kpis.rifiutate} icon={XCircle} className="border-red-200" />
+        <KpiCard title={t("Totali")} value={kpis.totali} icon={Calendar} />
+        <KpiCard title={t("In attesa")} value={kpis.in_attesa} icon={Clock} className="border-amber-200" />
+        <KpiCard title={t("Approvate")} value={kpis.approvate} icon={CheckCircle2} className="border-emerald-200" />
+        <KpiCard title={t("Rifiutate")} value={kpis.rifiutate} icon={XCircle} className="border-red-200" />
       </div>
 
       {/* Toolbar */}
@@ -136,24 +137,24 @@ export function TabRichieste() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutte">Tutte</SelectItem>
-              <SelectItem value="in_attesa">In attesa</SelectItem>
-              <SelectItem value="approvata">Approvate</SelectItem>
-              <SelectItem value="rifiutata">Rifiutate</SelectItem>
-              <SelectItem value="annullata">Annullate</SelectItem>
-              <SelectItem value="revocata">Revocate</SelectItem>
+              <SelectItem value="tutte">{t("Tutte")}</SelectItem>
+              <SelectItem value="in_attesa">{t("In attesa")}</SelectItem>
+              <SelectItem value="approvata">{t("Approvate")}</SelectItem>
+              <SelectItem value="rifiutata">{t("Rifiutate")}</SelectItem>
+              <SelectItem value="annullata">{t("Annullate")}</SelectItem>
+              <SelectItem value="revocata">{t("Revocate")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <Input
-          placeholder="Cerca dipendente o tipo..."
+          placeholder={t("Cerca dipendente o tipo...")}
           className="max-w-[220px] h-9"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
         />
         <div className="ml-auto">
           <Button disabled={!canCreate} size="sm" onClick={() => setShowNew(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Nuova Richiesta
+            <Plus className="h-4 w-4 mr-1" /> {t("Nuova Richiesta")}
           </Button>
         </div>
       </div>
@@ -182,30 +183,30 @@ export function TabRichieste() {
           filtriAttivi={statoFilter !== "tutte" ? 1 : 0}
           onApriFiltri={() => setFiltriMobileAperti(true)}
         />
-        <Button size="icon" onClick={() => setShowNew(true)} aria-label="Nuova richiesta" className="tap-compact h-9 w-9 shrink-0">
+        <Button size="icon" onClick={() => setShowNew(true)} aria-label={t("Nuova richiesta")} className="tap-compact h-9 w-9 shrink-0">
           <Plus className="h-4 w-4" />
         </Button>
       </div>
 
       {/* List */}
       {isLoading && !loadingTimedOut ? (
-        <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
+        <div className="text-center py-12 text-muted-foreground">{t("Caricamento...")}</div>
       ) : isError || loadingTimedOut ? (
         <Card>
           <CardContent className="py-12 text-center">
             <AlertCircle className="mx-auto mb-3 h-10 w-10 text-amber-500" aria-hidden="true" />
-            <p className="text-sm font-medium text-foreground">Richieste non caricate</p>
+            <p className="text-sm font-medium text-foreground">{t("Richieste non caricate")}</p>
             <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-              {isError ? getErrorMessage(error) : "La risposta sta impiegando troppo tempo. Puoi riprovare senza uscire dalla pagina."}
+              {isError ? getErrorMessage(error) : t("La risposta sta impiegando troppo tempo. Puoi riprovare senza uscire dalla pagina.")}
             </p>
             <Button className="mt-4" size="sm" variant="outline" onClick={() => refetch()}>
-              {isFetching ? "Forza nuovo tentativo" : "Riprova"}
+              {isFetching ? t("Forza nuovo tentativo") : t("Riprova")}
             </Button>
           </CardContent>
         </Card>
       ) : filtered.length === 0 ? (
         // Mobile: una riga di testo, senza riquadro.
-        <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none"><CardContent className="py-12 text-center text-muted-foreground max-sm:p-0 max-sm:text-left max-sm:text-xs">Nessuna richiesta trovata.</CardContent></Card>
+        <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none"><CardContent className="py-12 text-center text-muted-foreground max-sm:p-0 max-sm:text-left max-sm:text-xs">{t("Nessuna richiesta trovata.")}</CardContent></Card>
       ) : (
         <div className="space-y-2 max-sm:space-y-0 max-sm:divide-y max-sm:divide-border max-sm:overflow-hidden max-sm:rounded-lg max-sm:border max-sm:bg-card">
           {filtered.map((r) => (
@@ -248,7 +249,7 @@ export function TabRichieste() {
         risultati={filtered.length}
       >
         <PilloleFiltro<RichiestaStatoFilter>
-          titolo="Stato"
+          titolo={t("Stato")}
           valore={statoFilter}
           onScegli={setStatoFilter}
           scelte={[
@@ -290,6 +291,7 @@ export function RichiestaRow({
   onApprova?: () => void;
   onRifiuta?: () => void;
 }) {
+  const t = useT();
   const st = STATO_STYLE[r.stato] || STATO_STYLE.in_attesa;
   const Icon = st.icon;
   const days = differenceInCalendarDays(new Date(r.data_fine), new Date(r.data_inizio)) + 1;
@@ -313,19 +315,19 @@ export function RichiestaRow({
             <span className="font-medium text-sm truncate max-sm:text-[13px] max-sm:font-semibold max-sm:leading-tight">
               {nomeRichiedente(r)}
             </span>
-            <Badge variant="outline" className="text-xs max-sm:hidden">{TIPO_LABELS[r.tipo] || r.tipo}</Badge>
+            <Badge variant="outline" className="text-xs max-sm:hidden">{t(TIPO_LABELS[r.tipo] || r.tipo)}</Badge>
           </div>
           <p className="text-xs text-muted-foreground max-sm:mt-0.5 max-sm:truncate max-sm:text-[11px] max-sm:leading-tight">
-            <span className="sm:hidden">{TIPO_LABELS[r.tipo] || r.tipo} · </span>
-            {format(new Date(r.data_inizio), "dd MMM", { locale: it })} → {format(new Date(r.data_fine), "dd MMM yyyy", { locale: it })}
-            {" · "}{days} {days === 1 ? "giorno" : "giorni"}
+            <span className="sm:hidden">{t(TIPO_LABELS[r.tipo] || r.tipo)} · </span>
+            {format(new Date(r.data_inizio), "dd MMM", { locale: dateFnsCampo() })} → {format(new Date(r.data_fine), "dd MMM yyyy", { locale: dateFnsCampo() })}
+            {" · "}{days === 1 ? t("1 giorno") : t("{n} giorni", { n: days })}
             {r.ore_richieste ? ` · ${r.ore_richieste}h` : ""}
           </p>
           {/* Chi approva vede subito se gli stessi giorni sono già coperti da altri. */}
           {r.stato === "in_attesa" && giaAssenti.length > 0 && (
             <p className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-700 max-sm:hidden" title={giaAssenti.join(", ")}>
               <AlertCircle className="h-3 w-3 shrink-0" />
-              {giaAssenti.length === 1 ? `${giaAssenti[0]} è già assente` : `${giaAssenti.length} colleghi già assenti`} in quei giorni
+              {giaAssenti.length === 1 ? t("{nome} è già assente in quei giorni", { nome: String(giaAssenti[0] ?? "") }) : t("{n} colleghi già assenti in quei giorni", { n: giaAssenti.length })}
             </p>
           )}
         </div>
@@ -333,12 +335,12 @@ export function RichiestaRow({
         {/* Approva / rifiuta senza aprire la scheda (solo in attesa, solo desktop). */}
         {r.stato === "in_attesa" && onApprova && onRifiuta && (
           <div className="flex shrink-0 items-center gap-1.5 max-sm:hidden" onClick={(e) => e.stopPropagation()}>
-            <Button size="sm" variant="outline" className="h-8 gap-1 text-red-600 hover:text-red-700" onClick={onRifiuta} disabled={inCorso || !r.profilo_id} title={!r.profilo_id ? "Collega prima la richiesta a un profilo HR" : undefined}>
-              <XCircle className="h-3.5 w-3.5" /> Rifiuta
+            <Button size="sm" variant="outline" className="h-8 gap-1 text-red-600 hover:text-red-700" onClick={onRifiuta} disabled={inCorso || !r.profilo_id} title={!r.profilo_id ? t("Collega prima la richiesta a un profilo HR") : undefined}>
+              <XCircle className="h-3.5 w-3.5" /> {t("Rifiuta")}
             </Button>
             <Button size="sm" className="h-8 gap-1" onClick={onApprova} disabled={inCorso || !r.profilo_id}
-              title={!r.profilo_id ? "La richiesta non è collegata a un profilo HR: non si può approvare finché non lo è" : undefined}>
-              <CheckCircle2 className="h-3.5 w-3.5" /> Approva
+              title={!r.profilo_id ? t("La richiesta non è collegata a un profilo HR: non si può approvare finché non lo è") : undefined}>
+              <CheckCircle2 className="h-3.5 w-3.5" /> {t("Approva")}
             </Button>
           </div>
         )}
@@ -346,9 +348,9 @@ export function RichiestaRow({
         {/* Status badge */}
         <Badge className={`${st.bg} ${st.text} gap-1 max-sm:hidden`}>
           <Icon className="h-3 w-3" />
-          {st.label}
+          {t(st.label)}
         </Badge>
-        <span className={`shrink-0 text-[11px] font-medium sm:hidden ${st.text}`}>{st.label}</span>
+        <span className={`shrink-0 text-[11px] font-medium sm:hidden ${st.text}`}>{t(st.label)}</span>
       </CardContent>
     </Card>
   );
@@ -356,6 +358,7 @@ export function RichiestaRow({
 
 /* ── New request dialog ── */
 function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]; open: boolean; onClose: () => void }) {
+  const t = useT();
   const create = useCreateRichiesta();
   const calendar = useHrFestivita();
   const [profiloId, setProfiloId] = useState("");
@@ -384,42 +387,42 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]
     if (!selectedProfilo || durataGiorni <= 0) return null;
     if (tipo === "ferie") {
       return {
-        label: "Ferie",
-        available: `${Number(selectedProfilo.ferie_residue ?? 0)} gg disponibili`,
-        requested: `${durataGiorni} gg richiesti`,
+        label: t("Ferie"),
+        available: t("{n} gg disponibili", { n: Number(selectedProfilo.ferie_residue ?? 0) }),
+        requested: t("{n} gg richiesti", { n: durataGiorni }),
       };
     }
     if (tipo === "permesso") {
       return {
-        label: "Permessi",
-        available: `${Number(selectedProfilo.permessi_residui_ore ?? 0)}h disponibili`,
-        requested: `${oreStimate || 0}h richieste`,
+        label: t("Permessi"),
+        available: t("{n}h disponibili", { n: Number(selectedProfilo.permessi_residui_ore ?? 0) }),
+        requested: t("{n}h richieste", { n: oreStimate || 0 }),
       };
     }
     if (tipo === "rol") {
       return {
         label: "ROL",
-        available: `${Number(selectedProfilo.rol_residuo_ore ?? 0)}h disponibili`,
-        requested: `${oreStimate || 0}h richieste`,
+        available: t("{n}h disponibili", { n: Number(selectedProfilo.rol_residuo_ore ?? 0) }),
+        requested: t("{n}h richieste", { n: oreStimate || 0 }),
       };
     }
     return null;
-  }, [durataGiorni, oreStimate, selectedProfilo, tipo]);
+  }, [durataGiorni, oreStimate, selectedProfilo, tipo, t]);
 
   const handleSubmit = () => {
     if (!profiloId || !dataInizio || !dataFine) {
-      toastMissing();
+      toastMissing(t);
       return;
     }
 
     if (dataFine < dataInizio) {
-      toast.error("La data fine non può essere precedente alla data inizio");
+      toast.error(t("La data fine non può essere precedente alla data inizio"));
       return;
     }
 
     const oreRichieste = ore.trim() ? Number(ore) : null;
     if (oreRichieste != null && (!Number.isFinite(oreRichieste) || oreRichieste <= 0)) {
-      toast.error("Le ore richieste devono essere maggiori di zero");
+      toast.error(t("Le ore richieste devono essere maggiori di zero"));
       return;
     }
 
@@ -433,18 +436,18 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Nuova Richiesta</DialogTitle>
-          <DialogDescription className="max-sm:sr-only">Crea una richiesta di ferie, permesso o assenza.</DialogDescription>
+          <DialogTitle>{t("Nuova Richiesta")}</DialogTitle>
+          <DialogDescription className="max-sm:sr-only">{t("Crea una richiesta di ferie, permesso o assenza.")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>Dipendente</Label>
+            <Label>{t("Dipendente")}</Label>
             <Select value={profiloId} onValueChange={setProfiloId}>
-              <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("Seleziona...")} /></SelectTrigger>
               <SelectContent>
                 <ScrollArea className="max-h-[200px]">
                   {activeProfili.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">Nessun profilo attivo disponibile</div>
+                    <div className="px-3 py-2 text-sm text-muted-foreground">{t("Nessun profilo attivo disponibile")}</div>
                   ) : (
                     activeProfili.map((p) => (
                       <SelectItem key={p.id} value={p.id}>{p.nome} {p.cognome}</SelectItem>
@@ -455,30 +458,30 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]
             </Select>
           </div>
           <div>
-            <Label>Tipo</Label>
+            <Label>{t("Tipo")}</Label>
             <Select value={tipo} onValueChange={(v) => setTipo(v as RichiestaTipo)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(TIPO_LABELS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v}</SelectItem>
+                  <SelectItem key={k} value={k}>{t(v)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label>Data inizio</Label>
+              <Label>{t("Data inizio")}</Label>
               <Input type="date" value={dataInizio} onChange={(e) => setDataInizio(e.target.value)} />
             </div>
             <div>
-              <Label>Data fine</Label>
+              <Label>{t("Data fine")}</Label>
               <Input type="date" value={dataFine} onChange={(e) => setDataFine(e.target.value)} />
             </div>
           </div>
           {/* Mobile no: le ore si calcolano dai giorni e dall'orario del profilo. */}
           <div className="max-sm:hidden">
-            <Label>Ore richieste (opzionale)</Label>
-            <Input type="number" min={0} step={0.5} value={ore} onChange={(e) => setOre(e.target.value)} placeholder="Es. 4" />
+            <Label>{t("Ore richieste (opzionale)")}</Label>
+            <Input type="number" min={0} step={0.5} value={ore} onChange={(e) => setOre(e.target.value)} placeholder={t("Es. 4")} />
           </div>
           {saldoHint && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -486,22 +489,22 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                 <div>
                   <p className="font-medium">{saldoHint.label}: {saldoHint.requested}</p>
-                  <p className="text-amber-800">{saldoHint.available}<span className="max-sm:hidden">. Il sistema blocca richieste sopra saldo o sovrapposte.</span></p>
+                  <p className="text-amber-800">{saldoHint.available}<span className="max-sm:hidden">{t(". Il sistema blocca richieste sopra saldo o sovrapposte.")}</span></p>
                 </div>
               </div>
             </div>
           )}
-          {needsCalendar && <p className="text-xs text-muted-foreground">Conteggio sui giorni lavorativi del profilo e sulle festività aziendali configurate. Non sono giorni di calendario.</p>}
+          {needsCalendar && <p className="text-xs text-muted-foreground">{t("Conteggio sui giorni lavorativi del profilo e sulle festività aziendali configurate. Non sono giorni di calendario.")}</p>}
           {calendarWarning && <p role="alert" className="text-sm text-amber-700">{calendarWarning}</p>}
           <div>
-            <Label>Motivo</Label>
-            <Textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo della richiesta..." rows={2} />
+            <Label>{t("Motivo")}</Label>
+            <Textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder={t("Motivo della richiesta...")} rows={2} />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} className="max-sm:hidden">Annulla</Button>
+          <Button variant="outline" onClick={onClose} className="max-sm:hidden">{t("Annulla")}</Button>
           <Button onClick={handleSubmit} disabled={create.isPending || !!calendarWarning || (needsCalendar && durataGiorni === 0)}>
-            {create.isPending ? "Invio..." : "Crea Richiesta"}
+            {create.isPending ? t("Invio...") : t("Crea Richiesta")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -509,12 +512,13 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]
   );
 }
 
-function toastMissing() {
-  toast.error("Compila tutti i campi obbligatori");
+function toastMissing(t: ReturnType<typeof useT>) {
+  toast.error(t("Compila tutti i campi obbligatori"));
 }
 
 /* ── Detail / approval dialog ── */
 function DettaglioRichiestaDialog({ richiesta: r, open, onClose }: { richiesta: RichiestaWithProfilo; open: boolean; onClose: () => void }) {
+  const t = useT();
   const permissions=usePermissions();
   const canApprove=!permissions.isLoading && !permissions.solaLettura && permissions.isAdmin && !!r.profilo_id;
   const isMobile = useIsMobile();
@@ -533,55 +537,55 @@ function DettaglioRichiestaDialog({ richiesta: r, open, onClose }: { richiesta: 
       <DialogContent className="max-w-md">
         {/* Mobile: chi e che cosa nel titolo, senza la descrizione sotto. */}
         <DialogHeader>
-          <DialogTitle>{isMobile ? `${nomeRichiedente(r)} — ${TIPO_LABELS[r.tipo] || r.tipo}` : "Dettaglio Richiesta"}</DialogTitle>
+          <DialogTitle>{isMobile ? `${nomeRichiedente(r)} — ${t(TIPO_LABELS[r.tipo] || r.tipo)}` : t("Dettaglio Richiesta")}</DialogTitle>
           <DialogDescription className="max-sm:sr-only">
-            {nomeRichiedente(r)} — {TIPO_LABELS[r.tipo] || r.tipo}
+            {nomeRichiedente(r)} — {t(TIPO_LABELS[r.tipo] || r.tipo)}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Stato</span>
-            <Badge className={`${st.bg} ${st.text}`}>{st.label}</Badge>
+            <span className="text-muted-foreground">{t("Stato")}</span>
+            <Badge className={`${st.bg} ${st.text}`}>{t(st.label)}</Badge>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Periodo</span>
+            <span className="text-muted-foreground">{t("Periodo")}</span>
             <span>{format(new Date(r.data_inizio), "dd/MM/yyyy")} → {format(new Date(r.data_fine), "dd/MM/yyyy")}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Durata</span>
-            <span>{days} {days === 1 ? "giorno" : "giorni"}{r.ore_richieste ? ` (${r.ore_richieste}h)` : ""}</span>
+            <span className="text-muted-foreground">{t("Durata")}</span>
+            <span>{days === 1 ? t("1 giorno") : t("{n} giorni", { n: days })}{r.ore_richieste ? ` (${r.ore_richieste}h)` : ""}</span>
           </div>
           {r.motivo && (
             <div>
-              <span className="text-muted-foreground block mb-1">Motivo</span>
+              <span className="text-muted-foreground block mb-1">{t("Motivo")}</span>
               <p className="bg-muted p-2 rounded text-sm">{r.motivo}</p>
             </div>
           )}
           {r.approvata_il && (
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Approvata il</span>
+              <span className="text-muted-foreground">{t("Approvata il")}</span>
               <span>{format(new Date(r.approvata_il), "dd/MM/yyyy HH:mm")}</span>
             </div>
           )}
           <div className="flex justify-between max-sm:hidden">
-            <span className="text-muted-foreground">Creata il</span>
+            <span className="text-muted-foreground">{t("Creata il")}</span>
             <span>{format(new Date(r.created_at), "dd/MM/yyyy HH:mm")}</span>
           </div>
 
-          {!r.profilo_id && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">Richiesta senza profilo HR collegato: verifica l’anagrafica prima di decidere l’esito. Nessun saldo viene modificato.</p>}
+          {!r.profilo_id && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{t("Richiesta senza profilo HR collegato: verifica l’anagrafica prima di decidere l’esito. Nessun saldo viene modificato.")}</p>}
           {r.stato === "in_attesa" && canApprove && (
             <>
               <div>
-                <Label>Note risposta</Label>
-                <Textarea value={noteRisposta} onChange={(e) => setNoteRisposta(e.target.value)} rows={2} placeholder="Note opzionali..." />
+                <Label>{t("Note risposta")}</Label>
+                <Textarea value={noteRisposta} onChange={(e) => setNoteRisposta(e.target.value)} rows={2} placeholder={t("Note opzionali...")} />
               </div>
               <div className="flex gap-2">
                 <Button className="flex-1" variant="outline" onClick={() => handleAction("rifiutata")} disabled={update.isPending}>
-                  <XCircle className="h-4 w-4 mr-1" /> Rifiuta
+                  <XCircle className="h-4 w-4 mr-1" /> {t("Rifiuta")}
                 </Button>
                 <Button className="flex-1" onClick={() => handleAction("approvata")} disabled={update.isPending}>
-                  <CheckCircle2 className="h-4 w-4 mr-1" /> Approva
+                  <CheckCircle2 className="h-4 w-4 mr-1" /> {t("Approva")}
                 </Button>
               </div>
             </>

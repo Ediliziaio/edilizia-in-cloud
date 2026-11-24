@@ -15,6 +15,7 @@ import {
   ORG_CARD_WIDTH,
   ORG_CARD_HEIGHT,
 } from "@/lib/personale/organizzazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   tree: OrgTreeNode[];
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function OrgTreeView({ tree, onNodeClick, siteNames }: Props) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [viewport, setViewport] = useState({ width: 900, height: 560 });
@@ -84,14 +86,14 @@ export function OrgTreeView({ tree, onNodeClick, siteNames }: Props) {
   if (!tree.length) return null;
   return (
     <section
-      aria-label="Albero organizzativo"
+      aria-label={t("Albero organizzativo")}
       className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-white px-4 py-3">
         <div>
-          <h3 className="text-sm font-semibold">Struttura organizzativa</h3>
+          <h3 className="text-sm font-semibold">{t("Struttura organizzativa")}</h3>
           <p className="text-xs text-muted-foreground">
-            Dall’alto verso il basso · apri un profilo per i dettagli
+            {t("Dall’alto verso il basso · apri un profilo per i dettagli")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1">
@@ -100,18 +102,18 @@ export function OrgTreeView({ tree, onNodeClick, siteNames }: Props) {
             size="sm"
             onClick={() => setCollapsed(new Set())}
           >
-            Espandi tutto
+            {t("Espandi tutto")}
           </Button>
           <Button
             variant="outline"
             size="icon"
-            aria-label="Riduci organigramma"
+            aria-label={t("Riduci organigramma")}
             onClick={() => zoom(-0.15)}
           >
             <ZoomOut className="h-4 w-4" />
           </Button>
           <output
-            aria-label="Zoom organigramma"
+            aria-label={t("Zoom organigramma")}
             className="w-12 text-center text-xs tabular-nums"
           >
             {Math.round(view.scale * 100)}%
@@ -119,14 +121,14 @@ export function OrgTreeView({ tree, onNodeClick, siteNames }: Props) {
           <Button
             variant="outline"
             size="icon"
-            aria-label="Ingrandisci organigramma"
+            aria-label={t("Ingrandisci organigramma")}
             onClick={() => zoom(0.15)}
           >
             <ZoomIn className="h-4 w-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={fit}>
             <Maximize className="mr-1.5 h-4 w-4" />
-            Adatta alla vista
+            {t("Adatta alla vista")}
           </Button>
         </div>
       </div>
@@ -207,7 +209,7 @@ export function OrgTreeView({ tree, onNodeClick, siteNames }: Props) {
               {node.children.length > 0 && (
                 <button
                   type="button"
-                  aria-label={`${collapsed.has(node.id) ? "Espandi" : "Comprimi"} collaboratori di ${node.nome} ${node.cognome}`}
+                  aria-label={collapsed.has(node.id) ? t("Espandi collaboratori di {nome}", { nome: `${node.nome} ${node.cognome}` }) : t("Comprimi collaboratori di {nome}", { nome: `${node.nome} ${node.cognome}` })}
                   aria-expanded={!collapsed.has(node.id)}
                   className="absolute -bottom-3 left-1/2 z-10 flex h-6 -translate-x-1/2 items-center gap-1 rounded-full border border-blue-200 bg-white px-2 text-[11px] text-blue-700 shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500"
                   onClick={() =>
@@ -232,8 +234,7 @@ export function OrgTreeView({ tree, onNodeClick, siteNames }: Props) {
         </div>
       </div>
       <p className="border-t bg-white px-4 py-2 text-xs text-muted-foreground">
-        Trascina lo sfondo per spostarti. Usa + e − per lo zoom; la rotellina
-        continua a scorrere la pagina.
+        {t("Trascina lo sfondo per spostarti. Usa + e − per lo zoom; la rotellina continua a scorrere la pagina.")}
       </p>
     </section>
   );

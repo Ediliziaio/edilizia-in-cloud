@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 
 const ICONA_DIREZIONE: Record<DirezioneSync, typeof ArrowRightLeft> = {
@@ -52,6 +53,7 @@ const ICONA_DIREZIONE: Record<DirezioneSync, typeof ArrowRightLeft> = {
 };
 
 export function UserCalendarTab() {
+  const t = useT();
   const { userId } = useParams<{ userId: string }>();
   const { effectiveCompany, user: authUser } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -97,15 +99,15 @@ export function UserCalendarTab() {
       });
       if (error) throw error;
       toast({
-        title: "Sincronizzazione completata",
+        title: t("Sincronizzazione completata"),
         description: data?.pulled != null
           ? `${data.pulled ?? 0} eventi aggiornati · ${data.busySlots ?? 0} slot occupati`
-          : "Gli eventi sono stati sincronizzati.",
+          : t("Gli eventi sono stati sincronizzati."),
       });
     } catch (e) {
       toast({
-        title: "Errore sincronizzazione",
-        description: (e as Error).message || "Impossibile avviare la sincronizzazione.",
+        title: t("Errore sincronizzazione"),
+        description: (e as Error).message || t("Impossibile avviare la sincronizzazione."),
         variant: "destructive",
       });
     } finally {
@@ -123,13 +125,13 @@ export function UserCalendarTab() {
     try {
       await disconnectMutation.mutateAsync();
       toast({
-        title: "Calendario disconnesso",
-        description: "La connessione con Google Calendar è stata rimossa.",
+        title: t("Calendario disconnesso"),
+        description: t("La connessione con Google Calendar è stata rimossa."),
       });
     } catch (e) {
       toast({
-        title: "Errore disconnessione",
-        description: (e as Error).message || "Impossibile disconnettere il calendario.",
+        title: t("Errore disconnessione"),
+        description: (e as Error).message || t("Impossibile disconnettere il calendario."),
         variant: "destructive",
       });
     }
@@ -140,13 +142,13 @@ export function UserCalendarTab() {
       await saveMutation.mutateAsync(prefs);
       setModifiche({});
       toast({
-        title: "Preferenze salvate",
-        description: "Le impostazioni del calendario sono state aggiornate.",
+        title: t("Preferenze salvate"),
+        description: t("Le impostazioni del calendario sono state aggiornate."),
       });
     } catch (e) {
       toast({
-        title: "Errore salvataggio preferenze",
-        description: (e as Error).message || "Impossibile salvare le preferenze.",
+        title: t("Errore salvataggio preferenze"),
+        description: (e as Error).message || t("Impossibile salvare le preferenze."),
         variant: "destructive",
       });
     }
@@ -170,11 +172,11 @@ export function UserCalendarTab() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base">Google Calendar</CardTitle>
+            <CardTitle className="text-base">{t("Google Calendar")}</CardTitle>
             {isConnected && (
               <Badge className="ml-auto bg-emerald-600 hover:bg-emerald-600 gap-1">
                 <CheckCircle2 className="h-3 w-3" />
-                Sync real-time attivo
+                {t("Sync real-time attivo")}
               </Badge>
             )}
           </div>
@@ -187,38 +189,35 @@ export function UserCalendarTab() {
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="font-medium text-sm">Connesso</p>
+                  <p className="font-medium text-sm">{t("Connesso")}</p>
                   <p className="text-xs text-muted-foreground">{gcalConn?.google_account_email}</p>
                   {gcalConn?.updated_at && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Ultimo sync: {formatRelativeTime(gcalConn.updated_at)}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t("Ultimo sync: {updated_at}", { updated_at: formatRelativeTime(gcalConn.updated_at) })}</p>
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={handleSyncNow} disabled={syncing}>
                   {syncing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
-                  Sincronizza Ora
+                  {t("Sincronizza Ora")}
                 </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10">
-                    Disconnetti
+                    {t("Disconnetti")}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Disconnetti Google Calendar?</AlertDialogTitle>
+                    <AlertDialogTitle>{t("Disconnetti Google Calendar?")}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      La sincronizzazione degli appuntamenti con Google Calendar verrà interrotta.
-                      Gli eventi già creati non verranno eliminati.
+                      {t("La sincronizzazione degli appuntamenti con Google Calendar verrà interrotta. Gli eventi già creati non verranno eliminati.")}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                     <AlertDialogAction onClick={handleDisconnect} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Disconnetti
+                      {t("Disconnetti")}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -232,18 +231,18 @@ export function UserCalendarTab() {
                   <XCircle className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="font-medium text-sm">Non connesso</p>
+                  <p className="font-medium text-sm">{t("Non connesso")}</p>
                   <p className="text-xs text-muted-foreground">
                     {isOwnProfile
-                      ? "Collega il tuo Google Calendar per sincronizzare gli appuntamenti."
-                      : "Questo utente non ha ancora collegato Google Calendar."}
+                      ? t("Collega il tuo Google Calendar per sincronizzare gli appuntamenti.")
+                      : t("Questo utente non ha ancora collegato Google Calendar.")}
                   </p>
                 </div>
               </div>
               {isOwnProfile && (
                 <Button size="sm" onClick={handleConnect}>
                   <Calendar className="h-4 w-4 mr-1.5" />
-                  Collega
+                  {t("Collega")}
                 </Button>
               )}
             </div>
@@ -256,12 +255,10 @@ export function UserCalendarTab() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            <CardTitle className="text-base">Microsoft Outlook</CardTitle>
+            <CardTitle className="text-base">{t("Microsoft Outlook")}</CardTitle>
           </div>
           <CardDescription>
-            La sincronizzazione con Outlook (Microsoft 365) è attiva, in sola lettura: gli
-            impegni Outlook compaiono come occupati nel calendario. Si collega con l'account
-            Microsoft da Impostazioni → Calendari.
+            {t("La sincronizzazione con Outlook (Microsoft 365) è attiva, in sola lettura: gli impegni Outlook compaiono come occupati nel calendario. Si collega con l'account Microsoft da Impostazioni → Calendari.")}
           </CardDescription>
         </CardHeader>
         {isOwnProfile && (
@@ -272,7 +269,7 @@ export function UserCalendarTab() {
               onClick={() => navigate("/azienda/impostazioni/calendari")}
             >
               <ExternalLink className="h-4 w-4 mr-1.5" />
-              Apri impostazioni calendari
+              {t("Apri impostazioni calendari")}
             </Button>
           </CardContent>
         )}
@@ -283,11 +280,10 @@ export function UserCalendarTab() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Apple className="h-5 w-5" />
-            <CardTitle className="text-base">Apple Calendar</CardTitle>
+            <CardTitle className="text-base">{t("Apple Calendar")}</CardTitle>
           </div>
           <CardDescription>
-            La sincronizzazione con Apple Calendar (iCal) è attiva. Si collega da
-            Impostazioni → Calendari, con una password per app di iCloud.
+            {t("La sincronizzazione con Apple Calendar (iCal) è attiva. Si collega da Impostazioni → Calendari, con una password per app di iCloud.")}
           </CardDescription>
         </CardHeader>
         {isOwnProfile && (
@@ -298,7 +294,7 @@ export function UserCalendarTab() {
               onClick={() => navigate("/azienda/impostazioni/calendari")}
             >
               <ExternalLink className="h-4 w-4 mr-1.5" />
-              Apri impostazioni calendari
+              {t("Apri impostazioni calendari")}
             </Button>
           </CardContent>
         )}
@@ -314,9 +310,9 @@ export function UserCalendarTab() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Sincronizzazione attiva</p>
+                  <p className="text-sm font-medium">{t("Sincronizzazione attiva")}</p>
                   <p className="text-xs text-muted-foreground">
-                    Abilita o disabilita la sincronizzazione per questo utente.
+                    {t("Abilita o disabilita la sincronizzazione per questo utente.")}
                   </p>
                 </div>
                 <Switch
@@ -332,7 +328,7 @@ export function UserCalendarTab() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-base">Direzione Sincronizzazione</CardTitle>
+                <CardTitle className="text-base">{t("Direzione Sincronizzazione")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -355,8 +351,8 @@ export function UserCalendarTab() {
                         <Icon className="h-4 w-4" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">{opt.label}</p>
-                        <p className="text-xs text-muted-foreground">{opt.descrizione}</p>
+                        <p className="text-sm font-medium">{t(opt.label)}</p>
+                        <p className="text-xs text-muted-foreground">{t(opt.descrizione)}</p>
                       </div>
                     </div>
                   </button>
@@ -375,9 +371,9 @@ export function UserCalendarTab() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Blocca slot occupati</p>
+                  <p className="text-sm font-medium">{t("Blocca slot occupati")}</p>
                   <p className="text-xs text-muted-foreground">
-                    Quando sei occupato in Google Calendar, non mostrare disponibilità per nuove prenotazioni.
+                    {t("Quando sei occupato in Google Calendar, non mostrare disponibilità per nuove prenotazioni.")}
                   </p>
                 </div>
                 <Switch
@@ -392,7 +388,7 @@ export function UserCalendarTab() {
           <div className="flex justify-end">
             <Button onClick={handleSave} disabled={saveMutation.isPending}>
               {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Salva Preferenze
+              {t("Salva Preferenze")}
             </Button>
           </div>
         </>
@@ -402,13 +398,13 @@ export function UserCalendarTab() {
       <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
         <ExternalLink className="h-3.5 w-3.5 shrink-0" />
         <span>
-          Per gestire i calendari aziendali condivisi vai a{" "}
+          {t("Per gestire i calendari aziendali condivisi vai a")}{" "}
           <button
             type="button"
             className="underline hover:text-foreground transition-colors"
             onClick={() => navigate("/azienda/impostazioni/calendari")}
           >
-            Impostazioni → Calendari
+            {t("Impostazioni → Calendari")}
           </button>
         </span>
       </div>

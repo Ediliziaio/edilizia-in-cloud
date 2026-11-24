@@ -37,6 +37,7 @@ import { invalidaRuoliOperativi } from "@/lib/permessi/cacheRuoliOperativi";
 import { isNetworkError, isTransientTimeoutError, sembraErrorePostgresGrezzo, userErrorMessage } from "@/lib/userErrorMessage";
 import { withAbortableClientTimeout } from "@/lib/query-timeout";
 import type { Database } from "@/integrations/supabase/types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type CompanyUserRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 type UserAuditInsert = Database["public"]["Tables"]["user_audit_log"]["Insert"];
@@ -98,12 +99,12 @@ type TabId = typeof SIDEBAR_TABS[number]["id"];
  * trasformerebbe in un generico «Non hai i permessi» (codice 42501), per
  * questo le due mutation di ruolo sono `silent` e l'errore lo dice questa.
  */
-function messaggioErroreRuolo(e: unknown): string {
+function messaggioErroreRuolo(e: unknown, t: (testo: string) => string = (testo) => testo): string {
   const msg = (e as { message?: unknown } | null)?.message;
   if (typeof msg === "string" && msg && !sembraErrorePostgresGrezzo(msg) && !isNetworkError(e) && !isTransientTimeoutError(e)) {
     return msg;
   }
-  return userErrorMessage(e, "Non è stato possibile cambiare il ruolo. Riprova.");
+  return userErrorMessage(e, t("Non è stato possibile cambiare il ruolo. Riprova."));
 }
 
 function writeUserAuditLog(payload: UserAuditInsert) {
@@ -113,6 +114,7 @@ function writeUserAuditLog(payload: UserAuditInsert) {
 }
 
 export default function SettingsUserDetail() {
+  const tr = useT();
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -134,8 +136,8 @@ export default function SettingsUserDetail() {
     if (authLoading || permissions.isLoading) return;
     if (!puoAprireScheda) {
       toast({
-        title: "Pagina riservata",
-        description: "Le schede delle persone le apre solo l'amministratore.",
+        title: tr("Pagina riservata"),
+        description: tr("Le schede delle persone le apre solo l'amministratore."),
         variant: "destructive",
       });
       // All'elenco delle persone (che chi arriva qui può aprire), non a un'altra pagina che potrebbe negarsi.
@@ -256,7 +258,7 @@ export default function SettingsUserDetail() {
     meta: { silent: true },
     mutationFn: async ({ role: addRole, add }: { role: RuoloAggiuntivo; add: boolean }) => {
       const companyId = userData?.access_company_id ?? userData?.company_id;
-      if (!userId || !companyId) throw new Error("Utente non inizializzato");
+      if (!userId || !companyId) throw new Error(tr("Utente non inizializzato"));
       const { error } = await supabase.rpc("imposta_ruolo_aggiuntivo" as never, {
         p_user_id: userId,
         p_company_id: companyId,
@@ -273,14 +275,14 @@ export default function SettingsUserDetail() {
       if (userId === currentUser?.id) await refreshAuth();
       const testi = TESTI_RUOLO_AGGIUNTIVO[addRole];
       toast({
-        title: add ? `Ruolo "${testi.nome}" aggiunto` : `Ruolo "${testi.nome}" rimosso`,
+        title: add ? tr("Ruolo \"{nome}\" aggiunto", { nome: String(testi.nome ?? "") }) : tr("Ruolo \"{nome}\" rimosso", { nome: String(testi.nome ?? "") }),
         description: add ? testi.cosaFa : testi.tolto,
       });
     },
     onError: (e: unknown) => {
       toast({
-        title: "Impossibile aggiornare il ruolo aggiuntivo",
-        description: messaggioErroreRuolo(e),
+        title: tr("Impossibile aggiornare il ruolo aggiuntivo"),
+        description: messaggioErroreRuolo(e, tr),
         variant: "destructive",
       });
     },
@@ -329,19 +331,19 @@ export default function SettingsUserDetail() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       if (r?.emailChanged) {
         toast({
-          title: "Email di login aggiornata",
+          title: tr("Email di login aggiornata"),
           description: r.recoveryWarning
-            ? `Email cambiata, ma l'invio del reset non è riuscito: ${r.recoveryWarning}`
-            : "Inviata un'email di reset password al nuovo indirizzo.",
+            ? tr("Email cambiata, ma l'invio del reset non è riuscito: {recoveryWarning}", { recoveryWarning: String(r.recoveryWarning ?? "") })
+            : tr("Inviata un'email di reset password al nuovo indirizzo."),
         });
       } else {
-        toast({ title: "Profilo aggiornato", description: "I dati dell'utente sono stati salvati." });
+        toast({ title: tr("Profilo aggiornato"), description: tr("I dati dell'utente sono stati salvati.") });
       }
     },
     onError: (e: Error) => {
       toast({
-        title: "Errore salvataggio profilo",
-        description: messaggioErrorePersone(e, "Impossibile salvare il profilo. Riprova tra un attimo."),
+        title: tr("Errore salvataggio profilo"),
+        description: messaggioErrorePersone(e, tr("Impossibile salvare il profilo. Riprova tra un attimo.")),
         variant: "destructive",
       });
     },
@@ -386,12 +388,12 @@ export default function SettingsUserDetail() {
           is_impersonated: isImpersonating,
         });
       }
-      toast({ title: "Permessi salvati", description: "I permessi sono stati aggiornati." });
+      toast({ title: tr("Permessi salvati"), description: tr("I permessi sono stati aggiornati.") });
     },
     onError: (e: Error) => {
       toast({
-        title: "Errore salvataggio permessi",
-        description: messaggioErrorePersone(e, "Errore durante il salvataggio dei permessi. Riprova tra un attimo."),
+        title: tr("Errore salvataggio permessi"),
+        description: messaggioErrorePersone(e, tr("Errore durante il salvataggio dei permessi. Riprova tra un attimo.")),
         variant: "destructive",
       });
     },
@@ -429,12 +431,12 @@ export default function SettingsUserDetail() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       await invalidaRuoliOperativi(queryClient, userData?.access_company_id ?? userData?.company_id ?? effectiveCompany.id);
       if (userId === currentUser?.id) await refreshAuth();
-      toast({ title: "Ruolo aggiornato", description: "Il ruolo dell'utente è stato modificato." });
+      toast({ title: tr("Ruolo aggiornato"), description: tr("Il ruolo dell'utente è stato modificato.") });
     },
     onError: (e: unknown) => {
       toast({
-        title: "Impossibile cambiare il ruolo",
-        description: messaggioErroreRuolo(e),
+        title: tr("Impossibile cambiare il ruolo"),
+        description: messaggioErroreRuolo(e, tr),
         variant: "destructive",
       });
     },
@@ -442,7 +444,7 @@ export default function SettingsUserDetail() {
 
   if (authLoading || permissions.isLoading || isLoading) {
     return (
-      <div className="space-y-5" role="status" aria-label="Caricamento scheda utente">
+      <div className="space-y-5" role="status" aria-label={tr("Caricamento scheda utente")}>
         <div className="flex items-center gap-4">
           <Skeleton className="h-14 w-14 shrink-0 rounded-full" />
           <div className="space-y-2">
@@ -463,10 +465,10 @@ export default function SettingsUserDetail() {
   const avvisoLettura = (isError || isPaused) && (
     <Alert role="alert">
       <AlertDescription className="flex flex-wrap items-center gap-2">
-        {isPaused ? "Connessione assente. La scheda si aggiornerà al ripristino della rete." : userData
-          ? "Aggiornamento della scheda non riuscito. Sono visibili gli ultimi dati caricati."
-          : "Impossibile caricare la scheda utente."}
-        <Button size="sm" variant="outline" disabled={isFetching || isPaused} onClick={() => void refetch()}>Riprova</Button>
+        {isPaused ? tr("Connessione assente. La scheda si aggiornerà al ripristino della rete.") : userData
+          ? tr("Aggiornamento della scheda non riuscito. Sono visibili gli ultimi dati caricati.")
+          : tr("Impossibile caricare la scheda utente.")}
+        <Button size="sm" variant="outline" disabled={isFetching || isPaused} onClick={() => void refetch()}>{tr("Riprova")}</Button>
       </AlertDescription>
     </Alert>
   );
@@ -474,9 +476,9 @@ export default function SettingsUserDetail() {
   if (!userData) {
     return (
       <div className="text-center py-12">
-        {avvisoLettura || <p className="text-muted-foreground">{accessCompanyId ? "Utente non trovato." : "Seleziona un’azienda per aprire la scheda utente."}</p>}
+        {avvisoLettura || <p className="text-muted-foreground">{accessCompanyId ? tr("Utente non trovato.") : tr("Seleziona un’azienda per aprire la scheda utente.")}</p>}
         <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/impostazioni/persone")}>
-          Torna all'elenco
+          {tr("Torna all'elenco")}
         </Button>
       </div>
     );
@@ -489,7 +491,7 @@ export default function SettingsUserDetail() {
         <Button
           variant="ghost" size="icon" className="max-md:-ml-2 max-md:h-8 max-md:w-8"
           onClick={() => { if (confermaUscita()) navigate("/azienda/impostazioni/persone?tab=utenti"); }}
-          aria-label="Torna all'elenco delle persone"
+          aria-label={tr("Torna all'elenco delle persone")}
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         </Button>
@@ -498,12 +500,12 @@ export default function SettingsUserDetail() {
             <h2 className="truncate text-lg font-semibold max-md:text-base">{userData.first_name} {userData.last_name}</h2>
             {userData.e_il_titolare && (
               <Badge variant="secondary" className="gap-1 text-xs">
-                <ShieldCheck className="h-3 w-3" /> Titolare
+                <ShieldCheck className="h-3 w-3" /> {tr("Titolare")}
               </Badge>
             )}
             {userData.is_blocked && (
               <Badge variant="destructive" className="gap-1 text-xs">
-                <ShieldOff className="h-3 w-3" /> Bloccato
+                <ShieldOff className="h-3 w-3" /> {tr("Bloccato")}
               </Badge>
             )}
           </div>
@@ -514,7 +516,7 @@ export default function SettingsUserDetail() {
       {!puoGestirePersone && (
         <Alert>
           <AlertDescription>
-            Stai guardando. I dati, il ruolo, i permessi e gli accessi di questa persona li cambia solo l'amministratore.
+            {tr("Stai guardando. I dati, il ruolo, i permessi e gli accessi di questa persona li cambia solo l'amministratore.")}
           </AlertDescription>
         </Alert>
       )}
@@ -523,10 +525,9 @@ export default function SettingsUserDetail() {
         <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <div>
-            <p className="font-medium max-md:text-xs">È il titolare dell'azienda<span className="md:hidden">: il ruolo di amministratore non si toglie.</span></p>
+            <p className="font-medium max-md:text-xs">{tr("È il titolare dell'azienda")}<span className="md:hidden">{tr(": il ruolo di amministratore non si toglie.")}</span></p>
             <p className="mt-0.5 text-xs text-muted-foreground max-md:hidden">
-              Il suo ruolo di Amministratore non si può togliere, nemmeno da un altro amministratore: serve
-              prima indicare un altro titolare. Ed è l'unico che può cambiare il ruolo agli altri amministratori.
+              {tr("Il suo ruolo di Amministratore non si può togliere, nemmeno da un altro amministratore: serve prima indicare un altro titolare. Ed è l'unico che può cambiare il ruolo agli altri amministratori.")}
             </p>
           </div>
         </div>
@@ -537,13 +538,13 @@ export default function SettingsUserDetail() {
         <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
           <HardHat className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
           <div>
-            <p className="font-medium max-md:text-xs">Utente Area Campo<span className="md:hidden">: entra da lavori.ediliziaincloud.com.</span></p>
+            <p className="font-medium max-md:text-xs">{tr("Utente Area Campo")}<span className="md:hidden">{tr(": entra da lavori.ediliziaincloud.com.")}</span></p>
             <p className="text-amber-700 text-xs mt-0.5 max-md:hidden">
-              Questo utente accede tramite{" "}
+              {tr("Questo utente accede tramite")}{" "}
               <a href="https://lavori.ediliziaincloud.com" target="_blank" rel="noreferrer" className="underline font-medium">
                 lavori.ediliziaincloud.com
               </a>
-              {" "}— non dal portale principale.
+              {" "}{tr("— non dal portale principale.")}
             </p>
           </div>
         </div>
@@ -565,7 +566,7 @@ export default function SettingsUserDetail() {
                 isActive ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {ETICHETTA_MOBILE[tab.id]}
+              {tr(ETICHETTA_MOBILE[tab.id])}
             </button>
           );
         })}
@@ -574,7 +575,7 @@ export default function SettingsUserDetail() {
       <div className="flex gap-6 min-h-[600px] max-md:min-h-0">
         {/* Desktop: vertical sidebar */}
         <div className="hidden md:block w-64 shrink-0">
-          <nav aria-label="Schede della persona" className="space-y-1 sticky top-4">
+          <nav aria-label={tr("Schede della persona")} className="space-y-1 sticky top-4">
             {SIDEBAR_TABS.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -590,7 +591,7 @@ export default function SettingsUserDetail() {
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  {tab.label}
+                  {tr(tab.label)}
                 </button>
               );
             })}
@@ -678,22 +679,20 @@ export default function SettingsUserDetail() {
       <AlertDialog open={!!pendingProfile} onOpenChange={(open) => !open && setPendingProfile(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cambiare l'email di login?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Cambiare l'email di login?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingProfile && (
                 <>
-                  L'indirizzo di accesso di{" "}
-                  <strong>{pendingProfile.first_name} {pendingProfile.last_name}</strong> diventerà{" "}
+                  {tr("L'indirizzo di accesso di")}{" "}
+                  <strong>{pendingProfile.first_name} {pendingProfile.last_name}</strong> {tr("diventerà")}{" "}
                   <strong>{pendingProfile.email.trim().toLowerCase()}</strong>
-                  {userData?.email ? <> (da <em>{userData.email}</em>)</> : null}. Invieremo
-                  un'email di reset password al nuovo indirizzo: l'utente dovrà usarla per impostare
-                  la password e accedere.
+                  {userData?.email ? <> {tr("(da")} <em>{userData.email}</em>)</> : null}{tr(". Invieremo un'email di reset password al nuovo indirizzo: l'utente dovrà usarla per impostare la password e accedere.")}
                 </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (pendingProfile) {
@@ -702,7 +701,7 @@ export default function SettingsUserDetail() {
                 }
               }}
             >
-              Cambia email e invia reset
+              {tr("Cambia email e invia reset")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

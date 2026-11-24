@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useEliminaCategoria, useMezziCategorie, useSalvaCategoria } from "@/hooks/useMezzi";
 import type { MezzoCategoria } from "@/types/mezzi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function CategorieAttrezziDialog({ open, onOpenChange, conteggi }: Props) {
+  const t = useT();
   const { data: categorie = [], isLoading } = useMezziCategorie();
   const salva = useSalvaCategoria();
   const elimina = useEliminaCategoria();
@@ -38,8 +40,8 @@ export function CategorieAttrezziDialog({ open, onOpenChange, conteggi }: Props)
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Categorie degli attrezzi</DialogTitle>
-          <DialogDescription>Per raggruppare e filtrare l'elenco. Togliendo una categoria i suoi attrezzi restano, senza categoria.</DialogDescription>
+          <DialogTitle>{t("Categorie degli attrezzi")}</DialogTitle>
+          <DialogDescription>{t("Per raggruppare e filtrare l'elenco. Togliendo una categoria i suoi attrezzi restano, senza categoria.")}</DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
@@ -68,10 +70,10 @@ export function CategorieAttrezziDialog({ open, onOpenChange, conteggi }: Props)
             aggiungi();
           }}
         >
-          <Input value={nuova} onChange={(e) => setNuova(e.target.value)} placeholder="Nuova categoria, es. Saldatrici" aria-label="Nuova categoria" />
+          <Input value={nuova} onChange={(e) => setNuova(e.target.value)} placeholder={t("Nuova categoria, es. Saldatrici")} aria-label={t("Nuova categoria")} />
           <Button type="submit" disabled={!nuova.trim() || salva.isPending} className="shrink-0">
             {salva.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            <span className="ml-1 max-sm:hidden">Aggiungi</span>
+            <span className="ml-1 max-sm:hidden">{t("Aggiungi")}</span>
           </Button>
         </form>
       </DialogContent>
@@ -90,6 +92,7 @@ function RigaCategoria({
   onTogli: () => void;
   onRinomina: (nome: string) => void;
 }) {
+  const t = useT();
   const [nome, setNome] = useState(categoria.nome);
   const cambiato = nome.trim() !== categoria.nome && nome.trim().length > 0;
 
@@ -97,10 +100,10 @@ function RigaCategoria({
     return (
       <li className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-sm">
         <span className="min-w-0 flex-1 text-red-800">
-          Togliere «{categoria.nome}»?{quanti > 0 ? ` ${quanti} ${quanti === 1 ? "attrezzo resta" : "attrezzi restano"} senza categoria.` : ""}
+          {t("Togliere «{nome}»?", { nome: categoria.nome })}{quanti > 0 ? ` ${t(quanti === 1 ? "{n} attrezzo resta senza categoria." : "{n} attrezzi restano senza categoria.", { n: quanti })}` : ""}
         </span>
-        <Button size="sm" variant="ghost" onClick={onAnnullaTogli}>No</Button>
-        <Button size="sm" variant="destructive" onClick={onTogli}>Togli</Button>
+        <Button size="sm" variant="ghost" onClick={onAnnullaTogli}>{t("No")}</Button>
+        <Button size="sm" variant="destructive" onClick={onTogli}>{t("Togli")}</Button>
       </li>
     );
   }
@@ -113,16 +116,16 @@ function RigaCategoria({
         onKeyDown={(e) => {
           if (e.key === "Enter" && cambiato) onRinomina(nome.trim());
         }}
-        aria-label={`Nome della categoria ${categoria.nome}`}
+        aria-label={t("Nome della categoria {nome}", { nome: String(categoria.nome ?? "") })}
         className="h-9"
       />
-      <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground" title="Attrezzi in questa categoria">{quanti}</span>
+      <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground" title={t("Attrezzi in questa categoria")}>{quanti}</span>
       {cambiato ? (
-        <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" onClick={() => onRinomina(nome.trim())} aria-label="Salva il nome">
+        <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" onClick={() => onRinomina(nome.trim())} aria-label={t("Salva il nome")}>
           <Check className="h-4 w-4 text-emerald-600" />
         </Button>
       ) : (
-        <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive" onClick={onChiediTogli} aria-label={`Togli ${categoria.nome}`}>
+        <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive" onClick={onChiediTogli} aria-label={t("Togli {nome}", { nome: String(categoria.nome ?? "") })}>
           <Trash2 className="h-4 w-4" />
         </Button>
       )}

@@ -16,7 +16,6 @@ import {
   Users,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -35,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type GovernanceProfile = {
   id: string;
@@ -151,7 +151,7 @@ function formatLastLogin(value: string | null) {
   if (!value) return "Mai connesso";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Data non valida";
-  return formatDistanceToNow(date, { addSuffix: true, locale: it });
+  return formatDistanceToNow(date, { addSuffix: true, locale: dateFnsCampo() });
 }
 
 // Prima qui si leggeva «N sessioni attive»: una sessione resta «attiva» finché
@@ -391,6 +391,7 @@ async function fetchGovernanceUsers(
 }
 
 export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireScheda?: boolean } = {}) {
+  const t = useT();
   const { effectiveCompany, profile, role } = useAuth();
   const navigate = useNavigate();
   const companyId = effectiveCompany?.id;
@@ -429,32 +430,32 @@ export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireSc
 
   const checklist = [
     {
-      label: "Amministratori con l'app di verifica",
+      label: t("Amministratori con l'app di verifica"),
       ok: summary.adminsWithout2fa === 0,
       detail: summary.adminsWithout2fa === 0
-        ? "Tutti gli amministratori hanno l'app di verifica."
-        : `${summary.adminsWithout2fa} ${summary.adminsWithout2fa === 1 ? "amministratore" : "amministratori"} senza l'app di verifica.`,
+        ? t("Tutti gli amministratori hanno l'app di verifica.")
+        : t(summary.adminsWithout2fa === 1 ? "{n} amministratore senza l'app di verifica." : "{n} amministratori senza l'app di verifica.", { n: summary.adminsWithout2fa }),
     },
     {
-      label: "Accessi bloccati",
+      label: t("Accessi bloccati"),
       ok: summary.blockedUsers + summary.lockedUsers === 0,
       detail: summary.blockedUsers + summary.lockedUsers === 0
-        ? "Nessun accesso bloccato."
-        : `${summary.blockedUsers} ${summary.blockedUsers === 1 ? "bloccato" : "bloccati"} dall'amministratore, ${summary.lockedUsers} per password sbagliate.`,
+        ? t("Nessun accesso bloccato.")
+        : t(summary.blockedUsers === 1 ? "{n} bloccato dall'amministratore, {m} per password sbagliate." : "{n} bloccati dall'amministratore, {m} per password sbagliate.", { n: summary.blockedUsers, m: summary.lockedUsers }),
     },
     {
-      label: "Accessi che non si usano da tempo",
+      label: t("Accessi che non si usano da tempo"),
       ok: summary.neverLoggedUsers + summary.inactiveUsers === 0,
       detail: summary.neverLoggedUsers + summary.inactiveUsers === 0
-        ? "Nessun accesso fermo da tempo."
-        : `${summary.neverLoggedUsers} ${summary.neverLoggedUsers === 1 ? "non è mai entrato" : "non sono mai entrati"}, ${summary.inactiveUsers} ${summary.inactiveUsers === 1 ? "non entra" : "non entrano"} da più di 90 giorni.`,
+        ? t("Nessun accesso fermo da tempo.")
+        : `${t(summary.neverLoggedUsers === 1 ? "{n} non è mai entrato" : "{n} non sono mai entrati", { n: summary.neverLoggedUsers })}, ${t(summary.inactiveUsers === 1 ? "{n} non entra da più di 90 giorni." : "{n} non entrano da più di 90 giorni.", { n: summary.inactiveUsers })}`,
     },
     {
-      label: "Accessi da altre aziende e collaboratori esterni",
+      label: t("Accessi da altre aziende e collaboratori esterni"),
       ok: summary.highRiskUsers === 0,
       detail: summary.highRiskUsers === 0
-        ? "Nessuna persona da sistemare subito."
-        : `${summary.highRiskUsers} ${summary.highRiskUsers === 1 ? "persona da sistemare" : "persone da sistemare"} subito.`,
+        ? t("Nessuna persona da sistemare subito.")
+        : t(summary.highRiskUsers === 1 ? "{n} persona da sistemare subito." : "{n} persone da sistemare subito.", { n: summary.highRiskUsers }),
     },
   ];
 
@@ -462,7 +463,7 @@ export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireSc
     return (
       <Card>
         <CardContent className="py-8 text-sm text-muted-foreground">
-          Scegli prima un'azienda per vedere il controllo degli accessi.
+          {t("Scegli prima un'azienda per vedere il controllo degli accessi.")}
         </CardContent>
       </Card>
     );
@@ -472,7 +473,7 @@ export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireSc
     return (
       <div role="status" className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        Analisi accessi in corso…
+        {t("Analisi accessi in corso…")}
       </div>
     );
   }
@@ -483,21 +484,21 @@ export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireSc
         <CardHeader>
           <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
             <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
-            Non riesco a verificare tutti gli accessi
+            {t("Non riesco a verificare tutti gli accessi")}
           </h2>
           <CardDescription>
-            Non riesco a leggere gli accessi. Riprova tra un attimo; se continua, scrivi all'assistenza.
+            {t("Non riesco a leggere gli accessi. Riprova tra un attimo; se continua, scrivi all'assistenza.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {error instanceof Error && /timeout/i.test(error.message) && (
             <p className="rounded-md bg-background/70 px-3 py-2 text-xs text-muted-foreground">
-              Il controllo ci ha messo troppo tempo a rispondere.
+              {t("Il controllo ci ha messo troppo tempo a rispondere.")}
             </p>
           )}
           <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
             {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />}
-            Riprova
+            {t("Riprova")}
           </Button>
         </CardContent>
       </Card>
@@ -512,33 +513,31 @@ export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireSc
             <div>
               <h2 className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight">
                 <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-                Controllo accessi
+                {t("Controllo accessi")}
               </h2>
               <CardDescription className="mt-1.5">
-                Chi ha accesso, chi non entra da tempo e chi ha permessi importanti senza la verifica in due passaggi.
+                {t("Chi ha accesso, chi non entra da tempo e chi ha permessi importanti senza la verifica in due passaggi.")}
               </CardDescription>
               <p className="mt-1 text-xs text-muted-foreground">
-                Dopo la password, ogni accesso chiede già un codice: quello dell'app di verifica se la persona l'ha
-                collegata, altrimenti quello che arriva per email. Qui si conta come «protetto» chi ha l'app
-                (Google Authenticator o simili).
+                {t("Dopo la password, ogni accesso chiede già un codice: quello dell'app di verifica se la persona l'ha collegata, altrimenti quello che arriva per email. Qui si conta come «protetto» chi ha l'app (Google Authenticator o simili).")}
               </p>
             </div>
             <div className="min-w-[220px] rounded-lg border bg-background p-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Punteggio</span>
+                <span className="text-muted-foreground">{t("Punteggio")}</span>
                 <span className="font-semibold">{summary.securityScore}/100</span>
               </div>
-              <Progress value={summary.securityScore} className="mt-2 h-2" aria-label="Punteggio di sicurezza" />
+              <Progress value={summary.securityScore} className="mt-2 h-2" aria-label={t("Punteggio di sicurezza")} />
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4 pt-4">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <KpiCard icon={Users} label="Persone controllate" value={summary.totalUsers} />
-            <KpiCard icon={ShieldAlert} label="Da sistemare subito" value={summary.highRiskUsers} tone={summary.highRiskUsers ? "bad" : "good"} />
-            <KpiCard icon={KeyRound} label="Amministratori senza app di verifica" value={summary.adminsWithout2fa} tone={summary.adminsWithout2fa ? "bad" : "good"} />
-            <KpiCard icon={Building2} label="Con accesso da altre aziende" value={summary.crossCompanyUsers} tone={summary.crossCompanyUsers ? "warn" : "default"} />
-            <KpiCard icon={Lock} label="Accessi bloccati" value={summary.blockedUsers + summary.lockedUsers} tone={summary.blockedUsers + summary.lockedUsers ? "warn" : "good"} />
+            <KpiCard icon={Users} label={t("Persone controllate")} value={summary.totalUsers} />
+            <KpiCard icon={ShieldAlert} label={t("Da sistemare subito")} value={summary.highRiskUsers} tone={summary.highRiskUsers ? "bad" : "good"} />
+            <KpiCard icon={KeyRound} label={t("Amministratori senza app di verifica")} value={summary.adminsWithout2fa} tone={summary.adminsWithout2fa ? "bad" : "good"} />
+            <KpiCard icon={Building2} label={t("Con accesso da altre aziende")} value={summary.crossCompanyUsers} tone={summary.crossCompanyUsers ? "warn" : "default"} />
+            <KpiCard icon={Lock} label={t("Accessi bloccati")} value={summary.blockedUsers + summary.lockedUsers} tone={summary.blockedUsers + summary.lockedUsers ? "warn" : "good"} />
           </div>
 
           <div className="grid gap-3 lg:grid-cols-4">
@@ -567,8 +566,8 @@ export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireSc
           <CardContent className="flex flex-col gap-2 py-3 text-sm text-amber-800 md:flex-row md:items-center">
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
             <div>
-              <p className="font-medium">L'elenco potrebbe essere incompleto: alcune informazioni non sono arrivate.</p>
-              <p className="text-xs text-amber-700">Ricarica la pagina; se il problema resta, scrivi all'assistenza.</p>
+              <p className="font-medium">{t("L'elenco potrebbe essere incompleto: alcune informazioni non sono arrivate.")}</p>
+              <p className="text-xs text-amber-700">{t("Ricarica la pagina; se il problema resta, scrivi all'assistenza.")}</p>
             </div>
           </CardContent>
         </Card>
@@ -578,29 +577,29 @@ export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireSc
         <CardHeader>
           <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
             <UserCog className="h-4 w-4" aria-hidden="true" />
-            Chi guardare per primo
+            {t("Chi guardare per primo")}
           </h2>
           <CardDescription>
-            Le persone più delicate sono in alto.
-            {puoAprireScheda ? " Apri la scheda per correggere ruolo, permessi, verifica in due passaggi o sessioni." : ""}
+            {t("Le persone più delicate sono in alto.")}
+            {puoAprireScheda ? ` ${t("Apri la scheda per correggere ruolo, permessi, verifica in due passaggi o sessioni.")}` : ""}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {rankedUsers.length === 0 ? (
             <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-              Nessuna persona trovata in questa azienda.
+              {t("Nessuna persona trovata in questa azienda.")}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Persona</TableHead>
-                    <TableHead>Ruoli</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead>Priorità</TableHead>
-                    <TableHead>Perché</TableHead>
-                    {puoAprireScheda && <TableHead className="text-right"><span className="sr-only">Azioni</span></TableHead>}
+                    <TableHead>{t("Persona")}</TableHead>
+                    <TableHead>{t("Ruoli")}</TableHead>
+                    <TableHead>{t("Stato")}</TableHead>
+                    <TableHead>{t("Priorità")}</TableHead>
+                    <TableHead>{t("Perché")}</TableHead>
+                    {puoAprireScheda && <TableHead className="text-right"><span className="sr-only">{t("Azioni")}</span></TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -612,7 +611,7 @@ export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireSc
                           <p className="text-xs text-muted-foreground">{user.email}</p>
                           {user.source === "multi_company" && (
                             <Badge variant="outline" className="mt-1 text-[10px]">
-                              Da un'altra azienda
+                              {t("Da un'altra azienda")}
                             </Badge>
                           )}
                         </div>
@@ -627,15 +626,15 @@ export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireSc
                         </div>
                         {(user.onlyAssigned || user.visibleAreasCount > 0) && (
                           <p className="mt-1 text-[11px] text-muted-foreground">
-                            {user.onlyAssigned ? "CRM: solo dati assegnati" : "CRM: tutti i dati consentiti"}
-                            {user.visibleAreasCount > 0 ? ` · ${user.visibleAreasCount} aree visibili` : ""}
+                            {user.onlyAssigned ? t("CRM: solo dati assegnati") : t("CRM: tutti i dati consentiti")}
+                            {user.visibleAreasCount > 0 ? ` · ${t(user.visibleAreasCount === 1 ? "{visibleAreasCount} area visibile" : "{visibleAreasCount} aree visibili", { visibleAreasCount: user.visibleAreasCount })}` : ""}
                           </p>
                         )}
                       </TableCell>
                       <TableCell>
-                        <p className="text-sm">{statusLabel(user)}</p>
+                        <p className="text-sm">{t(statusLabel(user))}</p>
                         <p className="text-xs text-muted-foreground">
-                          {user.lastLoginAt ? `Visto ${user.lastLoginLabel}` : "Mai connesso"}
+                          {user.lastLoginAt ? t("Visto {lastLoginLabel}", { lastLoginLabel: String(user.lastLoginLabel ?? "") }) : t("Mai connesso")}
                           {user.activeSessions > 0 && !user.collegatoAdesso
                             ? ` · ${user.activeSessions} ${user.activeSessions === 1 ? "sessione aperta" : "sessioni aperte"}`
                             : ""}
@@ -662,9 +661,9 @@ export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireSc
                             size="sm"
                             onClick={() => navigate(`/azienda/impostazioni/utenti/${user.id}?tab=permissions`)}
                             disabled={user.email === "Profilo non leggibile"}
-                            aria-label={`Apri la scheda di ${user.name}`}
+                            aria-label={t("Apri la scheda di {name}", { name: String(user.name ?? "") })}
                           >
-                            Apri la scheda
+                            {t("Apri la scheda")}
                             <ArrowUpRight className="ml-2 h-3.5 w-3.5" aria-hidden="true" />
                           </Button>
                         </TableCell>

@@ -31,6 +31,7 @@ import {
   useGovernanceThresholds,
   useSaveGovernanceThresholds,
 } from "@/hooks/useGovernanceThresholds";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Stato del form: numeri come stringa per consentire editing libero. */
 interface FormState {
@@ -88,6 +89,7 @@ export function GovernanceThresholdsCard({
   companyId: string;
   isAdmin: boolean;
 }) {
+  const t = useT();
   const { data: cfg, isLoading } = useGovernanceThresholds(companyId);
   const saveMutation = useSaveGovernanceThresholds(companyId);
 
@@ -147,9 +149,9 @@ export function GovernanceThresholdsCard({
     const prezzo = Math.round(medio * (1 + sogliaPerc / 100) * 100) / 100 + 0.01;
     const esito = valutaRincaro(normalized, { medioPrima: medio, prezzoPagato: prezzo, quantita: 100 });
     return esito.rincaro
-      ? `Es. 100 pezzi che stavano a ${formatCurrency(medio)} ricomprati a ${formatCurrency(prezzo)} → ${esito.messaggio}`
-      : `Es. 100 pezzi che stavano a ${formatCurrency(medio)} ricomprati a ${formatCurrency(prezzo)} → nessun avviso: la spesa in più (${formatCurrency(esito.spesaInPiu)}) non arriva al minimo di ${formatCurrency(normalized.rincaroAcquisti.minimoEuro)}.`;
-  }, [normalized]);
+      ? t("Es. 100 pezzi che stavano a {medio} ricomprati a {prezzo} → {esito}", { medio: formatCurrency(medio), prezzo: formatCurrency(prezzo), esito: esito.messaggio })
+      : t("Es. 100 pezzi che stavano a {medio} ricomprati a {prezzo} → nessun avviso: la spesa in più ({spesa}) non arriva al minimo di {minimo}.", { medio: formatCurrency(medio), prezzo: formatCurrency(prezzo), spesa: formatCurrency(esito.spesaInPiu), minimo: formatCurrency(normalized.rincaroAcquisti.minimoEuro) });
+  }, [normalized, t]);
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -159,18 +161,16 @@ export function GovernanceThresholdsCard({
             <ShieldCheck className="h-5 w-5 text-primary" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold leading-tight">Approvazioni e avvisi</h2>
+            <h2 className="text-lg font-semibold leading-tight">{t("Approvazioni e avvisi")}</h2>
             <p className="text-sm text-muted-foreground">
-              Quando serve una seconda firma sul preventivo, quando una commessa segnala che costi o margine
-              non tornano, e quando un acquisto costa più del solito. Sono <strong>avvisi</strong>:
-              segnalano, non bloccano.
+              {t("Quando serve una seconda firma sul preventivo, quando una commessa segnala che costi o margine non tornano, e quando un acquisto costa più del solito. Sono")} <strong>{t("avvisi")}</strong>{t(": segnalano, non bloccano.")}
             </p>
           </div>
         </div>
         {isAdmin && (
           <Button size="sm" onClick={handleSave} disabled={!dirty || saveMutation.isPending}>
             <Save className="h-4 w-4 mr-2" />
-            {saveMutation.isPending ? "Salvataggio…" : dirty ? "Salva modifiche" : "Salvato"}
+            {saveMutation.isPending ? t("Salvataggio…") : dirty ? t("Salva modifiche") : t("Salvato")}
           </Button>
         )}
       </div>
@@ -179,8 +179,7 @@ export function GovernanceThresholdsCard({
         <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
           <Info className="h-4 w-4 mt-0.5 shrink-0" />
           <span>
-            Solo un amministratore dell&apos;azienda può modificare queste soglie. Le vedi in sola
-            lettura.
+            {t("Solo un amministratore dell'azienda può modificare queste soglie. Le vedi in sola lettura.")}
           </span>
         </div>
       )}
@@ -190,7 +189,7 @@ export function GovernanceThresholdsCard({
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <FileSignature className="h-4 w-4 text-primary" />
-            Doppia approvazione preventivi
+            {t("Doppia approvazione preventivi")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -201,11 +200,11 @@ export function GovernanceThresholdsCard({
               onCheckedChange={(v) => setField("preventivoEnabled", v)}
             />
             <span className="text-sm">
-              Richiedi una seconda approvazione oltre l&apos;importo soglia
+              {t("Richiedi una seconda approvazione oltre l'importo soglia")}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Label className="whitespace-nowrap text-sm">Soglia importo (€, netto IVA)</Label>
+            <Label className="whitespace-nowrap text-sm">{t("Soglia importo (€, netto IVA)")}</Label>
             <Input
               type="number"
               min="0"
@@ -219,13 +218,12 @@ export function GovernanceThresholdsCard({
           </div>
           {previewPreventivo ? (
             <p className="text-xs text-muted-foreground">
-              Es. un preventivo da {formatCurrency(normalized.preventivoDoppiaApprovazione.importoSoglia)} →{" "}
+              {t("Es. un preventivo da {importo} →", { importo: formatCurrency(normalized.preventivoDoppiaApprovazione.importoSoglia) })}{" "}
               <span className="font-medium text-foreground">{previewPreventivo}</span>
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Con la funzione attiva e soglia &gt; 0, i preventivi pari o superiori alla soglia
-              verranno segnalati per una seconda firma.
+              {t("Con la funzione attiva e soglia > 0, i preventivi pari o superiori alla soglia verranno segnalati per una seconda firma.")}
             </p>
           )}
         </CardContent>
@@ -236,7 +234,7 @@ export function GovernanceThresholdsCard({
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Activity className="h-4 w-4 text-primary" />
-            Avviso se i costi non seguono l&apos;avanzamento (SAL)
+            {t("Avviso se i costi non seguono l'avanzamento (SAL)")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -247,11 +245,11 @@ export function GovernanceThresholdsCard({
               onCheckedChange={(v) => setField("salEnabled", v)}
             />
             <span className="text-sm">
-              Segnala quando i costi consumati divergono dall&apos;avanzamento dichiarato
+              {t("Segnala quando i costi consumati divergono dall'avanzamento dichiarato")}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Label className="whitespace-nowrap text-sm">Tolleranza scostamento ±%</Label>
+            <Label className="whitespace-nowrap text-sm">{t("Tolleranza scostamento ±%")}</Label>
             <Input
               type="number"
               min="0"
@@ -267,13 +265,12 @@ export function GovernanceThresholdsCard({
           </div>
           {previewSal ? (
             <p className="text-xs text-muted-foreground">
-              Oltre il doppio della tolleranza l&apos;alert diventa <strong>critico</strong>. Es.:{" "}
+              {t("Oltre il doppio della tolleranza l'alert diventa")} <strong>{t("critico")}</strong>{t(". Es.:")}{" "}
               <span className="font-medium text-foreground">{previewSal}</span>
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Confronta avanzamento lavori (%) e costi consumati (%): oltre la tolleranza scatta un
-              avviso, oltre il doppio diventa critico.
+              {t("Confronta avanzamento lavori (%) e costi consumati (%): oltre la tolleranza scatta un avviso, oltre il doppio diventa critico.")}
             </p>
           )}
         </CardContent>
@@ -284,7 +281,7 @@ export function GovernanceThresholdsCard({
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
-            Margine minimo delle commesse
+            {t("Margine minimo delle commesse")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -295,11 +292,11 @@ export function GovernanceThresholdsCard({
               onCheckedChange={(v) => setField("marginalitaEnabled", v)}
             />
             <span className="text-sm">
-              Semaforo giallo sotto la soglia di margine (il rosso per perdita è sempre attivo)
+              {t("Semaforo giallo sotto la soglia di margine (il rosso per perdita è sempre attivo)")}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Label className="whitespace-nowrap text-sm">Soglia margine minimo %</Label>
+            <Label className="whitespace-nowrap text-sm">{t("Soglia margine minimo %")}</Label>
             <Input
               type="number"
               min="0"
@@ -314,7 +311,7 @@ export function GovernanceThresholdsCard({
             <span className="text-sm text-muted-foreground">%</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Margine &lt; 0% → rosso (in perdita) · 0…soglia → giallo (a rischio) · ≥ soglia → verde.
+            {t("Margine < 0% → rosso (in perdita) · 0…soglia → giallo (a rischio) · ≥ soglia → verde.")}
           </p>
         </CardContent>
       </Card>
@@ -324,7 +321,7 @@ export function GovernanceThresholdsCard({
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <ArrowUpRight className="h-4 w-4 text-primary" />
-            Avviso se un acquisto costa più del solito
+            {t("Avviso se un acquisto costa più del solito")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -335,54 +332,53 @@ export function GovernanceThresholdsCard({
               onCheckedChange={(v) => setField("rincaroEnabled", v)}
             />
             <span className="text-sm">
-              Segnala i carichi pagati sopra il costo medio della giacenza
+              {t("Segnala i carichi pagati sopra il costo medio della giacenza")}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Label className="whitespace-nowrap text-sm">Sopra il medio di</Label>
+            <Label className="whitespace-nowrap text-sm">{t("Sopra il medio di")}</Label>
             <Input
               type="number"
               min="0"
               step="1"
               className="w-24"
               placeholder="15"
-              aria-label="Soglia del rincaro in percentuale"
+              aria-label={t("Soglia del rincaro in percentuale")}
               value={form.rincaroSogliaPerc}
               disabled={!isAdmin || !form.rincaroEnabled}
               onChange={(e) => setField("rincaroSogliaPerc", e.target.value)}
             />
             <span className="text-sm text-muted-foreground">%</span>
-            <Label className="whitespace-nowrap text-sm">e almeno</Label>
+            <Label className="whitespace-nowrap text-sm">{t("e almeno")}</Label>
             <Input
               type="number"
               min="0"
               step="10"
               className="w-28"
               placeholder="50"
-              aria-label="Spesa in più minima in euro"
+              aria-label={t("Spesa in più minima in euro")}
               value={form.rincaroMinimoEuro}
               disabled={!isAdmin || !form.rincaroEnabled}
               onChange={(e) => setField("rincaroMinimoEuro", e.target.value)}
             />
-            <span className="text-sm text-muted-foreground">€ di spesa in più</span>
+            <span className="text-sm text-muted-foreground">{t("€ di spesa in più")}</span>
           </div>
           {previewRincaro ? (
             <p className="text-xs text-muted-foreground">{previewRincaro}</p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Con l&apos;avviso spento i rincari non vengono più annotati.
+              {t("Con l'avviso spento i rincari non vengono più annotati.")}
             </p>
           )}
           <p className="text-xs text-muted-foreground">
-            Il minimo in euro è la spesa in più di quel carico, non il prezzo: un articolo da 2 € che
-            passa a 2,40 € è +20%, ma su dieci pezzi sono 4 € e non serve dirlo. Arriva{" "}
-            <strong>un solo riepilogo al mese</strong>, non un avviso per ogni carico.
+            {t("Il minimo in euro è la spesa in più di quel carico, non il prezzo: un articolo da 2 € che passa a 2,40 € è +20%, ma su dieci pezzi sono 4 € e non serve dirlo. Arriva")}{" "}
+            <strong>{t("un solo riepilogo al mese")}</strong>{t(", non un avviso per ogni carico.")}
           </p>
         </CardContent>
       </Card>
 
       {isLoading && (
-        <p className="text-xs text-muted-foreground">Caricamento soglie…</p>
+        <p className="text-xs text-muted-foreground">{t("Caricamento soglie…")}</p>
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Editor del prodotto del listino.
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
  * prodotto in sola lettura: campi spenti, nessun pulsante di salvataggio (`soloLettura`).
  */
 export default function SettingsFamilyEditor() {
+  const t = useT();
   const { role } = useAuth();
   const permissions = usePermissions();
   // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
@@ -34,16 +36,15 @@ export default function SettingsFamilyEditor() {
             aria-hidden="true"
           />
           <div>
-            <p className="font-medium">Accesso riservato</p>
+            <p className="font-medium">{t("Accesso riservato")}</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Per aprire i prodotti serve il permesso «Listino &amp; Prezzi».
-              Chiedilo al titolare.
+              {t("Per aprire i prodotti serve il permesso «Listino & Prezzi». Chiedilo al titolare.")}
             </p>
           </div>
           <Button asChild variant="outline">
             <Link to="/azienda/impostazioni/listino">
               <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
-              Torna al listino
+              {t("Torna al listino")}
             </Link>
           </Button>
         </CardContent>

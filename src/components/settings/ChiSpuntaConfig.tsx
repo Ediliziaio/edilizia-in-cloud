@@ -3,16 +3,18 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useChiSpunta } from "@/hooks/useChiSpunta";
 import { CHI_SPUNTA, type ChiSpunta } from "@/lib/orders/chiSpunta";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Una regola per tutte le commesse: sta dentro la sezione «Regole per tutte le commesse» della pagina «Fasi e avanzamento». */
 export default function ChiSpuntaConfig({ puoModificare }: { puoModificare: boolean }) {
+  const t = useT();
   const { chiSpunta, salva } = useChiSpunta();
   return (
     <div className="space-y-3 px-4 py-4">
       <div>
-        <h3 id="regola-chi-spunta" className="text-sm font-semibold leading-snug">Chi può spuntare le sottofasi dal cantiere</h3>
+        <h3 id="regola-chi-spunta" className="text-sm font-semibold leading-snug">{t("Chi può spuntare le sottofasi dal cantiere")}</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          L'ufficio spunta sempre. Questa regola vale per chi lavora in cantiere (operai, squadre, ditte) e vale subito, anche per chi ha l'app già aperta.
+          {t("L'ufficio spunta sempre. Questa regola vale per chi lavora in cantiere (operai, squadre, ditte) e vale subito, anche per chi ha l'app già aperta.")}
         </p>
       </div>
       <RadioGroup aria-labelledby="regola-chi-spunta" value={chiSpunta} onValueChange={(v) => salva.mutate(v as ChiSpunta)} disabled={!puoModificare} className="gap-3">

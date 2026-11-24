@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { HrPager } from "@/components/hr/HrPager";
 import type { LiveStatusProfilo } from "@/hooks/useTimbratura";
 import { ETICHETTA_STATO, statoPresenza, valoriDistinti, type StatoPresenza } from "@/lib/personale/timbrature";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Gruppo = StatoPresenza | "assente_giustificato";
 
@@ -34,6 +35,7 @@ export function PannelloPresenze({
   /** profilo_id → «In ferie», «In permesso»… per chi ha una richiesta approvata che copre oggi. */
   assentiGiustificati: Record<string, string>;
 }) {
+  const t = useT();
   const [reparto, setReparto] = useState(TUTTI);
   const [scelto, setScelto] = useState<Gruppo | null>(null);
   const [paging, setPaging] = useState({ key: "", page: 0 });
@@ -70,16 +72,14 @@ export function PannelloPresenze({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Clock className="h-4 w-4" />
-            Chi è in azienda oggi
-            <span className="text-sm font-normal text-muted-foreground tabular-nums">
-              {inAzienda} su {visibili.length}
-            </span>
+            {t("Chi è in azienda oggi")}
+            <span className="text-sm font-normal text-muted-foreground tabular-nums">{t("{inAzienda} su {n}", { inAzienda: String(inAzienda ?? ""), n: visibili.length })}</span>
           </CardTitle>
           {reparti.length > 1 && (
             <Select value={reparto} onValueChange={setReparto}>
-              <SelectTrigger className="h-8 w-[180px] text-xs" aria-label="Reparto"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 w-[180px] text-xs" aria-label={t("Reparto")}><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={TUTTI}>Tutti i reparti</SelectItem>
+                <SelectItem value={TUTTI}>{t("Tutti i reparti")}</SelectItem>
                 {reparti.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -88,10 +88,10 @@ export function PannelloPresenze({
       </CardHeader>
       <CardContent className="space-y-3">
         {persone.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessun profilo HR attivo</p>
+          <p className="text-sm text-muted-foreground">{t("Nessun profilo HR attivo")}</p>
         ) : (
           <>
-            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Stato delle persone">
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label={t("Stato delle persone")}>
               {ORDINE.map((g) => {
                 const n = perGruppo.get(g)?.length ?? 0;
                 if (n === 0 && g !== "in_azienda" && g !== "non_timbrato") return null;
@@ -116,7 +116,7 @@ export function PannelloPresenze({
             </div>
 
             {elenco.length === 0 ? (
-              <p className="py-2 text-sm text-muted-foreground">Nessuno in questo stato{reparto !== TUTTI ? ` nel reparto ${reparto}` : ""}.</p>
+              <p className="py-2 text-sm text-muted-foreground">{reparto !== TUTTI ? t("Nessuno in questo stato nel reparto {reparto}.", { reparto: String(reparto ?? "") }) : t("Nessuno in questo stato.")}</p>
             ) : (
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">
                 {elenco.slice(page * 12, (page + 1) * 12).map((p) => (
@@ -143,7 +143,7 @@ export function PannelloPresenze({
           </>
         )}
         <HrPager total={elenco.length} pageSize={12} page={page} onPage={(value) => setPaging({ key, page: value })} />
-        <p className="text-xs text-muted-foreground">Nessuna timbratura non equivale a un’assenza ingiustificata. Verifica calendario e richieste.</p>
+        <p className="text-xs text-muted-foreground">{t("Nessuna timbratura non equivale a un’assenza ingiustificata. Verifica calendario e richieste.")}</p>
       </CardContent>
     </Card>
   );

@@ -18,9 +18,8 @@ import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { AUTO_STATUS_OPTIONS } from "@/types/opportunities";
 import { COMMERCIAL_WORKFLOW_TEMPLATES } from "@/lib/orders/commercialWorkflowModels";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
-
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type PipelineRow = {
   id: string;
@@ -156,7 +155,7 @@ function normalizeName(value: string) {
 }
 
 /** «1 fase», «2 fasi»: prima una pipeline con una sola fase diceva «1 fasi». */
-const fasi = (n: number) => `${n} ${n === 1 ? "fase" : "fasi"}`;
+const fasi = (n: number, tr: (testo: string, valori?: Record<string, string | number>) => string) => tr(n === 1 ? "{n} fase" : "{n} fasi", { n });
 
 function hasDuplicateNames(values: string[]) {
   const seen = new Set<string>();
@@ -170,6 +169,7 @@ function hasDuplicateNames(values: string[]) {
 }
 
 export function PipelinesConfig() {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   // Crea/rinomina/elimina solo con «Personalizzazione» in modifica: è la
   // stessa regola del database (policy «Permesso personalizzazione»).
@@ -289,20 +289,20 @@ export function PipelinesConfig() {
 
   const createPipeline = useMutation({
     mutationFn: async ({ name, stages }: { name: string; stages: CreateStage[] }) => {
-      if (!puoModificare || isError) throw new Error("Modifica non consentita");
-      if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
+      if (!puoModificare || isError) throw new Error(tr("Modifica non consentita"));
+      if (!companyId) throw new Error(tr("Azienda non disponibile. Ricarica la pagina e riprova."));
       const cleanName = normalizeName(name);
       const cleanStages = stages
         .map((stage) => ({ ...stage, name: normalizeName(stage.name) }))
         .filter((stage) => stage.name);
 
-      if (!cleanName) throw new Error("Inserisci il nome della pipeline.");
-      if (cleanStages.length === 0) throw new Error("Aggiungi almeno una fase valida.");
+      if (!cleanName) throw new Error(tr("Inserisci il nome della pipeline."));
+      if (cleanStages.length === 0) throw new Error(tr("Aggiungi almeno una fase valida."));
       if (hasDuplicateNames(cleanStages.map((stage) => stage.name))) {
-        throw new Error("Le fasi non possono avere nomi duplicati.");
+        throw new Error(tr("Le fasi non possono avere nomi duplicati."));
       }
       if (pipelines.some((pipeline) => normalizeName(pipeline.name).toLowerCase() === cleanName.toLowerCase())) {
-        throw new Error("Esiste già una pipeline con questo nome.");
+        throw new Error(tr("Esiste già una pipeline con questo nome."));
       }
 
       const { data: pipeline, error: pipelineError } = await supabase
@@ -329,19 +329,19 @@ export function PipelinesConfig() {
       setCreateOpen(false);
       setNewName("");
       setCreateStages([]);
-      toast.success("Pipeline creata con le fasi");
+      toast.success(tr("Pipeline creata con le fasi"));
     },
-    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+    onError: (e: unknown) => toast.error(tr(getErrorMessage(e))),
   });
 
   const updatePipeline = useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
-      if (!puoModificare || isError) throw new Error("Modifica non consentita");
-      if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
+      if (!puoModificare || isError) throw new Error(tr("Modifica non consentita"));
+      if (!companyId) throw new Error(tr("Azienda non disponibile. Ricarica la pagina e riprova."));
       const cleanName = normalizeName(name);
-      if (!cleanName) throw new Error("Inserisci il nome della pipeline.");
+      if (!cleanName) throw new Error(tr("Inserisci il nome della pipeline."));
       if (pipelines.some((pipeline) => pipeline.id !== id && normalizeName(pipeline.name).toLowerCase() === cleanName.toLowerCase())) {
-        throw new Error("Esiste già una pipeline con questo nome.");
+        throw new Error(tr("Esiste già una pipeline con questo nome."));
       }
 
       const { error } = await supabase.from("marketing_pipelines").update({ name: cleanName }).eq("id", id).eq("company_id", companyId).select("id").single();
@@ -350,15 +350,15 @@ export function PipelinesConfig() {
     onSuccess: () => {
       invalidaPipeline();
       setEditOpen(false);
-      toast.success("Pipeline aggiornata");
+      toast.success(tr("Pipeline aggiornata"));
     },
-    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+    onError: (e: unknown) => toast.error(tr(getErrorMessage(e))),
   });
 
   const deletePipeline = useMutation({
     mutationFn: async (id: string) => {
-      if (!puoModificare || isError) throw new Error("Modifica non consentita");
-      if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
+      if (!puoModificare || isError) throw new Error(tr("Modifica non consentita"));
+      if (!companyId) throw new Error(tr("Azienda non disponibile. Ricarica la pagina e riprova."));
       const { count, error: countError } = await supabase
         .from("marketing_opportunities")
         .select("id", { count: "exact", head: true })
@@ -374,10 +374,14 @@ export function PipelinesConfig() {
       invalidaPipeline();
       setDeleteOpen(false);
       setDeleteId(null);
-      toast.success("Pipeline eliminata");
+      toast.success(tr("Pipeline eliminata"));
     },
     onError: (e: unknown) => {
-      toast.error(e instanceof PipelineInUseError ? e.message : getErrorMessage(e));
+      toast.error(e instanceof PipelineInUseError
+        ? (e.count === 1
+          ? tr("Questa pipeline ha 1 opportunità collegata. Spostala in un'altra pipeline o eliminala: archiviarla non basta, resta collegata.")
+          : tr("Questa pipeline ha {count} opportunità collegate. Spostale in un'altra pipeline o eliminale: archiviarle non basta, restano collegate.", { count: e.count }))
+        : tr(getErrorMessage(e)));
     },
   });
 
@@ -386,8 +390,8 @@ export function PipelinesConfig() {
   // playbook…). La duplicata nasce senza opportunità collegate.
   const duplicatePipeline = useMutation({
     mutationFn: async (source: PipelineRow) => {
-      if (!puoModificare || isError) throw new Error("Modifica non consentita");
-      if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
+      if (!puoModificare || isError) throw new Error(tr("Modifica non consentita"));
+      if (!companyId) throw new Error(tr("Azienda non disponibile. Ricarica la pagina e riprova."));
       const base = normalizeName(source.name);
       const esistenti = new Set(pipelines.map((p) => normalizeName(p.name).toLowerCase()));
       let nome = `${base} (copia)`;
@@ -426,8 +430,8 @@ export function PipelinesConfig() {
         if (sErr) throw sErr;
       }
     },
-    onSuccess: () => { invalidaPipeline(); toast.success("Pipeline duplicata"); },
-    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+    onSuccess: () => { invalidaPipeline(); toast.success(tr("Pipeline duplicata")); },
+    onError: (e: unknown) => toast.error(tr(getErrorMessage(e))),
   });
 
   // Riordina: sposta una sequenza su/giù e NORMALIZZA le posizioni a 0..n-1
@@ -435,8 +439,8 @@ export function PipelinesConfig() {
   // qui sia nel selettore delle Opportunità.
   const reorderPipeline = useMutation({
     mutationFn: async ({ id, direzione }: { id: string; direzione: -1 | 1 }) => {
-      if (!puoModificare || isError) throw new Error("Modifica non consentita");
-      if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
+      if (!puoModificare || isError) throw new Error(tr("Modifica non consentita"));
+      if (!companyId) throw new Error(tr("Azienda non disponibile. Ricarica la pagina e riprova."));
       const ordinate = [...pipelines].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
       const idx = ordinate.findIndex((p) => p.id === id);
       const target = idx + direzione;
@@ -454,7 +458,7 @@ export function PipelinesConfig() {
       }
     },
     onSuccess: () => invalidaPipeline(),
-    onError: (e: unknown) => { invalidaPipeline(); toast.error(getErrorMessage(e)); },
+    onError: (e: unknown) => { invalidaPipeline(); toast.error(tr(getErrorMessage(e))); },
   });
 
   const busy = createPipeline.isPending || updatePipeline.isPending || deletePipeline.isPending || duplicatePipeline.isPending || reorderPipeline.isPending;
@@ -472,12 +476,12 @@ export function PipelinesConfig() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Pipeline non disponibili</CardTitle>
-          <CardDescription>{getErrorMessage(error)}</CardDescription>
+          <CardTitle>{tr("Pipeline non disponibili")}</CardTitle>
+          <CardDescription>{tr(getErrorMessage(error))}</CardDescription>
         </CardHeader>
         <CardContent>
           <Button variant="outline" onClick={() => refetch()} className="max-md:h-11">
-            Riprova
+            {tr("Riprova")}
           </Button>
         </CardContent>
       </Card>
@@ -489,7 +493,7 @@ export function PipelinesConfig() {
     return (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" className="gap-2 max-md:h-11" onClick={() => { if (confermaNavigazioneImpostazioni()) setSelectedPipelineId(null); }}>
-          <ArrowLeft className="h-4 w-4" /> Torna alle pipeline
+          <ArrowLeft className="h-4 w-4" /> {tr("Torna alle pipeline")}
         </Button>
         <PipelineStagesConfig pipelineId={selectedPipelineId} pipelineName={pipeline?.name || ""} />
       </div>
@@ -503,13 +507,13 @@ export function PipelinesConfig() {
           {/* v8.6.74 — flex-wrap mobile-safe */}
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <CardTitle>Le tue pipeline</CardTitle>
+              <CardTitle>{tr("Le tue pipeline")}</CardTitle>
               {/* La prima per posizione è quella che si apre in Opportunità (marketingOpportunities.ts). */}
-              <CardDescription>La prima pipeline dell'elenco è quella che si apre in Opportunità.</CardDescription>
+              <CardDescription>{tr("La prima pipeline dell'elenco è quella che si apre in Opportunità.")}</CardDescription>
             </div>
             {puoModificare && (
               <Button size="sm" disabled={busy} onClick={openCreateDialog} className="w-full sm:w-auto shrink-0 max-md:h-11">
-                <Plus className="mr-2 h-4 w-4" /> Nuova pipeline
+                <Plus className="mr-2 h-4 w-4" /> {tr("Nuova pipeline")}
               </Button>
             )}
           </div>
@@ -517,13 +521,13 @@ export function PipelinesConfig() {
         <CardContent className="space-y-3">
           {!puoModificare && (
             <AvvisoSolaLettura>
-              Sola lettura: per creare o modificare le pipeline serve il permesso «Modifica» su Personalizzazione.
+              {tr("Sola lettura: per creare o modificare le pipeline serve il permesso «Modifica» su Personalizzazione.")}
             </AvvisoSolaLettura>
           )}
           {pipelines.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <p className="text-sm">Nessuna pipeline creata</p>
-              <p className="text-xs mt-1">Crea la tua prima pipeline di vendita</p>
+              <p className="text-sm">{tr("Nessuna pipeline creata")}</p>
+              <p className="text-xs mt-1">{tr("Crea la tua prima pipeline di vendita")}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -532,25 +536,23 @@ export function PipelinesConfig() {
                   key={p.id}
                   className="flex items-center justify-between gap-2 p-3 rounded-lg border transition-colors"
                 >
-                  <button type="button" disabled={busy} className="min-h-9 min-w-0 flex-1 text-left hover:text-primary focus-visible:outline focus-visible:outline-2 max-md:min-h-11" onClick={() => setSelectedPipelineId(p.id)} aria-label={`Apri fasi di ${p.name}`}>
+                  <button type="button" disabled={busy} className="min-h-9 min-w-0 flex-1 text-left hover:text-primary focus-visible:outline focus-visible:outline-2 max-md:min-h-11" onClick={() => setSelectedPipelineId(p.id)} aria-label={tr("Apri fasi di {name}", { name: String(p.name ?? "") })}>
                     <p className="break-words font-medium text-sm">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {fasi(p.marketing_pipeline_stages?.length || 0)} · Aggiornata {format(new Date(p.updated_at), "dd MMM yyyy", { locale: it })}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{tr("{valore} · Aggiornata {valore2}", { valore: fasi(p.marketing_pipeline_stages?.length || 0, tr), valore2: format(new Date(p.updated_at), "dd MMM yyyy", { locale: dateFnsCampo() }) })}</p>
                   </button>
                   {puoModificare && (
                   <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                     {pipelines.length > 1 && (
                       <div className="flex items-center">
                         <Button
-                          variant="ghost" size="icon" className="h-9 w-9 max-md:h-11 max-md:w-11" aria-label={`Sposta «${p.name}» più in alto`}
+                          variant="ghost" size="icon" className="h-9 w-9 max-md:h-11 max-md:w-11" aria-label={tr("Sposta «{name}» più in alto", { name: String(p.name ?? "") })}
                           disabled={idx === 0 || busy}
                           onClick={() => reorderPipeline.mutate({ id: p.id, direzione: -1 })}
                         >
                           <ChevronUp className="h-4 w-4" />
                         </Button>
                         <Button
-                          variant="ghost" size="icon" className="h-9 w-9 max-md:h-11 max-md:w-11" aria-label={`Sposta «${p.name}» più in basso`}
+                          variant="ghost" size="icon" className="h-9 w-9 max-md:h-11 max-md:w-11" aria-label={tr("Sposta «{name}» più in basso", { name: String(p.name ?? "") })}
                           disabled={idx === pipelines.length - 1 || busy}
                           onClick={() => reorderPipeline.mutate({ id: p.id, direzione: 1 })}
                         >
@@ -560,19 +562,19 @@ export function PipelinesConfig() {
                     )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" disabled={busy} aria-label={`Azioni ${p.name}`} className="h-9 w-9 max-md:h-11 max-md:w-11">
+                        <Button variant="ghost" size="icon" disabled={busy} aria-label={tr("Azioni {name}", { name: String(p.name ?? "") })} className="h-9 w-9 max-md:h-11 max-md:w-11">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditId(p.id); setEditName(p.name); setEditOpen(true); }}>
-                          <Pencil className="h-4 w-4 mr-2" /> Rinomina
+                          <Pencil className="h-4 w-4 mr-2" /> {tr("Rinomina")}
                         </DropdownMenuItem>
                         <DropdownMenuItem disabled={duplicatePipeline.isPending} onClick={(e) => { e.stopPropagation(); duplicatePipeline.mutate(p); }}>
-                          <Copy className="h-4 w-4 mr-2" /> Duplica
+                          <Copy className="h-4 w-4 mr-2" /> {tr("Duplica")}
                         </DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteId(p.id); setDeleteOpen(true); }}>
-                          <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                          <Trash2 className="h-4 w-4 mr-2" /> {tr("Elimina")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -589,31 +591,31 @@ export function PipelinesConfig() {
       <Dialog open={createOpen} onOpenChange={chiudiCreate}>
         <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nuova pipeline</DialogTitle>
-            <DialogDescription>Scegli da dove partire, dai un nome alla pipeline e controlla le sue fasi.</DialogDescription>
+            <DialogTitle>{tr("Nuova pipeline")}</DialogTitle>
+            <DialogDescription>{tr("Scegli da dove partire, dai un nome alla pipeline e controlla le sue fasi.")}</DialogDescription>
           </DialogHeader>
           <fieldset disabled={busy} className="m-0 min-w-0 space-y-4 border-0 p-0">
             <div>
-              <label htmlFor="pipeline-template" className="text-sm font-medium">Parti da un modello</label>
+              <label htmlFor="pipeline-template" className="text-sm font-medium">{tr("Parti da un modello")}</label>
               <Select value={templateId} onValueChange={applyTemplate}>
                 <SelectTrigger id="pipeline-template" className="mt-1 max-md:h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectLabel>Modelli pronti</SelectLabel>
+                    <SelectLabel>{tr("Modelli pronti")}</SelectLabel>
                     {PIPELINE_TEMPLATES.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                      <SelectItem key={t.id} value={t.id}>{tr(t.label)}</SelectItem>
                     ))}
                   </SelectGroup>
                   {pipelineCopiabili.length > 0 && (
                     <>
                       <SelectSeparator />
                       <SelectGroup>
-                        <SelectLabel>Copia una pipeline esistente</SelectLabel>
+                        <SelectLabel>{tr("Copia una pipeline esistente")}</SelectLabel>
                         {pipelineCopiabili.map((p) => (
                           <SelectItem key={p.id} value={`${PREFISSO_SEQUENZA_ESISTENTE}${p.id}`}>
-                            {p.name} ({fasi(p.marketing_pipeline_stages?.length ?? 0)})
+                            {p.name} ({fasi(p.marketing_pipeline_stages?.length ?? 0, tr)})
                           </SelectItem>
                         ))}
                       </SelectGroup>
@@ -623,16 +625,16 @@ export function PipelinesConfig() {
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
                 {copyingFromPipeline
-                  ? `Fasi copiate da «${copyingFromPipeline.name}»: stessi nomi e stesso esito (vinta/persa/abbandonata), una pipeline nuova e indipendente.`
-                  : activeTemplate?.description}{" "}
-                Puoi modificare, aggiungere o eliminare le fasi qui sotto.
+                  ? tr("Fasi copiate da «{name}»: stessi nomi e stesso esito (vinta/persa/abbandonata), una pipeline nuova e indipendente.", { name: String(copyingFromPipeline.name ?? "") })
+                  : activeTemplate ? tr(activeTemplate.description) : undefined}{" "}
+                {tr("Puoi modificare, aggiungere o eliminare le fasi qui sotto.")}
               </p>
             </div>
             <div>
-              <label htmlFor="pipeline-name" className="text-sm font-medium">Nome della pipeline</label>
+              <label htmlFor="pipeline-name" className="text-sm font-medium">{tr("Nome della pipeline")}</label>
               <Input
                 id="pipeline-name"
-                placeholder="Es: Pipeline Vendita"
+                placeholder={tr("Es: Pipeline Vendita")}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 autoFocus
@@ -642,9 +644,9 @@ export function PipelinesConfig() {
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium">Fasi della pipeline</p>
+                <p className="text-sm font-medium">{tr("Fasi della pipeline")}</p>
                 <Button variant="outline" size="sm" onClick={handleAddCreateStage} type="button" className="max-md:h-11">
-                  <Plus className="mr-1 h-3 w-3" /> Aggiungi
+                  <Plus className="mr-1 h-3 w-3" /> {tr("Aggiungi")}
                 </Button>
               </div>
               <div className="space-y-2">
@@ -654,7 +656,7 @@ export function PipelinesConfig() {
                     <Input
                       value={stage.name}
                       onChange={(e) => handleUpdateCreateStage(stage.id, e.target.value)}
-                      aria-label={`Nome fase ${idx + 1}`} className="h-9 min-w-0 text-sm flex-1 max-md:h-11"
+                      aria-label={tr("Nome fase {idx}", { idx: idx + 1 })} className="h-9 min-w-0 text-sm flex-1 max-md:h-11"
                       maxLength={100}
                     />
                     <Select
@@ -662,10 +664,10 @@ export function PipelinesConfig() {
                       onValueChange={(v) => setCreateStages((prev) => prev.map((s) => s.id === stage.id ? { ...s, auto_status: v === "none" ? null : v } : s))}
                     >
                       <SelectTrigger
-                        aria-label={`Esito fase ${idx + 1}`} className="col-start-2 row-start-2 h-9 text-xs sm:w-[120px] max-md:h-11"
+                        aria-label={tr("Esito fase {idx}", { idx: idx + 1 })} className="col-start-2 row-start-2 h-9 text-xs sm:w-[120px] max-md:h-11"
                         title={AUTO_STATUS_OPTIONS.find((o) => o.value === (stage.auto_status || "none"))?.hint}
                       >
-                        <SelectValue placeholder="Stato" />
+                        <SelectValue placeholder={tr("Stato")} />
                       </SelectTrigger>
                       <SelectContent>
                         {AUTO_STATUS_OPTIONS.map((opt) => (
@@ -677,7 +679,7 @@ export function PipelinesConfig() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        aria-label={`Elimina fase ${idx + 1}`} className="col-start-3 row-start-1 h-8 w-8 text-destructive max-md:h-11 max-md:w-11"
+                        aria-label={tr("Elimina fase {idx}", { idx: idx + 1 })} className="col-start-3 row-start-1 h-8 w-8 text-destructive max-md:h-11 max-md:w-11"
                         onClick={() => handleRemoveCreateStage(stage.id)}
                         type="button"
                       >
@@ -687,31 +689,26 @@ export function PipelinesConfig() {
                   </div>
                 ))}
                 {createStages.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-2">Nessuna fase. Aggiungi almeno una fase.</p>
+                  <p className="text-xs text-muted-foreground text-center py-2">{tr("Nessuna fase. Aggiungi almeno una fase.")}</p>
                 )}
                 {createHasDuplicateStages && (
                   <p className="text-xs text-destructive pt-1">
-                    Ci sono due fasi con lo stesso nome. Rinominane una per poter creare la pipeline.
+                    {tr("Ci sono due fasi con lo stesso nome. Rinominane una per poter creare la pipeline.")}
                   </p>
                 )}
               </div>
               <div className="mt-3 rounded-md bg-muted/50 p-2.5 text-xs text-muted-foreground space-y-1">
                 <p>
-                  La tendina a destra decide lo stato dell'opportunità quando entra nella fase.
-                  Usa <span className="font-medium text-foreground">Persa</span> solo per le trattative
-                  fatte e perse, e <span className="font-medium text-foreground">Abbandonata</span> per
-                  chi non è mai diventato trattativa (numero sbagliato, fuori zona, non qualificato):
-                  così il tasso di chiusura resta reale.
+                  {tr("La tendina a destra decide lo stato dell'opportunità quando entra nella fase. Usa")} <span className="font-medium text-foreground">{tr("Persa")}</span> {tr("solo per le trattative fatte e perse, e")} <span className="font-medium text-foreground">{tr("Abbandonata")}</span> {tr("per chi non è mai diventato trattativa (numero sbagliato, fuori zona, non qualificato): così il tasso di chiusura resta reale.")}
                 </p>
                 <p>
-                  Per far partire un'automazione su una singola fase non serve lo stato: le regole
-                  scattano già sul cambio di fase.
+                  {tr("Per far partire un'automazione su una singola fase non serve lo stato: le regole scattano già sul cambio di fase.")}
                 </p>
               </div>
             </div>
           </fieldset>
           <DialogFooter>
-            <Button variant="outline" disabled={busy} onClick={() => chiudiCreate(false)} className="max-md:h-11">Annulla</Button>
+            <Button variant="outline" disabled={busy} onClick={() => chiudiCreate(false)} className="max-md:h-11">{tr("Annulla")}</Button>
             <Button
               onClick={() => createPipeline.mutate({
                 name: newName,
@@ -719,7 +716,7 @@ export function PipelinesConfig() {
               })}
               disabled={!normalizeName(newName) || validCreateStages.length === 0 || createHasDuplicateStages || createPipeline.isPending}
             >
-              {createPipeline.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Crea
+              {createPipeline.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {tr("Crea")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -729,14 +726,14 @@ export function PipelinesConfig() {
       <Dialog open={editOpen} onOpenChange={chiudiEdit}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rinomina pipeline</DialogTitle>
-            <DialogDescription>Il nuovo nome compare anche nel selettore della pagina Opportunità.</DialogDescription>
+            <DialogTitle>{tr("Rinomina pipeline")}</DialogTitle>
+            <DialogDescription>{tr("Il nuovo nome compare anche nel selettore della pagina Opportunità.")}</DialogDescription>
           </DialogHeader>
-          <Input aria-label="Nome della pipeline" disabled={busy} value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus maxLength={100} />
+          <Input aria-label={tr("Nome della pipeline")} disabled={busy} value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus maxLength={100} />
           <DialogFooter>
-            <Button variant="outline" disabled={busy} onClick={() => chiudiEdit(false)}>Annulla</Button>
+            <Button variant="outline" disabled={busy} onClick={() => chiudiEdit(false)}>{tr("Annulla")}</Button>
             <Button onClick={() => editId && updatePipeline.mutate({ id: editId, name: editName })} disabled={!editName.trim() || updatePipeline.isPending}>
-              Salva
+              {tr("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -746,15 +743,15 @@ export function PipelinesConfig() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questa pipeline?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminare questa pipeline?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              L'eliminazione è consentita solo se non ci sono opportunità collegate, nemmeno archiviate. Le fasi verranno rimosse insieme alla pipeline.
+              {tr("L'eliminazione è consentita solo se non ci sono opportunità collegate, nemmeno archiviate. Le fasi verranno rimosse insieme alla pipeline.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction disabled={busy} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={(e) => { e.preventDefault(); if (deleteId) deletePipeline.mutate(deleteId); }}>
-              Elimina
+              {tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

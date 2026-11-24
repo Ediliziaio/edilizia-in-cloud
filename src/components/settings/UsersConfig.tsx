@@ -12,8 +12,6 @@ import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
-
 import { Button } from "@/components/ui/button";
 import { escapeCsvCell } from "@/lib/csvExport";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -58,6 +56,7 @@ import { COLONNE_DEL_FILE, leggiCsvUtenti } from "@/lib/users/importaUtentiCsv";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 type StatusFilter = "all" | ChiaveStato;
 
@@ -128,11 +127,12 @@ const ROLE_CONFIG: Record<EffectiveRole, { label: string; icon: React.ElementTyp
 };
 
 function RoleBadge({ role }: { role: EffectiveRole }) {
+  const t = useT();
   const { label, icon: Icon, color } = ROLE_CONFIG[role];
   return (
     <Badge className={`${color} font-normal gap-1 whitespace-nowrap`}>
       <Icon className="h-3 w-3" aria-hidden="true" />
-      {label}
+      {t(label)}
     </Badge>
   );
 }
@@ -142,6 +142,7 @@ function RoleBadge({ role }: { role: EffectiveRole }) {
  * Utile per capire subito se un operatore ha anche ruolo commerciale.
  */
 function RolesBadgeGroup({ roles }: { roles: string[] | null | undefined }) {
+  const t = useT();
   const safeRoles = Array.isArray(roles) ? roles : [];
   const primary = determineEffectiveRole(safeRoles);
   // Venditore, Call Center, Operaio quando non sono già il principale.
@@ -161,12 +162,10 @@ function RolesBadgeGroup({ roles }: { roles: string[] | null | undefined }) {
                 variant="outline"
               >
                 <Icon className="h-3 w-3" aria-hidden="true" />
-                {cfg.label}
+                {t(cfg.label)}
               </Badge>
             </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs">
-              Ruolo aggiuntivo. {TESTI_RUOLO_AGGIUNTIVO[r].cosaFa}
-            </TooltipContent>
+            <TooltipContent side="top" className="text-xs">{t("Ruolo aggiuntivo. {cosaFa}", { cosaFa: t(TESTI_RUOLO_AGGIUNTIVO[r].cosaFa) })}</TooltipContent>
           </Tooltip>
         );
       })}
@@ -175,12 +174,13 @@ function RolesBadgeGroup({ roles }: { roles: string[] | null | undefined }) {
 }
 
 function UserStatus({ u, breve = false }: { u: CompanyUser; breve?: boolean }) {
+  const t = useT();
   const stato = chiaveStato(u);
 
   if (stato === "blocked") {
     return (
       <Badge variant="destructive" className="text-[10px] gap-1 font-normal whitespace-nowrap">
-        <Shield className="h-2.5 w-2.5" aria-hidden="true" /> Accesso bloccato
+        <Shield className="h-2.5 w-2.5" aria-hidden="true" /> {t("Accesso bloccato")}
       </Badge>
     );
   }
@@ -202,18 +202,16 @@ function UserStatus({ u, breve = false }: { u: CompanyUser; breve?: boolean }) {
     return (
       <span className="flex items-center gap-1.5 text-xs text-emerald-600">
         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
-        Collegato adesso
+        {t("Collegato adesso")}
       </span>
     );
   }
   if (u.ultimo_segno_di_vita) {
     return (
-      <span className="text-xs text-muted-foreground">
-        Visto {formatDistanceToNow(new Date(u.ultimo_segno_di_vita), { addSuffix: true, locale: it })}
-      </span>
+      <span className="text-xs text-muted-foreground">{t("Visto {valore}", { valore: formatDistanceToNow(new Date(u.ultimo_segno_di_vita), { addSuffix: true, locale: dateFnsCampo() }) })}</span>
     );
   }
-  return <span className="text-xs text-muted-foreground italic">Mai connesso</span>;
+  return <span className="text-xs text-muted-foreground italic">{t("Mai connesso")}</span>;
 }
 
 function getUserStatusKey(u: CompanyUser): ChiaveStato {
@@ -282,6 +280,7 @@ function DeleteUserDialog({
   onConfirm: (userId: string, reassignToUserId?: string) => void;
   isDeleting: boolean;
 }) {
+  const t = useT();
   const [reassignTo, setReassignTo] = useState<string>("none");
 
   if (!targetUser) return null;
@@ -298,11 +297,10 @@ function DeleteUserDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <Trash2 className="h-5 w-5" aria-hidden="true" />
-            Elimina utente
+            {t("Elimina utente")}
           </DialogTitle>
           <DialogDescription>
-            Stai per eliminare <strong>{targetUser.first_name} {targetUser.last_name}</strong> ({roleLabel}).
-            L'utente non potr&agrave; pi&ugrave; accedere al sistema.
+            {t("Stai per eliminare {nome} ({ruolo}). L'utente non potrà più accedere al sistema.", { nome: `${targetUser.first_name ?? ""} ${targetUser.last_name ?? ""}`.trim(), ruolo: t(roleLabel) })}
           </DialogDescription>
         </DialogHeader>
 
@@ -310,11 +308,10 @@ function DeleteUserDialog({
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             <p className="font-medium flex items-center gap-1.5 mb-1">
               <AlertTriangle className="h-4 w-4" />
-              Dati associati
+              {t("Dati associati")}
             </p>
             <p>
-              Eventuali ordini, fatture e documenti associati a questo utente rimarranno nel sistema
-              ma senza riferimento all'utente eliminato.
+              {t("Eventuali ordini, fatture e documenti associati a questo utente rimarranno nel sistema ma senza riferimento all'utente eliminato.")}
             </p>
           </div>
 
@@ -322,17 +319,17 @@ function DeleteUserDialog({
             <div className="space-y-2">
               <Label htmlFor="riassegna-a" className="flex items-center gap-1.5 text-sm">
                 <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                Riassegna i dati a un altro utente (facoltativo)
+                {t("Riassegna i dati a un altro utente (facoltativo)")}
               </Label>
               <Select value={reassignTo} onValueChange={setReassignTo}>
                 <SelectTrigger id="riassegna-a">
-                  <SelectValue placeholder="Non riassegnare" />
+                  <SelectValue placeholder={t("Non riassegnare")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Non riassegnare — lascia senza riferimento</SelectItem>
+                  <SelectItem value="none">{t("Non riassegnare — lascia senza riferimento")}</SelectItem>
                   {eligibleUsers.map((u) => (
                     <SelectItem key={u.id} value={u.id}>
-                      {u.first_name} {u.last_name} ({ROLE_CONFIG[u.effectiveRole]?.label})
+                      {u.first_name} {u.last_name} ({t(ROLE_CONFIG[u.effectiveRole]?.label ?? "")})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -343,7 +340,7 @@ function DeleteUserDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isDeleting}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             variant="destructive"
@@ -353,9 +350,9 @@ function DeleteUserDialog({
             }}
           >
             {isDeleting ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />Eliminazione…</>
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />{t("Eliminazione…")}</>
             ) : (
-              <><Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />Elimina definitivamente</>
+              <><Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />{t("Elimina definitivamente")}</>
             )}
           </Button>
         </DialogFooter>
@@ -366,6 +363,7 @@ function DeleteUserDialog({
 
 // ─── Main Component ───────────────────────────────────────────────────
 export function UsersConfig() {
+  const tr = useT();
   const isMobile = useIsMobile();
   const { user, effectiveCompany, profile, role } = useAuth();
   const permissions = usePermissions();
@@ -717,10 +715,10 @@ export function UsersConfig() {
   const handleCreateUser = async (data: WizardUserFormData): Promise<{ temporaryPassword?: string }> => {
     setIsCreating(true);
     try {
-      if (!effectiveCompanyId) throw new Error("Scegli prima un'azienda");
+      if (!effectiveCompanyId) throw new Error(tr("Scegli prima un'azienda"));
       const normalizedEmail = data.email.trim().toLowerCase();
       if (!EMAIL_RE.test(normalizedEmail)) {
-        throw new Error("Scrivi un indirizzo email valido");
+        throw new Error(tr("Scrivi un indirizzo email valido"));
       }
 
       const { data: existingProfile, error: existingError } = await supabase
@@ -749,7 +747,7 @@ export function UsersConfig() {
       });
 
       if (response.error) {
-        let errorMessage = "Non sono riuscito a creare la persona. Riprova tra un attimo.";
+        let errorMessage = tr("Non sono riuscito a creare la persona. Riprova tra un attimo.");
         try {
           const errorBody = await response.error.context?.json?.();
           if (errorBody?.error) errorMessage = errorBody.error;
@@ -772,7 +770,7 @@ export function UsersConfig() {
           });
         } catch (permUpdateError) {
           logger.error("Failed to update permissions:", permUpdateError);
-          toast.warning("Utente creato, ma i permessi non sono stati salvati: aprilo e impostali dalla sua scheda");
+          toast.warning(tr("Utente creato, ma i permessi non sono stati salvati: aprilo e impostali dalla sua scheda"));
         }
       }
 
@@ -803,7 +801,7 @@ export function UsersConfig() {
           });
         if (spError) {
           logger.error("Failed to create salespeople record:", spError);
-          toast.warning("Utente creato, ma il profilo venditore non è stato creato");
+          toast.warning(tr("Utente creato, ma il profilo venditore non è stato creato"));
         }
       }
 
@@ -819,7 +817,7 @@ export function UsersConfig() {
             .update({ gross_salary: data.gross_salary })
             .eq("user_id", createdUserId)
             .eq("company_id", effectiveCompanyId);
-          if (salErr) { logger.error("update stipendio dipendente:", salErr); toast.warning("Utente creato, stipendio non salvato"); }
+          if (salErr) { logger.error("update stipendio dipendente:", salErr); toast.warning(tr("Utente creato, stipendio non salvato")); }
         }
         // Flag "è anche un dipendente" (Operatore/Amministratore/Venditore) → crea la
         // scheda Dipendente collegata (stipendio opzionale). Per il Venditore, flag ON
@@ -833,7 +831,7 @@ export function UsersConfig() {
             .eq("user_id", createdUserId).eq("company_id", effectiveCompanyId).maybeSingle();
           if (existingEmp?.id && data.gross_salary != null) {
             const { error } = await supabase.from("employees").update({ gross_salary: data.gross_salary }).eq("id", existingEmp.id);
-            if (error) toast.warning("Accesso creato; stipendio non aggiornato");
+            if (error) toast.warning(tr("Accesso creato; stipendio non aggiornato"));
           }
         }
       }
@@ -859,13 +857,13 @@ export function UsersConfig() {
       queryClient.invalidateQueries({ queryKey: ["salespeople"] });
       queryClient.invalidateQueries({ queryKey: ["sub-campo-list"] });
 
-      toast.success("Utente creato", {
-        description: `${data.first_name} ${data.last_name} — ${NOME_RUOLO[data.role_type as keyof typeof NOME_RUOLO] || NOME_RUOLO.company_staff}`,
+      toast.success(tr("Utente creato"), {
+        description: `${data.first_name} ${data.last_name} — ${tr(NOME_RUOLO[data.role_type as keyof typeof NOME_RUOLO] || NOME_RUOLO.company_staff)}`,
       });
 
       return { temporaryPassword: response.data.temporary_password };
     } catch (error) {
-      toast.error(messaggioErrorePersone(error, "Non sono riuscito a creare la persona. Riprova tra un attimo."));
+      toast.error(messaggioErrorePersone(error, tr("Non sono riuscito a creare la persona. Riprova tra un attimo.")));
       throw error;
     } finally {
       setIsCreating(false);
@@ -888,12 +886,12 @@ export function UsersConfig() {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
       queryClient.invalidateQueries({ queryKey: ["salespeople"] });
       queryClient.invalidateQueries({ queryKey: ["sub-campo-list"] });
-      toast.success("Utente eliminato");
+      toast.success(tr("Utente eliminato"));
       setDeleteTarget(null);
       setSelectedUsers(new Set());
     },
     onError: (e: Error) => {
-      toast.error(messaggioErrorePersone(e, "Non sono riuscito a eliminare la persona. Riprova tra un attimo."));
+      toast.error(messaggioErrorePersone(e, tr("Non sono riuscito a eliminare la persona. Riprova tra un attimo.")));
     },
   });
 
@@ -908,9 +906,9 @@ export function UsersConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
-      toast.success("Account sbloccato");
+      toast.success(tr("Account sbloccato"));
     },
-    onError: () => toast.error("Non sono riuscito a sbloccare l'account. Riprova tra un attimo."),
+    onError: () => toast.error(tr("Non sono riuscito a sbloccare l'account. Riprova tra un attimo.")),
   });
 
   const blockAccessMutation = useMutation({
@@ -925,7 +923,7 @@ export function UsersConfig() {
         } as never, { count: "exact" })
         .eq("id", userId).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
-      if (count === 0) throw new Error("Account non aggiornato");
+      if (count === 0) throw new Error(tr("Account non aggiornato"));
       await writeAuditLog(block ? "user_locked" : "user_unlocked", userId, {
         source: "people_list",
         blocked: block,
@@ -934,9 +932,9 @@ export function UsersConfig() {
     onSuccess: (_, { block }) => {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
       queryClient.invalidateQueries({ queryKey: ["stati-app-operai"] });
-      toast.success(block ? "Accesso bloccato" : "Accesso ripristinato");
+      toast.success(block ? tr("Accesso bloccato") : tr("Accesso ripristinato"));
     },
-    onError: () => toast.error("Non sono riuscito a cambiare lo stato dell'accesso. Riprova tra un attimo."),
+    onError: () => toast.error(tr("Non sono riuscito a cambiare lo stato dell'accesso. Riprova tra un attimo.")),
   });
 
   // ── Ruoli aggiuntivi (Venditore, Call Center, Operaio) ──────────────
@@ -957,7 +955,7 @@ export function UsersConfig() {
       role: RuoloAggiuntivo;
       add: boolean;
     }) => {
-      if (!effectiveCompanyId) throw new Error("Scegli prima un'azienda");
+      if (!effectiveCompanyId) throw new Error(tr("Scegli prima un'azienda"));
       const { error } = await supabase.rpc("imposta_ruolo_aggiuntivo" as never, {
         p_user_id: userId,
         p_company_id: effectiveCompanyId,
@@ -971,8 +969,8 @@ export function UsersConfig() {
       queryClient.invalidateQueries({ queryKey: ["company-staff-users"] });
       queryClient.invalidateQueries({ queryKey: ["salespeople"] });
       const testi = TESTI_RUOLO_AGGIUNTIVO[role];
-      toast.success(add ? `Ruolo "${testi.nome}" aggiunto` : `Ruolo "${testi.nome}" rimosso`, {
-        description: add ? testi.cosaFa : testi.tolto,
+      toast.success(add ? tr("Ruolo \"{nome}\" aggiunto", { nome: tr(testi.nome) }) : tr("Ruolo \"{nome}\" rimosso", { nome: tr(testi.nome) }), {
+        description: add ? tr(testi.cosaFa) : tr(testi.tolto),
       });
     },
     // Il database risponde con una frase italiana («Solo un amministratore…»):
@@ -982,7 +980,7 @@ export function UsersConfig() {
       toast.error(
         typeof msg === "string" && msg && !sembraErrorePostgresGrezzo(msg) && !isNetworkError(e)
           ? msg
-          : userErrorMessage(e, "Non sono riuscito ad aggiornare il ruolo. Riprova tra un attimo."),
+          : userErrorMessage(e, tr("Non sono riuscito ad aggiornare il ruolo. Riprova tra un attimo.")),
       );
     },
   });
@@ -1032,7 +1030,7 @@ export function UsersConfig() {
     });
     const deletable = selected.filter((uid) => !blocked.includes(uid));
     if (deletable.length === 0) {
-      toast.error("Fra quelli scelti non c'è nessuno che si possa eliminare");
+      toast.error(tr("Fra quelli scelti non c'è nessuno che si possa eliminare"));
       setSelectedUsers(new Set());
       return;
     }
@@ -1069,19 +1067,19 @@ export function UsersConfig() {
         blocked: blocked.length,
         user_ids: deletable,
       });
-      if (deleted > 0) toast.success(deleted === 1 ? "1 persona eliminata" : `${deleted} persone eliminate`);
+      if (deleted > 0) toast.success(deleted === 1 ? tr("1 persona eliminata") : tr("{deleted} persone eliminate", { deleted: String(deleted ?? "") }));
       // Surface partial failures invece di nasconderle: l'admin deve sapere
       // quanti utenti NON sono stati eliminati e perché.
       if (failed > 0) {
         toast.error(
-          `${failed === 1 ? "1 persona non eliminata" : `${failed} persone non eliminate`}${firstError ? `: ${firstError}` : ""}`,
+          `${failed === 1 ? tr("1 persona non eliminata") : tr("{failed} persone non eliminate", { failed })}${firstError ? `: ${firstError}` : ""}`,
         );
       }
       if (blocked.length > 0) {
         toast.warning(
           blocked.length === 1
-            ? "1 persona non eliminata per sicurezza (un amministratore, o tu)"
-            : `${blocked.length} persone non eliminate per sicurezza (amministratori, o tu)`,
+            ? tr("1 persona non eliminata per sicurezza (un amministratore, o tu)")
+            : tr("{n} persone non eliminate per sicurezza (amministratori, o tu)", { n: blocked.length }),
         );
       }
       setSelectedUsers(new Set());
@@ -1110,10 +1108,10 @@ export function UsersConfig() {
       rows: rows.length,
       filters: { search: searchQuery || null, role: roleFilter, status: statusFilter, team: teamFilter },
     });
-    toast.success("Elenco esportato", {
+    toast.success(tr("Elenco esportato"), {
       description: rows.length === 1
-        ? "1 persona, in base ai filtri che hai scelto."
-        : `${rows.length} persone, in base ai filtri che hai scelto.`,
+        ? tr("1 persona, in base ai filtri che hai scelto.")
+        : tr("{n} persone, in base ai filtri che hai scelto.", { n: rows.length }),
     });
   };
 
@@ -1125,14 +1123,14 @@ export function UsersConfig() {
     const file = input.files?.[0];
     if (!file) return;
     if (!effectiveCompanyId) {
-      toast.error("Scegli prima un'azienda");
+      toast.error(tr("Scegli prima un'azienda"));
       input.value = "";
       return;
     }
 
     const esito = leggiCsvUtenti(await file.text());
     if (esito.vuoto) {
-      toast.error(`Il file è vuoto o non ha le colonne giuste. Servono: ${COLONNE_DEL_FILE}.`);
+      toast.error(tr("Il file è vuoto o non ha le colonne giuste. Servono: {COLONNE_DEL_FILE}.", { COLONNE_DEL_FILE: String(COLONNE_DEL_FILE ?? "") }));
       input.value = "";
       return;
     }
@@ -1165,16 +1163,16 @@ export function UsersConfig() {
         failedRows.push({
           row: riga.riga,
           email: riga.email,
-          reason: msg?.includes("esiste già") ? "Email già in uso" : messaggioErrorePersone(err, "Non sono riuscito a crearla"),
+          reason: msg?.includes("esiste già") ? tr("Email già in uso") : messaggioErrorePersone(err, tr("Non sono riuscito a crearla")),
         });
       }
     }
     queryClient.invalidateQueries({ queryKey: ["company-users"] });
-    if (imported > 0) toast.success(imported === 1 ? "1 persona importata" : `${imported} persone importate`);
+    if (imported > 0) toast.success(imported === 1 ? tr("1 persona importata") : tr("{imported} persone importate", { imported: String(imported ?? "") }));
     if (failedRows.length > 0) {
       failedRows.sort((a, b) => a.row - b.row);
-      const detail = failedRows.slice(0, 5).map((r) => `Riga ${r.row}: ${r.email} — ${r.reason}`).join("\n");
-      toast.error(failedRows.length === 1 ? "1 riga non importata" : `${failedRows.length} righe non importate`, {
+      const detail = failedRows.slice(0, 5).map((r) => tr("Riga {row}: {email} — {reason}", { row: r.row, email: r.email, reason: r.reason })).join("\n");
+      toast.error(failedRows.length === 1 ? tr("1 riga non importata") : tr("{n} righe non importate", { n: failedRows.length }), {
         description: detail,
         duration: 8000,
       });
@@ -1195,7 +1193,7 @@ export function UsersConfig() {
           onApriFiltri={() => setFiltriMobileAperti(true)}
         />
         {canManageUsers && (
-          <Button size="icon" className="tap-compact h-9 w-9 shrink-0" onClick={() => setCreateDialogOpen(true)} aria-label="Nuovo utente">
+          <Button size="icon" className="tap-compact h-9 w-9 shrink-0" onClick={() => setCreateDialogOpen(true)} aria-label={tr("Nuovo utente")}>
             <Plus className="h-4 w-4" aria-hidden="true" />
           </Button>
         )}
@@ -1205,7 +1203,7 @@ export function UsersConfig() {
       <div className="flex items-center gap-3 flex-wrap max-sm:hidden">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-sm font-medium">
           <Users className="h-4 w-4" aria-hidden="true" />
-          {visibleCompanyUsers.length} utenti
+          {visibleCompanyUsers.length} {tr("utenti")}
         </div>
         {Object.entries(ROLE_CONFIG).map(([key, cfg]) => {
           const count = roleCounts[key] || 0;
@@ -1222,7 +1220,7 @@ export function UsersConfig() {
               }`}
             >
               <Icon className="h-3 w-3" aria-hidden="true" />
-              {count} {cfg.label}
+              {count} {tr(cfg.label)}
             </button>
           );
         })}
@@ -1236,7 +1234,7 @@ export function UsersConfig() {
             }`}
           >
             <ShieldOff className="h-3 w-3" aria-hidden="true" />
-            {statusCounts.blocked} bloccati
+            {statusCounts.blocked} {tr("bloccati")}
           </button>
         ) : null}
         {statusCounts.online ? (
@@ -1249,7 +1247,7 @@ export function UsersConfig() {
             }`}
           >
             <Wifi className="h-3 w-3" aria-hidden="true" />
-            {statusCounts.online} {statusCounts.online === 1 ? "collegato adesso" : "collegati adesso"}
+            {statusCounts.online} {statusCounts.online === 1 ? tr("collegato adesso") : tr("collegati adesso")}
           </button>
         ) : null}
       </div>
@@ -1258,9 +1256,9 @@ export function UsersConfig() {
         <div role="status" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <div>
-            <p className="font-medium">L'elenco potrebbe essere incompleto</p>
+            <p className="font-medium">{tr("L'elenco potrebbe essere incompleto")}</p>
             <p className="mt-0.5 text-xs text-amber-700">
-              Alcune informazioni non sono arrivate. Ricarica la pagina; se il problema resta, scrivi all'assistenza.
+              {tr("Alcune informazioni non sono arrivate. Ricarica la pagina; se il problema resta, scrivi all'assistenza.")}
             </p>
           </div>
         </div>
@@ -1277,8 +1275,8 @@ export function UsersConfig() {
             <div className="relative flex-1 max-w-sm lg:order-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
               <Input
-                placeholder="Cerca per nome o email…"
-                aria-label="Cerca per nome o email"
+                placeholder={tr("Cerca per nome o email…")}
+                aria-label={tr("Cerca per nome o email")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 h-9"
@@ -1287,35 +1285,35 @@ export function UsersConfig() {
 
             <div className="flex flex-wrap items-center gap-2 lg:order-3 lg:basis-full">
               <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="h-9 w-[150px]" aria-label="Filtra per ruolo">
-                  <SelectValue placeholder="Ruolo" />
+                <SelectTrigger className="h-9 w-[150px]" aria-label={tr("Filtra per ruolo")}>
+                  <SelectValue placeholder={tr("Ruolo")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti i ruoli</SelectItem>
+                  <SelectItem value="all">{tr("Tutti i ruoli")}</SelectItem>
                   {Object.entries(ROLE_CONFIG).map(([key, cfg]) => (
-                    <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                    <SelectItem key={key} value={key}>{tr(cfg.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
               <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-                <SelectTrigger className="h-9 w-[165px]" aria-label="Filtra per stato">
-                  <SelectValue placeholder="Stato" />
+                <SelectTrigger className="h-9 w-[165px]" aria-label={tr("Filtra per stato")}>
+                  <SelectValue placeholder={tr("Stato")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti gli stati</SelectItem>
+                  <SelectItem value="all">{tr("Tutti gli stati")}</SelectItem>
                   {(["online", "blocked", "locked", "never", "inactive"] as const).map((chiave) => (
-                    <SelectItem key={chiave} value={chiave}>{ETICHETTE_STATO[chiave]}</SelectItem>
+                    <SelectItem key={chiave} value={chiave}>{tr(ETICHETTE_STATO[chiave])}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
               <Select value={teamFilter} onValueChange={setTeamFilter} disabled={teams.length === 0}>
-                <SelectTrigger className="h-9 w-[160px]" aria-label="Filtra per team">
-                  <SelectValue placeholder="Team" />
+                <SelectTrigger className="h-9 w-[160px]" aria-label={tr("Filtra per team")}>
+                  <SelectValue placeholder={tr("Team")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti i team</SelectItem>
+                  <SelectItem value="all">{tr("Tutti i team")}</SelectItem>
                   {teams.map((team) => (
                     <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
                   ))}
@@ -1333,7 +1331,7 @@ export function UsersConfig() {
                     setTeamFilter("all");
                   }}
                 >
-                  Azzera i filtri
+                  {tr("Azzera i filtri")}
                 </Button>
               )}
             </div>
@@ -1342,25 +1340,25 @@ export function UsersConfig() {
               {canManageUsers && (
                 <Button onClick={() => setCreateDialogOpen(true)} size="sm">
                   <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                  Nuovo utente
+                  {tr("Nuovo utente")}
                 </Button>
               )}
               {/* Niente export su telefono. */}
               {!isMobile && (
-                <Button variant="outline" size="sm" onClick={handleExportCSV} title="Scarica l'elenco in un file CSV">
+                <Button variant="outline" size="sm" onClick={handleExportCSV} title={tr("Scarica l'elenco in un file CSV")}>
                   <Download className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                  Esporta (CSV)
+                  {tr("Esporta (CSV)")}
                 </Button>
               )}
               {canManageUsers && (
                 <div className="relative">
                   <input type="file" accept=".csv"
-                    aria-label={`Importa persone da un file CSV (colonne: ${COLONNE_DEL_FILE})`}
+                    aria-label={tr("Importa persone da un file CSV (colonne: {COLONNE_DEL_FILE})", { COLONNE_DEL_FILE: String(COLONNE_DEL_FILE ?? "") })}
                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                     onChange={handleImportCSV} />
                   <Button variant="outline" size="sm" tabIndex={-1} aria-hidden="true">
                     <Upload className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                    Importa (CSV)
+                    {tr("Importa (CSV)")}
                   </Button>
                 </div>
               )}
@@ -1368,9 +1366,7 @@ export function UsersConfig() {
           </div>
 
           {canManageUsers && !isMobile && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Per importare: un file CSV con le colonne {COLONNE_DEL_FILE} (le stesse del file che esporti).
-            </p>
+            <p className="mt-2 text-xs text-muted-foreground">{tr("Per importare: un file CSV con le colonne {COLONNE_DEL_FILE} (le stesse del file che esporti).", { COLONNE_DEL_FILE: String(COLONNE_DEL_FILE ?? "") })}</p>
           )}
 
           {/* Bulk action toolbar */}
@@ -1378,20 +1374,20 @@ export function UsersConfig() {
             <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg">
               <CheckSquare className="h-4 w-4 text-primary" aria-hidden="true" />
               <div className="text-sm">
-                <span className="font-medium">{selectedUsers.size === 1 ? "1 selezionato" : `${selectedUsers.size} selezionati`}</span>
+                <span className="font-medium">{selectedUsers.size === 1 ? tr("1 selezionato") : tr("{size} selezionati", { size: String(selectedUsers.size ?? "") })}</span>
                 <span className="ml-2 text-xs text-muted-foreground">
-                  Gli amministratori e tu non si eliminano da qui.
+                  {tr("Gli amministratori e tu non si eliminano da qui.")}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 ml-auto">
                 {canManageUsers && (
                   <Button size="sm" variant="destructive" disabled={bulkActionLoading} onClick={() => setBulkDeleteOpen(true)}>
                     {bulkActionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" aria-hidden="true" /> : <Trash2 className="h-3.5 w-3.5 mr-1" aria-hidden="true" />}
-                    Elimina
+                    {tr("Elimina")}
                   </Button>
                 )}
                 <Button size="sm" variant="ghost" onClick={() => setSelectedUsers(new Set())}>
-                  Deseleziona
+                  {tr("Deseleziona")}
                 </Button>
               </div>
             </div>
@@ -1402,22 +1398,22 @@ export function UsersConfig() {
           {isLoading ? (
             <div role="status" className="flex items-center justify-center p-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
-              <span className="sr-only">Caricamento delle persone…</span>
+              <span className="sr-only">{tr("Caricamento delle persone…")}</span>
             </div>
           ) : filteredUsers.length === 0 ? (
             <div className="p-12 text-center text-muted-foreground max-sm:p-5">
               <Users className="h-10 w-10 mx-auto mb-3 opacity-30 max-sm:hidden" aria-hidden="true" />
               <p className="font-medium">
-                {visibleCompanyUsers.length === 0 ? "Nessun utente" : "Nessun risultato"}
+                {visibleCompanyUsers.length === 0 ? tr("Nessun utente") : tr("Nessun risultato")}
               </p>
               <p className="text-sm mt-1 max-sm:hidden">
                 {visibleCompanyUsers.length === 0
-                  ? "Crea il primo utente per cominciare."
-                  : "Prova a cambiare i filtri."}
+                  ? tr("Crea il primo utente per cominciare.")
+                  : tr("Prova a cambiare i filtri.")}
               </p>
               {canManageUsers && visibleCompanyUsers.length === 0 && (
                 <Button variant="outline" size="sm" className="mt-3" onClick={() => setCreateDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> Crea utente
+                  <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> {tr("Crea utente")}
                 </Button>
               )}
             </div>
@@ -1439,8 +1435,8 @@ export function UsersConfig() {
                         </AvatarFallback>
                       </Avatar>
                     }
-                    titolo={`${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() + (isCurrentUser(u.id) ? " · tu" : "")}
-                    sottotitolo={ROLE_CONFIG[u.effectiveRole]?.label + (aggiuntivi > 0 ? ` +${aggiuntivi}` : "")}
+                    titolo={`${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() + (isCurrentUser(u.id) ? ` · ${tr("tu")}` : "")}
+                    sottotitolo={tr(ROLE_CONFIG[u.effectiveRole]?.label ?? "") + (aggiuntivi > 0 ? ` +${aggiuntivi}` : "")}
                     stato={<UserStatus u={u} breve />}
                   />
                 );
@@ -1453,7 +1449,7 @@ export function UsersConfig() {
                   <TableHead className="w-10 pl-4">
                     {canManageUsers && (
                       <Checkbox
-                        aria-label="Seleziona tutte le persone dell'elenco"
+                        aria-label={tr("Seleziona tutte le persone dell'elenco")}
                         checked={selectableFilteredUsers.length > 0 &&
                           selectedUsers.size === selectableFilteredUsers.length}
                         onCheckedChange={toggleSelectAll}
@@ -1461,10 +1457,10 @@ export function UsersConfig() {
                       />
                     )}
                   </TableHead>
-                  <TableHead className="min-w-[200px]">Utente</TableHead>
-                  <TableHead className="w-[190px]">Ruolo</TableHead>
-                  <TableHead className="w-[210px]">Stato</TableHead>
-                  <TableHead className="w-12 text-right pr-4"><span className="sr-only">Azioni</span></TableHead>
+                  <TableHead className="min-w-[200px]">{tr("Utente")}</TableHead>
+                  <TableHead className="w-[190px]">{tr("Ruolo")}</TableHead>
+                  <TableHead className="w-[210px]">{tr("Stato")}</TableHead>
+                  <TableHead className="w-12 text-right pr-4"><span className="sr-only">{tr("Azioni")}</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1477,7 +1473,7 @@ export function UsersConfig() {
                     <TableCell className="pl-4" onClick={e => e.stopPropagation()}>
                       {canManageUsers && !isCurrentUser(u.id) && u.effectiveRole !== COMPANY_ADMIN_ROLE && (
                         <Checkbox
-                          aria-label={`Seleziona ${u.first_name} ${u.last_name}`}
+                          aria-label={tr("Seleziona {first_name} {last_name}", { first_name: String(u.first_name ?? ""), last_name: String(u.last_name ?? "") })}
                           checked={selectedUsers.has(u.id)}
                           onCheckedChange={() => toggleSelectUser(u.id)}
                         />
@@ -1496,7 +1492,7 @@ export function UsersConfig() {
                               {u.first_name} {u.last_name}
                             </span>
                             {isCurrentUser(u.id) && (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">Tu</Badge>
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">{tr("Tu")}</Badge>
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground truncate">{u.email}</p>
@@ -1513,17 +1509,17 @@ export function UsersConfig() {
                       {canOpenCard && !isCurrentUser(u.id) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni per ${u.first_name} ${u.last_name}`}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={tr("Azioni per {first_name} {last_name}", { first_name: String(u.first_name ?? ""), last_name: String(u.last_name ?? "") })}>
                               <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => navigate(`/azienda/impostazioni/utenti/${u.id}`)}>
-                              <Shield className="h-4 w-4 mr-2" aria-hidden="true" /> {canManageUsers ? "Gestisci" : "Apri la scheda"}
+                              <Shield className="h-4 w-4 mr-2" aria-hidden="true" /> {canManageUsers ? tr("Gestisci") : tr("Apri la scheda")}
                             </DropdownMenuItem>
                             {u.effectiveRole !== "company_admin" && (
                               <DropdownMenuItem onClick={() => navigate(`/azienda/impostazioni/utenti/${u.id}?tab=permissions`)}>
-                                <Shield className="h-4 w-4 mr-2" aria-hidden="true" /> Permessi
+                                <Shield className="h-4 w-4 mr-2" aria-hidden="true" /> {tr("Permessi")}
                               </DropdownMenuItem>
                             )}
                             {/* Ruoli aggiuntivi: per tutti tranne il Subappaltatore */}
@@ -1533,14 +1529,14 @@ export function UsersConfig() {
                                 {aggiuntiviDisponibili(u.effectiveRole).map((r) => {
                                   const attivo = ruoliAggiuntivi(u.allRoles, u.effectiveRole).includes(r);
                                   const { icon: Icona } = ROLE_CONFIG[r];
-                                  const nome = TESTI_RUOLO_AGGIUNTIVO[r].nome;
+                                  const nome = tr(TESTI_RUOLO_AGGIUNTIVO[r].nome);
                                   return (
                                     <DropdownMenuItem
                                       key={r}
                                       onClick={() => toggleSecondaryRoleMutation.mutate({ userId: u.id, role: r, add: !attivo })}
                                     >
                                       <Icona className={`h-4 w-4 mr-2 ${attivo ? "text-emerald-600" : ""}`} />
-                                      {attivo ? `Rimuovi ruolo ${nome}` : `Aggiungi ruolo ${nome}`}
+                                      {attivo ? tr("Rimuovi ruolo {nome}", { nome: String(nome ?? "") }) : tr("Aggiungi ruolo {nome}", { nome: String(nome ?? "") })}
                                     </DropdownMenuItem>
                                   );
                                 })}
@@ -1548,7 +1544,7 @@ export function UsersConfig() {
                             )}
                             {canManageUsers && ((u.locked_until && new Date(u.locked_until) > new Date()) || u.failed_login_count > 0) && (
                               <DropdownMenuItem onClick={() => unlockAccountMutation.mutate(u.id)}>
-                                <LockOpen className="h-4 w-4 mr-2" aria-hidden="true" /> Sblocca account
+                                <LockOpen className="h-4 w-4 mr-2" aria-hidden="true" /> {tr("Sblocca account")}
                               </DropdownMenuItem>
                             )}
                             {canManageUsers && u.effectiveRole !== "company_admin" && (
@@ -1556,19 +1552,19 @@ export function UsersConfig() {
                                 <DropdownMenuSeparator />
                                 {u.is_blocked ? (
                                   <DropdownMenuItem onClick={() => blockAccessMutation.mutate({ userId: u.id, block: false })}>
-                                    <ShieldCheck className="h-4 w-4 mr-2 text-emerald-600" /> Ripristina accesso
+                                    <ShieldCheck className="h-4 w-4 mr-2 text-emerald-600" /> {tr("Ripristina accesso")}
                                   </DropdownMenuItem>
                                 ) : (
                                   <DropdownMenuItem onClick={() => blockAccessMutation.mutate({ userId: u.id, block: true })}
                                     className="text-amber-700">
-                                    <ShieldOff className="h-4 w-4 mr-2" /> Blocca accesso
+                                    <ShieldOff className="h-4 w-4 mr-2" /> {tr("Blocca accesso")}
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuItem
                                   className="text-destructive"
                                   onClick={() => setDeleteTarget(u)}
                                 >
-                                  <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                                  <Trash2 className="h-4 w-4 mr-2" /> {tr("Elimina")}
                                 </DropdownMenuItem>
                               </>
                             )}
@@ -1591,33 +1587,33 @@ export function UsersConfig() {
           risultati={filteredUsers.length}
         >
           <PilloleFiltro
-            titolo="Ruolo"
+            titolo={tr("Ruolo")}
             valore={roleFilter}
             onScegli={setRoleFilter}
             scelte={[
-              { value: "all", label: "Tutti", n: visibleCompanyUsers.length },
+              { value: "all", label: tr("Tutti"), n: visibleCompanyUsers.length },
               ...Object.entries(ROLE_CONFIG)
                 .filter(([key]) => (roleCounts[key] || 0) > 0)
-                .map(([key, cfg]) => ({ value: key, label: cfg.label, n: roleCounts[key] || 0 })),
+                .map(([key, cfg]) => ({ value: key, label: tr(cfg.label), n: roleCounts[key] || 0 })),
             ]}
           />
           <PilloleFiltro
-            titolo="Stato"
+            titolo={tr("Stato")}
             valore={statusFilter}
             onScegli={(v) => setStatusFilter(v as StatusFilter)}
             scelte={[
-              { value: "all", label: "Tutti" },
-              { value: "online", label: ETICHETTE_STATO.online },
-              { value: "never", label: ETICHETTE_STATO.never },
-              { value: "blocked", label: "Bloccati" },
+              { value: "all", label: tr("Tutti") },
+              { value: "online", label: tr(ETICHETTE_STATO.online) },
+              { value: "never", label: tr(ETICHETTE_STATO.never) },
+              { value: "blocked", label: tr("Bloccati") },
             ]}
           />
           {teams.length > 0 && (
             <PilloleFiltro
-              titolo="Team"
+              titolo={tr("Team")}
               valore={teamFilter}
               onScegli={setTeamFilter}
-              scelte={[{ value: "all", label: "Tutti" }, ...teams.map((t) => ({ value: t.id, label: t.name }))]}
+              scelte={[{ value: "all", label: tr("Tutti") }, ...teams.map((t) => ({ value: t.id, label: t.name }))]}
             />
           )}
         </PannelloFiltri>
@@ -1648,15 +1644,14 @@ export function UsersConfig() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-destructive">
               <Trash2 className="h-5 w-5" aria-hidden="true" />
-              {selectedUsers.size === 1 ? "Eliminare 1 persona?" : `Eliminare ${selectedUsers.size} persone?`}
+              {selectedUsers.size === 1 ? tr("Eliminare 1 persona?") : tr("Eliminare {size} persone?", { size: String(selectedUsers.size ?? "") })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Le persone scelte non potranno più entrare, e i dati che le riguardano restano ma senza il loro nome.
-              Gli amministratori e tu restate fuori. L'azione si registra nel registro attività.
+              {tr("Le persone scelte non potranno più entrare, e i dati che le riguardano restano ma senza il loro nome. Gli amministratori e tu restate fuori. L'azione si registra nel registro attività.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={bulkActionLoading}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={bulkActionLoading}>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={bulkActionLoading}
@@ -1670,7 +1665,7 @@ export function UsersConfig() {
               ) : (
                 <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
               )}
-              Elimina i selezionati
+              {tr("Elimina i selezionati")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

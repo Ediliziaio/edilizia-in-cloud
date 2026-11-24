@@ -39,6 +39,7 @@ import {
 } from "@/lib/orders/modelliPagamento";
 import { GRUPPI_EVENTO, eventiDelGruppo } from "@/lib/orders/rateEventi";
 import AnteprimaModelloPagamento from "./AnteprimaModelloPagamento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   aperto: boolean;
@@ -75,6 +76,7 @@ function EditorAperto({
 }: Omit<Props, "aperto" | "bozzaIniziale"> & {
   bozzaIniziale: BozzaModelloPagamento;
 }) {
+  const t = useT();
   const [bozza, setBozza] = useState<BozzaModelloPagamento>(bozzaIniziale);
   // Esc o un clic fuori non devono buttare via il lavoro: con modifiche si chiede conferma (come per i modelli di fasi).
   const modificato = JSON.stringify(bozza) !== JSON.stringify(bozzaIniziale);
@@ -125,11 +127,10 @@ function EditorAperto({
       <DialogContent className="flex max-h-[94dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
         <DialogHeader className="shrink-0 border-b px-5 py-4 pr-12">
           <DialogTitle>
-            {bozza.id ? "Modifica il modello" : "Nuovo modello di pagamento"}
+            {bozza.id ? t("Modifica il modello") : t("Nuovo modello di pagamento")}
           </DialogTitle>
           <DialogDescription>
-            Ogni rata è una parte del totale con IVA e dice quando si incassa.
-            L'ultima rata è il saldo: prende quello che resta.
+            {t("Ogni rata è una parte del totale con IVA e dice quando si incassa. L'ultima rata è il saldo: prende quello che resta.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -140,7 +141,7 @@ function EditorAperto({
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="piano-nome">Nome del modello</Label>
+                <Label htmlFor="piano-nome">{t("Nome del modello")}</Label>
                 <Input
                   id="piano-nome"
                   value={bozza.nome}
@@ -149,7 +150,7 @@ function EditorAperto({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="piano-desc">A cosa serve (facoltativo)</Label>
+                <Label htmlFor="piano-desc">{t("A cosa serve (facoltativo)")}</Label>
                 <Input
                   id="piano-desc"
                   value={bozza.descrizione}
@@ -166,13 +167,13 @@ function EditorAperto({
                 <li key={i} className="rounded-lg border bg-muted/20 p-3">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="w-14 shrink-0 text-xs text-muted-foreground">
-                      {r.tipo === "balance" ? "Saldo" : `Rata ${i + 1}`}
+                      {r.tipo === "balance" ? t("Saldo") : t("Rata {i}", { i: i + 1 })}
                     </span>
                     <Input
                       value={r.nome}
                       maxLength={80}
-                      placeholder="Nome della rata"
-                      aria-label={`Nome rata ${i + 1}`}
+                      placeholder={t("Nome della rata")}
+                      aria-label={t("Nome rata {i}", { i: i + 1 })}
                       onChange={(e) => cambiaRata(i, { nome: e.target.value })}
                       className="h-9 min-w-[10rem] flex-1"
                     />
@@ -183,7 +184,7 @@ function EditorAperto({
                         max={100}
                         step={0.01}
                         value={r.percent}
-                        aria-label={`Percentuale rata ${i + 1}`}
+                        aria-label={t("Percentuale rata {i}", { i: i + 1 })}
                         onChange={(e) =>
                           cambiaRata(i, {
                             percent:
@@ -202,7 +203,7 @@ function EditorAperto({
                     >
                       <SelectTrigger
                         className="h-9 w-[15rem] text-sm"
-                        aria-label={`Quando si incassa la rata ${i + 1}`}
+                        aria-label={t("Quando si incassa la rata {i}", { i: i + 1 })}
                       >
                         <SelectValue />
                       </SelectTrigger>
@@ -216,10 +217,10 @@ function EditorAperto({
                           if (voci.length === 0) return null;
                           return (
                             <SelectGroup key={g.value}>
-                              <SelectLabel>{g.label}</SelectLabel>
+                              <SelectLabel>{t(g.label)}</SelectLabel>
                               {voci.map((e) => (
                                 <SelectItem key={e.value} value={e.value}>
-                                  {e.label}
+                                  {t(e.label)}
                                 </SelectItem>
                               ))}
                             </SelectGroup>
@@ -235,7 +236,7 @@ function EditorAperto({
                           min={1}
                           max={99}
                           value={r.numero ?? ""}
-                          aria-label={`Numero del SAL rata ${i + 1}`}
+                          aria-label={t("Numero del SAL rata {i}", { i: i + 1 })}
                           onChange={(e) =>
                             cambiaRata(i, {
                               numero:
@@ -249,14 +250,14 @@ function EditorAperto({
                       </span>
                     )}
                     <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      Preavviso
+                      {t("Preavviso")}
                       <Input
                         type="number"
                         min={0}
                         max={90}
                         step={1}
                         value={r.preavviso}
-                        aria-label={`Preavviso rata ${i + 1}`}
+                        aria-label={t("Preavviso rata {i}", { i: i + 1 })}
                         onChange={(e) =>
                           cambiaRata(i, {
                             preavviso:
@@ -267,7 +268,7 @@ function EditorAperto({
                         }
                         className="h-9 w-16"
                       />
-                      giorni
+                      {t("giorni")}
                     </label>
                     <span className="ml-auto flex items-center">
                       <Button
@@ -275,7 +276,7 @@ function EditorAperto({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        aria-label={`Sposta su rata ${i + 1}`}
+                        aria-label={t("Sposta su rata {i}", { i: i + 1 })}
                         disabled={i === 0}
                         onClick={() => cambiaRighe(sposta(righe, i, -1))}
                       >
@@ -286,7 +287,7 @@ function EditorAperto({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        aria-label={`Sposta giù rata ${i + 1}`}
+                        aria-label={t("Sposta giù rata {i}", { i: i + 1 })}
                         disabled={i === righe.length - 1}
                         onClick={() => cambiaRighe(sposta(righe, i, 1))}
                       >
@@ -297,7 +298,7 @@ function EditorAperto({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-rose-600"
-                        aria-label={`Togli rata ${i + 1}`}
+                        aria-label={t("Togli rata {i}", { i: i + 1 })}
                         disabled={righe.length === 1}
                         onClick={() => cambiaRighe(rimuovi(righe, i))}
                       >
@@ -309,16 +310,12 @@ function EditorAperto({
               ))}
             </ol>
             <p className="text-xs text-muted-foreground">
-              Il preavviso indica quanti giorni prima della scadenza segnalare
-              la rata. Per le rate a data fissa, la data si sceglie nella
-              commessa.
+              {t("Il preavviso indica quanti giorni prima della scadenza segnalare la rata. Per le rate a data fissa, la data si sceglie nella commessa.")}
             </p>
 
             {righe.some((r) => r.evento === "sal_numero") && (
               <p className="text-xs text-muted-foreground">
-                Quando matura il SAL (appena lo emetti, o quando il cliente lo
-                approva) lo scegli nella sezione «Quando matura la rata di un
-                SAL».
+                {t("Quando matura il SAL (appena lo emetti, o quando il cliente lo approva) lo scegli nella sezione «Quando matura la rata di un SAL».")}
               </p>
             )}
 
@@ -331,7 +328,7 @@ function EditorAperto({
                 disabled={righe.length >= 12}
               >
                 <Plus className="mr-1 h-4 w-4" />
-                Aggiungi una rata
+                {t("Aggiungi una rata")}
               </Button>
               <div className="flex items-center gap-2 text-sm">
                 <span
@@ -341,12 +338,12 @@ function EditorAperto({
                       : "font-medium text-amber-700"
                   }
                 >
-                  Totale {String(somma).replace(".", ",")}%
+                  {t("Totale {valore}%", { valore: String(somma).replace(".", ",") })}
                   {aCento
                     ? ""
                     : somma < 100
-                      ? ` · manca il ${String(Math.round((100 - somma) * 100) / 100).replace(".", ",")}%`
-                      : ` · ${String(Math.round((somma - 100) * 100) / 100).replace(".", ",")}% di troppo`}
+                      ? " · " + t("manca il {valore}%", { valore: String(Math.round((100 - somma) * 100) / 100).replace(".", ",") })
+                      : " · " + t("{valore}% di troppo", { valore: String(Math.round((somma - 100) * 100) / 100).replace(".", ",") })}
                 </span>
                 {!aCento && (
                   <Button
@@ -356,7 +353,7 @@ function EditorAperto({
                     className="h-7 text-xs"
                     onClick={() => cambiaRighe(mettiIlResto(righe))}
                   >
-                    Metti il resto sul saldo
+                    {t("Metti il resto sul saldo")}
                   </Button>
                 )}
               </div>
@@ -375,12 +372,12 @@ function EditorAperto({
         </div>
 
         <DialogFooter className="shrink-0 items-center border-t bg-background px-5 py-3">
-          <StatoSalvataggio modificato={modificato} inCorso={salvataggio} descrizione={bozza.id ? "Modifica i campi e salva il modello" : "Il nuovo modello si crea con Salva modello"} />
+          <StatoSalvataggio modificato={modificato} inCorso={salvataggio} descrizione={bozza.id ? t("Modifica i campi e salva il modello") : t("Il nuovo modello si crea con Salva modello")} />
           <Button variant="outline" disabled={salvataggio} onClick={chiudi}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button onClick={salva} disabled={salvataggio}>
-            Salva modello
+            {t("Salva modello")}
           </Button>
         </DialogFooter>
       </DialogContent>

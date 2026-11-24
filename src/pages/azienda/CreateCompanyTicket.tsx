@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Wrench, Headset } from "lucide-react";
 import { NuovoTicketForm } from "@/components/tickets/NuovoTicketForm";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function CreateCompanyTicket() {
+  const t = useT();
   const navigate = useNavigate();
   const pendingRef = useRef(false);
   const [pending, setPending] = useState(false);
@@ -30,7 +32,7 @@ export default function CreateCompanyTicket() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center gap-4">
-        <Button aria-label={isIntervento ? "Torna agli interventi" : "Torna all’assistenza"} variant="ghost" size="icon" disabled={pending} className="hidden md:inline-flex" onClick={() => {
+        <Button aria-label={isIntervento ? t("Torna agli interventi") : t("Torna all’assistenza")} variant="ghost" size="icon" disabled={pending} className="hidden md:inline-flex" onClick={() => {
           if (pendingRef.current) return;
           navigate(isIntervento ? "/azienda/assistenza?tipo=intervento" : "/azienda/assistenza");
         }}>
@@ -39,8 +41,8 @@ export default function CreateCompanyTicket() {
         <div className="flex items-center gap-2">
           {isIntervento ? <Wrench className="h-5 w-5 text-orange-500" /> : <Headset className="h-5 w-5 text-primary" />}
           <div>
-            <h1 className="text-xl font-bold">{isIntervento ? "Crea Intervento" : "Crea Ticket"}</h1>
-            <p className="text-sm text-muted-foreground">{isIntervento ? "Pianifica un intervento tecnico" : "Apri un ticket per conto di un cliente"}</p>
+            <h1 className="text-xl font-bold">{isIntervento ? t("Crea Intervento") : t("Crea Ticket")}</h1>
+            <p className="text-sm text-muted-foreground">{isIntervento ? t("Pianifica un intervento tecnico") : t("Apri un ticket per conto di un cliente")}</p>
           </div>
         </div>
       </div>
@@ -49,7 +51,7 @@ export default function CreateCompanyTicket() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             {isIntervento ? <Wrench className="h-4 w-4 text-orange-500" /> : <Headset className="h-4 w-4 text-primary" />}
-            {isIntervento ? "Nuovo Intervento" : "Nuovo Ticket"}
+            {isIntervento ? t("Nuovo Intervento") : t("Nuovo Ticket")}
           </CardTitle>
         </CardHeader>
         <CardContent>

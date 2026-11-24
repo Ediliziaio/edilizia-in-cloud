@@ -16,6 +16,7 @@ import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { campiMarginiModificati } from "@/lib/impostazioni/salvataggioMargini";
 import { MessaggioPerUtente, motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const sectorLabels: Record<string, string> = {
   serramenti: "Serramenti",
@@ -46,6 +47,7 @@ export function CompanyProfileForm({
   azioniSlot,
   evidenziata = null,
 }: { canEdit?: boolean; azioniSlot?: HTMLElement | null; evidenziata?: string | null } = {}) {
+  const t = useT();
   const { effectiveCompany, refreshAuth } = useAuth();
   const idModulo = useId();
 
@@ -192,18 +194,18 @@ export function CompanyProfileForm({
       // «Profilo aziendale» senza quello generale delle impostazioni. Prima il messaggio era «impossibile aggiornare».
       if (error) {
         throw error.code === "PGRST116"
-          ? new MessaggioPerUtente("Il tuo utente non può modificare i dati dell'azienda: chiedi a un amministratore.")
+          ? new MessaggioPerUtente(t("Il tuo utente non può modificare i dati dell'azienda: chiedi a un amministratore."))
           : error;
       }
 
       setBaseline({ ...values });
       dirtyRef.current = false;
       await refreshAuth();
-      toast.success("Dati aziendali salvati");
+      toast.success(t("Dati aziendali salvati"));
     } catch (error) {
       logger.error("Error updating company:", error);
       // Una partita IVA o un codice fiscale sbagliato li rifiuta il database, e dice già in italiano cosa non va.
-      toast.error("Dati non salvati", { description: motivoDelRifiuto(error, "Impossibile aggiornare i dati aziendali.") });
+      toast.error(t("Dati non salvati"), { description: motivoDelRifiuto(error, t("Impossibile aggiornare i dati aziendali.")) });
     } finally {
       setIsSaving(false);
     }
@@ -217,13 +219,13 @@ export function CompanyProfileForm({
         role="status"
         className={cn("text-xs", isSaving || isDirty ? "text-muted-foreground" : "text-muted-foreground max-sm:sr-only", isDirty && !isSaving && "font-medium text-amber-700 dark:text-amber-400")}
       >
-        {isSaving ? "Salvataggio…" : isDirty ? "Modifiche non salvate" : "Nessuna modifica da salvare"}
+        {isSaving ? t("Salvataggio…") : isDirty ? t("Modifiche non salvate") : t("Nessuna modifica da salvare")}
       </p>
       <Button size="sm" type="submit" form={idModulo} disabled={isSaving || !isDirty || prefixLoading || !canEdit}>
         {isSaving ? (
-          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio...</>
+          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("Salvataggio...")}</>
         ) : (
-          <><Save className="mr-2 h-4 w-4" />Salva dati aziendali</>
+          <><Save className="mr-2 h-4 w-4" />{t("Salva dati aziendali")}</>
         )}
       </Button>
     </>
@@ -235,30 +237,29 @@ export function CompanyProfileForm({
       <fieldset disabled={!canEdit || isSaving || prefixLoading} className="m-0 min-w-0 divide-y border-0 p-0">
       {/* Chi è l'account: nome, email e settore non si cambiano da qui. Su telefono non serve. */}
       <p className="px-4 py-3 text-xs text-muted-foreground max-sm:hidden">
-        Account: <strong className="font-medium text-foreground">{company.name}</strong> · {company.email} · {sectorLabels[company.sector] || company.sector}.
-        Per cambiarli scrivi all'assistenza.
+        {t("Account:")} <strong className="font-medium text-foreground">{company.name}</strong> · {company.email} · {sectorLabels[company.sector] ? t(sectorLabels[company.sector]) : company.sector}{t(". Per cambiarli scrivi all'assistenza.")}
       </p>
 
       {/* Dati generali */}
       <div className={BLOCCO}>
         <h3 className={TITOLO_BLOCCO}>
-          <Building2 className="h-4 w-4" /> Dati generali
+          <Building2 className="h-4 w-4" /> {t("Dati generali")}
         </h3>
         {/* Mobile: campi brevi affiancati. */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-3">
           <div className="space-y-2 max-sm:col-span-2">
-            <Label htmlFor="businessName">Ragione sociale</Label>
-            <Input id="businessName" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Rossi S.r.l." maxLength={100} />
+            <Label htmlFor="businessName">{t("Ragione sociale")}</Label>
+            <Input id="businessName" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder={t("Rossi S.r.l.")} maxLength={100} />
           </div>
           {/* Il numero delle commesse (O-0001, O-0002…): l'àncora #prefisso-commessa porta qui dalla ricerca. */}
           <div
             id="prefisso-commessa"
             className={cn("scroll-mt-28 space-y-2 rounded-md transition-shadow duration-500", evidenziata === "prefisso-commessa" && "ring-2 ring-primary/50 ring-offset-4 ring-offset-card")}
           >
-            <Label htmlFor="orderCodePrefix"><span className="max-sm:hidden">Prefisso del codice commessa</span><span className="sm:hidden">Prefisso commesse</span></Label>
+            <Label htmlFor="orderCodePrefix"><span className="max-sm:hidden">{t("Prefisso del codice commessa")}</span><span className="sm:hidden">{t("Prefisso commesse")}</span></Label>
             <Input id="orderCodePrefix" value={orderCodePrefix} onChange={(e) => setOrderCodePrefix(e.target.value)} placeholder="O" maxLength={16} disabled={prefixError} aria-describedby="orderCodePrefix-aiuto" />
             <p id="orderCodePrefix-aiuto" className="text-[11px] text-muted-foreground max-sm:hidden">
-              Il numero delle commesse parte da qui: <strong>{(orderCodePrefix.trim() || "O")}-0001</strong>, {(orderCodePrefix.trim() || "O")}-0002…
+              {t("Il numero delle commesse parte da qui:")} <strong>{(orderCodePrefix.trim() || "O")}-0001</strong>, {(orderCodePrefix.trim() || "O")}-0002…
             </p>
           </div>
         </div>
@@ -267,7 +268,7 @@ export function CompanyProfileForm({
       {/* Dati fiscali */}
       <div className={BLOCCO}>
         <h3 className={TITOLO_BLOCCO}>
-          <FileText className="h-4 w-4" /> Dati fiscali
+          <FileText className="h-4 w-4" /> {t("Dati fiscali")}
         </h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-3">
           <div className="space-y-2">
@@ -275,7 +276,7 @@ export function CompanyProfileForm({
             <Input id="vatNumber" value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="01234567890" maxLength={11} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="fiscalCode">Codice fiscale</Label>
+            <Label htmlFor="fiscalCode">{t("Codice fiscale")}</Label>
             <Input id="fiscalCode" value={fiscalCode} onChange={(e) => setFiscalCode(e.target.value)} placeholder="01234567890" maxLength={16} />
           </div>
           <div className="space-y-2 max-sm:col-span-2">
@@ -283,7 +284,7 @@ export function CompanyProfileForm({
             <Input id="pec" type="email" value={pec} onChange={(e) => setPec(e.target.value)} placeholder="azienda@pec.it" maxLength={100} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="sdiCode">Codice SDI</Label>
+            <Label htmlFor="sdiCode">{t("Codice SDI")}</Label>
             <Input id="sdiCode" value={sdiCode} onChange={(e) => setSdiCode(e.target.value)} placeholder="A1B2C3D" maxLength={7} />
           </div>
         </div>
@@ -292,15 +293,15 @@ export function CompanyProfileForm({
       {/* Contatti */}
       <div className={BLOCCO}>
         <h3 className={TITOLO_BLOCCO}>
-          <Phone className="h-4 w-4" /> Contatti
+          <Phone className="h-4 w-4" /> {t("Contatti")}
         </h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-3">
           <div className="space-y-2">
-            <Label htmlFor="companyPhone">Telefono</Label>
+            <Label htmlFor="companyPhone">{t("Telefono")}</Label>
             <Input id="companyPhone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 02 1234567" maxLength={20} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="companyWebsite">Sito web</Label>
+            <Label htmlFor="companyWebsite">{t("Sito web")}</Label>
             <Input id="companyWebsite" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://www.azienda.it" maxLength={100} />
           </div>
         </div>
@@ -309,28 +310,28 @@ export function CompanyProfileForm({
       {/* Sede legale */}
       <div className={BLOCCO}>
         <h3 className={TITOLO_BLOCCO}>
-          <MapPin className="h-4 w-4" /> Sede legale
+          <MapPin className="h-4 w-4" /> {t("Sede legale")}
         </h3>
         <div className="space-y-2">
-          <Label htmlFor="legalAddress">Indirizzo</Label>
+          <Label htmlFor="legalAddress">{t("Indirizzo")}</Label>
           <CampoIndirizzo
             id="legalAddress"
             value={legalAddress}
             onChange={setLegalAddress}
             onScegli={(a) => riempiCampi(a, (campo, valore) =>
               ({ via: setLegalAddress, citta: setLegalCity, provincia: setLegalProvince, cap: setLegalPostalCode })[campo](valore))}
-            placeholder="Via Roma 1"
+            placeholder={t("Via Roma 1")}
             maxLength={200}
           />
         </div>
         {/* Telefono: la città a tutta riga, provincia e CAP affiancati (tre colonne da 95 px non bastavano). */}
         <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-2 max-sm:gap-3">
           <div className="space-y-2 max-sm:col-span-2">
-            <Label htmlFor="legalCity">Città</Label>
-            <Input id="legalCity" value={legalCity} onChange={(e) => setLegalCity(e.target.value)} placeholder="Milano" maxLength={100} />
+            <Label htmlFor="legalCity">{t("Città")}</Label>
+            <Input id="legalCity" value={legalCity} onChange={(e) => setLegalCity(e.target.value)} placeholder={t("Milano")} maxLength={100} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="legalProvince">Provincia</Label>
+            <Label htmlFor="legalProvince">{t("Provincia")}</Label>
             <Input id="legalProvince" value={legalProvince} onChange={(e) => setLegalProvince(e.target.value)} placeholder="MI" maxLength={2} />
           </div>
           <div className="space-y-2">
@@ -344,22 +345,22 @@ export function CompanyProfileForm({
       <div className={BLOCCO}>
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <h3 className={TITOLO_BLOCCO}>
-            <MapPin className="h-4 w-4" /> Sede operativa
+            <MapPin className="h-4 w-4" /> {t("Sede operativa")}
           </h3>
           <div className="flex items-center gap-2">
             <Checkbox id="sameAddress" checked={sameAddress} onCheckedChange={(v) => setSameAddress(!!v)} />
-            <Label htmlFor="sameAddress" className="text-sm font-normal cursor-pointer">Uguale alla sede legale</Label>
+            <Label htmlFor="sameAddress" className="text-sm font-normal cursor-pointer">{t("Uguale alla sede legale")}</Label>
           </div>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="operationalAddress">Indirizzo</Label>
+          <Label htmlFor="operationalAddress">{t("Indirizzo")}</Label>
           <CampoIndirizzo
             id="operationalAddress"
             value={operationalAddress}
             onChange={setOperationalAddress}
             onScegli={(a) => riempiCampi(a, (campo, valore) =>
               ({ via: setOperationalAddress, citta: setOperationalCity, provincia: setOperationalProvince, cap: setOperationalPostalCode })[campo](valore))}
-            placeholder="Via Roma 1"
+            placeholder={t("Via Roma 1")}
             maxLength={200}
             disabled={sameAddress}
             className={sameAddress ? "bg-muted" : ""}
@@ -367,11 +368,11 @@ export function CompanyProfileForm({
         </div>
         <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-2 max-sm:gap-3">
           <div className="space-y-2 max-sm:col-span-2">
-            <Label htmlFor="operationalCity">Città</Label>
-            <Input id="operationalCity" value={operationalCity} onChange={(e) => setOperationalCity(e.target.value)} placeholder="Milano" maxLength={100} disabled={sameAddress} className={sameAddress ? "bg-muted" : ""} />
+            <Label htmlFor="operationalCity">{t("Città")}</Label>
+            <Input id="operationalCity" value={operationalCity} onChange={(e) => setOperationalCity(e.target.value)} placeholder={t("Milano")} maxLength={100} disabled={sameAddress} className={sameAddress ? "bg-muted" : ""} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="operationalProvince">Provincia</Label>
+            <Label htmlFor="operationalProvince">{t("Provincia")}</Label>
             <Input id="operationalProvince" value={operationalProvince} onChange={(e) => setOperationalProvince(e.target.value)} placeholder="MI" maxLength={2} disabled={sameAddress} className={sameAddress ? "bg-muted" : ""} />
           </div>
           <div className="space-y-2">
@@ -382,7 +383,7 @@ export function CompanyProfileForm({
       </div>
       </fieldset>
 
-      {prefixError && <p className="px-4 py-2 text-xs text-amber-700">Prefisso commessa non caricato: il valore esistente non verrà modificato.</p>}
+      {prefixError && <p className="px-4 py-2 text-xs text-amber-700">{t("Prefisso commessa non caricato: il valore esistente non verrà modificato.")}</p>}
 
       {/* Stato e «Salva»: nella barra della pagina se c'è, altrimenti in fondo al modulo. */}
       {azioniSlot === undefined ? (

@@ -30,6 +30,7 @@ import { oggettoCampi } from "@/lib/tariffe/costoLavorazione";
 import { supabase } from "@/integrations/supabase/client";
 import { testoErrore } from "@/lib/impostazioni/testoErrore";
 import type { Tariffa } from "./types";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface ImportaPrezzarioRegionaleDialogProps {
   open: boolean;
@@ -48,6 +49,7 @@ export function ImportaPrezzarioRegionaleDialog({
   onImported,
   existing = [],
 }: ImportaPrezzarioRegionaleDialogProps) {
+  const tr = useT();
   const [fonteId, setFonteId] = useState<string | null>(null);
   const [selezione, setSelezione] = useState<SelezionePrezzario>({});
   const [ricarico, setRicarico] = useState("0");
@@ -129,8 +131,8 @@ export function ImportaPrezzarioRegionaleDialog({
       setCompletate((prima) => [...prima, ...fatte]);
       setSelezione({});
       onImported();
-      toast.success("Importazione completata", {
-        description: `${aggiunte} voci aggiunte con categoria e fonte.${giaPresenti ? ` ${giaPresenti} già presenti, lasciate invariate.` : ""}`,
+      toast.success(tr("Importazione completata"), {
+        description: `${tr("{aggiunte} voci aggiunte con categoria e fonte.", { aggiunte })}${giaPresenti ? ` ${tr("{giaPresenti} già presenti, lasciate invariate.", { giaPresenti })}` : ""}`,
       });
       onOpenChange(false);
     } catch (e) {
@@ -144,9 +146,9 @@ export function ImportaPrezzarioRegionaleDialog({
         onImported();
       }
       toast.error(
-        fatte.length ? "Importazione parziale" : "Importazione non riuscita",
+        fatte.length ? tr("Importazione parziale") : tr("Importazione non riuscita"),
         {
-          description: `${fatte.length ? `${aggiunte} voci salvate. La selezione contiene solo quelle ancora da importare. ` : ""}${testoErrore(e)}`,
+          description: `${fatte.length ? `${tr("{aggiunte} voci salvate. La selezione contiene solo quelle ancora da importare.", { aggiunte })} ` : ""}${testoErrore(e)}`,
         },
       );
     } finally {
@@ -160,12 +162,10 @@ export function ImportaPrezzarioRegionaleDialog({
         <DialogHeader className="border-b px-5 py-4">
           <DialogTitle className="flex items-center gap-2">
             <Library className="h-5 w-5 text-primary" />
-            Prezziari regionali
+            {tr("Prezziari regionali")}
           </DialogTitle>
           <DialogDescription>
-            Scegli le voci da aggiungere a Manodopera e servizi. Categoria e
-            fonte vengono conservate; il ricarico si applica al prezzo del
-            prezziario.
+            {tr("Scegli le voci da aggiungere a Manodopera e servizi. Categoria e fonte vengono conservate; il ricarico si applica al prezzo del prezziario.")}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
@@ -198,14 +198,15 @@ export function ImportaPrezzarioRegionaleDialog({
               if (!c || !ricaricoValido || erroreVoceTariffa(v, ricaricoNum))
                 return null;
               const pv = prezziTariffaRegionale(v, ricaricoNum)!.vendita;
-              return `Nel listino: ${pv.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} €/${c.unita === "a_corpo" ? "a corpo" : c.unita}${c.fattore !== 1 ? " · prezzo convertito" : ""}`;
+              const prezzo = `${pv.toLocaleString(intlCampo(), { minimumFractionDigits: 2, maximumFractionDigits: 4 })} €/${c.unita === "a_corpo" ? tr("a corpo") : c.unita}`;
+              return c.fattore !== 1 ? tr("Nel listino: {prezzo} · prezzo convertito", { prezzo }) : tr("Nel listino: {prezzo}", { prezzo });
             }}
           />
         </div>
         <DialogFooter className="border-t bg-muted/20 px-5 py-4 sm:items-center sm:justify-between">
           <div className="space-y-1">
             <Label htmlFor="prezzario-ricarico">
-              Ricarico sul prezzo regionale %
+              {tr("Ricarico sul prezzo regionale %")}
             </Label>
             <Input
               id="prezzario-ricarico"
@@ -218,14 +219,14 @@ export function ImportaPrezzarioRegionaleDialog({
             />
             {!ricaricoValido && (
               <p role="alert" className="text-xs text-destructive">
-                Indica un ricarico valido, da 0 in su.
+                {tr("Indica un ricarico valido, da 0 in su.")}
               </p>
             )}
           </div>
           <div className="flex items-center gap-3">
             <span role="status" className="text-sm text-muted-foreground">
               {importing
-                ? `${progresso} / ${selezionate.length} elaborate`
+                ? tr("{progresso} / {n} elaborate", { progresso: String(progresso ?? ""), n: selezionate.length })
                 : `${selezionate.length} ${selezionate.length === 1 ? "selezionata" : "selezionate"}`}
             </span>
             <Button
@@ -233,7 +234,7 @@ export function ImportaPrezzarioRegionaleDialog({
               disabled={importing}
               onClick={() => chiudi(false)}
             >
-              Annulla
+              {tr("Annulla")}
             </Button>
             <Button
               onClick={() => void importa()}
@@ -254,8 +255,8 @@ export function ImportaPrezzarioRegionaleDialog({
               ) : (
                 <PackagePlus className="mr-2 h-4 w-4" />
               )}
-              Importa {selezionate.length || ""}{" "}
-              {selezionate.length === 1 ? "voce" : "voci"}
+              {tr("Importa")} {selezionate.length || ""}{" "}
+              {selezionate.length === 1 ? tr("voce") : tr("voci")}
             </Button>
           </div>
         </DialogFooter>

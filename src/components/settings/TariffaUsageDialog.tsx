@@ -29,6 +29,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   FileText, Package, Layers3, Tag, Truck, HardHat, Loader2, CheckCircle2, AlertTriangle,
 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Mappa tabella → icona (la libreria dati è "pura" e non conosce le icone). */
 const ICON_BY_TABLE: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -52,6 +53,7 @@ export function TariffaUsageDialog({
   onClose: () => void;
   tariffa: Tariffa | null;
 }) {
+  const t = useT();
   const tariffaId = tariffa?.id;
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -69,12 +71,12 @@ export function TariffaUsageDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Dove è usata</DialogTitle>
+          <DialogTitle>{t("Dove è usata")}</DialogTitle>
           <DialogDescription>
             {tariffa ? (
-              <>Riferimenti a <span className="font-medium text-foreground">{tariffa.nome}</span> nell'applicazione.</>
+              t("Riferimenti a {nome} nell'applicazione.", { nome: tariffa.nome })
             ) : (
-              "Riferimenti della voce nell'applicazione."
+              t("Riferimenti della voce nell'applicazione.")
             )}
           </DialogDescription>
         </DialogHeader>
@@ -82,36 +84,35 @@ export function TariffaUsageDialog({
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Verifica dei collegamenti in corso…
+            {t("Verifica dei collegamenti in corso…")}
           </div>
         ) : isError ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <AlertTriangle className="h-8 w-8 text-amber-500" />
             <p className="text-sm text-muted-foreground">
-              Non è stato possibile verificare i collegamenti.
+              {t("Non è stato possibile verificare i collegamenti.")}
             </p>
-            <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova")}</Button>
           </div>
         ) : total === 0 ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <CheckCircle2 className="h-8 w-8 text-emerald-500" />
             <div>
-              <p className="font-medium">Nessun utilizzo trovato</p>
+              <p className="font-medium">{t("Nessun utilizzo trovato")}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Questa voce non è referenziata da preventivi, bundle o listini:
-                puoi archiviarla o eliminarla senza impatti.
+                {t("Questa voce non è referenziata da preventivi, bundle o listini: puoi archiviarla o eliminarla senza impatti.")}
               </p>
             </div>
             {hasUnknown && (
               <p className="text-xs text-muted-foreground">
-                Alcune sorgenti non sono verificabili in questo ambiente.
+                {t("Alcune sorgenti non sono verificabili in questo ambiente.")}
               </p>
             )}
           </div>
         ) : (
           <>
             <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2">
-              <span className="text-sm font-medium">Utilizzi totali</span>
+              <span className="text-sm font-medium">{t("Utilizzi totali")}</span>
               <Badge variant="secondary" className="text-sm">{total}</Badge>
             </div>
             <ScrollArea className="max-h-[320px] pr-3">
@@ -127,8 +128,8 @@ export function TariffaUsageDialog({
                         <Icon className="h-4 w-4 text-muted-foreground" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium truncate">{r.label}</div>
-                        <div className="text-xs text-muted-foreground truncate">{r.hint}</div>
+                        <div className="text-sm font-medium truncate">{t(r.label)}</div>
+                        <div className="text-xs text-muted-foreground truncate">{t(r.hint)}</div>
                       </div>
                       <Badge variant="outline" className="shrink-0">{r.count}</Badge>
                     </li>
@@ -137,15 +138,14 @@ export function TariffaUsageDialog({
               </ul>
             </ScrollArea>
             <p className="text-xs text-muted-foreground">
-              Eliminare una voce ancora collegata può lasciare riferimenti vuoti:
-              valuta di <span className="font-medium">archiviarla</span> invece di eliminarla.
-              {hasUnknown && " Alcune sorgenti non sono verificabili in questo ambiente."}
+              {t("Eliminare una voce ancora collegata può lasciare riferimenti vuoti: valuta di archiviarla invece di eliminarla.")}
+              {hasUnknown && ` ${t("Alcune sorgenti non sono verificabili in questo ambiente.")}`}
             </p>
           </>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Chiudi</Button>
+          <Button variant="outline" onClick={onClose}>{t("Chiudi")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

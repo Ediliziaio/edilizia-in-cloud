@@ -32,6 +32,7 @@ import { useDistanzeCantieri } from "@/hooks/useDistanzaCantieri";
 import { TIPI_CHE_VIAGGIANO, formatKm, giorniLavorativiSovrapposti, kmStimati } from "@/lib/manodopera/km";
 import { TimelineUso } from "@/components/mezzi/TimelineUso";
 import { ViaggiCommessa } from "@/components/mezzi/ViaggiMezzoWorkspace";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   orderId: string;
@@ -47,13 +48,14 @@ interface Props {
   mostraViaggi?: boolean;
 }
 
-function descriviPeriodi(periodi: Array<{ dal: string; al: string | null }>): string {
+function descriviPeriodi(periodi: Array<{ dal: string; al: string | null }>, tr: ReturnType<typeof useT>): string {
   return periodi
-    .map((p) => (p.al ? `dal ${formatData(giornoItaliano(p.dal))} al ${formatData(giornoItaliano(p.al))}` : `dal ${formatData(giornoItaliano(p.dal))}`))
+    .map((p) => (p.al ? tr("dal {dal} al {al}", { dal: formatData(giornoItaliano(p.dal)), al: formatData(giornoItaliano(p.al)) }) : tr("dal {dal}", { dal: formatData(giornoItaliano(p.dal)) })))
     .join(", ");
 }
 
 export function MezziCommessaCard({ orderId, compact: compactProp = false, readOnly = false, storico = false, mostraViaggi = true }: Props) {
+  const tr = useT();
   const compact = compactProp || storico;
   const perms = usePermissions();
   const puoVedere = perms.canViewMezzi || perms.isAdmin;
@@ -162,42 +164,42 @@ export function MezziCommessaCard({ orderId, compact: compactProp = false, readO
       {!compact && <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex min-w-0 items-center gap-2 text-base sm:text-lg">
           <Truck className="h-4 w-4 shrink-0 text-slate-600" />
-          <span>{readOnly ? "Utilizzo di mezzi e attrezzature" : "Mezzi e attrezzature"}</span>
+          <span>{readOnly ? tr("Utilizzo di mezzi e attrezzature") : tr("Mezzi e attrezzature")}</span>
           {righe.length + righeMontaggi.length > 0 && <span className="shrink-0 text-xs font-normal text-muted-foreground">({righe.length + righeMontaggi.length})</span>}
         </CardTitle>
         {puoModificare && (
           <Button size="sm" variant="outline" className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950" onClick={() => setAperto(true)} disabled={loadingParco || parcoError || disponibili.length === 0}>
             <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-            <span>Assegna mezzo o attrezzo</span>
+            <span>{tr("Assegna mezzo o attrezzo")}</span>
           </Button>
         )}
       </CardHeader>}
       <CardContent className={cn("space-y-3", compact ? "p-0" : "max-sm:p-3 max-sm:pt-0")}>
         {!storico && <div className="flex flex-col items-start gap-3 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="min-w-0 flex-1 text-xs text-slate-600">{readOnly ? "Storico di utilizzo sul cantiere. Gestisci le assegnazioni in Lavorazioni. I costi sono stime, non nuove registrazioni contabili." : compact ? "Assegnazioni fisiche al cantiere; valgono per tutta la commessa. I mezzi al seguito delle persone sono indicati nelle rispettive fasi." : "Mezzi propri, in leasing o a noleggio. Le assegnazioni indicano dove sono; i costi qui mostrati sono stime, non fatture di noleggio."}</p>
+          <p className="min-w-0 flex-1 text-xs text-slate-600">{readOnly ? tr("Storico di utilizzo sul cantiere. Gestisci le assegnazioni in Lavorazioni. I costi sono stime, non nuove registrazioni contabili.") : compact ? tr("Assegnazioni fisiche al cantiere; valgono per tutta la commessa. I mezzi al seguito delle persone sono indicati nelle rispettive fasi.") : tr("Mezzi propri, in leasing o a noleggio. Le assegnazioni indicano dove sono; i costi qui mostrati sono stime, non fatture di noleggio.")}</p>
           <div className="flex flex-wrap gap-2">
             {compact && puoModificare && (
               <Button size="sm" variant="outline" className="min-h-11 border-slate-300 font-semibold text-blue-950" onClick={() => setAperto(true)} disabled={loadingParco || parcoError || disponibili.length === 0}>
-                <Plus className="mr-1 h-4 w-4" aria-hidden="true" />Assegna mezzo o attrezzo
+                <Plus className="mr-1 h-4 w-4" aria-hidden="true" />{tr("Assegna mezzo o attrezzo")}
               </Button>
             )}
             <Button asChild variant="outline" size="sm" className="min-h-11 border-slate-300 font-semibold text-blue-950">
-              <Link to="/azienda/manodopera?tab=mezzi">Parco mezzi e noleggi</Link>
+              <Link to="/azienda/manodopera?tab=mezzi">{tr("Parco mezzi e noleggi")}</Link>
             </Button>
           </div>
         </div>}
-        {compact && !storico && storici > 0 && <Button variant="outline" size="sm" aria-expanded={mostraStorico} onClick={() => setMostraStorico(v => !v)}>{mostraStorico ? "Nascondi storico" : `Mostra storico (${storici})`}</Button>}
+        {compact && !storico && storici > 0 && <Button variant="outline" size="sm" aria-expanded={mostraStorico} onClick={() => setMostraStorico(v => !v)}>{mostraStorico ? tr("Nascondi storico") : tr("Mostra storico ({storici})", { storici: String(storici ?? "") })}</Button>}
         {isLoading || loadingParco || loadingMontaggi ? (
           <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         ) : error || parcoError || montaggiError ? (
           <p className="text-sm text-red-700">
-            Non riesco a caricare i mezzi.{" "}
-            <button type="button" className="font-semibold underline" onClick={() => { void refetch(); void refetchParco(); void refetchMontaggi(); }}>Riprova</button>
+            {tr("Non riesco a caricare i mezzi.")}{" "}
+            <button type="button" className="font-semibold underline" onClick={() => { void refetch(); void refetchParco(); void refetchMontaggi(); }}>{tr("Riprova")}</button>
           </p>
         ) : storico && righeVisibili.length + montaggiVisibili.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessun mezzo è ancora rientrato da questo cantiere.</p>
+          <p className="text-sm text-muted-foreground">{tr("Nessun mezzo è ancora rientrato da questo cantiere.")}</p>
         ) : righe.length === 0 && righeMontaggi.length === 0 ? (
-          <p className="text-sm text-muted-foreground max-sm:text-xs">{mezzi.length === 0 ? "Il parco mezzi è vuoto. Registra prima il mezzo o l'attrezzatura, anche a noleggio, poi assegnalo al cantiere." : "Nessun mezzo è ancora passato da questo cantiere."}</p>
+          <p className="text-sm text-muted-foreground max-sm:text-xs">{mezzi.length === 0 ? tr("Il parco mezzi è vuoto. Registra prima il mezzo o l'attrezzatura, anche a noleggio, poi assegnalo al cantiere.") : tr("Nessun mezzo è ancora passato da questo cantiere.")}</p>
         ) : (
           <ul className="divide-y">
             {righeVisibili.map((r) => (
@@ -212,16 +214,16 @@ export function MezziCommessaCard({ orderId, compact: compactProp = false, readO
                     </Link>
                     {r.targa && <span className="font-mono text-xs text-muted-foreground">{r.targa}</span>}
                     {mezzi.find(m => m.id === r.mezzo_id)?.possesso && <Badge variant="outline" className="text-[11px]">
-                      {POSSESSI.find(p => p.value === mezzi.find(m => m.id === r.mezzo_id)?.possesso)?.label}
+                      {tr(POSSESSI.find(p => p.value === mezzi.find(m => m.id === r.mezzo_id)?.possesso)?.label ?? "")}
                     </Badge>}
                     {r.adesso && (
-                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700">Qui adesso</Badge>
+                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700">{tr("Qui adesso")}</Badge>
                     )}
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {descriviPeriodi(r.periodi)} · {r.giorni === 1 ? "1 giorno" : `${r.giorni} giorni`}
-                    {r.km != null && <> · circa {formatKm(r.km)}</>}
-                    {vedeCosti && !compact && r.stima != null && <> · circa {formatCurrency(r.stima)}</>}
+                    {descriviPeriodi(r.periodi, tr)} · {r.giorni === 1 ? tr("1 giorno") : tr("{giorni} giorni", { giorni: String(r.giorni ?? "") })}
+                    {r.km != null && <>{" "}{tr("· circa {km}", { km: formatKm(r.km) })}</>}
+                    {vedeCosti && !compact && r.stima != null && <>{" "}{tr("· circa {stima}", { stima: formatCurrency(r.stima) })}</>}
                   </p>
                 </div>
                 {puoModificare && r.adesso && (
@@ -231,8 +233,8 @@ export function MezziCommessaCard({ orderId, compact: compactProp = false, readO
                     className="h-9 w-9 shrink-0"
                     onClick={() => assegna.mutate({ mezzoId: r.mezzo_id, orderId: null })}
                     disabled={assegna.isPending}
-                    aria-label={`Togli ${r.nome} dal cantiere`}
-                    title="Togli dal cantiere"
+                    aria-label={tr("Togli {nome} dal cantiere", { nome: String(r.nome ?? "") })}
+                    title={tr("Togli dal cantiere")}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -241,7 +243,7 @@ export function MezziCommessaCard({ orderId, compact: compactProp = false, readO
             ))}
           </ul>
         )}
-        {compact && !storico && !mostraStorico && righeVisibili.length + montaggiVisibili.length === 0 && storici > 0 && <p className="text-sm text-muted-foreground">Nessun mezzo presente adesso. Le assegnazioni precedenti sono nello storico.</p>}
+        {compact && !storico && !mostraStorico && righeVisibili.length + montaggiVisibili.length === 0 && storici > 0 && <p className="text-sm text-muted-foreground">{tr("Nessun mezzo presente adesso. Le assegnazioni precedenti sono nello storico.")}</p>}
         {!montaggiError && !loadingMontaggi && montaggiVisibili.length > 0 && (
           <ul className="divide-y border-t">
             {montaggiVisibili.map((g) => (
@@ -254,12 +256,12 @@ export function MezziCommessaCard({ orderId, compact: compactProp = false, readO
                     <Link to={`/azienda/mezzi/${g.mezzo_id}`} className="truncate text-sm font-medium hover:underline">{g.nome}</Link>
                     <span className="text-xs font-medium text-slate-700">{formatQuantita(g.quantita, g.unita_misura)}</span>
                     {g.adesso && (
-                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700">Montato adesso</Badge>
+                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700">{tr("Montato adesso")}</Badge>
                     )}
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {g.al ? `dal ${formatData(g.dal)} al ${formatData(g.al)}` : `dal ${formatData(g.dal)}`} · {g.giorni === 1 ? "1 giorno" : `${g.giorni} giorni`}
-                    {vedeCosti && !compact && g.stima != null && <> · circa {formatCurrency(g.stima)}</>}
+                    {g.al ? tr("dal {dal} al {al}", { dal: formatData(g.dal), al: formatData(g.al) }) : tr("dal {dal}", { dal: formatData(g.dal) })} · {g.giorni === 1 ? tr("1 giorno") : tr("{giorni} giorni", { giorni: String(g.giorni ?? "") })}
+                    {vedeCosti && !compact && g.stima != null && <>{" "}{tr("· circa {stima}", { stima: formatCurrency(g.stima) })}</>}
                   </p>
                 </div>
               </li>
@@ -268,7 +270,7 @@ export function MezziCommessaCard({ orderId, compact: compactProp = false, readO
         )}
         {mostraViaggi && <ViaggiCommessa orderId={orderId} mezzi={mezzi} readOnly={!puoModificare} vedeCosti={vedeCosti} />}
         {!error && !parcoError && !montaggiError && <details open={compact && !storico ? undefined : true} className={compact && !storico ? "rounded-lg border px-3 py-2" : ""}>
-        {compact && !storico && <summary className="cursor-pointer text-sm font-medium">Storico utilizzo, viaggio{vedeCosti ? " e stime di costo" : ""}</summary>}
+        {compact && !storico && <summary className="cursor-pointer text-sm font-medium">{tr("Storico utilizzo, viaggio")}{vedeCosti ? ` ${tr("e stime di costo")}` : ""}</summary>}
         <div className={compact && !storico ? "mt-3 space-y-3" : "space-y-3"}>
         {righe.length > 1 && (
           <TimelineUso
@@ -286,16 +288,15 @@ export function MezziCommessaCard({ orderId, compact: compactProp = false, readO
         )}
         {distanza && (
           <p className="text-xs text-muted-foreground">
-            Dalla sede al cantiere: <span className="font-medium text-foreground">{formatKm(distanza.km)}</span>
-            {distanza.minuti != null && <> · {distanza.minuti} min</>} su strada.
-            {kmTotali > 0 && <> Km stimati dei mezzi su questo cantiere, andata e ritorno nei giorni lavorativi: <span className="font-medium text-foreground">{formatKm(kmTotali)}</span>.</>}
+            {tr("Dalla sede al cantiere:")} <span className="font-medium text-foreground">{formatKm(distanza.km)}</span>
+            {distanza.minuti != null && <>{" "}{tr("· {minuti} min", { minuti: String(distanza.minuti ?? "") })}</>} {tr("su strada.")}
+            {kmTotali > 0 && <> {tr("Km stimati dei mezzi su questo cantiere, andata e ritorno nei giorni lavorativi:")} <span className="font-medium text-foreground">{formatKm(kmTotali)}</span>.</>}
           </p>
         )}
-        {vedeCosti && costiError && <p className="text-xs text-amber-800">Stime di costo non disponibili. Nessun costo viene registrato da questa vista.</p>}
+        {vedeCosti && costiError && <p className="text-xs text-amber-800">{tr("Stime di costo non disponibili. Nessun costo viene registrato da questa vista.")}</p>}
         {vedeCosti && !costiError && stimaTotale > 0 && (
           <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-            Costo stimato dei mezzi su questo cantiere: <span className="font-medium text-foreground">{formatCurrency(stimaTotale)}</span>.
-            Viene da assicurazione, bollo, rate e interventi dell'ultimo anno, divisi per i giorni sul cantiere. Compare nella lettura gestionale, senza modificare il margine diretto contabilizzato.
+            {tr("Costo stimato dei mezzi su questo cantiere:")} <span className="font-medium text-foreground">{formatCurrency(stimaTotale)}</span>.{" "}{tr("Viene da assicurazione, bollo, rate e interventi dell'ultimo anno, divisi per i giorni sul cantiere. Compare nella lettura gestionale, senza modificare il margine diretto contabilizzato.")}
           </p>
         )}
         </div></details>}
@@ -304,50 +305,50 @@ export function MezziCommessaCard({ orderId, compact: compactProp = false, readO
       <Dialog open={aperto} onOpenChange={(o) => { setAperto(o); if (!o) { setScelto(""); setQuantita(""); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Metti un mezzo sul cantiere</DialogTitle>
-            <DialogDescription>Da oggi il mezzo risulta su questa commessa. Lo storico lo segna da solo.</DialogDescription>
+            <DialogTitle>{tr("Metti un mezzo sul cantiere")}</DialogTitle>
+            <DialogDescription>{tr("Da oggi il mezzo risulta su questa commessa. Lo storico lo segna da solo.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
-            <Label htmlFor="mezzo-commessa">Mezzo</Label>
+            <Label htmlFor="mezzo-commessa">{tr("Mezzo")}</Label>
             <Select value={scelto} onValueChange={(v) => { setScelto(v); setQuantita(""); }}>
-              <SelectTrigger id="mezzo-commessa"><SelectValue placeholder="Scegli un mezzo" /></SelectTrigger>
+              <SelectTrigger id="mezzo-commessa"><SelectValue placeholder={tr("Scegli un mezzo")} /></SelectTrigger>
               <SelectContent>
                 {disponibili.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.nome}{m.targa ? ` · ${m.targa}` : ""}
-                    {m.gestione === "quantita" ? ` · ${formatQuantita(liberoDi(m), m.unita_misura)} in magazzino` : ""}
+                    {m.gestione === "quantita" ? tr(" · {valore} in magazzino", { valore: formatQuantita(liberoDi(m), m.unita_misura) }) : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {aQuantita && sceltoInfo && (
               <div className="space-y-1.5 pt-1">
-                <Label htmlFor="mezzo-commessa-quantita">Quanto ne monti su questo cantiere ({unitaBreve(sceltoInfo.unita_misura)})</Label>
+                <Label htmlFor="mezzo-commessa-quantita">{tr("Quanto ne monti su questo cantiere ({unita_misura})", { unita_misura: String(unitaBreve(sceltoInfo.unita_misura) ?? "") })}</Label>
                 <Input
                   id="mezzo-commessa-quantita"
                   inputMode="decimal"
                   value={quantita}
                   onChange={(e) => setQuantita(e.target.value)}
-                  placeholder={`al massimo ${formatQuantita(libero, sceltoInfo.unita_misura)}`}
+                  placeholder={tr("al massimo {libero}", { libero: formatQuantita(libero, sceltoInfo.unita_misura) })}
                   aria-invalid={nQuantita != null && nQuantita > libero}
                 />
                 {nQuantita != null && nQuantita > libero && (
-                  <p className="text-xs text-red-700">In magazzino ce ne sono {formatQuantita(libero, sceltoInfo.unita_misura)}.</p>
+                  <p className="text-xs text-red-700">{tr("In magazzino ce ne sono {libero}.", { libero: formatQuantita(libero, sceltoInfo.unita_misura) })}</p>
                 )}
               </div>
             )}
             {sceltoInfo?.assegnato_commessa && (
-              <p className="text-xs text-amber-800">Adesso è su {sceltoInfo.assegnato_commessa}: lo sposto qui.</p>
+              <p className="text-xs text-amber-800">{tr("Adesso è su {assegnato_commessa}: lo sposto qui.", { assegnato_commessa: String(sceltoInfo.assegnato_commessa ?? "") })}</p>
             )}
             {sceltoInfo?.stato === "in_officina" && (
-              <p className="text-xs text-amber-800">Risulta in officina.</p>
+              <p className="text-xs text-amber-800">{tr("Risulta in officina.")}</p>
             )}
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setAperto(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setAperto(false)}>{tr("Annulla")}</Button>
             <Button onClick={conferma} disabled={!puoModificare || !scelto || !quantitaValida || (aQuantita && !quantita.trim()) || assegna.isPending || monta.isPending}>
               {(assegna.isPending || monta.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {aQuantita ? "Segna il montaggio" : "Metti sul cantiere"}
+              {aQuantita ? tr("Segna il montaggio") : tr("Metti sul cantiere")}
             </Button>
           </DialogFooter>
         </DialogContent>

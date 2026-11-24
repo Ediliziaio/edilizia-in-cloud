@@ -57,6 +57,7 @@ import {
   useSubappaltatoriAzienda,
 } from "@/hooks/useCalendariLavori";
 import { GoogleCalendarPicker } from "./GoogleCalendarPicker";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const STATO_CLASSE: Record<StatoSyncSquadra, string> = {
   non_collegata: "bg-muted text-muted-foreground",
@@ -66,6 +67,7 @@ const STATO_CLASSE: Record<StatoSyncSquadra, string> = {
 };
 
 export function SquadreTab({ canManage, compact = false }: { canManage: boolean; compact?: boolean }) {
+  const t = useT();
   const { schede } = useSchedeManodopera();
   const vedeOperai = schede.includes("operai");
   const [params, setParams] = useSearchParams();
@@ -151,8 +153,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          Calendari delle squadre interne ed esterne. Componenti e responsabile
-          delle interne si gestiscono in Manodopera e Mezzi.
+          {t("Calendari delle squadre interne ed esterne. Componenti e responsabile delle interne si gestiscono in Manodopera e Mezzi.")}
         </p>
         <Button
           disabled={!canWrite}
@@ -162,26 +163,26 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
           }}
           className="gap-2"
         >
-          <Plus className="h-4 w-4" /> Nuova squadra esterna
+          <Plus className="h-4 w-4" /> {t("Nuova squadra esterna")}
         </Button>
       </div>
 
-      {!isLoading && !isError && <div className="grid grid-cols-3 gap-2" role="group" aria-label="Riepilogo squadre">
+      {!isLoading && !isError && <div className="grid grid-cols-3 gap-2" role="group" aria-label={t("Riepilogo squadre")}>
         {[
-          { value: "interna", titolo: "Interne", count: squadre.filter(s => s.kind === "interna").length },
-          { value: "esterna", titolo: "Esterne", count: squadre.filter(s => (s.kind ?? "esterna") === "esterna").length },
-          { value: "tutte", titolo: "Tutte", count: squadre.length },
+          { value: "interna", titolo: t("Interne"), count: squadre.filter(s => s.kind === "interna").length },
+          { value: "esterna", titolo: t("Esterne"), count: squadre.filter(s => (s.kind ?? "esterna") === "esterna").length },
+          { value: "tutte", titolo: t("Tutte"), count: squadre.length },
         ].map(r => <button key={r.value} type="button" onClick={() => { setTipo(r.value); setCerca(""); togliRichiesta(); }} aria-pressed={!selezionata && tipo === r.value} className={`rounded-lg border bg-card px-3 py-2 text-left transition hover:border-primary/40 ${!selezionata && tipo === r.value ? "border-primary bg-primary/5" : ""}`}><span className="block text-xs text-muted-foreground">{r.titolo}</span><span className="block text-xl font-semibold tabular-nums">{r.count}</span></button>)}
       </div>}
-      {erroreInterne && vedeOperai && <div role="alert" className="rounded-lg border p-3 text-sm">Composizione delle squadre interne non disponibile: non significa che siano vuote. <Button size="sm" variant="ghost" onClick={() => rileggiInterne()}>Rileggi componenti</Button></div>}
-      {erroreDitte && <div role="alert" className="rounded-lg border p-3 text-sm">Accessi delle ditte non disponibili. <Button size="sm" variant="ghost" onClick={() => rileggiDitte()}>Rileggi ditte</Button></div>}
+      {erroreInterne && vedeOperai && <div role="alert" className="rounded-lg border p-3 text-sm">{t("Composizione delle squadre interne non disponibile: non significa che siano vuote.")} <Button size="sm" variant="ghost" onClick={() => rileggiInterne()}>{t("Rileggi componenti")}</Button></div>}
+      {erroreDitte && <div role="alert" className="rounded-lg border p-3 text-sm">{t("Accessi delle ditte non disponibili.")} <Button size="sm" variant="ghost" onClick={() => rileggiDitte()}>{t("Rileggi ditte")}</Button></div>}
       {isError ? (
         <div role="alert" className="space-y-2 rounded-lg border p-4 text-sm">
           <p>
-            Impossibile caricare le squadre. Nessun dato è stato modificato.
+            {t("Impossibile caricare le squadre. Nessun dato è stato modificato.")}
           </p>
           <Button variant="outline" onClick={() => void refetch()}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </div>
       ) : isLoading ? (
@@ -194,17 +195,16 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
         <Card>
           <CardContent className="flex flex-col items-center py-12 text-center">
             <HardHat className="mb-3 h-10 w-10 text-muted-foreground/40" />
-            <p className="font-medium">Nessuna squadra</p>
+            <p className="font-medium">{t("Nessuna squadra")}</p>
             <p className="mb-4 text-sm text-muted-foreground">
-              Crea le squadre interne dalla gestione operai oppure aggiungi una
-              squadra esterna di posa.
+              {t("Crea le squadre interne dalla gestione operai oppure aggiungi una squadra esterna di posa.")}
             </p>
             <Button
               disabled={!canWrite}
               onClick={() => setDialogOpen(true)}
               className="gap-2"
             >
-              <Plus className="h-4 w-4" /> Nuova squadra esterna
+              <Plus className="h-4 w-4" /> {t("Nuova squadra esterna")}
             </Button>
           </CardContent>
         </Card>
@@ -212,25 +212,23 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
         <>
           <div className="flex flex-wrap items-center gap-2">
             <Input
-              aria-label="Cerca squadre e referenti"
-              placeholder="Cerca squadra o referente…"
+              aria-label={t("Cerca squadre e referenti")}
+              placeholder={t("Cerca squadra o referente…")}
               value={selezionata ? "" : cerca}
               onChange={(e) => { setCerca(e.target.value); togliRichiesta(); }}
               className="min-w-0 basis-full sm:basis-auto sm:flex-1 sm:max-w-sm"
             />
             <UniformSelect
-              aria-label="Tipo di squadra"
+              aria-label={t("Tipo di squadra")}
               value={selezionata ? "tutte" : tipo}
               onChange={(e) => { setTipo(e.target.value); togliRichiesta(); }}
               className="h-10 rounded-md border bg-background px-3 text-sm"
             >
-              <option value="tutte">Tutte le squadre</option>
-              <option value="interna">Interne</option>
-              <option value="esterna">Esterne</option>
+              <option value="tutte">{t("Tutte le squadre")}</option>
+              <option value="interna">{t("Interne")}</option>
+              <option value="esterna">{t("Esterne")}</option>
             </UniformSelect>
-            <span role="status" className="text-xs text-muted-foreground">
-              {visibili.length} di {ordinate.length} squadre
-            </span>
+            <span role="status" className="text-xs text-muted-foreground">{t("{n} di {n2} squadre", { n: visibili.length, n2: ordinate.length })}</span>
             {vedeOperai && (
               <Button
                 asChild
@@ -240,7 +238,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
               >
                 <Link to={SQUADRE_OPERAI}>
                   <Users className="mr-2 h-4 w-4" />
-                  Gestisci squadre interne
+                  {t("Gestisci squadre interne")}
                 </Link>
               </Button>
             )}
@@ -248,15 +246,15 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
           {squadraRichiesta && (
             <p className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
               {selezionata
-                ? `Calendario di ${selezionata.name}.`
-                : "La squadra richiesta non è disponibile in questo elenco."}{" "}
+                ? t("Calendario di {name}.", { name: String(selezionata.name ?? "") })
+                : t("La squadra richiesta non è disponibile in questo elenco.")}{" "}
               <Button
                 variant="link"
                 size="sm"
                 className="h-auto p-0"
                 onClick={mostraTutte}
               >
-                Mostra tutte le squadre
+                {t("Mostra tutte le squadre")}
               </Button>
             </p>
           )}
@@ -265,13 +263,12 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
               role="note"
               className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground"
             >
-              Nessun account Google collegato: se vuoi un calendario per ogni
-              squadra,{" "}
+              {t("Nessun account Google collegato: se vuoi un calendario per ogni squadra,")}{" "}
               <Link
                 to={`?${linkGoogle.toString()}`}
                 className="font-medium text-primary underline"
               >
-                collegalo da «Google Calendar»
+                {t("collegalo da «Google Calendar»")}
               </Link>
               .
             </p>
@@ -280,13 +277,13 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
             <Table className={compact ? "block" : "block lg:table"}>
               <TableHeader className={compact ? "hidden" : "hidden lg:table-header-group"}>
                 <TableRow>
-                  <TableHead>Squadra</TableHead>
-                  <TableHead className="hidden sm:table-cell">Tipo</TableHead>
+                  <TableHead>{t("Squadra")}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t("Tipo")}</TableHead>
                   <TableHead className="hidden md:table-cell">
-                    Accesso della ditta
+                    {t("Accesso della ditta")}
                   </TableHead>
-                  <TableHead>Calendario Google</TableHead>
-                  <TableHead>Invio a Google</TableHead>
+                  <TableHead>{t("Calendario Google")}</TableHead>
+                  <TableHead>{t("Invio a Google")}</TableHead>
                   <TableHead className="w-32" />
                 </TableRow>
               </TableHeader>
@@ -313,15 +310,15 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                             style={{ backgroundColor: s.color ?? "#94a3b8" }}
                           />
                           {s.name}
-                          {compact && <Badge variant="outline" className="text-xs font-normal">{SQUADRA_KIND_LABEL[s.kind ?? "esterna"]}</Badge>}
+                          {compact && <Badge variant="outline" className="text-xs font-normal">{t(SQUADRA_KIND_LABEL[s.kind ?? "esterna"])}</Badge>}
                           {!s.is_active && (
                             <Badge variant="outline" className="text-xs">
-                              inattiva
+                              {t("inattiva")}
                             </Badge>
                           )}
                         </span>
-                        {s.kind === "interna" && vedeOperai && (composizione ? <p className="mt-1 text-xs text-muted-foreground">{composizione.componenti.length} {composizione.componenti.length === 1 ? "operaio" : "operai"} · {composizione.responsabile ? `Responsabile: ${[composizione.responsabile.nome, composizione.responsabile.cognome].filter(Boolean).join(" ")}` : "Responsabile da assegnare"}</p> : caricoInterne && s.is_active ? <p className="mt-1 text-xs text-muted-foreground" role="status">Caricamento componenti…</p> : null)}
-                        {s.kind !== "interna" && s.contact_name && <p className="mt-1 text-xs text-muted-foreground">Referente: {s.contact_name}</p>}
+                        {s.kind === "interna" && vedeOperai && (composizione ? <p className="mt-1 text-xs text-muted-foreground">{t(composizione.componenti.length === 1 ? "{n} operaio" : "{n} operai", { n: composizione.componenti.length })} · {composizione.responsabile ? t("Responsabile: {valore}", { valore: [composizione.responsabile.nome, composizione.responsabile.cognome].filter(Boolean).join(" ") }) : t("Responsabile da assegnare")}</p> : caricoInterne && s.is_active ? <p className="mt-1 text-xs text-muted-foreground" role="status">{t("Caricamento componenti…")}</p> : null)}
+                        {s.kind !== "interna" && s.contact_name && <p className="mt-1 text-xs text-muted-foreground">{t("Referente: {contact_name}", { contact_name: String(s.contact_name ?? "") })}</p>}
                         {s.kind === "interna" &&
                           (vedeOperai ? (
                             <Button
@@ -332,24 +329,24 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                             >
                               <Link to={percorsoSquadra(SQUADRE_OPERAI, s.id)}>
                                 <Users className="mr-1 h-3.5 w-3.5" />
-                                Componenti e responsabile
+                                {t("Componenti e responsabile")}
                               </Link>
                             </Button>
                           ) : (
                             <p className="mt-1 text-xs text-muted-foreground">
-                              Componenti gestiti da chi ha accesso agli operai.
+                              {t("Componenti gestiti da chi ha accesso agli operai.")}
                             </p>
                           ))}
                       </TableCell>
                       <TableCell className={compact ? "!hidden" : "text-xs text-muted-foreground lg:text-sm"}>
-                        {SQUADRA_KIND_LABEL[s.kind ?? "esterna"]}
+                        {t(SQUADRA_KIND_LABEL[s.kind ?? "esterna"])}
                       </TableCell>
                       <TableCell
                         className={`text-xs text-muted-foreground lg:text-sm ${compact ? "col-span-2" : ""} ${accesso || erroreDitte ? "" : compact ? "!hidden" : "max-lg:!hidden"}`}
                       >
                         {accesso
                           ? (accesso.user_email ?? accesso.ragione_sociale)
-                          : erroreDitte ? "Non disponibile" : "—"}
+                          : erroreDitte ? t("Non disponibile") : "—"}
                       </TableCell>
                       <TableCell
                         className={
@@ -363,7 +360,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                             —
                             <span className="sr-only">
                               {" "}
-                              Calendario non collegato
+                              {t("Calendario non collegato")}
                             </span>
                           </span>
                         )}
@@ -380,8 +377,8 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                             aria-expanded={calendarioDi === s.id}
                           >
                             {calendarioDi === s.id
-                              ? "Chiudi calendario"
-                              : "Calendario Google"}
+                              ? t("Chiudi calendario")
+                              : t("Calendario Google")}
                           </Button>
                         )}
                         <div
@@ -419,7 +416,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                             <Switch
                               checked={!!s.google_sync_enabled}
                               disabled={!canWrite}
-                              aria-label={`Invia a Google Calendar: ${s.name}`}
+                              aria-label={t("Invia a Google Calendar: {name}", { name: String(s.name ?? "") })}
                               onCheckedChange={(on) =>
                                 collega.mutate({
                                   id: s.id,
@@ -439,7 +436,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label={`Documenti ${s.name}`}
+                            aria-label={t("Documenti {name}", { name: String(s.name ?? "") })}
                             onClick={() => setAllegatiDi(s)}
                           >
                             <FileText className="h-4 w-4" />
@@ -448,7 +445,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                             variant="ghost"
                             size="icon"
                             disabled={!canWrite}
-                            aria-label={`Modifica ${s.name}`}
+                            aria-label={t("Modifica {name}", { name: String(s.name ?? "") })}
                             onClick={() => {
                               setInModifica(s);
                               setDialogOpen(true);
@@ -461,7 +458,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                               variant="ghost"
                               size="icon"
                               disabled={!canWrite}
-                              aria-label={`Elimina ${s.name}`}
+                              aria-label={t("Elimina {name}", { name: String(s.name ?? "") })}
                               onClick={() => setDaEliminare(s)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -476,9 +473,9 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
             </Table>
             {!visibili.length && (
               <div className="space-y-2 p-6 text-center text-sm text-muted-foreground">
-                <p>Nessuna squadra corrisponde ai filtri.</p>
+                <p>{t("Nessuna squadra corrisponde ai filtri.")}</p>
                 <Button variant="link" onClick={mostraTutte}>
-                  Azzera i filtri
+                  {t("Azzera i filtri")}
                 </Button>
               </div>
             )}
@@ -530,17 +527,13 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Eliminare «{daEliminare?.name}»?
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare «{name}»?", { name: String(daEliminare?.name ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Se la squadra ha assegnazioni o uno storico delle composizioni,
-              non si può eliminare: disattivala per non proporla nei nuovi
-              incarichi.
+              {t("Se la squadra ha assegnazioni o uno storico delle composizioni, non si può eliminare: disattivala per non proporla nei nuovi incarichi.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground"
               disabled={!canWrite}
@@ -552,7 +545,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                   });
               }}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

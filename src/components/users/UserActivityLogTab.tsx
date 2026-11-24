@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { escapeCsvCell } from "@/lib/csvExport";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Loader2, Download, FileText, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +16,7 @@ import {
   azioneRidondante, voceDaAzione, type CategoriaLog, type Intervallo, type PresetPeriodo, type VoceLog,
 } from "@/lib/users/logAttivitaUtente";
 import { descriviDettagliSicurezza, etichettaAzioneSicurezza } from "@/lib/users/etichetteAzioniSicurezza";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface UserActivityLogTabProps {
   userId: string;
@@ -166,7 +166,7 @@ async function caricaLog(userId: string, companyId: string, intervallo: Interval
     if (giaCreate.has(`quotes:${r.id}`)) continue;
     voci.push({
       id: `qt_${r.id}`, quando: r.created_at, categoria: "preventivi", titolo: "Preventivo creato",
-      dettaglio: [r.title, r.client_name, r.total != null ? `${Number(r.total).toLocaleString("it-IT")} €` : null].filter(Boolean).join(" · ") || null,
+      dettaglio: [r.title, r.client_name, r.total != null ? `${Number(r.total).toLocaleString(intlCampo())} €` : null].filter(Boolean).join(" · ") || null,
       contactId: r.contact_id,
     });
   }
@@ -205,6 +205,7 @@ async function caricaLog(userId: string, companyId: string, intervallo: Interval
 }
 
 export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -296,9 +297,9 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
       <CardHeader className="space-y-3">
         <div className="flex flex-row items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-base">Attività</CardTitle>
+            <CardTitle className="text-base">{t("Attività")}</CardTitle>
             <CardDescription>
-              {isLoading ? "Carico…" : `${visibili.length} eventi${categoria !== "all" || ricerca ? ` su ${voci.length}` : ""} nel periodo`}
+              {isLoading ? t("Carico…") : `${visibili.length} eventi${categoria !== "all" || ricerca ? ` su ${voci.length}` : ""} nel periodo`}
               {isFetching && !isLoading && <Loader2 className="ml-2 inline h-3 w-3 animate-spin" />}
             </CardDescription>
           </div>
@@ -311,16 +312,16 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
         <div className="flex flex-wrap items-center gap-2">
           {PRESET.map((p) => (
             <Button key={p.chiave} size="sm" variant={preset === p.chiave ? "default" : "outline"} className="h-8" onClick={() => scegliPreset(p.chiave)}>
-              {p.etichetta}
+              {t(p.etichetta)}
             </Button>
           ))}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span>dal</span>
-            <Input type="date" aria-label="Dal giorno" className="h-8 w-[140px]" value={intervallo.da ?? ""} max={intervallo.a ?? undefined} onChange={(e) => cambiaData("da", e.target.value)} />
-            <span>al</span>
-            <Input type="date" aria-label="Al giorno" className="h-8 w-[140px]" value={intervallo.a ?? ""} min={intervallo.da ?? undefined} onChange={(e) => cambiaData("a", e.target.value)} />
+            <span>{t("dal")}</span>
+            <Input type="date" aria-label={t("Dal giorno")} className="h-8 w-[140px]" value={intervallo.da ?? ""} max={intervallo.a ?? undefined} onChange={(e) => cambiaData("da", e.target.value)} />
+            <span>{t("al")}</span>
+            <Input type="date" aria-label={t("Al giorno")} className="h-8 w-[140px]" value={intervallo.a ?? ""} min={intervallo.da ?? undefined} onChange={(e) => cambiaData("a", e.target.value)} />
           </div>
-          <Input type="search" aria-label="Cerca in queste attività" placeholder="Cerca…" className="h-8 w-[200px]" value={ricerca} onChange={(e) => setRicerca(e.target.value)} />
+          <Input type="search" aria-label={t("Cerca in queste attività")} placeholder={t("Cerca…")} className="h-8 w-[200px]" value={ricerca} onChange={(e) => setRicerca(e.target.value)} />
         </div>
 
         {/* Tipo di azione */}
@@ -331,7 +332,7 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
             className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
               categoria === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted")}
           >
-            Tutto <span className="tabular-nums opacity-70">{voci.length}</span>
+            {t("Tutto")} <span className="tabular-nums opacity-70">{voci.length}</span>
           </button>
           {CATEGORIE_LOG.filter((c) => conteggi[c.chiave] > 0).map((c) => (
             <button
@@ -341,7 +342,7 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
               className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
                 categoria === c.chiave ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted")}
             >
-              {c.etichetta} <span className="tabular-nums opacity-70">{conteggi[c.chiave]}</span>
+              {t(c.etichetta)} <span className="tabular-nums opacity-70">{conteggi[c.chiave]}</span>
             </button>
           ))}
         </div>
@@ -350,13 +351,13 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
       <CardContent>
         {data?.troncato && (
           <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-amber-600/30 bg-amber-600/10 px-3 py-2 text-xs text-amber-800">
-            <span>Alcune categorie hanno più di {limite} eventi nel periodo: se ne vedono i più recenti.</span>
+            <span>{t("Alcune categorie hanno più di {limite} eventi nel periodo: se ne vedono i più recenti.", { limite: String(limite ?? "") })}</span>
             {limite < LIMITE_MASSIMO ? (
               <Button size="sm" variant="outline" className="h-7" disabled={isFetching} onClick={() => setLimite((l) => Math.min(l + PASSO_LIMITE, LIMITE_MASSIMO))}>
-                {isFetching ? <Loader2 className="h-3 w-3 animate-spin" /> : "Carica altro"}
+                {isFetching ? <Loader2 className="h-3 w-3 animate-spin" /> : t("Carica altro")}
               </Button>
             ) : (
-              <span>Per vedere il resto restringi le date.</span>
+              <span>{t("Per vedere il resto restringi le date.")}</span>
             )}
           </div>
         )}
@@ -367,7 +368,7 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
         ) : visibili.length === 0 ? (
           <div className="text-center py-8">
             <FileText className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">Nessun evento nel periodo scelto.</p>
+            <p className="text-sm text-muted-foreground">{t("Nessun evento nel periodo scelto.")}</p>
           </div>
         ) : (
           <div className="space-y-5">
@@ -383,14 +384,14 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
                   return (
                     <div key={v.id} className="flex items-start gap-3 p-3 rounded-lg border bg-card">
                       <span className="w-11 shrink-0 pt-0.5 text-xs tabular-nums text-muted-foreground">
-                        {format(new Date(v.quando), "HH:mm", { locale: it })}
+                        {format(new Date(v.quando), "HH:mm", { locale: dateFnsCampo() })}
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="outline" className={COLORE_CATEGORIA[v.categoria]}>{v.titolo}</Badge>
+                          <Badge variant="outline" className={COLORE_CATEGORIA[v.categoria]}>{t(v.titolo)}</Badge>
                           {v.impersonata && (
                             <Badge variant="outline" className="bg-amber-600/10 text-amber-700 border-amber-600/20 gap-1">
-                              <ShieldAlert className="h-3 w-3" /> Via Impersonazione
+                              <ShieldAlert className="h-3 w-3" /> {t("Via Impersonazione")}
                             </Badge>
                           )}
                           {nome && <span className="text-xs font-medium">{nome}</span>}

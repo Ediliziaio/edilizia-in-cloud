@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const RUOLI_SUGGERITI = [
   "Muratore", "Manovale", "Capocantiere", "Posatore serramenti", "Carpentiere",
   "Elettricista", "Idraulico", "Imbianchino", "Geometra", "Impiegato/a ufficio",
@@ -69,9 +70,10 @@ const ESITI: Record<Esito, { label: string; classe: string }> = {
 };
 
 function Stelle({ valore, onChange, size = "h-4 w-4" }: { valore: number | null; onChange?: (v: number | null) => void; size?: string }) {
+  const t = useT();
   if (!onChange) {
     return (
-      <span role="img" aria-label={valore == null ? "Valutazione non assegnata" : `Valutazione: ${valore} su 5`} className="flex items-center gap-0.5">
+      <span role="img" aria-label={valore == null ? t("Valutazione non assegnata") : t("Valutazione: {valore} su 5", { valore: String(valore ?? "") })} className="flex items-center gap-0.5">
         {[1, 2, 3, 4, 5].map((n) => <Star key={n} aria-hidden="true" className={`${size} ${valore != null && n <= valore ? "fill-amber-400 text-amber-400" : "text-slate-300"}`} />)}
       </span>
     );
@@ -96,19 +98,21 @@ function Stelle({ valore, onChange, size = "h-4 w-4" }: { valore: number | null;
 
 /** Ruolo a testo libero coi suggerimenti: ogni impresa chiama i ruoli a modo suo. */
 function CampoRuolo({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  const t = useT();
   return (
     <>
-      <Input id={id} list="ruoli-suggeriti" value={value} onChange={(e) => onChange(e.target.value)} placeholder="Es. Muratore" />
+      <Input id={id} list="ruoli-suggeriti" value={value} onChange={(e) => onChange(e.target.value)} placeholder={t("Es. Muratore")} />
       <datalist id="ruoli-suggeriti">{RUOLI_SUGGERITI.map((r) => <option key={r} value={r} />)}</datalist>
     </>
   );
 }
 
 function NuovoCandidatoDialog({ open, onOpenChange, fasi, onCreato }: { open: boolean; onOpenChange: (v: boolean) => void; fasi: FaseSelezione[]; onCreato: (c: HrCandidato) => void }) {
+  const t = useT();
   const upsert = useUpsertCandidato();
   const [form, setForm] = useState({ nome: "", cognome: "", ruolo: "", email: "", telefono: "", citta: "", fonte: "manuale" as CandidatoFonte });
   const salva = async () => {
-    if (!form.nome.trim()) { toast.error("Serve almeno il nome"); return; }
+    if (!form.nome.trim()) { toast.error(t("Serve almeno il nome")); return; }
     const creato = await upsert.mutateAsync({
       nome: form.nome.trim(),
       cognome: form.cognome.trim(),
@@ -120,7 +124,7 @@ function NuovoCandidatoDialog({ open, onOpenChange, fasi, onCreato }: { open: bo
       stato: "in_valutazione",
       fase_id: fasi[0]?.id ?? null, // entra dalla prima fase della pipeline
     });
-    toast.success("Candidato inserito");
+    toast.success(t("Candidato inserito"));
     setForm({ nome: "", cognome: "", ruolo: form.ruolo, email: "", telefono: "", citta: "", fonte: form.fonte });
     onOpenChange(false);
     onCreato(creato);
@@ -128,21 +132,21 @@ function NuovoCandidatoDialog({ open, onOpenChange, fasi, onCreato }: { open: bo
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Nuovo candidato</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Nuovo candidato")}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
-            <div><Label htmlFor="cand-nome">Nome *</Label><Input id="cand-nome" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} /></div>
-            <div><Label htmlFor="cand-cognome">Cognome</Label><Input id="cand-cognome" value={form.cognome} onChange={(e) => setForm({ ...form, cognome: e.target.value })} /></div>
+            <div><Label htmlFor="cand-nome">{t("Nome *")}</Label><Input id="cand-nome" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} /></div>
+            <div><Label htmlFor="cand-cognome">{t("Cognome")}</Label><Input id="cand-cognome" value={form.cognome} onChange={(e) => setForm({ ...form, cognome: e.target.value })} /></div>
           </div>
-          <div><Label htmlFor="cand-ruolo">Ruolo cercato</Label><CampoRuolo id="cand-ruolo" value={form.ruolo} onChange={(v) => setForm({ ...form, ruolo: v })} /></div>
+          <div><Label htmlFor="cand-ruolo">{t("Ruolo cercato")}</Label><CampoRuolo id="cand-ruolo" value={form.ruolo} onChange={(v) => setForm({ ...form, ruolo: v })} /></div>
           <div className="grid grid-cols-2 gap-2">
-            <div><Label htmlFor="cand-tel">Telefono</Label><Input id="cand-tel" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} /></div>
+            <div><Label htmlFor="cand-tel">{t("Telefono")}</Label><Input id="cand-tel" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} /></div>
             <div><Label htmlFor="cand-email">Email</Label><Input id="cand-email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div><Label htmlFor="cand-citta">Città</Label><Input id="cand-citta" value={form.citta} onChange={(e) => setForm({ ...form, citta: e.target.value })} /></div>
+            <div><Label htmlFor="cand-citta">{t("Città")}</Label><Input id="cand-citta" value={form.citta} onChange={(e) => setForm({ ...form, citta: e.target.value })} /></div>
             <div>
-              <Label>Come è arrivato</Label>
+              <Label>{t("Come è arrivato")}</Label>
               <Select value={form.fonte} onValueChange={(v) => setForm({ ...form, fonte: v as CandidatoFonte })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{Object.entries(FONTI_CANDIDATO).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
@@ -150,8 +154,8 @@ function NuovoCandidatoDialog({ open, onOpenChange, fasi, onCreato }: { open: bo
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-1">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-            <Button variant="brand" onClick={salva} disabled={upsert.isPending}>Aggiungi</Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
+            <Button variant="brand" onClick={salva} disabled={upsert.isPending}>{t("Aggiungi")}</Button>
           </div>
         </div>
       </DialogContent>
@@ -161,6 +165,7 @@ function NuovoCandidatoDialog({ open, onOpenChange, fasi, onCreato }: { open: bo
 
 /** Moduli di candidatura pubblici: il link da mettere sul sito o nell'annuncio. */
 function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const t = useT();
   const { data: moduli = [], isLoading } = useCandidaturaForms();
   const upsert = useUpsertCandidaturaForm();
   const del = useDeleteCandidaturaForm();
@@ -170,9 +175,9 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   const copia = async (m: CandidaturaForm) => {
     try {
       await navigator.clipboard.writeText(linkDi(m));
-      toast.success("Link copiato: incollalo sul sito o nell'annuncio");
+      toast.success(t("Link copiato: incollalo sul sito o nell'annuncio"));
     } catch {
-      toast.error("Copia non riuscita", { description: linkDi(m) });
+      toast.error(t("Copia non riuscita"), { description: linkDi(m) });
     }
   };
   // Stesso pattern dell'embed dei moduli lead: iframe pronto da incollare.
@@ -180,13 +185,13 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     const snippet = `<iframe src="${linkDi(m)}?embed=1" title="${m.titolo.replace(/"/g, "&quot;")}" width="100%" height="760" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" style="width:100%;min-height:760px;border:0;max-width:640px;margin:0 auto;display:block;border-radius:12px;overflow:hidden;"></iframe>`;
     try {
       await navigator.clipboard.writeText(snippet);
-      toast.success("Codice embed copiato: incollalo nell'HTML del sito");
+      toast.success(t("Codice embed copiato: incollalo nell'HTML del sito"));
     } catch {
-      toast.error("Copia non riuscita");
+      toast.error(t("Copia non riuscita"));
     }
   };
   const crea = () => {
-    if (!titolo.trim()) { toast.error("Dai un titolo al modulo (es. Lavora con noi)"); return; }
+    if (!titolo.trim()) { toast.error(t("Dai un titolo al modulo (es. Lavora con noi)")); return; }
     upsert.mutate({
       titolo: titolo.trim(),
       descrizione: null,
@@ -198,13 +203,12 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg grid-cols-[minmax(0,1fr)] max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Moduli di candidatura per il tuo sito</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Moduli di candidatura per il tuo sito")}</DialogTitle></DialogHeader>
         <p className="-mt-2 text-xs text-muted-foreground">
-          Crea il modulo e metti il link sul tuo sito o nell'annuncio: chi si candida
-          finisce qui dentro, in prima fase, col CV allegato. Spegnendo il modulo il link smette di funzionare.
+          {t("Crea il modulo e metti il link sul tuo sito o nell'annuncio: chi si candida finisce qui dentro, in prima fase, col CV allegato. Spegnendo il modulo il link smette di funzionare.")}
         </p>
         {isLoading ? <Skeleton className="h-16 w-full" /> : moduli.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">Nessun modulo ancora: creane uno qui sotto.</p>
+          <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">{t("Nessun modulo ancora: creane uno qui sotto.")}</p>
         ) : (
           <div className="space-y-2">
             {moduli.map((m) => (
@@ -212,14 +216,14 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                 <div className="flex flex-wrap items-center gap-2">
                   <Globe className={`h-4 w-4 shrink-0 ${m.attivo ? "text-emerald-500" : "text-slate-300"}`} />
                   <p className="min-w-0 flex-1 truncate text-sm font-semibold">{m.titolo}</p>
-                  <span className="text-[11px] text-muted-foreground whitespace-nowrap">{m.total_submissions} candidature · {m.total_views} visite</span>
+                  <span className="text-[11px] text-muted-foreground whitespace-nowrap">{t("{total_submissions} candidature · {total_views} visite", { total_submissions: String(m.total_submissions ?? ""), total_views: String(m.total_views ?? "") })}</span>
                 </div>
                 {m.ruoli.length > 0 && (
-                  <p className="text-[11px] text-muted-foreground truncate">Ruoli proposti: {m.ruoli.join(", ")}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{t("Ruoli proposti: {ruoli}", { ruoli: m.ruoli.join(", ") })}</p>
                 )}
                 {/* Ogni impresa decide cosa chiedere: obbligatorio, facoltativo o via. */}
                 <details className="rounded border bg-slate-50/60 px-2 py-1">
-                  <summary className="cursor-pointer text-[11px] font-medium text-slate-600">Campi del modulo</summary>
+                  <summary className="cursor-pointer text-[11px] font-medium text-slate-600">{t("Campi del modulo")}</summary>
                   <div className="grid grid-cols-1 gap-1 py-1.5 sm:grid-cols-2">
                     {([["cognome", "Cognome"], ["telefono", "Telefono"], ["email", "Email"], ["citta", "Città"], ["ruolo", "Ruolo"], ["messaggio", "Presentazione"], ["cv", "Curriculum"]] as const).map(([campo, label]) => {
                       const valore: StatoCampoModulo = m.campi?.[campo] ?? (campo === "telefono" ? "obbligatorio" : "facoltativo");
@@ -231,35 +235,35 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                             value={valore}
                             onChange={(e) => upsert.mutate({ id: m.id, titolo: m.titolo, campi: { [campo]: e.target.value as StatoCampoModulo } })}
                           >
-                            <option value="obbligatorio">Obbligatorio</option>
-                            <option value="facoltativo">Facoltativo</option>
-                            <option value="nascosto">Nascosto</option>
+                            <option value="obbligatorio">{t("Obbligatorio")}</option>
+                            <option value="facoltativo">{t("Facoltativo")}</option>
+                            <option value="nascosto">{t("Nascosto")}</option>
                           </UniformSelect>
                         </label>
                       );
                     })}
                   </div>
-                  <p className="pb-1 text-[10px] text-muted-foreground">Il nome è sempre obbligatorio; serve comunque almeno un contatto (telefono o email).</p>
+                  <p className="pb-1 text-[10px] text-muted-foreground">{t("Il nome è sempre obbligatorio; serve comunque almeno un contatto (telefono o email).")}</p>
                   <div className="flex flex-wrap items-center gap-3 border-t py-1.5">
-                    <span className="text-[11px] font-medium text-slate-600">Aspetto:</span>
+                    <span className="text-[11px] font-medium text-slate-600">{t("Aspetto:")}</span>
                     <label className="flex items-center gap-1 text-[11px] text-slate-600">
-                      Testata
+                      {t("Testata")}
                       <input
                         type="color"
                         value={m.stile?.testata ?? "#F97316"}
                         onChange={(e) => upsert.mutate({ id: m.id, titolo: m.titolo, stile: { testata: e.target.value } })}
                         className="h-5 w-6 cursor-pointer rounded border bg-transparent p-0"
-                        aria-label="Colore testata"
+                        aria-label={t("Colore testata")}
                       />
                     </label>
                     <label className="flex items-center gap-1 text-[11px] text-slate-600">
-                      Bottone
+                      {t("Bottone")}
                       <input
                         type="color"
                         value={m.stile?.bottone ?? "#F97316"}
                         onChange={(e) => upsert.mutate({ id: m.id, titolo: m.titolo, stile: { bottone: e.target.value } })}
                         className="h-5 w-6 cursor-pointer rounded border bg-transparent p-0"
-                        aria-label="Colore bottone"
+                        aria-label={t("Colore bottone")}
                       />
                     </label>
                     <label className="flex items-center gap-1.5 text-[11px] text-slate-600">
@@ -268,19 +272,19 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                         checked={m.stile?.mostra_azienda === true}
                         onChange={(e) => upsert.mutate({ id: m.id, titolo: m.titolo, stile: { mostra_azienda: e.target.checked } })}
                       />
-                      Mostra nome azienda
+                      {t("Mostra nome azienda")}
                     </label>
                   </div>
                 </details>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => copia(m)}>
-                    <Copy className="h-3 w-3" /> Copia link
+                    <Copy className="h-3 w-3" /> {t("Copia link")}
                   </Button>
                   <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => copiaEmbed(m)}>
-                    <Copy className="h-3 w-3" /> Copia embed
+                    <Copy className="h-3 w-3" /> {t("Copia embed")}
                   </Button>
                   <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => window.open(linkDi(m), "_blank")}>
-                    <ExternalLink className="h-3 w-3" /> Anteprima
+                    <ExternalLink className="h-3 w-3" /> {t("Anteprima")}
                   </Button>
                   <Button
                     size="sm"
@@ -288,13 +292,13 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                     className="h-7 text-xs"
                     onClick={() => upsert.mutate({ id: m.id, titolo: m.titolo, attivo: !m.attivo })}
                   >
-                    {m.attivo ? "Spegni" : "Riattiva"}
+                    {m.attivo ? t("Spegni") : t("Riattiva")}
                   </Button>
                   <button
                     type="button"
                     className="ml-auto text-slate-400 hover:text-destructive"
-                    aria-label={`Elimina modulo ${m.titolo}`}
-                    onClick={() => { if (window.confirm(`Eliminare il modulo "${m.titolo}"? Il link smette di funzionare.`)) del.mutate(m.id); }}
+                    aria-label={t("Elimina modulo {titolo}", { titolo: String(m.titolo ?? "") })}
+                    onClick={() => { if (window.confirm(t("Eliminare il modulo \"{titolo}\"? Il link smette di funzionare.", { titolo: String(m.titolo ?? "") }))) del.mutate(m.id); }}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -304,12 +308,12 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           </div>
         )}
         <div className="space-y-2 border-t pt-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Nuovo modulo</p>
-          <Input placeholder="Titolo (es. Lavora con noi — Cerchiamo muratori)" value={titolo} onChange={(e) => setTitolo(e.target.value)} />
-          <Input placeholder="Ruoli proposti, separati da virgola (vuoto = campo libero)" value={ruoli} onChange={(e) => setRuoli(e.target.value)} />
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("Nuovo modulo")}</p>
+          <Input placeholder={t("Titolo (es. Lavora con noi — Cerchiamo muratori)")} value={titolo} onChange={(e) => setTitolo(e.target.value)} />
+          <Input placeholder={t("Ruoli proposti, separati da virgola (vuoto = campo libero)")} value={ruoli} onChange={(e) => setRuoli(e.target.value)} />
           <div className="flex justify-end">
             <Button size="sm" variant="brand" className="gap-1" disabled={upsert.isPending} onClick={crea}>
-              <Plus className="h-3.5 w-3.5" /> Crea modulo
+              <Plus className="h-3.5 w-3.5" /> {t("Crea modulo")}
             </Button>
           </div>
         </div>
@@ -322,6 +326,7 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
  *  idonei / in archivio) fermi da oltre la soglia si eliminano in blocco,
  *  curriculum compreso. Assunti e selezioni in corso non si toccano MAI. */
 function PuliziaPrivacyDialog({ open, onOpenChange, candidati }: { open: boolean; onOpenChange: (v: boolean) => void; candidati: HrCandidato[] }) {
+  const t = useT();
   const qc = useQueryClient();
   const [mesi, setMesi] = useState(12);
   const [confermaAperta, setConfermaAperta] = useState(false);
@@ -354,12 +359,12 @@ function PuliziaPrivacyDialog({ open, onOpenChange, candidati }: { open: boolean
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any).from("hr_candidati").delete().in("id", daEliminare.map((c) => c.id));
       if (error) throw error;
-      toast.success(`${daEliminare.length} candidati eliminati (con ${percorsiCv.length} CV)`);
+      toast.success(t("{n} candidati eliminati (con {n2} CV)", { n: daEliminare.length, n2: percorsiCv.length }));
       qc.invalidateQueries({ queryKey: ["hr-candidati"] });
       setConfermaAperta(false);
       onOpenChange(false);
     } catch (e) {
-      toast.error("Pulizia non completata", { description: e instanceof Error ? e.message : undefined });
+      toast.error(t("Pulizia non completata"), { description: e instanceof Error ? e.message : undefined });
     } finally {
       setEliminando(false);
     }
@@ -368,39 +373,35 @@ function PuliziaPrivacyDialog({ open, onOpenChange, candidati }: { open: boolean
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Pulizia privacy — candidati chiusi</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Pulizia privacy — candidati chiusi")}</DialogTitle></DialogHeader>
         <p className="-mt-2 text-xs text-muted-foreground">
-          I CV sono dati personali: la prassi è non tenerli oltre i 12 mesi dalla chiusura
-          della selezione, salvo consenso. Qui si eliminano SOLO i candidati con esito
-          "Non idoneo" o "In archivio": assunti e selezioni in corso non si toccano.
+          {t("I CV sono dati personali: la prassi è non tenerli oltre i 12 mesi dalla chiusura della selezione, salvo consenso. Qui si eliminano SOLO i candidati con esito \"Non idoneo\" o \"In archivio\": assunti e selezioni in corso non si toccano.")}
         </p>
         <div className="flex items-center gap-2">
-          <Label className="text-xs shrink-0">Chiusi da più di</Label>
+          <Label className="text-xs shrink-0">{t("Chiusi da più di")}</Label>
           <Select value={String(mesi)} onValueChange={(v) => setMesi(Number(v))}>
             <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="12">12 mesi</SelectItem>
-              <SelectItem value="18">18 mesi</SelectItem>
-              <SelectItem value="24">24 mesi</SelectItem>
+              <SelectItem value="12">{t("12 mesi")}</SelectItem>
+              <SelectItem value="18">{t("18 mesi")}</SelectItem>
+              <SelectItem value="24">{t("24 mesi")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         {daEliminare.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-            Nessun candidato chiuso da più di {mesi} mesi: sei in regola.
-          </p>
+          <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">{t("Nessun candidato chiuso da più di {mesi} mesi: sei in regola.", { mesi: String(mesi ?? "") })}</p>
         ) : (
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-slate-800">{daEliminare.length} candidati da eliminare:</p>
+            <p className="text-sm font-semibold text-slate-800">{t("{n} candidati da eliminare:", { n: daEliminare.length })}</p>
             <div className="max-h-40 overflow-y-auto rounded-lg border p-2 text-xs text-slate-600 space-y-0.5">
               {daEliminare.slice(0, 12).map((c) => (
-                <p key={c.id}>{c.nome} {c.cognome} — {c.ruolo}{c.cv_path ? " (con CV)" : ""}</p>
+                <p key={c.id}>{c.nome} {c.cognome} — {c.ruolo}{c.cv_path ? ` ${t("(con CV)")}` : ""}</p>
               ))}
-              {daEliminare.length > 12 && <p className="text-muted-foreground">… e altri {daEliminare.length - 12}</p>}
+              {daEliminare.length > 12 && <p className="text-muted-foreground">{t("… e altri {n}", { n: daEliminare.length - 12 })}</p>}
             </div>
             <div className="flex justify-end">
               <Button variant="destructive" size="sm" className="gap-1" onClick={() => setConfermaAperta(true)}>
-                <Trash2 className="h-3.5 w-3.5" /> Elimina {daEliminare.length} candidati
+                <Trash2 className="h-3.5 w-3.5" /> {t("Elimina {n} candidati", { n: daEliminare.length })}
               </Button>
             </div>
           </div>
@@ -408,14 +409,14 @@ function PuliziaPrivacyDialog({ open, onOpenChange, candidati }: { open: boolean
         <AlertDialog open={confermaAperta} onOpenChange={setConfermaAperta}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Eliminare definitivamente {daEliminare.length} candidati?</AlertDialogTitle>
+              <AlertDialogTitle>{t("Eliminare definitivamente {n} candidati?", { n: daEliminare.length })}</AlertDialogTitle>
               <AlertDialogDescription>
-                Spariscono schede, colloqui e curriculum. Non si torna indietro: è il punto della pulizia privacy.
+                {t("Spariscono schede, colloqui e curriculum. Non si torna indietro: è il punto della pulizia privacy.")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <ConfermaQuantita stato={confermaBulk} cosa="candidati" disabled={eliminando} />
             <AlertDialogFooter>
-              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={(e) => {
@@ -424,7 +425,7 @@ function PuliziaPrivacyDialog({ open, onOpenChange, candidati }: { open: boolean
                 }}
                 disabled={eliminando || !confermaBulk.valida}
               >
-                {eliminando ? "Eliminazione…" : "Elimina tutto"}
+                {eliminando ? t("Eliminazione…") : t("Elimina tutto")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -436,6 +437,7 @@ function PuliziaPrivacyDialog({ open, onOpenChange, candidati }: { open: boolean
 
 /** Editor della pipeline: rinomina, colore, ordina, aggiungi, elimina. */
 function GestisciFasiDialog({ open, onOpenChange, fasi, candidati }: { open: boolean; onOpenChange: (v: boolean) => void; fasi: FaseSelezione[]; candidati: HrCandidato[] }) {
+  const t = useT();
   const upsert = useUpsertFase();
   const del = useDeleteFase();
   const scambia = useScambiaFasi();
@@ -444,8 +446,8 @@ function GestisciFasiDialog({ open, onOpenChange, fasi, candidati }: { open: boo
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Le fasi della tua selezione</DialogTitle></DialogHeader>
-        <p className="text-xs text-muted-foreground -mt-2">Rinomina, riordina o aggiungi fasi: la pipeline è la tua. Eliminando una fase, i candidati dentro tornano "da smistare".</p>
+        <DialogHeader><DialogTitle>{t("Le fasi della tua selezione")}</DialogTitle></DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-2">{t("Rinomina, riordina o aggiungi fasi: la pipeline è la tua. Eliminando una fase, i candidati dentro tornano \"da smistare\".")}</p>
         <div className="space-y-1.5">
           {fasi.map((f, i) => (
             <div key={f.id} className="flex items-center gap-1.5 rounded-lg border px-2 py-1.5">
@@ -454,7 +456,7 @@ function GestisciFasiDialog({ open, onOpenChange, fasi, candidati }: { open: boo
                 value={f.colore || "#94A3B8"}
                 onChange={(e) => upsert.mutate({ id: f.id, nome: f.nome, colore: e.target.value })}
                 className="h-5 w-6 shrink-0 cursor-pointer rounded border bg-transparent p-0"
-                aria-label={`Colore fase ${f.nome}`}
+                aria-label={t("Colore fase {nome}", { nome: String(f.nome ?? "") })}
               />
               <Input
                 className="h-7 flex-1 border-0 shadow-none focus-visible:ring-1 px-1 text-sm"
@@ -462,15 +464,15 @@ function GestisciFasiDialog({ open, onOpenChange, fasi, candidati }: { open: boo
                 onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== f.nome) upsert.mutate({ id: f.id, nome: v }); }}
               />
               <span className="text-[11px] text-muted-foreground w-6 text-right">{contaIn(f.id)}</span>
-              <button type="button" disabled={i === 0} className="text-slate-400 hover:text-slate-700 disabled:opacity-30" onClick={() => scambia.mutate({ a: f, b: fasi[i - 1] })} aria-label="Sposta su"><ArrowUp className="h-3.5 w-3.5" /></button>
-              <button type="button" disabled={i === fasi.length - 1} className="text-slate-400 hover:text-slate-700 disabled:opacity-30" onClick={() => scambia.mutate({ a: f, b: fasi[i + 1] })} aria-label="Sposta giù"><ArrowDown className="h-3.5 w-3.5" /></button>
+              <button type="button" disabled={i === 0} className="text-slate-400 hover:text-slate-700 disabled:opacity-30" onClick={() => scambia.mutate({ a: f, b: fasi[i - 1] })} aria-label={t("Sposta su")}><ArrowUp className="h-3.5 w-3.5" /></button>
+              <button type="button" disabled={i === fasi.length - 1} className="text-slate-400 hover:text-slate-700 disabled:opacity-30" onClick={() => scambia.mutate({ a: f, b: fasi[i + 1] })} aria-label={t("Sposta giù")}><ArrowDown className="h-3.5 w-3.5" /></button>
               <button
                 type="button"
                 className="text-slate-400 hover:text-destructive"
-                aria-label={`Elimina fase ${f.nome}`}
+                aria-label={t("Elimina fase {nome}", { nome: String(f.nome ?? "") })}
                 onClick={() => {
                   const n = contaIn(f.id);
-                  if (n > 0 && !window.confirm(`Nella fase "${f.nome}" ci sono ${n} candidati: torneranno "da smistare". Continuare?`)) return;
+                  if (n > 0 && !window.confirm(t("Nella fase \"{nome}\" ci sono {n} candidati: torneranno \"da smistare\". Continuare?", { nome: String(f.nome ?? ""), n: String(n ?? "") }))) return;
                   del.mutate(f.id);
                 }}
               >
@@ -480,9 +482,9 @@ function GestisciFasiDialog({ open, onOpenChange, fasi, candidati }: { open: boo
           ))}
         </div>
         <div className="flex items-center gap-2 border-t pt-2">
-          <Input className="h-8 flex-1" placeholder="Nuova fase (es. Colloquio col titolare)" value={nuovaFase} onChange={(e) => setNuovaFase(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && nuovaFase.trim()) { upsert.mutate({ nome: nuovaFase.trim(), posizione: (fasi[fasi.length - 1]?.posizione ?? 0) + 1 }); setNuovaFase(""); } }} />
+          <Input className="h-8 flex-1" placeholder={t("Nuova fase (es. Colloquio col titolare)")} value={nuovaFase} onChange={(e) => setNuovaFase(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && nuovaFase.trim()) { upsert.mutate({ nome: nuovaFase.trim(), posizione: (fasi[fasi.length - 1]?.posizione ?? 0) + 1 }); setNuovaFase(""); } }} />
           <Button size="sm" className="h-8 gap-1" disabled={!nuovaFase.trim()} onClick={() => { upsert.mutate({ nome: nuovaFase.trim(), posizione: (fasi[fasi.length - 1]?.posizione ?? 0) + 1 }); setNuovaFase(""); }}>
-            <Plus className="h-3.5 w-3.5" /> Aggiungi
+            <Plus className="h-3.5 w-3.5" /> {t("Aggiungi")}
           </Button>
         </div>
       </DialogContent>
@@ -493,6 +495,7 @@ function GestisciFasiDialog({ open, onOpenChange, fasi, candidati }: { open: boo
 // ── Kanban ──────────────────────────────────────────────────────────────────
 
 function CardCandidato({ candidato, oggi, onApri }: { candidato: HrCandidato; oggi: number; onApri: () => void }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: candidato.id });
   const giorniFermo = Math.floor((oggi - new Date(candidato.updated_at).getTime()) / 86400000);
   return (
@@ -511,13 +514,14 @@ function CardCandidato({ candidato, oggi, onApri }: { candidato: HrCandidato; og
       <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground"><HardHat className="h-3 w-3" />{candidato.ruolo}</p>
       <div className="mt-1 flex items-center justify-between">
         <Stelle valore={candidato.valutazione} />
-        {giorniFermo >= 7 && <span className="text-[10px] text-amber-600 font-medium">{giorniFermo}g fermo</span>}
+        {giorniFermo >= 7 && <span className="text-[10px] text-amber-600 font-medium">{t("{giorniFermo}g fermo", { giorniFermo: String(giorniFermo ?? "") })}</span>}
       </div>
     </div>
   );
 }
 
 function ColonnaFase({ id, titolo, colore, candidati, oggi, onApri }: { id: string; titolo: string; colore: string | null; candidati: HrCandidato[]; oggi: number; onApri: (id: string) => void }) {
+  const t = useT();
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <div ref={setNodeRef} className={`flex w-[230px] shrink-0 flex-col rounded-xl border bg-slate-50/70 transition-colors ${isOver ? "border-primary bg-primary/5" : "border-slate-200"}`}>
@@ -528,7 +532,7 @@ function ColonnaFase({ id, titolo, colore, candidati, oggi, onApri }: { id: stri
       </div>
       <div className="flex flex-col gap-1.5 p-1.5 min-h-[70px]">
         {candidati.map((c) => <CardCandidato key={c.id} candidato={c} oggi={oggi} onApri={() => onApri(c.id)} />)}
-        {candidati.length === 0 && <p className="py-4 text-center text-[11px] text-slate-400">Trascina qui</p>}
+        {candidati.length === 0 && <p className="py-4 text-center text-[11px] text-slate-400">{t("Trascina qui")}</p>}
       </div>
     </div>
   );
@@ -546,6 +550,7 @@ function TargetEsito({ esito, label, icona: Icona, classe }: { esito: Esito; lab
 // ── Scheda candidato ────────────────────────────────────────────────────────
 
 function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma }: { candidato: HrCandidato; fasi: FaseSelezione[]; onClose: () => void; vaiAlTest: () => void; vaiOrganigramma: () => void }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const upsert = useUpsertCandidato();
   const del = useDeleteCandidato();
@@ -595,9 +600,9 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
     try {
       const { path, name } = await uploadHrFile(companyId, `candidato-${candidato.id}`, file);
       await upsert.mutateAsync({ id: candidato.id, nome: candidato.nome, cv_path: path, cv_nome: name });
-      toast.success("CV caricato");
+      toast.success(t("CV caricato"));
     } catch (e) {
-      toast.error("CV non caricato", { description: e instanceof Error ? e.message : undefined });
+      toast.error(t("CV non caricato"), { description: e instanceof Error ? e.message : undefined });
     } finally {
       setCaricandoCv(false);
     }
@@ -606,7 +611,7 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
   const scaricaCv = async () => {
     if (!candidato.cv_path) return;
     const url = await getHrFileUrl(candidato.cv_path);
-    if (!url) { toast.error("Non riesco ad aprire il CV"); return; }
+    if (!url) { toast.error(t("Non riesco ad aprire il CV")); return; }
     // PDF e immagini si vedono in anteprima qui dentro; i .doc il browser
     // non li rende, quindi si scaricano e basta.
     if (/\.(docx?|xlsx?)$/i.test(candidato.cv_nome ?? candidato.cv_path)) {
@@ -623,7 +628,7 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
   };
 
   const registraColloquio = () => {
-    if (!nuovoColloquio.data_colloquio) { toast.error("Serve la data del colloquio"); return; }
+    if (!nuovoColloquio.data_colloquio) { toast.error(t("Serve la data del colloquio")); return; }
     addColloquio.mutate(
       { data_colloquio: nuovoColloquio.data_colloquio, ora_colloquio: nuovoColloquio.ora_colloquio || null, tipo: nuovoColloquio.tipo, esito: nuovoColloquio.esito || null, note: nuovoColloquio.note.trim() || null },
       { onSuccess: () => setNuovoColloquio((p) => ({ ...p, note: "", esito: "" })) },
@@ -638,7 +643,7 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
             <span>{candidato.nome} {candidato.cognome}</span>
-            <Badge className={`${ESITI[esito].classe} border-0`}>{esito === "in_selezione" && fase ? fase.nome : ESITI[esito].label}</Badge>
+            <Badge className={`${ESITI[esito].classe} border-0`}>{esito === "in_selezione" && fase ? fase.nome : t(ESITI[esito].label)}</Badge>
             <Badge variant="outline" className="gap-1"><HardHat className="h-3 w-3" />{candidato.ruolo}</Badge>
           </DialogTitle>
         </DialogHeader>
@@ -647,53 +652,53 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
           {/* Fase + esito + valutazione: le leve del processo */}
           <div className="flex flex-wrap items-end gap-4 rounded-lg border bg-slate-50 p-3">
             <div className="min-w-[170px]">
-              <Label className="text-xs">Fase della selezione</Label>
+              <Label className="text-xs">{t("Fase della selezione")}</Label>
               <Select value={candidato.fase_id ?? "nessuna"} onValueChange={(v) => aggiorna({ fase_id: v === "nessuna" ? null : v })}>
                 <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="nessuna">— Da smistare —</SelectItem>
+                  <SelectItem value="nessuna">{t("— Da smistare —")}</SelectItem>
                   {fasi.map((f) => <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="min-w-[150px]">
-              <Label className="text-xs">Esito</Label>
+              <Label className="text-xs">{t("Esito")}</Label>
               <Select value={esito} onValueChange={(v) => aggiorna({ stato: (v === "in_selezione" ? "in_valutazione" : v) as CandidatoStato })}>
                 <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(ESITI).map(([v, e]) => <SelectItem key={v} value={v}>{e.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{Object.entries(ESITI).map(([v, e]) => <SelectItem key={v} value={v}>{t(e.label)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Valutazione</Label>
+              <Label className="text-xs">{t("Valutazione")}</Label>
               <div className="pt-1.5"><Stelle valore={candidato.valutazione} onChange={(v) => aggiorna({ valutazione: v })} size="h-5 w-5" /></div>
             </div>
           </div>
 
           {/* Anagrafica e contatti (nome e cognome inclusi: i refusi capitano) */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <div><Label htmlFor="sc-nome" className="text-xs">Nome</Label><Input id="sc-nome" className="h-8" defaultValue={candidato.nome} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== candidato.nome) aggiorna({ nome: v }); }} /></div>
-            <div><Label htmlFor="sc-cognome" className="text-xs">Cognome</Label><Input id="sc-cognome" className="h-8" defaultValue={candidato.cognome} onBlur={(e) => { const v = e.target.value.trim(); if (v !== candidato.cognome) aggiorna({ cognome: v }); }} /></div>
-            <div><Label htmlFor="sc-ruolo" className="text-xs">Ruolo cercato</Label><Input id="sc-ruolo" list="ruoli-suggeriti" className="h-8" defaultValue={candidato.ruolo} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== candidato.ruolo) aggiorna({ ruolo: v }); }} /></div>
-            <div><Label htmlFor="sc-tel" className="text-xs">Telefono</Label><Input id="sc-tel" className="h-8" defaultValue={candidato.telefono ?? ""} onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== candidato.telefono) aggiorna({ telefono: v }); }} /></div>
+            <div><Label htmlFor="sc-nome" className="text-xs">{t("Nome")}</Label><Input id="sc-nome" className="h-8" defaultValue={candidato.nome} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== candidato.nome) aggiorna({ nome: v }); }} /></div>
+            <div><Label htmlFor="sc-cognome" className="text-xs">{t("Cognome")}</Label><Input id="sc-cognome" className="h-8" defaultValue={candidato.cognome} onBlur={(e) => { const v = e.target.value.trim(); if (v !== candidato.cognome) aggiorna({ cognome: v }); }} /></div>
+            <div><Label htmlFor="sc-ruolo" className="text-xs">{t("Ruolo cercato")}</Label><Input id="sc-ruolo" list="ruoli-suggeriti" className="h-8" defaultValue={candidato.ruolo} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== candidato.ruolo) aggiorna({ ruolo: v }); }} /></div>
+            <div><Label htmlFor="sc-tel" className="text-xs">{t("Telefono")}</Label><Input id="sc-tel" className="h-8" defaultValue={candidato.telefono ?? ""} onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== candidato.telefono) aggiorna({ telefono: v }); }} /></div>
             <div><Label htmlFor="sc-email" className="text-xs">Email</Label><Input id="sc-email" className="h-8" defaultValue={candidato.email ?? ""} onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== candidato.email) aggiorna({ email: v }); }} /></div>
-            <div><Label htmlFor="sc-citta" className="text-xs">Città</Label><Input id="sc-citta" className="h-8" defaultValue={candidato.citta ?? ""} onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== candidato.citta) aggiorna({ citta: v }); }} /></div>
+            <div><Label htmlFor="sc-citta" className="text-xs">{t("Città")}</Label><Input id="sc-citta" className="h-8" defaultValue={candidato.citta ?? ""} onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== candidato.citta) aggiorna({ citta: v }); }} /></div>
           </div>
 
           {/* CV */}
           <div className="rounded-lg border p-3">
-            <p className="mb-2 text-sm font-semibold flex items-center gap-1.5"><FileText className="h-4 w-4 text-slate-500" /> Curriculum</p>
+            <p className="mb-2 text-sm font-semibold flex items-center gap-1.5"><FileText className="h-4 w-4 text-slate-500" /> {t("Curriculum")}</p>
             {candidato.cv_path ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-slate-700 truncate max-w-[280px]">{candidato.cv_nome ?? "CV"}</span>
-                <Button size="sm" variant="outline" className="h-7 gap-1" onClick={scaricaCv}><Download className="h-3.5 w-3.5" /> Apri</Button>
-                <Button size="sm" variant="ghost" className="h-7 gap-1 text-muted-foreground hover:text-destructive" onClick={rimuoviCv}><Trash2 className="h-3.5 w-3.5" /> Rimuovi</Button>
+                <Button size="sm" variant="outline" className="h-7 gap-1" onClick={scaricaCv}><Download className="h-3.5 w-3.5" /> {t("Apri")}</Button>
+                <Button size="sm" variant="ghost" className="h-7 gap-1 text-muted-foreground hover:text-destructive" onClick={rimuoviCv}><Trash2 className="h-3.5 w-3.5" /> {t("Rimuovi")}</Button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" className="h-8 gap-1" disabled={caricandoCv} onClick={() => fileRef.current?.click()}>
-                  <Upload className="h-3.5 w-3.5" /> {caricandoCv ? "Caricamento…" : "Carica CV"}
+                  <Upload className="h-3.5 w-3.5" /> {caricandoCv ? t("Caricamento…") : t("Carica CV")}
                 </Button>
-                <span className="text-xs text-muted-foreground">PDF o immagine, max 18 MB</span>
+                <span className="text-xs text-muted-foreground">{t("PDF o immagine, max 18 MB")}</span>
               </div>
             )}
             <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) caricaCv(f); e.target.value = ""; }} />
@@ -701,22 +706,22 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
 
           {/* Colloqui */}
           <div className="rounded-lg border p-3 space-y-2">
-            <p className="text-sm font-semibold flex items-center gap-1.5"><Users className="h-4 w-4 text-slate-500" /> Colloqui</p>
+            <p className="text-sm font-semibold flex items-center gap-1.5"><Users className="h-4 w-4 text-slate-500" /> {t("Colloqui")}</p>
             {colloquiLoading ? <Skeleton className="h-10 w-full" /> : colloqui.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Nessun colloquio registrato.</p>
+              <p className="text-xs text-muted-foreground">{t("Nessun colloquio registrato.")}</p>
             ) : (
               <div className="space-y-1.5">
                 {colloqui.map((c) => (
                   <div key={c.id} className="flex items-start gap-2 rounded border bg-slate-50 px-2 py-1.5 text-xs">
                     <span className="font-medium whitespace-nowrap">
-                      {new Date(`${c.data_colloquio}T00:00:00`).toLocaleDateString("it-IT")}
+                      {new Date(`${c.data_colloquio}T00:00:00`).toLocaleDateString(intlCampo())}
                       {c.ora_colloquio && <span className="text-slate-500"> {c.ora_colloquio.slice(0, 5)}</span>}
                     </span>
                     <span className="text-slate-600 whitespace-nowrap">{TIPI_COLLOQUIO[c.tipo]}</span>
-                    {c.appointment_id && <CalendarCheck className="h-3.5 w-3.5 shrink-0 text-blue-500" aria-label="In calendario" />}
-                    {c.esito && <span className={`font-semibold ${ESITI_COLLOQUIO[c.esito].classe}`}>{ESITI_COLLOQUIO[c.esito].label}</span>}
+                    {c.appointment_id && <CalendarCheck className="h-3.5 w-3.5 shrink-0 text-blue-500" aria-label={t("In calendario")} />}
+                    {c.esito && <span className={`font-semibold ${ESITI_COLLOQUIO[c.esito].classe}`}>{t(ESITI_COLLOQUIO[c.esito].label)}</span>}
                     {c.note && <span className="text-slate-500 flex-1">{c.note}</span>}
-                    <button type="button" className="ml-auto text-slate-400 hover:text-destructive" onClick={() => delColloquio.mutate({ id: c.id, appointmentId: c.appointment_id })} aria-label="Elimina colloquio">
+                    <button type="button" className="ml-auto text-slate-400 hover:text-destructive" onClick={() => delColloquio.mutate({ id: c.id, appointmentId: c.appointment_id })} aria-label={t("Elimina colloquio")}>
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </div>
@@ -724,34 +729,34 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
               </div>
             )}
             <div className="flex flex-wrap items-end gap-2 border-t pt-2">
-              <div><Label className="text-[11px]">Data</Label><Input type="date" className="h-8 w-[140px]" value={nuovoColloquio.data_colloquio} onChange={(e) => setNuovoColloquio({ ...nuovoColloquio, data_colloquio: e.target.value })} /></div>
-              <div><Label className="text-[11px]">Ora</Label><Input type="time" className="h-8 w-[100px]" value={nuovoColloquio.ora_colloquio} onChange={(e) => setNuovoColloquio({ ...nuovoColloquio, ora_colloquio: e.target.value })} /></div>
+              <div><Label className="text-[11px]">{t("Data")}</Label><Input type="date" className="h-8 w-[140px]" value={nuovoColloquio.data_colloquio} onChange={(e) => setNuovoColloquio({ ...nuovoColloquio, data_colloquio: e.target.value })} /></div>
+              <div><Label className="text-[11px]">{t("Ora")}</Label><Input type="time" className="h-8 w-[100px]" value={nuovoColloquio.ora_colloquio} onChange={(e) => setNuovoColloquio({ ...nuovoColloquio, ora_colloquio: e.target.value })} /></div>
               <div>
-                <Label className="text-[11px]">Tipo</Label>
+                <Label className="text-[11px]">{t("Tipo")}</Label>
                 <Select value={nuovoColloquio.tipo} onValueChange={(v) => setNuovoColloquio({ ...nuovoColloquio, tipo: v as ColloquioTipo })}>
                   <SelectTrigger className="h-8 w-[150px]"><SelectValue /></SelectTrigger>
                   <SelectContent>{Object.entries(TIPI_COLLOQUIO).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-[11px]">Esito</Label>
+                <Label className="text-[11px]">{t("Esito")}</Label>
                 <Select value={nuovoColloquio.esito || "nessuno"} onValueChange={(v) => setNuovoColloquio({ ...nuovoColloquio, esito: v === "nessuno" ? "" : (v as ColloquioEsito) })}>
                   <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="nessuno">—</SelectItem>
-                    {Object.entries(ESITI_COLLOQUIO).map(([v, e]) => <SelectItem key={v} value={v}>{e.label}</SelectItem>)}
+                    {Object.entries(ESITI_COLLOQUIO).map(([v, e]) => <SelectItem key={v} value={v}>{t(e.label)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <Input className="h-8 flex-1 min-w-[160px]" placeholder="Note del colloquio…" value={nuovoColloquio.note} onChange={(e) => setNuovoColloquio({ ...nuovoColloquio, note: e.target.value })} />
-              <Button size="sm" className="h-8 gap-1" onClick={registraColloquio} disabled={addColloquio.isPending}><Plus className="h-3.5 w-3.5" /> Registra</Button>
+              <Input className="h-8 flex-1 min-w-[160px]" placeholder={t("Note del colloquio…")} value={nuovoColloquio.note} onChange={(e) => setNuovoColloquio({ ...nuovoColloquio, note: e.target.value })} />
+              <Button size="sm" className="h-8 gap-1" onClick={registraColloquio} disabled={addColloquio.isPending}><Plus className="h-3.5 w-3.5" /> {t("Registra")}</Button>
             </div>
-            <p className="text-[11px] text-muted-foreground">I colloqui con data di oggi o futura finiscono anche sul calendario aziendale.</p>
+            <p className="text-[11px] text-muted-foreground">{t("I colloqui con data di oggi o futura finiscono anche sul calendario aziendale.")}</p>
           </div>
 
           <div>
-            <Label htmlFor="sc-note" className="text-xs">Note sul candidato</Label>
-            <Textarea id="sc-note" rows={2} defaultValue={candidato.note ?? ""} placeholder="Esperienze, referenze, disponibilità, impressioni…" onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== candidato.note) aggiorna({ note: v }); }} />
+            <Label htmlFor="sc-note" className="text-xs">{t("Note sul candidato")}</Label>
+            <Textarea id="sc-note" rows={2} defaultValue={candidato.note ?? ""} placeholder={t("Esperienze, referenze, disponibilità, impressioni…")} onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== candidato.note) aggiorna({ note: v }); }} />
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-3 py-2">
@@ -761,18 +766,18 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
                 {testInfo?.collegato
                   ? `Test attitudinale: ${STATO_TEST[testInfo.status] ?? testInfo.status}.`
                   : testInfo
-                    ? "C'è un test attitudinale con questa email, non ancora collegato."
-                    : "Vuoi anche il profilo attitudinale? È nella vista Test."}
+                    ? t("C'è un test attitudinale con questa email, non ancora collegato.")
+                    : t("Vuoi anche il profilo attitudinale? È nella vista Test.")}
               </span>
             </div>
             <div className="flex items-center gap-1">
               {testInfo && !testInfo.collegato && (
                 <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => aggiorna({ talent_candidate_id: testInfo.id })}>
-                  <Link2 className="h-3 w-3" /> Collega
+                  <Link2 className="h-3 w-3" /> {t("Collega")}
                 </Button>
               )}
               <Button size="sm" variant="ghost" className="h-7 text-xs text-orange-600 hover:text-orange-700" onClick={() => { onClose(); vaiAlTest(); }}>
-                Apri i test →
+                {t("Apri i test →")}
               </Button>
             </div>
           </div>
@@ -783,20 +788,20 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
                 <>
                   <div className="flex items-center gap-2 text-xs text-emerald-800">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    <span>Profilo dipendente creato.</span>
+                    <span>{t("Profilo dipendente creato.")}</span>
                   </div>
                   <Button size="sm" variant="ghost" className="h-7 text-xs text-emerald-700 hover:text-emerald-800" onClick={() => { onClose(); vaiOrganigramma(); }}>
-                    Apri Organigramma →
+                    {t("Apri Organigramma →")}
                   </Button>
                 </>
               ) : (
                 <>
                   <div className="flex items-center gap-2 text-xs text-emerald-800">
                     <HardHat className="h-4 w-4 text-emerald-600" />
-                    <span>È assunto: crea il profilo dipendente con i suoi dati già compilati.</span>
+                    <span>{t("È assunto: crea il profilo dipendente con i suoi dati già compilati.")}</span>
                   </div>
                   <Button size="sm" className="h-7 gap-1 bg-emerald-600 text-white hover:bg-emerald-700" disabled={assumi.isPending} onClick={() => assumi.mutate(candidato)}>
-                    <Plus className="h-3.5 w-3.5" /> Crea profilo dipendente
+                    <Plus className="h-3.5 w-3.5" /> {t("Crea profilo dipendente")}
                   </Button>
                 </>
               )}
@@ -805,9 +810,9 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
 
           <div className="flex justify-between pt-1">
             <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive gap-1" onClick={() => setConfermaElimina(true)}>
-              <Trash2 className="h-3.5 w-3.5" /> Elimina candidato
+              <Trash2 className="h-3.5 w-3.5" /> {t("Elimina candidato")}
             </Button>
-            <Button variant="outline" size="sm" onClick={onClose}>Chiudi</Button>
+            <Button variant="outline" size="sm" onClick={onClose}>{t("Chiudi")}</Button>
           </div>
         </div>
 
@@ -815,12 +820,12 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
           <Dialog open onOpenChange={(v) => { if (!v) setAnteprimaCv(null); }}>
             <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-3">
               <DialogHeader className="flex-row items-center justify-between space-y-0 pr-8">
-                <DialogTitle className="text-sm truncate">{candidato.cv_nome ?? "Curriculum"}</DialogTitle>
+                <DialogTitle className="text-sm truncate">{candidato.cv_nome ?? t("Curriculum")}</DialogTitle>
                 <Button asChild size="sm" variant="outline" className="h-7 gap-1 text-xs">
-                  <a href={anteprimaCv} target="_blank" rel="noopener noreferrer"><Download className="h-3.5 w-3.5" /> Apri in un'altra scheda</a>
+                  <a href={anteprimaCv} target="_blank" rel="noopener noreferrer"><Download className="h-3.5 w-3.5" /> {t("Apri in un'altra scheda")}</a>
                 </Button>
               </DialogHeader>
-              <p className="text-xs text-muted-foreground">Se il browser blocca l’anteprima o il riquadro resta vuoto, usa «Apri in un’altra scheda» per leggere il documento.</p>
+              <p className="text-xs text-muted-foreground">{t("Se il browser blocca l’anteprima o il riquadro resta vuoto, usa «Apri in un’altra scheda» per leggere il documento.")}</p>
               <iframe src={anteprimaCv} title={`Anteprima ${candidato.cv_nome ?? "CV"}`} className="w-full flex-1 rounded-lg border bg-slate-50" />
             </DialogContent>
           </Dialog>
@@ -829,11 +834,11 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
         <AlertDialog open={confermaElimina} onOpenChange={setConfermaElimina}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Eliminare {candidato.nome} {candidato.cognome}?</AlertDialogTitle>
-              <AlertDialogDescription>Spariscono anche colloqui e CV. Se può servire in futuro, meglio l'esito "In archivio".</AlertDialogDescription>
+              <AlertDialogTitle>{t("Eliminare {nome} {cognome}?", { nome: String(candidato.nome ?? ""), cognome: String(candidato.cognome ?? "") })}</AlertDialogTitle>
+              <AlertDialogDescription>{t("Spariscono anche colloqui e CV. Se può servire in futuro, meglio l'esito \"In archivio\".")}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={async () => {
@@ -841,7 +846,7 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
                   del.mutate(candidato.id, { onSuccess: onClose });
                 }}
               >
-                Elimina
+                {t("Elimina")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -854,21 +859,24 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
 // ── Tab ─────────────────────────────────────────────────────────────────────
 
 export function TabCandidati() {
+  const t = useT();
   const p = usePermissions();
-  if (p.isLoading) return <p role="status">Verifica accesso…</p>;
+  if (p.isLoading) return <p role="status">{t("Verifica accesso…")}</p>;
   if (p.solaLettura || !(p.isAdmin || p.canViewPersone)) return <CandidatiSolaLettura />;
   return <CandidatiGestione />;
 }
 
 function CandidatiSolaLettura() {
+  const t = useT();
   const query = useHrCandidati();
-  if (query.isError) return <HrQueryError label="Candidati non disponibili" onRetry={query.refetch} />;
-  return <div className="space-y-3"><p className="text-sm text-muted-foreground">Selezione · sola lettura. Nessuna decisione, modifica o invito è abilitato.</p>
-    {query.isLoading ? <Skeleton className="h-32" /> : (query.data || []).map(c=><Card key={c.id}><CardContent className="p-3"><p>{c.nome} {c.cognome}</p><p className="text-sm text-muted-foreground">{c.ruolo} · {STATI_CANDIDATO[c.stato]?.label || c.stato}</p></CardContent></Card>)}
+  if (query.isError) return <HrQueryError label={t("Candidati non disponibili")} onRetry={query.refetch} />;
+  return <div className="space-y-3"><p className="text-sm text-muted-foreground">{t("Selezione · sola lettura. Nessuna decisione, modifica o invito è abilitato.")}</p>
+    {query.isLoading ? <Skeleton className="h-32" /> : (query.data || []).map(c=><Card key={c.id}><CardContent className="p-3"><p>{c.nome} {c.cognome}</p><p className="text-sm text-muted-foreground">{c.ruolo} · {t(STATI_CANDIDATO[c.stato]?.label || c.stato)}</p></CardContent></Card>)}
   </div>;
 }
 
 function CandidatiGestione() {
+  const t = useT();
   const { data: candidati = [], isLoading, isError, refetch } = useHrCandidati();
   const { data: fasi = [], isLoading: fasiLoading, isError: fasiError, refetch: retryFasi } = useFasiSelezione();
   const initialize = useInizializzaFasi();
@@ -972,11 +980,11 @@ function CandidatiGestione() {
       // Outcome changes require deliberate review in the candidate detail, not an accidental drop.
       if (esito !== "in_selezione") {
         setApertoId(candidatoId);
-        toast.info("Conferma l’esito dalla scheda del candidato");
+        toast.info(t("Conferma l’esito dalla scheda del candidato"));
         return;
       }
       upsert.mutate({ id: candidatoId, nome: candidato.nome, stato }, {
-        onSuccess: () => toast.success(`${candidato.nome} ${candidato.cognome}: ${ESITI[esito].label}`),
+        onSuccess: () => toast.success(`${candidato.nome} ${candidato.cognome}: ${t(ESITI[esito].label)}`),
       });
     }
   };
@@ -986,10 +994,10 @@ function CandidatiGestione() {
       {/* KPI: la testata NON cambia cambiando vista — è la stessa area. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[
-          { label: "Candidati totali", val: kpi.totale, icona: UserRoundSearch },
-          { label: "In selezione", val: kpi.inSelezione, icona: Users },
-          { label: "Assunti", val: kpi.assunti, icona: HardHat },
-          { label: "In archivio", val: kpi.inArchivio, icona: Archive },
+          { label: t("Candidati totali"), val: kpi.totale, icona: UserRoundSearch },
+          { label: t("In selezione"), val: kpi.inSelezione, icona: Users },
+          { label: t("Assunti"), val: kpi.assunti, icona: HardHat },
+          { label: t("In archivio"), val: kpi.inArchivio, icona: Archive },
         ].map(({ label, val, icona: Icona }) => (
           <Card key={label}>
             <CardContent className="flex items-center gap-3 p-4">
@@ -1010,7 +1018,7 @@ function CandidatiGestione() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-50 text-orange-600"><BrainCircuit className="h-5 w-5" /></div>
             <div>
               <p className="text-xl font-bold leading-none">{testStats ? `${testStats.completati}/${testStats.totale}` : "—"}</p>
-              <p className="text-xs text-muted-foreground">Test completati</p>
+              <p className="text-xs text-muted-foreground">{t("Test completati")}</p>
             </div>
           </div>
         </button>
@@ -1020,26 +1028,26 @@ function CandidatiGestione() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg border p-0.5">
           <button type="button" onClick={() => cambiaVista("pipeline")} className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium ${vista === "pipeline" ? "bg-orange-50 text-orange-700" : "text-muted-foreground hover:bg-muted"}`}>
-            <KanbanSquare className="h-3.5 w-3.5" /> Pipeline
+            <KanbanSquare className="h-3.5 w-3.5" /> {t("Pipeline")}
           </button>
           <button type="button" onClick={() => cambiaVista("elenco")} className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium ${vista === "elenco" ? "bg-orange-50 text-orange-700" : "text-muted-foreground hover:bg-muted"}`}>
-            <List className="h-3.5 w-3.5" /> Elenco
+            <List className="h-3.5 w-3.5" /> {t("Elenco")}
           </button>
           <button type="button" onClick={() => cambiaVista("test")} className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium ${vista === "test" ? "bg-orange-50 text-orange-700" : "text-muted-foreground hover:bg-muted"}`}>
-            <BrainCircuit className="h-3.5 w-3.5" /> Test attitudinali
+            <BrainCircuit className="h-3.5 w-3.5" /> {t("Test attitudinali")}
           </button>
         </div>
         {vista !== "test" && (
         <div className="relative flex-1 min-w-[180px] max-w-sm">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="h-9 pl-8" placeholder="Cerca per nome, telefono, email…" value={ricerca} onChange={(e) => setRicerca(e.target.value)} />
+          <Input className="h-9 pl-8" placeholder={t("Cerca per nome, telefono, email…")} value={ricerca} onChange={(e) => setRicerca(e.target.value)} />
         </div>
         )}
         {vista !== "test" && (
         <Select value={filtroRuolo} onValueChange={setFiltroRuolo}>
           <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="tutti">Tutti i ruoli</SelectItem>
+            <SelectItem value="tutti">{t("Tutti i ruoli")}</SelectItem>
             {ruoliPresenti.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
           </SelectContent>
         </Select>
@@ -1048,38 +1056,38 @@ function CandidatiGestione() {
           <Select value={filtroEsito} onValueChange={(v) => setFiltroEsito(v as typeof filtroEsito)}>
             <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="in_selezione">In selezione</SelectItem>
-              <SelectItem value="tutti">Tutti</SelectItem>
-              <SelectItem value="assunto">Assunti</SelectItem>
-              <SelectItem value="scartato">Non idonei</SelectItem>
-              <SelectItem value="archiviato">In archivio</SelectItem>
+              <SelectItem value="in_selezione">{t("In selezione")}</SelectItem>
+              <SelectItem value="tutti">{t("Tutti")}</SelectItem>
+              <SelectItem value="assunto">{t("Assunti")}</SelectItem>
+              <SelectItem value="scartato">{t("Non idonei")}</SelectItem>
+              <SelectItem value="archiviato">{t("In archivio")}</SelectItem>
             </SelectContent>
           </Select>
         )}
         {vista === "pipeline" && (
           <Button variant="outline" size="sm" className="h-9 gap-1" onClick={() => setFasiAperte(true)}>
-            <Settings2 className="h-3.5 w-3.5" /> Fasi
+            <Settings2 className="h-3.5 w-3.5" /> {t("Fasi")}
           </Button>
         )}
         {vista !== "test" && (
           <Button variant="outline" size="sm" className="h-9 gap-1" onClick={() => setModuliAperti(true)}>
-            <Globe className="h-3.5 w-3.5" /> Modulo sito
+            <Globe className="h-3.5 w-3.5" /> {t("Modulo sito")}
           </Button>
         )}
         {vista === "elenco" && (
           <Button variant="outline" size="sm" className="h-9 gap-1" onClick={() => setPrivacyAperta(true)}>
-            <ShieldCheck className="h-3.5 w-3.5" /> Privacy
+            <ShieldCheck className="h-3.5 w-3.5" /> {t("Privacy")}
           </Button>
         )}
         {vista !== "test" && (
-          <Button variant="brand" className="ml-auto gap-1" onClick={() => setNuovoAperto(true)}><Plus className="h-4 w-4" /> Nuovo candidato</Button>
+          <Button variant="brand" className="ml-auto gap-1" onClick={() => setNuovoAperto(true)}><Plus className="h-4 w-4" /> {t("Nuovo candidato")}</Button>
         )}
       </div>
 
       {/* Corpo */}
       {!fasiLoading && !fasiError && fasi.length === 0 && vista !== "test" && <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-slate-50 p-3 text-sm">
-        <p className="flex-1">Nessuna fase configurata. Puoi creare la pipeline suggerita oppure configurarla con Gestisci fasi. I candidati non verranno spostati automaticamente.</p>
-        <Button variant="outline" size="sm" disabled={initialize.isPending} onClick={()=>initialize.mutate()}>Crea fasi suggerite</Button>
+        <p className="flex-1">{t("Nessuna fase configurata. Puoi creare la pipeline suggerita oppure configurarla con Gestisci fasi. I candidati non verranno spostati automaticamente.")}</p>
+        <Button variant="outline" size="sm" disabled={initialize.isPending} onClick={()=>initialize.mutate()}>{t("Crea fasi suggerite")}</Button>
       </div>}
       {vista === "test" ? (
         <Suspense fallback={<div className="space-y-3 py-2"><Skeleton className="h-9 w-2/3 max-w-xs" /><Skeleton className="h-56 w-full rounded-xl" /></div>}>
@@ -1087,13 +1095,13 @@ function CandidatiGestione() {
         </Suspense>
       ) : isLoading || fasiLoading ? (
         <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div>
-      ) : isError || fasiError ? <HrQueryError label="Selezione non disponibile" onRetry={()=>Promise.all([refetch(),retryFasi()])} /> : candidati.length === 0 ? (
+      ) : isError || fasiError ? <HrQueryError label={t("Selezione non disponibile")} onRetry={()=>Promise.all([refetch(),retryFasi()])} /> : candidati.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
             <UserRoundSearch className="h-10 w-10 text-slate-300" />
-            <p className="font-semibold">La tua banca dati candidati è vuota</p>
-            <p className="max-w-sm text-sm text-muted-foreground">Aggiungi chi si è proposto o chi hai già sentito: CV, colloqui e valutazioni restano qui anche per le ricerche future.</p>
-            <Button variant="brand" className="mt-2 gap-1" onClick={() => setNuovoAperto(true)}><Plus className="h-4 w-4" /> Aggiungi il primo</Button>
+            <p className="font-semibold">{t("La tua banca dati candidati è vuota")}</p>
+            <p className="max-w-sm text-sm text-muted-foreground">{t("Aggiungi chi si è proposto o chi hai già sentito: CV, colloqui e valutazioni restano qui anche per le ricerche future.")}</p>
+            <Button variant="brand" className="mt-2 gap-1" onClick={() => setNuovoAperto(true)}><Plus className="h-4 w-4" /> {t("Aggiungi il primo")}</Button>
           </CardContent>
         </Card>
       ) : vista === "pipeline" ? (
@@ -1101,7 +1109,7 @@ function CandidatiGestione() {
           <div className="overflow-x-auto pb-1">
             <div className="flex items-start gap-2 min-w-max">
               {senzaFase.length > 0 && (
-                <ColonnaFase id="fase:senza" titolo="Da smistare" colore="#94A3B8" candidati={senzaFase} oggi={oggi} onApri={setApertoId} />
+                <ColonnaFase id="fase:senza" titolo={t("Da smistare")} colore="#94A3B8" candidati={senzaFase} oggi={oggi} onApri={setApertoId} />
               )}
               {fasi.map((f) => (
                 <ColonnaFase key={f.id} id={`fase:${f.id}`} titolo={f.nome} colore={f.colore} candidati={inPipeline.filter((c) => c.fase_id === f.id)} oggi={oggi} onApri={setApertoId} />
@@ -1110,25 +1118,25 @@ function CandidatiGestione() {
           </div>
           {/* Trascina qui per chiudere il percorso di un candidato */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-[11px] text-muted-foreground">Trascina per aprire la scheda e confermare l’esito:</span>
-            <TargetEsito esito="assunto" label="Assunto" icona={CheckCircle2} classe="border-emerald-300 bg-emerald-50 text-emerald-700" />
-            <TargetEsito esito="scartato" label="Non idoneo" icona={XCircle} classe="border-red-300 bg-red-50 text-red-600" />
-            <TargetEsito esito="archiviato" label="In archivio" icona={Archive} classe="border-slate-300 bg-slate-50 text-slate-600" />
+            <span className="text-[11px] text-muted-foreground">{t("Trascina per aprire la scheda e confermare l’esito:")}</span>
+            <TargetEsito esito="assunto" label={t("Assunto")} icona={CheckCircle2} classe="border-emerald-300 bg-emerald-50 text-emerald-700" />
+            <TargetEsito esito="scartato" label={t("Non idoneo")} icona={XCircle} classe="border-red-300 bg-red-50 text-red-600" />
+            <TargetEsito esito="archiviato" label={t("In archivio")} icona={Archive} classe="border-slate-300 bg-slate-50 text-slate-600" />
           </div>
         </DndContext>
       ) : filtrati.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">Nessun candidato con questi filtri.</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">{t("Nessun candidato con questi filtri.")}</p>
       ) : (
         <div className="space-y-4">
           {/* Intestazioni: l'elenco si legge come una tabella, colonne allineate
               su tutti i gruppi (su mobile le righe tornano a scorrere). */}
           <div className={`hidden lg:grid ${COLONNE_ELENCO} items-center gap-x-3 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground`}>
-            <span>Candidato</span>
-            <span>Fase / Esito</span>
-            <span>Valutazione</span>
+            <span>{t("Candidato")}</span>
+            <span>{t("Fase / Esito")}</span>
+            <span>{t("Valutazione")}</span>
             <span>CV</span>
-            <span>Contatti</span>
-            <span className="text-right">Fonte</span>
+            <span>{t("Contatti")}</span>
+            <span className="text-right">{t("Fonte")}</span>
           </div>
           {perRuolo.map(([ruolo, lista]) => (
             <div key={ruolo}>
@@ -1156,7 +1164,7 @@ function CandidatiGestione() {
                             {fase.nome}
                           </Badge>
                         ) : (
-                          <Badge className={`${ESITI[es].classe} border-0 text-[11px]`}>{ESITI[es].label}</Badge>
+                          <Badge className={`${ESITI[es].classe} border-0 text-[11px]`}>{t(ESITI[es].label)}</Badge>
                         )}
                       </span>
                       <Stelle valore={c.valutazione} />

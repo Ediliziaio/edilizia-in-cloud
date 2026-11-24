@@ -42,6 +42,7 @@ const SEZIONI_MODULI = ALL_PERMISSION_SECTIONS.filter(
 );
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 import { PermessiDistintiToggle } from "@/components/users/PermessiDistintiToggle";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface StaffUserDialogProps {
   companyId?: string;
@@ -111,6 +112,7 @@ export function StaffUserDialog({
   lockRoleType,
   companyId,
 }: StaffUserDialogProps) {
+  const t = useT();
   const { toast } = useToast();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -169,13 +171,13 @@ export function StaffUserDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!firstName.trim() || !email.trim()) {
-      toast({ title: "Errore", description: "Nome ed email sono obbligatori", variant: "destructive" });
+      toast({ title: t("Errore"), description: t("Nome ed email sono obbligatori"), variant: "destructive" });
       return;
     }
     if (roleType === "employee" && companyId && (employeeLoading || employeeError)) return;
     const pwd = password.trim();
     if (pwd && pwd.length < 8) {
-      toast({ title: "Errore", description: "La password temporanea deve avere almeno 8 caratteri", variant: "destructive" });
+      toast({ title: t("Errore"), description: t("La password temporanea deve avere almeno 8 caratteri"), variant: "destructive" });
       return;
     }
     try {
@@ -202,7 +204,7 @@ export function StaffUserDialog({
       await navigator.clipboard.writeText(temporaryPassword);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      toast({ title: "Copiato!", description: "Password copiata negli appunti" });
+      toast({ title: t("Copiato!"), description: t("Password copiata negli appunti") });
     }
   };
 
@@ -230,7 +232,7 @@ export function StaffUserDialog({
           disabled={isLoading || bloccato(section.viewKey)}
         />
         <Label htmlFor={`create-${section.viewKey}`} className="font-medium text-sm">
-          {section.label}
+          {t(section.label)}
         </Label>
         {(bloccato(section.viewKey) || (section.editKey && bloccato(section.editKey))) && (
           <span className="text-[11px] text-amber-600">{SOLA_LETTURA_BLOCKED_NOTE}</span>
@@ -245,7 +247,7 @@ export function StaffUserDialog({
             disabled={isLoading || bloccato(section.editKey)}
           />
           <Label htmlFor={`create-${section.editKey}`} className="text-xs text-muted-foreground">
-            Può modificare
+            {t("Può modificare")}
           </Label>
         </div>
       )}
@@ -257,17 +259,15 @@ export function StaffUserDialog({
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Utente Creato con Successo! 🎉</DialogTitle>
-            <DialogDescription>
-              L'utente {firstName} {lastName} è stato creato come {ROLE_LABELS[roleType]}. Comunica la password temporanea all'utente.
-            </DialogDescription>
+            <DialogTitle>{t("Utente Creato con Successo! 🎉")}</DialogTitle>
+            <DialogDescription>{t("L'utente {firstName} {lastName} è stato creato come {valore}. Comunica la password temporanea all'utente.", { firstName: String(firstName ?? ""), lastName: String(lastName ?? ""), valore: String(ROLE_LABELS[roleType] ?? "") })}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="p-4 bg-muted rounded-lg space-y-2">
-              <p className="text-sm font-medium">Credenziali di accesso:</p>
-              <div className="text-sm"><span className="text-muted-foreground">Email:</span> {email}</div>
+              <p className="text-sm font-medium">{t("Credenziali di accesso:")}</p>
+              <div className="text-sm"><span className="text-muted-foreground">{t("Email:")}</span> {email}</div>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Password:</span>
+                <span className="text-sm text-muted-foreground">{t("Password:")}</span>
                 <code className="px-2 py-1 bg-background rounded text-sm font-mono">{temporaryPassword}</code>
                 <Button variant="ghost" size="icon" onClick={handleCopyPassword} className="h-8 w-8">
                   {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
@@ -275,10 +275,10 @@ export function StaffUserDialog({
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              ⚠️ Questa password viene mostrata solo una volta. Assicurati di comunicarla all'utente in modo sicuro.
+              {t("⚠️ Questa password viene mostrata solo una volta. Assicurati di comunicarla all'utente in modo sicuro.")}
             </p>
           </div>
-          <DialogFooter><Button onClick={handleClose}>Chiudi</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleClose}>{t("Chiudi")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     );
@@ -288,29 +288,29 @@ export function StaffUserDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{lockRoleType ? `Nuovo ${ROLE_LABELS[roleType]}` : "Nuovo Utente Aziendale"}</DialogTitle>
+          <DialogTitle>{lockRoleType ? t("Nuovo {valore}", { valore: String(ROLE_LABELS[roleType] ?? "") }) : t("Nuovo Utente Aziendale")}</DialogTitle>
           <DialogDescription>
             {lockRoleType
-              ? `Crea un nuovo account "${ROLE_LABELS[roleType]}" per questa azienda. Compila i dati.`
-              : "Crea un nuovo utente per la tua azienda. Scegli il tipo di ruolo e compila i dati."}
+              ? t("Crea un nuovo account \"{valore}\" per questa azienda. Compila i dati.", { valore: String(ROLE_LABELS[roleType] ?? "") })
+              : t("Crea un nuovo utente per la tua azienda. Scegli il tipo di ruolo e compila i dati.")}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {lockRoleType ? (
             <div className="space-y-2">
-              <Label>Tipo utente</Label>
+              <Label>{t("Tipo utente")}</Label>
               <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-primary bg-primary/5">
                 <selectedRoleOption.icon className="h-5 w-5 shrink-0 text-primary" />
                 <div>
-                  <p className="font-medium text-sm">{selectedRoleOption.label}</p>
-                  <p className="text-xs text-muted-foreground">{selectedRoleOption.description}</p>
+                  <p className="font-medium text-sm">{t(selectedRoleOption.label)}</p>
+                  <p className="text-xs text-muted-foreground">{t(selectedRoleOption.description)}</p>
                 </div>
               </div>
             </div>
           ) : (
             <div className="space-y-2">
-              <Label>Tipo utente *</Label>
+              <Label>{t("Tipo utente *")}</Label>
               <div className="grid grid-cols-2 gap-3">
                 {ROLE_OPTIONS.map((opt) => (
                   <button
@@ -322,8 +322,8 @@ export function StaffUserDialog({
                   >
                     <opt.icon className={`h-5 w-5 shrink-0 ${roleType === opt.value ? "text-primary" : "text-muted-foreground"}`} />
                     <div>
-                      <p className="font-medium text-sm">{opt.label}</p>
-                      <p className="text-xs text-muted-foreground">{opt.description}</p>
+                      <p className="font-medium text-sm">{t(opt.label)}</p>
+                      <p className="text-xs text-muted-foreground">{t(opt.description)}</p>
                     </div>
                   </button>
                 ))}
@@ -334,21 +334,21 @@ export function StaffUserDialog({
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName">Nome *</Label>
-                <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Mario" disabled={isLoading} />
+                <Label htmlFor="firstName">{t("Nome *")}</Label>
+                <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder={t("Mario")} disabled={isLoading} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Cognome</Label>
-                <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Rossi" disabled={isLoading} />
+                <Label htmlFor="lastName">{t("Cognome")}</Label>
+                <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder={t("Rossi")} disabled={isLoading} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
+              <Label htmlFor="email">{t("Email *")}</Label>
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="mario.rossi@example.com" disabled={isLoading} />
-              <p className="text-xs text-muted-foreground">L'utente userà questa email per accedere al sistema</p>
+              <p className="text-xs text-muted-foreground">{t("L'utente userà questa email per accedere al sistema")}</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tempPassword">Password temporanea <span className="font-normal text-muted-foreground">(opzionale)</span></Label>
+              <Label htmlFor="tempPassword">{t("Password temporanea")} <span className="font-normal text-muted-foreground">{t("(opzionale)")}</span></Label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Input
@@ -356,7 +356,7 @@ export function StaffUserDialog({
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Lascia vuoto per generarla in automatico"
+                    placeholder={t("Lascia vuoto per generarla in automatico")}
                     autoComplete="new-password"
                     disabled={isLoading}
                     className="pr-10 font-mono"
@@ -366,34 +366,34 @@ export function StaffUserDialog({
                     onClick={() => setShowPassword((s) => !s)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     tabIndex={-1}
-                    aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                    aria-label={showPassword ? t("Nascondi password") : t("Mostra password")}
                     disabled={isLoading}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                <Button type="button" variant="outline" size="icon" onClick={handleGeneratePassword} disabled={isLoading} title="Genera password sicura">
+                <Button type="button" variant="outline" size="icon" onClick={handleGeneratePassword} disabled={isLoading} title={t("Genera password sicura")}>
                   <RefreshCw className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">Minimo 8 caratteri. Se vuota, il sistema ne genera una sicura. Verrà mostrata dopo la creazione.</p>
+              <p className="text-xs text-muted-foreground">{t("Minimo 8 caratteri. Se vuota, il sistema ne genera una sicura. Verrà mostrata dopo la creazione.")}</p>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox id="inviaBenvenuto" checked={inviaBenvenuto} onCheckedChange={value => setInviaBenvenuto(value === true)} disabled={isLoading} />
-              <Label htmlFor="inviaBenvenuto">Invia le credenziali per email</Label>
+              <Label htmlFor="inviaBenvenuto">{t("Invia le credenziali per email")}</Label>
             </div>
           </div>
 
           {roleType === "employee" && companyId && (
             <div className="space-y-2">
-              <Label htmlFor="admin-personale">Scheda del personale</Label>
+              <Label htmlFor="admin-personale">{t("Scheda del personale")}</Label>
               <UniformSelect id="admin-personale" className="w-full rounded-md border bg-background p-2 text-sm" value={employeeId} disabled={employeeLoading || employeeError}
                 onChange={e=>{setEmployeeId(e.target.value);const p=employeeOptions.find(p=>p.id===e.target.value);if(p){setFirstName(p.first_name);setLastName(p.last_name);if(p.email)setEmail(p.email);}}}>
-                <option value="">Nuova persona, non ancora presente</option>
+                <option value="">{t("Nuova persona, non ancora presente")}</option>
                 {employeeOptions.map(p=><option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)}
               </UniformSelect>
-              <p className="text-xs text-muted-foreground">Seleziona la scheda esistente per conservare cantieri e storico.</p>
-              {employeeError && <p role="alert">Non riesco a verificare il personale. Riapri la finestra.</p>}
+              <p className="text-xs text-muted-foreground">{t("Seleziona la scheda esistente per conservare cantieri e storico.")}</p>
+              {employeeError && <p role="alert">{t("Non riesco a verificare il personale. Riapri la finestra.")}</p>}
             </div>
           )}
           {ROLES_WITH_PERMISSIONS.includes(roleType) && (
@@ -401,10 +401,10 @@ export function StaffUserDialog({
               <Separator />
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label className="text-base font-semibold">Permessi</Label>
+                  <Label className="text-base font-semibold">{t("Permessi")}</Label>
                   <div className="flex gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={handleSelectAll} disabled={isLoading}>Seleziona tutti</Button>
-                    <Button type="button" variant="outline" size="sm" onClick={handleDeselectAll} disabled={isLoading}>Deseleziona tutti</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={handleSelectAll} disabled={isLoading}>{t("Seleziona tutti")}</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={handleDeselectAll} disabled={isLoading}>{t("Deseleziona tutti")}</Button>
                   </div>
                 </div>
 
@@ -420,7 +420,7 @@ export function StaffUserDialog({
                           >
                             <span className="flex items-center gap-2">
                               <g.icon className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm font-medium">{g.label}</span>
+                              <span className="text-sm font-medium">{t(g.label)}</span>
                               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                                 {active}/{g.sections.length}
                               </Badge>
@@ -449,9 +449,9 @@ export function StaffUserDialog({
                     <div className="flex items-center space-x-2">
                       <Checkbox id="create-only_assigned" checked={permissions.only_assigned || false}
                         onCheckedChange={(checked) => setPermissions((prev) => ({ ...prev, only_assigned: checked as boolean }))} disabled={isLoading} />
-                      <Label htmlFor="create-only_assigned" className="font-medium text-sm">Solo i dati assegnati a lui</Label>
+                      <Label htmlFor="create-only_assigned" className="font-medium text-sm">{t("Solo i dati assegnati a lui")}</Label>
                     </div>
-                    <p className="text-xs text-muted-foreground ml-6">Vede solo commesse, attività e appuntamenti assegnati a lui.</p>
+                    <p className="text-xs text-muted-foreground ml-6">{t("Vede solo commesse, attività e appuntamenti assegnati a lui.")}</p>
                   </div>
                 </div>
               </div>
@@ -459,10 +459,10 @@ export function StaffUserDialog({
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading}>Annulla</Button>
+            <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading}>{t("Annulla")}</Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Crea Utente
+              {t("Crea Utente")}
             </Button>
           </DialogFooter>
         </form>

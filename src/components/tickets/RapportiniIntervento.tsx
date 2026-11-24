@@ -6,7 +6,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { it } from "date-fns/locale";
 import { ClipboardCheck, Clock3, Camera, PenLine, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RapportinoRiga {
   id: string;
@@ -51,6 +51,7 @@ export function RapportiniIntervento({
   impiantoId?: string;
   canEdit?: boolean;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const perImpianto = !ticketId && !!impiantoId;
   const { data: rapportini = [], isLoading } = useQuery({
@@ -80,12 +81,12 @@ export function RapportiniIntervento({
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
         <p className="flex items-center gap-1.5 text-sm font-semibold">
           <ClipboardCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          Rapportini {rapportini.length > 0 && <span className="text-muted-foreground">({rapportini.length})</span>}
+          {t("Rapportini")} {rapportini.length > 0 && <span className="text-muted-foreground">({rapportini.length})</span>}
         </p>
         {canEdit && !perImpianto && ticketId && (
           <Button asChild size="sm" variant="outline" className="h-7 gap-1 text-xs">
             <Link to={`/azienda/assistenza/${ticketId}/chiudi`}>
-              <Plus className="h-3.5 w-3.5" />{rapportini.length > 0 ? "Nuovo" : "Compila"}
+              <Plus className="h-3.5 w-3.5" />{rapportini.length > 0 ? t("Nuovo") : t("Compila")}
             </Link>
           </Button>
         )}
@@ -94,8 +95,8 @@ export function RapportiniIntervento({
       {rapportini.length === 0 ? (
         <p className="px-3 py-4 text-center text-sm text-muted-foreground">
           {perImpianto
-            ? "Ancora nessun rapportino su questo impianto. Compare qui appena chi interviene ne compila uno."
-            : "Ancora nessun rapportino. Lo compila chi fa l'intervento, dall'app o dalla chiusura."}
+            ? t("Ancora nessun rapportino su questo impianto. Compare qui appena chi interviene ne compila uno.")
+            : t("Ancora nessun rapportino. Lo compila chi fa l'intervento, dall'app o dalla chiusura.")}
         </p>
       ) : (
         <ul className="divide-y">
@@ -109,18 +110,18 @@ export function RapportiniIntervento({
                       {nomeTecnico(r)}
                       {r.data_intervento && (
                         <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                          {format(parseISO(r.data_intervento), "d MMM yyyy", { locale: it })}
+                          {format(parseISO(r.data_intervento), "d MMM yyyy", { locale: dateFnsCampo() })}
                         </span>
                       )}
                     </p>
                     {r.descrizione && <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{r.descrizione}</p>}
                   </div>
-                  <Badge variant="outline" className={cn("shrink-0 text-[10px]", stato.cls)}>{stato.label}</Badge>
+                  <Badge variant="outline" className={cn("shrink-0 text-[10px]", stato.cls)}>{t(stato.label)}</Badge>
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  {ore(r) != null && <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" />{Number(ore(r)).toLocaleString("it-IT")} h</span>}
-                  {foto(r) > 0 && <span className="inline-flex items-center gap-1"><Camera className="h-3 w-3" />{foto(r)} foto</span>}
-                  {(r.firma_cliente || r.firma_tecnico_url) && <span className="inline-flex items-center gap-1"><PenLine className="h-3 w-3" />firmato</span>}
+                  {ore(r) != null && <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" />{Number(ore(r)).toLocaleString(intlCampo())} h</span>}
+                  {foto(r) > 0 && <span className="inline-flex items-center gap-1"><Camera className="h-3 w-3" />{foto(r)} {t("foto")}</span>}
+                  {(r.firma_cliente || r.firma_tecnico_url) && <span className="inline-flex items-center gap-1"><PenLine className="h-3 w-3" />{t("firmato")}</span>}
                 </div>
               </li>
             );

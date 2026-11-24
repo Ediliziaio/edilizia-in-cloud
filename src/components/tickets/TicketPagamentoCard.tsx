@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TICKET_MOTIVI_GRATUITO } from "@/types/tickets";
 import { CreaFatturaAssistenzaDialog } from "@/components/tickets/CreaFatturaAssistenzaDialog";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const METODI = ["Bonifico", "Contanti", "Carta", "Assegno", "Altro"];
 
@@ -40,6 +41,7 @@ export interface TicketPagamento {
 }
 
 export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId: string; ticket: TicketPagamento; companyId: string }) {
+  const t = useT();
   const qc = useQueryClient();
   const [aPagamento, setAPagamento] = useState(!!ticket.a_pagamento);
   const [motivo, setMotivo] = useState(ticket.motivo_gratuito ?? "garanzia");
@@ -81,9 +83,9 @@ export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId:
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ticket", ticketId] });
       qc.invalidateQueries({ queryKey: ["tickets"] });
-      toast.success("Pagamento aggiornato");
+      toast.success(t("Pagamento aggiornato"));
     },
-    onError: (e: Error) => toast.error(e.message || "Non sono riuscito a salvare il pagamento"),
+    onError: (e: Error) => toast.error(e.message || t("Non sono riuscito a salvare il pagamento")),
   });
 
   /**
@@ -94,7 +96,7 @@ export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId:
   const mandaAScadenzario = useMutation({
     mutationFn: async () => {
       const importo = Number(finale || preventivato || 0);
-      if (!importo) throw new Error("Indica prima l'importo dell'intervento");
+      if (!importo) throw new Error(t("Indica prima l'importo dell'intervento"));
       const scadenzaFra30 = new Date();
       scadenzaFra30.setDate(scadenzaFra30.getDate() + 30);
       const { data, error } = await supabase
@@ -124,14 +126,14 @@ export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId:
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ticket", ticketId] });
       qc.invalidateQueries({ queryKey: ["scadenze"] });
-      toast.success("Incasso messo a scadenzario (30 giorni)");
+      toast.success(t("Incasso messo a scadenzario (30 giorni)"));
     },
-    onError: (e: Error) => toast.error(e.message || "Non sono riuscito a creare la scadenza"),
+    onError: (e: Error) => toast.error(e.message || t("Non sono riuscito a creare la scadenza")),
   });
 
   const incassa = () => {
     if (!finale && !preventivato) {
-      toast.error("Prima indica l'importo dell'intervento");
+      toast.error(t("Prima indica l'importo dell'intervento"));
       return;
     }
     salva.mutate({
@@ -147,28 +149,28 @@ export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId:
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Euro className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold">Pagamento</h3>
+            <h3 className="text-sm font-semibold">{t("Pagamento")}</h3>
           </div>
           {aPagamento && (
             pagato
-              ? <Badge className="bg-green-100 text-green-700">Incassato</Badge>
-              : <Badge className="bg-amber-100 text-amber-700">Da incassare</Badge>
+              ? <Badge className="bg-green-100 text-green-700">{t("Incassato")}</Badge>
+              : <Badge className="bg-amber-100 text-amber-700">{t("Da incassare")}</Badge>
           )}
         </div>
 
         <div className="flex items-center justify-between gap-3">
-          <Label className="text-xs text-muted-foreground">Intervento a pagamento</Label>
+          <Label className="text-xs text-muted-foreground">{t("Intervento a pagamento")}</Label>
           <Switch checked={aPagamento} onCheckedChange={setAPagamento} disabled={pagato} />
         </div>
 
         {!aPagamento ? (
           <div className="space-y-1.5">
-            <Label className="text-xs">Perché non si paga</Label>
+            <Label className="text-xs">{t("Perché non si paga")}</Label>
             <Select value={motivo} onValueChange={setMotivo}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {TICKET_MOTIVI_GRATUITO.map(m => (
-                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  <SelectItem key={m.value} value={m.value}>{t(m.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -177,28 +179,28 @@ export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId:
           <>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label className="text-xs">Preventivato (€)</Label>
+                <Label className="text-xs">{t("Preventivato (€)")}</Label>
                 <Input type="number" min="0" step="0.01" inputMode="decimal" className="h-9"
                        value={preventivato} onChange={e => setPreventivato(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Finale (€)</Label>
+                <Label className="text-xs">{t("Finale (€)")}</Label>
                 <Input type="number" min="0" step="0.01" inputMode="decimal" className="h-9"
                        value={finale} onChange={e => setFinale(e.target.value)} disabled={pagato} />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Metodo</Label>
+              <Label className="text-xs">{t("Metodo")}</Label>
               <Select value={metodo} onValueChange={setMetodo}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Da definire" /></SelectTrigger>
+                <SelectTrigger className="h-9"><SelectValue placeholder={t("Da definire")} /></SelectTrigger>
                 <SelectContent>
-                  {METODI.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  {METODI.map(m => <SelectItem key={m} value={m}>{t(m)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             {pagato && ticket.data_pagamento && (
               <p className="text-xs text-muted-foreground">
-                Incassato il {new Date(ticket.data_pagamento).toLocaleDateString("it-IT")}
+                {t("Incassato il {data}", { data: new Date(ticket.data_pagamento).toLocaleDateString(intlCampo()) })}
                 {ticket.metodo_pagamento ? ` · ${ticket.metodo_pagamento}` : ""}
               </p>
             )}
@@ -206,19 +208,19 @@ export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId:
         )}
 
         <div className="space-y-1.5">
-          <Label className="text-xs">Note</Label>
+          <Label className="text-xs">{t("Note")}</Label>
           <Input className="h-9" value={note} onChange={e => setNote(e.target.value)}
-                 placeholder="Es. da fatturare a fine mese" />
+                 placeholder={t("Es. da fatturare a fine mese")} />
         </div>
 
         <div className="flex gap-2">
           <Button size="sm" variant="outline" className="flex-1"
                   onClick={() => salva.mutate({})} disabled={salva.isPending}>
-            {salva.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salva"}
+            {salva.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("Salva")}
           </Button>
           {aPagamento && !pagato && (
             <Button size="sm" className="flex-1" onClick={incassa} disabled={salva.isPending}>
-              <Check className="mr-1 h-4 w-4" /> Segna incassato
+              <Check className="mr-1 h-4 w-4" /> {t("Segna incassato")}
             </Button>
           )}
         </div>
@@ -226,7 +228,7 @@ export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId:
         {aPagamento && !pagato && (
           ticket.scadenza_id ? (
             <p className="text-center text-[11px] text-muted-foreground">
-              Incasso già a scadenzario.
+              {t("Incasso già a scadenzario.")}
             </p>
           ) : (
             <Button size="sm" variant="ghost" className="w-full text-xs"
@@ -234,7 +236,7 @@ export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId:
               {mandaAScadenzario.isPending
                 ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                 : <CalendarClock className="mr-1 h-3.5 w-3.5" />}
-              Metti a scadenzario (30 gg)
+              {t("Metti a scadenzario (30 gg)")}
             </Button>
           )
         )}
@@ -245,14 +247,14 @@ export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId:
           ticket.documento_fiscale_id ? (
             <Button asChild size="sm" variant="outline" className="w-full text-xs">
               <Link to={`/azienda/documenti/${ticket.documento_fiscale_id}`}>
-                <FileText className="mr-1.5 h-3.5 w-3.5" /> Apri la fattura
+                <FileText className="mr-1.5 h-3.5 w-3.5" /> {t("Apri la fattura")}
               </Link>
             </Button>
           ) : (
             <Button size="sm" variant="outline" className="w-full text-xs"
                     onClick={() => setFatturaOpen(true)}
                     disabled={!(finale || preventivato)}>
-              <Receipt className="mr-1.5 h-3.5 w-3.5" /> Crea fattura
+              <Receipt className="mr-1.5 h-3.5 w-3.5" /> {t("Crea fattura")}
             </Button>
           )
         )}

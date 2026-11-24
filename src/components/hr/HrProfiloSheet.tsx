@@ -33,6 +33,7 @@ import { Save, Loader2, Info, User, Target, FileText, CalendarDays, Briefcase } 
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { normalizeHrNumbers } from "@/lib/personale/profileNumbers";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -65,20 +66,22 @@ const ORARIO_TIPO_OPTIONS = [
 ];
 
 export function HrProfiloSheet(props: Props) {
+  const t = useT();
   const permissions = usePermissions();
   const canEdit = !permissions.isLoading && !permissions.solaLettura && (permissions.isAdmin || permissions.canViewPersone);
   if (canEdit) return <HrProfiloEditor {...props} />;
   return <Dialog open={props.open && !!props.profilo} onOpenChange={props.onOpenChange}>
     <DialogContent aria-describedby={undefined} className="top-1/2 w-[calc(100%-1.5rem)] rounded-xl sm:max-w-lg"><DialogHeader className="pr-8"><DialogTitle>{props.profilo?.nome} {props.profilo?.cognome}</DialogTitle></DialogHeader>
       {props.profilo?.lavora_in_cantiere && <AccessoAppInScheda profiloId={props.profilo.id} />}
-      <p className="mt-2 text-sm text-muted-foreground">Profilo organizzativo · sola lettura</p>
-      <dl className="mt-6 space-y-4"><div><dt>Ruolo</dt><dd>{props.profilo?.mansione || "Da definire"}</dd></div>
-        <div><dt>Reparto</dt><dd>{props.profilo?.reparto || "Da definire"}</dd></div></dl>
+      <p className="mt-2 text-sm text-muted-foreground">{t("Profilo organizzativo · sola lettura")}</p>
+      <dl className="mt-6 space-y-4"><div><dt>{t("Ruolo")}</dt><dd>{props.profilo?.mansione || t("Da definire")}</dd></div>
+        <div><dt>{t("Reparto")}</dt><dd>{props.profilo?.reparto || t("Da definire")}</dd></div></dl>
     </DialogContent>
   </Dialog>;
 }
 
 function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfilo }: Props) {
+  const t = useT();
   const updateMutation = useUpdateHrProfilo();
   const createMutation = useCreateHrProfilo();
   const { data: sedi = [] } = useHrSedi();
@@ -156,7 +159,7 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
   }, [profilo, reset]);
 
   const onSubmit = async (data: Partial<HrProfilo>) => {
-    if (stessoCf) { toast.error("Esiste già un profilo con questo codice fiscale."); return; }
+    if (stessoCf) { toast.error(t("Esiste già un profilo con questo codice fiscale.")); return; }
     // Remove non-DB fields that come from OrgTreeNode or joined data
     const {
       children, depth, sede, responsabile,
@@ -183,28 +186,28 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
     sanitized.cognome = sanitized.cognome?.trim();
 
     if (!sanitized.nome || !sanitized.cognome) {
-      toast.error("Nome e cognome sono obbligatori");
+      toast.error(t("Nome e cognome sono obbligatori"));
       return;
     }
 
     if (profilo?.id && sanitized.responsabile_id) {
       if (sanitized.responsabile_id === profilo.id) {
-        toast.error("Un profilo non può essere responsabile di sé stesso");
+        toast.error(t("Un profilo non può essere responsabile di sé stesso"));
         return;
       }
       if (descendantIds.has(sanitized.responsabile_id)) {
-        toast.error("Non puoi assegnare come responsabile un collaboratore già sotto questo profilo");
+        toast.error(t("Non puoi assegnare come responsabile un collaboratore già sotto questo profilo"));
         return;
       }
     }
 
     if (sanitized.sede_id && !sedi.some((s) => s.id === sanitized.sede_id)) {
-      toast.error("La sede selezionata non è valida per questa azienda");
+      toast.error(t("La sede selezionata non è valida per questa azienda"));
       return;
     }
 
     try { Object.assign(sanitized, normalizeHrNumbers(sanitized)); }
-    catch (error) { toast.error(error instanceof Error ? error.message : "Controlla orario e saldi"); return; }
+    catch (error) { toast.error(error instanceof Error ? error.message : t("Controlla orario e saldi")); return; }
 
     if (sanitized.data_cessazione && sanitized.attivo !== false) {
       sanitized.attivo = false;
@@ -253,7 +256,7 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
                         : "border-slate-200 bg-slate-50 text-slate-500",
                     )}
                   >
-                    {profilo.attivo ? "Attivo" : "Cessato"}
+                    {profilo.attivo ? t("Attivo") : t("Cessato")}
                   </Badge>
                 </div>
                 {/* Una scheda del personale non è un accesso: qui si legge se
@@ -275,7 +278,7 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
               </div>
             </div>
           ) : (
-            <DialogTitle className="text-left">Nuovo Profilo HR</DialogTitle>
+            <DialogTitle className="text-left">{t("Nuovo Profilo HR")}</DialogTitle>
           )}
         </DialogHeader>
 
@@ -285,10 +288,10 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
         <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col min-h-0">
           <TabsList className={cn("mx-6 mt-4 grid h-auto w-auto grid-cols-4 gap-1 rounded-xl bg-slate-100/80 p-1 max-sm:mx-4 max-sm:mt-3 max-sm:grid-cols-2", !isEditing && "max-sm:hidden")}>
             {[
-              { value: "anagrafica", label: "Anagrafica", icon: User, disabled: false },
-              { value: "ruolo", label: "Ruolo", icon: Target, disabled: !isEditing },
-              { value: "documenti", label: "Documenti", icon: FileText, disabled: !isEditing },
-              { value: "assenze", label: "Assenze", icon: CalendarDays, disabled: !isEditing },
+              { value: "anagrafica", label: t("Anagrafica"), icon: User, disabled: false },
+              { value: "ruolo", label: t("Ruolo"), icon: Target, disabled: !isEditing },
+              { value: "documenti", label: t("Documenti"), icon: FileText, disabled: !isEditing },
+              { value: "assenze", label: t("Assenze"), icon: CalendarDays, disabled: !isEditing },
             ].map(({ value, label, icon: Icon, disabled }) => (
               <TabsTrigger
                 key={value}
@@ -315,29 +318,29 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
               <ScrollArea className="min-h-0 flex-1 px-6 max-sm:px-4">
                 <div className="space-y-6 py-4 max-sm:flex max-sm:flex-col max-sm:space-y-3 max-sm:py-3">
                   {corrispondenze.length > 0 && <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-                    <p className="font-medium">{stessoCf ? "Codice fiscale già presente" : "Verifica se la persona è già in azienda"}</p>
+                    <p className="font-medium">{stessoCf ? t("Codice fiscale già presente") : t("Verifica se la persona è già in azienda")}</p>
                     {corrispondenze.map(p => <div key={p.id} className="flex items-center justify-between gap-2">
-                      <span>{p.nome} {p.cognome} · {p.mansione || "Mansione da definire"}{!p.attivo && " · Inattivo"}</span>
-                      {onApriProfilo && <Button type="button" size="sm" variant="link" onClick={() => onApriProfilo(p)}>Apri profilo</Button>}
+                      <span>{p.nome} {p.cognome} · {p.mansione || t("Mansione da definire")}{!p.attivo && ` ${t("· Inattivo")}`}</span>
+                      {onApriProfilo && <Button type="button" size="sm" variant="link" onClick={() => onApriProfilo(p)}>{t("Apri profilo")}</Button>}
                     </div>)}
                   </div>}
                   {/* Dati Personali */}
                   <div>
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">DATI PERSONALI</h4>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">{t("DATI PERSONALI")}</h4>
                     <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
-                      <div><Label>Nome *</Label><Input {...register("nome")} required /></div>
-                      <div><Label>Cognome *</Label><Input {...register("cognome")} required /></div>
-                      <div className="max-sm:hidden"><Label>Codice Fiscale</Label><Input {...register("codice_fiscale")} /></div>
+                      <div><Label>{t("Nome *")}</Label><Input {...register("nome")} required /></div>
+                      <div><Label>{t("Cognome *")}</Label><Input {...register("cognome")} required /></div>
+                      <div className="max-sm:hidden"><Label>{t("Codice Fiscale")}</Label><Input {...register("codice_fiscale")} /></div>
                       <div className="max-sm:hidden">
-                        <Label>Sesso</Label>
+                        <Label>{t("Sesso")}</Label>
                         <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("sesso")}>
-                          <option value="">—</option><option value="M">M</option><option value="F">F</option><option value="Altro">Altro</option>
+                          <option value="">—</option><option value="M">M</option><option value="F">F</option><option value="Altro">{t("Altro")}</option>
                         </UniformSelect>
                       </div>
-                      <div className="max-sm:hidden"><Label>Data Nascita</Label><Input type="date" {...register("data_nascita")} /></div>
-                      <div className="max-sm:hidden"><Label>Luogo Nascita</Label><Input {...register("luogo_nascita")} /></div>
-                      <div className="max-sm:hidden"><Label>Nazionalità</Label><Input {...register("nazionalita")} /></div>
-                      <div className="max-sm:hidden"><Label>Stato civile</Label><Input {...register("stato_civile")} /></div>
+                      <div className="max-sm:hidden"><Label>{t("Data Nascita")}</Label><Input type="date" {...register("data_nascita")} /></div>
+                      <div className="max-sm:hidden"><Label>{t("Luogo Nascita")}</Label><Input {...register("luogo_nascita")} /></div>
+                      <div className="max-sm:hidden"><Label>{t("Nazionalità")}</Label><Input {...register("nazionalita")} /></div>
+                      <div className="max-sm:hidden"><Label>{t("Stato civile")}</Label><Input {...register("stato_civile")} /></div>
                     </div>
                   </div>
 
@@ -345,10 +348,10 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
 
                   {/* Residenza & Recapiti */}
                   <div>
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">RESIDENZA & RECAPITI</h4>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">{t("RESIDENZA & RECAPITI")}</h4>
                     <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
                       <div className="col-span-2 max-sm:hidden">
-                        <Label htmlFor="hr-indirizzo">Indirizzo</Label>
+                        <Label htmlFor="hr-indirizzo">{t("Indirizzo")}</Label>
                         <CampoIndirizzo
                           id="hr-indirizzo"
                           value={watch("indirizzo") ?? ""}
@@ -360,12 +363,12 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
                           })}
                         />
                       </div>
-                      <div className="max-sm:hidden"><Label>Città</Label><Input {...register("citta_residenza")} /></div>
+                      <div className="max-sm:hidden"><Label>{t("Città")}</Label><Input {...register("citta_residenza")} /></div>
                       <div className="max-sm:hidden"><Label>CAP</Label><Input {...register("cap_residenza")} /></div>
                       <div><Label>Email</Label><Input type="email" {...register("email")} /></div>
-                      <div><Label>Telefono</Label><Input {...register("telefono")} /></div>
-                      <div className="max-sm:hidden"><Label>Email privata</Label><Input type="email" {...register("email_privata")} /></div>
-                      <div className="max-sm:hidden"><Label>Telefono privato</Label><Input {...register("telefono_privato")} /></div>
+                      <div><Label>{t("Telefono")}</Label><Input {...register("telefono")} /></div>
+                      <div className="max-sm:hidden"><Label>{t("Email privata")}</Label><Input type="email" {...register("email_privata")} /></div>
+                      <div className="max-sm:hidden"><Label>{t("Telefono privato")}</Label><Input {...register("telefono_privato")} /></div>
                     </div>
                   </div>
 
@@ -373,51 +376,51 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
 
                   {/* Organigramma — mobile: in fondo, così «Profilo attivo» chiude il modulo. */}
                   <div className="max-sm:order-1">
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">ORGANIGRAMMA</h4>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">{t("ORGANIGRAMMA")}</h4>
                     <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
-                      <div><Label htmlFor="hr-mansione">Mansione</Label>
+                      <div><Label htmlFor="hr-mansione">{t("Mansione")}</Label>
                         <UniformSelect id="hr-mansione" className="w-full" value={valoreMansione} onChange={e => {
                           const value = e.target.value;
                           const voce = vociCatalogo.find(m => m.id === value);
                           setValue("mansione_id", voce?.id ?? null, { shouldDirty: true });
                           setValue("mansione", voce?.nome ?? (value ? value.slice(6) : null), { shouldDirty: true });
                         }}>
-                          <option value="">Nessuna mansione</option>
-                          {mansioneId && !vociCatalogo.some(m => m.id === mansioneId) && <option value={mansioneId}>{mansione || "Mansione attuale"}</option>}
+                          <option value="">{t("Nessuna mansione")}</option>
+                          {mansioneId && !vociCatalogo.some(m => m.id === mansioneId) && <option value={mansioneId}>{mansione || t("Mansione attuale")}</option>}
                           {vociCatalogo.map(m => <option key={m.id} value={m.id}>{m.nome}{m.area ? ` · ${m.area}` : ""}</option>)}
                           {storiche.map(nome => <option key={nome} value={`testo:${nome}`}>{nome}</option>)}
                         </UniformSelect>
-                        {catalogo.isError && <button type="button" className="text-xs text-primary" onClick={() => catalogo.refetch()}>Ricarica catalogo mansioni</button>}
+                        {catalogo.isError && <button type="button" className="text-xs text-primary" onClick={() => catalogo.refetch()}>{t("Ricarica catalogo mansioni")}</button>}
                       </div>
-                      <div><Label>Reparto</Label><Input {...register("reparto")} /></div>
+                      <div><Label>{t("Reparto")}</Label><Input {...register("reparto")} /></div>
                       <div className="col-span-2 max-sm:hidden">
-                        <Label>Responsabile</Label>
+                        <Label>{t("Responsabile")}</Label>
                         <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("responsabile_id")}>
-                          <option value="">Nessuno (root)</option>
+                          <option value="">{t("Nessuno (root)")}</option>
                           {allProfili.filter((p) => p.id !== profilo?.id && !descendantIds.has(p.id)).map((p) => (
                             <option key={p.id} value={p.id}>{p.nome} {p.cognome} {p.mansione ? `(${p.mansione})` : ""}</option>
                           ))}
                         </UniformSelect>
                       </div>
                       <div className="max-sm:hidden">
-                        <Label>Sede HR</Label>
+                        <Label>{t("Sede HR")}</Label>
                         <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("sede_id")}>
-                          <option value="">Nessuna sede</option>
-                          {sedi.map((s) => (<option key={s.id} value={s.id}>{s.nome}{!s.attiva ? " (inattiva)" : ""}</option>))}
+                          <option value="">{t("Nessuna sede")}</option>
+                          {sedi.map((s) => (<option key={s.id} value={s.id}>{s.nome}{!s.attiva ? ` ${t("(inattiva)")}` : ""}</option>))}
                         </UniformSelect>
                       </div>
-                      <div className="max-sm:hidden"><Label>Colore Avatar</Label><Input type="color" {...register("colore_avatar")} className="h-10 p-1" /></div>
+                      <div className="max-sm:hidden"><Label>{t("Colore Avatar")}</Label><Input type="color" {...register("colore_avatar")} className="h-10 p-1" /></div>
                       <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2 max-sm:order-last">
                         <div>
-                          <Label>Profilo attivo</Label>
-                          <p className="text-xs text-muted-foreground max-sm:hidden">I profili inattivi restano nello storico ma non compaiono nei flussi operativi.</p>
+                          <Label>{t("Profilo attivo")}</Label>
+                          <p className="text-xs text-muted-foreground max-sm:hidden">{t("I profili inattivi restano nello storico ma non compaiono nei flussi operativi.")}</p>
                         </div>
                         <Switch checked={watch("attivo") ?? true} onCheckedChange={(checked) => setValue("attivo", checked)} />
                       </div>
                       <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2 max-sm:order-last">
                         <div>
-                          <Label htmlFor="hr-lavora-in-cantiere">Lavora in cantiere</Label>
-                          <p className="text-xs text-muted-foreground max-sm:hidden">Usa questa stessa scheda in Manodopera e Mezzi per squadre e commesse. Puoi attivare l’app in seguito dalla scheda operaio.</p>
+                          <Label htmlFor="hr-lavora-in-cantiere">{t("Lavora in cantiere")}</Label>
+                          <p className="text-xs text-muted-foreground max-sm:hidden">{t("Usa questa stessa scheda in Manodopera e Mezzi per squadre e commesse. Puoi attivare l’app in seguito dalla scheda operaio.")}</p>
                         </div>
                         <Switch
                           id="hr-lavora-in-cantiere"
@@ -445,24 +448,24 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
 
                   {/* Contratto */}
                   <div>
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">CONTRATTO</h4>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">{t("CONTRATTO")}</h4>
                     <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
                       <div>
-                        <Label>Tipo Contratto</Label>
+                        <Label>{t("Tipo Contratto")}</Label>
                         <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("tipo_contratto")}>
-                          {TIPO_CONTRATTO_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                          {TIPO_CONTRATTO_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{t(o.label)}</option>))}
                         </UniformSelect>
                       </div>
                       <div className="max-sm:hidden"><Label>CCNL</Label><Input {...register("ccnl")} /></div>
-                      <div className="max-sm:hidden"><Label>Livello</Label><Input {...register("livello_ccnl")} /></div>
-                      <div className="max-sm:hidden"><Label>Matricola</Label><Input {...register("matricola")} /></div>
-                      <div><Label>Data Assunzione</Label><Input type="date" {...register("data_assunzione")} /></div>
-                      <div className="max-sm:hidden"><Label>Data Cessazione</Label><Input type="date" {...register("data_cessazione")} /></div>
+                      <div className="max-sm:hidden"><Label>{t("Livello")}</Label><Input {...register("livello_ccnl")} /></div>
+                      <div className="max-sm:hidden"><Label>{t("Matricola")}</Label><Input {...register("matricola")} /></div>
+                      <div><Label>{t("Data Assunzione")}</Label><Input type="date" {...register("data_assunzione")} /></div>
+                      <div className="max-sm:hidden"><Label>{t("Data Cessazione")}</Label><Input type="date" {...register("data_cessazione")} /></div>
                       <div className="col-span-2 max-sm:hidden"><Label>IBAN</Label><Input {...register("iban")} /></div>
                     </div>
                     {isEditing && (
                       <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1 max-sm:hidden">
-                        <Info className="h-3 w-3" /> Carica il contratto firmato nella scheda <b>Documenti &amp; Scadenze</b>.
+                        <Info className="h-3 w-3" /> {t("Carica il contratto firmato nella scheda")} <b>{t("Documenti & Scadenze")}</b>.
                       </p>
                     )}
                     {isEditing && profilo && (
@@ -476,19 +479,19 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
 
                   {/* Orario */}
                   <div className="max-sm:hidden">
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">ORARIO DI LAVORO</h4>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">{t("ORARIO DI LAVORO")}</h4>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label>Tipo Orario</Label>
+                        <Label>{t("Tipo Orario")}</Label>
                         <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("orario_tipo")}>
-                          {ORARIO_TIPO_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                          {ORARIO_TIPO_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{t(o.label)}</option>))}
                         </UniformSelect>
                       </div>
-                      <div><Label>Ore Settimanali</Label><Input type="number" step="0.5" {...register("ore_settimanali", { valueAsNumber: true })} /></div>
-                      <div><Label>Ore Giornaliere</Label><Input type="number" step="0.5" {...register("ore_giornaliere", { valueAsNumber: true })} /></div>
-                      <div><Label>Pausa Pranzo (min)</Label><Input type="number" {...register("pausa_pranzo_minuti", { valueAsNumber: true })} /></div>
-                      <div><Label>Orario Inizio</Label><Input type="time" {...register("orario_inizio")} /></div>
-                      <div><Label>Orario Fine</Label><Input type="time" {...register("orario_fine")} /></div>
+                      <div><Label>{t("Ore Settimanali")}</Label><Input type="number" step="0.5" {...register("ore_settimanali", { valueAsNumber: true })} /></div>
+                      <div><Label>{t("Ore Giornaliere")}</Label><Input type="number" step="0.5" {...register("ore_giornaliere", { valueAsNumber: true })} /></div>
+                      <div><Label>{t("Pausa Pranzo (min)")}</Label><Input type="number" {...register("pausa_pranzo_minuti", { valueAsNumber: true })} /></div>
+                      <div><Label>{t("Orario Inizio")}</Label><Input type="time" {...register("orario_inizio")} /></div>
+                      <div><Label>{t("Orario Fine")}</Label><Input type="time" {...register("orario_fine")} /></div>
                     </div>
                   </div>
 
@@ -496,14 +499,14 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
 
                   {/* Ferie */}
                   <div className="max-sm:hidden">
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">FERIE & PERMESSI</h4>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">{t("FERIE & PERMESSI")}</h4>
                     <div className="grid grid-cols-2 gap-3">
-                      <div><Label>Ferie Annuali (gg)</Label><Input type="number" step="0.5" {...register("ferie_anno_giorni", { valueAsNumber: true })} /></div>
-                      <div><Label>Ferie Residue (gg)</Label><Input type="number" step="0.5" {...register("ferie_residue", { valueAsNumber: true })} /></div>
-                      <div><Label>Permessi Annuali (ore)</Label><Input type="number" step="0.5" {...register("permessi_anno_ore", { valueAsNumber: true })} /></div>
-                      <div><Label>Permessi Residui (ore)</Label><Input type="number" step="0.5" {...register("permessi_residui_ore", { valueAsNumber: true })} /></div>
-                      <div><Label>ROL Annuali (ore)</Label><Input type="number" step="0.5" {...register("rol_anno_ore", { valueAsNumber: true })} /></div>
-                      <div><Label>ROL Residui (ore)</Label><Input type="number" step="0.5" {...register("rol_residuo_ore", { valueAsNumber: true })} /></div>
+                      <div><Label>{t("Ferie Annuali (gg)")}</Label><Input type="number" step="0.5" {...register("ferie_anno_giorni", { valueAsNumber: true })} /></div>
+                      <div><Label>{t("Ferie Residue (gg)")}</Label><Input type="number" step="0.5" {...register("ferie_residue", { valueAsNumber: true })} /></div>
+                      <div><Label>{t("Permessi Annuali (ore)")}</Label><Input type="number" step="0.5" {...register("permessi_anno_ore", { valueAsNumber: true })} /></div>
+                      <div><Label>{t("Permessi Residui (ore)")}</Label><Input type="number" step="0.5" {...register("permessi_residui_ore", { valueAsNumber: true })} /></div>
+                      <div><Label>{t("ROL Annuali (ore)")}</Label><Input type="number" step="0.5" {...register("rol_anno_ore", { valueAsNumber: true })} /></div>
+                      <div><Label>{t("ROL Residui (ore)")}</Label><Input type="number" step="0.5" {...register("rol_residuo_ore", { valueAsNumber: true })} /></div>
                     </div>
                   </div>
 
@@ -511,10 +514,10 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
 
                   {/* Contatto Emergenza */}
                   <div className="max-sm:hidden">
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">CONTATTO EMERGENZA</h4>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">{t("CONTATTO EMERGENZA")}</h4>
                     <div className="grid grid-cols-2 gap-3">
-                      <div><Label>Nome</Label><Input {...register("contatto_emergenza_nome")} /></div>
-                      <div><Label>Telefono</Label><Input {...register("contatto_emergenza_telefono")} /></div>
+                      <div><Label>{t("Nome")}</Label><Input {...register("contatto_emergenza_nome")} /></div>
+                      <div><Label>{t("Telefono")}</Label><Input {...register("contatto_emergenza_telefono")} /></div>
                     </div>
                   </div>
 
@@ -522,10 +525,10 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
 
                   {/* Badge */}
                   <div className="max-sm:hidden">
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">BADGE & ACCESSI</h4>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">{t("BADGE & ACCESSI")}</h4>
                     <div className="grid grid-cols-2 gap-3">
-                      <div><Label>Badge ID</Label><Input {...register("badge_id")} /></div>
-                      <div><Label>PIN Timbratura</Label><Input {...register("pin_timbratura")} type="password" /></div>
+                      <div><Label>{t("Badge ID")}</Label><Input {...register("badge_id")} /></div>
+                      <div><Label>{t("PIN Timbratura")}</Label><Input {...register("pin_timbratura")} type="password" /></div>
                     </div>
                   </div>
 
@@ -536,17 +539,17 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
 
                   {/* Note */}
                   <div className="max-sm:hidden">
-                    <Label>Note Interne</Label>
+                    <Label>{t("Note Interne")}</Label>
                     <Textarea {...register("note_interne")} rows={3} />
                   </div>
                 </div>
               </ScrollArea>
 
               <div className="shrink-0 border-t px-6 py-4 flex gap-2 justify-end max-sm:px-4 max-sm:py-3">
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">{t("Annulla")}</Button>
                 <Button type="submit" disabled={isPending || stessoCf} className="max-sm:flex-1">
                   {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                  {isEditing ? "Salva" : "Crea Profilo"}
+                  {isEditing ? t("Salva") : t("Crea Profilo")}
                 </Button>
               </div>
             </form>
@@ -557,7 +560,7 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
             <ScrollArea className="h-full px-6"><div className="py-4">
               {isEditing && profilo
                 ? <HrRuoloObiettiviTab profilo={profilo} />
-                : <p className="text-sm text-muted-foreground py-8 text-center">Salva prima il profilo per gestire ruolo e obiettivi.</p>}
+                : <p className="text-sm text-muted-foreground py-8 text-center">{t("Salva prima il profilo per gestire ruolo e obiettivi.")}</p>}
             </div></ScrollArea>
           </TabsContent>
 
@@ -571,7 +574,7 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
                     nome={[profilo.nome, profilo.cognome].filter(Boolean).join(" ")} puoModificare />}
                   <HrDocumentiSection profiloId={profilo.id} companyId={profilo.company_id} />
                 </>
-                : <p className="text-sm text-muted-foreground py-8 text-center">Salva prima il profilo per gestire i documenti.</p>}
+                : <p className="text-sm text-muted-foreground py-8 text-center">{t("Salva prima il profilo per gestire i documenti.")}</p>}
             </div></ScrollArea>
           </TabsContent>
 
@@ -580,7 +583,7 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
             <ScrollArea className="h-full px-6"><div className="py-4">
               {isEditing && profilo
                 ? <HrAssenzeSection profiloId={profilo.id} companyId={profilo.company_id} />
-                : <p className="text-sm text-muted-foreground py-8 text-center">Salva prima il profilo per registrare le assenze.</p>}
+                : <p className="text-sm text-muted-foreground py-8 text-center">{t("Salva prima il profilo per registrare le assenze.")}</p>}
             </div></ScrollArea>
           </TabsContent>
         </Tabs>

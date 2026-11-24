@@ -16,6 +16,7 @@ import { userErrorMessage } from "@/lib/userErrorMessage";
 import { isValidEmail } from "@/lib/email/preferencesValidators";
 import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { RigaImpostazione, RigaInterruttore, SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Avvisi sulle scadenze (tabella `scadenza_alert_prefs`).
@@ -37,6 +38,7 @@ interface AlertPrefs {
 }
 
 export function FinanceAutomationSettings() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -70,7 +72,7 @@ export function FinanceAutomationSettings() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!companyId || isLoading || isError || !canEdit) throw new Error("Impostazioni non disponibili o in sola lettura.");
+      if (!companyId || isLoading || isError || !canEdit) throw new Error(t("Impostazioni non disponibili o in sola lettura."));
       const adesso = new Date().toISOString();
       const email = alertEmail.trim() || null;
 
@@ -96,11 +98,11 @@ export function FinanceAutomationSettings() {
       }
     },
     onSuccess: async () => {
-      toast.success("Impostazioni salvate");
+      toast.success(t("Impostazioni salvate"));
       await queryClient.invalidateQueries({ queryKey: queryKeys.scadenzaPrefs.byCompany(companyId) });
       setDraft(prev => prev.companyId === companyId ? { companyId, form: {} } : prev);
     },
-    onError: (e) => toast.error("Impostazioni non salvate", { description: userErrorMessage(e, "Riprova tra poco.") }),
+    onError: (e) => toast.error(t("Impostazioni non salvate"), { description: userErrorMessage(e, t("Riprova tra poco.")) }),
   });
   useSettingsDraftGuard(hasChanges || saveMutation.isPending);
 
@@ -108,7 +110,7 @@ export function FinanceAutomationSettings() {
     if (!canEdit || !hasChanges || saveMutation.isPending) return;
     const email = alertEmail.trim();
     if (email && !isValidEmail(email)) {
-      toast.error("Scrivi un indirizzo email valido, per esempio amministrazione@azienda.it.");
+      toast.error(t("Scrivi un indirizzo email valido, per esempio amministrazione@azienda.it."));
       return;
     }
     saveMutation.mutate();
@@ -123,19 +125,19 @@ export function FinanceAutomationSettings() {
   }
 
   if (isError || !companyId) {
-    return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">Non riesco a leggere le impostazioni. Nessuna modifica verrà salvata.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert>;
+    return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">{t("Non riesco a leggere le impostazioni. Nessuna modifica verrà salvata.")}<Button size="sm" variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button></AlertDescription></Alert>;
   }
 
   return (
     <div className="max-w-3xl space-y-4">
       {!canEdit && (
         <AvvisoSolaLettura>
-          Sola lettura: qui serve il permesso «Costi», e chi ce l&apos;ha in «Sola lettura» non può scrivere.
+          {t("Sola lettura: qui serve il permesso «Costi», e chi ce l'ha in «Sola lettura» non può scrivere.")}
         </AvvisoSolaLettura>
       )}
       <Alert>
-        <p className="mb-1 text-sm font-semibold">Invio automatico email non disponibile</p>
-        <AlertDescription>Puoi preparare le preferenze, ma non vengono ancora inviate email. I promemoria in campanella continuano a funzionare indipendentemente da queste scelte.</AlertDescription>
+        <p className="mb-1 text-sm font-semibold">{t("Invio automatico email non disponibile")}</p>
+        <AlertDescription>{t("Puoi preparare le preferenze, ma non vengono ancora inviate email. I promemoria in campanella continuano a funzionare indipendentemente da queste scelte.")}</AlertDescription>
       </Alert>
       <div className="settings-save-bar">
         <StatoSalvataggio modificato={hasChanges} inCorso={saveMutation.isPending} />
@@ -144,26 +146,26 @@ export function FinanceAutomationSettings() {
           disabled={!canEdit || !hasChanges || saveMutation.isPending}
         >
           {saveMutation.isPending ? (
-            <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Salvataggio...</>
+            <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {t("Salvataggio...")}</>
           ) : (
-            "Salva impostazioni"
+            t("Salva impostazioni")
           )}
         </Button>
       </div>
       <fieldset disabled={!canEdit || saveMutation.isPending} className="m-0 min-w-0 border-0 p-0">
         <SezioneImpostazione
           id="avvisi-scadenze"
-          titolo="Avvisi sulle scadenze"
-          descrizione="I promemoria dei pagamenti in uscita arrivano già in campanella ogni mattina, a chi amministra l'azienda: non dipendono da questa pagina."
+          titolo={t("Avvisi sulle scadenze")}
+          descrizione={t("I promemoria dei pagamenti in uscita arrivano già in campanella ogni mattina, a chi amministra l'azienda: non dipendono da questa pagina.")}
         >
           <RigaInterruttore
             id="finance-alert-enabled"
-            titolo="Prepara gli avvisi email"
-            descrizione="Un riepilogo per email delle scadenze scadute e in arrivo."
+            titolo={t("Prepara gli avvisi email")}
+            descrizione={t("Un riepilogo per email delle scadenze scadute e in arrivo.")}
             checked={alertEnabled}
             onCheckedChange={(v) => upd("alert_enabled", v)}
           />
-          <RigaImpostazione titolo="Email per avvisi" htmlFor="finance-alert-email">
+          <RigaImpostazione titolo={t("Email per avvisi")} htmlFor="finance-alert-email">
             <Input
               id="finance-alert-email"
               type="email"
@@ -175,7 +177,7 @@ export function FinanceAutomationSettings() {
           </RigaImpostazione>
           <div className="space-y-3 px-4 py-3">
             <p className="text-xs text-muted-foreground">
-              L&apos;invio di queste email non parte ancora da solo: la scelta resta salvata e varrà quando lo attiveremo.
+              {t("L'invio di queste email non parte ancora da solo: la scelta resta salvata e varrà quando lo attiveremo.")}
             </p>
           </div>
         </SezioneImpostazione>

@@ -14,6 +14,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useVaiASezione } from "@/hooks/useVaiASezione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const SEZIONI: VoceIndice[] = [
   { id: "modelli", etichetta: "Come si paga" },
@@ -21,6 +22,7 @@ const SEZIONI: VoceIndice[] = [
 ];
 
 export default function SettingsModelliPagamento() {
+  const t = useT();
   const { role } = useAuth();
   const permissions = usePermissions();
   const puoModificare =
@@ -32,9 +34,9 @@ export default function SettingsModelliPagamento() {
   return (
     <div className="w-full min-w-0 space-y-4">
       {!permissions.isLoading && !puoModificare && (
-        <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />
+        <AvvisoSolaLetturaImpostazioni permesso={t("Configurazione Ordini")} />
       )}
-      <IndiceSezioni voci={SEZIONI} onVai={vai} />
+      <IndiceSezioni voci={SEZIONI.map((v) => ({ ...v, etichetta: t(v.etichetta) }))} onVai={vai} />
       <ModelliPagamentoConfig
         evidenziata={evidenziata === "modelli"}
         regolaSal={

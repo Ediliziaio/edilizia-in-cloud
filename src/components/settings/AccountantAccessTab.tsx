@@ -72,6 +72,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
 import { ACCESS_MODE_OPTIONS, type AccessMode } from "@/lib/commercialista/livelliAccesso";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type AccessStatus = "invited" | "active" | "suspended" | "revoked";
 
@@ -132,6 +133,7 @@ function getAccessModeLabel(mode: AccessMode): string {
 }
 
 export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boolean } = {}) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { toast } = useToast();
   const confirm = useConfirm();
@@ -169,7 +171,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
       if (error) throw error;
       setAccesses((data as AccountantAccessRow[]) || []);
     } catch {
-      setLoadError("Non riesco a leggere le deleghe. Controlla la connessione e riprova.");
+      setLoadError(t("Non riesco a leggere le deleghe. Controlla la connessione e riprova."));
     } finally {
       setIsLoading(false);
     }
@@ -193,7 +195,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
 
     setInviteError(null);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail.trim())) {
-      setInviteError("L'email non sembra valida: controlla di averla scritta giusta.");
+      setInviteError(t("L'email non sembra valida: controlla di averla scritta giusta."));
       return;
     }
 
@@ -210,15 +212,15 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
       });
       if (error) throw error;
       if (!(data as { success?: boolean })?.success) {
-        const msg = (data as { error?: string })?.error || "L'invito non è partito.";
+        const msg = (data as { error?: string })?.error || t("L'invito non è partito.");
         throw new Error(msg);
       }
 
       toast({
-        title: "Invito inviato",
+        title: t("Invito inviato"),
         description:
           (data as { message?: string })?.message ||
-          "Il commercialista riceverà un'email con il link al portale.",
+          t("Il commercialista riceverà un'email con il link al portale."),
       });
       resetInviteForm();
       setInviteOpen(false);
@@ -227,7 +229,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
       setInviteError(
         messaggioErrorePersone(
           await edgeErrorMessage(err, ""),
-          "Non sono riuscito a mandare l'invito. Riprova tra un attimo.",
+          t("Non sono riuscito a mandare l'invito. Riprova tra un attimo."),
         ),
       );
     } finally {
@@ -241,19 +243,19 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
   ) {
     const conferme: Record<typeof action, { title: string; description: string; confirmLabel: string }> = {
       revoke: {
-        title: `Revocare l'accesso a «${access.firm_name}»?`,
-        description: "Il commercialista non potrà più vedere i dati della tua azienda. Per riaverlo dovrai invitarlo di nuovo.",
-        confirmLabel: "Revoca l'accesso",
+        title: t("Revocare l'accesso a «{firm_name}»?", { firm_name: String(access.firm_name ?? "") }),
+        description: t("Il commercialista non potrà più vedere i dati della tua azienda. Per riaverlo dovrai invitarlo di nuovo."),
+        confirmLabel: t("Revoca l'accesso"),
       },
       suspend: {
-        title: `Sospendere l'accesso a «${access.firm_name}»?`,
-        description: "Per ora il commercialista non vede più i dati. Lo puoi riattivare quando vuoi.",
-        confirmLabel: "Sospendi",
+        title: t("Sospendere l'accesso a «{firm_name}»?", { firm_name: String(access.firm_name ?? "") }),
+        description: t("Per ora il commercialista non vede più i dati. Lo puoi riattivare quando vuoi."),
+        confirmLabel: t("Sospendi"),
       },
       reactivate: {
-        title: `Riattivare l'accesso a «${access.firm_name}»?`,
-        description: "Il commercialista torna a vedere i dati della tua azienda.",
-        confirmLabel: "Riattiva",
+        title: t("Riattivare l'accesso a «{firm_name}»?", { firm_name: String(access.firm_name ?? "") }),
+        description: t("Il commercialista torna a vedere i dati della tua azienda."),
+        confirmLabel: t("Riattiva"),
       },
     };
     const ok = await confirm({ ...conferme[action], variant: action === "revoke" ? "destructive" : "default" });
@@ -271,23 +273,23 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
       );
       if (error) throw error;
       if (!(data as { success?: boolean })?.success) {
-        throw new Error((data as { error?: string })?.error || "L'operazione non è riuscita.");
+        throw new Error((data as { error?: string })?.error || t("L'operazione non è riuscita."));
       }
       toast({
         title:
           action === "revoke"
-            ? "Accesso revocato"
+            ? t("Accesso revocato")
             : action === "suspend"
-              ? "Accesso sospeso"
-              : "Accesso riattivato",
+              ? t("Accesso sospeso")
+              : t("Accesso riattivato"),
       });
       void loadAccesses();
     } catch (err) {
       toast({
-        title: "Non è andata a buon fine",
+        title: t("Non è andata a buon fine"),
         description: messaggioErrorePersone(
           await edgeErrorMessage(err, ""),
-          "Non sono riuscito a farlo. Riprova tra un attimo.",
+          t("Non sono riuscito a farlo. Riprova tra un attimo."),
         ),
         variant: "destructive",
       });
@@ -297,7 +299,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
   if (!companyId) {
     return (
       <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
-        Scegli prima un'azienda per gestire l'accesso del commercialista.
+        {t("Scegli prima un'azienda per gestire l'accesso del commercialista.")}
       </div>
     );
   }
@@ -308,15 +310,15 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-foreground">
-            Accesso del commercialista
+            {t("Accesso del commercialista")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Dai al tuo commercialista l'accesso ai dati dell'azienda. Scegli cosa può fare e revocalo quando vuoi.
+            {t("Dai al tuo commercialista l'accesso ai dati dell'azienda. Scegli cosa può fare e revocalo quando vuoi.")}
           </p>
         </div>
         <Button onClick={() => setInviteOpen(true)} className="gap-2" disabled={soloLettura}>
           <Plus className="h-4 w-4" aria-hidden="true" />
-          Invita il commercialista
+          {t("Invita il commercialista")}
         </Button>
       </div>
 
@@ -327,7 +329,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Attivi
+                  {t("Attivi")}
                 </p>
                 <p className="mt-1 text-2xl font-bold">{activeCount}</p>
               </div>
@@ -340,7 +342,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                  In attesa
+                  {t("In attesa")}
                 </p>
                 <p className="mt-1 text-2xl font-bold">{invitedCount}</p>
               </div>
@@ -353,7 +355,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Studi collegati
+                  {t("Studi collegati")}
                 </p>
                 <p className="mt-1 text-2xl font-bold">{accesses.length}</p>
               </div>
@@ -366,16 +368,16 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
       {/* Lista accessi */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Studi con accesso</CardTitle>
+          <CardTitle className="text-base">{t("Studi con accesso")}</CardTitle>
           <CardDescription>
-            Gli studi commercialisti che hai invitato o che hanno già accesso a questa azienda.
+            {t("Gli studi commercialisti che hai invitato o che hanno già accesso a questa azienda.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading && (
             <div role="status" className="flex items-center justify-center py-12 text-sm text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-              Caricamento delle deleghe…
+              {t("Caricamento delle deleghe…")}
             </div>
           )}
 
@@ -385,7 +387,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>{loadError}</span>
               </span>
-              <Button variant="outline" size="sm" onClick={() => void loadAccesses()}>Riprova</Button>
+              <Button variant="outline" size="sm" onClick={() => void loadAccesses()}>{t("Riprova")}</Button>
             </div>
           )}
 
@@ -395,14 +397,14 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
                 <Landmark className="h-6 w-6 text-muted-foreground" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium">Nessuno studio collegato</p>
+                <p className="text-sm font-medium">{t("Nessuno studio collegato")}</p>
                 <p className="text-xs text-muted-foreground">
-                  Invita il tuo commercialista: entrerà nel portale studio e vedrà i dati di questa azienda.
+                  {t("Invita il tuo commercialista: entrerà nel portale studio e vedrà i dati di questa azienda.")}
                 </p>
               </div>
               <Button onClick={() => setInviteOpen(true)} variant="outline" className="gap-2" disabled={soloLettura}>
                 <Plus className="h-4 w-4" aria-hidden="true" />
-                Invita il primo commercialista
+                {t("Invita il primo commercialista")}
               </Button>
             </div>
           )}
@@ -430,11 +432,11 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
                           <p className="truncate font-medium">{access.firm_name}</p>
                           <Badge variant={statusProps.variant} className="gap-1">
                             <StatusIcon className="h-3 w-3" />
-                            {statusProps.label}
+                            {t(statusProps.label)}
                           </Badge>
                           <Badge variant="outline" className="gap-1 font-normal">
                             <Eye className="h-3 w-3" />
-                            {getAccessModeLabel(access.access_mode)}
+                            {t(getAccessModeLabel(access.access_mode))}
                           </Badge>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
@@ -446,15 +448,10 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
                           )}
                           {access.firm_vat && <span>P.IVA {access.firm_vat}</span>}
                           {isInvited && access.invited_at && (
-                            <span>
-                              Invitato {new Date(access.invited_at).toLocaleDateString("it-IT")}
-                            </span>
+                            <span>{t("Invitato {valore}", { valore: new Date(access.invited_at).toLocaleDateString(intlCampo()) })}</span>
                           )}
                           {isActive && access.accepted_at && (
-                            <span>
-                              Attivo dal{" "}
-                              {new Date(access.accepted_at).toLocaleDateString("it-IT")}
-                            </span>
+                            <span>{t("Attivo dal {valore}", { valore: new Date(access.accepted_at).toLocaleDateString(intlCampo()) })}</span>
                           )}
                         </div>
                         {access.notes && (
@@ -473,7 +470,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
                             size="icon"
                             className="h-8 w-8"
                             disabled={soloLettura}
-                            aria-label={`Azioni per ${access.firm_name}`}
+                            aria-label={t("Azioni per {firm_name}", { firm_name: String(access.firm_name ?? "") })}
                           >
                             <MoreVertical className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -485,7 +482,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
                               className="gap-2"
                             >
                               <Play className="h-4 w-4" />
-                              Riattiva
+                              {t("Riattiva")}
                             </DropdownMenuItem>
                           )}
                           {isActive && (
@@ -494,7 +491,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
                               className="gap-2"
                             >
                               <Pause className="h-4 w-4" />
-                              Sospendi
+                              {t("Sospendi")}
                             </DropdownMenuItem>
                           )}
                           {(isActive || isInvited || isSuspended) && (
@@ -505,7 +502,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
                                 className="gap-2 text-red-600 focus:text-red-700"
                               >
                                 <Trash2 className="h-4 w-4" />
-                                Revoca l'accesso
+                                {t("Revoca l'accesso")}
                               </DropdownMenuItem>
                             </>
                           )}
@@ -526,11 +523,10 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserCheck className="h-5 w-5 text-blue-700" aria-hidden="true" />
-              Invita il tuo commercialista
+              {t("Invita il tuo commercialista")}
             </DialogTitle>
             <DialogDescription>
-              Scrivi l'email del commercialista: riceverà un invito per entrare nel portale studio
-              con il livello di accesso che scegli qui sotto.
+              {t("Scrivi l'email del commercialista: riceverà un invito per entrare nel portale studio con il livello di accesso che scegli qui sotto.")}
             </DialogDescription>
           </DialogHeader>
 
@@ -543,7 +539,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="acc-invite-email">Email commercialista</Label>
+              <Label htmlFor="acc-invite-email">{t("Email commercialista")}</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -561,7 +557,7 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="acc-invite-mode">Livello di accesso</Label>
+              <Label htmlFor="acc-invite-mode">{t("Livello di accesso")}</Label>
               <Select
                 value={inviteMode}
                 onValueChange={(value: AccessMode) => setInviteMode(value)}
@@ -573,9 +569,9 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
                   {ACCESS_MODE_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       <div className="flex flex-col">
-                        <span className="font-medium">{opt.label}</span>
+                        <span className="font-medium">{t(opt.label)}</span>
                         <span className="text-xs text-muted-foreground">
-                          {opt.description}
+                          {t(opt.description)}
                         </span>
                       </div>
                     </SelectItem>
@@ -585,10 +581,10 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="acc-invite-notes">Note (facoltative)</Label>
+              <Label htmlFor="acc-invite-notes">{t("Note (facoltative)")}</Label>
               <Textarea
                 id="acc-invite-notes"
-                placeholder="Per esempio: studio che segue la contabilità dal 2024"
+                placeholder={t("Per esempio: studio che segue la contabilità dal 2024")}
                 value={inviteNotes}
                 onChange={(event) => setInviteNotes(event.target.value)}
                 rows={2}
@@ -606,18 +602,18 @@ export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boo
                 }}
                 disabled={isInviting}
               >
-                Annulla
+                {t("Annulla")}
               </Button>
               <Button type="submit" disabled={isInviting} className="gap-2">
                 {isInviting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    Invio in corso…
+                    {t("Invio in corso…")}
                   </>
                 ) : (
                   <>
                     <Mail className="h-4 w-4" aria-hidden="true" />
-                    Manda l'invito
+                    {t("Manda l'invito")}
                   </>
                 )}
               </Button>

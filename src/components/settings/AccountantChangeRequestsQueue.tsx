@@ -29,6 +29,7 @@ import {
 } from "@/hooks/accountant/useAccountantChangeRequests";
 import { useAuth } from "@/contexts/AuthContext";
 import { RichiestaStudioDettagli } from "@/components/accountant/RichiestaStudioDettagli";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 function operationLabel(op: string) {
   if (op === "create") return "Crea";
@@ -54,6 +55,7 @@ function resourceLabel(t: string) {
 }
 
 export function AccountantChangeRequestsQueue() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
   const { data: requests = [], isLoading, isError, refetch } = useCompanyPendingChangeRequests(companyId);
@@ -69,14 +71,14 @@ export function AccountantChangeRequestsQueue() {
       <Card>
         <CardContent role="status" className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Caricamento delle richieste…
+          {t("Caricamento delle richieste…")}
         </CardContent>
       </Card>
     );
   }
 
-  if (isError) return <div role="alert" className="flex items-center gap-2 text-sm">Impossibile caricare le richieste.
-    <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button></div>;
+  if (isError) return <div role="alert" className="flex items-center gap-2 text-sm">{t("Impossibile caricare le richieste.")}
+    <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova")}</Button></div>;
 
   if (requests.length === 0) {
     return null; // niente badge se non ci sono richieste
@@ -93,7 +95,7 @@ export function AccountantChangeRequestsQueue() {
       });
       setDialogState(null);
       setNote("");
-    } catch (error) { setErrore(error instanceof Error ? error.message : "Impossibile registrare la decisione."); }
+    } catch (error) { setErrore(error instanceof Error ? error.message : t("Impossibile registrare la decisione.")); }
   }
 
   return (
@@ -101,13 +103,13 @@ export function AccountantChangeRequestsQueue() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <ListChecks className="h-4 w-4 text-amber-700" aria-hidden="true" />
-          Richieste di modifica da approvare
+          {t("Richieste di modifica da approvare")}
           <Badge variant="secondary" className="ml-1">
             {requests.length}
           </Badge>
         </CardTitle>
         <CardDescription>
-          Il tuo commercialista ha proposto queste modifiche. Approva o rifiuta ognuna entro 7 giorni da quando è arrivata.
+          {t("Il tuo commercialista ha proposto queste modifiche. Approva o rifiuta ognuna entro 7 giorni da quando è arrivata.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -120,13 +122,13 @@ export function AccountantChangeRequestsQueue() {
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="gap-1">
                   <Clock className="h-3 w-3" />
-                  {operationLabel(req.operation)}
+                  {t(operationLabel(req.operation))}
                 </Badge>
                 <Badge variant="default" className="gap-1">
-                  {resourceLabel(req.resource_type)}
+                  {t(resourceLabel(req.resource_type))}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
-                  {new Date(req.created_at).toLocaleDateString("it-IT", {
+                  {new Date(req.created_at).toLocaleDateString(intlCampo(), {
                     day: "numeric",
                     month: "short",
                     hour: "2-digit",
@@ -139,7 +141,7 @@ export function AccountantChangeRequestsQueue() {
                   size="sm"
                   variant="outline"
                   className="border-red-200 text-red-700 hover:bg-red-50"
-                  aria-label={`Rifiuta: ${operationLabel(req.operation)} ${resourceLabel(req.resource_type).toLowerCase()}`}
+                  aria-label={t("Rifiuta: {operation} {valore}", { operation: t(operationLabel(req.operation)), valore: t(resourceLabel(req.resource_type)).toLowerCase() })}
                   onClick={() => {
                     setDialogState({ req, decision: "rejected" });
                     setNote("");
@@ -147,12 +149,12 @@ export function AccountantChangeRequestsQueue() {
                   }}
                 >
                   <XCircle className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                  Rifiuta
+                  {t("Rifiuta")}
                 </Button>
                 <Button
                   size="sm"
                   className="bg-emerald-600 hover:bg-emerald-700"
-                  aria-label={`Approva: ${operationLabel(req.operation)} ${resourceLabel(req.resource_type).toLowerCase()}`}
+                  aria-label={t("Approva: {operation} {valore}", { operation: t(operationLabel(req.operation)), valore: t(resourceLabel(req.resource_type)).toLowerCase() })}
                   onClick={() => {
                     setDialogState({ req, decision: "approved" });
                     setNote("");
@@ -160,7 +162,7 @@ export function AccountantChangeRequestsQueue() {
                   }}
                 >
                   <CheckCircle2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                  Approva
+                  {t("Approva")}
                 </Button>
               </div>
             </div>
@@ -173,22 +175,22 @@ export function AccountantChangeRequestsQueue() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {dialogState?.decision === "approved" ? "Approvare la richiesta?" : "Rifiutare la richiesta?"}
+              {dialogState?.decision === "approved" ? t("Approvare la richiesta?") : t("Rifiutare la richiesta?")}
             </DialogTitle>
             <DialogDescription>
               {dialogState?.decision === "approved"
                 ? dialogState.req.resource_type === "commessa_descrizione"
-                  ? "Con la conferma viene salvata la descrizione proposta sulla commessa."
-                  : "La decisione sarà visibile al commercialista. Registra poi la modifica nei dati dell’azienda."
-                : "Scrivi al commercialista perché la rifiuti: lo vedrà accanto alla richiesta."}
+                  ? t("Con la conferma viene salvata la descrizione proposta sulla commessa.")
+                  : t("La decisione sarà visibile al commercialista. Registra poi la modifica nei dati dell’azienda.")
+                : t("Scrivi al commercialista perché la rifiuti: lo vedrà accanto alla richiesta.")}
             </DialogDescription>
           </DialogHeader>
           <Textarea
-            aria-label="Nota per il commercialista"
+            aria-label={t("Nota per il commercialista")}
             placeholder={
               dialogState?.decision === "approved"
-                ? "Nota opzionale per il commercialista"
-                : "Spiega il motivo del rifiuto (consigliato)"
+                ? t("Nota opzionale per il commercialista")
+                : t("Spiega il motivo del rifiuto (consigliato)")
             }
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -198,7 +200,7 @@ export function AccountantChangeRequestsQueue() {
           {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogState(null)} disabled={decide.isPending}>
-              Annulla
+              {t("Annulla")}
             </Button>
             <Button
               onClick={confirmDecision}
@@ -212,12 +214,12 @@ export function AccountantChangeRequestsQueue() {
               {decide.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                  Salvataggio…
+                  {t("Salvataggio…")}
                 </>
               ) : dialogState?.decision === "approved" ? (
-                "Approva la richiesta"
+                t("Approva la richiesta")
               ) : (
-                "Rifiuta la richiesta"
+                t("Rifiuta la richiesta")
               )}
             </Button>
           </DialogFooter>

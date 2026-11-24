@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateDocumento } from "@/hooks/useDocumentiFiscali";
 import type { ClienteSnapshot, RigaDocumento } from "@/types/fatturazione";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   open: boolean;
@@ -44,12 +45,13 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 function fmt(v: number): string {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(v);
+  return new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR" }).format(v);
 }
 
 export function CreaFatturaAssistenzaDialog({
   open, onOpenChange, customerId, customerName, defaultDescrizione, defaultImporto, orderId, defaultNota, onCreated,
 }: Props) {
+  const t = useT();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -107,7 +109,7 @@ export function CreaFatturaAssistenzaDialog({
 
   const crea = () => {
     if (imponibileNum <= 0) {
-      toast.error("Indica l'importo della fattura");
+      toast.error(t("Indica l'importo della fattura"));
       return;
     }
     const clienteSnapshot: ClienteSnapshot | undefined = anag
@@ -156,69 +158,69 @@ export function CreaFatturaAssistenzaDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-primary" /> Crea fattura
+            <Receipt className="h-5 w-5 text-primary" /> {t("Crea fattura")}
           </DialogTitle>
           <DialogDescription>
-            Una riga con la prestazione. La rifinisci nell'editor che si apre dopo.
+            {t("Una riga con la prestazione. La rifinisci nell'editor che si apre dopo.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex items-center gap-3 rounded-lg border bg-muted/50 p-3">
           <User className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{customerName || "Cliente"}</p>
+            <p className="truncate text-sm font-medium">{customerName || t("Cliente")}</p>
             {anag ? (
               <span className="mt-0.5 flex items-center gap-1.5 text-xs text-green-700">
-                <Check className="h-3 w-3" /> Anagrafica trovata
-                {anag.partita_iva ? ` · P.IVA ${anag.partita_iva}` : ""}
+                <Check className="h-3 w-3" /> {t("Anagrafica trovata")}
+                {anag.partita_iva ? t(" · P.IVA {partita_iva}", { partita_iva: String(anag.partita_iva ?? "") }) : ""}
               </span>
             ) : (
-              <span className="text-xs text-amber-600">Anagrafica da scegliere nell'editor</span>
+              <span className="text-xs text-amber-600">{t("Anagrafica da scegliere nell'editor")}</span>
             )}
           </div>
         </div>
 
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">Descrizione</Label>
+            <Label className="text-xs">{t("Descrizione")}</Label>
             <Textarea rows={2} value={descrizione} onChange={(e) => setDescrizione(e.target.value)}
-                      placeholder="Es. Sostituzione scheda caldaia" className="text-sm" />
+                      placeholder={t("Es. Sostituzione scheda caldaia")} className="text-sm" />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Imponibile (€)</Label>
+              <Label className="text-xs">{t("Imponibile (€)")}</Label>
               <Input inputMode="decimal" value={importo} onChange={(e) => setImporto(e.target.value)}
                      className="h-9" placeholder="0,00" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">IVA (%)</Label>
+              <Label className="text-xs">{t("IVA (%)")}</Label>
               <Input inputMode="decimal" value={aliquota} onChange={(e) => setAliquota(e.target.value)}
                      className="h-9" placeholder="22" />
             </div>
           </div>
           <div className="rounded-lg border bg-muted/30 px-3 py-2 space-y-0.5">
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Imponibile</span><span className="tabular-nums">{fmt(imponibileNum)}</span>
+              <span>{t("Imponibile")}</span><span className="tabular-nums">{fmt(imponibileNum)}</span>
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>IVA</span><span className="tabular-nums">{fmt(imposta)}</span>
             </div>
             <div className="flex justify-between border-t border-dashed pt-1 text-sm font-bold">
-              <span>Totale</span><span className="tabular-nums text-primary">{fmt(totale)}</span>
+              <span>{t("Totale")}</span><span className="tabular-nums text-primary">{fmt(totale)}</span>
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Causale / note</Label>
+            <Label className="text-xs">{t("Causale / note")}</Label>
             <Input value={nota} onChange={(e) => setNota(e.target.value)} className="h-9"
-                   placeholder="Rif. intervento…" maxLength={500} />
+                   placeholder={t("Rif. intervento…")} maxLength={500} />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
           <Button onClick={crea} disabled={createMutation.isPending || imponibileNum <= 0}>
             {createMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Receipt className="mr-1.5 h-4 w-4" />}
-            {createMutation.isPending ? "Creazione…" : `Crea fattura · ${fmt(totale)}`}
+            {createMutation.isPending ? t("Creazione…") : t("Crea fattura · {totale}", { totale: fmt(totale) })}
           </Button>
         </DialogFooter>
       </DialogContent>

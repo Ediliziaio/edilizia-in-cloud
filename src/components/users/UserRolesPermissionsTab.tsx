@@ -88,6 +88,7 @@ import {
   Bot,
   Settings as SettingsIcon,
 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Derivato dal registro unico (permissionsDefaults.ts): prima qui c'era una
 // seconda lista scritta a mano, con descrizioni e chiavi di modifica che
@@ -220,12 +221,12 @@ const ROLE_CONFIG: Record<CompanyRole, { label: string; icon: React.ComponentTyp
 };
 
 /** Sotto la conferma di un cambio di ruolo: cosa succede ai ruoli «anche …». */
-function notaAggiuntivi(nuovo: CompanyRole, aggiuntivi: AdditionalRole[]): string {
+function notaAggiuntivi(nuovo: CompanyRole, aggiuntivi: AdditionalRole[], t: ReturnType<typeof useT>): string {
   if (aggiuntivi.length === 0) return "";
-  const nomi = (ruoli: AdditionalRole[]) => ruoli.map((r) => TESTI_RUOLO_AGGIUNTIVO[r].nome).join(" e ");
-  if (nuovo === "subcontractor") return `I ruoli aggiuntivi (${nomi(aggiuntivi)}) vengono tolti: un subappaltatore non ne ha. `;
+  const nomi = (ruoli: AdditionalRole[]) => ruoli.map((r) => t(TESTI_RUOLO_AGGIUNTIVO[r].nome)).join(` ${t("e")} `);
+  if (nuovo === "subcontractor") return `${t("I ruoli aggiuntivi ({nomi}) vengono tolti: un subappaltatore non ne ha.", { nomi: nomi(aggiuntivi) })} `;
   const restano = aggiuntivi.filter((r) => r !== nuovo);
-  return restano.length > 0 ? `Resta anche ${nomi(restano)}. ` : "";
+  return restano.length > 0 ? `${t("Resta anche {nomi}.", { nomi: nomi(restano) })} ` : "";
 }
 
 /** Per il «ci sono modifiche»: gli elenchi (aree, pipeline) si confrontano per
@@ -250,10 +251,11 @@ export function UserRolesPermissionsTab({
   readOnly = false,
   onDirtyChange,
 }: UserRolesPermissionsTabProps) {
+  const t = useT();
   const [permissions, setPermissions] = useState<StaffPermissions>(user.permissions || DEFAULT_PERMISSIONS);
   const categorieVisibili = useMemo(() => VISIBLE_CATEGORIES.map(c => ({ ...c, modules: c.modules.map(m => {
     const distinta = permissions.permessi_dettagliati && OPERATIONAL_EDIT_PAIRS.find(([view]) => view === m.viewKey)?.[1];
-    return { ...m, editKey: distinta || m.editKey, description: distinta ? "Può consultare quest’area. Per creare o modificare, attiva anche «Modifica»." : m.description };
+    return { ...m, editKey: distinta || m.editKey, description: distinta ? t("Può consultare quest’area. Per creare o modificare, attiva anche «Modifica».") : m.description };
   }) })), [permissions.permessi_dettagliati]);
   const [searchQuery, setSearchQuery] = useState("");
   // Gruppi chiusi all'apertura (25/09/2026): aperti tutti erano una pagina
@@ -444,8 +446,8 @@ export function UserRolesPermissionsTab({
     <TooltipProvider delayDuration={200}>
       <div className="space-y-5 pb-24 max-md:space-y-3 max-md:pb-40">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Accesso e autorizzazioni</h2>
-          <p className="text-sm text-muted-foreground">Scegli come accede questa persona e quali dati può usare. Le modifiche ai permessi si salvano insieme dal pulsante in basso.</p>
+          <h2 className="text-lg font-semibold">{t("Accesso e autorizzazioni")}</h2>
+          <p className="text-sm text-muted-foreground">{t("Scegli come accede questa persona e quali dati può usare. Le modifiche ai permessi si salvano insieme dal pulsante in basso.")}</p>
         </div>
         {/* Il riquadro «Ruolo attuale» è stato tolto (25/09/2026): ripeteva il
             ruolo del menu qui sotto e il conteggio dei permessi, che ora sta
@@ -456,9 +458,9 @@ export function UserRolesPermissionsTab({
           <CardHeader className="pb-3 max-sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-base">1. Tipo di accesso</CardTitle>
+                <CardTitle className="text-base">{t("1. Tipo di accesso")}</CardTitle>
                 <CardDescription className="mt-1.5 text-xs max-sm:hidden">
-                  Determina l’area di ingresso. Per gli utenti d’ufficio, i dati consentiti si configurano nei permessi.
+                  {t("Determina l’area di ingresso. Per gli utenti d’ufficio, i dati consentiti si configurano nei permessi.")}
                 </CardDescription>
               </div>
               {isChangingRole && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
@@ -468,7 +470,7 @@ export function UserRolesPermissionsTab({
             {/* Primary role picker */}
             <div>
               <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5 block">
-                Accesso alla piattaforma
+                {t("Accesso alla piattaforma")}
               </Label>
               {/* Il menu mostra subito il ruolo scelto, e la conferma sta sulla
                   STESSA riga, a destra (21/09/2026). Prima il menu restava sul
@@ -483,7 +485,7 @@ export function UserRolesPermissionsTab({
                   disabled={readOnly || isChangingRole || isDirty || (isCurrentUser && selectedRole === "company_admin")}
                 >
                   <SelectTrigger
-                    aria-label="Ruolo principale"
+                    aria-label={t("Ruolo principale")}
                     className={cn("w-full md:w-[320px]", pendingRoleChange && "border-amber-400 ring-1 ring-amber-300")}
                   >
                     <SelectValue />
@@ -496,7 +498,7 @@ export function UserRolesPermissionsTab({
                         <SelectItem key={r} value={r}>
                           <div className="flex items-center gap-2">
                             <Icon className={cn("h-4 w-4", cfg.color)} />
-                            {cfg.label}
+                            {t(cfg.label)}
                           </div>
                         </SelectItem>
                       );
@@ -510,21 +512,21 @@ export function UserRolesPermissionsTab({
                     Object.keys(ROLE_PRESETS[pendingRoleChange] ?? {}).length === 0 ? (
                       <Button size="sm" onClick={() => confirmRoleChange(false)} disabled={isChangingRole}>
                         {isChangingRole ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
-                        Conferma
+                        {t("Conferma")}
                       </Button>
                     ) : (
                       <>
                         <Button size="sm" onClick={() => confirmRoleChange(true)} disabled={isChangingRole}>
                           {isChangingRole ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
-                          Conferma con i permessi del ruolo
+                          {t("Conferma con i permessi del ruolo")}
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => confirmRoleChange(false)} disabled={isChangingRole}>
-                          Conferma, tieni i permessi attuali
+                          {t("Conferma, tieni i permessi attuali")}
                         </Button>
                       </>
                     )}
                     <Button size="sm" variant="ghost" onClick={cancelRoleChange} disabled={isChangingRole}>
-                      Annulla
+                      {t("Annulla")}
                     </Button>
                   </div>
                 )}
@@ -533,27 +535,24 @@ export function UserRolesPermissionsTab({
                 <p className="text-xs text-amber-700 dark:text-amber-400 mt-1.5 flex items-start gap-1.5">
                   <Info className="h-3 w-3 mt-0.5 shrink-0" />
                   <span>
-                    {`${user.first_name} ${user.last_name}`.trim() || "L'utente"} diventa{" "}
-                    <strong>{ROLE_CONFIG[pendingRoleChange].label}</strong>
                     {pendingRoleChange === "company_admin"
-                      ? ": vede tutti i moduli e può gestire gli utenti."
-                      : "."}{" "}
-                    {notaAggiuntivi(pendingRoleChange, additionalRoles)}
-                    Non è ancora salvato: conferma per applicarlo.
+                      ? t("{nome} diventa {ruolo}: vede tutti i moduli e può gestire gli utenti.", { nome: `${user.first_name} ${user.last_name}`.trim() || t("L'utente"), ruolo: t(ROLE_CONFIG[pendingRoleChange].label) })
+                      : t("{nome} diventa {ruolo}.", { nome: `${user.first_name} ${user.last_name}`.trim() || t("L'utente"), ruolo: t(ROLE_CONFIG[pendingRoleChange].label) })}{" "}
+                    {notaAggiuntivi(pendingRoleChange, additionalRoles, t)}
+                    {t("Non è ancora salvato: conferma per applicarlo.")}
                   </span>
                 </p>
               )}
               {isCurrentUser && selectedRole === "company_admin" && (
                 <p className="text-xs text-muted-foreground mt-1.5 flex items-start gap-1.5">
                   <Lock className="h-3 w-3 mt-0.5 shrink-0" />
-                  Non puoi modificare il tuo ruolo admin da qui. Chiedi a un altro
-                  amministratore di farlo.
+                  {t("Non puoi modificare il tuo ruolo admin da qui. Chiedi a un altro amministratore di farlo.")}
                 </p>
               )}
             </div>
 
-            <p className="text-xs text-muted-foreground">{roleMeta.description}</p>
-            {isDirty && <p className="text-xs text-amber-800 dark:text-amber-300">Salva o annulla prima i permessi in bozza per cambiare il tipo di accesso o le funzioni aggiuntive.</p>}
+            <p className="text-xs text-muted-foreground">{t(roleMeta.description)}</p>
+            {isDirty && <p className="text-xs text-amber-800 dark:text-amber-300">{t("Salva o annulla prima i permessi in bozza per cambiare il tipo di accesso o le funzioni aggiuntive.")}</p>}
 
             {/* Ruoli aggiuntivi (21/09/2026): per qualunque ruolo principale,
                 amministratore compreso, tranne il Subappaltatore. Nascosti
@@ -561,12 +560,11 @@ export function UserRolesPermissionsTab({
             {onToggleAdditionalRole && !pendingRoleChange && aggiuntiviDisponibili(selectedRole).length > 0 && (
               <>
                 <Separator />
-                <div role="group" aria-label="Funzioni aggiuntive">
-                  <p className="text-sm font-medium">Funzioni aggiuntive <span className="font-normal text-muted-foreground">· {additionalRoles.length} attive</span></p>
+                <div role="group" aria-label={t("Funzioni aggiuntive")}>
+                  <p className="text-sm font-medium">{t("Funzioni aggiuntive")} <span className="font-normal text-muted-foreground">{t("· {n} attive", { n: additionalRoles.length })}</span></p>
                   <p className="mt-3 text-xs text-muted-foreground mb-3 flex items-start gap-1.5">
                     <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-500" />
-                    Se questa persona fa <strong>anche</strong> altro, attivalo qui: tiene il suo ruolo
-                    e in più compare dove serve. Le funzioni aggiuntive si applicano subito.
+                    {t("Se questa persona fa anche altro, attivalo qui: tiene il suo ruolo e in più compare dove serve. Le funzioni aggiuntive si applicano subito.")}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {aggiuntiviDisponibili(selectedRole).map((r) => {
@@ -595,12 +593,10 @@ export function UserRolesPermissionsTab({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
                               <Icon className={cn("h-3.5 w-3.5", cfg.color)} aria-hidden="true" />
-                              <span className="text-sm font-medium">
-                                Anche {cfg.label}
-                              </span>
+                              <span className="text-sm font-medium">{t("Anche {label}", { label: t(cfg.label) })}</span>
                             </div>
                             <p className="text-[11px] text-muted-foreground mt-0.5 max-sm:hidden">
-                              {TESTI_RUOLO_AGGIUNTIVO[r].cosaFa}
+                              {t(TESTI_RUOLO_AGGIUNTIVO[r].cosaFa)}
                             </p>
                           </div>
                         </label>
@@ -615,7 +611,7 @@ export function UserRolesPermissionsTab({
         </Card>
 
         {!isAdmin && selectedRole === "company_staff" && <OfficeProfileSelector permissions={permissions} onChange={setPermissions} disabled={readOnly || isChangingRole || !!pendingRoleChange} />}
-        {pendingRoleChange && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Conferma o annulla il cambio di accesso prima di modificare i permessi.</p>}
+        {pendingRoleChange && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{t("Conferma o annulla il cambio di accesso prima di modificare i permessi.")}</p>}
         <fieldset disabled={!!pendingRoleChange || isChangingRole} className="min-w-0 space-y-5 disabled:opacity-60">
         <OfficeAccessSummary permissions={permissions} administrator={isAdmin} fieldAccess={selectedRole === "employee" || selectedRole === "subcontractor"} />
         {selectedRole === "employee" && (
@@ -629,9 +625,9 @@ export function UserRolesPermissionsTab({
               <div className="flex items-center gap-3 p-4 rounded-lg bg-primary/5 border border-primary/20">
                 <ShieldCheck className="h-8 w-8 text-primary shrink-0" />
                 <div>
-                  <p className="font-medium">Accesso completo</p>
+                  <p className="font-medium">{t("Accesso completo")}</p>
                   <p className="text-sm text-muted-foreground">
-                    Gli amministratori hanno accesso a tutti i moduli e possono gestire gli altri utenti.
+                    {t("Gli amministratori hanno accesso a tutti i moduli e possono gestire gli altri utenti.")}
                   </p>
                 </div>
               </div>
@@ -640,7 +636,7 @@ export function UserRolesPermissionsTab({
                 <div className="flex items-center gap-2">
                   <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">
-                    I limiti di visibilità non valgono per gli amministratori
+                    {t("I limiti di visibilità non valgono per gli amministratori")}
                   </span>
                 </div>
               </div>
@@ -652,13 +648,13 @@ export function UserRolesPermissionsTab({
             <CardHeader className="pb-3 max-sm:p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-base">2. Autorizzazioni effettive</CardTitle>
+                  <CardTitle className="text-base">{t("2. Autorizzazioni effettive")}</CardTitle>
                   <CardDescription className="mt-1.5 text-xs max-sm:hidden">
-                    Accendi quello che deve vedere. Dove c'è «Modifica» può anche cambiare i dati.
+                    {t("Accendi quello che deve vedere. Dove c'è «Modifica» può anche cambiare i dati.")}
                   </CardDescription>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Moduli visibili</p>
+                  <p className="text-xs text-muted-foreground">{t("Moduli visibili")}</p>
                   <p className="text-sm font-bold tabular-nums">
                     <span className="text-primary">{totalPermissionsCount.active}</span>
                     <span className="text-muted-foreground">/{totalPermissionsCount.total}</span>
@@ -676,10 +672,10 @@ export function UserRolesPermissionsTab({
                 <div className="space-y-0.5 min-w-0">
                   <Label htmlFor="tab-only_assigned" className="font-medium flex items-center gap-2 text-sm">
                     <EyeOff className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    Solo il portafoglio CRM assegnato
+                    {t("Solo il portafoglio CRM assegnato")}
                   </Label>
                   <p id="tab-only_assigned-descrizione" className="text-xs text-muted-foreground max-sm:hidden">
-                    Limita contatti, opportunità e attività commerciali. Gli uffici vedono le commesse secondo i permessi salvati.
+                    {t("Limita contatti, opportunità e attività commerciali. Gli uffici vedono le commesse secondo i permessi salvati.")}
                   </p>
                 </div>
                 <Switch
@@ -720,7 +716,7 @@ export function UserRolesPermissionsTab({
               <Separator />
 
               <AnteprimaAccessi
-                nome={user.first_name || "questa persona"}
+                nome={user.first_name || t("questa persona")}
                 permessi={permissions as unknown as Record<string, unknown>}
                 aree={PERMISSION_CATEGORIES}
                 solaLettura={!!permissions.sola_lettura}
@@ -733,8 +729,8 @@ export function UserRolesPermissionsTab({
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="search"
-                    aria-label="Cerca un permesso"
-                    placeholder="Cerca un permesso…"
+                    aria-label={t("Cerca un permesso")}
+                    placeholder={t("Cerca un permesso…")}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-9 h-9"
@@ -744,16 +740,16 @@ export function UserRolesPermissionsTab({
                 {!readOnly && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button type="button" variant="outline" size="icon" className="tap-compact h-9 w-9 shrink-0 sm:hidden" aria-label="Azioni sui permessi">
+                    <Button type="button" variant="outline" size="icon" className="tap-compact h-9 w-9 shrink-0 sm:hidden" aria-label={t("Azioni sui permessi")}>
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={handleSelectAll}>
-                      <Check className="mr-2 h-4 w-4" /> Attiva tutti i moduli
+                      <Check className="mr-2 h-4 w-4" /> {t("Attiva tutti i moduli")}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleDeselectAll}>
-                      <X className="mr-2 h-4 w-4" /> Disattiva tutti i moduli
+                      <X className="mr-2 h-4 w-4" /> {t("Disattiva tutti i moduli")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -762,21 +758,21 @@ export function UserRolesPermissionsTab({
                 <div className="flex items-center gap-1 max-sm:hidden">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button type="button" variant="outline" size="sm" className="h-9" aria-label="Attiva tutti i moduli" onClick={handleSelectAll}>
+                      <Button type="button" variant="outline" size="sm" className="h-9" aria-label={t("Attiva tutti i moduli")} onClick={handleSelectAll}>
                         <Check className="h-3.5 w-3.5 mr-1" />
-                        Attiva moduli
+                        {t("Attiva moduli")}
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Attiva tutti i moduli. I dati economici restano configurati separatamente.</TooltipContent>
+                    <TooltipContent>{t("Attiva tutti i moduli. I dati economici restano configurati separatamente.")}</TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button type="button" variant="outline" size="sm" className="h-9" aria-label="Disattiva tutti i moduli" onClick={handleDeselectAll}>
+                      <Button type="button" variant="outline" size="sm" className="h-9" aria-label={t("Disattiva tutti i moduli")} onClick={handleDeselectAll}>
                         <X className="h-3.5 w-3.5 mr-1" />
-                        Disattiva moduli
+                        {t("Disattiva moduli")}
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Disattiva tutti i moduli. I dati economici restano configurati separatamente.</TooltipContent>
+                    <TooltipContent>{t("Disattiva tutti i moduli. I dati economici restano configurati separatamente.")}</TooltipContent>
                   </Tooltip>
                 </div>
                 )}
@@ -805,7 +801,7 @@ export function UserRolesPermissionsTab({
                               <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                             )}
                             <CatIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                            <span className="font-semibold text-sm truncate">{category.label}</span>
+                            <span className="font-semibold text-sm truncate">{t(category.label)}</span>
                             <Badge
                               variant={active > 0 ? "default" : "secondary"}
                               className={cn(
@@ -824,7 +820,7 @@ export function UserRolesPermissionsTab({
                               variant="ghost"
                               size="sm"
                               className="h-7 text-xs shrink-0"
-                              aria-label={`${allActive ? "Disattiva" : "Attiva"} il gruppo ${category.label}`}
+                              aria-label={allActive ? t("Disattiva il gruppo {gruppo}", { gruppo: t(category.label) }) : t("Attiva il gruppo {gruppo}", { gruppo: t(category.label) })}
                               disabled={readOnly}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -834,18 +830,18 @@ export function UserRolesPermissionsTab({
                               {allActive ? (
                                 <>
                                   <X className="h-3 w-3 mr-1" />
-                                  Spegni
+                                  {t("Spegni")}
                                 </>
                               ) : (
                                 <>
                                   <Check className="h-3 w-3 mr-1" />
-                                  Attiva gruppo
+                                  {t("Attiva gruppo")}
                                 </>
                               )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            {allActive ? "Spegni tutti in questo gruppo" : "Accendi tutti in questo gruppo"}
+                            {allActive ? t("Spegni tutti in questo gruppo") : t("Accendi tutti in questo gruppo")}
                           </TooltipContent>
                         </Tooltip>
                       </div>
@@ -874,9 +870,9 @@ export function UserRolesPermissionsTab({
                                       className="mt-0.5"
                                     />
                                     <div className="min-w-0">
-                                      <Label htmlFor={`${mod.id}-vedi`} className="text-sm font-medium leading-tight cursor-pointer">{mod.label}</Label>
+                                      <Label htmlFor={`${mod.id}-vedi`} className="text-sm font-medium leading-tight cursor-pointer">{t(mod.label)}</Label>
                                       <p id={`${mod.id}-descrizione`} className="text-xs text-muted-foreground mt-0.5 max-sm:hidden">
-                                        {mod.description}
+                                        {t(mod.description)}
                                       </p>
                                       {viewBloccato && (
                                         <p className="text-[11px] text-amber-600 mt-0.5">{SOLA_LETTURA_BLOCKED_NOTE}</p>
@@ -884,7 +880,7 @@ export function UserRolesPermissionsTab({
                                       {mod.includes && mod.includes.length > 0 && (
                                         <p className="text-[10px] text-muted-foreground/70 mt-1 flex items-center gap-1 max-sm:hidden">
                                           <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground/40" />
-                                          Include: {mod.includes.join(", ")}
+                                          {t("Include: {elenco}", { elenco: mod.includes.map((v) => t(v)).join(", ") })}
                                         </p>
                                       )}
                                     </div>
@@ -904,7 +900,7 @@ export function UserRolesPermissionsTab({
                                         }
                                       />
                                       <Label htmlFor={`${mod.id}-edit`} className="text-xs font-medium">
-                                        Modifica
+                                        {t("Modifica")}
                                       </Label>
                                       {editBloccato && (
                                         <span className="text-[11px] text-amber-600">{SOLA_LETTURA_BLOCKED_NOTE}</span>
@@ -923,7 +919,7 @@ export function UserRolesPermissionsTab({
                 {filteredCategories.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground max-sm:py-4">
                     <Search className="h-8 w-8 mx-auto mb-2 opacity-40 max-sm:hidden" />
-                    <p className="text-sm">Nessun permesso trovato per "{searchQuery}"</p>
+                    <p className="text-sm">{t("Nessun permesso trovato per \"{searchQuery}\"", { searchQuery: String(searchQuery ?? "") })}</p>
                   </div>
                 )}
               </div>
@@ -932,7 +928,7 @@ export function UserRolesPermissionsTab({
               <Collapsible open={avanzateAperte} onOpenChange={setAvanzateAperte}>
                 <CollapsibleTrigger asChild>
                   <button type="button" className="tap-compact flex w-full items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm font-medium">
-                    Avanzate
+                    {t("Avanzate")}
                     <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", avanzateAperte && "rotate-180")} />
                   </button>
                 </CollapsibleTrigger>
@@ -941,9 +937,9 @@ export function UserRolesPermissionsTab({
                 {TEAM_VISIBILITY_SECTIONS.map((s) => (
                   <div key={s.viewKey} className="flex items-center justify-between gap-3">
                     <div className="space-y-0.5 min-w-0">
-                      <Label htmlFor={`tab-${s.viewKey}`} className="font-medium text-sm cursor-pointer">{s.label}</Label>
+                      <Label htmlFor={`tab-${s.viewKey}`} className="font-medium text-sm cursor-pointer">{t(s.label)}</Label>
                       <p id={`tab-${s.viewKey}-descrizione`} className="text-xs text-muted-foreground max-sm:hidden">
-                        {s.description}
+                        {t(s.description)}
                       </p>
                     </div>
                     <Switch
@@ -984,10 +980,8 @@ export function UserRolesPermissionsTab({
               <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap max-md:flex-wrap max-md:px-3 max-md:py-2">
                 <div className="flex items-center gap-2 text-sm">
                   <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-                  <span className="font-medium max-md:text-xs">Modifiche non salvate</span>
-                  <span className="text-muted-foreground hidden sm:inline">
-                    · {totalPermissionsCount.active} moduli visibili
-                  </span>
+                  <span className="font-medium max-md:text-xs">{t("Modifiche non salvate")}</span>
+                  <span className="text-muted-foreground hidden sm:inline">{t("· {active} moduli visibili", { active: String(totalPermissionsCount.active ?? "") })}</span>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2 max-sm:grid max-sm:w-full max-sm:grid-cols-2">
                   <PermissionsChangeReview before={originalPermissions} after={permissions} pipelines={pipelineAzienda} />
@@ -998,7 +992,7 @@ export function UserRolesPermissionsTab({
                     onClick={() => setPermissions(originalPermissions)}
                     disabled={isLoading}
                   >
-                    Annulla
+                    {t("Annulla")}
                   </Button>
                   <Button
                     size="sm"
@@ -1010,7 +1004,7 @@ export function UserRolesPermissionsTab({
                     ) : (
                       <Save className="h-4 w-4 mr-2" />
                     )}
-                    Salva permessi
+                    {t("Salva permessi")}
                   </Button>
                 </div>
               </div>

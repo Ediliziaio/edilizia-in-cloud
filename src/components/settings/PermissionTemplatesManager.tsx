@@ -29,6 +29,7 @@ import {
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Template {
   id: string;
@@ -46,6 +47,7 @@ const DEFAULT_TEMPLATE_PERMISSIONS: Record<string, boolean> = Object.fromEntries
 );
 
 export function PermissionTemplatesManager() {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -112,13 +114,13 @@ export function PermissionTemplatesManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.permissionTemplatesAll });
-      toast({ title: editingTemplate ? "Modello aggiornato" : "Modello creato" });
+      toast({ title: editingTemplate ? t("Modello aggiornato") : t("Modello creato") });
       closeDialog();
     },
     onError: (err) => {
       toast({
-        title: "Non sono riuscito a salvare il modello",
-        description: messaggioErrorePersone(err, "Riprova tra qualche istante."),
+        title: t("Non sono riuscito a salvare il modello"),
+        description: messaggioErrorePersone(err, t("Riprova tra qualche istante.")),
         variant: "destructive",
       });
     },
@@ -131,12 +133,12 @@ export function PermissionTemplatesManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.permissionTemplatesAll });
-      toast({ title: "Modello eliminato" });
+      toast({ title: t("Modello eliminato") });
     },
     onError: (err) => {
       toast({
-        title: "Non sono riuscito a eliminare il modello",
-        description: messaggioErrorePersone(err, "Riprova tra qualche istante."),
+        title: t("Non sono riuscito a eliminare il modello"),
+        description: messaggioErrorePersone(err, t("Riprova tra qualche istante.")),
         variant: "destructive",
       });
     },
@@ -159,15 +161,15 @@ export function PermissionTemplatesManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
-      toast({ title: "Modello applicato", description: "I permessi della persona sono stati aggiornati." });
+      toast({ title: t("Modello applicato"), description: t("I permessi della persona sono stati aggiornati.") });
       setApplyDialogOpen(false);
       setApplyingTemplate(null);
       setSelectedUserId("");
     },
     onError: (err: unknown) => {
       toast({
-        title: "Non sono riuscito ad applicare il modello",
-        description: messaggioErrorePersone(err, "Riprova tra qualche istante."),
+        title: t("Non sono riuscito ad applicare il modello"),
+        description: messaggioErrorePersone(err, t("Riprova tra qualche istante.")),
         variant: "destructive",
       });
     },
@@ -235,7 +237,7 @@ export function PermissionTemplatesManager() {
     return (
       <div role="status" className="flex items-center justify-center h-40">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
-        <span className="sr-only">Caricamento dei modelli…</span>
+        <span className="sr-only">{t("Caricamento dei modelli…")}</span>
       </div>
     );
   }
@@ -248,20 +250,20 @@ export function PermissionTemplatesManager() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Shield className="h-5 w-5" aria-hidden="true" /> Modelli di permessi
+            <Shield className="h-5 w-5" aria-hidden="true" /> {t("Modelli di permessi")}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Un modello è un gruppo di permessi già pronto: lo applichi a una persona dal pulsante «Applica a una persona».
+            {t("Un modello è un gruppo di permessi già pronto: lo applichi a una persona dal pulsante «Applica a una persona».")}
           </p>
         </div>
         <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" aria-hidden="true" /> Nuovo modello
+          <Plus className="h-4 w-4 mr-2" aria-hidden="true" /> {t("Nuovo modello")}
         </Button>
       </div>
 
       {templates && templates.length === 0 && (
         <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Nessun modello ancora. Con «Nuovo modello» ne crei uno, per esempio per i venditori nuovi.
+          {t("Nessun modello ancora. Con «Nuovo modello» ne crei uno, per esempio per i venditori nuovi.")}
         </p>
       )}
 
@@ -277,47 +279,47 @@ export function PermissionTemplatesManager() {
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium truncate">{template.name}</p>
                     {template.is_system_default && (
-                      <Badge variant="secondary" className="text-xs">Sistema</Badge>
+                      <Badge variant="secondary" className="text-xs">{t("Sistema")}</Badge>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground truncate">
-                    {template.description || `${enabledCount(template.permissions)} permessi attivi`}
+                    {template.description || t("{permissions} permessi attivi", { permissions: String(enabledCount(template.permissions) ?? "") })}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" onClick={() => openApply(template)}
-                  aria-label={`Applica il modello «${template.name}» a una persona`}>
+                  aria-label={t("Applica il modello «{name}» a una persona", { name: String(template.name ?? "") })}>
                   <UserPlus className="h-4 w-4" aria-hidden="true" />
-                  <span className="ml-1.5 max-sm:sr-only">Applica a una persona</span>
+                  <span className="ml-1.5 max-sm:sr-only">{t("Applica a una persona")}</span>
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => duplicateTemplate(template)}
-                  aria-label={`Duplica il modello «${template.name}»`}>
+                  aria-label={t("Duplica il modello «{name}»", { name: String(template.name ?? "") })}>
                   <Copy className="h-4 w-4" aria-hidden="true" />
-                  <span className="ml-1.5 max-sm:sr-only">Duplica</span>
+                  <span className="ml-1.5 max-sm:sr-only">{t("Duplica")}</span>
                 </Button>
                 {!template.is_system_default && (
                   <>
                     <Button variant="ghost" size="sm" onClick={() => openEdit(template)}
-                      aria-label={`Modifica il modello «${template.name}»`}>
-                      Modifica
+                      aria-label={t("Modifica il modello «{name}»", { name: String(template.name ?? "") })}>
+                      {t("Modifica")}
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="sm" aria-label={`Elimina il modello «${template.name}»`}>
+                        <Button variant="ghost" size="sm" aria-label={t("Elimina il modello «{name}»", { name: String(template.name ?? "") })}>
                           <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Eliminare il modello «{template.name}»?</AlertDialogTitle>
+                          <AlertDialogTitle>{t("Eliminare il modello «{name}»?", { name: String(template.name ?? "") })}</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Le persone a cui l'hai già applicato tengono i permessi che hanno. Il modello non si recupera.
+                            {t("Le persone a cui l'hai già applicato tengono i permessi che hanno. Il modello non si recupera.")}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Annulla</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => deleteMutation.mutate(template.id)}>Elimina</AlertDialogAction>
+                          <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteMutation.mutate(template.id)}>{t("Elimina")}</AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
@@ -333,24 +335,24 @@ export function PermissionTemplatesManager() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingTemplate ? "Modifica il modello" : "Nuovo modello"}</DialogTitle>
-            <DialogDescription>Scegli un nome e i permessi che il modello darà.</DialogDescription>
+            <DialogTitle>{editingTemplate ? t("Modifica il modello") : t("Nuovo modello")}</DialogTitle>
+            <DialogDescription>{t("Scegli un nome e i permessi che il modello darà.")}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="modello-nome">Nome</Label>
-              <Input id="modello-nome" value={name} onChange={(e) => setName(e.target.value)} placeholder="Per esempio: Venditore nuovo" />
+              <Label htmlFor="modello-nome">{t("Nome")}</Label>
+              <Input id="modello-nome" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Per esempio: Venditore nuovo")} />
             </div>
             <div>
-              <Label htmlFor="modello-descrizione">Descrizione</Label>
-              <Textarea id="modello-descrizione" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Facoltativa" rows={2} />
+              <Label htmlFor="modello-descrizione">{t("Descrizione")}</Label>
+              <Textarea id="modello-descrizione" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("Facoltativa")} rows={2} />
             </div>
 
             <Separator />
 
             <div className="space-y-3">
-              <p className="text-sm font-semibold">Permessi</p>
+              <p className="text-sm font-semibold">{t("Permessi")}</p>
               <SolaLetturaToggle
                 id="template-sola_lettura"
                 checked={permissions.sola_lettura || false}
@@ -359,9 +361,9 @@ export function PermissionTemplatesManager() {
               {ALL_PERMISSION_SECTIONS?.map((section) => (
                 <div key={section.viewKey} className="flex items-center justify-between py-1">
                   <span className="text-sm">
-                    {section.label}
+                    {t(section.label)}
                     {(bloccato(section.viewKey) || (section.editKey && bloccato(section.editKey))) && (
-                      <span className="block text-[11px] text-amber-600">{SOLA_LETTURA_BLOCKED_NOTE}</span>
+                      <span className="block text-[11px] text-amber-600">{t(SOLA_LETTURA_BLOCKED_NOTE)}</span>
                     )}
                   </span>
                   <div className="flex items-center gap-3">
@@ -370,9 +372,9 @@ export function PermissionTemplatesManager() {
                         checked={permissions[section.viewKey] || false}
                         disabled={bloccato(section.viewKey)}
                         onCheckedChange={() => togglePermission(section.viewKey)}
-                        aria-label={`${section.label}: ${section.viewKey.startsWith("can_view_") ? "vedere" : "consentire"}`}
+                        aria-label={section.viewKey.startsWith("can_view_") ? t("{label}: vedere", { label: t(section.label) }) : t("{label}: consentire", { label: t(section.label) })}
                       />
-                      {section.viewKey.startsWith("can_view_") ? "Visualizza" : "Consenti"}
+                      {section.viewKey.startsWith("can_view_") ? t("Visualizza") : t("Consenti")}
                     </label>
                     {section.editKey && (
                       <label className="flex items-center gap-1.5 text-xs">
@@ -380,9 +382,9 @@ export function PermissionTemplatesManager() {
                           checked={permissions[section.editKey] || false}
                           disabled={bloccato(section.editKey) || !permissions[section.viewKey]}
                           onCheckedChange={() => togglePermission(section.editKey!)}
-                          aria-label={`${section.label}: modificare`}
+                          aria-label={t("{label}: modificare", { label: t(section.label) })}
                         />
-                        Modifica
+                        {t("Modifica")}
                       </label>
                     )}
                   </div>
@@ -392,10 +394,10 @@ export function PermissionTemplatesManager() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Annulla</Button>
+            <Button variant="outline" onClick={closeDialog}>{t("Annulla")}</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!name.trim() || saveMutation.isPending}>
               {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />}
-              {editingTemplate ? "Salva" : "Crea il modello"}
+              {editingTemplate ? t("Salva") : t("Crea il modello")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -405,18 +407,15 @@ export function PermissionTemplatesManager() {
       <Dialog open={applyDialogOpen} onOpenChange={setApplyDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Applica il modello a una persona</DialogTitle>
-            <DialogDescription>
-              Scegli la persona a cui dare i permessi del modello «{applyingTemplate?.name}».
-              I suoi permessi attuali vengono sostituiti con quelli del modello.
-            </DialogDescription>
+            <DialogTitle>{t("Applica il modello a una persona")}</DialogTitle>
+            <DialogDescription>{t("Scegli la persona a cui dare i permessi del modello «{name}». I suoi permessi attuali vengono sostituiti con quelli del modello.", { name: String(applyingTemplate?.name ?? "") })}</DialogDescription>
           </DialogHeader>
 
           <div>
-            <Label htmlFor="modello-persona">Persona</Label>
+            <Label htmlFor="modello-persona">{t("Persona")}</Label>
             <Select value={selectedUserId} onValueChange={setSelectedUserId}>
               <SelectTrigger id="modello-persona" className="w-full mt-1">
-                <SelectValue placeholder="Scegli una persona…" />
+                <SelectValue placeholder={t("Scegli una persona…")} />
               </SelectTrigger>
               <SelectContent>
                 {companyUsers.map((u) => (
@@ -429,13 +428,13 @@ export function PermissionTemplatesManager() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApplyDialogOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setApplyDialogOpen(false)}>{t("Annulla")}</Button>
             <Button
               onClick={() => applyMutation.mutate()}
               disabled={!selectedUserId || applyMutation.isPending}
             >
               {applyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />}
-              Applica il modello
+              {t("Applica il modello")}
             </Button>
           </DialogFooter>
         </DialogContent>

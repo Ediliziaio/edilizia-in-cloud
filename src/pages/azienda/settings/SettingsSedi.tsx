@@ -48,6 +48,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { userErrorMessage } from '@/lib/userErrorMessage'
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ── Schema Zod ──────────────────────────────────────────────
 // Un campo vuoto è «niente». Le coordinate già salvate arrivano al modulo come numeri, non come testi: `.trim()` su un
@@ -56,24 +57,26 @@ const emptyToUndefined = (value: unknown): unknown => {
   return value == null || (typeof value === 'string' && value.trim() === '') ? undefined : value
 }
 
-const sedeSchema = z.object({
-  nome:      z.string().min(2, 'Nome richiesto (min 2 caratteri)'),
+const creaSedeSchema = (t: (testo: string) => string = (testo) => testo) => z.object({
+  nome:      z.string().min(2, t("Nome richiesto (min 2 caratteri)")),
   tipo:      z.enum(['showroom', 'magazzino', 'ufficio', 'altro']),
   indirizzo: z.preprocess(emptyToUndefined, z.string().optional()),
   citta:     z.preprocess(emptyToUndefined, z.string().optional()),
-  cap:       z.preprocess(emptyToUndefined, z.string().regex(/^\d{5}$/, 'CAP non valido').optional()),
-  provincia: z.preprocess(emptyToUndefined, z.string().length(2, 'Inserisci 2 lettere').optional()),
+  cap:       z.preprocess(emptyToUndefined, z.string().regex(/^\d{5}$/, t("CAP non valido")).optional()),
+  provincia: z.preprocess(emptyToUndefined, z.string().length(2, t("Inserisci 2 lettere")).optional()),
   regione:   z.preprocess(emptyToUndefined, z.string().optional()),
   nazione:   z.preprocess(emptyToUndefined, z.string().optional()),
-  telefono:  z.preprocess(emptyToUndefined, z.string().regex(/^[+()0-9\s.-]{6,30}$/, 'Telefono non valido').optional()),
-  email:     z.preprocess(emptyToUndefined, z.string().email('Email non valida').optional()),
+  telefono:  z.preprocess(emptyToUndefined, z.string().regex(/^[+()0-9\s.-]{6,30}$/, t("Telefono non valido")).optional()),
+  email:     z.preprocess(emptyToUndefined, z.string().email(t("Email non valida")).optional()),
   responsabile_sede: z.preprocess(emptyToUndefined, z.string().optional()),
   orari_apertura:    z.preprocess(emptyToUndefined, z.string().optional()),
   note_interne:      z.preprocess(emptyToUndefined, z.string().optional()),
-  lat:       z.preprocess(emptyToUndefined, z.coerce.number().min(-90, 'Latitudine non valida').max(90, 'Latitudine non valida').optional()),
-  lng:       z.preprocess(emptyToUndefined, z.coerce.number().min(-180, 'Longitudine non valida').max(180, 'Longitudine non valida').optional()),
+  lat:       z.preprocess(emptyToUndefined, z.coerce.number().min(-90, t("Latitudine non valida")).max(90, t("Latitudine non valida")).optional()),
+  lng:       z.preprocess(emptyToUndefined, z.coerce.number().min(-180, t("Longitudine non valida")).max(180, t("Longitudine non valida")).optional()),
   colore:    z.string().regex(/^#[0-9A-Fa-f]{6}$/).default('#1E3A5F'),
 })
+
+const sedeSchema = creaSedeSchema()
 
 type SedeFormData = z.infer<typeof sedeSchema>
 type Sede = {
@@ -129,6 +132,7 @@ function margineColor(pct: number) {
  *  aprono la Marginalità filtrata su quella sede. Nasconde tutto se la sede
  *  non ha ancora attività (niente numeri finti). */
 function SedeAttivitaStrip({ a, onOpen }: { a?: SedeAnalyticsData; onOpen: () => void }) {
+  const t = useT();
   if (!a) return null
   const hasActivity = a.ricavi > 0 || a.n_lead > 0 || a.n_preventivi > 0
   if (!hasActivity) return null
@@ -137,19 +141,19 @@ function SedeAttivitaStrip({ a, onOpen }: { a?: SedeAnalyticsData; onOpen: () =>
       type="button"
       onClick={onOpen}
       className="group -mx-1 w-full rounded-md border-t px-1 pt-3 text-left transition-colors hover:bg-muted/40"
-      title="Apri la marginalità di questa sede"
+      title={t("Apri la marginalità di questa sede")}
     >
       <div className="mb-1 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        Attività
+        {t("Attività")}
         <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
       </div>
       <div className="grid grid-cols-4 gap-1">
         <div>
-          <div className="text-[10px] text-muted-foreground">Ricavi</div>
+          <div className="text-[10px] text-muted-foreground">{t("Ricavi")}</div>
           <div className="text-xs font-semibold tabular-nums">{formatCurrencyCompact(a.ricavi)}</div>
         </div>
         <div>
-          <div className="text-[10px] text-muted-foreground">Margine</div>
+          <div className="text-[10px] text-muted-foreground">{t("Margine")}</div>
           <div className={`text-xs font-semibold ${margineColor(a.margine_pct)}`}>{Math.round(a.margine_pct)}%</div>
         </div>
         <div>
@@ -157,7 +161,7 @@ function SedeAttivitaStrip({ a, onOpen }: { a?: SedeAnalyticsData; onOpen: () =>
           <div className="text-xs font-semibold tabular-nums">{a.n_lead}</div>
         </div>
         <div>
-          <div className="truncate text-[10px] text-muted-foreground">Preventivi</div>
+          <div className="truncate text-[10px] text-muted-foreground">{t("Preventivi")}</div>
           <div className="text-xs font-semibold tabular-nums">{a.preventivi_vinti}/{a.n_preventivi}</div>
         </div>
       </div>
@@ -194,6 +198,7 @@ async function parseFunctionError(error: unknown, fallback: string) {
 
 // ── Componente principale ───────────────────────────────────
 export default function SettingsSedi() {
+  const t = useT();
   const { effectiveCompany } = useAuth()
   const permissions = usePermissions()
   const company_id = effectiveCompany?.id
@@ -262,8 +267,9 @@ export default function SettingsSedi() {
     return map
   }, [sedi])
 
+  const sedeSchemaTradotto = useMemo(() => creaSedeSchema(t), [t])
   const form = useForm<z.input<typeof sedeSchema>, unknown, SedeFormData>({
-    resolver: zodResolver(sedeSchema),
+    resolver: zodResolver(sedeSchemaTradotto),
     defaultValues: { nome: '', tipo: 'showroom', colore: '#1E3A5F', nazione: 'Italia' },
   })
 
@@ -272,14 +278,14 @@ export default function SettingsSedi() {
   // ── Mutations ─────────────────────────────────────────────
   const saveMutation = useMutation({
     mutationFn: async (values: SedeFormData) => {
-      if (!company_id) throw new Error('Azienda non disponibile')
+      if (!company_id) throw new Error(t("Azienda non disponibile"))
       const action = editSede ? 'aggiorna' : 'crea'
       const { data, error } = await supabase.functions.invoke('gestisci-sede', {
         body: { action, company_id, sede_id: editSede?.id, ...values },
       })
       if (error) {
         // Edge function non-2xx: estraiamo il body JSON dalla response
-        const message = await parseFunctionError(error, 'Errore nel salvataggio')
+        const message = await parseFunctionError(error, t("Errore nel salvataggio"))
         const msg = message === 'LIMITE_PIANO'
           ? 'LIMITE_PIANO'
           : message
@@ -289,7 +295,7 @@ export default function SettingsSedi() {
       return data
     },
     onSuccess: () => {
-      toast.success(editSede ? 'Sede aggiornata' : 'Sede creata')
+      toast.success(editSede ? t("Sede aggiornata") : t("Sede creata"))
       setDialogOpen(false)
       form.reset()
       setEditSede(null)
@@ -297,7 +303,7 @@ export default function SettingsSedi() {
     },
     onError: (err: Error) => {
       if (err.message === 'LIMITE_PIANO') {
-        toast.error('Limite piano raggiunto. Passa a Pro per aggiungere più sedi.')
+        toast.error(t("Limite piano raggiunto. Passa a Pro per aggiungere più sedi."))
       } else {
         toast.error(err.message)
       }
@@ -306,12 +312,12 @@ export default function SettingsSedi() {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, attiva }: { id: string; attiva: boolean }) => {
-      if (!company_id) throw new Error('Azienda non disponibile')
+      if (!company_id) throw new Error(t("Azienda non disponibile"))
       const { error } = await supabase.functions.invoke('gestisci-sede', {
         body: { action: 'aggiorna', company_id, sede_id: id, attiva },
       })
       if (error) {
-        throw new Error(await parseFunctionError(error, 'Errore nell\'aggiornamento'))
+        throw new Error(await parseFunctionError(error, t("Errore nell'aggiornamento")))
       }
     },
     onSuccess: () => { invalidate() },
@@ -320,16 +326,16 @@ export default function SettingsSedi() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!company_id) throw new Error('Azienda non disponibile')
+      if (!company_id) throw new Error(t("Azienda non disponibile"))
       const { error } = await supabase.functions.invoke('gestisci-sede', {
         body: { action: 'elimina', company_id, sede_id: id },
       })
       if (error) {
-        throw new Error(await parseFunctionError(error, 'Errore nell\'eliminazione'))
+        throw new Error(await parseFunctionError(error, t("Errore nell'eliminazione")))
       }
     },
     onSuccess: () => {
-      toast.success('Sede eliminata')
+      toast.success(t("Sede eliminata"))
       setDeleteId(null)
       invalidate()
     },
@@ -338,22 +344,22 @@ export default function SettingsSedi() {
 
   const setPrincipaleMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!company_id) throw new Error('Azienda non disponibile')
+      if (!company_id) throw new Error(t("Azienda non disponibile"))
       const { error } = await supabase.functions.invoke('gestisci-sede', {
         body: { action: 'aggiorna', company_id, sede_id: id, principale: true },
       })
       if (error) {
-        throw new Error(await parseFunctionError(error, 'Errore'))
+        throw new Error(await parseFunctionError(error, t("Errore")))
       }
     },
-    onSuccess: () => { toast.success('Sede principale aggiornata'); invalidate() },
+    onSuccess: () => { toast.success(t("Sede principale aggiornata")); invalidate() },
     onError: (err: Error) => toast.error(err.message),
   })
 
   // ── Dialog ────────────────────────────────────────────────
   function openCreate() {
     if (!canEditSedi) {
-      toast.error('Non hai il permesso di modificare le sedi.')
+      toast.error(t("Non hai il permesso di modificare le sedi."))
       return
     }
     setEditSede(null)
@@ -363,7 +369,7 @@ export default function SettingsSedi() {
 
   function openEdit(sede: Sede) {
     if (!canEditSedi) {
-      toast.error('Non hai il permesso di modificare le sedi.')
+      toast.error(t("Non hai il permesso di modificare le sedi."))
       return
     }
     setEditSede(sede)
@@ -394,19 +400,18 @@ export default function SettingsSedi() {
       {!canEditSedi && (
         <Alert>
           <AlertDescription>
-            Stai consultando le sedi: puoi vederle ma non modificarle. Per cambiarle chiedi a un amministratore.
+            {t("Stai consultando le sedi: puoi vederle ma non modificarle. Per cambiarle chiedi a un amministratore.")}
           </AlertDescription>
         </Alert>
       )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <p className="min-w-0 text-sm text-muted-foreground">
-          Showroom, magazzini e uffici dell'azienda. Servono a dividere lead, preventivi e costi per sede e a scegliere il
-          luogo di timbratura. Il controllo GPS delle timbrature si imposta in{" "}
-          <Link to="/azienda/personale?tab=sedi" className="font-medium underline">Personale → Sedi</Link>.
+          {t("Showroom, magazzini e uffici dell'azienda. Servono a dividere lead, preventivi e costi per sede e a scegliere il luogo di timbratura. Il controllo GPS delle timbrature si imposta in")}{" "}
+          <Link to="/azienda/personale?tab=sedi" className="font-medium underline">{t("Personale → Sedi")}</Link>.
         </p>
         <Button onClick={openCreate} size="sm" className="shrink-0" disabled={!canEditSedi}>
           <Plus className="h-4 w-4 mr-1.5" />
-          Nuova sede
+          {t("Nuova sede")}
         </Button>
       </div>
 
@@ -422,12 +427,10 @@ export default function SettingsSedi() {
               <div className="h-7 w-7 rounded-md bg-primary/10 text-primary flex items-center justify-center">
                 <MapPin className="h-3.5 w-3.5" />
               </div>
-              <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Tutte</span>
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">{t("Tutte")}</span>
             </div>
             <div className="text-lg font-bold leading-none">{sedi.length}</div>
-            <div className="text-[11px] text-muted-foreground mt-0.5">
-              {activeCount} attive
-            </div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">{t("{activeCount} attive", { activeCount: String(activeCount ?? "") })}</div>
           </button>
           {Object.entries(TIPO_LABELS).map(([key, label]) => {
             const meta = getTipoMeta(key)
@@ -445,7 +448,7 @@ export default function SettingsSedi() {
                   <div className={`h-7 w-7 rounded-md flex items-center justify-center ${meta.iconBg}`}>
                     <Icon className="h-3.5 w-3.5" />
                   </div>
-                  <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium truncate">{label}</span>
+                  <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium truncate">{t(label)}</span>
                 </div>
                 <div className="text-lg font-bold leading-none">{count}</div>
               </button>
@@ -462,19 +465,19 @@ export default function SettingsSedi() {
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Cerca per nome, città, responsabile, telefono o email..."
-              aria-label="Cerca una sede"
+              placeholder={t("Cerca per nome, città, responsabile, telefono o email...")}
+              aria-label={t("Cerca una sede")}
               className="pl-9"
             />
           </div>
           <Select value={statoFilter} onValueChange={(value) => setStatoFilter(value as typeof statoFilter)}>
             <SelectTrigger className="md:w-44">
-              <SelectValue placeholder="Stato" />
+              <SelectValue placeholder={t("Stato")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="attive">Solo attive</SelectItem>
-              <SelectItem value="disattive">Solo non attive</SelectItem>
+              <SelectItem value="all">{t("Tutti gli stati")}</SelectItem>
+              <SelectItem value="attive">{t("Solo attive")}</SelectItem>
+              <SelectItem value="disattive">{t("Solo non attive")}</SelectItem>
             </SelectContent>
           </Select>
           {/* View mode toggle */}
@@ -485,7 +488,7 @@ export default function SettingsSedi() {
               size="sm"
               className="h-8 px-2.5"
               onClick={() => setViewMode('grid')}
-              aria-label="Vista griglia"
+              aria-label={t("Vista griglia")}
               aria-pressed={viewMode === 'grid'}
             >
               <LayoutGrid className="h-4 w-4" />
@@ -496,7 +499,7 @@ export default function SettingsSedi() {
               size="sm"
               className="h-8 px-2.5"
               onClick={() => setViewMode('list')}
-              aria-label="Vista lista"
+              aria-label={t("Vista lista")}
               aria-pressed={viewMode === 'list'}
             >
               <ListIcon className="h-4 w-4" />
@@ -517,10 +520,9 @@ export default function SettingsSedi() {
           <CardContent className="flex flex-col items-center justify-center py-10 gap-4 text-center">
             <MapPin className="h-10 w-10 text-muted-foreground/40" />
             <div>
-              <p className="text-base font-semibold">Nessuna sede configurata</p>
+              <p className="text-base font-semibold">{t("Nessuna sede configurata")}</p>
               <p className="text-xs text-muted-foreground mt-1 max-w-md">
-                Aggiungi le sedi della tua azienda per vedere lead, preventivi e costi divisi per sede.
-                Scegli il tipo per iniziare con i campi giusti precompilati.
+                {t("Aggiungi le sedi della tua azienda per vedere lead, preventivi e costi divisi per sede. Scegli il tipo per iniziare con i campi giusti precompilati.")}
               </p>
             </div>
             {/* v8.6.41 — Quick-add chips per tipo: precompila il dialog */}
@@ -534,7 +536,7 @@ export default function SettingsSedi() {
                     type="button"
                     onClick={() => {
                       if (!canEditSedi) {
-                        toast.error('Non hai il permesso di modificare le sedi.')
+                        toast.error(t("Non hai il permesso di modificare le sedi."))
                         return
                       }
                       setEditSede(null)
@@ -547,7 +549,7 @@ export default function SettingsSedi() {
                     <div className={`h-8 w-8 rounded-md flex items-center justify-center ${meta.iconBg}`}>
                       <Icon className="h-4 w-4" />
                     </div>
-                    <span className="text-xs font-medium">{label}</span>
+                    <span className="text-xs font-medium">{t(label)}</span>
                   </button>
                 )
               })}
@@ -558,8 +560,8 @@ export default function SettingsSedi() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-10 gap-2 text-center">
             <Search className="h-9 w-9 text-muted-foreground/40" />
-            <p className="text-sm font-medium text-muted-foreground">Nessuna sede trovata</p>
-            <p className="text-xs text-muted-foreground">Modifica ricerca o filtri per visualizzare altre sedi.</p>
+            <p className="text-sm font-medium text-muted-foreground">{t("Nessuna sede trovata")}</p>
+            <p className="text-xs text-muted-foreground">{t("Modifica ricerca o filtri per visualizzare altre sedi.")}</p>
           </CardContent>
         </Card>
       ) : (
@@ -591,18 +593,18 @@ export default function SettingsSedi() {
                         <div className="min-w-0">
                           <div className="font-semibold leading-tight truncate">{sede.nome}</div>
                           <div className="text-[11px] text-muted-foreground uppercase tracking-wide mt-0.5">
-                            {TIPO_LABELS[sede.tipo] ?? sede.tipo}
+                            {t(TIPO_LABELS[sede.tipo] ?? sede.tipo)}
                           </div>
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         {sede.principale && (
                           <Badge className="bg-amber-100 text-amber-700 text-[10px] hover:bg-amber-100 gap-1 h-5">
-                            <Star className="h-2.5 w-2.5" /> Principale
+                            <Star className="h-2.5 w-2.5" /> {t("Principale")}
                           </Badge>
                         )}
                         {!sede.attiva && (
-                          <Badge variant="secondary" className="text-[10px] h-5">Non attiva</Badge>
+                          <Badge variant="secondary" className="text-[10px] h-5">{t("Non attiva")}</Badge>
                         )}
                       </div>
                     </div>
@@ -651,12 +653,12 @@ export default function SettingsSedi() {
                       <div className="flex items-center gap-1.5">
                         <Switch
                           checked={Boolean(sede.attiva)}
-                          aria-label={`Sede ${sede.nome} attiva`}
+                          aria-label={t("Sede {nome} attiva", { nome: String(sede.nome ?? "") })}
                           onCheckedChange={(v) => toggleMutation.mutate({ id: sede.id, attiva: v })}
                           disabled={!canEditSedi || toggleMutation.isPending}
                         />
                         <span className="text-[11px] text-muted-foreground">
-                          {sede.attiva ? 'Attiva' : 'Non attiva'}
+                          {sede.attiva ? t("Attiva") : t("Non attiva")}
                         </span>
                       </div>
                       <div className="flex items-center gap-0.5">
@@ -665,17 +667,17 @@ export default function SettingsSedi() {
                             variant="ghost"
                             size="sm"
                             className="h-7 px-2 text-[11px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                            aria-label={`Imposta ${sede.nome} come sede principale`}
+                            aria-label={t("Imposta {nome} come sede principale", { nome: String(sede.nome ?? "") })}
                             onClick={() => setPrincipaleMutation.mutate(sede.id)}
                             disabled={!canEditSedi || setPrincipaleMutation.isPending}
                           >
                             <Star className="h-3 w-3 mr-1" />
-                            Rendi principale
+                            {t("Rendi principale")}
                           </Button>
                         )}
                         <Button
                           variant="ghost"
-                          size="icon" aria-label={`Modifica sede ${sede.nome}`}
+                          size="icon" aria-label={t("Modifica sede {nome}", { nome: String(sede.nome ?? "") })}
                           className="h-7 w-7"
                           onClick={() => openEdit(sede)}
                           disabled={!canEditSedi}
@@ -684,7 +686,7 @@ export default function SettingsSedi() {
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon" aria-label={`Elimina sede ${sede.nome}`}
+                          size="icon" aria-label={t("Elimina sede {nome}", { nome: String(sede.nome ?? "") })}
                           className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => setDeleteId(sede.id)}
                           disabled={!canEditSedi}
@@ -710,15 +712,15 @@ export default function SettingsSedi() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold truncate">{sede.nome}</span>
                         <Badge variant="outline" className={`text-xs ${meta.chip}`}>
-                          {TIPO_LABELS[sede.tipo] ?? sede.tipo}
+                          {t(TIPO_LABELS[sede.tipo] ?? sede.tipo)}
                         </Badge>
                         {sede.principale && (
                           <Badge className="bg-amber-100 text-amber-700 text-xs hover:bg-amber-100 gap-1">
-                            <Star className="h-3 w-3" /> Principale
+                            <Star className="h-3 w-3" /> {t("Principale")}
                           </Badge>
                         )}
                         {!sede.attiva && (
-                          <Badge variant="secondary" className="text-xs">Non attiva</Badge>
+                          <Badge variant="secondary" className="text-xs">{t("Non attiva")}</Badge>
                         )}
                       </div>
                       {indirizzo && (
@@ -757,12 +759,12 @@ export default function SettingsSedi() {
                             type="button"
                             onClick={() => openMarginalitaSede(sede.id)}
                             className="group mt-2 inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md px-1 py-0.5 text-xs transition-colors hover:bg-muted/50"
-                            title="Apri la marginalità di questa sede"
+                            title={t("Apri la marginalità di questa sede")}
                           >
-                            <span className="text-muted-foreground">Ricavi <b className="text-foreground tabular-nums">{formatCurrencyCompact(a.ricavi)}</b></span>
-                            <span className="text-muted-foreground">Margine <b className={`tabular-nums ${margineColor(a.margine_pct)}`}>{Math.round(a.margine_pct)}%</b></span>
+                            <span className="text-muted-foreground">{t("Ricavi")} <b className="text-foreground tabular-nums">{formatCurrencyCompact(a.ricavi)}</b></span>
+                            <span className="text-muted-foreground">{t("Margine")} <b className={`tabular-nums ${margineColor(a.margine_pct)}`}>{Math.round(a.margine_pct)}%</b></span>
                             <span className="text-muted-foreground">Lead <b className="text-foreground tabular-nums">{a.n_lead}</b></span>
-                            <span className="text-muted-foreground">Preventivi <b className="text-foreground tabular-nums">{a.preventivi_vinti}/{a.n_preventivi}</b></span>
+                            <span className="text-muted-foreground">{t("Preventivi")} <b className="text-foreground tabular-nums">{a.preventivi_vinti}/{a.n_preventivi}</b></span>
                             <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
                           </button>
                         )
@@ -778,17 +780,17 @@ export default function SettingsSedi() {
                         variant="ghost"
                         size="sm"
                         className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                        aria-label={`Imposta ${sede.nome} come sede principale`}
+                        aria-label={t("Imposta {nome} come sede principale", { nome: String(sede.nome ?? "") })}
                         onClick={() => setPrincipaleMutation.mutate(sede.id)}
                         disabled={!canEditSedi || setPrincipaleMutation.isPending}
                       >
                         <Star className="h-3 w-3 mr-1" />
-                        Rendi principale
+                        {t("Rendi principale")}
                       </Button>
                     )}
                     <Switch
                       checked={Boolean(sede.attiva)}
-                      aria-label={`Sede ${sede.nome} attiva`}
+                      aria-label={t("Sede {nome} attiva", { nome: String(sede.nome ?? "") })}
                       onCheckedChange={(v) => toggleMutation.mutate({ id: sede.id, attiva: v })}
                       disabled={!canEditSedi || toggleMutation.isPending}
                     />
@@ -796,7 +798,7 @@ export default function SettingsSedi() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      aria-label={`Modifica sede ${sede.nome}`}
+                      aria-label={t("Modifica sede {nome}", { nome: String(sede.nome ?? "") })}
                       onClick={() => openEdit(sede)}
                       disabled={!canEditSedi}
                     >
@@ -806,7 +808,7 @@ export default function SettingsSedi() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      aria-label={`Elimina sede ${sede.nome}`}
+                      aria-label={t("Elimina sede {nome}", { nome: String(sede.nome ?? "") })}
                       onClick={() => setDeleteId(sede.id)}
                       disabled={!canEditSedi}
                     >
@@ -824,14 +826,14 @@ export default function SettingsSedi() {
       <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) { setDialogOpen(false); setEditSede(null) } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editSede ? 'Modifica Sede' : 'Nuova Sede'}</DialogTitle>
+            <DialogTitle>{editSede ? t("Modifica Sede") : t("Nuova Sede")}</DialogTitle>
           </DialogHeader>
 
           <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
             {/* Nome */}
             <div className="space-y-1.5">
-              <Label htmlFor="sede-nome">Nome sede *</Label>
-              <Input id="sede-nome" placeholder="es. Showroom Milano Nord" {...form.register('nome')} />
+              <Label htmlFor="sede-nome">{t("Nome sede *")}</Label>
+              <Input id="sede-nome" placeholder={t("es. Showroom Milano Nord")} {...form.register('nome')} />
               {form.formState.errors.nome && (
                 <p className="text-xs text-destructive">{form.formState.errors.nome.message}</p>
               )}
@@ -839,7 +841,7 @@ export default function SettingsSedi() {
 
             {/* Tipo */}
             <div className="space-y-1.5">
-              <Label htmlFor="sede-tipo">Tipo *</Label>
+              <Label htmlFor="sede-tipo">{t("Tipo *")}</Label>
               <Select
                 value={form.watch('tipo')}
                 onValueChange={(v) => form.setValue('tipo', v as SedeFormData['tipo'])}
@@ -849,7 +851,7 @@ export default function SettingsSedi() {
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(TIPO_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                    <SelectItem key={k} value={k}>{t(v)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -857,10 +859,10 @@ export default function SettingsSedi() {
 
             {/* Indirizzo */}
             <div className="space-y-1.5">
-              <Label htmlFor="sede-indirizzo">Indirizzo</Label>
+              <Label htmlFor="sede-indirizzo">{t("Indirizzo")}</Label>
               <CampoIndirizzo
                 id="sede-indirizzo"
-                placeholder="Via Roma 1"
+                placeholder={t("Via Roma 1")}
                 value={typeof form.watch('indirizzo') === 'string' ? String(form.watch('indirizzo')) : ''}
                 onChange={(v) => form.setValue('indirizzo', v, { shouldDirty: true })}
                 onScegli={(a) => riempiCampi(a, (campo, valore) =>
@@ -871,8 +873,8 @@ export default function SettingsSedi() {
             {/* Città + CAP + Provincia */}
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-3 sm:col-span-1 space-y-1.5">
-                <Label htmlFor="sede-citta">Città</Label>
-                <Input id="sede-citta" placeholder="Milano" {...form.register('citta')} />
+                <Label htmlFor="sede-citta">{t("Città")}</Label>
+                <Input id="sede-citta" placeholder={t("Milano")} {...form.register('citta')} />
               </div>
               <div className="col-span-3 sm:col-span-1 space-y-1.5">
                 <Label htmlFor="sede-cap">CAP</Label>
@@ -882,7 +884,7 @@ export default function SettingsSedi() {
                 )}
               </div>
               <div className="col-span-3 sm:col-span-1 space-y-1.5">
-                <Label htmlFor="sede-provincia">Provincia</Label>
+                <Label htmlFor="sede-provincia">{t("Provincia")}</Label>
                 <Input id="sede-provincia" placeholder="MI" maxLength={2} {...form.register('provincia')} />
                 {form.formState.errors.provincia && (
                   <p className="text-xs text-destructive">{form.formState.errors.provincia.message}</p>
@@ -892,25 +894,25 @@ export default function SettingsSedi() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label htmlFor="sede-regione">Regione</Label>
-                <Input id="sede-regione" placeholder="Lombardia" {...form.register('regione')} />
+                <Label htmlFor="sede-regione">{t("Regione")}</Label>
+                <Input id="sede-regione" placeholder={t("Lombardia")} {...form.register('regione')} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="sede-nazione">Nazione</Label>
-                <Input id="sede-nazione" placeholder="Italia" {...form.register('nazione')} />
+                <Label htmlFor="sede-nazione">{t("Nazione")}</Label>
+                <Input id="sede-nazione" placeholder={t("Italia")} {...form.register('nazione')} />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label htmlFor="sede-telefono">Telefono sede</Label>
+                <Label htmlFor="sede-telefono">{t("Telefono sede")}</Label>
                 <Input id="sede-telefono" placeholder="+39 02 123456" {...form.register('telefono')} />
                 {form.formState.errors.telefono && (
                   <p className="text-xs text-destructive">{form.formState.errors.telefono.message}</p>
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="sede-email">Email sede</Label>
+                <Label htmlFor="sede-email">{t("Email sede")}</Label>
                 <Input id="sede-email" placeholder="sede@azienda.it" {...form.register('email')} />
                 {form.formState.errors.email && (
                   <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
@@ -920,33 +922,33 @@ export default function SettingsSedi() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label htmlFor="sede-responsabile">Responsabile sede</Label>
-                <Input id="sede-responsabile" placeholder="Nome referente" {...form.register('responsabile_sede')} />
+                <Label htmlFor="sede-responsabile">{t("Responsabile sede")}</Label>
+                <Input id="sede-responsabile" placeholder={t("Nome referente")} {...form.register('responsabile_sede')} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="sede-orari">Orari apertura</Label>
-                <Input id="sede-orari" placeholder="Lun-Ven 09:00-18:00" {...form.register('orari_apertura')} />
+                <Label htmlFor="sede-orari">{t("Orari apertura")}</Label>
+                <Input id="sede-orari" placeholder={t("Lun-Ven 09:00-18:00")} {...form.register('orari_apertura')} />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="sede-note">Note interne</Label>
+              <Label htmlFor="sede-note">{t("Note interne")}</Label>
               <Textarea
                 id="sede-note"
-                placeholder="Informazioni operative, riferimenti interni, note per appuntamenti o logistica..."
+                placeholder={t("Informazioni operative, riferimenti interni, note per appuntamenti o logistica...")}
                 {...form.register('note_interne')}
               />
             </div>
 
             {/* Colore */}
             <div className="space-y-1.5">
-              <Label id="sede-colore-etichetta">Colore della sede</Label>
+              <Label id="sede-colore-etichetta">{t("Colore della sede")}</Label>
               <div className="flex items-center gap-2 flex-wrap" role="group" aria-labelledby="sede-colore-etichetta">
                 {COLORI_PRESET.map((c) => (
                   <button
                     key={c}
                     type="button"
-                    aria-label={`Colore ${c}`}
+                    aria-label={t("Colore {nome}", { nome: String(c ?? "") })}
                     aria-pressed={form.watch('colore') === c}
                     className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${
                       form.watch('colore') === c ? 'border-gray-900 scale-110' : 'border-transparent'
@@ -960,22 +962,22 @@ export default function SettingsSedi() {
                   value={form.watch('colore')}
                   onChange={(e) => form.setValue('colore', e.target.value)}
                   className="w-7 h-7 rounded cursor-pointer border"
-                  title="Scegli un altro colore"
-                  aria-label="Scegli un altro colore"
+                  title={t("Scegli un altro colore")}
+                  aria-label={t("Scegli un altro colore")}
                 />
               </div>
             </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Annulla
+                {t("Annulla")}
               </Button>
               <Button
                 type="submit"
                 className=""
                 disabled={saveMutation.isPending}
               >
-                {saveMutation.isPending ? 'Salvataggio…' : editSede ? 'Salva modifiche' : 'Crea sede'}
+                {saveMutation.isPending ? t("Salvataggio…") : editSede ? t("Salva modifiche") : t("Crea sede")}
               </Button>
             </DialogFooter>
           </form>
@@ -986,7 +988,7 @@ export default function SettingsSedi() {
       <AlertDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questa sede?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare questa sede?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {(() => {
                 const a = deleteId ? analyticsBySede.get(deleteId) : undefined
@@ -994,24 +996,22 @@ export default function SettingsSedi() {
                 if (collegata) {
                   return (
                     <>
-                      Questa sede risulta <b>collegata ad attività</b> ({a!.n_preventivi} preventivi · {formatCurrencyCompact(a!.ricavi)} di ricavi).
-                      Se è agganciata a preventivi o commesse l'eliminazione verrà <b>bloccata</b>: in quel caso <b>disattivala</b> invece di eliminarla,
-                      così lo storico resta intatto.
+                      {t("Questa sede risulta")} <b>{t("collegata ad attività")}</b> ({a!.n_preventivi} {t("preventivi ·")} {formatCurrencyCompact(a!.ricavi)} {t("di ricavi). Se è agganciata a preventivi o commesse l'eliminazione verrà")} <b>{t("bloccata")}</b>{t(": in quel caso")} <b>{t("disattivala")}</b> {t("invece di eliminarla, così lo storico resta intatto.")}
                     </>
                   )
                 }
-                return <>Nessuna attività collegata rilevata su questa sede. L'operazione non può essere annullata.</>
+                return <>{t("Nessuna attività collegata rilevata su questa sede. L'operazione non può essere annullata.")}</>
               })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90"
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
               disabled={!canEditSedi || deleteMutation.isPending}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

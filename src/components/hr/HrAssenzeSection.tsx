@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { HeartPulse, Plus, Download, Pencil, Trash2, Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function fmt(d: string | null): string {
   if (!d) return "—";
@@ -35,6 +36,7 @@ interface Props { profiloId: string; companyId: string; }
 const EMPTY: Partial<HrAssenza> = { tipo: "malattia" };
 
 export function HrAssenzeSection({ profiloId, companyId }: Props) {
+  const tr = useT();
   const { data: list = [], isLoading } = useHrAssenze(profiloId);
   const upsert = useUpsertHrAssenza(profiloId);
   const del = useDeleteHrAssenza(profiloId);
@@ -49,9 +51,9 @@ export function HrAssenzeSection({ profiloId, companyId }: Props) {
   const openEdit = (a: HrAssenza) => { setForm(a); setFile(null); setOpen(true); };
 
   const save = async () => {
-    if (!form.data_inizio) { toast.error("Inserisci la data di inizio"); return; }
+    if (!form.data_inizio) { toast.error(tr("Inserisci la data di inizio")); return; }
     if (form.data_fine && form.data_fine < form.data_inizio) {
-      toast.error("La data di fine non può precedere la data di inizio");
+      toast.error(tr("La data di fine non può precedere la data di inizio"));
       return;
     }
     try {
@@ -63,21 +65,21 @@ export function HrAssenzeSection({ profiloId, companyId }: Props) {
       }
       await upsert.mutateAsync(patch as any);
       setOpen(false);
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Errore"); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : tr("Errore")); }
     finally { setBusy(false); }
   };
 
   const download = async (a: HrAssenza) => {
     if (!a.certificato_path) return;
     const url = await getHrFileUrl(a.certificato_path);
-    if (url) window.open(url, "_blank"); else toast.error("Certificato non disponibile");
+    if (url) window.open(url, "_blank"); else toast.error(tr("Certificato non disponibile"));
   };
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-muted-foreground">ASSENZE & MALATTIE</h4>
-        <Button size="sm" variant="outline" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Aggiungi</Button>
+        <h4 className="text-sm font-semibold text-muted-foreground">{tr("ASSENZE & MALATTIE")}</h4>
+        <Button size="sm" variant="outline" onClick={openNew}><Plus className="h-4 w-4 mr-1" />{tr("Aggiungi")}</Button>
       </div>
 
       {isLoading ? (
@@ -85,7 +87,7 @@ export function HrAssenzeSection({ profiloId, companyId }: Props) {
       ) : list.length === 0 ? (
         <div className="text-center py-8 text-sm text-muted-foreground">
           <HeartPulse className="h-8 w-8 mx-auto mb-2 opacity-40" />
-          Nessuna assenza registrata.
+          {tr("Nessuna assenza registrata.")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -93,37 +95,37 @@ export function HrAssenzeSection({ profiloId, companyId }: Props) {
             <div key={a.id} className="flex items-start gap-2 rounded-lg border p-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-sm">{tipoAssenzaLabel(a.tipo)}</span>
-                  {a.giorni != null && <span className="text-xs text-muted-foreground">· {a.giorni} gg</span>}
+                  <span className="font-medium text-sm">{tr(tipoAssenzaLabel(a.tipo))}</span>
+                  {a.giorni != null && <span className="text-xs text-muted-foreground">{tr("· {giorni} gg", { giorni: String(a.giorni ?? "") })}</span>}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
                   {fmt(a.data_inizio)}{a.data_fine ? ` → ${fmt(a.data_fine)}` : ""}
-                  {a.protocollo && <> · prot. {a.protocollo}</>}
+                  {a.protocollo && <>{" "}{tr("· prot. {protocollo}", { protocollo: String(a.protocollo ?? "") })}</>}
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {a.certificato_path && (
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => download(a)} title="Certificato">
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => download(a)} title={tr("Certificato")}>
                     <Download className="h-4 w-4" />
                   </Button>
                 )}
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(a)} title="Modifica">
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(a)} title={tr("Modifica")}>
                   <Pencil className="h-4 w-4" />
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title="Elimina">
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title={tr("Elimina")}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Eliminare l'assenza?</AlertDialogTitle>
-                      <AlertDialogDescription>{tipoAssenzaLabel(a.tipo)} del {fmt(a.data_inizio)}. Irreversibile.</AlertDialogDescription>
+                      <AlertDialogTitle>{tr("Eliminare l'assenza?")}</AlertDialogTitle>
+                      <AlertDialogDescription>{tr("{tipo} del {data_inizio}. Irreversibile.", { tipo: tr(tipoAssenzaLabel(a.tipo)), data_inizio: fmt(a.data_inizio) })}</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Annulla</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => del.mutate(a)}>Elimina</AlertDialogAction>
+                      <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => del.mutate(a)}>{tr("Elimina")}</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
@@ -135,50 +137,50 @@ export function HrAssenzeSection({ profiloId, companyId }: Props) {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>{form.id ? "Modifica assenza" : "Nuova assenza"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{form.id ? tr("Modifica assenza") : tr("Nuova assenza")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Tipo</Label>
+              <Label>{tr("Tipo")}</Label>
               <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={form.tipo ?? "malattia"} onChange={(e) => set("tipo", e.target.value)}>
-                {TIPO_ASSENZA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                {TIPO_ASSENZA.map((t) => <option key={t.value} value={t.value}>{tr(t.label)}</option>)}
               </UniformSelect>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Dal *</Label>
+                <Label>{tr("Dal *")}</Label>
                 <Input type="date" value={form.data_inizio ?? ""} onChange={(e) => set("data_inizio", e.target.value)} required />
               </div>
               <div>
-                <Label>Al</Label>
+                <Label>{tr("Al")}</Label>
                 <Input type="date" value={form.data_fine ?? ""} onChange={(e) => set("data_fine", e.target.value)} />
               </div>
               <div>
-                <Label>Giorni</Label>
+                <Label>{tr("Giorni")}</Label>
                 <Input type="number" step="0.5" value={form.giorni ?? ""} placeholder={String(calcGiorni(form.data_inizio, form.data_fine) ?? "")}
                   onChange={(e) => set("giorni", e.target.value === "" ? null : Number(e.target.value))} />
               </div>
               <div>
-                <Label>Protocollo INPS</Label>
+                <Label>{tr("Protocollo INPS")}</Label>
                 <Input value={form.protocollo ?? ""} onChange={(e) => set("protocollo", e.target.value)} />
               </div>
             </div>
             <div>
-              <Label>Certificato {form.certificato_name && <span className="text-xs text-muted-foreground">(attuale: {form.certificato_name})</span>}</Label>
+              <Label>{tr("Certificato")} {form.certificato_name && <span className="text-xs text-muted-foreground">{tr("(attuale: {certificato_name})", { certificato_name: String(form.certificato_name ?? "") })}</span>}</Label>
               <div className="flex items-center gap-2">
                 <Paperclip className="h-4 w-4 text-muted-foreground shrink-0" />
                 <Input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
               </div>
             </div>
             <div>
-              <Label>Note</Label>
+              <Label>{tr("Note")}</Label>
               <Textarea rows={2} value={form.note ?? ""} onChange={(e) => set("note", e.target.value)} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>{tr("Annulla")}</Button>
             <Button onClick={save} disabled={busy || upsert.isPending}>
-              {(busy || upsert.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Salva
+              {(busy || upsert.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{tr("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>

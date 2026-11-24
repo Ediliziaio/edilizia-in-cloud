@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/table";
 import { AlertCircle, Clock, LogIn, LogOut, Coffee, MapPin, ChevronDown, Download, Loader2 } from "lucide-react";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPO_ICONS: Record<string, { icon: typeof LogIn; label: string; color: string }> = {
   entrata: { icon: LogIn, label: "Entrata", color: "text-emerald-600" },
@@ -64,6 +65,7 @@ function getErrorMessage(error: unknown) {
 }
 
 export function TabTimbrature() {
+  const tr = useT();
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(today);
@@ -158,12 +160,12 @@ export function TabTimbrature() {
     try {
       const tutte = (await scaricaTimbratureAdmin(companyId, rangeFrom, rangeTo)).map(aRiga);
       const righe = filtraTimbrature(tutte, filtriAttivi);
-      if (righe.length === 0) { toast.info("Nessuna timbratura da esportare con questi filtri"); return; }
+      if (righe.length === 0) { toast.info(tr("Nessuna timbratura da esportare con questi filtri")); return; }
       if (formato === "csv") esportaTimbratureCsv({ righe, da: rangeFrom, a: rangeTo });
       else await esportaTimbratureXlsx({ righe, da: rangeFrom, a: rangeTo, raggruppa });
-      toast.success(`${righe.length} timbrature esportate`);
+      toast.success(tr("{n} timbrature esportate", { n: righe.length }));
     } catch (e) {
-      toast.error("Esportazione non riuscita", { description: getErrorMessage(e) });
+      toast.error(tr("Esportazione non riuscita"), { description: getErrorMessage(e) });
     } finally {
       setEsportando(false);
     }
@@ -193,7 +195,7 @@ export function TabTimbrature() {
       {/* Chi non ha timbrato non ripete «Non timbrato» su ogni riga: lo dice il pallino grigio. */}
       {p.last_tipo && (
         <span className="shrink-0 text-[11px] text-muted-foreground">
-          {`${TIPO_ICONS[p.last_tipo]?.label || p.last_tipo} ${p.last_ora?.slice(0, 5) || ""}`}
+          {`${tr(TIPO_ICONS[p.last_tipo]?.label || p.last_tipo)} ${p.last_ora?.slice(0, 5) || ""}`}
         </span>
       )}
     </div>
@@ -203,17 +205,17 @@ export function TabTimbrature() {
     <div className="space-y-4 max-sm:space-y-3">
       {/* Live Status Panel (desktop) */}
       <div className="max-sm:hidden">
-        {liveError ? <HrQueryError label="Presenze live non disponibili" onRetry={retryLive} /> : liveLoading ? <p role="status" className="p-4 text-sm text-muted-foreground">Aggiornamento presenze…</p> : <PannelloPresenze persone={liveStatus as LiveStatusProfilo[]} assentiGiustificati={assentiGiustificati} />}
+        {liveError ? <HrQueryError label={tr("Presenze live non disponibili")} onRetry={retryLive} /> : liveLoading ? <p role="status" className="p-4 text-sm text-muted-foreground">{tr("Aggiornamento presenze…")}</p> : <PannelloPresenze persone={liveStatus as LiveStatusProfilo[]} assentiGiustificati={assentiGiustificati} />}
       </div>
 
       {/* Mobile: chi è presente a righe, chi non ha timbrato in una riga che si
           apre. Dopo il riquadro del desktop: da primo figlio nascosto lo sposterebbe. */}
-      {liveError && <div className="sm:hidden"><HrQueryError label="Presenze live non disponibili" onRetry={retryLive} /></div>}
+      {liveError && <div className="sm:hidden"><HrQueryError label={tr("Presenze live non disponibili")} onRetry={retryLive} /></div>}
       {!liveError && liveStatus.length > 0 && (
         <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden max-sm:!mt-0">
           <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-[13px] font-semibold">In azienda ora</span>
-            <span className="text-[13px] font-semibold tabular-nums text-emerald-600">{presenti.length}<span className="font-normal text-muted-foreground"> su {liveStatus.length}</span></span>
+            <span className="text-[13px] font-semibold">{tr("In azienda ora")}</span>
+            <span className="text-[13px] font-semibold tabular-nums text-emerald-600">{presenti.length}<span className="font-normal text-muted-foreground">{" "}{tr("su {n}", { n: liveStatus.length })}</span></span>
           </div>
           {presenti.map(rigaPersona)}
           {assenti.length > 0 && (
@@ -223,7 +225,7 @@ export function TabTimbrature() {
               className="tap-compact flex w-full items-center justify-between px-3 py-2 text-left text-[12px] text-muted-foreground"
             >
               {/* «Non in azienda» e non «non hanno timbrato»: qui c'è anche chi è già uscito. */}
-              <span>{assenti.length} non in azienda</span>
+              <span>{tr("{n} non in azienda", { n: assenti.length })}</span>
               <ChevronDown className={`h-4 w-4 transition-transform ${mostraAssenti ? "rotate-180" : ""}`} />
             </button>
           )}
@@ -236,7 +238,7 @@ export function TabTimbrature() {
         className="sm:hidden"
         valore={filterName}
         onCambia={setFilterName}
-        segnaposto="Cerca persona o cantiere"
+        segnaposto={tr("Cerca persona o cantiere")}
         filtriAttivi={periodoMobile === "oggi" ? 0 : 1}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
@@ -244,13 +246,13 @@ export function TabTimbrature() {
       {/* Filters */}
       <div className="space-y-2 max-sm:hidden">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-lg border p-0.5" role="group" aria-label="Periodo">
+          <div className="flex rounded-lg border p-0.5" role="group" aria-label={tr("Periodo")}>
             {[
-              { k: "oggi", label: "Oggi", da: today, a: today },
-              { k: "ieri", label: "Ieri", da: ieri, a: ieri },
-              { k: "7", label: "7 giorni", da: settimana, a: today },
-              { k: "mese", label: "Questo mese", da: inizioMese(0), a: today },
-              { k: "scorso", label: "Mese scorso", da: inizioMese(-1), a: fineMese(-1) },
+              { k: "oggi", label: tr("Oggi"), da: today, a: today },
+              { k: "ieri", label: tr("Ieri"), da: ieri, a: ieri },
+              { k: "7", label: tr("7 giorni"), da: settimana, a: today },
+              { k: "mese", label: tr("Questo mese"), da: inizioMese(0), a: today },
+              { k: "scorso", label: tr("Mese scorso"), da: inizioMese(-1), a: fineMese(-1) },
             ].map((p) => (
               <button
                 key={p.k}
@@ -258,75 +260,73 @@ export function TabTimbrature() {
                 onClick={() => impostaPeriodo(p.da, p.a)}
                 className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${dateFrom === p.da && dateTo === p.a ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
               >
-                {p.label}
+                {tr(p.label)}
               </button>
             ))}
           </div>
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" aria-label="Dal" />
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" aria-label={tr("Dal")} />
           <span className="text-sm text-muted-foreground">a</span>
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" aria-label="Al" />
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" aria-label={tr("Al")} />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="ml-auto gap-1.5" disabled={esportando}>
                 {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Scarica
+                {tr("Scarica")}
                 <ChevronDown className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                Tutto il periodo ({rangeFrom === rangeTo ? rangeFrom : `${rangeFrom} → ${rangeTo}`}), con i filtri scelti
+                {tr("Tutto il periodo ({periodo}), con i filtri scelti", { periodo: rangeFrom === rangeTo ? rangeFrom : `${rangeFrom} → ${rangeTo}` })}
               </DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => esporta("xlsx")}>Excel: riepilogo ore + dettaglio</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => esporta("xlsx", "reparto")}>Excel diviso per reparto</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => esporta("xlsx", "mansione")}>Excel diviso per ruolo</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => esporta("xlsx", "dipendente")}>Excel diviso per dipendente</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => esporta("xlsx")}>{tr("Excel: riepilogo ore + dettaglio")}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => esporta("xlsx", "reparto")}>{tr("Excel diviso per reparto")}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => esporta("xlsx", "mansione")}>{tr("Excel diviso per ruolo")}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => esporta("xlsx", "dipendente")}>{tr("Excel diviso per dipendente")}</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => esporta("csv")}>CSV (una tabella sola)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => esporta("csv")}>{tr("CSV (una tabella sola)")}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Input placeholder="Cerca persona o cantiere..." value={filterName} onChange={(e) => setFilterName(e.target.value)} className="max-w-[220px]" />
+          <Input placeholder={tr("Cerca persona o cantiere...")} value={filterName} onChange={(e) => setFilterName(e.target.value)} className="max-w-[220px]" />
           <Select value={filtroReparto} onValueChange={setFiltroReparto}>
-            <SelectTrigger className="h-9 w-[160px]" aria-label="Reparto"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-[160px]" aria-label={tr("Reparto")}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={TUTTI}>Tutti i reparti</SelectItem>
+              <SelectItem value={TUTTI}>{tr("Tutti i reparti")}</SelectItem>
               {reparti.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filtroRuolo} onValueChange={setFiltroRuolo}>
-            <SelectTrigger className="h-9 w-[170px]" aria-label="Ruolo"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-[170px]" aria-label={tr("Ruolo")}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={TUTTI}>Tutti i ruoli</SelectItem>
+              <SelectItem value={TUTTI}>{tr("Tutti i ruoli")}</SelectItem>
               {ruoli.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-            <SelectTrigger className="h-9 w-[150px]" aria-label="Tipo"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-[150px]" aria-label={tr("Tipo")}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={TUTTI}>Tutti i tipi</SelectItem>
-              <SelectItem value="entrata">Entrate</SelectItem>
-              <SelectItem value="uscita">Uscite</SelectItem>
-              <SelectItem value="pausa_inizio">Inizio pausa</SelectItem>
-              <SelectItem value="pausa_fine">Fine pausa</SelectItem>
+              <SelectItem value={TUTTI}>{tr("Tutti i tipi")}</SelectItem>
+              <SelectItem value="entrata">{tr("Entrate")}</SelectItem>
+              <SelectItem value="uscita">{tr("Uscite")}</SelectItem>
+              <SelectItem value="pausa_inizio">{tr("Inizio pausa")}</SelectItem>
+              <SelectItem value="pausa_fine">{tr("Fine pausa")}</SelectItem>
             </SelectContent>
           </Select>
           {nFiltri > 0 && (
             <Button variant="ghost" size="sm" onClick={() => { setFiltroReparto(TUTTI); setFiltroRuolo(TUTTI); setFiltroTipo(TUTTI); }}>
-              Azzera filtri
+              {tr("Azzera filtri")}
             </Button>
           )}
           <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-            {isLoading ? "" : `${filtered.length} timbrature`}
+            {isLoading ? "" : tr("{n} timbrature", { n: filtered.length })}
           </span>
         </div>
         {!isLoading && timbrature.length >= LIMITE_ELENCO_TIMBRATURE && (
-          <p className="text-xs text-amber-700">
-            Sono mostrate le ultime {LIMITE_ELENCO_TIMBRATURE} timbrature del periodo: restringi le date o i filtri, oppure usa «Scarica» per averle tutte.
-          </p>
+          <p className="text-xs text-amber-700">{tr("Sono mostrate le ultime {LIMITE_ELENCO_TIMBRATURE} timbrature del periodo: restringi le date o i filtri, oppure usa «Scarica» per averle tutte.", { LIMITE_ELENCO_TIMBRATURE: String(LIMITE_ELENCO_TIMBRATURE ?? "") })}</p>
         )}
       </div>
 
@@ -340,7 +340,7 @@ export function TabTimbrature() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-semibold leading-tight">{t.profilo_nome} {t.profilo_cognome}</p>
                   <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                    <span className={tipoInfo.color}>{tipoInfo.label}</span>
+                    <span className={tipoInfo.color}>{tr(tipoInfo.label)}</span>
                     {t.cantiere_codice ? ` · ${t.cantiere_codice}` : ""}
                     {t.fonte ? ` · ${t.fonte}` : ""}
                   </p>
@@ -362,20 +362,20 @@ export function TabTimbrature() {
           <Table>
             <TableHeader className="max-sm:hidden">
               <TableRow>
-                <TableHead>Data/Ora</TableHead>
-                <TableHead>Dipendente</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead className="hidden md:table-cell">Cantiere</TableHead>
-                <TableHead>Fonte</TableHead>
+                <TableHead>{tr("Data/Ora")}</TableHead>
+                <TableHead>{tr("Dipendente")}</TableHead>
+                <TableHead>{tr("Tipo")}</TableHead>
+                <TableHead className="hidden md:table-cell">{tr("Cantiere")}</TableHead>
+                <TableHead>{tr("Fonte")}</TableHead>
                 <TableHead>GPS</TableHead>
-                <TableHead className="hidden lg:table-cell">Note</TableHead>
+                <TableHead className="hidden lg:table-cell">{tr("Note")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && !timbratureTimedOut ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    Caricamento...
+                    {tr("Caricamento...")}
                   </TableCell>
                 </TableRow>
               ) : isError || timbratureTimedOut ? (
@@ -383,12 +383,12 @@ export function TabTimbrature() {
                   <TableCell colSpan={7}>
                     <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
                       <AlertCircle className="h-10 w-10 text-amber-500" aria-hidden="true" />
-                      <p className="text-sm font-medium text-foreground">Timbrature non caricate</p>
+                      <p className="text-sm font-medium text-foreground">{tr("Timbrature non caricate")}</p>
                       <p className="max-w-md text-xs text-muted-foreground">
-                        {isError ? getErrorMessage(error) : "La risposta sta impiegando troppo tempo. Puoi riprovare senza cambiare pagina."}
+                        {isError ? getErrorMessage(error) : tr("La risposta sta impiegando troppo tempo. Puoi riprovare senza cambiare pagina.")}
                       </p>
                       <Button size="sm" variant="outline" onClick={() => refetch()}>
-                        {isFetching ? "Forza nuovo tentativo" : "Riprova"}
+                        {isFetching ? tr("Forza nuovo tentativo") : tr("Riprova")}
                       </Button>
                     </div>
                   </TableCell>
@@ -399,11 +399,11 @@ export function TabTimbrature() {
                     {/* Mobile: una riga di testo. */}
                     <div className="flex flex-col items-center justify-center py-12 gap-2 text-center max-sm:py-1">
                       <Clock className="h-10 w-10 text-muted-foreground/40 max-sm:hidden" aria-hidden="true" />
-                      <p className="text-sm font-medium text-foreground max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">Nessuna timbratura trovata</p>
+                      <p className="text-sm font-medium text-foreground max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">{tr("Nessuna timbratura trovata")}</p>
                       <p className="text-xs text-muted-foreground max-sm:hidden">
                         {filterName
-                          ? `Nessuna timbratura per "${filterName}" nel periodo selezionato.`
-                          : "Non ci sono timbrature nel periodo selezionato. Prova a cambiare le date."}
+                          ? tr("Nessuna timbratura per \"{filterName}\" nel periodo selezionato.", { filterName: String(filterName ?? "") })
+                          : tr("Non ci sono timbrature nel periodo selezionato. Prova a cambiare le date.")}
                       </p>
                     </div>
                   </TableCell>
@@ -432,7 +432,7 @@ export function TabTimbrature() {
                       <TableCell>
                         <Badge variant="outline" className={`gap-1 ${tipoInfo.color}`}>
                           <TipoIcon className="h-3 w-3" />
-                          {tipoInfo.label}
+                          {tr(tipoInfo.label)}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
@@ -471,31 +471,28 @@ export function TabTimbrature() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2 text-amber-900 dark:text-amber-200">
               <AlertCircle className="h-4 w-4" />
-              {orfaneFiltrate.length} timbrature senza profilo HR
+              {tr("{n} timbrature senza profilo HR", { n: orfaneFiltrate.length })}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {/* Mobile no: la spiegazione (il titolo dice già cosa manca). */}
             <p className="text-sm text-amber-900/80 dark:text-amber-200/80 max-sm:hidden">
-              Queste persone hanno timbrato dall'app di cantiere ma non hanno un profilo HR
-              collegato: le loro ore non entrano nelle presenze né nel cedolino. Creane il
-              profilo in <span className="font-medium">Profili</span> (o collega l'utente al
-              dipendente in anagrafica) e le timbrature successive arriveranno da sole.
+              {tr("Queste persone hanno timbrato dall'app di cantiere ma non hanno un profilo HR collegato: le loro ore non entrano nelle presenze né nel cedolino. Creane il profilo in")} <span className="font-medium">{tr("Profili")}</span> {tr("(o collega l'utente al dipendente in anagrafica) e le timbrature successive arriveranno da sole.")}
             </p>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Persona</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Quando</TableHead>
-                  <TableHead className="hidden md:table-cell">Cantiere</TableHead>
+                  <TableHead>{tr("Persona")}</TableHead>
+                  <TableHead>{tr("Tipo")}</TableHead>
+                  <TableHead>{tr("Quando")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{tr("Cantiere")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {orfaneFiltrate.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium text-sm">
-                      {`${t.profile?.first_name ?? ""} ${t.profile?.last_name ?? ""}`.trim() || "Utente sconosciuto"}
+                      {`${t.profile?.first_name ?? ""} ${t.profile?.last_name ?? ""}`.trim() || tr("Utente sconosciuto")}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize text-[11px]">
@@ -503,7 +500,7 @@ export function TabTimbrature() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {new Date(t.timestamp_evento!).toLocaleString("it-IT", {
+                      {new Date(t.timestamp_evento!).toLocaleString(intlCampo(), {
                         day: "2-digit", month: "2-digit", year: "numeric",
                         hour: "2-digit", minute: "2-digit",
                       })}
@@ -528,7 +525,7 @@ export function TabTimbrature() {
         risultati={isLoading ? undefined : filtered.length}
       >
         <PilloleFiltro
-          titolo="Periodo"
+          titolo={tr("Periodo")}
           valore={periodoMobile}
           onScegli={(v) => {
             if (v === "oggi") { setDateFrom(today); setDateTo(today); }
@@ -542,8 +539,8 @@ export function TabTimbrature() {
           ]}
         />
         <div className="grid grid-cols-2 gap-2">
-          <Input type="date" aria-label="Dal" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 text-xs" />
-          <Input type="date" aria-label="Al" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 text-xs" />
+          <Input type="date" aria-label={tr("Dal")} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 text-xs" />
+          <Input type="date" aria-label={tr("Al")} value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 text-xs" />
         </div>
       </PannelloFiltri>
     </div>

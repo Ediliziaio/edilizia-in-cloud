@@ -44,6 +44,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { subDays } from "date-fns";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const LOW_BALANCE_THRESHOLD = 5;
 
@@ -56,6 +57,7 @@ interface SettingsCreditsProps {
 }
 
 export default function SettingsCredits({ embedded = false }: SettingsCreditsProps = {}) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [searchParams] = useSearchParams();
@@ -71,9 +73,9 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
   useEffect(() => {
     const payment = searchParams.get("payment");
     if (payment === "success") {
-      toast.success("Pagamento completato! I crediti verranno accreditati a breve.");
+      toast.success(t("Pagamento completato! I crediti verranno accreditati a breve."));
     } else if (payment === "cancelled") {
-      toast.info("Pagamento annullato.");
+      toast.info(t("Pagamento annullato."));
     }
   }, [searchParams]);
 
@@ -131,7 +133,7 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            <strong>Uno o più servizi sono fermi</strong> per saldo insufficiente. Ricarica i crediti per farli ripartire.
+            <strong>{t("Uno o più servizi sono fermi")}</strong> {t("per saldo insufficiente. Ricarica i crediti per farli ripartire.")}
           </AlertDescription>
         </Alert>
       )}
@@ -140,9 +142,8 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
         <Alert className="border-amber-300 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20">
           <TrendingDown className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-amber-900 dark:text-amber-200">
-            <strong>Saldo in esaurimento</strong> su{" "}
-            {lowWallets.map((w) => w.label).join(", ")}. Ricarica prima che i servizi vengano
-            sospesi.
+            <strong>{t("Saldo in esaurimento")}</strong>{" "}
+            {t("su {servizi}. Ricarica prima che i servizi vengano sospesi.", { servizi: lowWallets.map((w) => t(w.label)).join(", ") })}
           </AlertDescription>
         </Alert>
       )}
@@ -161,27 +162,27 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Saldo ricaricato
+                  {t("Saldo ricaricato")}
                 </p>
                 <p className="text-3xl font-bold tabular-nums text-primary">
                   {formatEur(totalBalanceEur)}
                 </p>
-                <p className="text-xs text-muted-foreground">Esclude la quota inclusa nel piano, mostrata nel saldo disponibile per servizio.</p>
+                <p className="text-xs text-muted-foreground">{t("Esclude la quota inclusa nel piano, mostrata nel saldo disponibile per servizio.")}</p>
               </div>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="lg" className="gap-2">
-                  <Plus className="h-4 w-4" /> Ricarica
+                  <Plus className="h-4 w-4" /> {t("Ricarica")}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {/* Il credito è uno solo: AI, email e WhatsApp si ricaricano da qui. I render hanno i loro pacchetti. */}
                 <DropdownMenuItem onClick={() => setRechargeWallet("email")}>
-                  <Wallet className="mr-2 h-4 w-4 text-violet-600" /> Crediti (AI, email, WhatsApp)
+                  <Wallet className="mr-2 h-4 w-4 text-violet-600" /> {t("Crediti (AI, email, WhatsApp)")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setRechargeWallet("render")}>
-                  <Sparkles className="mr-2 h-4 w-4 text-pink-600" /> Render AI (pacchetti)
+                  <Sparkles className="mr-2 h-4 w-4 text-pink-600" /> {t("Render AI (pacchetti)")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -198,7 +199,7 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
         <div>
           <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             <Wallet className="h-3.5 w-3.5" />
-            Saldo per servizio
+            {t("Saldo per servizio")}
           </h2>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
             {wallets.map((w) => (
@@ -218,7 +219,7 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
         <div>
           <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             <Mail className="h-3.5 w-3.5" />
-            Quota inclusa nel piano
+            {t("Quota inclusa nel piano")}
           </h2>
           <EmailQuotaWidget />
         </div>
@@ -239,9 +240,9 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
             <AccordionTrigger className="text-sm font-semibold hover:no-underline">
               <span className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                Storico transazioni
+                {t("Storico transazioni")}
                 <span className="text-xs font-normal text-muted-foreground">
-                  Filtra per servizio, tipo e data
+                  {t("Filtra per servizio, tipo e data")}
                 </span>
               </span>
             </AccordionTrigger>
@@ -254,9 +255,9 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
             <AccordionTrigger className="text-sm font-semibold hover:no-underline">
               <span className="flex items-center gap-2">
                 <Bot className="h-4 w-4 text-muted-foreground" />
-                Consumo AI per persona
+                {t("Consumo AI per persona")}
                 <span className="text-xs font-normal text-muted-foreground">
-                  Chi usa di più
+                  {t("Chi usa di più")}
                 </span>
               </span>
             </AccordionTrigger>
@@ -269,10 +270,10 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
           <TabsList className="h-auto flex-wrap gap-1">
             <TabsTrigger value="storico" className="gap-1.5">
-              <Clock className="h-4 w-4" /> Storico
+              <Clock className="h-4 w-4" /> {t("Storico")}
             </TabsTrigger>
             <TabsTrigger value="team_ai" className="gap-1.5">
-              <Bot className="h-4 w-4" /> Consumo AI per persona
+              <Bot className="h-4 w-4" /> {t("Consumo AI per persona")}
             </TabsTrigger>
           </TabsList>
 

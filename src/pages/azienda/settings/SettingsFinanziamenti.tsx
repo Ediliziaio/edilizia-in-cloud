@@ -65,7 +65,6 @@ import "@/components/fotovoltaico/economiaAzienda/economiaAzienda.css";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
-  conteggio,
   dataItaliana,
   erroreComprensibile,
   formattaEuro,
@@ -76,11 +75,13 @@ import {
   useAccessoFinanziamenti,
 } from "./_finanziamenti/comuni";
 import { AccessoNegato, AvvisoSolaLettura } from "./_finanziamenti/pezzi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Con poche tabelle i filtri sono solo rumore: compaiono da qui in su. */
 const TABELLE_PER_I_FILTRI = 5;
 
 function TabellePrestiti() {
+  const tr = useT();
   const { puoVedere, puoModificare } = useAccessoFinanziamenti();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -152,11 +153,11 @@ function TabellePrestiti() {
     if (!confermaDelete || !puoModificare) return;
     try {
       await deleteTabella.mutateAsync(confermaDelete.id);
-      toast.success(`Tabella «${confermaDelete.nome}» eliminata.`);
+      toast.success(tr("Tabella «{nome}» eliminata.", { nome: String(confermaDelete.nome ?? "") }));
       setConfermaDelete(null);
     } catch (e) {
-      toast.error("Non sono riuscito a eliminare la tabella", {
-        description: erroreComprensibile(e, "Riprova tra poco."),
+      toast.error(tr("Non sono riuscito a eliminare la tabella"), {
+        description: erroreComprensibile(e, tr("Riprova tra poco.")),
       });
     }
   };
@@ -165,10 +166,10 @@ function TabellePrestiti() {
     if (!puoModificare) return;
     try {
       await toggleTabella.mutateAsync({ id, attiva: !attiva });
-      toast.success(attiva ? "Tabella disattivata." : "Tabella attivata.");
+      toast.success(attiva ? tr("Tabella disattivata.") : tr("Tabella attivata."));
     } catch (e) {
-      toast.error("Non sono riuscito a cambiare lo stato della tabella", {
-        description: erroreComprensibile(e, "Riprova tra poco."),
+      toast.error(tr("Non sono riuscito a cambiare lo stato della tabella"), {
+        description: erroreComprensibile(e, tr("Riprova tra poco.")),
       });
     }
   };
@@ -176,15 +177,15 @@ function TabellePrestiti() {
   /** Cosa scrivere quando la ricerca o i filtri non lasciano niente (vuoto se non c'è nessuna ricerca né filtro). */
   const nessunaTrovata =
     search.trim() !== ""
-      ? `Nessuna tabella trovata per "${search}".`
+      ? tr("Nessuna tabella trovata per \"{search}\".", { search })
       : filtriVisibili && (statusFilter !== "all" || finanziariaFilter !== "all" || durataFilter !== "all")
-        ? "Nessuna tabella trovata con i filtri selezionati."
+        ? tr("Nessuna tabella trovata con i filtri selezionati.")
         : "";
 
   const riepilogo = [
-    conteggio(stats.totale, "tabella", "tabelle"),
-    conteggio(stats.attive, "attiva", "attive"),
-    stats.scadute > 0 ? conteggio(stats.scadute, "scaduta", "scadute") : null,
+    tr(stats.totale === 1 ? "{n} tabella" : "{n} tabelle", { n: stats.totale }),
+    tr(stats.attive === 1 ? "{n} attiva" : "{n} attive", { n: stats.attive }),
+    stats.scadute > 0 ? tr(stats.scadute === 1 ? "{n} scaduta" : "{n} scadute", { n: stats.scadute }) : null,
     stats.inScadenza > 0 ? `${stats.inScadenza} in scadenza (30 giorni)` : null,
   ]
     .filter(Boolean)
@@ -199,22 +200,22 @@ function TabellePrestiti() {
         <div className="relative flex-1 min-w-64 max-w-md">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <Input
-            placeholder="Cerca per prodotto, finanziaria o codice…"
+            placeholder={tr("Cerca per prodotto, finanziaria o codice…")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8"
-            aria-label="Cerca tabelle finanziamento"
+            aria-label={tr("Cerca tabelle finanziamento")}
           />
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
             <Link to="/azienda/impostazioni/finanziamenti/calcolatore">
               <Calculator className="h-4 w-4 mr-2" aria-hidden="true" />
-              Calcolatore
+              {tr("Calcolatore")}
             </Link>
           </Button>
           <PulsanteNuovaTabella puoModificare={puoModificare} size="sm">
-            Nuova tabella
+            {tr("Nuova tabella")}
           </PulsanteNuovaTabella>
         </div>
       </div>
@@ -234,38 +235,38 @@ function TabellePrestiti() {
           <CardContent className="py-3">
             <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto] md:items-center">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger aria-label="Filtra per stato">
-                  <SelectValue placeholder="Stato" />
+                <SelectTrigger aria-label={tr("Filtra per stato")}>
+                  <SelectValue placeholder={tr("Stato")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti gli stati</SelectItem>
-                  <SelectItem value="active">Attive</SelectItem>
-                  <SelectItem value="inactive">Disattivate</SelectItem>
-                  <SelectItem value="valid">Valide oggi</SelectItem>
-                  <SelectItem value="expiring">In scadenza (30 giorni)</SelectItem>
-                  <SelectItem value="expired">Scadute</SelectItem>
-                  <SelectItem value="future">Non ancora iniziate</SelectItem>
+                  <SelectItem value="all">{tr("Tutti gli stati")}</SelectItem>
+                  <SelectItem value="active">{tr("Attive")}</SelectItem>
+                  <SelectItem value="inactive">{tr("Disattivate")}</SelectItem>
+                  <SelectItem value="valid">{tr("Valide oggi")}</SelectItem>
+                  <SelectItem value="expiring">{tr("In scadenza (30 giorni)")}</SelectItem>
+                  <SelectItem value="expired">{tr("Scadute")}</SelectItem>
+                  <SelectItem value="future">{tr("Non ancora iniziate")}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={finanziariaFilter} onValueChange={setFinanziariaFilter}>
-                <SelectTrigger aria-label="Filtra per finanziaria">
-                  <SelectValue placeholder="Finanziaria" />
+                <SelectTrigger aria-label={tr("Filtra per finanziaria")}>
+                  <SelectValue placeholder={tr("Finanziaria")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutte le finanziarie</SelectItem>
+                  <SelectItem value="all">{tr("Tutte le finanziarie")}</SelectItem>
                   {finanziarieOptions.map((name) => (
                     <SelectItem key={name} value={name}>{name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <Select value={durataFilter} onValueChange={setDurataFilter}>
-                <SelectTrigger aria-label="Filtra per durata">
-                  <SelectValue placeholder="Durata" />
+                <SelectTrigger aria-label={tr("Filtra per durata")}>
+                  <SelectValue placeholder={tr("Durata")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutte le durate</SelectItem>
+                  <SelectItem value="all">{tr("Tutte le durate")}</SelectItem>
                   {durateOptions.map((duration) => (
-                    <SelectItem key={duration} value={String(duration)}>{duration} mesi</SelectItem>
+                    <SelectItem key={duration} value={String(duration)}>{tr("{n} mesi", { n: String(duration ?? "") })}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -280,7 +281,7 @@ function TabellePrestiti() {
                 }}
               >
                 <Filter className="h-4 w-4 mr-2" aria-hidden="true" />
-                Pulisci
+                {tr("Pulisci")}
               </Button>
             </div>
           </CardContent>
@@ -292,11 +293,11 @@ function TabellePrestiti() {
           <AlertTriangle className="h-4 w-4" aria-hidden="true" />
           <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span>
-              <strong className="block font-medium">Non riesco a leggere le tabelle.</strong>
-              {erroreComprensibile(error, "Riprova tra poco.")}
+              <strong className="block font-medium">{tr("Non riesco a leggere le tabelle.")}</strong>
+              {erroreComprensibile(error, tr("Riprova tra poco."))}
             </span>
             <Button size="sm" variant="outline" onClick={() => void refetch()}>
-              Riprova
+              {tr("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -312,17 +313,14 @@ function TabellePrestiti() {
             />
             <div>
               <h2 className="font-medium text-lg">
-                Nessuna tabella caricata
+                {tr("Nessuna tabella caricata")}
               </h2>
               <p className="text-sm text-muted-foreground mt-1 max-w-md">
-                Carica le tabelle delle finanziarie con cui lavori (Fiditalia,
-                Findomestic, Compass, Agos…): il PDF che ti hanno dato oppure
-                un file CSV con le righe. Nei preventivi rata, TAN e TAEG
-                vengono presi da quelle righe.
+                {tr("Carica le tabelle delle finanziarie con cui lavori (Fiditalia, Findomestic, Compass, Agos…): il PDF che ti hanno dato oppure un file CSV con le righe. Nei preventivi rata, TAN e TAEG vengono presi da quelle righe.")}
               </p>
             </div>
             <PulsanteNuovaTabella puoModificare={puoModificare} className="mt-2">
-              Carica la prima tabella
+              {tr("Carica la prima tabella")}
             </PulsanteNuovaTabella>
           </CardContent>
         </Card>
@@ -333,7 +331,7 @@ function TabellePrestiti() {
         <Card>
           <CardContent className="p-0">
             {isMobile ? (
-              <ul role="list" aria-label="Tabelle di finanziamento" className="divide-y">
+              <ul role="list" aria-label={tr("Tabelle di finanziamento")} className="divide-y">
                 {tabelleFiltrate.length === 0 && nessunaTrovata && (
                   <li className="p-6 text-center text-sm text-muted-foreground">{nessunaTrovata}</li>
                 )}
@@ -347,7 +345,7 @@ function TabellePrestiti() {
                       <BadgeStato attiva={t.attiva} />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {[t.finanziaria_nome, t.codice_condizione ? `Condizione ${t.codice_condizione}` : null]
+                      {[t.finanziaria_nome, t.codice_condizione ? tr("Condizione {codice}", { codice: t.codice_condizione }) : null]
                         .filter(Boolean)
                         .join(" · ") || "—"}
                     </p>
@@ -386,15 +384,15 @@ function TabellePrestiti() {
                     {/* Da 768 a 1280 meno colonne (nelle Impostazioni a 1024 lo
                         spazio è 686px, la tabella ne chiedeva 962): finanziaria,
                         condizione e durate da 1280, righe da 1536. */}
-                    <TableHead>Prodotto</TableHead>
-                    <TableHead className="md:max-xl:hidden">Finanziaria</TableHead>
-                    <TableHead className="md:max-xl:hidden">Condizione</TableHead>
-                    <TableHead className="text-right md:max-2xl:hidden">Righe</TableHead>
-                    <TableHead>Importi</TableHead>
-                    <TableHead className="md:max-xl:hidden">Durate (mesi)</TableHead>
-                    <TableHead>Validità</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
+                    <TableHead>{tr("Prodotto")}</TableHead>
+                    <TableHead className="md:max-xl:hidden">{tr("Finanziaria")}</TableHead>
+                    <TableHead className="md:max-xl:hidden">{tr("Condizione")}</TableHead>
+                    <TableHead className="text-right md:max-2xl:hidden">{tr("Righe")}</TableHead>
+                    <TableHead>{tr("Importi")}</TableHead>
+                    <TableHead className="md:max-xl:hidden">{tr("Durate (mesi)")}</TableHead>
+                    <TableHead>{tr("Validità")}</TableHead>
+                    <TableHead>{tr("Stato")}</TableHead>
+                    <TableHead className="text-right">{tr("Azioni")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -484,7 +482,7 @@ function TabellePrestiti() {
       {isLoading && (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Caricamento tabelle in corso…
+            {tr("Caricamento tabelle in corso…")}
           </CardContent>
         </Card>
       )}
@@ -496,22 +494,18 @@ function TabellePrestiti() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare la tabella?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminare la tabella?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Stai per eliminare «<strong>{confermaDelete?.nome}</strong>» con tutte
-              le sue righe, e non si torna indietro. Se l&apos;hai già usata in un
-              preventivo o in un progetto, disattivala invece di eliminarla: non
-              viene più proposta e lo storico resta com&apos;era. Una tabella usata
-              da un progetto fotovoltaico non si può eliminare.
+              {tr("Stai per eliminare «")}<strong>{confermaDelete?.nome}</strong>{tr("» con tutte le sue righe, e non si torna indietro. Se l'hai già usata in un preventivo o in un progetto, disattivala invece di eliminarla: non viene più proposta e lo storico resta com'era. Una tabella usata da un progetto fotovoltaico non si può eliminare.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Elimina tabella
+              {tr("Elimina tabella")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -568,53 +562,49 @@ function ValidityBadge({
   attiva: boolean;
   oggi: string;
 }) {
+  const t = useT();
   const stato = statoValidita(decorrenza, scadenza, oggi);
   if (stato === "scaduta") {
     return (
       <div className="space-y-1">
-        <Badge variant="outline" className="whitespace-nowrap bg-amber-50 text-amber-800 border-amber-200">
-          Scaduta il {dataItaliana(scadenza)}
-        </Badge>
-        {attiva && <p className="text-xs text-amber-800 dark:text-amber-300">Ancora proposta nei preventivi</p>}
+        <Badge variant="outline" className="whitespace-nowrap bg-amber-50 text-amber-800 border-amber-200">{t("Scaduta il {data}", { data: String(dataItaliana(scadenza) ?? "") })}</Badge>
+        {attiva && <p className="text-xs text-amber-800 dark:text-amber-300">{t("Ancora proposta nei preventivi")}</p>}
       </div>
     );
   }
   if (stato === "futura") {
     return (
       <div className="space-y-1">
-        <Badge variant="outline" className="whitespace-nowrap bg-blue-50 text-blue-700 border-blue-200">
-          Dal {dataItaliana(decorrenza)}
-        </Badge>
-        {attiva && <p className="text-xs text-blue-700 dark:text-blue-300">Già proposta nei preventivi</p>}
+        <Badge variant="outline" className="whitespace-nowrap bg-blue-50 text-blue-700 border-blue-200">{t("Dal {data}", { data: String(dataItaliana(decorrenza) ?? "") })}</Badge>
+        {attiva && <p className="text-xs text-blue-700 dark:text-blue-300">{t("Già proposta nei preventivi")}</p>}
       </div>
     );
   }
   if (scadeEntro(scadenza, 30, oggi)) {
     return (
-      <Badge variant="outline" className="whitespace-nowrap bg-amber-50 text-amber-800 border-amber-200">
-        Scade il {dataItaliana(scadenza)}
-      </Badge>
+      <Badge variant="outline" className="whitespace-nowrap bg-amber-50 text-amber-800 border-amber-200">{t("Scade il {data}", { data: String(dataItaliana(scadenza) ?? "") })}</Badge>
     );
   }
   if (stato === "valida") {
     return (
       <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-        Valida
+        {t("Valida")}
       </Badge>
     );
   }
-  return <span className="text-sm text-muted-foreground">Senza scadenza</span>;
+  return <span className="text-sm text-muted-foreground">{t("Senza scadenza")}</span>;
 }
 
 /** Il badge «Attiva» / «Disattivata». */
 function BadgeStato({ attiva }: { attiva: boolean }) {
+  const t = useT();
   return attiva ? (
     <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-      Attiva
+      {t("Attiva")}
     </Badge>
   ) : (
     <Badge variant="outline" className="bg-muted">
-      Disattivata
+      {t("Disattivata")}
     </Badge>
   );
 }
@@ -636,10 +626,11 @@ function AzioniTabella({
   onToggle: () => void;
   onElimina: () => void;
 }) {
+  const t = useT();
   return (
     <>
-      <Button variant="ghost" size="sm" asChild aria-label={`Apri ${tabella.nome_prodotto}`}>
-        <Link to={`/azienda/impostazioni/finanziamenti/${tabella.id}`} title="Apri">
+      <Button variant="ghost" size="sm" asChild aria-label={t("Apri {nome}", { nome: String(tabella.nome_prodotto ?? "") })}>
+        <Link to={`/azienda/impostazioni/finanziamenti/${tabella.id}`} title={t("Apri")}>
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
         </Link>
       </Button>
@@ -648,8 +639,8 @@ function AzioniTabella({
         size="sm"
         onClick={onToggle}
         disabled={!puoModificare || inCorso}
-        aria-label={`${tabella.attiva ? "Disattiva" : "Attiva"} ${tabella.nome_prodotto}`}
-        title={tabella.attiva ? "Disattiva" : "Attiva"}
+        aria-label={tabella.attiva ? t("Disattiva {nome}", { nome: tabella.nome_prodotto }) : t("Attiva {nome}", { nome: tabella.nome_prodotto })}
+        title={tabella.attiva ? t("Disattiva") : t("Attiva")}
         {...proprietaComandoSpento(puoModificare)}
       >
         <Power className={tabella.attiva ? "h-4 w-4 text-amber-600" : "h-4 w-4 text-emerald-600"} aria-hidden="true" />
@@ -659,8 +650,8 @@ function AzioniTabella({
         size="sm"
         onClick={onElimina}
         disabled={!puoModificare}
-        aria-label={`Elimina ${tabella.nome_prodotto}`}
-        title="Elimina"
+        aria-label={t("Elimina {nome}", { nome: String(tabella.nome_prodotto ?? "") })}
+        title={t("Elimina")}
         {...proprietaComandoSpento(puoModificare)}
       >
         <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
@@ -670,7 +661,8 @@ function AzioniTabella({
 }
 
 export default function SettingsFinanziamenti(){
+  const t = useT();
  const {puoVedere,puoModificare}=useAccessoFinanziamenti(),[params,setParams]=useSearchParams(),tipo=params.get("tipo")==="noleggio"?"noleggio":"prestiti";
  if(!puoVedere)return <AccessoNegato/>;
- return <><div role="tablist" aria-label="Prodotti finanziari" className="eic-fin-tabs"><button type="button" role="tab" aria-selected={tipo==="prestiti"} onClick={()=>setParams({tipo:"prestiti"})}>Finanziamenti</button><button type="button" role="tab" aria-selected={tipo==="noleggio"} onClick={()=>setParams({tipo:"noleggio"})}>Noleggio operativo</button></div>{tipo==="noleggio"?<TabelleNoleggio modificabile={puoModificare}/>:<TabellePrestiti/>}</>;
+ return <><div role="tablist" aria-label={t("Prodotti finanziari")} className="eic-fin-tabs"><button type="button" role="tab" aria-selected={tipo==="prestiti"} onClick={()=>setParams({tipo:"prestiti"})}>{t("Finanziamenti")}</button><button type="button" role="tab" aria-selected={tipo==="noleggio"} onClick={()=>setParams({tipo:"noleggio"})}>{t("Noleggio operativo")}</button></div>{tipo==="noleggio"?<TabelleNoleggio modificabile={puoModificare}/>:<TabellePrestiti/>}</>;
 }

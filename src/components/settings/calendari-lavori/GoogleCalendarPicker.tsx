@@ -11,6 +11,7 @@ import { Loader2, Link2Off } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCalendariDiConnessione, useConnessioniGoogleAzienda } from "@/hooks/useCalendariLavori";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface SceltaCalendario {
   google_connection_id: string | null;
@@ -33,6 +34,7 @@ export function GoogleCalendarPicker({
    */
   senzaAccount?: "messaggio" | "nascondi" | "qui-sopra";
 }) {
+  const t = useT();
   const inRouter = useInRouterContext();
   const [connectionId, setConnectionId] = useState<string | null>(value.google_connection_id);
   const { data: connessioni = [], isLoading: caricoConnessioni, isError: erroreConnessioni, refetch: riprovaConnessioni } = useConnessioniGoogleAzienda();
@@ -40,24 +42,24 @@ export function GoogleCalendarPicker({
 
   const attive = connessioni.filter((c) => c.status === "connected");
   if (erroreConnessioni) return <div role="alert" className="text-xs">
-    <p>Account Google non disponibili.</p>
-    <Button variant="outline" size="sm" onClick={() => void riprovaConnessioni()}>Riprova</Button>
+    <p>{t("Account Google non disponibili.")}</p>
+    <Button variant="outline" size="sm" onClick={() => void riprovaConnessioni()}>{t("Riprova")}</Button>
   </div>;
 
   if (!caricoConnessioni && attive.length === 0) {
     if (senzaAccount === "nascondi") return null;
     if (senzaAccount === "qui-sopra") {
-      return <p className="text-xs text-muted-foreground">Nessun account Google collegato: collegalo nella sezione «Account Google», qui sopra.</p>;
+      return <p className="text-xs text-muted-foreground">{t("Nessun account Google collegato: collegalo nella sezione «Account Google», qui sopra.")}</p>;
     }
     return (
       <p className="text-xs text-muted-foreground">
-        Nessun account Google collegato.{" "}
+        {t("Nessun account Google collegato.")}{" "}
         {inRouter ? (
           <Link to="?tab=google" className="font-medium text-primary underline">
-            Collegalo da «Google Calendar»
+            {t("Collegalo da «Google Calendar»")}
           </Link>
         ) : (
-          <>Collegalo da «Google Calendar».</>
+          <>{t("Collegalo da «Google Calendar».")}</>
         )}
       </p>
     );
@@ -73,13 +75,13 @@ export function GoogleCalendarPicker({
           // Scegliere un account prepara la scelta: non scollega il calendario salvato.
         }}
       >
-        <SelectTrigger className="min-w-0 sm:w-56" aria-label="Account Google">
-          <SelectValue placeholder="Account Google" />
+        <SelectTrigger className="min-w-0 sm:w-56" aria-label={t("Account Google")}>
+          <SelectValue placeholder={t("Account Google")} />
         </SelectTrigger>
         <SelectContent>
           {attive.map((c) => (
             <SelectItem key={c.id} value={c.id}>
-              {c.google_account_email ?? "Account senza email"}
+              {c.google_account_email ?? t("Account senza email")}
             </SelectItem>
           ))}
         </SelectContent>
@@ -90,13 +92,13 @@ export function GoogleCalendarPicker({
         disabled={disabled || !connectionId || caricoCalendari || !!error}
         onValueChange={(v) => onChange({ google_connection_id: connectionId, google_calendar_id: v })}
       >
-        <SelectTrigger className="min-w-0 sm:w-64" aria-label="Calendario Google">
+        <SelectTrigger className="min-w-0 sm:w-64" aria-label={t("Calendario Google")}>
           {caricoCalendari ? (
             <span className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Leggo i calendari…
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("Leggo i calendari…")}
             </span>
           ) : (
-            <SelectValue placeholder={connectionId ? "Calendario" : "Prima l'account"} />
+            <SelectValue placeholder={connectionId ? t("Calendario") : t("Prima l'account")} />
           )}
         </SelectTrigger>
         <SelectContent>
@@ -108,7 +110,7 @@ export function GoogleCalendarPicker({
                   style={{ backgroundColor: cal.backgroundColor ?? "#94a3b8" }}
                 />
                 {cal.summary}
-                {cal.primary ? " (principale)" : ""}
+                {cal.primary ? ` ${t("(principale)")}` : ""}
               </span>
             </SelectItem>
           ))}
@@ -123,11 +125,11 @@ export function GoogleCalendarPicker({
           className="text-muted-foreground"
           onClick={() => onChange({ google_connection_id: null, google_calendar_id: null })}
         >
-          <Link2Off className="mr-1 h-3.5 w-3.5" /> Scollega
+          <Link2Off className="mr-1 h-3.5 w-3.5" /> {t("Scollega")}
         </Button>
       )}
 
-      {error && <div role="alert" className="text-xs text-destructive"><p>Impossibile leggere i calendari di questo account.</p><Button variant="outline" size="sm" onClick={() => void riprovaCalendari()}>Riprova</Button></div>}
+      {error && <div role="alert" className="text-xs text-destructive"><p>{t("Impossibile leggere i calendari di questo account.")}</p><Button variant="outline" size="sm" onClick={() => void riprovaCalendari()}>{t("Riprova")}</Button></div>}
     </div>
   );
 }

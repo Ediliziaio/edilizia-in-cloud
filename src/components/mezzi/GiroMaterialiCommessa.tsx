@@ -18,11 +18,12 @@ import { viaggiKey } from "@/hooks/useMezziViaggi";
 import { mezzoStradale } from "@/lib/campo/arrivoRapportino";
 import type { Viaggio } from "@/lib/mezzi/viaggi";
 import { ViaggioDialog } from "./ViaggioDialog";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type Cantiere = { id: string; label: string; indirizzo: string | null };
 type MezzoGiro = { id: string; nome: string; tipo: string; stato: string; contatore_unita?: string | null };
 type Props = { company: string; ordine: string; mezzi?: readonly MezzoGiro[]; modifica?: boolean; acquistiVisibili?: boolean };
-const dataOra = new Intl.DateTimeFormat("it-IT", {
+const dataOra = new Intl.DateTimeFormat(intlCampo(), {
   timeZone: "Europe/Rome", dateStyle: "short", timeStyle: "short",
 });
 const selectClass = "h-9 w-full min-w-0 rounded-md border bg-background px-2 text-sm";
@@ -30,10 +31,11 @@ const statiRegistro = { bozza: "Bozza nel registro", inviato: "Da verificare", v
 const lotti = (ids: string[]) => Array.from({ length: Math.ceil(ids.length / 50) }, (_, n) => ids.slice(n * 50, (n + 1) * 50));
 
 export function GiroMaterialiCommessa(props: Props) {
+  const t = useT();
   const [aperto, setAperto] = useState(false);
-  return <section aria-label="Ritiri e consegne materiali" className="rounded-lg border bg-card">
+  return <section aria-label={t("Ritiri e consegne materiali")} className="rounded-lg border bg-card">
     <Button type="button" variant="ghost" size="sm" className="w-full justify-start px-3" aria-expanded={aperto} onClick={() => setAperto(x => !x)}>
-      <PackageCheck className="size-4" /> Ritiri e consegne
+      <PackageCheck className="size-4" /> {t("Ritiri e consegne")}
     </Button>
     {aperto && <Giro key={`${props.company}:${props.ordine}`} {...props} />}
   </section>;
@@ -41,6 +43,7 @@ export function GiroMaterialiCommessa(props: Props) {
 
 const ODA_CAMPI = "id,order_id,oda_number,status,supplier_id,expected_delivery_date,suppliers(name,ritiro_indirizzo,ritiro_citta),righe:purchase_order_items(quantity,quantity_received)" as const;
 function Giro({ company, ordine, mezzi = [], modifica = false, acquistiVisibili = true }: Props) {
+  const tr = useT();
   const oggi = oggiIso();
   const [adesso, setAdesso] = useState(() => Date.now());
   useEffect(() => {
@@ -100,7 +103,7 @@ function Giro({ company, ordine, mezzi = [], modifica = false, acquistiVisibili 
       return data;
     },
     onSuccess: v => { setViaggio(v); aggiorna(); },
-    onError: e => toast.error(e.message || "Impossibile aprire il viaggio"),
+    onError: e => toast.error(e.message || tr("Impossibile aprire il viaggio")),
     onSettled: (): void => { setInApertura(null); },
   });
   const annulla = useMutation({
@@ -108,8 +111,8 @@ function Giro({ company, ordine, mezzi = [], modifica = false, acquistiVisibili 
       const { error } = await supabase.rpc("mezzi_giro_annulla", { p_company: company, p_giro: id });
       if (error) throw error;
     },
-    onSuccess: () => { setInAnnullamento(null); aggiorna(); toast.success("Giro annullato"); },
-    onError: e => toast.error(e.message || "Impossibile annullare il giro"),
+    onSuccess: () => { setInAnnullamento(null); aggiorna(); toast.success(tr("Giro annullato")); },
+    onError: e => toast.error(e.message || tr("Impossibile annullare il giro")),
   });
   const acquisti = useQuery({
     queryKey: ["linked-purchase-orders", ordine, company, actor, "giro-materiali", [...commesse].sort()],
@@ -184,9 +187,9 @@ function Giro({ company, ordine, mezzi = [], modifica = false, acquistiVisibili 
       tentativo.current = null;
       setBozzaAperta(false);
       setScelti([]); setAggiunti([]); setMezzo(""); setAutista(""); setRicerca(""); setRicercaAutista(""); aggiorna();
-      toast.success("Giro salvato");
+      toast.success(tr("Giro salvato"));
     },
-    onError: e => toast.error(e.message || "Impossibile salvare il giro"),
+    onError: e => toast.error(e.message || tr("Impossibile salvare il giro")),
   });
   function sposta(indice: number, direzione: -1 | 1) {
     setAggiunti(tappeCorrenti => {
@@ -208,14 +211,14 @@ function Giro({ company, ordine, mezzi = [], modifica = false, acquistiVisibili 
   const errore = acquisti.isError || bolle.isError || ddt.isError || cantiere.isError;
   return <div className="space-y-2 border-t px-3 pb-3 pt-2 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-1.5">
-      {acquistiVisibili && riga.some(r => r.selezionabile) && <p className="text-xs text-muted-foreground">Seleziona gli ODA pronti per il ritiro.</p>}
+      {acquistiVisibili && riga.some(r => r.selezionabile) && <p className="text-xs text-muted-foreground">{tr("Seleziona gli ODA pronti per il ritiro.")}</p>}
       {modifica && <Button type="button" variant="outline" size="sm" className="ml-auto h-8" aria-expanded={bozzaAperta}
-        onClick={() => setBozzaAperta(v => !v)}>{bozzaAperta ? "Chiudi bozza" : "Nuovo giro"}</Button>}
+        onClick={() => setBozzaAperta(v => !v)}>{bozzaAperta ? tr("Chiudi bozza") : tr("Nuovo giro")}</Button>}
     </div>
-    {errore && <p role="alert" className="text-xs text-amber-800">Alcuni dati di consegna sono indisponibili. <button className="underline" type="button"
-      onClick={() => void Promise.all([cantiere.refetch(), ...(acquistiVisibili ? [acquisti.refetch(), bolle.refetch()] : []), ...(odaIds.length ? [ddt.refetch()] : [])])}>Riprova</button></p>}
-    {acquistiVisibili && acquisti.isPending && <p role="status" className="text-xs">Caricamento ordini d’acquisto…</p>}
-    {acquisti.isSuccess && !riga.length && <p className="text-xs text-muted-foreground">Nessun ordine d’acquisto emesso per questa commessa.</p>}
+    {errore && <p role="alert" className="text-xs text-amber-800">{tr("Alcuni dati di consegna sono indisponibili.")} <button className="underline" type="button"
+      onClick={() => void Promise.all([cantiere.refetch(), ...(acquistiVisibili ? [acquisti.refetch(), bolle.refetch()] : []), ...(odaIds.length ? [ddt.refetch()] : [])])}>{tr("Riprova")}</button></p>}
+    {acquistiVisibili && acquisti.isPending && <p role="status" className="text-xs">{tr("Caricamento ordini d’acquisto…")}</p>}
+    {acquisti.isSuccess && !riga.length && <p className="text-xs text-muted-foreground">{tr("Nessun ordine d’acquisto emesso per questa commessa.")}</p>}
     <div className={cn("grid min-w-0 items-start gap-2.5", riga.length > 0 && bozzaAperta && "lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]")}>
       {riga.length > 0 && <ul className="min-w-0 divide-y overflow-hidden rounded-lg border">
         {riga.map(oda => {
@@ -229,20 +232,20 @@ function Giro({ company, ordine, mezzi = [], modifica = false, acquistiVisibili 
           return <li key={oda.id} className={cn("grid min-w-0 gap-x-3 gap-y-0.5 px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_auto]", scelti.includes(oda.id) && "bg-primary/5")}>
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
               <Link to={`/azienda/ordini-acquisto/${oda.id}`} className="font-medium text-primary hover:underline">{oda.oda_number}</Link>
-              <span>{oda.suppliers?.name ?? "Fornitore"}</span>
+              <span>{oda.suppliers?.name ?? tr("Fornitore")}</span>
               <span className="text-xs text-muted-foreground">{ODA_STATUS_LABELS[oda.status] ?? oda.status}
-                {oda.avanzamento.righeTotali > 0 && ` · ${oda.avanzamento.righeArrivate}/${oda.avanzamento.righeTotali} righe ricevute`}
-                {oda.expected_delivery_date && ` · arrivo previsto ${formatData(oda.expected_delivery_date)}`}</span>
+                {oda.avanzamento.righeTotali > 0 && tr(" · {righeArrivate}/{righeTotali} righe ricevute", { righeArrivate: String(oda.avanzamento.righeArrivate ?? ""), righeTotali: String(oda.avanzamento.righeTotali ?? "") })}
+                {oda.expected_delivery_date && tr(" · arrivo previsto {expected_delivery_date}", { expected_delivery_date: formatData(oda.expected_delivery_date) })}</span>
             </div>
             {oda.selezionabile && <label className="flex min-h-8 w-fit items-center gap-2 text-xs sm:col-start-2 sm:row-start-1 sm:row-end-3">
               <Checkbox checked={scelti.includes(oda.id)} onCheckedChange={x => {
                 if (x === true) setBozzaAperta(true);
                 setScelti(s => x === true ? [...s, oda.id] : s.filter(k => k !== oda.id));
               }} />
-              Includi nel giro<span className="sr-only"> {oda.oda_number}</span>
+              {tr("Includi nel giro")}<span className="sr-only"> {oda.oda_number}</span>
             </label>}
             {(oda.avanzamento.aperto || documenti.length > 0) && <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground sm:col-start-1 sm:row-start-2">
-              {oda.avanzamento.aperto && <span>{oda.indirizzo ?? "Indirizzo di ritiro da impostare"}</span>}
+              {oda.avanzamento.aperto && <span>{oda.indirizzo ?? tr("Indirizzo di ritiro da impostare")}</span>}
               {documenti.map(b => <span key={b.id}>
                 {b.link ? <Link className="font-medium text-primary underline" to={b.link}>DDT {b.numero ?? ""}</Link> : <span>DDT {b.numero ?? ""}</span>} · {b.stato}
               </span>)}
@@ -250,102 +253,102 @@ function Giro({ company, ordine, mezzi = [], modifica = false, acquistiVisibili 
           </li>;
         })}
       </ul>}
-      {bozzaAperta && (modifica || perFornitore.size > 0) && <section aria-label="Bozza giro materiali" className="min-w-0 space-y-2 rounded-lg bg-muted/45 p-2.5">
-        <h4 className="text-sm font-semibold">Bozza giro</h4>
+      {bozzaAperta && (modifica || perFornitore.size > 0) && <section aria-label={tr("Bozza giro materiali")} className="min-w-0 space-y-2 rounded-lg bg-muted/45 p-2.5">
+        <h4 className="text-sm font-semibold">{tr("Bozza giro")}</h4>
         <div className="grid grid-cols-2 items-end gap-1.5">
-          <label className="min-w-0 space-y-1 text-xs">Giorno del giro <Input className="h-9 min-w-0" type="date" value={data} onChange={e => setData(e.target.value)} /></label>
-          <label className="min-w-0 space-y-1 text-xs">Partenza <Input className="h-9 min-w-0" value={base} onChange={e => setBase(e.target.value)} maxLength={150} /></label>
+          <label className="min-w-0 space-y-1 text-xs">{tr("Giorno del giro")} <Input className="h-9 min-w-0" type="date" value={data} onChange={e => setData(e.target.value)} /></label>
+          <label className="min-w-0 space-y-1 text-xs">{tr("Partenza")} <Input className="h-9 min-w-0" value={base} onChange={e => setBase(e.target.value)} maxLength={150} /></label>
         </div>
         {modifica && <div className="space-y-2">
           <div className="grid grid-cols-2 gap-1.5">
             <div className="min-w-0 space-y-1 text-xs">
-              <label htmlFor={`${formId}-mezzo`}>Mezzo</label>
+              <label htmlFor={`${formId}-mezzo`}>{tr("Mezzo")}</label>
               <select id={`${formId}-mezzo`} className={selectClass} value={mezzo} onChange={e => {
                 setMezzo(e.target.value); setAutista(""); setRicercaAutista("");
               }}>
-                <option value="">Scegli il mezzo</option>
+                <option value="">{tr("Scegli il mezzo")}</option>
                 {veicoli.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
               </select>
             </div>
             <div className="min-w-0 space-y-1 text-xs">
-              <label htmlFor={`${formId}-autista`}>Autista</label>
+              <label htmlFor={`${formId}-autista`}>{tr("Autista")}</label>
               <select id={`${formId}-autista`} className={selectClass} value={autista} disabled={!mezzo} onChange={e => setAutista(e.target.value)}>
-                <option value="">Scegli l’autista</option>
+                <option value="">{tr("Scegli l’autista")}</option>
                 {contesto.data?.autisti.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
               </select>
             </div>
           </div>
-          {!veicoli.length && <p className="text-xs text-muted-foreground">Serve un mezzo stradale in servizio.</p>}
-          {mezzo && <label className="block space-y-1 text-xs">Cerca autista
-            <Input className="h-9" placeholder="Nome o cognome" value={ricercaAutista} onChange={e => {
+          {!veicoli.length && <p className="text-xs text-muted-foreground">{tr("Serve un mezzo stradale in servizio.")}</p>}
+          {mezzo && <label className="block space-y-1 text-xs">{tr("Cerca autista")}
+            <Input className="h-9" placeholder={tr("Nome o cognome")} value={ricercaAutista} onChange={e => {
               setRicercaAutista(e.target.value); setAutista("");
             }} />
           </label>}
           <div className="grid grid-cols-2 gap-1.5">
-            <label className="min-w-0 space-y-1 text-xs">Ora di partenza <Input className="h-9" type="time" value={inizio} onChange={e => setInizio(e.target.value)} /></label>
-            <label className="min-w-0 space-y-1 text-xs">Ora di arrivo <Input className="h-9" type="time" value={fine} onChange={e => setFine(e.target.value)} /></label>
-            <label className="col-span-2 min-w-0 space-y-1 text-xs">Giorno di arrivo, se diverso
+            <label className="min-w-0 space-y-1 text-xs">{tr("Ora di partenza")} <Input className="h-9" type="time" value={inizio} onChange={e => setInizio(e.target.value)} /></label>
+            <label className="min-w-0 space-y-1 text-xs">{tr("Ora di arrivo")} <Input className="h-9" type="time" value={fine} onChange={e => setFine(e.target.value)} /></label>
+            <label className="col-span-2 min-w-0 space-y-1 text-xs">{tr("Giorno di arrivo, se diverso")}
               <Input className="h-9" type="date" min={data || undefined} value={giornoArrivo} onChange={e => setGiornoArrivo(e.target.value)} />
             </label>
           </div>
           {mezzo && <div className="space-y-1.5">
-            <label className="block space-y-1 text-xs">Cerca altri cantieri
-              <Input className="h-9" placeholder="Codice o indirizzo" value={ricerca} onChange={e => setRicerca(e.target.value)} />
+            <label className="block space-y-1 text-xs">{tr("Cerca altri cantieri")}
+              <Input className="h-9" placeholder={tr("Codice o indirizzo")} value={ricerca} onChange={e => setRicerca(e.target.value)} />
             </label>
-            <select aria-label="Aggiungi cantiere" className={selectClass} value="" disabled={aggiunti.length >= 14}
+            <select aria-label={tr("Aggiungi cantiere")} className={selectClass} value="" disabled={aggiunti.length >= 14}
               onChange={e => {
                 const c = cantieri.find(c => c.id === e.target.value);
                 if (c && !commesse.includes(c.id)) setAggiunti(v => [...v, c]);
               }}>
-              <option value="">Aggiungi cantiere</option>
+              <option value="">{tr("Aggiungi cantiere")}</option>
               {cantieri.filter(c => !commesse.includes(c.id)).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
-            {contesto.isError && <p className="text-xs text-amber-800">Autisti o cantieri non disponibili. <button type="button" className="underline"
-              onClick={() => void contesto.refetch()}>Riprova</button></p>}
+            {contesto.isError && <p className="text-xs text-amber-800">{tr("Autisti o cantieri non disponibili.")} <button type="button" className="underline"
+              onClick={() => void contesto.refetch()}>{tr("Riprova")}</button></p>}
           </div>}
         </div>}
         <ol className="list-decimal space-y-1 break-words pl-5 text-xs">{tappe.map((t, i) => {
           const indice = i - perFornitore.size - 2;
           const c = aggiunti[indice];
           return <li key={`${i}:${t}`}>{t} {modifica && c && <span className="inline-flex items-center align-middle">
-            <Button type="button" variant="ghost" size="icon" className="size-8" disabled={indice === 0} aria-label={`Anticipa ${c.label}`} onClick={() => sposta(indice, -1)}><ArrowUp /></Button>
-            <Button type="button" variant="ghost" size="icon" className="size-8" disabled={indice === aggiunti.length - 1} aria-label={`Posticipa ${c.label}`} onClick={() => sposta(indice, 1)}><ArrowDown /></Button>
-            <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={`Rimuovi ${c.label}`} onClick={() => {
+            <Button type="button" variant="ghost" size="icon" className="size-8" disabled={indice === 0} aria-label={tr("Anticipa {label}", { label: String(c.label ?? "") })} onClick={() => sposta(indice, -1)}><ArrowUp /></Button>
+            <Button type="button" variant="ghost" size="icon" className="size-8" disabled={indice === aggiunti.length - 1} aria-label={tr("Posticipa {label}", { label: String(c.label ?? "") })} onClick={() => sposta(indice, 1)}><ArrowDown /></Button>
+            <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={tr("Rimuovi {label}", { label: String(c.label ?? "") })} onClick={() => {
               setAggiunti(x => x.filter(a => a.id !== c.id));
               setScelti(x => x.filter(id => !riga.some(o => o.id === id && o.order_id === c.id)));
             }}><Trash2 /></Button>
           </span>}</li>;
         })}</ol>
         <div className="flex flex-wrap items-center justify-between gap-1.5">
-          <label className="flex min-h-8 items-center gap-2 text-xs"><Checkbox checked={rientro} onCheckedChange={v => setRientro(v === true)} /> Includi rientro</label>
+          <label className="flex min-h-8 items-center gap-2 text-xs"><Checkbox checked={rientro} onCheckedChange={v => setRientro(v === true)} /> {tr("Includi rientro")}</label>
           <Button type="button" size="sm" variant="outline" disabled={!data}
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText([`Giro materiali · ${formatData(data)}`, ...tappe].join("\n"));
-                toast.success("Giro copiato");
-              } catch { toast.error("Impossibile copiare il giro"); }
-            }}><ClipboardCopy className="size-4" /> Copia il giro</Button>
+                toast.success(tr("Giro copiato"));
+              } catch { toast.error(tr("Impossibile copiare il giro")); }
+            }}><ClipboardCopy className="size-4" /> {tr("Copia il giro")}</Button>
           {modifica && <Button type="button" size="sm" disabled={salva.isPending || !mezzo || !autista || !base.trim() ||
             !Number.isFinite(durata) || durata <= 0 || durata > 48 * 3600000 ||
             sceltaValida.length !== scelti.length || perFornitore.size + commesse.length + Number(rientro) > 30}
-            onClick={() => salva.mutate()}>{salva.isPending ? "Salvataggio…" : "Salva giro"}</Button>}
+            onClick={() => salva.mutate()}>{salva.isPending ? tr("Salvataggio…") : tr("Salva giro")}</Button>}
         </div>
         {!acquisti.isFetching && sceltaValida.length !== scelti.length && <p role="status" className="text-xs">
-          Alcuni ordini selezionati sono cambiati. <button type="button" className="underline" onClick={() => setScelti(sceltaValida)}>Aggiorna selezione</button>
+          {tr("Alcuni ordini selezionati sono cambiati.")} <button type="button" className="underline" onClick={() => setScelti(sceltaValida)}>{tr("Aggiorna selezione")}</button>
         </p>}
       </section>}
     </div>
-    {giri.isError && <p role="alert" className="text-xs text-amber-800">Giri salvati non disponibili. <button type="button" className="underline"
-      onClick={() => void giri.refetch()}>Riprova</button></p>}
-    {Boolean(giri.data?.length) && <section aria-label="Giri salvati" className="space-y-1.5">
-      <h4 className="text-sm font-semibold">Giri salvati</h4>
+    {giri.isError && <p role="alert" className="text-xs text-amber-800">{tr("Giri salvati non disponibili.")} <button type="button" className="underline"
+      onClick={() => void giri.refetch()}>{tr("Riprova")}</button></p>}
+    {Boolean(giri.data?.length) && <section aria-label={tr("Giri salvati")} className="space-y-1.5">
+      <h4 className="text-sm font-semibold">{tr("Giri salvati")}</h4>
       <ul className="divide-y rounded-lg border">
         {giri.data?.map(g => <li key={g.id} className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-2">
           <div>
             <p className="font-medium">{g.mezzo} · {g.autista}</p>
-            <p className="text-xs text-muted-foreground">{dataOra.format(new Date(g.partenza))} – {dataOra.format(new Date(g.arrivo))} · {g.commesse.length} {g.commesse.length === 1 ? "cantiere" : "cantieri"} · {g.tratte.length} tratte · {g.annullato_il ? "Annullato" : g.stato_viaggio ? statiRegistro[g.stato_viaggio] : "Pianificato"}</p>
+            <p className="text-xs text-muted-foreground">{dataOra.format(new Date(g.partenza))} – {dataOra.format(new Date(g.arrivo))} · {g.commesse.length} {g.commesse.length === 1 ? tr("cantiere") : tr("cantieri")} · {tr("{n} tratte", { n: g.tratte.length })} · {g.annullato_il ? tr("Annullato") : g.stato_viaggio ? tr(statiRegistro[g.stato_viaggio]) : tr("Pianificato")}</p>
             <details className="mt-1 text-xs text-muted-foreground">
-              <summary className="cursor-pointer">Vedi tappe</summary>
+              <summary className="cursor-pointer">{tr("Vedi tappe")}</summary>
               <ol className="mt-1 list-decimal space-y-0.5 pl-5">
                 {g.tratte.map(t => <li key={t.id}>{t.da} → {t.a}</li>)}
               </ol>
@@ -353,13 +356,13 @@ function Giro({ company, ordine, mezzi = [], modifica = false, acquistiVisibili 
           </div>
           {modifica && !g.annullato_il && <div className="flex flex-wrap gap-1">
             {!g.viaggio_id && inAnnullamento === g.id && <Button type="button" size="sm" variant="outline" disabled={annulla.isPending}
-              onClick={() => annulla.mutate(g.id)}>Conferma annullamento</Button>}
+              onClick={() => annulla.mutate(g.id)}>{tr("Conferma annullamento")}</Button>}
             {!g.viaggio_id && inAnnullamento !== g.id && <Button type="button" size="sm" variant="ghost"
-              onClick={() => setInAnnullamento(g.id)}>Annulla giro</Button>}
+              onClick={() => setInAnnullamento(g.id)}>{tr("Annulla giro")}</Button>}
             <Button type="button" size="sm" variant="outline" disabled={Boolean(inApertura) || annulla.isPending || (!g.viaggio_id && Date.parse(g.partenza) > adesso)}
-              title={!g.viaggio_id && Date.parse(g.partenza) > adesso ? "Disponibile dopo la partenza prevista" : undefined}
+              title={!g.viaggio_id && Date.parse(g.partenza) > adesso ? tr("Disponibile dopo la partenza prevista") : undefined}
               onClick={() => { setInApertura(g.id); apri.mutate(g.id); }}>
-              {inApertura === g.id ? "Apertura…" : g.viaggio_id ? "Apri viaggio" : "Compila nel registro"}
+              {inApertura === g.id ? tr("Apertura…") : g.viaggio_id ? tr("Apri viaggio") : tr("Compila nel registro")}
             </Button>
           </div>}
         </li>)}

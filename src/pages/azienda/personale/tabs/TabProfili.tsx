@@ -17,6 +17,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { accessoPiattaforma, ETICHETTA_ACCESSO, type EsitoAccesso, type StatoAccesso, type UtenteDiAzienda } from "@/lib/hr/accessoPiattaforma";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type ScadCount = { scaduti: number; inScadenza: number };
 
@@ -34,6 +35,7 @@ const CONTRATTO_LABELS: Record<string, string> = {
 };
 
 export function TabProfili() {
+  const t = useT();
   const { data: profili = [], isLoading, isError, refetch } = useAllHrProfili();
   const { data: scadCounts, isError: errorScadenze, refetch: retryScadenze } = useHrScadenzeCounts();
   const permissions = usePermissions();
@@ -101,25 +103,25 @@ export function TabProfili() {
 
   return (
     <div className="space-y-4 max-sm:space-y-3">
-      {errorScadenze && <HrQueryError label="Badge scadenze non disponibili" onRetry={retryScadenze} />}
+      {errorScadenze && <HrQueryError label={t("Badge scadenze non disponibili")} onRetry={retryScadenze} />}
       {/* KPI — mobile no: il numero di persone sta nel bottone «Mostra» dei filtri. */}
       <div className="grid grid-cols-4 gap-2 sm:gap-3 max-sm:hidden">
         <Card>
           <CardContent className="p-2 sm:p-4 flex items-center gap-2 sm:gap-3">
             <div className="p-1.5 sm:p-2 rounded-lg bg-muted shrink-0"><Users className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /></div>
-            <div><p className="text-xl sm:text-2xl font-bold">{kpis.totali}</p><p className="text-xs text-muted-foreground">Totali</p></div>
+            <div><p className="text-xl sm:text-2xl font-bold">{kpis.totali}</p><p className="text-xs text-muted-foreground">{t("Totali")}</p></div>
           </CardContent>
         </Card>
         <Card className="border-emerald-200">
           <CardContent className="p-2 sm:p-4 flex items-center gap-2 sm:gap-3">
             <div className="p-1.5 sm:p-2 rounded-lg bg-muted shrink-0"><UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /></div>
-            <div><p className="text-xl sm:text-2xl font-bold">{kpis.attivi}</p><p className="text-xs text-muted-foreground">Attivi</p></div>
+            <div><p className="text-xl sm:text-2xl font-bold">{kpis.attivi}</p><p className="text-xs text-muted-foreground">{t("Attivi")}</p></div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-2 sm:p-4 flex items-center gap-2 sm:gap-3">
             <div className="p-1.5 sm:p-2 rounded-lg bg-muted shrink-0"><UserX className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /></div>
-            <div><p className="text-xl sm:text-2xl font-bold">{kpis.cessati}</p><p className="text-xs text-muted-foreground">Cessati</p></div>
+            <div><p className="text-xl sm:text-2xl font-bold">{kpis.cessati}</p><p className="text-xs text-muted-foreground">{t("Cessati")}</p></div>
           </CardContent>
         </Card>
         {/* Una scheda del personale non è un accesso: qui si vede quante
@@ -129,7 +131,7 @@ export function TabProfili() {
             <div className="p-1.5 sm:p-2 rounded-lg bg-muted shrink-0"><KeyRound className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /></div>
             <div>
               <p className="text-xl sm:text-2xl font-bold">{kpis.entrano ?? "—"}</p>
-              <p className="text-xs text-muted-foreground">Entrano nel gestionale</p>
+              <p className="text-xs text-muted-foreground">{t("Entrano nel gestionale")}</p>
             </div>
           </CardContent>
         </Card>
@@ -145,7 +147,7 @@ export function TabProfili() {
           filtriAttivi={nFiltriMobile}
           onApriFiltri={() => setFiltriMobileAperti(true)}
         />
-        <Button disabled={!canEdit} size="icon" onClick={handleNew} aria-label="Nuovo profilo" className="tap-compact h-9 w-9 shrink-0">
+        <Button disabled={!canEdit} size="icon" onClick={handleNew} aria-label={t("Nuovo profilo")} className="tap-compact h-9 w-9 shrink-0">
           <Plus className="h-4 w-4" />
         </Button>
       </div>
@@ -155,47 +157,47 @@ export function TabProfili() {
         <div className="flex gap-2 flex-1">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Cerca nome, email, matricola..." className="pl-9 h-9 w-full" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder={t("Cerca nome, email, matricola...")} className="pl-9 h-9 w-full" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <Select value={filterStato} onValueChange={(v) => setFilterStato(v as any)}>
             <SelectTrigger className="w-[110px] shrink-0 h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutti">Tutti</SelectItem>
-              <SelectItem value="attivi">Attivi</SelectItem>
-              <SelectItem value="cessati">Cessati</SelectItem>
+              <SelectItem value="tutti">{t("Tutti")}</SelectItem>
+              <SelectItem value="attivi">{t("Attivi")}</SelectItem>
+              <SelectItem value="cessati">{t("Cessati")}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterAccesso} onValueChange={(v) => setFilterAccesso(v as typeof filterAccesso)}>
-            <SelectTrigger className="w-[150px] shrink-0 h-9" aria-label="Accesso al gestionale"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[150px] shrink-0 h-9" aria-label={t("Accesso al gestionale")}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutti">Accesso: tutti</SelectItem>
-              <SelectItem value="entra">Entra nel gestionale</SelectItem>
-              <SelectItem value="senza">Senza accesso</SelectItem>
+              <SelectItem value="tutti">{t("Accesso: tutti")}</SelectItem>
+              <SelectItem value="entra">{t("Entra nel gestionale")}</SelectItem>
+              <SelectItem value="senza">{t("Senza accesso")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="flex gap-2">
           {reparti.length > 0 && (
             <Select value={filterReparto} onValueChange={setFilterReparto}>
-              <SelectTrigger className="flex-1 sm:w-[150px] h-9"><SelectValue placeholder="Reparto" /></SelectTrigger>
+              <SelectTrigger className="flex-1 sm:w-[150px] h-9"><SelectValue placeholder={t("Reparto")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="tutti">Tutti i reparti</SelectItem>
+                <SelectItem value="tutti">{t("Tutti i reparti")}</SelectItem>
                 {reparti.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
           <Button disabled={!canEdit} size="sm" onClick={handleNew} className="shrink-0">
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline ml-1">Nuovo Profilo</span>
+            <span className="hidden sm:inline ml-1">{t("Nuovo Profilo")}</span>
           </Button>
         </div>
       </div>
 
       {/* List */}
       {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
-      ) : isError ? <HrQueryError label="Profili non disponibili" onRetry={refetch} /> : filtered.length === 0 ? (
-        <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none"><CardContent className="py-12 text-center text-muted-foreground max-sm:p-0 max-sm:text-left max-sm:text-xs">Nessun profilo trovato.</CardContent></Card>
+        <div className="text-center py-12 text-muted-foreground">{t("Caricamento...")}</div>
+      ) : isError ? <HrQueryError label={t("Profili non disponibili")} onRetry={refetch} /> : filtered.length === 0 ? (
+        <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none"><CardContent className="py-12 text-center text-muted-foreground max-sm:p-0 max-sm:text-left max-sm:text-xs">{t("Nessun profilo trovato.")}</CardContent></Card>
       ) : (
         <>
           <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
@@ -222,7 +224,7 @@ export function TabProfili() {
         risultati={filtered.length}
       >
         <PilloleFiltro<typeof filterStato>
-          titolo="Stato"
+          titolo={t("Stato")}
           valore={filterStato}
           onScegli={setFilterStato}
           scelte={[
@@ -232,7 +234,7 @@ export function TabProfili() {
           ]}
         />
         <PilloleFiltro<typeof filterAccesso>
-          titolo="Accesso al gestionale"
+          titolo={t("Accesso al gestionale")}
           valore={filterAccesso}
           onScegli={setFilterAccesso}
           scelte={[
@@ -243,7 +245,7 @@ export function TabProfili() {
         />
         {reparti.length > 0 && (
           <PilloleFiltro
-            titolo="Reparto"
+            titolo={t("Reparto")}
             valore={filterReparto}
             onScegli={setFilterReparto}
             scelte={[{ value: "tutti", label: "Tutti" }, ...reparti.map((r) => ({ value: r, label: r }))]}
@@ -275,8 +277,9 @@ function BadgeAccesso({ esito, compatto }: { esito: EsitoAccesso | null; compatt
 }
 
 function ProfiloRow({ profilo: p, scad, onClick, utenti, app }: { app?: AccessoOperaio; profilo: HrProfilo; scad?: ScadCount; onClick: () => void; utenti: UtenteDiAzienda[] | null | undefined }) {
+  const t = useT();
   return (
-    <Card role="button" tabIndex={0} aria-label={`Apri profilo di ${p.nome} ${p.cognome}`} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }} className={`cursor-pointer hover:shadow-md transition-shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${!p.attivo ? "opacity-60" : ""}`} onClick={onClick}>
+    <Card role="button" tabIndex={0} aria-label={t("Apri profilo di {nome} {cognome}", { nome: String(p.nome ?? ""), cognome: String(p.cognome ?? "") })} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }} className={`cursor-pointer hover:shadow-md transition-shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${!p.attivo ? "opacity-60" : ""}`} onClick={onClick}>
       <CardContent className="p-3 flex items-center gap-3">
         {/* Avatar */}
         <div
@@ -291,17 +294,15 @@ function ProfiloRow({ profilo: p, scad, onClick, utenti, app }: { app?: AccessoO
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-sm">{p.nome} {p.cognome}</span>
             {p.matricola && <Badge variant="outline" className="text-xs font-mono">{p.matricola}</Badge>}
-            {!p.attivo && <Badge variant="secondary" className="text-xs">Cessato</Badge>}
+            {!p.attivo && <Badge variant="secondary" className="text-xs">{t("Cessato")}</Badge>}
             {p.lavora_in_cantiere ? <StatoAppOperaio accesso={app} /> : <BadgeAccesso esito={accessoPiattaforma(p, utenti)} />}
             {scad && scad.scaduti > 0 && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-red-100 text-red-700 border-red-200 gap-1">
-                <AlertTriangle className="h-3 w-3" />{scad.scaduti} scadut{scad.scaduti === 1 ? "o" : "i"}
+                <AlertTriangle className="h-3 w-3" />{scad.scaduti === 1 ? t("1 scaduto") : t("{n} scaduti", { n: scad.scaduti })}
               </Badge>
             )}
             {scad && scad.inScadenza > 0 && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 border-amber-200">
-                {scad.inScadenza} in scadenza
-              </Badge>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 border-amber-200">{t("{inScadenza} in scadenza", { inScadenza: String(scad.inScadenza ?? "") })}</Badge>
             )}
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
@@ -326,6 +327,7 @@ function ProfiloRow({ profilo: p, scad, onClick, utenti, app }: { app?: AccessoO
  * scaduti o in scadenza a destra), senza badge, email e telefono.
  */
 function ProfiloRigaMobile({ profilo: p, scad, onClick, utenti, app }: { app?: AccessoOperaio; profilo: HrProfilo; scad?: ScadCount; onClick: () => void; utenti: UtenteDiAzienda[] | null | undefined }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -342,7 +344,7 @@ function ProfiloRigaMobile({ profilo: p, scad, onClick, utenti, app }: { app?: A
         <p className="flex items-center gap-1.5 truncate text-[13px] font-semibold leading-tight">
           {p.nome} {p.cognome}
           {p.lavora_in_cantiere ? <StatoAppOperaio accesso={app} /> : accessoPiattaforma(p, utenti)?.stato === "entra" && (
-            <KeyRound className="h-3 w-3 shrink-0 text-emerald-600" aria-label="Entra nel gestionale" />
+            <KeyRound className="h-3 w-3 shrink-0 text-emerald-600" aria-label={t("Entra nel gestionale")} />
           )}
         </p>
         <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
@@ -350,9 +352,9 @@ function ProfiloRigaMobile({ profilo: p, scad, onClick, utenti, app }: { app?: A
         </p>
       </div>
       {scad && scad.scaduti > 0 ? (
-        <span className="shrink-0 text-[11px] font-medium text-red-600">{scad.scaduti} scadut{scad.scaduti === 1 ? "o" : "i"}</span>
+        <span className="shrink-0 text-[11px] font-medium text-red-600">{scad.scaduti === 1 ? t("1 scaduto") : t("{n} scaduti", { n: scad.scaduti })}</span>
       ) : scad && scad.inScadenza > 0 ? (
-        <span className="shrink-0 text-[11px] font-medium text-amber-600">{scad.inScadenza} in scadenza</span>
+        <span className="shrink-0 text-[11px] font-medium text-amber-600">{t("{inScadenza} in scadenza", { inScadenza: String(scad.inScadenza ?? "") })}</span>
       ) : null}
     </button>
   );

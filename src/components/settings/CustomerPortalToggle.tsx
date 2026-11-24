@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impostazioni/erroriPerUtente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Toggle "Area privata clienti".
@@ -29,6 +30,7 @@ import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impost
  * Spento vuol dire nessun accesso per nessun cliente, anche per chi l'aveva.
  */
 export function CustomerPortalToggle() {
+  const t = useT();
   const { effectiveCompany, refreshAuth, userRoles } = useAuth();
   const puoCambiare = userRoles.includes("super_admin");
   const { toast } = useToast();
@@ -50,17 +52,17 @@ export function CustomerPortalToggle() {
     // `enabled`, che non tocchiamo finché entrambe non sono confermate).
     if (next) {
       const first = await confirm({
-        title: "Attivare l'area privata clienti?",
+        title: t("Attivare l'area privata clienti?"),
         description:
-          "I nuovi clienti riceveranno un account con email e password per accedere al portale privato. Vuoi procedere?",
-        confirmLabel: "Sì, continua",
+          t("I nuovi clienti riceveranno un account con email e password per accedere al portale privato. Vuoi procedere?"),
+        confirmLabel: t("Sì, continua"),
       });
       if (!first) return;
       const second = await confirm({
-        title: "Confermi l'attivazione?",
+        title: t("Confermi l'attivazione?"),
         description:
-          "Seconda conferma. Attivando l'area privata, ogni nuovo cliente creato potrà accedere con le proprie credenziali. Confermi definitivamente?",
-        confirmLabel: "Attiva area privata",
+          t("Seconda conferma. Attivando l'area privata, ogni nuovo cliente creato potrà accedere con le proprie credenziali. Confermi definitivamente?"),
+        confirmLabel: t("Attiva area privata"),
       });
       if (!second) return;
     }
@@ -78,21 +80,21 @@ export function CustomerPortalToggle() {
 
       if (error) throw error;
       // Con regole di accesso che non bastano l'aggiornamento non dà errore: non tocca righe.
-      if (righeToccate(data) === 0) throw new MessaggioPerUtente("Il tuo utente non può modificare i dati dell'azienda: chiedi a un amministratore.");
+      if (righeToccate(data) === 0) throw new MessaggioPerUtente(t("Il tuo utente non può modificare i dati dell'azienda: chiedi a un amministratore."));
 
       toast({
-        title: next ? "Area privata attivata" : "Area privata disattivata",
+        title: next ? t("Area privata attivata") : t("Area privata disattivata"),
         description: next
-          ? "I nuovi clienti riceveranno un account di accesso al portale."
-          : "I nuovi clienti verranno creati solo in anagrafica (nessun account).",
+          ? t("I nuovi clienti riceveranno un account di accesso al portale.")
+          : t("I nuovi clienti verranno creati solo in anagrafica (nessun account)."),
       });
 
       await refreshAuth();
     } catch (e) {
       setEnabled(previous); // rollback
       toast({
-        title: "Non salvato",
-        description: motivoDelRifiuto(e, "Impossibile aggiornare l'impostazione."),
+        title: t("Non salvato"),
+        description: motivoDelRifiuto(e, t("Impossibile aggiornare l'impostazione.")),
         variant: "destructive",
       });
     } finally {
@@ -115,10 +117,10 @@ export function CustomerPortalToggle() {
           </div>
           <div className="min-w-0">
             <Label htmlFor="customer-portal-toggle" className="text-sm font-semibold">
-              Area privata clienti
+              {t("Area privata clienti")}
             </Label>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Consenti ai clienti di accedere al portale privato con email e password.
+              {t("Consenti ai clienti di accedere al portale privato con email e password.")}
             </p>
           </div>
         </div>
@@ -129,7 +131,7 @@ export function CustomerPortalToggle() {
             checked={enabled}
             onCheckedChange={handleToggle}
             disabled={isSaving || !puoCambiare}
-            aria-label="Area privata clienti"
+            aria-label={t("Area privata clienti")}
           />
         </div>
       </div>
@@ -140,18 +142,15 @@ export function CustomerPortalToggle() {
         <Alert>
           <ShieldCheck className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            L'area privata è <strong>attiva</strong>. Alla creazione di un cliente verrà
-            generato un account con password; puoi comunque scegliere caso-per-caso se
-            creare l'account o salvare solo l'anagrafica.
+            {t("L'area privata è")} <strong>{t("attiva")}</strong>{t(". Alla creazione di un cliente verrà generato un account con password; puoi comunque scegliere caso-per-caso se creare l'account o salvare solo l'anagrafica.")}
           </AlertDescription>
         </Alert>
       ) : (
         <Alert variant="default" className="border-amber-300 bg-amber-50/50 dark:bg-amber-900/10">
           <ShieldOff className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            L'area privata è <strong>disattivata</strong>. I clienti sono salvati solo in
-            anagrafica: nessun accesso al portale, nessuna email, nessuna password.
-            {!puoCambiare && " La attiva EdiliziaInCloud su richiesta: scrivi all'assistenza."}
+            {t("L'area privata è")} <strong>{t("disattivata")}</strong>{t(". I clienti sono salvati solo in anagrafica: nessun accesso al portale, nessuna email, nessuna password.")}
+            {!puoCambiare && ` ${t("La attiva EdiliziaInCloud su richiesta: scrivi all'assistenza.")}`}
           </AlertDescription>
         </Alert>
       )}

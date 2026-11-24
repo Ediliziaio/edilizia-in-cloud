@@ -41,6 +41,7 @@ import {
 } from "@/lib/tariffe/prezziarioImport";
 import type { Tariffa } from "./types";
 import { testoErrore } from "@/lib/impostazioni/testoErrore";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const INSERT_CHUNK = 100;
 const MAX_PREVIEW_ROWS = 400;
@@ -69,6 +70,7 @@ export function ImportPrezziarioDialog({
   isAdmin: boolean;
   onImported: () => void;
 }) {
+  const tr = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
@@ -113,7 +115,7 @@ export function ImportPrezziarioDialog({
       }
       setSelected(pre);
     } catch (err) {
-      toast.error(testoErrore(err, "Non riesco a leggere il file."));
+      toast.error(testoErrore(err, tr("Non riesco a leggere il file.")));
       setResult(null);
     } finally {
       setParsing(false);
@@ -145,14 +147,14 @@ export function ImportPrezziarioDialog({
 
   const handleImport = async () => {
     if (!companyId) {
-      toast.error("Azienda non disponibile");
+      toast.error(tr("Azienda non disponibile"));
       return;
     }
     const toCreate = (result?.rows ?? []).filter(
       (r) => selected.has(r.rowIndex) && r.errors.length === 0,
     );
     if (toCreate.length === 0) {
-      toast.info("Nessuna voce selezionata");
+      toast.info(tr("Nessuna voce selezionata"));
       return;
     }
     setImporting(true);
@@ -189,16 +191,16 @@ export function ImportPrezziarioDialog({
         nuove += chunk.length;
       }
       toast.success(aggiornate
-        ? `${nuove} voci nuove e ${aggiornate} aggiornate (stesso codice)`
-        : `${nuove} voci importate nel listino`);
+        ? tr("{nuove} voci nuove e {aggiornate} aggiornate (stesso codice)", { nuove: String(nuove ?? ""), aggiornate: String(aggiornate ?? "") })
+        : tr("{nuove} voci importate nel listino", { nuove: String(nuove ?? "") }));
       onImported();
       onClose();
     } catch (err) {
       // Quello che è già entrato resta: lo si dice, così non si reimporta tutto creando doppioni.
       const fatte = nuove + aggiornate;
       toast.error(fatte
-        ? `Importazione interrotta: ${nuove} voci create e ${aggiornate} aggiornate prima dell'errore. ${testoErrore(err, "")}`.trim()
-        : testoErrore(err, "Voci non importate."));
+        ? `${tr("Importazione interrotta: {nuove} voci create e {aggiornate} aggiornate prima dell'errore.", { nuove, aggiornate })} ${testoErrore(err, "")}`.trim()
+        : testoErrore(err, tr("Voci non importate.")));
       if (fatte) onImported();
     } finally {
       setImporting(false);
@@ -219,14 +221,11 @@ export function ImportPrezziarioDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-orange-600" />
-            Importa prezziario da file
+            {tr("Importa prezziario da file")}
           </DialogTitle>
           <DialogDescription>
-            Carica un prezziario o listino in CSV o Excel (.xlsx). Riconosco
-            automaticamente le colonne <em>Nome</em>, <em>Prezzo</em>, e se presenti
-            <em> Tipo</em>, <em>Unità</em>, <em>Costo</em> e <em>Descrizione</em>.
-            Le voci importate entrano nel listino e vengono usate dal preventivatore
-            e dal computo metrico.
+            {tr("Carica un prezziario o listino in CSV o Excel (.xlsx). Riconosco automaticamente le colonne")} <em>{tr("Nome")}</em>, <em>{tr("Prezzo")}</em>{tr(", e se presenti")}
+            <em> {tr("Tipo")}</em>, <em>{tr("Unità")}</em>, <em>{tr("Costo")}</em> e <em>{tr("Descrizione")}</em>{tr(". Le voci importate entrano nel listino e vengono usate dal preventivatore e dal computo metrico.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -251,7 +250,7 @@ export function ImportPrezziarioDialog({
             ) : (
               <Upload className="h-4 w-4 mr-1.5" />
             )}
-            {fileName ? "Cambia file" : "Scegli file"}
+            {fileName ? tr("Cambia file") : tr("Scegli file")}
           </Button>
           {fileName && (
             <span className="text-sm text-muted-foreground truncate max-w-[260px]">
@@ -260,7 +259,7 @@ export function ImportPrezziarioDialog({
           )}
           <div className="ml-auto">
             <Button type="button" variant="ghost" size="sm" onClick={downloadTemplate}>
-              <Download className="h-4 w-4 mr-1.5" />Scarica modello CSV
+              <Download className="h-4 w-4 mr-1.5" />{tr("Scarica modello CSV")}
             </Button>
           </div>
         </div>
@@ -269,11 +268,11 @@ export function ImportPrezziarioDialog({
         {hasHeaderError && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Intestazione non riconosciuta</AlertTitle>
+            <AlertTitle>{tr("Intestazione non riconosciuta")}</AlertTitle>
             <AlertDescription className="space-y-1">
               {result!.globalErrors.map((e, i) => <div key={i}>{e}</div>)}
               <div className="text-xs">
-                Suggerimento: scarica il modello CSV qui sopra per vedere le colonne attese.
+                {tr("Suggerimento: scarica il modello CSV qui sopra per vedere le colonne attese.")}
               </div>
             </AlertDescription>
           </Alert>
@@ -284,21 +283,21 @@ export function ImportPrezziarioDialog({
           <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/20 px-4 py-2.5 text-sm">
             <span className="flex items-center gap-1.5 text-emerald-700">
               <CheckCircle2 className="h-4 w-4" />
-              {summary.valid} valide
+              {summary.valid} {tr("valide")}
             </span>
             {summary.withErrors > 0 && (
               <span className="flex items-center gap-1.5 text-rose-600">
                 <AlertTriangle className="h-4 w-4" />
-                {summary.withErrors} con errori
+                {summary.withErrors} {tr("con errori")}
               </span>
             )}
             {nDuplicate > 0 && (
-              <span className="text-amber-600">{nDuplicate} già presenti</span>
+              <span className="text-amber-600">{tr("{duplicate} già presenti", { duplicate: String(nDuplicate ?? "") })}</span>
             )}
             {summary.withWarnings > 0 && (
-              <span className="text-muted-foreground">{summary.withWarnings} con avvisi</span>
+              <span className="text-muted-foreground">{tr("{withWarnings} con avvisi", { withWarnings: String(summary.withWarnings ?? "") })}</span>
             )}
-            <span className="ml-auto font-medium">{selectedCount} selezionate</span>
+            <span className="ml-auto font-medium">{tr("{n} selezionate", { n: String(selectedCount ?? "") })}</span>
           </div>
         )}
 
@@ -313,15 +312,15 @@ export function ImportPrezziarioDialog({
                       <Checkbox
                         checked={allSelected}
                         onCheckedChange={toggleAll}
-                        aria-label="Seleziona tutte"
+                        aria-label={tr("Seleziona tutte")}
                       />
                     </TableHead>
-                    <TableHead>Nome</TableHead>
-                    <TableHead className="w-28">Tipo</TableHead>
+                    <TableHead>{tr("Nome")}</TableHead>
+                    <TableHead className="w-28">{tr("Tipo")}</TableHead>
                     <TableHead className="w-16">UM</TableHead>
-                    <TableHead className="w-24 text-right">Prezzo</TableHead>
-                    {isAdmin && <TableHead className="w-24 text-right">Costo</TableHead>}
-                    <TableHead className="w-24">Stato</TableHead>
+                    <TableHead className="w-24 text-right">{tr("Prezzo")}</TableHead>
+                    {isAdmin && <TableHead className="w-24 text-right">{tr("Costo")}</TableHead>}
+                    <TableHead className="w-24">{tr("Stato")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -338,7 +337,7 @@ export function ImportPrezziarioDialog({
                             checked={selected.has(r.rowIndex)}
                             disabled={!selectable}
                             onCheckedChange={() => toggleRow(r.rowIndex)}
-                            aria-label={`Seleziona ${r.nome}`}
+                            aria-label={tr("Seleziona {nome}", { nome: String(r.nome ?? "") })}
                           />
                         </TableCell>
                         <TableCell className="max-w-[260px]">
@@ -368,9 +367,9 @@ export function ImportPrezziarioDialog({
                         )}
                         <TableCell>
                           {r.errors.length > 0 ? (
-                            <Badge variant="destructive" className="text-[11px]">Errore</Badge>
+                            <Badge variant="destructive" className="text-[11px]">{tr("Errore")}</Badge>
                           ) : dup ? (
-                            <Badge className="text-[11px] bg-amber-100 text-amber-800 border border-amber-200">Già presente</Badge>
+                            <Badge className="text-[11px] bg-amber-100 text-amber-800 border border-amber-200">{tr("Già presente")}</Badge>
                           ) : (
                             <Badge className="text-[11px] bg-emerald-100 text-emerald-800 border border-emerald-200">OK</Badge>
                           )}
@@ -382,10 +381,7 @@ export function ImportPrezziarioDialog({
               </Table>
             </div>
             {result.rows.length > MAX_PREVIEW_ROWS && (
-              <div className="px-3 py-2 text-xs text-muted-foreground border-t bg-muted/10">
-                Mostrate le prime {MAX_PREVIEW_ROWS} di {result.rows.length} righe.
-                L'import elaborerà comunque tutte le righe selezionate.
-              </div>
+              <div className="px-3 py-2 text-xs text-muted-foreground border-t bg-muted/10">{tr("Mostrate le prime {MAX_PREVIEW_ROWS} di {n} righe. L'import elaborerà comunque tutte le righe selezionate.", { MAX_PREVIEW_ROWS: String(MAX_PREVIEW_ROWS ?? ""), n: result.rows.length })}</div>
             )}
           </div>
         )}
@@ -395,11 +391,8 @@ export function ImportPrezziarioDialog({
           <div className="flex items-start gap-2 rounded-lg border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
             <Info className="h-4 w-4 mt-0.5 shrink-0" />
             <div>
-              <strong>Come funziona:</strong> dopo l'import le voci finiscono nel
-              listino «Manodopera e servizi». Quando carichi un <strong>computo metrico</strong>,
-              le lavorazioni vengono abbinate a queste voci per valorizzare
-              automaticamente il preventivo. Non hai un file? Usa il
-              {" "}<strong>Catalogo standard</strong> dal menu «Importa / Esporta».
+              <strong>{tr("Come funziona:")}</strong> {tr("dopo l'import le voci finiscono nel listino «Manodopera e servizi». Quando carichi un")} <strong>{tr("computo metrico")}</strong>{tr(", le lavorazioni vengono abbinate a queste voci per valorizzare automaticamente il preventivo. Non hai un file? Usa il")}
+              {" "}<strong>{tr("Catalogo standard")}</strong> {tr("dal menu «Importa / Esporta».")}
             </div>
           </div>
         )}
@@ -412,10 +405,10 @@ export function ImportPrezziarioDialog({
               disabled={importing}
               className="mr-auto"
             >
-              <RefreshCw className="h-4 w-4 mr-1.5" />Carica un altro file
+              <RefreshCw className="h-4 w-4 mr-1.5" />{tr("Carica un altro file")}
             </Button>
           )}
-          <Button variant="outline" onClick={onClose} disabled={importing}>Annulla</Button>
+          <Button variant="outline" onClick={onClose} disabled={importing}>{tr("Annulla")}</Button>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -426,12 +419,12 @@ export function ImportPrezziarioDialog({
                     className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white"
                   >
                     {importing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Upload className="h-4 w-4 mr-1.5" />}
-                    Importa {selectedCount > 0 ? `${selectedCount} voci` : ""}
+                    {tr("Importa")} {selectedCount > 0 ? tr("{n} voci", { n: String(selectedCount ?? "") }) : ""}
                   </Button>
                 </span>
               </TooltipTrigger>
               {selectedCount === 0 && (
-                <TooltipContent>Seleziona almeno una voce valida da importare.</TooltipContent>
+                <TooltipContent>{tr("Seleziona almeno una voce valida da importare.")}</TooltipContent>
               )}
             </Tooltip>
           </TooltipProvider>

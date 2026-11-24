@@ -27,6 +27,7 @@ import {
 import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Team {
   id: string;
@@ -122,21 +123,23 @@ function DroppableTeamZone({ teamId, children }: { teamId: string; children: Rea
 
 // --- KPI Mini Stats ---
 function TeamKpiBar({ membersCount, color }: { membersCount: number; color: string }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-3 text-xs text-muted-foreground px-1">
       <div className="flex items-center gap-1">
         <Users className="h-3 w-3" />
-        <span>{membersCount} membri</span>
+        <span>{t(membersCount === 1 ? "{membersCount} membro" : "{membersCount} membri", { membersCount })}</span>
       </div>
       <div className="flex items-center gap-1">
         <BarChart3 className="h-3 w-3" />
-        <span className="font-medium" style={{ color }}>Attivo</span>
+        <span className="font-medium" style={{ color }}>{t("Attivo")}</span>
       </div>
     </div>
   );
 }
 
 export default function SettingsTeams() {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -214,7 +217,7 @@ export default function SettingsTeams() {
       });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["teams"] }); setCreateOpen(false); resetForm(); toast.success("Team creato"); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["teams"] }); setCreateOpen(false); resetForm(); toast.success(tr("Team creato")); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -226,7 +229,7 @@ export default function SettingsTeams() {
         .eq("id", editTeam.id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["teams"] }); setEditTeam(null); resetForm(); toast.success("Team aggiornato"); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["teams"] }); setEditTeam(null); resetForm(); toast.success(tr("Team aggiornato")); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -235,7 +238,7 @@ export default function SettingsTeams() {
       const { error } = await supabase.from("teams").delete().eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["teams"] }); queryClient.invalidateQueries({ queryKey: ["team-members"] }); toast.success("Team eliminato"); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["teams"] }); queryClient.invalidateQueries({ queryKey: ["team-members"] }); toast.success(tr("Team eliminato")); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -246,7 +249,7 @@ export default function SettingsTeams() {
       });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["team-members"] }); setAddMemberTeamId(null); setSelectedUserId(""); toast.success("Membro aggiunto"); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["team-members"] }); setAddMemberTeamId(null); setSelectedUserId(""); toast.success(tr("Membro aggiunto")); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -255,7 +258,7 @@ export default function SettingsTeams() {
       const { error } = await supabase.from("team_members").delete().eq("id", memberId);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["team-members"] }); toast.success("Membro rimosso"); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["team-members"] }); toast.success(tr("Membro rimosso")); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -270,7 +273,7 @@ export default function SettingsTeams() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
       queryClient.invalidateQueries({ queryKey: ["teams"] });
-      toast.success("Membro spostato nel nuovo team");
+      toast.success(tr("Membro spostato nel nuovo team"));
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -334,7 +337,7 @@ export default function SettingsTeams() {
   }
 
   if (isLoading) {
-    return <div className="flex items-center justify-center py-12 text-muted-foreground">Caricamento...</div>;
+    return <div className="flex items-center justify-center py-12 text-muted-foreground">{tr("Caricamento...")}</div>;
   }
 
   // Global KPI
@@ -345,11 +348,11 @@ export default function SettingsTeams() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Gestione Team</h2>
-          <p className="text-muted-foreground">Crea, gestisci e trascina membri tra i team</p>
+          <h2 className="text-2xl font-bold tracking-tight">{tr("Gestione Team")}</h2>
+          <p className="text-muted-foreground">{tr("Crea, gestisci e trascina membri tra i team")}</p>
         </div>
         <Button className="w-full sm:w-auto" onClick={() => { resetForm(); setCreateOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" /> Nuovo Team
+          <Plus className="h-4 w-4 mr-2" /> {tr("Nuovo Team")}
         </Button>
       </div>
 
@@ -359,19 +362,19 @@ export default function SettingsTeams() {
           <Card>
             <CardContent className="py-3 px-3 flex flex-col items-start gap-1.5 md:flex-row md:items-center md:px-4 md:gap-3">
               <div className="rounded-full p-1.5 bg-primary/10 shrink-0 md:p-2"><Users className="h-4 w-4 text-primary" /></div>
-              <div className="min-w-0"><p className="text-xl font-bold leading-none md:text-2xl">{teams.length}</p><p className="text-xs text-muted-foreground truncate">Team</p></div>
+              <div className="min-w-0"><p className="text-xl font-bold leading-none md:text-2xl">{teams.length}</p><p className="text-xs text-muted-foreground truncate">{tr("Team")}</p></div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-3 px-3 flex flex-col items-start gap-1.5 md:flex-row md:items-center md:px-4 md:gap-3">
               <div className="rounded-full p-1.5 bg-emerald-500/10 shrink-0 md:p-2"><Users className="h-4 w-4 text-emerald-600" /></div>
-              <div className="min-w-0"><p className="text-xl font-bold leading-none md:text-2xl">{totalMembers}</p><p className="text-xs text-muted-foreground truncate">Membri</p></div>
+              <div className="min-w-0"><p className="text-xl font-bold leading-none md:text-2xl">{totalMembers}</p><p className="text-xs text-muted-foreground truncate">{tr("Membri")}</p></div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-3 px-3 flex flex-col items-start gap-1.5 md:flex-row md:items-center md:px-4 md:gap-3">
               <div className="rounded-full p-1.5 bg-violet-500/10 shrink-0 md:p-2"><BarChart3 className="h-4 w-4 text-violet-600" /></div>
-              <div className="min-w-0"><p className="text-xl font-bold leading-none md:text-2xl">{avgMembersPerTeam}</p><p className="text-xs text-muted-foreground truncate">Media</p></div>
+              <div className="min-w-0"><p className="text-xl font-bold leading-none md:text-2xl">{avgMembersPerTeam}</p><p className="text-xs text-muted-foreground truncate">{tr("Media")}</p></div>
             </CardContent>
           </Card>
         </div>
@@ -381,10 +384,10 @@ export default function SettingsTeams() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Users className="h-12 w-12 text-muted-foreground/40 mb-4" />
-            <p className="text-lg font-medium">Nessun team creato</p>
-            <p className="text-sm text-muted-foreground mb-4">Crea il primo team per organizzare il tuo staff</p>
+            <p className="text-lg font-medium">{tr("Nessun team creato")}</p>
+            <p className="text-sm text-muted-foreground mb-4">{tr("Crea il primo team per organizzare il tuo staff")}</p>
             <Button onClick={() => { resetForm(); setCreateOpen(true); }}>
-              <Plus className="h-4 w-4 mr-2" /> Crea Team
+              <Plus className="h-4 w-4 mr-2" /> {tr("Crea Team")}
             </Button>
           </CardContent>
         </Card>
@@ -412,12 +415,12 @@ export default function SettingsTeams() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Elimina team</AlertDialogTitle>
-                              <AlertDialogDescription>Vuoi eliminare il team "{team.name}"? I membri non verranno eliminati.</AlertDialogDescription>
+                              <AlertDialogTitle>{tr("Elimina team")}</AlertDialogTitle>
+                              <AlertDialogDescription>{tr("Vuoi eliminare il team \"{name}\"? I membri non verranno eliminati.", { name: String(team.name ?? "") })}</AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Annulla</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deleteMutation.mutate(team.id)}>Elimina</AlertDialogAction>
+                              <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteMutation.mutate(team.id)}>{tr("Elimina")}</AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
@@ -425,22 +428,22 @@ export default function SettingsTeams() {
                     </div>
                     {team.description && <p className="text-sm text-muted-foreground mt-1">{team.description}</p>}
                     {team.leader_id && (
-                      <p className="text-xs text-muted-foreground mt-1">Responsabile: {nomeProfilo(team.leader_id)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{tr("Responsabile: {leader_id}", { leader_id: String(nomeProfilo(team.leader_id) ?? "") })}</p>
                     )}
                     <TeamKpiBar membersCount={members.length} color={team.color || COLORS[0]} />
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Membri ({members.length})</span>
+                      <span className="text-sm font-medium">{tr("Membri ({n})", { n: members.length })}</span>
                       <Button variant="outline" size="sm" onClick={() => setAddMemberTeamId(team.id)}>
-                        <UserPlus className="h-3.5 w-3.5 mr-1" /> Aggiungi
+                        <UserPlus className="h-3.5 w-3.5 mr-1" /> {tr("Aggiungi")}
                       </Button>
                     </div>
                     <DroppableTeamZone teamId={team.id}>
                       <SortableContext items={members.map((m) => m.id)} strategy={verticalListSortingStrategy}>
                         {members.length === 0 ? (
                           <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-md">
-                            Trascina qui un membro
+                            {tr("Trascina qui un membro")}
                           </p>
                         ) : (
                           members.map((m) => (
@@ -476,34 +479,34 @@ export default function SettingsTeams() {
       <Dialog open={createOpen || !!editTeam} onOpenChange={(open) => { if (!open) { setCreateOpen(false); setEditTeam(null); resetForm(); } }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editTeam ? "Modifica Team" : "Nuovo Team"}</DialogTitle>
+            <DialogTitle>{editTeam ? tr("Modifica Team") : tr("Nuovo Team")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Nome</Label>
-              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Es. Squadra Nord" />
+              <Label>{tr("Nome")}</Label>
+              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder={tr("Es. Squadra Nord")} />
             </div>
             <div>
-              <Label>Descrizione</Label>
-              <Textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="Descrizione opzionale" rows={2} />
+              <Label>{tr("Descrizione")}</Label>
+              <Textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder={tr("Descrizione opzionale")} rows={2} />
             </div>
             <div>
               <Label>Responsabile</Label>
               <Select value={formLeader || "_nessuno"} onValueChange={(v) => setFormLeader(v === "_nessuno" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Nessun responsabile" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={tr("Nessun responsabile")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="_nessuno">Nessun responsabile</SelectItem>
+                  <SelectItem value="_nessuno">{tr("Nessun responsabile")}</SelectItem>
                   {companyProfiles.map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="mt-1 text-xs text-muted-foreground">
-                Vede e lavora opportunità, contatti e appuntamenti dei membri, anche se ha «Solo i propri».
+                {tr("Vede e lavora opportunità, contatti e appuntamenti dei membri, anche se ha «Solo i propri».")}
               </p>
             </div>
             <div>
-              <Label>Colore</Label>
+              <Label>{tr("Colore")}</Label>
               <div className="flex gap-2 mt-1">
                 {COLORS.map((c) => (
                   <button key={c} type="button"
@@ -517,7 +520,7 @@ export default function SettingsTeams() {
           <DialogFooter>
             <Button disabled={!formName.trim() || createMutation.isPending || updateMutation.isPending}
               onClick={() => editTeam ? updateMutation.mutate() : createMutation.mutate()}>
-              {editTeam ? "Salva" : "Crea"}
+              {editTeam ? tr("Salva") : tr("Crea")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -527,18 +530,18 @@ export default function SettingsTeams() {
       <Dialog open={!!addMemberTeamId} onOpenChange={(open) => { if (!open) { setAddMemberTeamId(null); setSelectedUserId(""); } }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Aggiungi membro al team</DialogTitle>
+            <DialogTitle>{tr("Aggiungi membro al team")}</DialogTitle>
           </DialogHeader>
           <div>
-            <Label>Utente</Label>
+            <Label>{tr("Utente")}</Label>
             <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-              <SelectTrigger><SelectValue placeholder="Seleziona un utente" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={tr("Seleziona un utente")} /></SelectTrigger>
               <SelectContent>
                 {addMemberTeamId && getAvailableUsers(addMemberTeamId).map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name} — {p.email}</SelectItem>
                 ))}
                 {addMemberTeamId && getAvailableUsers(addMemberTeamId).length === 0 && (
-                  <SelectItem value="_none" disabled>Nessun utente disponibile</SelectItem>
+                  <SelectItem value="_none" disabled>{tr("Nessun utente disponibile")}</SelectItem>
                 )}
               </SelectContent>
             </Select>
@@ -546,7 +549,7 @@ export default function SettingsTeams() {
           <DialogFooter>
             <Button disabled={!selectedUserId || addMemberMutation.isPending}
               onClick={() => addMemberTeamId && addMemberMutation.mutate({ teamId: addMemberTeamId, userId: selectedUserId })}>
-              Aggiungi
+              {tr("Aggiungi")}
             </Button>
           </DialogFooter>
         </DialogContent>

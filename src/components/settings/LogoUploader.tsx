@@ -8,6 +8,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impostazioni/erroriPerUtente";
 import type { Company } from "@/types/auth";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface LogoUploaderProps {
   company: Company | null;
@@ -30,6 +31,7 @@ const NON_PUO_MODIFICARE = "Il tuo utente non può modificare i dati dell'aziend
  * un logo che puntava a un file che non c'era più.
  */
 export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoUploaderProps) {
+  const t = useT();
   const [isUploading, setIsUploading] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,13 +50,13 @@ export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoU
 
     // Validate file type
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      toast.error("Formato non supportato", { description: "Scegli un'immagine PNG, JPG o WEBP." });
+      toast.error(t("Formato non supportato"), { description: t("Scegli un'immagine PNG, JPG o WEBP.") });
       return;
     }
 
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
-      toast.error("File troppo grande", { description: "Il logo può pesare al massimo 2 MB." });
+      toast.error(t("File troppo grande"), { description: t("Il logo può pesare al massimo 2 MB.") });
       return;
     }
 
@@ -88,17 +90,17 @@ export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoU
         .select('id');
 
       if (updateError) throw updateError;
-      if (righeToccate(aggiornate) === 0) throw new MessaggioPerUtente(NON_PUO_MODIFICARE);
+      if (righeToccate(aggiornate) === 0) throw new MessaggioPerUtente(t(NON_PUO_MODIFICARE));
 
       // Il database ha accettato: ora si possono togliere i logo con un'altra estensione.
       try { await cancellaFileVecchi(company.id, filePath); } catch (erroreCoda) { logger.warn("Pulizia dei vecchi logo non riuscita:", erroreCoda); }
 
-      toast.success("Logo caricato", { description: "Il logo dell'azienda è stato aggiornato." });
+      toast.success(t("Logo caricato"), { description: t("Il logo dell'azienda è stato aggiornato.") });
 
       await onLogoUpdated(logoUrl);
     } catch (error) {
       logger.error("Error uploading logo:", error);
-      toast.error("Logo non caricato", { description: motivoDelRifiuto(error, "Riprova tra poco.") });
+      toast.error(t("Logo non caricato"), { description: motivoDelRifiuto(error, t("Riprova tra poco.")) });
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -111,9 +113,9 @@ export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoU
     if (!company || disabled) return;
 
     const ok = await confirm({
-      title: "Rimuovere il logo dell'azienda?",
-      description: "Il logo verrà eliminato. Potrai caricarne uno nuovo quando vuoi.",
-      confirmLabel: "Rimuovi logo",
+      title: t("Rimuovere il logo dell'azienda?"),
+      description: t("Il logo verrà eliminato. Potrai caricarne uno nuovo quando vuoi."),
+      confirmLabel: t("Rimuovi logo"),
       variant: "destructive",
     });
     if (!ok) return;
@@ -129,16 +131,16 @@ export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoU
         .select('id');
 
       if (updateError) throw updateError;
-      if (righeToccate(aggiornate) === 0) throw new MessaggioPerUtente(NON_PUO_MODIFICARE);
+      if (righeToccate(aggiornate) === 0) throw new MessaggioPerUtente(t(NON_PUO_MODIFICARE));
 
       try { await cancellaFileVecchi(company.id); } catch (erroreCoda) { logger.warn("Pulizia dei file del logo non riuscita:", erroreCoda); }
 
-      toast.success("Logo rimosso", { description: "Il logo dell'azienda è stato rimosso." });
+      toast.success(t("Logo rimosso"), { description: t("Il logo dell'azienda è stato rimosso.") });
 
       await onLogoUpdated(null);
     } catch (error) {
       logger.error("Error removing logo:", error);
-      toast.error("Logo non rimosso", { description: motivoDelRifiuto(error, "Riprova tra poco.") });
+      toast.error(t("Logo non rimosso"), { description: motivoDelRifiuto(error, t("Riprova tra poco.")) });
     } finally {
       setIsRemoving(false);
     }
@@ -155,13 +157,13 @@ export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoU
             {currentLogo ? (
               <img
                 src={currentLogo}
-                alt={company?.name || "Logo dell'azienda"}
+                alt={company?.name || t("Logo dell'azienda")}
                 className="h-full w-full object-contain p-2"
               />
             ) : (
               <div className="flex flex-col items-center gap-1 text-muted-foreground">
                 <ImageIcon className="h-8 w-8" />
-                <span className="text-xs">Nessun logo</span>
+                <span className="text-xs">{t("Nessun logo")}</span>
               </div>
             )}
           </div>
@@ -180,12 +182,12 @@ export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoU
               {isUploading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Caricamento...
+                  {t("Caricamento...")}
                 </>
               ) : (
                 <>
                   <Upload className="h-4 w-4" />
-                  {currentLogo ? "Cambia logo" : "Carica logo"}
+                  {currentLogo ? t("Cambia logo") : t("Carica logo")}
                 </>
               )}
             </Button>
@@ -202,12 +204,12 @@ export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoU
                 {isRemoving ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Rimozione...
+                    {t("Rimozione...")}
                   </>
                 ) : (
                   <>
                     <Trash2 className="h-4 w-4" />
-                    Rimuovi
+                    {t("Rimuovi")}
                   </>
                 )}
               </Button>
@@ -215,12 +217,12 @@ export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoU
           </div>
 
           <p className="text-xs text-muted-foreground">
-            PNG, JPG o WEBP, fino a 2 MB.
+            {t("PNG, JPG o WEBP, fino a 2 MB.")}
           </p>
 
           {!currentLogo && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>Finché non carichi il tuo, si usa questo:</span>
+              <span>{t("Finché non carichi il tuo, si usa questo:")}</span>
               <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-5" />
             </div>
           )}
@@ -233,7 +235,7 @@ export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoU
         accept="image/png,image/jpeg,image/webp"
         onChange={handleFileSelect}
         className="hidden"
-        aria-label="Scegli il file del logo"
+        aria-label={t("Scegli il file del logo")}
       />
     </div>
   );

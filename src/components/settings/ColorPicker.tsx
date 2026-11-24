@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { availableColors } from "@/lib/orderStatusTemplates";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Il nome in italiano di ogni colore, per chi usa il lettore di schermo. */
 const NOME_COLORE: Record<string, string> = {
@@ -16,6 +17,7 @@ interface ColorPickerProps {
 }
 
 export function ColorPicker({ value, onChange }: ColorPickerProps) {
+  const t = useT();
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -23,7 +25,7 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
           variant="outline"
           size="icon"
           className="shrink-0"
-          aria-label="Scegli il colore"
+          aria-label={t("Scegli il colore")}
         >
           <div
             className="h-5 w-5 rounded-full border border-border"
@@ -43,7 +45,7 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
                 value === color && "ring-2 ring-primary ring-offset-2"
               )}
               onClick={() => onChange(color)}
-              aria-label={`Colore ${NOME_COLORE[color] ?? color}`}
+              aria-label={t("Colore {nome}", { nome: NOME_COLORE[color] ? t(NOME_COLORE[color]) : color })}
               aria-pressed={value === color}
             >
               <div

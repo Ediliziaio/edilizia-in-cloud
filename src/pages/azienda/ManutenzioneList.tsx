@@ -24,6 +24,7 @@ import { ExportButton } from "@/components/shared/ExportButton";
 import { ManutenzionePipeline, type ImpiantoStato } from "@/components/manutenzione/ManutenzionePipeline";
 import { ImpiantiTable } from "@/components/manutenzione/ImpiantiTable";
 import { statoManutenzione, type StatoManutenzione } from "@/lib/manutenzione/statoManutenzione";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type ProfileSummary = { first_name: string | null; last_name: string | null };
 
@@ -64,6 +65,7 @@ type PianoAttivo = {
 /** `incorporata`: dentro Assistenza (scheda «Manutenzioni»); `actionsSlot`: dove
  *  teletrasportare i pulsanti, sulla riga delle due schede. */
 export default function ManutenzioneList({ incorporata = false, actionsSlot = null }: { incorporata?: boolean; actionsSlot?: HTMLElement | null } = {}) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
@@ -184,9 +186,9 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
 
   const pianificaMutation = useMutation({
     mutationFn: async (piano: PianoAttivo) => {
-      if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
+      if (permissions.solaLettura) throw new Error(t("Modalità di sola lettura"));
       const customerId = piano.impianto?.customer_id;
-      if (!piano.impianto_id || !customerId || !effectiveCompany?.id) throw new Error("Dati dell’impianto mancanti");
+      if (!piano.impianto_id || !customerId || !effectiveCompany?.id) throw new Error(t("Dati dell’impianto mancanti"));
       const giorni = piano.frequenza_giorni ?? FREQ_GIORNI[piano.frequenza_tipo] ?? 365;
       const prossima = format(addDays(new Date(), giorni), "yyyy-MM-dd");
       const { error: ticketErr } = await supabase.from("tickets").insert({
@@ -204,19 +206,19 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       if (pianoErr) throw pianoErr;
     },
     onSuccess: (_, piano) => {
-      toast.success("Intervento pianificato e ticket creato");
+      toast.success(t("Intervento pianificato e ticket creato"));
       queryClient.invalidateQueries({ queryKey: ["piani-attivi", effectiveCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["piani-impianto", piano.impianto_id] });
       queryClient.invalidateQueries({ queryKey: ["interventi-impianto", piano.impianto_id] });
       queryClient.invalidateQueries({ queryKey: ["cal-manutenzioni", effectiveCompany?.id] });
     },
-    onError: (err: Error) => toast.error(err.message || "Errore nella pianificazione"),
+    onError: (err: Error) => toast.error(err.message || t("Errore nella pianificazione")),
   });
 
   const completaMutation = useMutation({
     mutationFn: async (piano: PianoAttivo) => {
-      if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
-      if (!piano.impianto_id || !effectiveCompany?.id) throw new Error("Impianto non disponibile");
+      if (permissions.solaLettura) throw new Error(t("Modalità di sola lettura"));
+      if (!piano.impianto_id || !effectiveCompany?.id) throw new Error(t("Impianto non disponibile"));
       const todayIso = format(new Date(), "yyyy-MM-dd");
       const chiave = JSON.stringify([piano.id, todayIso, piano.ultima_esecuzione, piano.prossima_scadenza]);
       const operazione = operazioniCompletamento.current.get(chiave) ?? crypto.randomUUID();
@@ -235,13 +237,13 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       operazioniCompletamento.current.delete(chiave);
     },
     onSuccess: (_, piano) => {
-      toast.success("Manutenzione completata");
+      toast.success(t("Manutenzione completata"));
       queryClient.invalidateQueries({ queryKey: ["piani-impianto", piano.impianto_id] });
       queryClient.invalidateQueries({ queryKey: ["esecuzioni-impianto", piano.impianto_id] });
       queryClient.invalidateQueries({ queryKey: ["cal-manutenzioni", effectiveCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["piani-attivi", effectiveCompany?.id] });
     },
-    onError: (err: Error) => toast.error(err.message || "Completamento non riuscito"),
+    onError: (err: Error) => toast.error(err.message || t("Completamento non riuscito")),
   });
 
   // ── Impianti arricchiti con lo stato + filtri ────────────────────────────
@@ -358,10 +360,10 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         disabled={permissions.solaLettura}
         onClick={() => { if (!permissions.solaLettura) setWizardOpen(true); }}
         className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0"
-        aria-label="Nuovo Impianto"
+        aria-label={t("Nuovo Impianto")}
       >
         <Plus className="mr-2 h-4 w-4 max-sm:mr-0" />
-        <span className="hidden sm:inline">Nuovo Impianto</span>
+        <span className="hidden sm:inline">{t("Nuovo Impianto")}</span>
       </Button>
     </>
   );
@@ -380,8 +382,8 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
                   <Settings className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-2xl font-bold tracking-tight">Manutenzione</h1>
-                  <p className="text-sm text-muted-foreground">Impianti, contratti e piani di manutenzione dei clienti.</p>
+                  <h1 className="text-2xl font-bold tracking-tight">{t("Manutenzione")}</h1>
+                  <p className="text-sm text-muted-foreground">{t("Impianti, contratti e piani di manutenzione dei clienti.")}</p>
                 </div>
               </div>
             )}
@@ -394,11 +396,11 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
           Scadenza imminente · In regola · Senza piano · Contratti. */}
       <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:p-0 max-lg:shadow-none max-lg:[scrollbar-width:none]">
         {[
-          { value: "all", label: "Tutti", icon: ClipboardList, n: impianti.length },
-          { value: "urgenti", label: "Scadenza imminente", icon: AlertTriangle, n: nScaduteInScadenza },
-          { value: "in_regola", label: "In regola", icon: CheckCircle2, n: contaStato.in_regola },
-          { value: "senza_piano", label: "Senza piano", icon: CircleDashed, n: contaStato.senza_piano },
-          { value: "__contratti__", label: "Contratti", icon: FileText, n: contratti.length },
+          { value: "all", label: t("Tutti"), icon: ClipboardList, n: impianti.length },
+          { value: "urgenti", label: t("Scadenza imminente"), icon: AlertTriangle, n: nScaduteInScadenza },
+          { value: "in_regola", label: t("In regola"), icon: CheckCircle2, n: contaStato.in_regola },
+          { value: "senza_piano", label: t("Senza piano"), icon: CircleDashed, n: contaStato.senza_piano },
+          { value: "__contratti__", label: t("Contratti"), icon: FileText, n: contratti.length },
         ].map((tab) => {
           const Icon = tab.icon;
           const active = pill === tab.value;
@@ -423,19 +425,19 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       {/* Riepilogo condiviso; i contratti e i canoni restano disponibili sotto. Fino a 1024 non c'è:
           ripeteva le stesse quattro scelte delle pillole qui sopra (stessi numeri, stesso filtro). */}
       <div className="max-lg:hidden">
-      <OperationalSummary label="Riepilogo manutenzioni" title="Impianti e scadenze" icon={ClipboardList} error={impiantiError || contrattiError || pianiError} note="Impianti e piani accessibili al tuo utente.">
-        <OperationalSummaryMetric label="Impianti" value={impianti.length} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("all")} active={pill === "all"} />
-        <OperationalSummaryMetric label="Scadenza imminente" value={nScaduteInScadenza} tone={nScaduteInScadenza > 0 ? "amber" : undefined} isLoading={loadingImpianti || loadingContratti || loadingPiani} onClick={() => setPill("urgenti")} active={pill === "urgenti"} hint="Scadute o in scadenza" />
-        <OperationalSummaryMetric label="In regola" value={contaStato.in_regola} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("in_regola")} active={pill === "in_regola"} />
-        <OperationalSummaryMetric label="Senza piano" value={contaStato.senza_piano} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("senza_piano")} active={pill === "senza_piano"} />
+      <OperationalSummary label={t("Riepilogo manutenzioni")} title={t("Impianti e scadenze")} icon={ClipboardList} error={impiantiError || contrattiError || pianiError} note={t("Impianti e piani accessibili al tuo utente.")}>
+        <OperationalSummaryMetric label={t("Impianti")} value={impianti.length} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("all")} active={pill === "all"} />
+        <OperationalSummaryMetric label={t("Scadenza imminente")} value={nScaduteInScadenza} tone={nScaduteInScadenza > 0 ? "amber" : undefined} isLoading={loadingImpianti || loadingContratti || loadingPiani} onClick={() => setPill("urgenti")} active={pill === "urgenti"} hint={t("Scadute o in scadenza")} />
+        <OperationalSummaryMetric label={t("In regola")} value={contaStato.in_regola} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("in_regola")} active={pill === "in_regola"} />
+        <OperationalSummaryMetric label={t("Senza piano")} value={contaStato.senza_piano} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("senza_piano")} active={pill === "senza_piano"} />
       </OperationalSummary>
       </div>
-      {!(impiantiError || contrattiError || pianiError) && <details className="rounded-xl border bg-background p-3 text-sm"><summary className="cursor-pointer font-medium">Contratti e canoni</summary><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-muted-foreground">Contratti attivi</p><p className="font-semibold">{loadingContratti ? "Caricamento…" : contratti.filter(c => c.stato === "attivo").length}</p></div><div><p className="text-muted-foreground">Canoni al mese</p><p className="font-semibold">{loadingContratti ? "Caricamento…" : `${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €`}</p></div></div></details>}
+      {!(impiantiError || contrattiError || pianiError) && <details className="rounded-xl border bg-background p-3 text-sm"><summary className="cursor-pointer font-medium">{t("Contratti e canoni")}</summary><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-muted-foreground">{t("Contratti attivi")}</p><p className="font-semibold">{loadingContratti ? t("Caricamento…") : contratti.filter(c => c.stato === "attivo").length}</p></div><div><p className="text-muted-foreground">{t("Canoni al mese")}</p><p className="font-semibold">{loadingContratti ? t("Caricamento…") : `${mrr.toLocaleString(intlCampo(), { maximumFractionDigits: 0, useGrouping: true })} €`}</p></div></div></details>}
 
       {(impiantiError || contrattiError || pianiError) && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>Errore nel caricamento. Riprova.</AlertDescription>
+          <AlertDescription>{t("Errore nel caricamento. Riprova.")}</AlertDescription>
         </Alert>
       )}
 
@@ -444,8 +446,8 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            aria-label={mostraContratti ? "Cerca contratti di manutenzione" : "Cerca impianti per cliente o tipo"}
-            placeholder={mostraContratti ? "Cerca un contratto…" : "Cerca per cliente o impianto…"}
+            aria-label={mostraContratti ? t("Cerca contratti di manutenzione") : t("Cerca impianti per cliente o tipo")}
+            placeholder={mostraContratti ? t("Cerca un contratto…") : t("Cerca per cliente o impianto…")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-9 bg-white pl-10"
@@ -455,8 +457,8 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
             sempre l'elenco compatto, come le assistenze (la pipeline è desktop). */}
         {!mostraContratti && (
           <ToggleGroup type="single" value={vista} onValueChange={(v) => v && cambiaVista(v as "tabella" | "kanban")} className="hidden shrink-0 lg:flex">
-            <ToggleGroupItem value="tabella" aria-label="Vista elenco" className="px-3"><List className="h-4 w-4" /></ToggleGroupItem>
-            <ToggleGroupItem value="kanban" aria-label="Vista kanban" className="px-3"><Columns3 className="h-4 w-4" /></ToggleGroupItem>
+            <ToggleGroupItem value="tabella" aria-label={t("Vista elenco")} className="px-3"><List className="h-4 w-4" /></ToggleGroupItem>
+            <ToggleGroupItem value="kanban" aria-label={t("Vista kanban")} className="px-3"><Columns3 className="h-4 w-4" /></ToggleGroupItem>
           </ToggleGroup>
         )}
       </div>
@@ -464,8 +466,8 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       {/* Barra selezione (desktop): l'Esporta in alto segue la selezione. */}
       {selezionati.size > 0 && !mostraContratti && (
         <div className="hidden items-center justify-between gap-2 rounded-xl border border-orange-200 bg-orange-50/60 px-4 py-2 text-sm sm:flex">
-          <span className="font-medium text-orange-800">{selezionati.size} impianti selezionati · l'Esporta scarica solo questi</span>
-          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelezionati(new Set())}>Deseleziona</Button>
+          <span className="font-medium text-orange-800">{t("{size} impianti selezionati · l'Esporta scarica solo questi", { size: String(selezionati.size ?? "") })}</span>
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelezionati(new Set())}>{t("Deseleziona")}</Button>
         </div>
       )}
 
@@ -475,7 +477,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
           <div className="space-y-3">{[1, 2].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
         ) : contrattiFiltrati.length === 0 ? (
           <div className="rounded-2xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-            {q ? "Nessun contratto con questa ricerca" : "Nessun contratto attivo"}
+            {q ? t("Nessun contratto con questa ricerca") : t("Nessun contratto attivo")}
           </div>
         ) : (
           <div className="space-y-2">
@@ -492,7 +494,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="font-bold text-violet-700 max-sm:text-[13px]">{Number(c.importo_canone).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })} €</div>
+                    <div className="font-bold text-violet-700 max-sm:text-[13px]">{Number(c.importo_canone).toLocaleString(intlCampo(), { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })} €</div>
                     <div className="text-xs text-muted-foreground">{c.tipo_fatturazione}</div>
                   </div>
                 </div>
@@ -504,10 +506,10 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         <div className="space-y-3">{[1, 2, 3].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
       ) : impiantiFiltrati.length === 0 ? (
         <div className="rounded-2xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-          {q || pill !== "all" ? "Nessun impianto con questi filtri" : (
+          {q || pill !== "all" ? t("Nessun impianto con questi filtri") : (
             <div className="space-y-3">
-              <p>Nessun impianto registrato</p>
-              <Button size="sm" className="gap-2" onClick={() => setWizardOpen(true)}><Plus className="h-4 w-4" /> Aggiungi impianto</Button>
+              <p>{t("Nessun impianto registrato")}</p>
+              <Button size="sm" className="gap-2" onClick={() => setWizardOpen(true)}><Plus className="h-4 w-4" /> {t("Aggiungi impianto")}</Button>
             </div>
           )}
         </div>

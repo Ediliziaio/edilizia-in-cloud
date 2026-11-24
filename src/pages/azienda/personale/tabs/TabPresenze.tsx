@@ -8,8 +8,10 @@ import { oggiRoma } from "@/hooks/useOperai";
 import { meseValido, spostaMese } from "@/lib/personale/presenze";
 import { cn } from "@/lib/utils";
 import { HrMonthlyReview } from "@/components/personale/HrMonthlyReview";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function TabPresenze() {
+  const t = useT();
   const [params, setParams] = useSearchParams();
   const oggi = oggiRoma();
   const meseUrl = params.get("mese") ?? "";
@@ -25,15 +27,15 @@ export function TabPresenze() {
     <div className="space-y-4 pt-2">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Presenze</h2>
+          <h2 className="text-xl font-semibold tracking-tight">{t("Presenze")}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Presenze del personale e ore sui cantieri, ognuna nel suo registro.
+            {t("Presenze del personale e ore sui cantieri, ognuna nel suo registro.")}
           </p>
         </div>
         <div
           className="inline-flex rounded-lg border bg-white p-1"
           role="group"
-          aria-label="Registro da consultare"
+          aria-label={t("Registro da consultare")}
         >
           {(
             [
@@ -64,13 +66,13 @@ export function TabPresenze() {
           <Button
             size="icon"
             variant="ghost"
-            aria-label="Mese precedente"
+            aria-label={t("Mese precedente")}
             onClick={() => aggiorna("mese", spostaMese(mese, -1))}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <label className="sr-only" htmlFor="presenze-month">
-            Mese delle presenze
+            {t("Mese delle presenze")}
           </label>
           <Input
             id="presenze-month"
@@ -84,7 +86,7 @@ export function TabPresenze() {
           <Button
             size="icon"
             variant="ghost"
-            aria-label="Mese successivo"
+            aria-label={t("Mese successivo")}
             onClick={() => aggiorna("mese", spostaMese(mese, 1))}
           >
             <ChevronRight className="h-4 w-4" />
@@ -94,13 +96,13 @@ export function TabPresenze() {
             variant="outline"
             onClick={() => aggiorna("mese", oggi.slice(0, 7))}
           >
-            Questo mese
+            {t("Questo mese")}
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
           {vista === "hr"
-            ? "Timbrature, assenze e anomalie del personale"
-            : "Ore da ufficio e rapportini · costi delle commesse"}
+            ? t("Timbrature, assenze e anomalie del personale")
+            : t("Ore da ufficio e rapportini · costi delle commesse")}
         </p>
       </div>
       <HrMonthlyReview key={`review-${mese}`} mese={mese} />

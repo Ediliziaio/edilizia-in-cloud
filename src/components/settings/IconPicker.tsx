@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { availableIcons } from "@/lib/orderStatusTemplates";
 import { getStatusIcon, STATUS_ICON_REGISTRY } from "@/lib/statusIconRegistry";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Il nome in italiano di ogni icona, per chi usa il lettore di schermo (i nomi tecnici non dicono niente). */
 const NOME_ICONA: Record<string, string> = {
@@ -27,6 +28,7 @@ interface IconPickerProps {
  * Riduzione bundle: -300KB su CompanyDetail chunk (era 365KB).
  */
 export function IconPicker({ value, onChange, color = "#2563EB" }: IconPickerProps) {
+  const t = useT();
   const CurrentIcon = getStatusIcon(value);
 
   return (
@@ -37,7 +39,7 @@ export function IconPicker({ value, onChange, color = "#2563EB" }: IconPickerPro
           size="icon"
           className="shrink-0"
           style={{ borderColor: color }}
-          aria-label="Scegli l'icona"
+          aria-label={t("Scegli l'icona")}
         >
           <CurrentIcon className="h-4 w-4" style={{ color }} />
         </Button>
@@ -57,7 +59,7 @@ export function IconPicker({ value, onChange, color = "#2563EB" }: IconPickerPro
                   value === iconName && "bg-primary/10 border border-primary"
                 )}
                 onClick={() => onChange(iconName)}
-                aria-label={`Icona ${NOME_ICONA[iconName] ?? iconName}`}
+                aria-label={t("Icona {nome}", { nome: NOME_ICONA[iconName] ? t(NOME_ICONA[iconName]) : iconName })}
                 aria-pressed={value === iconName}
               >
                 <Icon className="h-5 w-5" />

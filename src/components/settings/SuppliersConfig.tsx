@@ -78,6 +78,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { testoTecnico, userErrorMessage } from "@/lib/userErrorMessage";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface SupplierUsageCounts {
   articleTemplates: number;
@@ -252,10 +253,10 @@ const getPaymentMethodLabel = (value: string | null) => {
 class ErroreFornitore extends Error {}
 
 /** Il testo di un errore per chi usa la pagina: mai il messaggio del database così com'è. */
-function descrizioneErrore(error: unknown, ripiego: string): string {
+function descrizioneErrore(error: unknown, ripiego: string, t: (s: string) => string = (s) => s): string {
   if (error instanceof ErroreFornitore) return error.message;
   if (/duplicate|unique|already exists/i.test(testoTecnico(error)))
-    return "Esiste già un fornitore con questa ragione sociale.";
+    return t("Esiste già un fornitore con questa ragione sociale.");
   return userErrorMessage(error, ripiego);
 }
 
@@ -277,13 +278,14 @@ function SupplierTable({
   /** Senza il permesso la tabella si legge soltanto: niente colonna «Azioni». */
   puoModificare?: boolean;
 }) {
+  const t = useT();
   const mobile = useIsMobile();
   if (suppliers.length === 0) {
     return (
       <div className="text-center py-10 text-muted-foreground border rounded-lg bg-muted/20">
         <Truck className="h-12 w-12 mx-auto mb-4 opacity-50" />
-        <p className="font-medium text-foreground">Nessun fornitore trovato</p>
-        <p className="text-sm mt-1">{emptyMessage}</p>
+        <p className="font-medium text-foreground">{t("Nessun fornitore trovato")}</p>
+        <p className="text-sm mt-1">{t(emptyMessage)}</p>
       </div>
     );
   }
@@ -307,17 +309,17 @@ function SupplierTable({
                 )}
                 <p className="mt-1 text-xs text-muted-foreground">
                   {[categorieFornitore(s).join(" · "), s.city].filter(Boolean).join(" · ") ||
-                    "Categoria e città non indicate"}
+                    t("Categoria e città non indicate")}
                 </p>
               </div>
               <span className="shrink-0 text-xs text-muted-foreground">
-                {s.is_active ? "Attivo" : "Inattivo"}
+                {s.is_active ? t("Attivo") : t("Inattivo")}
               </span>
             </div>
             <div className="rounded-md bg-muted/30 p-3 text-sm">
-              <p className="text-xs text-muted-foreground">Referente</p>
+              <p className="text-xs text-muted-foreground">{t("Referente")}</p>
               <p className="break-words font-medium">
-                {s.contact_name || "Da aggiungere"}
+                {s.contact_name || t("Da aggiungere")}
                 {s.contact_role ? ` · ${s.contact_role}` : ""}
               </p>
               {(s.contact_email || s.contact_phone) && (
@@ -330,7 +332,7 @@ function SupplierTable({
             </div>
             <p className="break-words text-xs text-muted-foreground">
               {[s.email, s.phone].filter(Boolean).join(" · ") ||
-                "Recapiti aziendali non indicati"}
+                t("Recapiti aziendali non indicati")}
             </p>
             <div className="flex items-center justify-between gap-2 text-xs">
               <span>{getPaymentMethodLabel(s.payment_method)}</span>
@@ -340,16 +342,16 @@ function SupplierTable({
                     variant="outline"
                     size="sm"
                     onClick={() => onEdit(s)}
-                    aria-label={`Modifica ${s.name}`}
+                    aria-label={t("Modifica {name}", { name: String(s.name ?? "") })}
                   >
                     <Pencil className="mr-1 h-3 w-3" />
-                    Modifica
+                    {t("Modifica")}
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => onDelete(s)}
-                    aria-label={`Elimina ${s.name}`}
+                    aria-label={t("Elimina {name}", { name: String(s.name ?? "") })}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -368,16 +370,16 @@ function SupplierTable({
           {/* Da 768 a 1536 meno colonne: a 1024 la tabella chiedeva 984px su
               638. Pagamento e P.IVA tornano da 1280, IVA e prodotti da 1536.
               Sul telefono restano tutte (la tabella scorre come prima). */}
-          <TableHead>Nome del fornitore</TableHead>
-          <TableHead>Categoria</TableHead>
-          <TableHead>Tipo</TableHead>
-          <TableHead className="max-2xl:hidden">Pagamento</TableHead>
-          <TableHead>Città</TableHead>
-          <TableHead>Stato</TableHead>
+          <TableHead>{t("Nome del fornitore")}</TableHead>
+          <TableHead>{t("Categoria")}</TableHead>
+          <TableHead>{t("Tipo")}</TableHead>
+          <TableHead className="max-2xl:hidden">{t("Pagamento")}</TableHead>
+          <TableHead>{t("Città")}</TableHead>
+          <TableHead>{t("Stato")}</TableHead>
           <TableHead className="md:max-xl:hidden">P.IVA</TableHead>
-          <TableHead className="md:max-2xl:hidden">Aliquota IVA</TableHead>
-          <TableHead className="md:max-2xl:hidden">Prodotti</TableHead>
-          {puoModificare && <TableHead className="w-[100px]">Azioni</TableHead>}
+          <TableHead className="md:max-2xl:hidden">{t("Aliquota IVA")}</TableHead>
+          <TableHead className="md:max-2xl:hidden">{t("Prodotti")}</TableHead>
+          {puoModificare && <TableHead className="w-[100px]">{t("Azioni")}</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -397,7 +399,7 @@ function SupplierTable({
               <p className="mt-1 text-xs font-normal text-muted-foreground">
                 {supplier.contact_name
                   ? `${supplier.contact_name}${supplier.contact_role ? ` · ${supplier.contact_role}` : ""}`
-                  : "Referente da aggiungere"}
+                  : t("Referente da aggiungere")}
               </p>
             </TableCell>
             <TableCell>
@@ -412,9 +414,9 @@ function SupplierTable({
             <TableCell>
               {/* Lo stesso tipo di «Tipi dei fornitori»: decide dove vanno i costi delle sue fatture. */}
               {isTipoFornitore((supplier as { tipo?: string | null }).tipo) ? (
-                <span className="whitespace-nowrap text-xs">{INFO_TIPO_FORNITORE[(supplier as unknown as { tipo: TipoFornitore }).tipo].etichetta}</span>
+                <span className="whitespace-nowrap text-xs">{t(INFO_TIPO_FORNITORE[(supplier as unknown as { tipo: TipoFornitore }).tipo].etichetta)}</span>
               ) : (
-                <Link to="/azienda/documenti/tipi-fornitori" className="whitespace-nowrap text-xs text-amber-700 underline-offset-2 hover:underline dark:text-amber-400">Da scegliere</Link>
+                <Link to="/azienda/documenti/tipi-fornitori" className="whitespace-nowrap text-xs text-amber-700 underline-offset-2 hover:underline dark:text-amber-400">{t("Da scegliere")}</Link>
               )}
             </TableCell>
             <TableCell className="max-2xl:hidden">
@@ -425,7 +427,7 @@ function SupplierTable({
               <span
                 className={`inline-flex rounded-full px-2 py-0.5 text-xs ${supplier.is_active ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"}`}
               >
-                {supplier.is_active ? "Attivo" : "Inattivo"}
+                {supplier.is_active ? t("Attivo") : t("Inattivo")}
               </span>
             </TableCell>
             <TableCell className="md:max-xl:hidden">
@@ -438,10 +440,8 @@ function SupplierTable({
               {(productCounts[supplier.id] ?? 0) > 0 ? (
                 <span
                   className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
-                  title="Prodotti del listino collegati a questo fornitore"
-                >
-                  {productCounts[supplier.id]} prod.
-                </span>
+                  title={t("Prodotti del listino collegati a questo fornitore")}
+                >{t("{valore} prod.", { valore: String(productCounts[supplier.id] ?? "") })}</span>
               ) : (
                 <span className="text-xs text-muted-foreground">—</span>
               )}
@@ -453,7 +453,7 @@ function SupplierTable({
                     variant="ghost"
                     size="icon"
                     onClick={() => onEdit(supplier)}
-                    aria-label={`Modifica ${supplier.name}`}
+                    aria-label={t("Modifica {name}", { name: String(supplier.name ?? "") })}
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -461,7 +461,7 @@ function SupplierTable({
                     variant="ghost"
                     size="icon"
                     onClick={() => onDelete(supplier)}
-                    aria-label={`Elimina ${supplier.name}`}
+                    aria-label={t("Elimina {name}", { name: String(supplier.name ?? "") })}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -502,6 +502,7 @@ function UnisciFornitoriDialogAperta({
   onChiudi,
   onUnisci,
 }: UnisciDialogProps) {
+  const t = useT();
   const [doppioneId, setDoppioneId] = useState("");
   const [principaleId, setPrincipaleId] = useState("");
   // Chi ha già scelto qualcosa non lo perde con Esc o un clic fuori.
@@ -521,24 +522,23 @@ function UnisciFornitoriDialogAperta({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Unisci due fornitori</DialogTitle>
+          <DialogTitle>{t("Unisci due fornitori")}</DialogTitle>
           <DialogDescription>
-            Sposta ordini, costi, scadenze, prima nota, listino e magazzino dal
-            doppione al fornitore principale, poi elimina il doppione.
+            {t("Sposta ordini, costi, scadenze, prima nota, listino e magazzino dal doppione al fornitore principale, poi elimina il doppione.")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {candidati.length > 0 && (
             <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
-              Possibili doppioni:{" "}
+              {t("Possibili doppioni:")}{" "}
               {candidati.map((supplier) => supplier.name).join(", ")}
             </div>
           )}
           <div className="space-y-2">
-            <Label htmlFor="unisci-doppione">Doppione da eliminare</Label>
+            <Label htmlFor="unisci-doppione">{t("Doppione da eliminare")}</Label>
             <Select value={doppioneId} onValueChange={setDoppioneId}>
               <SelectTrigger id="unisci-doppione">
-                <SelectValue placeholder="Scegli il doppione..." />
+                <SelectValue placeholder={t("Scegli il doppione...")} />
               </SelectTrigger>
               <SelectContent>
                 {fornitori.map((supplier) => (
@@ -551,10 +551,10 @@ function UnisciFornitoriDialogAperta({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="unisci-principale">Fornitore da tenere</Label>
+            <Label htmlFor="unisci-principale">{t("Fornitore da tenere")}</Label>
             <Select value={principaleId} onValueChange={setPrincipaleId}>
               <SelectTrigger id="unisci-principale">
-                <SelectValue placeholder="Scegli il fornitore da tenere..." />
+                <SelectValue placeholder={t("Scegli il fornitore da tenere...")} />
               </SelectTrigger>
               <SelectContent>
                 {fornitori
@@ -570,10 +570,9 @@ function UnisciFornitoriDialogAperta({
           </div>
           <Alert>
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Non si può annullare</AlertTitle>
+            <AlertTitle>{t("Non si può annullare")}</AlertTitle>
             <AlertDescription className="text-xs">
-              Controlla bene quale tenere e quale eliminare prima di andare
-              avanti.
+              {t("Controlla bene quale tenere e quale eliminare prima di andare avanti.")}
             </AlertDescription>
           </Alert>
         </div>
@@ -584,7 +583,7 @@ function UnisciFornitoriDialogAperta({
             disabled={salvataggio}
             onClick={chiudi}
           >
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button
             type="button"
@@ -597,7 +596,7 @@ function UnisciFornitoriDialogAperta({
             onClick={() => onUnisci(doppioneId, principaleId)}
           >
             {salvataggio && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Unisci i fornitori
+            {t("Unisci i fornitori")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -614,6 +613,7 @@ export function SuppliersConfig({
   puoModificare?: boolean;
   onApriFornitore?: (id: string) => void;
 }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -770,12 +770,12 @@ export function SuppliersConfig({
     mutationFn: async (data: SupplierFormData) => {
       if (!puoModificare)
         throw new ErroreFornitore(
-          "Per creare un fornitore serve il permesso «Fornitori» in modifica.",
+          t("Per creare un fornitore serve il permesso «Fornitori» in modifica."),
         );
-      if (!companyId) throw new ErroreFornitore("Azienda non selezionata");
+      if (!companyId) throw new ErroreFornitore(t("Azienda non selezionata"));
       const safeName = normalizeSupplierName(data.name);
       if (!safeName)
-        throw new ErroreFornitore("La ragione sociale è obbligatoria.");
+        throw new ErroreFornitore(t("La ragione sociale è obbligatoria."));
       const { data: created, error } = await supabase
         .from("suppliers")
         .insert({
@@ -789,17 +789,17 @@ export function SuppliersConfig({
     },
     onSuccess: async (id) => {
       await invalidateSuppliers();
-      toast.success("Fornitore creato", {
-        description: "Il fornitore è stato aggiunto con successo.",
+      toast.success(t("Fornitore creato"), {
+        description: t("Il fornitore è stato aggiunto con successo."),
       });
       handleCloseDialog();
       onApriFornitore?.(id);
     },
     onError: (error) => {
-      toast.error("Errore", {
+      toast.error(t("Errore"), {
         description: descrizioneErrore(
           error,
-          "Impossibile creare il fornitore.",
+          t("Impossibile creare il fornitore."), t
         ),
       });
       logger.error("Errore creazione fornitore", error);
@@ -810,12 +810,12 @@ export function SuppliersConfig({
     mutationFn: async ({ id, ...data }: SupplierFormData & { id: string }) => {
       if (!puoModificare)
         throw new ErroreFornitore(
-          "Per modificare un fornitore serve il permesso «Fornitori» in modifica.",
+          t("Per modificare un fornitore serve il permesso «Fornitori» in modifica."),
         );
-      if (!companyId) throw new ErroreFornitore("Azienda non selezionata");
+      if (!companyId) throw new ErroreFornitore(t("Azienda non selezionata"));
       const safeName = normalizeSupplierName(data.name);
       if (!safeName)
-        throw new ErroreFornitore("La ragione sociale è obbligatoria.");
+        throw new ErroreFornitore(t("La ragione sociale è obbligatoria."));
       const { error } = await supabase
         .from("suppliers")
         .update({
@@ -829,16 +829,16 @@ export function SuppliersConfig({
     },
     onSuccess: async () => {
       await invalidateSuppliers();
-      toast.success("Fornitore aggiornato", {
-        description: "Le modifiche sono state salvate.",
+      toast.success(t("Fornitore aggiornato"), {
+        description: t("Le modifiche sono state salvate."),
       });
       handleCloseDialog();
     },
     onError: (error) => {
-      toast.error("Errore", {
+      toast.error(t("Errore"), {
         description: descrizioneErrore(
           error,
-          "Impossibile aggiornare il fornitore.",
+          t("Impossibile aggiornare il fornitore."), t
         ),
       });
       logger.error("Errore aggiornamento fornitore", error);
@@ -849,13 +849,13 @@ export function SuppliersConfig({
     mutationFn: async (id: string) => {
       if (!puoModificare)
         throw new ErroreFornitore(
-          "Per eliminare un fornitore serve il permesso «Fornitori» in modifica.",
+          t("Per eliminare un fornitore serve il permesso «Fornitori» in modifica."),
         );
-      if (!companyId) throw new ErroreFornitore("Azienda non selezionata");
+      if (!companyId) throw new ErroreFornitore(t("Azienda non selezionata"));
       const usage = await getSupplierUsageCounts(companyId, id);
       if (getUsageTotal(usage) > 0) {
         throw new ErroreFornitore(
-          "Fornitore già collegato a dati operativi: eliminazione bloccata per proteggere ordini, costi, pagamenti, magazzino e report.",
+          t("Fornitore già collegato a dati operativi: eliminazione bloccata per proteggere ordini, costi, pagamenti, magazzino e report."),
         );
       }
       const { error } = await supabase
@@ -867,8 +867,8 @@ export function SuppliersConfig({
     },
     onSuccess: () => {
       invalidateSuppliers();
-      toast.success("Fornitore eliminato", {
-        description: "Il fornitore è stato rimosso.",
+      toast.success(t("Fornitore eliminato"), {
+        description: t("Il fornitore è stato rimosso."),
       });
       setDeleteDialogOpen(false);
       setDeletingSupplier(null);
@@ -878,15 +878,15 @@ export function SuppliersConfig({
         (error as { code?: string }).code === "23503" ||
         testoTecnico(error).includes("foreign key")
       ) {
-        toast.error("Impossibile eliminare", {
+        toast.error(t("Impossibile eliminare"), {
           description:
-            "Il fornitore è associato a dati operativi e non può essere eliminato.",
+            t("Il fornitore è associato a dati operativi e non può essere eliminato."),
         });
       } else {
-        toast.error("Errore", {
+        toast.error(t("Errore"), {
           description: descrizioneErrore(
             error,
-            "Impossibile eliminare il fornitore.",
+            t("Impossibile eliminare il fornitore."), t
           ),
         });
       }
@@ -904,17 +904,17 @@ export function SuppliersConfig({
     }) => {
       if (!puoModificare)
         throw new ErroreFornitore(
-          "Per unire due fornitori serve il permesso «Fornitori» in modifica.",
+          t("Per unire due fornitori serve il permesso «Fornitori» in modifica."),
         );
-      if (!companyId) throw new ErroreFornitore("Azienda non selezionata");
+      if (!companyId) throw new ErroreFornitore(t("Azienda non selezionata"));
       if (!sourceId || !targetId || sourceId === targetId) {
-        throw new ErroreFornitore("Scegli due fornitori diversi.");
+        throw new ErroreFornitore(t("Scegli due fornitori diversi."));
       }
       const source = suppliers?.find((supplier) => supplier.id === sourceId);
       const target = suppliers?.find((supplier) => supplier.id === targetId);
       if (!source || !target)
         throw new ErroreFornitore(
-          "Non trovo uno dei due fornitori: ricarica la pagina e riprova.",
+          t("Non trovo uno dei due fornitori: ricarica la pagina e riprova."),
         );
 
       // L'unione storica procede per più scritture: non iniziarla quando ci
@@ -928,7 +928,7 @@ export function SuppliersConfig({
         sourceUsage.receiptHistory
       )
         throw new ErroreFornitore(
-          "Il doppione ha collegamenti fiscali, ruoli o contratti. L’unione automatica non è disponibile: conserva le schede e verifica i collegamenti senza perdere documenti.",
+          t("Il doppione ha collegamenti fiscali, ruoli o contratti. L’unione automatica non è disponibile: conserva le schede e verifica i collegamenti senza perdere documenti."),
         );
 
       let contatti: ReturnType<typeof contattiPerUnione>;
@@ -1015,14 +1015,14 @@ export function SuppliersConfig({
     onSuccess: () => {
       invalidateSuppliers();
       setMergeDialogOpen(false);
-      toast.success("Fornitori uniti", {
+      toast.success(t("Fornitori uniti"), {
         description:
-          "Storico, costi, ordini e pagamenti sono passati al fornitore da tenere.",
+          t("Storico, costi, ordini e pagamenti sono passati al fornitore da tenere."),
       });
     },
     onError: (error: Error) => {
-      toast.error("Non sono riuscito a unire i fornitori.", {
-        description: descrizioneErrore(error, "Riprova tra poco."),
+      toast.error(t("Non sono riuscito a unire i fornitori."), {
+        description: descrizioneErrore(error, t("Riprova tra poco."), t),
       });
       logger.error("Errore unione fornitori", error);
     },
@@ -1075,10 +1075,10 @@ export function SuppliersConfig({
                 onClick={() => setMergeDialogOpen(true)}
               >
                 <Merge className="h-4 w-4 mr-2" />
-                Unisci doppioni
+                {t("Unisci doppioni")}
               </Button>
               <Button variant="outline" size="sm" className="flex-1 sm:flex-none" asChild>
-                <Link to="/azienda/documenti/tipi-fornitori">Tipi dei fornitori</Link>
+                <Link to="/azienda/documenti/tipi-fornitori">{t("Tipi dei fornitori")}</Link>
               </Button>
               <Button
                 size="sm"
@@ -1087,8 +1087,8 @@ export function SuppliersConfig({
                 onClick={handleOpenCreate}
               >
                 <Plus className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Nuovo fornitore</span>
-                <span className="sm:hidden">Nuovo fornitore</span>
+                <span className="hidden sm:inline">{t("Nuovo fornitore")}</span>
+                <span className="sm:hidden">{t("Nuovo fornitore")}</span>
               </Button>
             </div>
           </div>
@@ -1104,12 +1104,12 @@ export function SuppliersConfig({
         ) : isError ? (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Impossibile caricare i fornitori</AlertTitle>
+            <AlertTitle>{t("Impossibile caricare i fornitori")}</AlertTitle>
             <AlertDescription className="space-y-3">
               <p className="text-xs">
                 {userErrorMessage(
                   error,
-                  "Errore durante il caricamento dell'anagrafica fornitori.",
+                  t("Errore durante il caricamento dell'anagrafica fornitori."),
                 )}
               </p>
               <Button
@@ -1118,7 +1118,7 @@ export function SuppliersConfig({
                 size="sm"
                 onClick={() => void refetch()}
               >
-                Riprova
+                {t("Riprova")}
               </Button>
             </AlertDescription>
           </Alert>
@@ -1129,31 +1129,31 @@ export function SuppliersConfig({
               <div className="relative col-span-2 md:col-span-4 xl:col-span-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Cerca azienda, referente, email o P.IVA…"
-                  aria-label="Cerca un fornitore"
+                  placeholder={t("Cerca azienda, referente, email o P.IVA…")}
+                  aria-label={t("Cerca un fornitore")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger aria-label="Filtra per stato">
-                  <SelectValue placeholder="Stato" />
+                <SelectTrigger aria-label={t("Filtra per stato")}>
+                  <SelectValue placeholder={t("Stato")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti gli stati</SelectItem>
-                  <SelectItem value="active">Solo attivi</SelectItem>
-                  <SelectItem value="inactive">Solo inattivi</SelectItem>
+                  <SelectItem value="all">{t("Tutti gli stati")}</SelectItem>
+                  <SelectItem value="active">{t("Solo attivi")}</SelectItem>
+                  <SelectItem value="inactive">{t("Solo inattivi")}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger aria-label="Filtra per categoria">
-                  <SelectValue placeholder="Categoria">
-                    {categoryFilter === "all" ? "Categoria" : categoryFilter}
+                <SelectTrigger aria-label={t("Filtra per categoria")}>
+                  <SelectValue placeholder={t("Categoria")}>
+                    {categoryFilter === "all" ? t("Categoria") : categoryFilter}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutte le categorie</SelectItem>
+                  <SelectItem value="all">{t("Tutte le categorie")}</SelectItem>
                   {existingCategories.map((category) => (
                     <SelectItem key={category} value={category}>
                       {category}
@@ -1162,13 +1162,13 @@ export function SuppliersConfig({
                 </SelectContent>
               </Select>
               <Select value={provinceFilter} onValueChange={setProvinceFilter}>
-                <SelectTrigger aria-label="Filtra per provincia">
-                  <SelectValue placeholder="Provincia">
-                    {provinceFilter === "all" ? "Provincia" : provinceFilter}
+                <SelectTrigger aria-label={t("Filtra per provincia")}>
+                  <SelectValue placeholder={t("Provincia")}>
+                    {provinceFilter === "all" ? t("Provincia") : provinceFilter}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutte le province</SelectItem>
+                  <SelectItem value="all">{t("Tutte le province")}</SelectItem>
                   {existingProvinces.map((province) => (
                     <SelectItem key={province} value={province}>
                       {province}
@@ -1177,37 +1177,33 @@ export function SuppliersConfig({
                 </SelectContent>
               </Select>
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger aria-label="Ordina i fornitori">
+                <SelectTrigger aria-label={t("Ordina i fornitori")}>
                   <ArrowUpDown className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Ordina" />
+                  <SelectValue placeholder={t("Ordina")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="name">Nome</SelectItem>
-                  <SelectItem value="category">Categoria</SelectItem>
-                  <SelectItem value="city">Città</SelectItem>
-                  <SelectItem value="status">Stato</SelectItem>
+                  <SelectItem value="name">{t("Nome")}</SelectItem>
+                  <SelectItem value="category">{t("Categoria")}</SelectItem>
+                  <SelectItem value="city">{t("Città")}</SelectItem>
+                  <SelectItem value="status">{t("Stato")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {duplicateCandidates.length > 0 && (
               <Alert>
                 <Merge className="h-4 w-4" />
-                <AlertTitle>Possibili doppioni</AlertTitle>
+                <AlertTitle>{t("Possibili doppioni")}</AlertTitle>
                 <AlertDescription className="text-xs">
                   {puoModificare
-                    ? `${duplicateCandidates.length} fornitori hanno nome o partita IVA simili. Usa «Unisci doppioni» per portare lo storico sul fornitore giusto.`
-                    : `${duplicateCandidates.length} fornitori hanno nome o partita IVA simili.`}
+                    ? t("{n} fornitori hanno nome o partita IVA simili. Usa «Unisci doppioni» per portare lo storico sul fornitore giusto.", { n: duplicateCandidates.length })
+                    : t("{n} fornitori hanno nome o partita IVA simili.", { n: duplicateCandidates.length })}
                 </AlertDescription>
               </Alert>
             )}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-2 max-w-xs">
-                <TabsTrigger value="italiani">
-                  Italiani ({italiani.length})
-                </TabsTrigger>
-                <TabsTrigger value="esteri">
-                  Esteri ({esteri.length})
-                </TabsTrigger>
+                <TabsTrigger value="italiani">{t("Italiani ({n})", { n: italiani.length })}</TabsTrigger>
+                <TabsTrigger value="esteri">{t("Esteri ({n})", { n: esteri.length })}</TabsTrigger>
               </TabsList>
               <TabsContent value="italiani">
                 <SupplierTable
@@ -1219,8 +1215,8 @@ export function SuppliersConfig({
                   puoModificare={puoModificare}
                   emptyMessage={
                     puoModificare
-                      ? "Modifica ricerca o filtri, oppure crea un nuovo fornitore italiano."
-                      : "Modifica ricerca o filtri."
+                      ? t("Modifica ricerca o filtri, oppure crea un nuovo fornitore italiano.")
+                      : t("Modifica ricerca o filtri.")
                   }
                 />
               </TabsContent>
@@ -1234,8 +1230,8 @@ export function SuppliersConfig({
                   puoModificare={puoModificare}
                   emptyMessage={
                     puoModificare
-                      ? "Modifica ricerca o filtri, oppure crea un nuovo fornitore estero."
-                      : "Modifica ricerca o filtri."
+                      ? t("Modifica ricerca o filtri, oppure crea un nuovo fornitore estero.")
+                      : t("Modifica ricerca o filtri.")
                   }
                 />
               </TabsContent>
@@ -1277,30 +1273,26 @@ export function SuppliersConfig({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il fornitore?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare il fornitore?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Stai per eliminare il fornitore "{deletingSupplier?.name}".
+              {t("Stai per eliminare il fornitore \"{nome}\".", { nome: deletingSupplier?.name ?? "" })}
               {deletingUsageLoading ? (
                 <>
                   {" "}
-                  Verifico i collegamenti operativi prima di consentire
-                  l'eliminazione.
+                  {t("Verifico i collegamenti operativi prima di consentire l'eliminazione.")}
                 </>
               ) : deletingUsageTotal > 0 ? (
                 <>
                   {" "}
-                  Il fornitore è collegato a dati operativi e non può essere
-                  eliminato senza proteggere lo storico. Usa lo stato inattivo
-                  se non deve essere più usato nei nuovi acquisti.
+                  {t("Il fornitore è collegato a dati operativi e non può essere eliminato senza proteggere lo storico. Usa lo stato inattivo se non deve essere più usato nei nuovi acquisti.")}
                 </>
               ) : deletingUsageIsError ? (
                 <>
                   {" "}
-                  Non è stato possibile verificare tutti i collegamenti:
-                  l'eliminazione resta bloccata per sicurezza.
+                  {t("Non è stato possibile verificare tutti i collegamenti: l'eliminazione resta bloccata per sicurezza.")}
                 </>
               ) : (
-                <> Questa azione non può essere annullata.</>
+                <> {t("Questa azione non può essere annullata.")}</>
               )}
             </AlertDialogDescription>
             {(deletingUsageTotal > 0 || deletingUsageIsError) && (
@@ -1311,19 +1303,17 @@ export function SuppliersConfig({
                   >
                 ).map(([key, value]) =>
                   value > 0 ? (
-                    <p key={key}>
-                      {supplierUsageLabels[key]} collegati: {value}
-                    </p>
+                    <p key={key}>{t("{valore} collegati: {value}", { valore: t(supplierUsageLabels[key]), value: String(value ?? "") })}</p>
                   ) : null,
                 )}
                 {deletingUsageIsError && (
-                  <p>Verifica collegamenti non riuscita.</p>
+                  <p>{t("Verifica collegamenti non riuscita.")}</p>
                 )}
               </div>
             )}
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               disabled={
@@ -1338,8 +1328,8 @@ export function SuppliersConfig({
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
               {deletingUsageTotal > 0 || deletingUsageIsError
-                ? "Bloccata"
-                : "Elimina"}
+                ? t("Bloccata")
+                : t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -5,7 +5,6 @@ import { useToast } from "@/hooks/use-toast";
 import { queryKeys } from "@/lib/queryKeys";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { format, differenceInDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { Shield, ShieldOff, Key, Lock, LockOpen, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { BloccoAccessoCard } from "./BloccoAccessoCard";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface UserSecurityTabProps {
   userId: string;
@@ -44,6 +44,7 @@ interface UserSecurityTabProps {
  * sotto la scheda rossa «Accesso bloccato».
  */
 export function UserSecurityTab({ userId, user, isAdmin, isCurrentUser, isTargetAdmin }: UserSecurityTabProps) {
+  const t = useT();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [require2fa, setRequire2fa] = useState(user.require_2fa || false);
@@ -67,10 +68,10 @@ export function UserSecurityTab({ userId, user, isAdmin, isCurrentUser, isTarget
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
-      toast({ title: "Blocco tolto", description: "Può riprovare a entrare." });
+      toast({ title: t("Blocco tolto"), description: t("Può riprovare a entrare.") });
     },
     onError: (e: unknown) => {
-      toast({ title: "Non sono riuscito a togliere il blocco", description: userErrorMessage(e, "Riprova tra un attimo."), variant: "destructive" });
+      toast({ title: t("Non sono riuscito a togliere il blocco"), description: userErrorMessage(e, "Riprova tra un attimo."), variant: "destructive" });
     },
   });
 
@@ -85,10 +86,10 @@ export function UserSecurityTab({ userId, user, isAdmin, isCurrentUser, isTarget
     onSuccess: (_, value) => {
       setRequire2fa(value);
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
-      toast({ title: value ? "L'app di verifica sarà richiesta" : "L'app di verifica non è più richiesta" });
+      toast({ title: value ? t("L'app di verifica sarà richiesta") : t("L'app di verifica non è più richiesta") });
     },
     onError: (e: unknown) => {
-      toast({ title: "Non sono riuscito a cambiare la richiesta", description: userErrorMessage(e, "Riprova tra un attimo."), variant: "destructive" });
+      toast({ title: t("Non sono riuscito a cambiare la richiesta"), description: userErrorMessage(e, "Riprova tra un attimo."), variant: "destructive" });
     },
   });
 
@@ -112,19 +113,19 @@ export function UserSecurityTab({ userId, user, isAdmin, isCurrentUser, isTarget
       if (error) throw error;
     },
     onSuccess: () => {
-      toast({ title: "Link inviato", description: "La persona riceverà un'email per scegliere una nuova password." });
+      toast({ title: t("Link inviato"), description: t("La persona riceverà un'email per scegliere una nuova password.") });
     },
     onError: (e: unknown) => {
-      toast({ title: "Non sono riuscito a mandare l'email", description: userErrorMessage(e, "Riprova tra un attimo."), variant: "destructive" });
+      toast({ title: t("Non sono riuscito a mandare l'email"), description: userErrorMessage(e, "Riprova tra un attimo."), variant: "destructive" });
     },
   });
 
   /** Una frase sola sul blocco: l'amministratore vince sul blocco per password sbagliate. */
   const bloccoTesto = isBlocked
-    ? "Accesso bloccato dall'amministratore"
+    ? t("Accesso bloccato dall'amministratore")
     : isLocked
-      ? `Bloccato fino alle ${format(new Date(user.locked_until!), "HH:mm 'del' dd/MM", { locale: it })} per password sbagliate`
-      : "Nessun blocco";
+      ? t("Bloccato fino alle {ora} del {data} per password sbagliate", { ora: format(new Date(user.locked_until!), "HH:mm"), data: format(new Date(user.locked_until!), "dd/MM") })
+      : t("Nessun blocco");
 
   return (
     <div className="space-y-6 max-sm:space-y-3">
@@ -140,7 +141,7 @@ export function UserSecurityTab({ userId, user, isAdmin, isCurrentUser, isTarget
       <Card>
         <CardHeader className="max-sm:p-4 max-sm:pb-1">
           <CardTitle className="text-base flex items-center gap-2">
-            <Shield className="h-4 w-4" aria-hidden="true" /> Stato dell'accesso
+            <Shield className="h-4 w-4" aria-hidden="true" /> {t("Stato dell'accesso")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 max-sm:p-4 max-sm:pt-0">
@@ -154,25 +155,25 @@ export function UserSecurityTab({ userId, user, isAdmin, isCurrentUser, isTarget
               <dd>
                 {isLocked && !isBlocked && isAdmin && (
                   <Button variant="outline" size="sm" className="tap-compact h-8" onClick={() => unlockMutation.mutate()} disabled={unlockMutation.isPending}>
-                    Togli il blocco
+                    {t("Togli il blocco")}
                   </Button>
                 )}
               </dd>
             </div>
             <div className="flex items-center justify-between gap-2 py-2">
-              <dt className="text-muted-foreground">Password sbagliate di fila</dt>
+              <dt className="text-muted-foreground">{t("Password sbagliate di fila")}</dt>
               <dd className={failedAttempts > 0 ? "font-medium text-orange-600" : ""}>{failedAttempts}</dd>
             </div>
             <div className="flex items-center justify-between gap-2 py-2">
-              <dt className="text-muted-foreground">Ultimo accesso</dt>
+              <dt className="text-muted-foreground">{t("Ultimo accesso")}</dt>
               <dd>
                 {user.last_login_at
-                  ? format(new Date(user.last_login_at), "dd/MM/yyyy HH:mm", { locale: it })
-                  : "Mai"}
+                  ? format(new Date(user.last_login_at), "dd/MM/yyyy HH:mm", { locale: dateFnsCampo() })
+                  : t("Mai")}
               </dd>
             </div>
             <div className="flex items-center justify-between gap-2 py-2">
-              <dt className="text-muted-foreground">Ultimo indirizzo (IP)</dt>
+              <dt className="text-muted-foreground">{t("Ultimo indirizzo (IP)")}</dt>
               <dd className="truncate font-mono text-xs">{user.last_login_ip || "—"}</dd>
             </div>
           </dl>
@@ -188,13 +189,13 @@ export function UserSecurityTab({ userId, user, isAdmin, isCurrentUser, isTarget
                   <CheckCircle2 className="h-4 w-4 text-green-600" aria-hidden="true" />
                 )}
                 <div>
-                  <p className="text-sm font-medium">Blocco</p>
+                  <p className="text-sm font-medium">{t("Blocco")}</p>
                   <p className={`text-xs ${isBlocked || isLocked ? "text-destructive" : "text-muted-foreground"}`}>{bloccoTesto}</p>
                 </div>
               </div>
               {isLocked && !isBlocked && isAdmin && (
                 <Button variant="outline" size="sm" onClick={() => unlockMutation.mutate()} disabled={unlockMutation.isPending}>
-                  <LockOpen className="h-3 w-3 mr-1" aria-hidden="true" /> Togli il blocco
+                  <LockOpen className="h-3 w-3 mr-1" aria-hidden="true" /> {t("Togli il blocco")}
                 </Button>
               )}
             </div>
@@ -207,7 +208,7 @@ export function UserSecurityTab({ userId, user, isAdmin, isCurrentUser, isTarget
                 <CheckCircle2 className="h-4 w-4 text-green-600" aria-hidden="true" />
               )}
               <div>
-                <p className="text-sm font-medium">Password sbagliate di fila</p>
+                <p className="text-sm font-medium">{t("Password sbagliate di fila")}</p>
                 <p className="text-xs text-muted-foreground">{failedAttempts}</p>
               </div>
             </div>
@@ -216,11 +217,11 @@ export function UserSecurityTab({ userId, user, isAdmin, isCurrentUser, isTarget
             <div className="flex items-center gap-2 p-3 rounded-lg border">
               <Key className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               <div>
-                <p className="text-sm font-medium">Ultimo accesso</p>
+                <p className="text-sm font-medium">{t("Ultimo accesso")}</p>
                 <p className="text-xs text-muted-foreground">
                   {user.last_login_at
-                    ? format(new Date(user.last_login_at), "dd/MM/yyyy HH:mm", { locale: it })
-                    : "Mai"}
+                    ? format(new Date(user.last_login_at), "dd/MM/yyyy HH:mm", { locale: dateFnsCampo() })
+                    : t("Mai")}
                 </p>
               </div>
             </div>
@@ -229,7 +230,7 @@ export function UserSecurityTab({ userId, user, isAdmin, isCurrentUser, isTarget
             <div className="flex items-center gap-2 p-3 rounded-lg border">
               <Shield className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               <div>
-                <p className="text-sm font-medium">Ultimo indirizzo di rete (IP)</p>
+                <p className="text-sm font-medium">{t("Ultimo indirizzo di rete (IP)")}</p>
                 <p className="text-xs text-muted-foreground font-mono">{user.last_login_ip || "—"}</p>
               </div>
             </div>
@@ -242,48 +243,47 @@ export function UserSecurityTab({ userId, user, isAdmin, isCurrentUser, isTarget
       <Card>
         <CardHeader className="max-sm:hidden">
           <CardTitle className="text-base flex items-center gap-2">
-            <Key className="h-4 w-4" aria-hidden="true" /> Password
+            <Key className="h-4 w-4" aria-hidden="true" /> {t("Password")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 max-sm:p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium">Ultimo cambio password</p>
+              <p className="text-sm font-medium">{t("Ultimo cambio password")}</p>
               <p className="text-xs text-muted-foreground">
                 {user.password_changed_at
                   ? `${format(new Date(user.password_changed_at), "dd/MM/yyyy")} (${passwordAge === 0 ? "oggi" : passwordAge === 1 ? "ieri" : `${passwordAge} giorni fa`})`
-                  : "Mai cambiata"}
+                  : t("Mai cambiata")}
               </p>
             </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
                   variant="outline" size="sm" className="shrink-0" disabled={!isAdmin || resetPasswordMutation.isPending}
-                  aria-label="Invia il link per scegliere una nuova password"
+                  aria-label={t("Invia il link per scegliere una nuova password")}
                 >
-                  <span className="max-sm:hidden">Invia il link per scegliere una nuova password</span>
-                  <span className="sm:hidden">Invia il link</span>
+                  <span className="max-sm:hidden">{t("Invia il link per scegliere una nuova password")}</span>
+                  <span className="sm:hidden">{t("Invia il link")}</span>
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Mandare il link per cambiare la password?</AlertDialogTitle>
+                  <AlertDialogTitle>{t("Mandare il link per cambiare la password?")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    La persona riceve un'email con un link per scegliere una nuova password. Quella di prima continua a
-                    funzionare finché non lo usa. Per chiudere gli accessi già aperti vai in «Sessioni».
+                    {t("La persona riceve un'email con un link per scegliere una nuova password. Quella di prima continua a funzionare finché non lo usa. Per chiudere gli accessi già aperti vai in «Sessioni».")}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                   <AlertDialogAction onClick={() => resetPasswordMutation.mutate()}>
-                    Invia il link
+                    {t("Invia il link")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           </div>
           <p className="text-xs text-muted-foreground max-sm:hidden">
-            Per cambiare la password subito e mandarla alla persona per email, vai in «Dati».
+            {t("Per cambiare la password subito e mandarla alla persona per email, vai in «Dati».")}
           </p>
         </CardContent>
       </Card>
@@ -292,15 +292,15 @@ export function UserSecurityTab({ userId, user, isAdmin, isCurrentUser, isTarget
       <Card>
         <CardHeader className="max-sm:hidden">
           <CardTitle className="text-base flex items-center gap-2">
-            <Shield className="h-4 w-4" aria-hidden="true" /> Verifica in due passaggi
+            <Shield className="h-4 w-4" aria-hidden="true" /> {t("Verifica in due passaggi")}
           </CardTitle>
         </CardHeader>
         <CardContent className="max-sm:p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <Label htmlFor="require-2fa" className="text-sm font-medium">Chiedi l'app di verifica</Label>
+              <Label htmlFor="require-2fa" className="text-sm font-medium">{t("Chiedi l'app di verifica")}</Label>
               <p id="require-2fa-descrizione" className="text-xs text-muted-foreground max-sm:hidden">
-                Al prossimo accesso dovrà collegare un'app (Google Authenticator o simili). Se la persona la disattiva, la richiesta si spegne.
+                {t("Al prossimo accesso dovrà collegare un'app (Google Authenticator o simili). Se la persona la disattiva, la richiesta si spegne.")}
               </p>
             </div>
             <Switch

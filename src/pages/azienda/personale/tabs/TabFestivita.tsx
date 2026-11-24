@@ -17,8 +17,10 @@ import { Plus, CalendarCheck, Pencil, Trash2, RefreshCw, CalendarDays } from "lu
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function TabFestivita() {
+  const t = useT();
   const { data: festivita = [], isLoading, isError, refetch } = useHrFestivita();
   const importMut = useImportHrFestivita();
   const permissions = usePermissions();
@@ -44,8 +46,8 @@ export function TabFestivita() {
 
   return (
     <div className="space-y-4">
-      {isError && <HrQueryError label="Calendario non disponibile" onRetry={refetch} />}
-      <p className="text-sm text-muted-foreground">Calendario {anno}: ricorrenze proiettate nell’anno selezionato. Pasqua e Lunedì dell’Angelo sono specifici dell’anno. Verifica patrono locale, chiusure e accordi con il consulente.</p>
+      {isError && <HrQueryError label={t("Calendario non disponibile")} onRetry={refetch} />}
+      <p className="text-sm text-muted-foreground">{t("Calendario {anno}: ricorrenze proiettate nell’anno selezionato. Pasqua e Lunedì dell’Angelo sono specifici dell’anno. Verifica patrono locale, chiusure e accordi con il consulente.", { anno: String(anno ?? "") })}</p>
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Card>
@@ -53,7 +55,7 @@ export function TabFestivita() {
             <div className="p-2 rounded-lg bg-muted"><CalendarCheck className="h-5 w-5 text-muted-foreground" /></div>
             <div>
               <p className="text-2xl font-bold">{isError || isLoading ? "—" : projected.length}</p>
-              <p className="text-xs text-muted-foreground">Festività nel {anno}</p>
+              <p className="text-xs text-muted-foreground">{t("Festività nel {anno}", { anno: String(anno ?? "") })}</p>
             </div>
           </CardContent>
         </Card>
@@ -62,7 +64,7 @@ export function TabFestivita() {
             <div className="p-2 rounded-lg bg-muted"><RefreshCw className="h-5 w-5 text-muted-foreground" /></div>
             <div>
               <p className="text-2xl font-bold">{isError || isLoading ? "—" : ricorrenti}</p>
-              <p className="text-xs text-muted-foreground">Ricorrenti</p>
+              <p className="text-xs text-muted-foreground">{t("Ricorrenti")}</p>
             </div>
           </CardContent>
         </Card>
@@ -71,7 +73,7 @@ export function TabFestivita() {
             <div className="p-2 rounded-lg bg-muted"><CalendarDays className="h-5 w-5 text-muted-foreground" /></div>
             <div>
               <p className="text-2xl font-bold">{isError || isLoading ? "—" : projected.length - ricorrenti}</p>
-              <p className="text-xs text-muted-foreground">Una tantum</p>
+              <p className="text-xs text-muted-foreground">{t("Una tantum")}</p>
             </div>
           </CardContent>
         </Card>
@@ -79,12 +81,10 @@ export function TabFestivita() {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" onClick={handlePopulateItaliane} disabled={!canEdit || isError || isLoading || importMut.isPending}>
-          🇮🇹 Aggiungi festività italiane {anno}
-        </Button>
+        <Button variant="outline" size="sm" onClick={handlePopulateItaliane} disabled={!canEdit || isError || isLoading || importMut.isPending}>{t("🇮🇹 Aggiungi festività italiane {anno}", { anno: String(anno ?? "") })}</Button>
         <div className="ml-auto">
           <Button disabled={!canEdit} size="sm" onClick={() => setShowNew(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Nuova Festività
+            <Plus className="h-4 w-4 mr-1" /> {t("Nuova Festività")}
           </Button>
         </div>
       </div>
@@ -103,9 +103,9 @@ export function TabFestivita() {
               onSelect={() => undefined}
             />
             <div className="flex items-center justify-between gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setMonth(new Date(anno - 1, month.getMonth(), 1))} aria-label="Anno precedente">{anno - 1}</Button>
-              <Button size="sm" variant="ghost" onClick={() => setMonth(new Date())}>Oggi</Button>
-              <Button size="sm" variant="ghost" onClick={() => setMonth(new Date(anno + 1, month.getMonth(), 1))} aria-label="Anno successivo">{anno + 1}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setMonth(new Date(anno - 1, month.getMonth(), 1))} aria-label={t("Anno precedente")}>{anno - 1}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setMonth(new Date())}>{t("Oggi")}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setMonth(new Date(anno + 1, month.getMonth(), 1))} aria-label={t("Anno successivo")}>{anno + 1}</Button>
             </div>
           </CardContent>
         </Card>
@@ -113,9 +113,9 @@ export function TabFestivita() {
         {/* List */}
         <div className="space-y-2">
           {isLoading ? (
-            <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
+            <div className="text-center py-12 text-muted-foreground">{t("Caricamento...")}</div>
           ) : isError ? null : projected.length === 0 ? (
-            <Card><CardContent className="py-12 text-center text-muted-foreground">Nessuna festività configurata. Usa il bottone "Aggiungi festività italiane" per iniziare.</CardContent></Card>
+            <Card><CardContent className="py-12 text-center text-muted-foreground">{t("Nessuna festività configurata. Usa il bottone \"Aggiungi festività italiane\" per iniziare.")}</CardContent></Card>
           ) : (
             projected.map((f) => (
               <Card key={f.id}>
@@ -128,19 +128,19 @@ export function TabFestivita() {
                       <span className="font-medium text-sm">{f.descrizione}</span>
                       {f.ricorrente && (
                         <Badge variant="outline" className="text-xs gap-1">
-                          <RefreshCw className="h-3 w-3" /> Ricorrente
+                          <RefreshCw className="h-3 w-3" /> {t("Ricorrente")}
                         </Badge>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {format(parseISO(f.projectedDate), "EEEE d MMMM yyyy", { locale: it })}
+                      {format(parseISO(f.projectedDate), "EEEE d MMMM yyyy", { locale: dateFnsCampo() })}
                     </p>
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <Button disabled={!canEdit} aria-label={`Modifica ${f.descrizione}`} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditItem(f)}>
+                    <Button disabled={!canEdit} aria-label={t("Modifica {descrizione}", { descrizione: String(f.descrizione ?? "") })} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditItem(f)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button disabled={!canEdit} aria-label={`Elimina ${f.descrizione}`} variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(f.id)}>
+                    <Button disabled={!canEdit} aria-label={t("Elimina {descrizione}", { descrizione: String(f.descrizione ?? "") })} variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(f.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -164,17 +164,17 @@ export function TabFestivita() {
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina Festività</AlertDialogTitle>
-            <AlertDialogDescription>Questa festività sarà rimossa permanentemente.</AlertDialogDescription>
+            <AlertDialogTitle>{t("Elimina Festività")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Questa festività sarà rimossa permanentemente.")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={!canEdit || deleteMut.isPending}
               onClick={(event) => { event.preventDefault(); if (deleteId) deleteMut.mutate(deleteId, { onSuccess: () => setDeleteId(null) }); }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -184,6 +184,7 @@ export function TabFestivita() {
 }
 
 function FestivitaDialog({ item, open, onClose }: { item: HrFestivita | null; open: boolean; onClose: () => void }) {
+  const t = useT();
   const createMut = useCreateHrFestivita();
   const updateMut = useUpdateHrFestivita();
   const isEdit = !!item;
@@ -193,7 +194,7 @@ function FestivitaDialog({ item, open, onClose }: { item: HrFestivita | null; op
   const [ricorrente, setRicorrente] = useState(item?.ricorrente ?? false);
 
   const handleSubmit = () => {
-    if (!data || !descrizione.trim()) { toast.error("Compila tutti i campi"); return; }
+    if (!data || !descrizione.trim()) { toast.error(t("Compila tutti i campi")); return; }
     const payload = { data, descrizione: descrizione.trim(), ricorrente };
 
     if (isEdit) {
@@ -209,32 +210,32 @@ function FestivitaDialog({ item, open, onClose }: { item: HrFestivita | null; op
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Modifica Festività" : "Nuova Festività"}</DialogTitle>
+          <DialogTitle>{isEdit ? t("Modifica Festività") : t("Nuova Festività")}</DialogTitle>
           <DialogDescription>
-            {isEdit ? "Modifica i dati della festività." : "Aggiungi una nuova festività al calendario aziendale."}
+            {isEdit ? t("Modifica i dati della festività.") : t("Aggiungi una nuova festività al calendario aziendale.")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>Data *</Label>
+            <Label>{t("Data *")}</Label>
             <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
           </div>
           <div>
-            <Label>Descrizione *</Label>
-            <Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} placeholder="Es. Natale" />
+            <Label>{t("Descrizione *")}</Label>
+            <Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} placeholder={t("Es. Natale")} />
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <Label>Ricorrente ogni anno</Label>
-              <p className="text-xs text-muted-foreground">Verrà ripetuta automaticamente ogni anno</p>
+              <Label>{t("Ricorrente ogni anno")}</Label>
+              <p className="text-xs text-muted-foreground">{t("Verrà ripetuta automaticamente ogni anno")}</p>
             </div>
             <Switch checked={ricorrente} onCheckedChange={setRicorrente} />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
           <Button onClick={handleSubmit} disabled={isPending}>
-            {isPending ? "Salvataggio..." : isEdit ? "Salva" : "Aggiungi"}
+            {isPending ? t("Salvataggio...") : isEdit ? t("Salva") : t("Aggiungi")}
           </Button>
         </DialogFooter>
       </DialogContent>

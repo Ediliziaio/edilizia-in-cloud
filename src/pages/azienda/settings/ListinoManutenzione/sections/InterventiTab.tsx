@@ -19,6 +19,7 @@ import {
 import { CATEGORIE_INTERVENTO, categoriaBadge } from "../constants";
 import { ListinoFilterBar, type FilterChip } from "./ListinoFilterBar";
 import type { CategoriaIntervento, TipoIntervento } from "../types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type StatoFilter = "all" | "attivi" | "disattivi";
 type CategoriaFilter = "all" | CategoriaIntervento;
@@ -36,6 +37,7 @@ interface Props {
 }
 
 export function InterventiTab({ tipiIntervento, loadingInterventi, puoModificare, puoImportare, onAdd, onEdit, onDelete }: Props) {
+  const tr = useT();
   const [search, setSearch] = useState("");
   const [categoria, setCategoria] = useState<CategoriaFilter>("all");
   const [stato, setStato] = useState<StatoFilter>("all");
@@ -55,9 +57,9 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, puoModificare
   const resetFilters = () => { setSearch(""); setCategoria("all"); setStato("all"); };
 
   const chips: FilterChip[] = [];
-  if (search.trim()) chips.push({ key: "search", label: `Cerca: "${search.trim()}"`, onRemove: () => setSearch("") });
-  if (categoria !== "all") chips.push({ key: "categoria", label: `Categoria: ${categoriaBadge(categoria).label}`, onRemove: () => setCategoria("all") });
-  if (stato !== "all") chips.push({ key: "stato", label: stato === "attivi" ? "Stato: attivi" : "Stato: disattivi", onRemove: () => setStato("all") });
+  if (search.trim()) chips.push({ key: "search", label: tr("Cerca: \"{testo}\"", { testo: search.trim() }), onRemove: () => setSearch("") });
+  if (categoria !== "all") chips.push({ key: "categoria", label: tr("Categoria: {nome}", { nome: tr(categoriaBadge(categoria).label) }), onRemove: () => setCategoria("all") });
+  if (stato !== "all") chips.push({ key: "stato", label: stato === "attivi" ? tr("Stato: attivi") : tr("Stato: disattivi"), onRemove: () => setStato("all") });
 
   /** Tutta la riga apre Modifica — tranne i controlli veri (menu, checkbox…). */
   const rowClick = (t: TipoIntervento) => (e: React.MouseEvent) => {
@@ -74,25 +76,25 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, puoModificare
       <ListinoFilterBar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Cerca tipo di intervento…"
-        searchLabel="Cerca tra i tipi di intervento"
+        searchPlaceholder={tr("Cerca tipo di intervento…")}
+        searchLabel={tr("Cerca tra i tipi di intervento")}
         filters={
           <>
             <Select value={categoria} onValueChange={(v) => setCategoria(v as CategoriaFilter)}>
-              <SelectTrigger aria-label="Filtra per categoria" className="h-9 w-full md:w-[180px] max-md:h-11"><SelectValue placeholder="Categoria" /></SelectTrigger>
+              <SelectTrigger aria-label={tr("Filtra per categoria")} className="h-9 w-full md:w-[180px] max-md:h-11"><SelectValue placeholder={tr("Categoria")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutte le categorie</SelectItem>
+                <SelectItem value="all">{tr("Tutte le categorie")}</SelectItem>
                 {CATEGORIE_INTERVENTO.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  <SelectItem key={c.value} value={c.value}>{tr(c.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={stato} onValueChange={(v) => setStato(v as StatoFilter)}>
-              <SelectTrigger aria-label="Filtra per stato" className="h-9 w-full md:w-[150px] max-md:h-11"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={tr("Filtra per stato")} className="h-9 w-full md:w-[150px] max-md:h-11"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti gli stati</SelectItem>
-                <SelectItem value="attivi">Solo attivi</SelectItem>
-                <SelectItem value="disattivi">Solo disattivi</SelectItem>
+                <SelectItem value="all">{tr("Tutti gli stati")}</SelectItem>
+                <SelectItem value="attivi">{tr("Solo attivi")}</SelectItem>
+                <SelectItem value="disattivi">{tr("Solo disattivi")}</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -103,7 +105,7 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, puoModificare
             onClick={onAdd}
             className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
           >
-            <Plus className="h-4 w-4 mr-1" aria-hidden />Nuovo intervento
+            <Plus className="h-4 w-4 mr-1" aria-hidden />{tr("Nuovo intervento")}
           </Button>
         ) : undefined}
         chips={chips}
@@ -117,32 +119,32 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, puoModificare
         <Table className="table-fixed min-w-[640px] [&_thead_th]:h-10 [&_thead_th]:px-3 [&_tbody_td]:px-3 [&_tbody_td]:py-2">
           <TableHeader>
             <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead className="w-[136px]">Categoria</TableHead>
-              <TableHead className="w-[110px] text-right">Durata stimata</TableHead>
-              <TableHead className="w-[96px]">Attivo</TableHead>
-              {puoModificare && <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>}
+              <TableHead>{tr("Nome")}</TableHead>
+              <TableHead className="w-[136px]">{tr("Categoria")}</TableHead>
+              <TableHead className="w-[110px] text-right">{tr("Durata stimata")}</TableHead>
+              <TableHead className="w-[96px]">{tr("Attivo")}</TableHead>
+              {puoModificare && <TableHead className="w-[48px]"><span className="sr-only">{tr("Azioni")}</span></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loadingInterventi ? (
               <TableRow>
                 <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
-                  Caricamento...
+                  {tr("Caricamento...")}
                 </TableCell>
               </TableRow>
             ) : tipiIntervento.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
                   {puoModificare
-                    ? `Nessun tipo di intervento. Aggiungine uno${puoImportare ? " o usa «Importa un catalogo pronto»" : ""}.`
-                    : "Nessun tipo di intervento."}
+                    ? (puoImportare ? tr("Nessun tipo di intervento. Aggiungine uno o usa «Importa un catalogo pronto».") : tr("Nessun tipo di intervento. Aggiungine uno."))
+                    : tr("Nessun tipo di intervento.")}
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
-                  Nessun tipo di intervento corrisponde ai filtri.
+                  {tr("Nessun tipo di intervento corrisponde ai filtri.")}
                 </TableCell>
               </TableRow>
             ) : filtered.map((t) => {
@@ -154,7 +156,7 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, puoModificare
                   </TableCell>
                   <TableCell>
                     <span className={`inline-flex h-4 items-center rounded px-1.5 text-[10px] font-medium ${cat.color}`}>
-                      {cat.label}
+                      {tr(cat.label)}
                     </span>
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground tabular-nums">
@@ -162,27 +164,27 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, puoModificare
                   </TableCell>
                   <TableCell>
                     <Badge variant={t.attivo ? "default" : "secondary"} className="h-5 px-2 text-[11px]">
-                      {t.attivo ? "Attivo" : "Disattivo"}
+                      {t.attivo ? tr("Attivo") : tr("Disattivo")}
                     </Badge>
                   </TableCell>
                   {puoModificare && (
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni per ${t.nome}`}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={tr("Azioni per {nome}", { nome: String(t.nome ?? "") })}>
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => onEdit(t)}>
-                            <Pencil className="h-4 w-4 mr-2" />Modifica
+                            <Pencil className="h-4 w-4 mr-2" />{tr("Modifica")}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={() => onDelete(t.id)}
                           >
-                            <Trash2 className="h-4 w-4 mr-2" />Elimina
+                            <Trash2 className="h-4 w-4 mr-2" />{tr("Elimina")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

@@ -13,6 +13,7 @@ import { GeofenceEditor } from "@/components/fleet/GeofenceEditor";
 import { GeofenceAlertBanner } from "@/components/fleet/GeofenceAlertBanner";
 import { ExportPercorsiButton } from "@/components/fleet/ExportPercorsiButton";
 import type { GpsPositionExport } from "@/lib/gps/exportExcel";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Lazy load della mappa live per non bloccare il bundle
 const MappaLiveAdmin = lazy(() =>
@@ -34,6 +35,7 @@ function MapLoader() {
  * Mostrato solo se fleet_track_enabled = true sull'azienda.
  */
 export function TabGpsPercorsi() {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? "";
 
@@ -63,17 +65,17 @@ export function TabGpsPercorsi() {
         <div>
           <h2 className="text-base font-semibold flex items-center gap-2">
             <Navigation className="h-4 w-4 text-blue-500" />
-            GPS FleetTrack
+            {tr("GPS FleetTrack")}
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Tracciamento live e storico percorsi dei tecnici
+            {tr("Tracciamento live e storico percorsi dei tecnici")}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="gap-1">
             <Users className="h-3 w-3" />
-            {onlineTecnici.length} online
+            {onlineTecnici.length} {tr("online")}
           </Badge>
           <Button
             variant="outline"
@@ -82,7 +84,7 @@ export function TabGpsPercorsi() {
             onClick={refresh}
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            Aggiorna
+            {tr("Aggiorna")}
           </Button>
         </div>
       </div>
@@ -91,14 +93,14 @@ export function TabGpsPercorsi() {
         <TabsList className="h-auto gap-1 p-1">
           <TabsTrigger value="live" className="h-9 text-xs gap-1.5">
             <Navigation className="h-3.5 w-3.5" />
-            Mappa live
+            {tr("Mappa live")}
           </TabsTrigger>
           <TabsTrigger value="storico" className="h-9 text-xs gap-1.5">
             <RefreshCw className="h-3.5 w-3.5" />
-            Storico percorsi
+            {tr("Storico percorsi")}
           </TabsTrigger>
           <TabsTrigger value="geofence" className="h-9 text-xs gap-1.5">
-            Zone geofence
+            {tr("Zone geofence")}
           </TabsTrigger>
         </TabsList>
 
@@ -106,11 +108,11 @@ export function TabGpsPercorsi() {
         <TabsContent value="live" className="mt-4">
           {tecniciLoading ? (
             <MapLoader />
-          ) : tecniciError ? <HrQueryError label="Posizioni GPS non disponibili" onRetry={refresh} /> : tecnici.length === 0 ? (
+          ) : tecniciError ? <HrQueryError label={tr("Posizioni GPS non disponibili")} onRetry={refresh} /> : tecnici.length === 0 ? (
             <div className="h-64 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2 border rounded-lg bg-muted/20">
               <Navigation className="h-8 w-8 opacity-30" />
-              <p>Nessun tecnico con tracciamento GPS attivo</p>
-              <p className="text-xs">Le posizioni appariranno non appena i tecnici avvieranno il tracciamento dall'app.</p>
+              <p>{tr("Nessun tecnico con tracciamento GPS attivo")}</p>
+              <p className="text-xs">{tr("Le posizioni appariranno non appena i tecnici avvieranno il tracciamento dall'app.")}</p>
             </div>
           ) : (
             <Suspense fallback={<MapLoader />}>
@@ -155,15 +157,15 @@ export function TabGpsPercorsi() {
                       <p className="text-sm font-medium leading-none truncate">{t.fullName}</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
                         {stale
-                          ? `Offline da ${Math.floor(t.staleSec / 60)}m`
-                          : `${t.staleSec}s fa`}
+                          ? tr("Offline da {valore}m", { valore: Math.floor(t.staleSec / 60) })
+                          : tr("{staleSec}s fa", { staleSec: String(t.staleSec ?? "") })}
                       </p>
                     </div>
                     <Badge
                       variant={stale ? "secondary" : "outline"}
                       className={`text-[10px] shrink-0 ${stale ? "" : "bg-green-50 text-green-700 border-green-200"}`}
                     >
-                      {stale ? "offline" : "live"}
+                      {stale ? tr("offline") : tr("live")}
                     </Badge>
                   </button>
                 );
@@ -189,7 +191,7 @@ export function TabGpsPercorsi() {
             ))}
             {tecnici.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                Nessun tecnico con dati GPS disponibili.
+                {tr("Nessun tecnico con dati GPS disponibili.")}
               </p>
             )}
           </div>

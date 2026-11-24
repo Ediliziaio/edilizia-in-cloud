@@ -23,6 +23,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
 import { TESTO_RECESSO_DI_LEGGE, eLaFraseSalvataPerSbaglio } from "@/lib/fea/testoRecessoDiLegge";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // livello_firma è un text col CHECK («semplice», «avanzata»): qui si confronta solo con «avanzata».
 type FeaConfig = Database["public"]["Tables"]["fea_configurazione"]["Row"];
@@ -37,6 +38,7 @@ type Bozza = { firma?: boolean; testo?: string; avanzata?: boolean };
 type EsitoSalvataggio = { firmaScritta: boolean; testoScritto: boolean; errore: unknown };
 
 export default function SettingsFirmaElettronica() {
+  const t = useT();
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -96,8 +98,8 @@ export default function SettingsFirmaElettronica() {
   // cliente legge allora il testo di legge. Le due scritture sono indipendenti: se una fallisce, l'altra resta fatta.
   const saveMutation = useMutation({
     mutationFn: async (): Promise<EsitoSalvataggio> => {
-      if (!companyId) throw new Error("Azienda non disponibile.");
-      if (!puoModificare) throw new Error("Le impostazioni della firma le cambia chi ha il permesso «Integrazioni» in modifica.");
+      if (!companyId) throw new Error(t("Azienda non disponibile."));
+      if (!puoModificare) throw new Error(t("Le impostazioni della firma le cambia chi ha il permesso «Integrazioni» in modifica."));
       const testo = testoRecessoB2c.trim();
       const [esitoTesto, esitoFirma] = await Promise.all([
         configCambiata
@@ -149,15 +151,15 @@ export default function SettingsFirmaElettronica() {
         return resto;
       });
       if (esito.errore) {
-        toast.error(esito.firmaScritta || esito.testoScritto ? "Una parte è stata salvata, il resto no" : "Non sono riuscito a salvare", {
+        toast.error(esito.firmaScritta || esito.testoScritto ? t("Una parte è stata salvata, il resto no") : t("Non sono riuscito a salvare"), {
           description: userErrorMessage(esito.errore),
         });
       } else {
-        toast.success("Impostazioni salvate");
+        toast.success(t("Impostazioni salvate"));
       }
     },
     onError: (error) => {
-      toast.error("Non sono riuscito a salvare", { description: userErrorMessage(error) });
+      toast.error(t("Non sono riuscito a salvare"), { description: userErrorMessage(error) });
     },
   });
 
@@ -169,11 +171,11 @@ export default function SettingsFirmaElettronica() {
     return (
       <div className="max-w-3xl space-y-4">
         <Alert variant="destructive">
-          <AlertTitle>Non riesco a leggere le impostazioni della firma</AlertTitle>
+          <AlertTitle>{t("Non riesco a leggere le impostazioni della firma")}</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center gap-3">
-            Nessuna modifica verrà salvata.
+            {t("Nessuna modifica verrà salvata.")}
             <Button size="sm" variant="outline" onClick={() => { void riprovaFea(); void riprovaPreventivi(); }}>
-              Riprova
+              {t("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -188,32 +190,30 @@ export default function SettingsFirmaElettronica() {
       {!puoModificare && (
         <Alert>
           <AlertDescription>
-            Stai consultando le impostazioni: le cambia chi ha il permesso «Integrazioni» in modifica.
+            {t("Stai consultando le impostazioni: le cambia chi ha il permesso «Integrazioni» in modifica.")}
           </AlertDescription>
         </Alert>
       )}
 
       <SezioneImpostazione
         id="firma-sul-preventivo"
-        titolo="Firma dei preventivi"
-        descrizione="Il cliente firma dal link che riceve, senza stampare niente."
-        ambito={<AmbitoImpostazione>Preventivo generico</AmbitoImpostazione>}
+        titolo={t("Firma dei preventivi")}
+        descrizione={t("Il cliente firma dal link che riceve, senza stampare niente.")}
+        ambito={<AmbitoImpostazione>{t("Preventivo generico")}</AmbitoImpostazione>}
         evidenziata={evidenziata === "firma-sul-preventivo"}
       >
         <RigaInterruttore
           id="firma-preventivi"
-          titolo="Firma elettronica sui preventivi"
-          descrizione="Il cliente firma il preventivo online, con il codice OTP, dal link che riceve. Il PDF non porta più il codice QR."
+          titolo={t("Firma elettronica sui preventivi")}
+          descrizione={t("Il cliente firma il preventivo online, con il codice OTP, dal link che riceve. Il PDF non porta più il codice QR.")}
           checked={firmaPreventivi}
           disabled={comandiSpenti}
           onCheckedChange={(valore) => setBozza((prima) => ({ ...prima, firma: valore }))}
         >
           <details className="mt-1 text-xs text-muted-foreground">
-            <summary className="cursor-pointer py-1">Cosa cambia se lo spengo</summary>
+            <summary className="cursor-pointer py-1">{t("Cosa cambia se lo spengo")}</summary>
             <p className="mt-1">
-              È il valore di partenza dei nuovi preventivi: nel singolo preventivo si può cambiare. Quando mandi un
-              preventivo al cliente per la firma, la firma online c'è sempre. La stessa impostazione c'è anche in
-              Modelli preventivi e contratti → Prezzo e margini.
+              {t("È il valore di partenza dei nuovi preventivi: nel singolo preventivo si può cambiare. Quando mandi un preventivo al cliente per la firma, la firma online c'è sempre. La stessa impostazione c'è anche in Modelli preventivi e contratti → Prezzo e margini.")}
             </p>
           </details>
         </RigaInterruttore>
@@ -221,24 +221,22 @@ export default function SettingsFirmaElettronica() {
 
       <SezioneImpostazione
         id="firma-avanzata"
-        titolo="Valore della firma"
-        descrizione="Vale per tutti i documenti che mandi a firmare: preventivi, contratti, verbali."
+        titolo={t("Valore della firma")}
+        descrizione={t("Vale per tutti i documenti che mandi a firmare: preventivi, contratti, verbali.")}
         evidenziata={evidenziata === "firma-avanzata"}
       >
         <RigaInterruttore
           id="firma-avanzata-interruttore"
-          titolo="Firma elettronica avanzata"
-          descrizione="Al primo documento con la tua azienda chi firma carica la foto di un documento d'identità e accetta le condizioni del servizio. Poi firma solo con il codice. È la firma che la legge riconosce come una firma scritta."
+          titolo={t("Firma elettronica avanzata")}
+          descrizione={t("Al primo documento con la tua azienda chi firma carica la foto di un documento d'identità e accetta le condizioni del servizio. Poi firma solo con il codice. È la firma che la legge riconosce come una firma scritta.")}
           checked={firmaAvanzata}
           disabled={comandiSpenti}
           onCheckedChange={(valore) => setBozza((prima) => ({ ...prima, avanzata: valore }))}
         >
           <details className="mt-1 text-xs text-muted-foreground">
-            <summary className="cursor-pointer py-1">Cosa cambia se la spengo</summary>
+            <summary className="cursor-pointer py-1">{t("Cosa cambia se la spengo")}</summary>
             <p className="mt-1">
-              Si firma con il solo codice via email o SMS, senza documento d'identità: è più veloce, ma è una firma
-              elettronica semplice, che in caso di contestazione vale meno. Il certificato del documento firmato lo dice.
-              Vale per i documenti che mandi da quel momento: quelli già inviati restano come sono.
+              {t("Si firma con il solo codice via email o SMS, senza documento d'identità: è più veloce, ma è una firma elettronica semplice, che in caso di contestazione vale meno. Il certificato del documento firmato lo dice. Vale per i documenti che mandi da quel momento: quelli già inviati restano come sono.")}
             </p>
           </details>
         </RigaInterruttore>
@@ -246,23 +244,22 @@ export default function SettingsFirmaElettronica() {
 
       <SezioneImpostazione
         id="ripensamento"
-        titolo="Firma con il codice"
-        descrizione="Preventivi fotovoltaici, ordini, varianti e documenti di cantiere che mandi a firmare con il codice."
-        ambito={<AmbitoImpostazione>Clienti privati</AmbitoImpostazione>}
+        titolo={t("Firma con il codice")}
+        descrizione={t("Preventivi fotovoltaici, ordini, varianti e documenti di cantiere che mandi a firmare con il codice.")}
+        ambito={<AmbitoImpostazione>{t("Clienti privati")}</AmbitoImpostazione>}
         evidenziata={evidenziata === "ripensamento"}
       >
         <RigaImpostazione
-          titolo="Informativa sul diritto di ripensamento"
+          titolo={t("Informativa sul diritto di ripensamento")}
           htmlFor="testo-recesso"
-          descrizione="La legge il cliente privato prima di firmare, nella pagina di firma con il codice, sotto il titolo «Diritto di recesso». Se la lasci vuota vale il testo di legge: 14 giorni, senza dover dare spiegazioni."
+          descrizione={t("La legge il cliente privato prima di firmare, nella pagina di firma con il codice, sotto il titolo «Diritto di recesso». Se la lasci vuota vale il testo di legge: 14 giorni, senza dover dare spiegazioni.")}
         >
           <div className="mt-2 space-y-2">
             {eLaFraseSalvataPerSbaglio(testoDalServer) && (
               <Alert variant="destructive">
-                <AlertTitle>Questo testo non è un diritto di ripensamento</AlertTitle>
+                <AlertTitle>{t("Questo testo non è un diritto di ripensamento")}</AlertTitle>
                 <AlertDescription>
-                  È la frase che questa pagina metteva da sola nel campo. Il cliente privato la legge adesso al posto
-                  dell'informativa dei 14 giorni. Cancellala e salva: tornerà il testo di legge.
+                  {t("È la frase che questa pagina metteva da sola nel campo. Il cliente privato la legge adesso al posto dell'informativa dei 14 giorni. Cancellala e salva: tornerà il testo di legge.")}
                 </AlertDescription>
               </Alert>
             )}
@@ -273,16 +270,16 @@ export default function SettingsFirmaElettronica() {
               onChange={(event) => setBozza((prima) => ({ ...prima, testo: event.target.value }))}
               rows={5}
               disabled={comandiSpenti}
-              placeholder="Vuota: il cliente legge il testo di legge."
+              placeholder={t("Vuota: il cliente legge il testo di legge.")}
             />
             <details className="text-xs text-muted-foreground">
-              <summary className="cursor-pointer py-1">Testo di legge che vale se lasci vuoto</summary>
+              <summary className="cursor-pointer py-1">{t("Testo di legge che vale se lasci vuoto")}</summary>
               <p className="mt-1">{TESTO_RECESSO_DI_LEGGE}</p>
             </details>
             <p id="testo-recesso-dove" className="text-xs text-muted-foreground">
-              Il cliente non la legge se firma il preventivo dal suo link: quella si scrive in{" "}
+              {t("Il cliente non la legge se firma il preventivo dal suo link: quella si scrive in")}{" "}
               <Link to="/azienda/impostazioni/condizioni-firma" className="text-primary underline">
-                Firma e condizioni
+                {t("Firma e condizioni")}
               </Link>
               .
             </p>
@@ -291,18 +288,17 @@ export default function SettingsFirmaElettronica() {
       </SezioneImpostazione>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1 text-sm text-muted-foreground">
-        <span>Le firme non partono da questa pagina: partono dal preventivo, dall'ordine o dal documento.</span>
+        <span>{t("Le firme non partono da questa pagina: partono dal preventivo, dall'ordine o dal documento.")}</span>
         <Link to="/azienda/firma-elettronica" className="text-primary underline">
-          Archivio delle firme
+          {t("Archivio delle firme")}
         </Link>
       </div>
 
       <details className="rounded-lg border bg-card px-4 py-3 text-sm">
-        <summary className="cursor-pointer font-medium">Come funziona la firma</summary>
+        <summary className="cursor-pointer font-medium">{t("Come funziona la firma")}</summary>
         <div className="mt-3 space-y-3">
           <p className="text-muted-foreground">
-            Il cliente riceve un'email con un link sicuro e un codice (OTP) collegato alla richiesta. Ogni firma finisce
-            nell'archivio delle firme, con lo stato e il registro di quello che è successo.
+            {t("Il cliente riceve un'email con un link sicuro e un codice (OTP) collegato alla richiesta. Ogni firma finisce nell'archivio delle firme, con lo stato e il registro di quello che è successo.")}
           </p>
           <FEABannerEsVsFea dismissible={false} />
         </div>
@@ -318,11 +314,11 @@ export default function SettingsFirmaElettronica() {
                 isDirty && !saveMutation.isPending ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground max-sm:sr-only",
               )}
             >
-              {saveMutation.isPending ? "Salvataggio…" : isDirty ? "Modifiche non salvate" : "Nessuna modifica da salvare"}
+              {saveMutation.isPending ? t("Salvataggio…") : isDirty ? t("Modifiche non salvate") : t("Nessuna modifica da salvare")}
             </p>
             <Button className="gap-2" onClick={() => saveMutation.mutate()} disabled={isLoading || saveMutation.isPending || !isDirty}>
               <Save className="h-4 w-4" aria-hidden="true" />
-              {saveMutation.isPending ? "Salvataggio..." : isDirty ? "Salva impostazioni" : "Impostazioni salvate"}
+              {saveMutation.isPending ? t("Salvataggio...") : isDirty ? t("Salva impostazioni") : t("Impostazioni salvate")}
             </Button>
           </div>
         </div>

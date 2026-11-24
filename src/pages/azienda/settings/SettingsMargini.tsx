@@ -26,6 +26,7 @@ import { useImpostaPrezzoFinaleAMano, usePrezzoFinaleAMano } from "@/hooks/usePr
 import { useSettingsFloatingBar } from "@/hooks/useSettingsFloatingBar";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { campiMarginiModificati, percentualeImpostazione } from "@/lib/impostazioni/salvataggioMargini";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 // DB columns for preventivo_impostazioni (nomi REALI, verificati via pg_attribute):
@@ -79,6 +80,7 @@ const SEZIONI: VoceIndice[] = [
 // Presentazione dedicata a questa pagina: mantiene àncore e nomi accessibili delle sezioni.
 const ICONE_SEZIONI: Record<string, LucideIcon> = { prezzo: Wallet, margini: TrendingUp, "posa-e-trasporto": Truck, numerazione: Hash, "pdf-e-firma": FileText };
 function SezioneRegola({ id, titolo, descrizione, ambito, azione, evidenziata, className, children }: ComponentProps<typeof SezioneImpostazione> & { className?: string }) {
+  const t = useT();
   const Icona = ICONE_SEZIONI[id];
   const numero = SEZIONI.findIndex(s => s.id === id) + 1;
   return (
@@ -87,7 +89,7 @@ function SezioneRegola({ id, titolo, descrizione, ambito, azione, evidenziata, c
       <header className="flex flex-wrap items-start gap-3 border-b bg-muted/15 px-5 py-5">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-background text-primary">{Icona && <Icona className="h-5 w-5" aria-hidden="true" />}</div>
         <div className="min-w-0 flex-1">
-          <p className="mb-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Regola {String(numero).padStart(2, "0")}</p>
+          <p className="mb-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">{t("Regola {valore}", { valore: String(numero).padStart(2, "0") })}</p>
           <h2 id={`${id}-titolo`} className="text-base font-semibold tracking-tight">{titolo}</h2>
           {descrizione && <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{descrizione}</p>}
           {(ambito || azione) && <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">{ambito}{azione}</div>}
@@ -102,14 +104,15 @@ function SezioneRegola({ id, titolo, descrizione, ambito, azione, evidenziata, c
 // Questa opzione si applica subito con una funzione dedicata del database;
 // non deve riscrivere le altre opzioni (posa automatica, sconti nel PDF…).
 function PrezzoFinaleAManoRiga({ companyId }: { companyId: string }) {
+  const t = useT();
   const { data: attivo = false, isLoading } = usePrezzoFinaleAMano(companyId);
   const imposta = useImpostaPrezzoFinaleAMano(companyId);
   return (
     <RigaImpostazione
-      titolo="Scrivi a mano il prezzo del preventivo"
+      titolo={t("Scrivi a mano il prezzo del preventivo")}
       htmlFor="prezzo-a-mano"
-      ambito={<AmbitoImpostazione>Tutti i preventivatori</AmbitoImpostazione>}
-      descrizione="Attivalo per definire un importo complessivo in Economia, IVA esclusa. Le voci restano a 0 €; sconto e IVA si calcolano sul prezzo inserito."
+      ambito={<AmbitoImpostazione>{t("Tutti i preventivatori")}</AmbitoImpostazione>}
+      descrizione={t("Attivalo per definire un importo complessivo in Economia, IVA esclusa. Le voci restano a 0 €; sconto e IVA si calcolano sul prezzo inserito.")}
       comando={
         <Switch
           id="prezzo-a-mano"
@@ -118,19 +121,17 @@ function PrezzoFinaleAManoRiga({ companyId }: { companyId: string }) {
           aria-describedby="prezzo-a-mano-descrizione"
           onCheckedChange={(v) =>
             imposta.mutate(v, {
-              onSuccess: () => toast.success(v ? "Prezzo scritto a mano acceso" : "Prezzo scritto a mano spento"),
-              onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Salvataggio non riuscito"),
+              onSuccess: () => toast.success(v ? t("Prezzo scritto a mano acceso") : t("Prezzo scritto a mano spento")),
+              onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("Salvataggio non riuscito")),
             })
           }
         />
       }
     >
       <details className="mt-1 text-xs text-muted-foreground">
-        <summary className="cursor-pointer py-1">Dove vale</summary>
+        <summary className="cursor-pointer py-1">{t("Dove vale")}</summary>
         <p className="mt-1">
-          Serramenti, Ristrutturazione, Bagni, Tetti, Climatizzazione, Elettrico, Termoidraulico, Pavimenti, Piscine e
-          preventivo generico (Marketing → Preventivi, dove serve anche scegliere l'aliquota IVA). Il Fotovoltaico ha
-          già il suo prezzo a corpo.
+          {t("Serramenti, Ristrutturazione, Bagni, Tetti, Climatizzazione, Elettrico, Termoidraulico, Pavimenti, Piscine e preventivo generico (Marketing → Preventivi, dove serve anche scegliere l'aliquota IVA). Il Fotovoltaico ha già il suo prezzo a corpo.")}
         </p>
       </details>
     </RigaImpostazione>
@@ -154,6 +155,7 @@ function PrezzoEMarginiForm({
   puoVedereSconti: boolean;
   onDirtyChange: (dirty: boolean) => void;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const { contenitore: contenitoreBarra, barra: elementoBarra, stile: stileBarra, altezza: altezzaBarra } = useSettingsFloatingBar();
   const [filtroCategorie, setFiltroCategorie] = useState("");
@@ -241,7 +243,7 @@ function PrezzoEMarginiForm({
       dirtyRef.current = false;
       setDirty(false);
       await queryClient.invalidateQueries({ queryKey: ["preventivo-impostazioni", companyId] });
-      toast.success("Impostazioni salvate");
+      toast.success(t("Impostazioni salvate"));
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -283,7 +285,7 @@ function PrezzoEMarginiForm({
     try {
       const payload = buildPayload();
       if ((payload.margine_minimo_percentuale ?? 15) > (payload.margine_target_default ?? 25)) {
-        throw new Error("Il margine minimo non può superare il margine target.");
+        throw new Error(t("Il margine minimo non può superare il margine target."));
       }
       const changes = campiMarginiModificati(payload as Record<string, unknown>, baselineRef.current);
       if (!Object.keys(changes).length) { dirtyRef.current = false; setDirty(false); return; }
@@ -293,7 +295,7 @@ function PrezzoEMarginiForm({
       // altrimenti i default SQL (es. overhead 8%, posa attiva) cambiano campi non toccati.
       saveMutation.mutate(imp ? changes : { ...payload, soglia_margine_visibile: null });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Controlla i valori inseriti.");
+      toast.error(error instanceof Error ? error.message : t("Controlla i valori inseriti."));
     }
   };
 
@@ -306,37 +308,37 @@ function PrezzoEMarginiForm({
     <div className="w-full min-w-0 space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xl font-semibold tracking-tight">Le regole del tuo preventivo</p>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">Definisci il prezzo, controlla la redditività e scegli cosa presentare al cliente.</p>
+          <p className="text-xl font-semibold tracking-tight">{t("Le regole del tuo preventivo")}</p>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">{t("Definisci il prezzo, controlla la redditività e scegli cosa presentare al cliente.")}</p>
         </div>
-        <span className="hidden items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs text-muted-foreground sm:flex"><Check className="h-3.5 w-3.5" aria-hidden="true" />Le soglie non riscrivono i preventivi salvati</span>
+        <span className="hidden items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs text-muted-foreground sm:flex"><Check className="h-3.5 w-3.5" aria-hidden="true" />{t("Le soglie non riscrivono i preventivi salvati")}</span>
       </div>
       {isError && (
         <Alert variant="destructive">
-          <AlertDescription className="flex flex-wrap items-center gap-3">Non riesco a leggere le impostazioni. Nessuna modifica verrà salvata.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription>
+          <AlertDescription className="flex flex-wrap items-center gap-3">{t("Non riesco a leggere le impostazioni. Nessuna modifica verrà salvata.")}<Button size="sm" variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button></AlertDescription>
         </Alert>
       )}
       {!puoModificareListino && (
         <Alert>
           <AlertDescription>
-            Stai consultando le impostazioni: le cambia chi ha il permesso «Listino &amp; Prezzi» in modifica.
+            {t("Stai consultando le impostazioni: le cambia chi ha il permesso «Listino & Prezzi» in modifica.")}
           </AlertDescription>
         </Alert>
       )}
       <div ref={contenitoreBarra} className="sticky top-2 z-20" style={{ height: altezzaBarra }}>
       <div ref={elementoBarra} style={stileBarra} className="z-20 rounded-xl border bg-background/95 p-2.5 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <IndiceSezioni voci={SEZIONI} onVai={vai} />
+          <IndiceSezioni voci={SEZIONI.map((v) => ({ ...v, etichetta: t(v.etichetta) }))} onVai={vai} />
           <div className="ml-auto flex items-center gap-2">
-            <Button type="button" size="sm" variant="ghost" aria-label="Annulla modifiche" onClick={() => ripristinaValori(imp)} disabled={!dirty || saveMutation.isPending || isLoading || isError || !puoModificareListino}>
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /><span className="hidden sm:inline">Annulla modifiche</span><span className="sm:hidden" aria-hidden="true">Annulla</span>
+            <Button type="button" size="sm" variant="ghost" aria-label={t("Annulla modifiche")} onClick={() => ripristinaValori(imp)} disabled={!dirty || saveMutation.isPending || isLoading || isError || !puoModificareListino}>
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /><span className="hidden sm:inline">{t("Annulla modifiche")}</span><span className="sm:hidden" aria-hidden="true">{t("Annulla")}</span>
             </Button>
             <Button type="button" size="sm" onClick={handleManualSave} disabled={!puoModificareListino || isLoading || isError || saveMutation.isPending || !dirty}>
-              <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />{saveMutation.isPending ? "Salvataggio…" : "Salva modifiche"}
+              <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />{saveMutation.isPending ? t("Salvataggio…") : t("Salva modifiche")}
             </Button>
           </div>
         </div>
-        <p role="status" className={cn("mt-2 border-t px-1 pt-2 text-xs", !dirty && !isLoading && !saveMutation.isPending && "max-sm:sr-only", dirty ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>{isLoading ? "Caricamento…" : saveMutation.isPending ? "Salvataggio…" : dirty ? "Modifiche non salvate: salva per applicare le regole." : "Nessuna modifica da salvare"}</p>
+        <p role="status" className={cn("mt-2 border-t px-1 pt-2 text-xs", !dirty && !isLoading && !saveMutation.isPending && "max-sm:sr-only", dirty ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>{isLoading ? t("Caricamento…") : saveMutation.isPending ? t("Salvataggio…") : dirty ? t("Modifiche non salvate: salva per applicare le regole.") : t("Nessuna modifica da salvare")}</p>
       </div>
       </div>
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
@@ -344,24 +346,24 @@ function PrezzoEMarginiForm({
       {/* Prezzo: quello che si cerca di più sta per primo */}
       <SezioneRegola
         id="prezzo"
-        titolo="Prezzo del preventivo"
-        descrizione="Come si arriva al prezzo e chi può cambiarlo."
-        azione={<span className="rounded-full border border-primary/15 bg-primary/5 px-2 py-0.5 text-primary">Salvataggio immediato</span>}
+        titolo={t("Prezzo del preventivo")}
+        descrizione={t("Come si arriva al prezzo e chi può cambiarlo.")}
+        azione={<span className="rounded-full border border-primary/15 bg-primary/5 px-2 py-0.5 text-primary">{t("Salvataggio immediato")}</span>}
         evidenziata={evidenziata === "prezzo"}
       >
         <PrezzoFinaleAManoRiga companyId={companyId} />
         <div className="grid sm:grid-cols-2">
         {puoVedereSconti && (
           <RigaImpostazione
-            titolo="Limiti di sconto"
-            descrizione="Quanto sconto può fare ogni venditore, per importo e per categoria di cliente."
-            comando={<Link className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline" to="/azienda/impostazioni/scontistica">Apri Sconti<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>}
+            titolo={t("Limiti di sconto")}
+            descrizione={t("Quanto sconto può fare ogni venditore, per importo e per categoria di cliente.")}
+            comando={<Link className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline" to="/azienda/impostazioni/scontistica">{t("Apri Sconti")}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>}
           />
         )}
         <RigaImpostazione
-          titolo="Seconda firma e avvisi"
-          descrizione="Oltre quale importo serve una seconda approvazione, e quando una commessa segnala che costi o margine non tornano."
-          comando={<Link className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline" to="/azienda/impostazioni/approvazioni">Apri Approvazioni<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>}
+          titolo={t("Seconda firma e avvisi")}
+          descrizione={t("Oltre quale importo serve una seconda approvazione, e quando una commessa segnala che costi o margine non tornano.")}
+          comando={<Link className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline" to="/azienda/impostazioni/approvazioni">{t("Apri Approvazioni")}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>}
         />
         </div>
       </SezioneRegola>
@@ -369,60 +371,60 @@ function PrezzoEMarginiForm({
       {/* Margini */}
       <SezioneRegola
         id="margini"
-        titolo="Margini"
-        descrizione="Le soglie distinguono i preventivi da rivedere da quelli che raggiungono il tuo obiettivo."
+        titolo={t("Margini")}
+        descrizione={t("Le soglie distinguono i preventivi da rivedere da quelli che raggiungono il tuo obiettivo.")}
         evidenziata={evidenziata === "margini"}
       >
         <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 sm:p-5">
           <div className="col-span-2 rounded-xl border bg-muted/20 p-3 sm:col-span-1">
-            <Label htmlFor="margini-overhead" className="text-xs">Spese generali %</Label>
+            <Label htmlFor="margini-overhead" className="text-xs">{t("Spese generali %")}</Label>
             <Input
               id="margini-overhead"
               type="number" min="0" max="100" step="0.01" placeholder="0" className="mt-2 h-11 bg-background text-lg font-semibold tabular-nums" aria-describedby="overhead-aiuto"
               value={overheadPct}
               onChange={(e) => { setOverheadPct(e.target.value); markDirty(); }}
             />
-            <p id="overhead-aiuto" className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Aggiunte al costo di acquisto. Vuoto: 0%.</p>
+            <p id="overhead-aiuto" className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{t("Aggiunte al costo di acquisto. Vuoto: 0%.")}</p>
           </div>
           <div className="rounded-xl border border-red-200/70 bg-red-50/40 p-3 dark:border-red-900 dark:bg-red-950/10">
-            <Label htmlFor="margini-minimo" className="block min-h-8 text-xs sm:min-h-0">Margine minimo %</Label>
+            <Label htmlFor="margini-minimo" className="block min-h-8 text-xs sm:min-h-0">{t("Margine minimo %")}</Label>
             <Input
               id="margini-minimo" className="mt-2 h-11 bg-background text-lg font-semibold tabular-nums" aria-describedby="minimo-aiuto" type="number" min="0" max="99.99" step="0.01" placeholder="15"
               value={margineMin}
               onChange={(e) => { setMargineMin(e.target.value); markDirty(); }}
             />
-            <p id="minimo-aiuto" className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Rosso sotto questa soglia. Vuoto: 15%.</p>
+            <p id="minimo-aiuto" className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{t("Rosso sotto questa soglia. Vuoto: 15%.")}</p>
           </div>
           <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/10">
-            <Label htmlFor="margini-target" className="block min-h-8 text-xs sm:min-h-0">Margine obiettivo %</Label>
+            <Label htmlFor="margini-target" className="block min-h-8 text-xs sm:min-h-0">{t("Margine obiettivo %")}</Label>
             <Input
               id="margini-target" className="mt-2 h-11 bg-background text-lg font-semibold tabular-nums" aria-describedby="target-aiuto" type="number" min="0" max="99.99" step="0.01" placeholder="25"
               value={margineTarget}
               onChange={(e) => { setMargineTarget(e.target.value); markDirty(); }}
             />
-            <p id="target-aiuto" className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Verde da questo valore. Vuoto: 25%.</p>
+            <p id="target-aiuto" className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{t("Verde da questo valore. Vuoto: 25%.")}</p>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-x-4 gap-y-2 px-5 py-3 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />Sotto il minimo</span>
-          <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />Tra minimo e obiettivo</span>
-          <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />Obiettivo raggiunto</span>
+          <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />{t("Sotto il minimo")}</span>
+          <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />{t("Tra minimo e obiettivo")}</span>
+          <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />{t("Obiettivo raggiunto")}</span>
         </div>
-        {(margineMin.trim() ? Number(margineMin.replace(",", ".")) : 15) > (margineTarget.trim() ? Number(margineTarget.replace(",", ".")) : 25) && <p role="alert" className="px-5 py-3 text-xs text-destructive">Il margine minimo non può superare il margine obiettivo.</p>}
+        {(margineMin.trim() ? Number(margineMin.replace(",", ".")) : 15) > (margineTarget.trim() ? Number(margineTarget.replace(",", ".")) : 25) && <p role="alert" className="px-5 py-3 text-xs text-destructive">{t("Il margine minimo non può superare il margine obiettivo.")}</p>}
 
         {/* Margine per categoria */}
         {categorie.length > 0 && (
           <details className="group px-5 py-4">
-            <summary className="cursor-pointer text-sm font-medium">Margine per categoria <span className="text-xs font-normal text-muted-foreground">({categorie.length})</span></summary>
+            <summary className="cursor-pointer text-sm font-medium">{t("Margine per categoria")} <span className="text-xs font-normal text-muted-foreground">({categorie.length})</span></summary>
             <div className="mt-3 space-y-3">
               <p className="text-sm text-muted-foreground">
-                Imposta un margine target specifico per categoria. Se vuoto, usa l’obiettivo generale ({margineTarget || "25"}%). Le categorie si creano e si colorano dal{" "}
-                <Link to="/azienda/impostazioni/listino" className="text-primary underline">Listino</Link>.
+                {t("Imposta un margine target specifico per categoria. Se vuoto, usa l’obiettivo generale ({valore}%). Le categorie si creano e si colorano dal", { valore: margineTarget || "25" })}{" "}
+                <Link to="/azienda/impostazioni/listino" className="text-primary underline">{t("Listino")}</Link>.
               </p>
-              <Input value={filtroCategorie} onChange={e => setFiltroCategorie(e.target.value)} placeholder="Cerca una categoria…" aria-label="Cerca una categoria" />
-              <p className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-primary">Salvataggio immediato: il margine di una categoria si salva quando esci dal campo.</p>
-              {!categorie.some(cat => cat.nome.toLowerCase().includes(filtroCategorie.trim().toLowerCase())) && <p className="py-3 text-sm text-muted-foreground">Nessuna categoria corrisponde alla ricerca.</p>}
+              <Input value={filtroCategorie} onChange={e => setFiltroCategorie(e.target.value)} placeholder={t("Cerca una categoria…")} aria-label={t("Cerca una categoria")} />
+              <p className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-primary">{t("Salvataggio immediato: il margine di una categoria si salva quando esci dal campo.")}</p>
+              {!categorie.some(cat => cat.nome.toLowerCase().includes(filtroCategorie.trim().toLowerCase())) && <p className="py-3 text-sm text-muted-foreground">{t("Nessuna categoria corrisponde alla ricerca.")}</p>}
               {categorie.filter(cat => cat.nome.toLowerCase().includes(filtroCategorie.trim().toLowerCase())).map((cat) => (
                 <div key={cat.id} className="flex items-center gap-3 rounded-lg bg-muted/25 px-3 py-2">
                   {cat.colore && (
@@ -438,21 +440,21 @@ function PrezzoEMarginiForm({
                     placeholder={margineTarget || "25"}
                     defaultValue={cat.margine_target_percentuale ?? ""}
                     className="w-20 shrink-0"
-                    aria-label={`Margine target ${cat.nome}`}
+                    aria-label={t("Margine target {nome}", { nome: String(cat.nome ?? "") })}
                     min="0" max="99.99" step="0.01"
                     disabled={!puoModificareListino}
                     onBlur={async (e) => {
                       if (!puoModificareListino) return;
                       let val: number | null;
                       try { val = percentualeImpostazione(e.target.value, "Margine categoria", 99.99); }
-                      catch (error) { toast.error(error instanceof Error ? error.message : "Margine non valido"); return; }
+                      catch (error) { toast.error(error instanceof Error ? error.message : t("Margine non valido")); return; }
                       if (val === (cat.margine_target_percentuale ?? null)) return;
                       const { error } = await (supabase.from("listino_categorie") as any)
                         .update({ margine_target_percentuale: val })
                         .eq("id", cat.id).eq("company_id", companyId).select("id").single();
                       if (error) toast.error(error.message);
                       else {
-                        toast.success(`Margine target aggiornato per ${cat.nome}`);
+                        toast.success(t("Margine target aggiornato per {nome}", { nome: String(cat.nome ?? "") }));
                         queryClient.invalidateQueries({ queryKey: ["listino-categorie", companyId] });
                       }
                     }}
@@ -466,21 +468,20 @@ function PrezzoEMarginiForm({
 
         {/* Come si leggono i numeri */}
         <details className="group px-5 py-4">
-          <summary className="cursor-pointer text-sm font-medium">Margine, ricarico e spese generali: come leggerli</summary>
+          <summary className="cursor-pointer text-sm font-medium">{t("Margine, ricarico e spese generali: come leggerli")}</summary>
           <dl className="mt-3 space-y-2 text-xs text-muted-foreground">
             <div>
-              <dt className="font-semibold text-foreground">Spese generali</dt>
-              <dd>Costo fisso aziendale spalmato sul prodotto (ammortamento, spese di struttura). Si somma al costo prima del margine.</dd>
+              <dt className="font-semibold text-foreground">{t("Spese generali")}</dt>
+              <dd>{t("Costo fisso aziendale spalmato sul prodotto (ammortamento, spese di struttura). Si somma al costo prima del margine.")}</dd>
             </div>
             <div>
-              <dt className="font-semibold text-foreground">Margine minimo e target</dt>
-              <dd>Il minimo è la soglia di controllo. Il target è il margine desiderato sul prezzo di vendita, non il ricarico sul costo.</dd>
+              <dt className="font-semibold text-foreground">{t("Margine minimo e target")}</dt>
+              <dd>{t("Il minimo è la soglia di controllo. Il target è il margine desiderato sul prezzo di vendita, non il ricarico sul costo.")}</dd>
             </div>
             <div>
-              <dt className="font-semibold text-foreground">Come si calcola</dt>
+              <dt className="font-semibold text-foreground">{t("Come si calcola")}</dt>
               <dd>
-                <span className="font-mono">Margine % = (Prezzo − Costo) / Prezzo × 100</span>. Costo 100 € e prezzo 130 €: ricarico 30%,
-                margine 23,08%. Le soglie non modificano i preventivi già salvati.
+                <span className="font-mono">{t("Margine % = (Prezzo − Costo) / Prezzo × 100")}</span>{t(". Costo 100 € e prezzo 130 €: ricarico 30%, margine 23,08%. Le soglie non modificano i preventivi già salvati.")}
               </dd>
             </div>
           </dl>
@@ -491,44 +492,44 @@ function PrezzoEMarginiForm({
       <aside className="min-w-0 space-y-4 xl:col-start-2 xl:row-start-1">
         {!isLoading && !isError && <EsempioMargini overhead={overheadPct} minimo={margineMin} target={margineTarget} />}
         <div className="rounded-xl border border-dashed p-4 text-xs leading-relaxed text-muted-foreground">
-          <p className="font-medium text-foreground">Quali preventivi seguono queste regole?</p>
-          <p className="mt-2">Ogni sezione indica il proprio ambito. Posa, numerazione e opzioni PDF sono del preventivo generico; i moduli specializzati hanno i loro modelli.</p>
+          <p className="font-medium text-foreground">{t("Quali preventivi seguono queste regole?")}</p>
+          <p className="mt-2">{t("Ogni sezione indica il proprio ambito. Posa, numerazione e opzioni PDF sono del preventivo generico; i moduli specializzati hanno i loro modelli.")}</p>
         </div>
       </aside>
       <fieldset disabled={!puoModificareListino || isLoading || isError || saveMutation.isPending} className="m-0 grid min-w-0 items-start gap-6 border-0 p-0 xl:col-span-2 xl:grid-cols-[minmax(0,1fr)_360px]">
       {/* Posa, trasporto, smaltimento */}
       <SezioneRegola
         id="posa-e-trasporto"
-        titolo="Posa, trasporto e smaltimento"
-        descrizione="Cosa aggiunge o chiede da solo il preventivo."
-        ambito={<AmbitoImpostazione>Preventivo generico</AmbitoImpostazione>}
+        titolo={t("Posa, trasporto e smaltimento")}
+        descrizione={t("Cosa aggiunge o chiede da solo il preventivo.")}
+        ambito={<AmbitoImpostazione>{t("Preventivo generico")}</AmbitoImpostazione>}
         evidenziata={evidenziata === "posa-e-trasporto"}
       >
         <div className="grid sm:grid-cols-2 sm:divide-x"><RigaInterruttore
           id="posa-automatica"
-          titolo="Aggiungi la posa automaticamente"
-          descrizione="Aggiungendo un prodotto con posa separata, il preventivo aggiunge da solo la riga di posa."
+          titolo={t("Aggiungi la posa automaticamente")}
+          descrizione={t("Aggiungendo un prodotto con posa separata, il preventivo aggiunge da solo la riga di posa.")}
           checked={aggPosa}
           onCheckedChange={makeToggle(setAggPosa)}
         />
         <RigaInterruttore
           id="chiedi-piano"
-          titolo="Chiedi il piano di installazione"
-          descrizione="Il preventivo chiede a che piano si installa: serve alle tariffe di tiro al piano."
+          titolo={t("Chiedi il piano di installazione")}
+          descrizione={t("Il preventivo chiede a che piano si installa: serve alle tariffe di tiro al piano.")}
           checked={chiediPiano}
           onCheckedChange={makeToggle(setChiediPiano)}
         />
         <RigaInterruttore
           id="chiedi-smaltimento"
-          titolo="Chiedi lo smaltimento dei materiali"
-          descrizione="Dopo ogni prodotto il preventivo chiede se aggiungere lo smaltimento del materiale vecchio."
+          titolo={t("Chiedi lo smaltimento dei materiali")}
+          descrizione={t("Dopo ogni prodotto il preventivo chiede se aggiungere lo smaltimento del materiale vecchio.")}
           checked={chiediSmaltimento}
           onCheckedChange={makeToggle(setChiediSmaltimento)}
         />
         <RigaInterruttore
           id="chiedi-trasporto"
-          titolo="Chiedi il trasporto"
-          descrizione="Il preventivo chiede la distanza del cantiere in km. Se il listino ha tariffe al km la chiede comunque."
+          titolo={t("Chiedi il trasporto")}
+          descrizione={t("Il preventivo chiede la distanza del cantiere in km. Se il listino ha tariffe al km la chiede comunque.")}
           checked={chiediTrasporto}
           onCheckedChange={makeToggle(setChiediTrasporto)}
         /></div>
@@ -537,32 +538,31 @@ function PrezzoEMarginiForm({
       {/* Numerazione */}
       <SezioneRegola
         id="numerazione"
-        titolo="Numero del preventivo"
-        descrizione="Come si chiamano i preventivi: prefisso, anno e progressivo."
-        ambito={<AmbitoImpostazione>Preventivo generico</AmbitoImpostazione>}
+        titolo={t("Numero del preventivo")}
+        descrizione={t("Come si chiamano i preventivi: prefisso, anno e progressivo.")}
+        ambito={<AmbitoImpostazione>{t("Preventivo generico")}</AmbitoImpostazione>}
         evidenziata={evidenziata === "numerazione"}
       >
         <div className="space-y-3 p-5">
-          <Label htmlFor="prefisso-preventivo">Prefisso</Label>
+          <Label htmlFor="prefisso-preventivo">{t("Prefisso")}</Label>
           <div className="flex flex-wrap items-center gap-3">
             <Input
               id="prefisso-preventivo"
               value={numeroPrefisso}
               maxLength={8}
               className="w-24 font-mono uppercase"
-              aria-label="Prefisso del numero preventivo"
+              aria-label={t("Prefisso del numero preventivo")}
               onChange={(e) => {
                 setNumeroPrefisso(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""));
                 markDirty();
               }}
             />
-            <span className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-sm font-mono"><span className="mr-2 font-sans text-xs text-muted-foreground">Esempio</span>
+            <span className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-sm font-mono"><span className="mr-2 font-sans text-xs text-muted-foreground">{t("Esempio")}</span>
               {(numeroPrefisso || "OFF")}-{new Date().getFullYear()}-001
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Solo lettere e numeri, fino a 8 caratteri. La numerazione riparte da 001 ogni anno e non
-            riusa mai un numero, nemmeno se un preventivo finisce nel cestino.
+            {t("Solo lettere e numeri, fino a 8 caratteri. La numerazione riparte da 001 ogni anno e non riusa mai un numero, nemmeno se un preventivo finisce nel cestino.")}
           </p>
         </div>
       </SezioneRegola>
@@ -571,54 +571,54 @@ function PrezzoEMarginiForm({
       <SezioneRegola
         id="pdf-e-firma"
         className="xl:col-span-2"
-        titolo="PDF e firma"
-        descrizione="Cosa mostra il PDF di un nuovo preventivo: nel singolo preventivo si può cambiare."
-        ambito={<AmbitoImpostazione>Preventivo generico</AmbitoImpostazione>}
+        titolo={t("PDF e firma")}
+        descrizione={t("Cosa mostra il PDF di un nuovo preventivo: nel singolo preventivo si può cambiare.")}
+        ambito={<AmbitoImpostazione>{t("Preventivo generico")}</AmbitoImpostazione>}
         evidenziata={evidenziata === "pdf-e-firma"}
       >
         <div className="grid items-start gap-1 lg:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="grid divide-y divide-border/70 2xl:grid-cols-2 2xl:divide-y-0 2xl:[&>div]:border-b 2xl:[&>div]:border-border/70">
         <RigaInterruttore
           id="pdf-prezzi-riga"
-          titolo="Mostra i prezzi di ogni riga"
-          descrizione="Colonne prezzo, sconto e IVA su ogni riga. Se spento: solo nome, quantità e totale."
+          titolo={t("Mostra i prezzi di ogni riga")}
+          descrizione={t("Colonne prezzo, sconto e IVA su ogni riga. Se spento: solo nome, quantità e totale.")}
           checked={pdfPrezziRiga}
           disabled={pdfSoloTotale}
           onCheckedChange={makeToggle(setPdfPrezziRiga)}
         />
         <RigaInterruttore
           id="pdf-solo-totale"
-          titolo="Mostra solo il totale finale"
-          descrizione="Niente tabella delle righe: il cliente vede soltanto il totale."
+          titolo={t("Mostra solo il totale finale")}
+          descrizione={t("Niente tabella delle righe: il cliente vede soltanto il totale.")}
           checked={pdfSoloTotale}
           onCheckedChange={makeToggle(setPdfSoloTotale)}
         />
         <RigaInterruttore
           id="pdf-sconti"
-          titolo="Mostra gli sconti applicati"
-          descrizione="Colonna sconto e riga dello sconto globale. Vale anche per il PDF dei serramenti."
+          titolo={t("Mostra gli sconti applicati")}
+          descrizione={t("Colonna sconto e riga dello sconto globale. Vale anche per il PDF dei serramenti.")}
           checked={pdfSconti}
           onCheckedChange={makeToggle(setPdfSconti)}
         />
         <RigaInterruttore
           id="pdf-immagini"
-          titolo="Mostra le immagini dei prodotti"
-          descrizione="Una miniatura su ogni riga, se il prodotto ha la foto nel listino."
+          titolo={t("Mostra le immagini dei prodotti")}
+          descrizione={t("Una miniatura su ogni riga, se il prodotto ha la foto nel listino.")}
           checked={pdfImmagini}
           disabled={pdfSoloTotale}
           onCheckedChange={makeToggle(setPdfImmagini)}
         />
         <RigaInterruttore
           id="pdf-schede-tecniche"
-          titolo="Allega le schede tecniche"
-          descrizione="Aggiunge al PDF le schede tecniche dei prodotti scelti."
+          titolo={t("Allega le schede tecniche")}
+          descrizione={t("Aggiunge al PDF le schede tecniche dei prodotti scelti.")}
           checked={pdfSchedeTecniche}
           onCheckedChange={makeToggle(setPdfSchedeTecniche)}
         />
         <RigaInterruttore
           id="firma-digitale"
-          titolo="Firma elettronica sui preventivi"
-          descrizione="Il cliente firma il preventivo online, con il codice OTP, dal link che riceve. Il PDF non porta più il codice QR."
+          titolo={t("Firma elettronica sui preventivi")}
+          descrizione={t("Il cliente firma il preventivo online, con il codice OTP, dal link che riceve. Il PDF non porta più il codice QR.")}
           checked={firmaAbilitata}
           onCheckedChange={makeToggle(setFirmaAbilitata)}
         />
@@ -627,12 +627,11 @@ function PrezzoEMarginiForm({
           <SchemaPdfPreventivo prezzi={pdfPrezziRiga} soloTotale={pdfSoloTotale} sconti={pdfSconti} immagini={pdfImmagini} schede={pdfSchedeTecniche} firma={firmaAbilitata} prefisso={numeroPrefisso} />
         </div>
         </div>
-        {pdfSoloTotale && <p className="px-5 py-3 text-xs text-muted-foreground">Con «Solo totale finale», i prezzi e le immagini delle singole righe non compaiono. Le preferenze restano conservate per quando riattivi il dettaglio.</p>}
+        {pdfSoloTotale && <p className="px-5 py-3 text-xs text-muted-foreground">{t("Con «Solo totale finale», i prezzi e le immagini delle singole righe non compaiono. Le preferenze restano conservate per quando riattivi il dettaglio.")}</p>}
         <p className="px-5 py-4 text-xs leading-relaxed text-muted-foreground">
-          I PDF di Serramenti, Bagni, Fotovoltaico e degli altri preventivatori si personalizzano in{" "}
-          <Link to="/azienda/impostazioni/template-preventivi?tab=moduli-vendita" className="text-primary underline">Modelli → Moduli</Link>; clausole e firma
-          elettronica sono in{" "}
-          <Link to="/azienda/impostazioni/condizioni-firma" className="text-primary underline">Firma e condizioni</Link>.
+          {t("I PDF di Serramenti, Bagni, Fotovoltaico e degli altri preventivatori si personalizzano in")}{" "}
+          <Link to="/azienda/impostazioni/template-preventivi?tab=moduli-vendita" className="text-primary underline">{t("Modelli → Moduli")}</Link>{t("; clausole e firma elettronica sono in")}{" "}
+          <Link to="/azienda/impostazioni/condizioni-firma" className="text-primary underline">{t("Firma e condizioni")}</Link>.
         </p>
       </SezioneRegola>
       </fieldset>
@@ -644,6 +643,7 @@ function PrezzoEMarginiForm({
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function SettingsMargini() {
+  const t = useT();
   // Bug fix: rimosso `useAuth() as any` che bypassava i type di AuthContext.
   // Ora usiamo il tipo corretto — se Company cambia, TypeScript ci avvisa.
   const { effectiveCompany, role } = useAuth();
@@ -674,7 +674,7 @@ export default function SettingsMargini() {
     <div className="space-y-4">
       {isError && (
         <Alert variant="destructive">
-          <AlertDescription>Errore nel caricamento. Ricarica la pagina.</AlertDescription>
+          <AlertDescription>{t("Errore nel caricamento. Ricarica la pagina.")}</AlertDescription>
         </Alert>
       )}
       <PrezzoEMarginiForm

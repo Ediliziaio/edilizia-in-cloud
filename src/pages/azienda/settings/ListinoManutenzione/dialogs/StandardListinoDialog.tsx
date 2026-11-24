@@ -31,6 +31,7 @@ import {
   getDefaultPresetsForVertical,
 } from "../presets";
 import type { PresetListinoId } from "../types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function StandardListinoDialog({
   open, onClose, existingCount, onImport, importing, vertical,
@@ -45,6 +46,7 @@ export function StandardListinoDialog({
   importing: boolean;
   vertical: Vertical;
 }) {
+  const tr = useT();
   const [selectedPresets, setSelectedPresets] = useState<Set<PresetListinoId>>(
     () => {
       if (existingCount !== 0) return new Set<PresetListinoId>();
@@ -94,7 +96,7 @@ export function StandardListinoDialog({
   const handleImport = () => {
     if (importing) return;
     if (countTotal === 0) {
-      toast.info("Scegli almeno un catalogo o un prezzo");
+      toast.info(tr("Scegli almeno un catalogo o un prezzo"));
       return;
     }
     onImport({
@@ -119,12 +121,10 @@ export function StandardListinoDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" aria-hidden />
-            Importa un catalogo pronto
+            {tr("Importa un catalogo pronto")}
           </DialogTitle>
           <DialogDescription>
-            Scegli uno o più cataloghi per riempire il listino in un colpo solo,
-            oppure scegli i singoli prezzi dalla lista. Quello che c'è già non
-            viene duplicato.
+            {tr("Scegli uno o più cataloghi per riempire il listino in un colpo solo, oppure scegli i singoli prezzi dalla lista. Quello che c'è già non viene duplicato.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -132,10 +132,10 @@ export function StandardListinoDialog({
           {/* ── Cataloghi pronti ── */}
           <div>
             <h3 className="text-sm font-semibold mb-2">
-              Cataloghi pronti
+              {tr("Cataloghi pronti")}
               {existingCount === 0 && (
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  (consigliato se parti da zero)
+                  {tr("(consigliato se parti da zero)")}
                 </span>
               )}
             </h3>
@@ -163,16 +163,16 @@ export function StandardListinoDialog({
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <div className="font-semibold text-sm truncate">{p.nome}</div>
+                          <div className="font-semibold text-sm truncate">{tr(p.nome)}</div>
                           {active && (
                             <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                          {p.descrizione}
+                          {tr(p.descrizione)}
                         </div>
                         <div className="text-[11px] text-muted-foreground mt-1">
-                          {countPreset} {countPreset === 1 ? "prezzo" : "prezzi"}
+                          {tr(countPreset === 1 ? "{n} prezzo" : "{n} prezzi", { n: countPreset })}
                         </div>
                       </div>
                     </div>
@@ -186,9 +186,9 @@ export function StandardListinoDialog({
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <h3 className="text-sm font-semibold">
-                Scegli i singoli prezzi
+                {tr("Scegli i singoli prezzi")}
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  (facoltativo — vale al posto dei cataloghi scelti sopra)
+                  {tr("(facoltativo — vale al posto dei cataloghi scelti sopra)")}
                 </span>
               </h3>
               <div className="relative w-full sm:w-60">
@@ -196,8 +196,8 @@ export function StandardListinoDialog({
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Cerca impianto o intervento..."
-                  aria-label="Cerca impianto o intervento"
+                  placeholder={tr("Cerca impianto o intervento...")}
+                  aria-label={tr("Cerca impianto o intervento")}
                   className="pl-8 h-8 text-xs max-md:h-11"
                 />
               </div>
@@ -207,19 +207,19 @@ export function StandardListinoDialog({
                 <Table>
                   <TableHeader className="sticky top-0 bg-background z-10">
                     <TableRow>
-                      <TableHead className="w-10"><span className="sr-only">Scelta</span></TableHead>
-                      <TableHead>Impianto</TableHead>
-                      <TableHead>Intervento</TableHead>
-                      <TableHead className="w-24 text-right">Prezzo</TableHead>
+                      <TableHead className="w-10"><span className="sr-only">{tr("Scelta")}</span></TableHead>
+                      <TableHead>{tr("Impianto")}</TableHead>
+                      <TableHead>{tr("Intervento")}</TableHead>
+                      <TableHead className="w-24 text-right">{tr("Prezzo")}</TableHead>
                       <TableHead className="w-16">IVA</TableHead>
-                      <TableHead className="w-20">Unità</TableHead>
+                      <TableHead className="w-20">{tr("Unità")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {rows.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">
-                          Nessun prezzo trovato con la ricerca
+                          {tr("Nessun prezzo trovato con la ricerca")}
                         </TableCell>
                       </TableRow>
                     ) : rows.map((t) => {
@@ -230,7 +230,7 @@ export function StandardListinoDialog({
                             <Checkbox
                               checked={selectedKeys.has(key)}
                               onCheckedChange={() => toggleTariffa(key)}
-                              aria-label={`Scegli ${t.impianto} · ${t.intervento}`}
+                              aria-label={tr("Scegli {impianto} · {intervento}", { impianto: String(t.impianto ?? ""), intervento: String(t.intervento ?? "") })}
                             />
                           </TableCell>
                           <TableCell className="font-medium text-sm">{t.impianto}</TableCell>
@@ -251,13 +251,13 @@ export function StandardListinoDialog({
         <DialogFooter className="flex items-center justify-between gap-3 border-t pt-3">
           <div className="text-xs text-muted-foreground">
             {countTotal > 0
-              ? `${countTotal} ${countTotal === 1 ? "prezzo da importare" : "prezzi da importare"}${existingCount > 0 ? " (quelli già presenti vengono saltati)" : ""}`
-              : "Nessun prezzo scelto"}
+              ? `${tr(countTotal === 1 ? "{n} prezzo da importare" : "{n} prezzi da importare", { n: countTotal })}${existingCount > 0 ? ` ${tr("(quelli già presenti vengono saltati)")}` : ""}`
+              : tr("Nessun prezzo scelto")}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>Annulla</Button>
+            <Button variant="outline" onClick={onClose}>{tr("Annulla")}</Button>
             <Button onClick={handleImport} disabled={importing || countTotal === 0}>
-              {importing ? "Importazione..." : `Importa ${countTotal > 0 ? countTotal : ""}`}
+              {importing ? tr("Importazione...") : (countTotal > 0 ? tr("Importa {n}", { n: countTotal }) : tr("Importa"))}
             </Button>
           </div>
         </DialogFooter>

@@ -45,12 +45,14 @@ import {
   STATO_SCADENZA_BADGE, TIPI_CON_TARGA, classeDi, costoAnnuoMezzo, descriviScadenza, formatContatore, formatData,
   formatQuantita, giornoItaliano, mezzoHaRegistroViaggi, oggiIso, possessoLabel, statoMezzo, tipoMezzoLabel,
 } from "@/types/mezzi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const ORA = new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" });
+const ORA = new Intl.DateTimeFormat(intlCampo(), { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" });
 const StoricoPercorsiMezzo = lazy(() => import("@/components/mezzi/StoricoPercorsiMezzo"));
 const CarburanteMezzo = lazy(() => import("@/components/mezzi/CarburanteMezzo"));
 
 export default function MezzoDetail() {
+  const t = useT();
   const schedaCommessa = useContext(ContestoSchedaCommessa);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -103,11 +105,11 @@ export default function MezzoDetail() {
     return (
       <div className="mx-auto max-w-md space-y-3 rounded-2xl border bg-card p-6 text-center">
         <p className="text-sm text-muted-foreground">
-          {error ? "Non riesco a caricare il mezzo." : "Questo mezzo non c'è più, o non è della tua azienda."}
+          {error ? t("Non riesco a caricare il mezzo.") : t("Questo mezzo non c'è più, o non è della tua azienda.")}
         </p>
         <div className="flex justify-center gap-2">
-          {error && <Button variant="outline" onClick={() => refetch()}>Riprova</Button>}
-          <Button asChild><Link to="/azienda/manodopera?tab=mezzi">{schedaCommessa ? "Torna alla commessa" : "Torna ai mezzi"}</Link></Button>
+          {error && <Button variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button>}
+          <Button asChild><Link to="/azienda/manodopera?tab=mezzi">{schedaCommessa ? t("Torna alla commessa") : t("Torna ai mezzi")}</Link></Button>
         </div>
       </div>
     );
@@ -123,19 +125,19 @@ export default function MezzoDetail() {
   const stato = statoMezzo(mezzo.stato);
   const fotoCopertina = mezzo.foto_path ? copertine?.get(mezzo.foto_path) : undefined;
   const sottotitolo = [
-    attrezzo ? categoria ?? "Attrezzatura" : tipoMezzoLabel(mezzo.tipo),
+    attrezzo ? categoria ?? t("Attrezzatura") : t(tipoMezzoLabel(mezzo.tipo)),
     [mezzo.marca, mezzo.modello].filter(Boolean).join(" "),
     mezzo.anno ? String(mezzo.anno) : null,
   ].filter(Boolean).join(" · ");
   const dettagli = [
-    possessoLabel(mezzo.possesso),
-    mezzo.valore_acquisto != null ? `acquistato a ${formatCurrency(mezzo.valore_acquisto)}${mezzo.data_acquisto ? ` il ${formatData(mezzo.data_acquisto)}` : ""}` : null,
-    mezzo.matricola ? `${attrezzo ? "n° di serie" : "telaio/matricola"} ${mezzo.matricola}` : null,
+    t(possessoLabel(mezzo.possesso)),
+    mezzo.valore_acquisto != null ? (mezzo.data_acquisto ? t("acquistato a {valore} il {data}", { valore: formatCurrency(mezzo.valore_acquisto), data: formatData(mezzo.data_acquisto) }) : t("acquistato a {valore}", { valore: formatCurrency(mezzo.valore_acquisto) })) : null,
+    mezzo.matricola ? (attrezzo ? t("n° di serie {matricola}", { matricola: mezzo.matricola }) : t("telaio/matricola {matricola}", { matricola: mezzo.matricola })) : null,
     mezzo.note,
   ].filter(Boolean).join(" · ");
   const dove = mezzo.su_mezzo_nome
-    ? `su ${mezzo.su_mezzo_nome}`
-    : mezzo.assegnato_commessa ?? mezzo.assegnato_persona ?? "in magazzino";
+    ? t("su {mezzo}", { mezzo: mezzo.su_mezzo_nome })
+    : mezzo.assegnato_commessa ?? mezzo.assegnato_persona ?? t("in magazzino");
   const inMagazzino = !mezzo.assegnato_order_id && !mezzo.assegnato_hr_profilo_id && !mezzo.su_mezzo_id;
   const puoSpostare = puoModificare && !aQuantita && !TIPI_CON_TARGA.includes(mezzo.tipo);
   const haViaggi = mezzoHaRegistroViaggi(mezzo);
@@ -161,15 +163,15 @@ export default function MezzoDetail() {
     <div className="space-y-3 sm:space-y-4">
       {/* Mobile no: la freccia indietro è già nella barra in alto. */}
       {!schedaCommessa && <Link to={elenco} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-sm:hidden">
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />{attrezzo ? "Attrezzature" : "Mezzi"}
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />{attrezzo ? t("Attrezzature") : t("Mezzi")}
       </Link>}
 
       {daQr && (
         <div className="flex items-center gap-3 rounded-2xl border border-orange-200 bg-orange-50 p-3 max-sm:flex-wrap max-sm:gap-2">
           <ScanLine className="h-5 w-5 shrink-0 text-orange-600" aria-hidden="true" />
           <p className="min-w-0 flex-1 text-sm text-orange-950">
-            <span className="font-semibold">Letto dal QR.</span>{" "}
-            {aQuantita ? "Segna qui sotto i montaggi e i rientri." : `Risulta ${dove}.`}
+            <span className="font-semibold">{t("Letto dal QR.")}</span>{" "}
+            {aQuantita ? t("Segna qui sotto i montaggi e i rientri.") : t("Risulta {dove}.", { dove: String(dove ?? "") })}
           </p>
           {puoSpostare && !inMagazzino && (
             <Button
@@ -179,13 +181,13 @@ export default function MezzoDetail() {
               onClick={() => azione.mutate({ mezzoId: mezzo.id, azione: "magazzino" }, { onSuccess: () => refetch() })}
             >
               {azione.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Warehouse className="h-4 w-4" />}
-              È in magazzino
+              {t("È in magazzino")}
             </Button>
           )}
           {puoSpostare && (
-            <Button size="sm" variant="outline" className="shrink-0 bg-white" onClick={() => setModificaAperta(true)}>Sposta…</Button>
+            <Button size="sm" variant="outline" className="shrink-0 bg-white" onClick={() => setModificaAperta(true)}>{t("Sposta…")}</Button>
           )}
-          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={chiudiBannerQr} aria-label="Chiudi">
+          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={chiudiBannerQr} aria-label={t("Chiudi")}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -197,7 +199,7 @@ export default function MezzoDetail() {
             {fotoCopertina ? (
               <img
                 src={fotoCopertina}
-                alt={`Foto di ${mezzo.nome}`}
+                alt={t("Foto di {nome}", { nome: String(mezzo.nome ?? "") })}
                 className="h-16 w-20 shrink-0 rounded-xl border object-cover shadow-sm sm:h-20 sm:w-28 max-sm:h-11 max-sm:w-14 max-sm:rounded-lg"
               />
             ) : (
@@ -210,14 +212,14 @@ export default function MezzoDetail() {
                 <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">{mezzo.nome}</h1>
                 {mezzo.targa && <span className="rounded border bg-white px-1.5 font-mono text-xs text-slate-700">{mezzo.targa}</span>}
                 {mezzo.codice && (
-                  <span className="rounded border bg-white px-1.5 font-mono text-xs text-slate-500" title="Codice dell'etichetta QR">{mezzo.codice}</span>
+                  <span className="rounded border bg-white px-1.5 font-mono text-xs text-slate-500" title={t("Codice dell'etichetta QR")}>{mezzo.codice}</span>
                 )}
-                <Badge variant="outline" className={`text-[11px] ${stato.cls}`}>{stato.label}</Badge>
+                <Badge variant="outline" className={`text-[11px] ${stato.cls}`}>{t(stato.label)}</Badge>
               </div>
               <p className="mt-0.5 text-sm text-slate-500 max-sm:text-xs">{sottotitolo}</p>
               {mezzo.su_mezzo_id && mezzo.su_mezzo_nome && (
                 <p className="mt-1 text-sm">
-                  Caricato su{" "}
+                  {t("Caricato su")}{" "}
                   <Link to={`/azienda/mezzi/${mezzo.su_mezzo_id}`} className="font-medium text-orange-700 hover:underline">{mezzo.su_mezzo_nome}</Link>
                 </p>
               )}
@@ -227,13 +229,13 @@ export default function MezzoDetail() {
             <div className="flex shrink-0 gap-2 max-sm:gap-1">
               {mezzo.codice && (
                 <Button size="sm" variant="outline" className="max-sm:hidden" onClick={() => setEtichetta(true)}>
-                  <QrCode className="mr-1 h-4 w-4" />Etichetta
+                  <QrCode className="mr-1 h-4 w-4" />{t("Etichetta")}
                 </Button>
               )}
-              <Button size="sm" variant="outline" className="max-sm:h-8 max-sm:w-8 max-sm:p-0" aria-label="Modifica" onClick={() => setModificaAperta(true)}>
-                <Pencil className="mr-1 h-4 w-4 max-sm:mr-0" /><span className="max-sm:hidden">Modifica</span>
+              <Button size="sm" variant="outline" className="max-sm:h-8 max-sm:w-8 max-sm:p-0" aria-label={t("Modifica")} onClick={() => setModificaAperta(true)}>
+                <Pencil className="mr-1 h-4 w-4 max-sm:mr-0" /><span className="max-sm:hidden">{t("Modifica")}</span>
               </Button>
-              <Button size="sm" variant="ghost" className="text-destructive max-sm:h-8 max-sm:w-8 max-sm:p-0" onClick={() => setConfermaElimina(true)} aria-label="Elimina">
+              <Button size="sm" variant="ghost" className="text-destructive max-sm:h-8 max-sm:w-8 max-sm:p-0" onClick={() => setConfermaElimina(true)} aria-label={t("Elimina")}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -247,24 +249,24 @@ export default function MezzoDetail() {
               <div className={cella}>
                 <Layers className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
                 <div className="min-w-0">
-                  <dt className="text-xs text-muted-foreground">Totale</dt>
+                  <dt className="text-xs text-muted-foreground">{t("Totale")}</dt>
                   <dd className="truncate font-medium">{formatQuantita(mezzo.quantita_totale, mezzo.unita_misura)}</dd>
                 </div>
               </div>
               <div className={cella}>
                 <HardHat className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
                 <div className="min-w-0">
-                  <dt className="text-xs text-muted-foreground">Montati</dt>
+                  <dt className="text-xs text-muted-foreground">{t("Montati")}</dt>
                   <dd className="truncate font-medium">
                     {formatQuantita(disp?.in_uso ?? 0, mezzo.unita_misura)}
-                    {disp && disp.cantieri > 0 && <span className="font-normal text-muted-foreground"> · {disp.cantieri} {disp.cantieri === 1 ? "cantiere" : "cantieri"}</span>}
+                    {disp && disp.cantieri > 0 && <span className="font-normal text-muted-foreground"> · {disp.cantieri} {disp.cantieri === 1 ? t("cantiere") : t("cantieri")}</span>}
                   </dd>
                 </div>
               </div>
               <div className={cella}>
                 <Warehouse className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
                 <div className="min-w-0">
-                  <dt className="text-xs text-muted-foreground">In magazzino</dt>
+                  <dt className="text-xs text-muted-foreground">{t("In magazzino")}</dt>
                   <dd className="truncate font-medium text-emerald-700">{formatQuantita(disp?.disponibile ?? mezzo.quantita_totale, mezzo.unita_misura)}</dd>
                 </div>
               </div>
@@ -275,11 +277,11 @@ export default function MezzoDetail() {
                 <div className={cella}>
                   <Gauge className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
                   <div className="min-w-0">
-                    <dt className="text-xs text-muted-foreground">{mezzo.contatore_unita === "ore" ? "Contaore" : "Contachilometri"}</dt>
+                    <dt className="text-xs text-muted-foreground">{mezzo.contatore_unita === "ore" ? t("Contaore") : t("Contachilometri")}</dt>
                     <dd className="truncate font-medium">
                       {formatContatore(mezzo.contatore, mezzo.contatore_unita)}
                       {mezzo.contatore_aggiornato_il && (
-                        <span className="font-normal text-muted-foreground max-sm:hidden"> · al {formatData(mezzo.contatore_aggiornato_il)}</span>
+                        <span className="font-normal text-muted-foreground max-sm:hidden">{" "}{t("· al {contatore_aggiornato_il}", { contatore_aggiornato_il: formatData(mezzo.contatore_aggiornato_il) })}</span>
                       )}
                     </dd>
                   </div>
@@ -288,9 +290,9 @@ export default function MezzoDetail() {
                 <div className={cella}>
                   <Eye className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
                   <div className="min-w-0">
-                    <dt className="text-xs text-muted-foreground">Visto l'ultima volta</dt>
+                    <dt className="text-xs text-muted-foreground">{t("Visto l'ultima volta")}</dt>
                     <dd className="truncate font-medium">
-                      {ultimaVista ? `${formatData(giornoItaliano(ultimaVista))} alle ${ORA.format(new Date(ultimaVista))}` : <span className="font-normal text-muted-foreground">Mai letto dal QR</span>}
+                      {ultimaVista ? t("{valore} alle {ORA}", { valore: formatData(giornoItaliano(ultimaVista)), ORA: String(ORA.format(new Date(ultimaVista)) ?? "") }) : <span className="font-normal text-muted-foreground">{t("Mai letto dal QR")}</span>}
                     </dd>
                   </div>
                 </div>
@@ -298,20 +300,20 @@ export default function MezzoDetail() {
               <div className={cella}>
                 <User className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
                 <div className="min-w-0">
-                  <dt className="text-xs text-muted-foreground">In carico a</dt>
-                  <dd className="truncate font-medium">{mezzo.assegnato_persona ?? "Nessuno"}</dd>
+                  <dt className="text-xs text-muted-foreground">{t("In carico a")}</dt>
+                  <dd className="truncate font-medium">{mezzo.assegnato_persona ?? t("Nessuno")}</dd>
                 </div>
               </div>
               <div className={`${cella} ${costo && costo.totale > 0 ? "" : "max-sm:col-span-2"}`}>
                 <HardHat className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
                 <div className="min-w-0">
-                  <dt className="text-xs text-muted-foreground">Cantiere</dt>
+                  <dt className="text-xs text-muted-foreground">{t("Cantiere")}</dt>
                   <dd className="truncate font-medium">
                     {mezzo.assegnato_order_id && mezzo.assegnato_commessa ? (
                       <Link to={`/azienda/ordini/${mezzo.assegnato_order_id}`} className="text-orange-700 hover:underline">
                         {mezzo.assegnato_commessa}
                       </Link>
-                    ) : attrezzo && inMagazzino ? "In magazzino" : "Nessuno"}
+                    ) : attrezzo && inMagazzino ? t("In magazzino") : t("Nessuno")}
                   </dd>
                 </div>
               </div>
@@ -320,18 +322,18 @@ export default function MezzoDetail() {
           <div className={`${cella} ${costo && costo.totale > 0 ? "" : "max-sm:hidden"}`}>
             <Euro className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
             <div className="min-w-0">
-              <dt className="text-xs text-muted-foreground">Costa circa, in un anno</dt>
+              <dt className="text-xs text-muted-foreground">{t("Costa circa, in un anno")}</dt>
               <dd
                 className="truncate font-medium"
-                title={costo ? `${attrezzo ? "Assicurazione" : "Assicurazione e bollo"} ${formatCurrency(costo.documenti)} · rate ${formatCurrency(costo.rate)} · manutenzioni ultimi 12 mesi ${formatCurrency(costo.manutenzioni)}` : undefined}
+                title={costo ? t(attrezzo ? "Assicurazione {documenti} · rate {rate} · manutenzioni ultimi 12 mesi {manutenzioni}" : "Assicurazione e bollo {documenti} · rate {rate} · manutenzioni ultimi 12 mesi {manutenzioni}", { documenti: formatCurrency(costo.documenti), rate: formatCurrency(costo.rate), manutenzioni: formatCurrency(costo.manutenzioni) }) : undefined}
               >
                 {costo && costo.totale > 0 ? (
                   <>
                     {formatCurrency(costo.totale)}
-                    <span className="font-normal text-muted-foreground"> · {formatCurrency(costo.alGiorno)} al giorno</span>
+                    <span className="font-normal text-muted-foreground">{" "}{t("· {alGiorno} al giorno", { alGiorno: formatCurrency(costo.alGiorno) })}</span>
                   </>
                 ) : (
-                  <span className="font-normal text-muted-foreground">Segna importi e rate</span>
+                  <span className="font-normal text-muted-foreground">{t("Segna importi e rate")}</span>
                 )}
               </dd>
             </div>
@@ -343,7 +345,7 @@ export default function MezzoDetail() {
         {aBordo.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2 max-sm:mt-2 max-sm:gap-1.5">
             <span className="inline-flex items-center gap-1 text-sm text-muted-foreground max-sm:text-xs">
-              <Package className="h-4 w-4 max-sm:h-3.5 max-sm:w-3.5" aria-hidden="true" />A bordo:
+              <Package className="h-4 w-4 max-sm:h-3.5 max-sm:w-3.5" aria-hidden="true" />{t("A bordo:")}
             </span>
             {aBordo.map((a) => (
               <Link key={a.id} to={`/azienda/mezzi/${a.id}`} className="tap-compact rounded-full border bg-white px-2.5 py-0.5 text-sm hover:border-orange-300 max-sm:text-xs">
@@ -358,7 +360,7 @@ export default function MezzoDetail() {
             {allarmi.map((s) => (
               <li key={`${s.origine}-${s.riferimento_id}`} className="flex items-center gap-2 text-sm">
                 <Badge variant="outline" className={`shrink-0 text-[11px] ${STATO_SCADENZA_BADGE[s.stato].cls}`}>
-                  {STATO_SCADENZA_BADGE[s.stato].label}
+                  {t(STATO_SCADENZA_BADGE[s.stato].label)}
                 </Badge>
                 <span className="truncate">{descriviScadenza(s)}</span>
               </li>
@@ -371,16 +373,16 @@ export default function MezzoDetail() {
         {/* Documenti e manutenzioni restano raggiungibili anche da telefono. */}
         <div className="-mx-1 overflow-x-auto px-1 max-sm:mx-0 max-sm:px-0">
           <TabsList className="inline-flex w-max">
-            {aQuantita && <TabsTrigger value="montaggi">Montaggi</TabsTrigger>}
-            <TabsTrigger value="scadenze">{attrezzo ? "Documenti" : "Scadenze"}</TabsTrigger>
-            {haViaggi && <TabsTrigger value="viaggi">Viaggi e tratte</TabsTrigger>}
-            <TabsTrigger value="manutenzioni">{attrezzo ? "Manutenzioni" : "Tagliandi"}</TabsTrigger>
-            {perms.canViewCosts && <TabsTrigger value="fatture">Fatture</TabsTrigger>}
-            <TabsTrigger value="foto">Foto</TabsTrigger>
-            {!aQuantita && <TabsTrigger value="uso" className="max-sm:hidden">{attrezzo ? "Cantieri" : "Cantieri e km"}</TabsTrigger>}
-            <TabsTrigger value="storico" className="max-sm:hidden">Assegnazioni e QR</TabsTrigger>
+            {aQuantita && <TabsTrigger value="montaggi">{t("Montaggi")}</TabsTrigger>}
+            <TabsTrigger value="scadenze">{attrezzo ? t("Documenti") : t("Scadenze")}</TabsTrigger>
+            {haViaggi && <TabsTrigger value="viaggi">{t("Viaggi e tratte")}</TabsTrigger>}
+            <TabsTrigger value="manutenzioni">{attrezzo ? t("Manutenzioni") : t("Tagliandi")}</TabsTrigger>
+            {perms.canViewCosts && <TabsTrigger value="fatture">{t("Fatture")}</TabsTrigger>}
+            <TabsTrigger value="foto">{t("Foto")}</TabsTrigger>
+            {!aQuantita && <TabsTrigger value="uso" className="max-sm:hidden">{attrezzo ? t("Cantieri") : t("Cantieri e km")}</TabsTrigger>}
+            <TabsTrigger value="storico" className="max-sm:hidden">{t("Assegnazioni e QR")}</TabsTrigger>
             <TabsTrigger value="segnalazioni" className="gap-1.5">
-              Segnalazioni
+              {t("Segnalazioni")}
               {aperte > 0 && <span className="rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">{aperte}</span>}
             </TabsTrigger>
           </TabsList>
@@ -425,16 +427,16 @@ export default function MezzoDetail() {
           </TabsContent>
         )}
         {haViaggi && <TabsContent value="viaggi" className="mt-3 space-y-3">
-          {perms.canViewMezzi && <div role="group" aria-label="Vista dei viaggi" className="flex flex-wrap gap-1">
+          {perms.canViewMezzi && <div role="group" aria-label={t("Vista dei viaggi")} className="flex flex-wrap gap-1">
             <Button size="sm" variant={mostraMappaViaggi ? "outline" : "secondary"} aria-pressed={!mostraMappaViaggi}
-              onClick={() => cambiaVistaViaggi(false)}><List className="size-4" /> Registro</Button>
+              onClick={() => cambiaVistaViaggi(false)}><List className="size-4" /> {t("Registro")}</Button>
             <Button size="sm" variant={mostraMappaViaggi ? "secondary" : "outline"} aria-pressed={mostraMappaViaggi}
-              onClick={() => cambiaVistaViaggi(true)}><Map className="size-4" /> Storico su mappa</Button>
+              onClick={() => cambiaVistaViaggi(true)}><Map className="size-4" /> {t("Storico su mappa")}</Button>
           </div>}
           {perms.canViewCosts && perms.canViewMezzi && <Suspense fallback={null}>
             <CarburanteMezzo key={mezzo.id} company={companyId} mezzo={mezzo.id} modifica={puoModificare} />
           </Suspense>}
-          {mostraMappaViaggi ? <Suspense fallback={<p role="status" className="p-3 text-sm text-muted-foreground">Caricamento storico…</p>}>
+          {mostraMappaViaggi ? <Suspense fallback={<p role="status" className="p-3 text-sm text-muted-foreground">{t("Caricamento storico…")}</p>}>
             <StoricoPercorsiMezzo key={mezzo.id} company={companyId} mezzo={mezzo.id}
               giorno={searchParams.get("giorno") ?? undefined} routing={perms.canViewCalendar && perms.canViewOrders}
               costi={perms.canViewCosts} />
@@ -445,7 +447,7 @@ export default function MezzoDetail() {
         <TabsContent value="storico" className="mt-3 space-y-5">
           {!aQuantita && <MezzoStoricoSection mezzoId={mezzo.id} puoModificare={puoModificare} />}
           <section className="space-y-2">
-            <h3 className="text-sm font-semibold">Letture del QR</h3>
+            <h3 className="text-sm font-semibold">{t("Letture del QR")}</h3>
             <MezzoScansioniSection mezzoId={mezzo.id} unita={mezzo.unita_misura} />
           </section>
         </TabsContent>
@@ -470,19 +472,19 @@ export default function MezzoDetail() {
       <AlertDialog open={confermaElimina} onOpenChange={setConfermaElimina}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare «{mezzo.nome}»?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare «{nome}»?", { nome: String(mezzo.nome ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Sparisce dall'elenco e non manda più avvisi. Documenti, interventi e storico restano archiviati.
-              {mezzo.codice ? ` Il codice ${mezzo.codice} non verrà riusato.` : ""}
+              {t("Sparisce dall'elenco e non manda più avvisi. Documenti, interventi e storico restano archiviati.")}
+              {mezzo.codice ? t(" Il codice {codice} non verrà riusato.", { codice: String(mezzo.codice ?? "") }) : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => elimina.mutate(mezzo.id, { onSuccess: () => navigate(elenco) })}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

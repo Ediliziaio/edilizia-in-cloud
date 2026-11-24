@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { indirizzoQr, useRiservaEtichette } from "@/hooks/useMezzi";
 import type { MezzoClasse } from "@/types/mezzi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface VoceEtichetta {
   id: string;
@@ -119,6 +120,7 @@ export function EtichetteQrDialog({ open, onOpenChange, voci, preselezionati, cl
 }
 
 function Contenuto({ voci, preselezionati, classe, companyId, azienda, onClose }: Omit<Props, "open" | "onOpenChange"> & { onClose: () => void }) {
+  const t = useT();
   const conCodice = useMemo(() => voci.filter((v) => !!v.codice), [voci]);
   const [scheda, setScheda] = useState<"registrati" | "vuote">("registrati");
   const [scelti, setScelti] = useState<Set<string>>(
@@ -153,7 +155,7 @@ function Contenuto({ voci, preselezionati, classe, companyId, azienda, onClose }
     // La finestra si apre subito, nel clic: aperta dopo un'attesa il browser la blocca.
     const finestra = window.open("", "_blank");
     if (!finestra) {
-      toast.error("Il browser ha bloccato la finestra di stampa: consenti i popup per questo sito.");
+      toast.error(t("Il browser ha bloccato la finestra di stampa: consenti i popup per questo sito."));
       return;
     }
     finestra.document.write("<p style='font-family:sans-serif;padding:24px'>Preparo le etichette…</p>");
@@ -168,16 +170,16 @@ function Contenuto({ voci, preselezionati, classe, companyId, azienda, onClose }
         const codici = await riserva.mutateAsync({ quante: nVuote, classe });
         etichette = codici.map((c): Etichetta => ({ codice: c, titolo: classe === "attrezzatura" ? "Attrezzatura" : "Mezzo", sotto: null }));
       }
-      if (!etichette.length) throw new Error("Nessuna etichetta da stampare");
+      if (!etichette.length) throw new Error(t("Nessuna etichetta da stampare"));
       const html = await foglioHtml(etichette, formato, azienda, companyId);
       finestra.document.open();
       finestra.document.write(html);
       finestra.document.close();
-      if (scheda === "vuote") toast.success(`Riservati ${etichette.length} codici: da ${etichette[0].codice} a ${etichette[etichette.length - 1].codice}`);
+      if (scheda === "vuote") toast.success(t("Riservati {n} codici: da {codice} a {codice2}", { n: etichette.length, codice: String(etichette[0].codice ?? ""), codice2: String(etichette[etichette.length - 1].codice ?? "") }));
       onClose();
     } catch (e) {
       finestra.close();
-      if (!riserva.isError) toast.error(e instanceof Error ? e.message : "Non sono riuscito a preparare le etichette");
+      if (!riserva.isError) toast.error(e instanceof Error ? e.message : t("Non sono riuscito a preparare le etichette"));
     } finally {
       setStampando(false);
     }
@@ -189,21 +191,21 @@ function Contenuto({ voci, preselezionati, classe, companyId, azienda, onClose }
   return (
     <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
       <DialogHeader>
-        <DialogTitle className="flex items-center gap-2"><QrCode className="h-5 w-5 text-orange-500" />Etichette QR</DialogTitle>
+        <DialogTitle className="flex items-center gap-2"><QrCode className="h-5 w-5 text-orange-500" />{t("Etichette QR")}</DialogTitle>
         <DialogDescription>
-          Si attaccano all'attrezzo: inquadrandole col telefono si apre la sua scheda, e chi è in cantiere segna dove lo lascia.
+          {t("Si attaccano all'attrezzo: inquadrandole col telefono si apre la sua scheda, e chi è in cantiere segna dove lo lascia.")}
         </DialogDescription>
       </DialogHeader>
 
       <Tabs value={scheda} onValueChange={(v) => setScheda(v as typeof scheda)}>
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="registrati">Di quelli registrati</TabsTrigger>
-          <TabsTrigger value="vuote">Vuote, da collegare</TabsTrigger>
+          <TabsTrigger value="registrati">{t("Di quelli registrati")}</TabsTrigger>
+          <TabsTrigger value="vuote">{t("Vuote, da collegare")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="registrati" className="mt-3 space-y-2">
           {conCodice.length === 0 ? (
-            <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">Niente da stampare in questo elenco.</p>
+            <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">{t("Niente da stampare in questo elenco.")}</p>
           ) : (
             <>
               <div className="flex items-center justify-between gap-2">
@@ -211,11 +213,11 @@ function Contenuto({ voci, preselezionati, classe, companyId, azienda, onClose }
                   <Checkbox
                     checked={tutti}
                     onCheckedChange={(c) => setScelti(c ? new Set(conCodice.map((v) => v.id)) : new Set())}
-                    aria-label="Tutti"
+                    aria-label={t("Tutti")}
                   />
-                  Tutti ({conCodice.length})
+                  {t("Tutti ({n})", { n: conCodice.length })}
                 </label>
-                <span className="text-xs text-muted-foreground">{scelti.size} scelti</span>
+                <span className="text-xs text-muted-foreground">{t("{size} scelti", { size: String(scelti.size ?? "") })}</span>
               </div>
               <ul className="max-h-64 divide-y overflow-y-auto rounded-lg border">
                 {conCodice.map((v) => (
@@ -244,11 +246,11 @@ function Contenuto({ voci, preselezionati, classe, companyId, azienda, onClose }
 
         <TabsContent value="vuote" className="mt-3 space-y-2">
           <p className="text-sm text-muted-foreground">
-            Codici nuovi, riservati adesso: le attacchi agli attrezzi e, quando registri un attrezzo, scansioni la sua etichetta e il codice è già quello.
+            {t("Codici nuovi, riservati adesso: le attacchi agli attrezzi e, quando registri un attrezzo, scansioni la sua etichetta e il codice è già quello.")}
           </p>
           <div className="flex items-end gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="etichette-quante">Quante</Label>
+              <Label htmlFor="etichette-quante">{t("Quante")}</Label>
               <Input
                 id="etichette-quante"
                 type="number"
@@ -260,13 +262,13 @@ function Contenuto({ voci, preselezionati, classe, companyId, azienda, onClose }
                 className="w-28"
               />
             </div>
-            <p className="pb-2 text-xs text-muted-foreground">Prefisso {classe === "attrezzatura" ? "ATT" : "MZ"}, da 1 a 500 per volta.</p>
+            <p className="pb-2 text-xs text-muted-foreground">{t("Prefisso {prefisso}, da 1 a 500 per volta.", { prefisso: classe === "attrezzatura" ? "ATT" : "MZ" })}</p>
           </div>
         </TabsContent>
       </Tabs>
 
       <div className="space-y-1.5">
-        <Label>Foglio</Label>
+        <Label>{t("Foglio")}</Label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {(Object.keys(FORMATI) as Formato[]).map((k) => (
             <button
@@ -276,7 +278,7 @@ function Contenuto({ voci, preselezionati, classe, companyId, azienda, onClose }
               aria-pressed={formato === k}
               className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${formato === k ? "border-orange-400 bg-orange-50 text-orange-900" : "hover:bg-muted/50"}`}
             >
-              {FORMATI[k].label}
+              {t(FORMATI[k].label)}
             </button>
           ))}
         </div>
@@ -284,7 +286,7 @@ function Contenuto({ voci, preselezionati, classe, companyId, azienda, onClose }
 
       {urlAnteprima && primo && (
         <div className="flex items-center gap-3 rounded-lg border bg-white p-3">
-          <img src={urlAnteprima} alt={`QR di ${primo.codice}`} className="h-16 w-16" />
+          <img src={urlAnteprima} alt={t("QR di {codice}", { codice: String(primo.codice ?? "") })} className="h-16 w-16" />
           <div className="min-w-0">
             <p className="font-mono text-sm font-bold">{primo.codice}</p>
             <p className="truncate text-sm">{primo.nome}</p>
@@ -299,10 +301,10 @@ function Contenuto({ voci, preselezionati, classe, companyId, azienda, onClose }
             ? `${quanteStampate} ${quanteStampate === 1 ? "etichetta" : "etichette"} · ${fogli(quanteStampate)} ${fogli(quanteStampate) === 1 ? "foglio" : "fogli"}`
             : ""}
         </span>
-        <Button variant="outline" onClick={onClose}>Annulla</Button>
+        <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
         <Button onClick={stampa} disabled={stampando || quanteStampate === 0}>
           {stampando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
-          Stampa
+          {t("Stampa")}
         </Button>
       </DialogFooter>
     </DialogContent>

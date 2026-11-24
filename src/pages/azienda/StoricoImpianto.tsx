@@ -26,8 +26,8 @@ import {
   User,
 } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -88,10 +88,10 @@ const STATO_CHIUSURA_CONFIG: Record<string, { label: string; className: string }
   firmato: { label: "Firmato", className: "bg-green-100 text-green-700" },
 };
 
-function getStatoBadge(stato: string | null) {
+function getStatoBadge(stato: string | null, t: ReturnType<typeof useT>) {
   const key = stato ?? "aperto";
   const cfg = STATO_CHIUSURA_CONFIG[key] ?? { label: key, className: "bg-gray-100 text-gray-600" };
-  return <Badge className={cn("text-xs", cfg.className)}>{cfg.label}</Badge>;
+  return <Badge className={cn("text-xs", cfg.className)}>{t(cfg.label)}</Badge>;
 }
 
 // ─── KPI Card ───────────────────────────────────────────────────────────────
@@ -117,6 +117,7 @@ function TimelineItem({
   rapportino: RapportinoStorico;
   onFirmaOra: (ticketId: string) => void;
 }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
@@ -142,7 +143,7 @@ function TimelineItem({
         >
           <img loading="lazy"
             src={lightboxSrc}
-            alt="Foto ingrandita"
+            alt={t("Foto ingrandita")}
             className="max-h-[85vh] max-w-full rounded-lg shadow-2xl object-contain"
           />
         </div>
@@ -154,25 +155,25 @@ function TimelineItem({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-semibold text-gray-800 truncate">
-                {rapportino.ticket?.subject ?? "Intervento"}
+                {rapportino.ticket?.subject ?? t("Intervento")}
               </span>
-              {getStatoBadge(statoDisplay)}
+              {getStatoBadge(statoDisplay, t)}
               {isFirmato && (
                 <Badge className="bg-green-100 text-green-700 text-xs gap-1">
                   <CheckCircle2 className="h-3 w-3" />
-                  Firmato
+                  {t("Firmato")}
                 </Badge>
               )}
             </div>
             <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
               <span className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
-                {format(new Date(rapportino.created_at), "dd MMM yyyy", { locale: it })}
+                {format(new Date(rapportino.created_at), "dd MMM yyyy", { locale: dateFnsCampo() })}
               </span>
               {oreLavorateDisplay != null && (
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  {oreLavorateDisplay}h lavorate
+                  {oreLavorateDisplay}{t("h lavorate")}
                 </span>
               )}
             </div>
@@ -187,7 +188,7 @@ function TimelineItem({
                 onClick={() => onFirmaOra(ticketId)}
               >
                 <PenTool className="h-3 w-3" />
-                Firma ora
+                {t("Firma ora")}
               </Button>
             )}
             {(rapportino.note_chiusura || fotos.length > 0) && (
@@ -196,7 +197,7 @@ function TimelineItem({
                 size="sm"
                 className="h-7 w-7 p-0 text-gray-400"
                 onClick={() => setExpanded((v) => !v)}
-                aria-label={expanded ? "Comprimi" : "Espandi"}
+                aria-label={expanded ? t("Comprimi") : t("Espandi")}
               >
                 {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </Button>
@@ -210,7 +211,7 @@ function TimelineItem({
             {rapportino.note_chiusura && (
               <div className="bg-gray-50 rounded p-3 text-sm text-gray-700 leading-relaxed">
                 <p className="text-xs text-gray-400 font-medium mb-1 uppercase tracking-wide">
-                  Note chiusura
+                  {t("Note chiusura")}
                 </p>
                 {rapportino.note_chiusura}
               </div>
@@ -223,11 +224,11 @@ function TimelineItem({
                     type="button"
                     className="h-16 w-16 rounded overflow-hidden border hover:opacity-80 transition-opacity"
                     onClick={() => setLightboxSrc(url)}
-                    aria-label={`Foto ${i + 1}`}
+                    aria-label={t("Foto {i}", { i: i + 1 })}
                   >
                     <img loading="lazy"
                       src={url}
-                      alt={`Foto ${i + 1}`}
+                      alt={t("Foto {i}", { i: i + 1 })}
                       className="h-full w-full object-cover"
                     />
                   </button>
@@ -244,6 +245,7 @@ function TimelineItem({
 // ─── Main component ─────────────────────────────────────────────────────────
 
 export default function StoricoImpianto() {
+  const tr = useT();
   const { impiantoId } = useParams<{ impiantoId: string }>();
   const navigate = useNavigate();
 
@@ -358,7 +360,7 @@ export default function StoricoImpianto() {
 
   const ultimoIntervento =
     rapportini.length > 0
-      ? format(new Date(rapportini[0].created_at), "dd MMM yy", { locale: it })
+      ? format(new Date(rapportini[0].created_at), "dd MMM yy", { locale: dateFnsCampo() })
       : "—";
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -395,10 +397,10 @@ export default function StoricoImpianto() {
       <div className="p-6 max-w-md mx-auto">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>Errore nel caricamento. Riprova.</AlertDescription>
+          <AlertDescription>{tr("Errore nel caricamento. Riprova.")}</AlertDescription>
         </Alert>
         <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>
-          Torna indietro
+          {tr("Torna indietro")}
         </Button>
       </div>
     );
@@ -408,9 +410,9 @@ export default function StoricoImpianto() {
     return (
       <div className="p-6 text-center py-20">
         <AlertCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-500">Impianto non trovato</p>
+        <p className="text-gray-500">{tr("Impianto non trovato")}</p>
         <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>
-          Torna indietro
+          {tr("Torna indietro")}
         </Button>
       </div>
     );
@@ -435,9 +437,9 @@ export default function StoricoImpianto() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-gray-900">Storico Interventi</h1>
+          <h1 className="text-xl font-bold text-gray-900">{tr("Storico Interventi")}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {[impianto.marca, impianto.modello].filter(Boolean).join(" ") || impianto.tipo_impianto || "Impianto"}
+            {[impianto.marca, impianto.modello].filter(Boolean).join(" ") || impianto.tipo_impianto || tr("Impianto")}
           </p>
         </div>
         <Button
@@ -446,7 +448,7 @@ export default function StoricoImpianto() {
           className="gap-2 bg-eic-navy hover:bg-[#162d4a] shrink-0"
         >
           <Plus className="h-4 w-4" />
-          Nuovo intervento
+          {tr("Nuovo intervento")}
         </Button>
       </div>
 
@@ -466,7 +468,7 @@ export default function StoricoImpianto() {
               )}
               {impianto.matricola && (
                 <p className="text-xs text-gray-400">
-                  Matricola: <span className="font-mono">{impianto.matricola}</span>
+                  {tr("Matricola:")} <span className="font-mono">{impianto.matricola}</span>
                 </p>
               )}
               {customerName && (
@@ -482,45 +484,45 @@ export default function StoricoImpianto() {
 
       {/* KPI row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard label="Interventi totali" value={totaleInterventi} />
+        <KpiCard label={tr("Interventi totali")} value={totaleInterventi} />
         <KpiCard
-          label="Ore lavorate"
+          label={tr("Ore lavorate")}
           value={oreTotali > 0 ? `${oreTotali.toFixed(1)}h` : "—"}
         />
         <KpiCard
-          label="% Firmati"
+          label={tr("% Firmati")}
           value={totaleInterventi > 0 ? `${percentualeFirmati}%` : "—"}
           sub={`${firmati} su ${totaleInterventi}`}
         />
-        <KpiCard label="Ultimo intervento" value={ultimoIntervento} />
+        <KpiCard label={tr("Ultimo intervento")} value={ultimoIntervento} />
       </div>
 
       {/* Timeline */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-gray-800">Cronologia interventi</h2>
-          <span className="text-xs text-gray-400">{totaleInterventi} record</span>
+          <h2 className="font-semibold text-gray-800">{tr("Cronologia interventi")}</h2>
+          <span className="text-xs text-gray-400">{tr("{totaleInterventi} record", { totaleInterventi: String(totaleInterventi ?? "") })}</span>
         </div>
 
         {rapportiniError ? (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>Errore nel caricamento. Riprova.</AlertDescription>
+            <AlertDescription>{tr("Errore nel caricamento. Riprova.")}</AlertDescription>
           </Alert>
         ) : rapportini.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <Wrench className="h-10 w-10 text-gray-200 mx-auto mb-3" />
-              <p className="font-medium text-gray-600">Nessun intervento registrato</p>
+              <p className="font-medium text-gray-600">{tr("Nessun intervento registrato")}</p>
               <p className="text-sm text-gray-400 mt-1">
-                Crea il primo intervento per questo impianto
+                {tr("Crea il primo intervento per questo impianto")}
               </p>
               <Button
                 className="mt-4 gap-2 bg-eic-navy hover:bg-[#162d4a]"
                 onClick={handleNuovoIntervento}
               >
                 <Plus className="h-4 w-4" />
-                Nuovo intervento
+                {tr("Nuovo intervento")}
               </Button>
             </CardContent>
           </Card>

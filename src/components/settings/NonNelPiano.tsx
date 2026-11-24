@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Al posto di una pagina delle impostazioni che il piano dell'azienda non
@@ -20,28 +21,29 @@ export function NonNelPiano({
   /** Solo l'amministratore vede i piani (e non dall'app iOS). */
   puoCambiarePiano: boolean;
 }) {
+  const t = useT();
   const piuDiUno = serve.includes(" o ");
   return (
     <div className="mx-auto max-w-md rounded-xl border bg-card p-6 text-center shadow-sm" role="status">
       <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-muted">
         <Lock className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
       </div>
-      <h2 className="text-base font-semibold">Non incluso nel tuo piano</h2>
+      <h2 className="text-base font-semibold">{t("Non incluso nel tuo piano")}</h2>
       <p className="mt-1.5 text-sm text-muted-foreground">
         {piuDiUno
-          ? `«${titolo}» serve con ${serve}: il piano della tua azienda non ne comprende nessuno.`
-          : `«${titolo}» fa parte di ${serve || "un modulo"}, che il piano della tua azienda non comprende.`}
+          ? t("«{titolo}» serve con {serve}: il piano della tua azienda non ne comprende nessuno.", { titolo: String(titolo ?? ""), serve: String(serve ?? "") })
+          : t("«{titolo}» fa parte di {serve}, che il piano della tua azienda non comprende.", { titolo: String(titolo ?? ""), serve: serve || t("un modulo") })}
       </p>
       {puoCambiarePiano ? (
         <>
           {/* Dal telefono il piano non si cambia (regola dell'utente, 25/09/2026). */}
           <Button asChild className="mt-4 max-md:hidden">
-            <Link to="/azienda/impostazioni/abbonamento">Vedi i piani</Link>
+            <Link to="/azienda/impostazioni/abbonamento">{t("Vedi i piani")}</Link>
           </Button>
-          <p className="mt-3 text-xs text-muted-foreground md:hidden">Il piano si cambia dal computer.</p>
+          <p className="mt-3 text-xs text-muted-foreground md:hidden">{t("Il piano si cambia dal computer.")}</p>
         </>
       ) : (
-        <p className="mt-3 text-xs text-muted-foreground">Per attivarlo chiedi all&apos;amministratore dell&apos;azienda.</p>
+        <p className="mt-3 text-xs text-muted-foreground">{t("Per attivarlo chiedi all'amministratore dell'azienda.")}</p>
       )}
     </div>
   );

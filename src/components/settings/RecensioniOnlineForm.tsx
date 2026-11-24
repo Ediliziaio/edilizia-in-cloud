@@ -14,6 +14,7 @@ import {
   MAX_VOTI_NEL_PDF, ORO_STELLE, PIATTAFORME_RECENSIONI, PUNTI_STELLA, leggiVotiOnline, recensioniScritte, stellePiene, votoScritto,
   type PiattaformaRecensioni,
 } from "../../../supabase/functions/_shared/recensioniOnline";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Il voto dell'azienda su Google, Trustpilot e simili, per la pagina «Dicono di
@@ -63,9 +64,10 @@ function problemaDi(r: Riga): string | null {
 }
 
 function StelleAnteprima({ voto }: { voto: number }) {
+  const t = useT();
   const id = useId();
   return (
-    <span className="inline-flex gap-0.5" aria-label={`${votoScritto(voto)} su 5`}>
+    <span className="inline-flex gap-0.5" aria-label={t("{voto} su 5", { voto: String(votoScritto(voto) ?? "") })}>
       {stellePiene(voto).map((pieno, i) => (
         <svg key={i} width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
           <defs>
@@ -82,15 +84,17 @@ function StelleAnteprima({ voto }: { voto: number }) {
 }
 
 export function RecensioniOnlineForm({ canEdit }: { canEdit: boolean }) {
+  const t = useT();
   const { grezzo, caricato } = useVotiOnline();
   if (!caricato) {
-    return <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Carico…</p>;
+    return <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> {t("Carico…")}</p>;
   }
   // Il modulo riparte da quello che c'è nel database ogni volta che cambia (anche dopo un salvataggio).
   return <ModuloVoti key={JSON.stringify(grezzo)} canEdit={canEdit} salvati={grezzo} />;
 }
 
 function ModuloVoti({ canEdit, salvati }: { canEdit: boolean; salvati: unknown[] }) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const aggiorna = useAggiornaVotiOnline();
   const { toast } = useToast();
@@ -131,12 +135,12 @@ function ModuloVoti({ canEdit, salvati }: { canEdit: boolean; salvati: unknown[]
         .eq("id", companyId)
         .select("id");
       if (error) throw error;
-      if (!data?.length) throw new MessaggioPerUtente("Il tuo utente non può modificare i dati dell'azienda: chiedi a un amministratore.");
-      toast({ title: valore.length ? "Voto salvato: esce nei preventivi" : "Voto tolto dai preventivi" });
+      if (!data?.length) throw new MessaggioPerUtente(t("Il tuo utente non può modificare i dati dell'azienda: chiedi a un amministratore."));
+      toast({ title: valore.length ? t("Voto salvato: esce nei preventivi") : t("Voto tolto dai preventivi") });
       // Rilette dal database, le righe ripartono da lì (il modulo ha per chiave i dati salvati).
       await aggiorna();
     } catch (e) {
-      toast({ title: "Non salvato", description: motivoDelRifiuto(e, "Riprova tra poco."), variant: "destructive" });
+      toast({ title: t("Non salvato"), description: motivoDelRifiuto(e, t("Riprova tra poco.")), variant: "destructive" });
     } finally {
       setSalvando(false);
     }
@@ -148,14 +152,11 @@ function ModuloVoti({ canEdit, salvati }: { canEdit: boolean; salvati: unknown[]
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
-        Scrivi il voto e il numero di recensioni come li vedi oggi sulla tua scheda. Nel preventivo escono così,
-        con il mese in cui li hai scritti: quando cambiano, aggiornali qui. Ne escono al massimo {MAX_VOTI_NEL_PDF}.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("Scrivi il voto e il numero di recensioni come li vedi oggi sulla tua scheda. Nel preventivo escono così, con il mese in cui li hai scritti: quando cambiano, aggiornali qui. Ne escono al massimo {MAX_VOTI_NEL_PDF}.", { MAX_VOTI_NEL_PDF: String(MAX_VOTI_NEL_PDF ?? "") })}</p>
 
       {righe.length === 0 ? (
         <p className="rounded-lg border border-dashed py-4 text-center text-xs text-muted-foreground">
-          Nessun voto: nei preventivi la pagina «Dicono di noi» mostra solo le parole dei clienti scritte nel modello.
+          {t("Nessun voto: nei preventivi la pagina «Dicono di noi» mostra solo le parole dei clienti scritte nel modello.")}
         </p>
       ) : null}
 
@@ -163,7 +164,7 @@ function ModuloVoti({ canEdit, salvati }: { canEdit: boolean; salvati: unknown[]
         <div key={i} className="rounded-lg border p-3 space-y-2">
           <div className="grid gap-2 sm:grid-cols-[150px_90px_120px_1fr_auto] items-end">
             <div className="space-y-1">
-              <Label className="text-xs" htmlFor={`piattaforma-${i}`}>Piattaforma</Label>
+              <Label className="text-xs" htmlFor={`piattaforma-${i}`}>{t("Piattaforma")}</Label>
               <Select value={r.piattaforma} onValueChange={(v) => cambia(i, { piattaforma: v as PiattaformaRecensioni })} disabled={!canEdit}>
                 <SelectTrigger id={`piattaforma-${i}`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -174,27 +175,27 @@ function ModuloVoti({ canEdit, salvati }: { canEdit: boolean; salvati: unknown[]
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs" htmlFor={`voto-${i}`}>Voto</Label>
+              <Label className="text-xs" htmlFor={`voto-${i}`}>{t("Voto")}</Label>
               <Input id={`voto-${i}`} className="h-9" inputMode="decimal" placeholder="4,8" value={r.voto} disabled={!canEdit} onChange={(e) => cambia(i, { voto: e.target.value })} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs" htmlFor={`numero-${i}`}>N. recensioni</Label>
+              <Label className="text-xs" htmlFor={`numero-${i}`}>{t("N. recensioni")}</Label>
               <Input id={`numero-${i}`} className="h-9" inputMode="numeric" placeholder="126" value={r.numero} disabled={!canEdit} onChange={(e) => cambia(i, { numero: e.target.value })} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs" htmlFor={`link-${i}`}>Indirizzo della scheda (facoltativo)</Label>
+              <Label className="text-xs" htmlFor={`link-${i}`}>{t("Indirizzo della scheda (facoltativo)")}</Label>
               <Input id={`link-${i}`} className="h-9" placeholder="g.page/r/…" value={r.link} disabled={!canEdit} onChange={(e) => cambia(i, { link: e.target.value })} />
             </div>
             {canEdit ? (
-              <Button type="button" size="icon" variant="ghost" className="h-9 w-9 text-rose-500 hover:bg-rose-50 hover:text-rose-600" aria-label="Togli questo voto" onClick={() => setRighe(righe.filter((_, j) => j !== i))}>
+              <Button type="button" size="icon" variant="ghost" className="h-9 w-9 text-rose-500 hover:bg-rose-50 hover:text-rose-600" aria-label={t("Togli questo voto")} onClick={() => setRighe(righe.filter((_, j) => j !== i))}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             ) : null}
           </div>
           {r.piattaforma === "altro" ? (
-            <Input className="h-9" aria-label="Nome della piattaforma" placeholder="Nome della piattaforma, es. Houzz" value={r.nome} disabled={!canEdit} onChange={(e) => cambia(i, { nome: e.target.value })} />
+            <Input className="h-9" aria-label={t("Nome della piattaforma")} placeholder={t("Nome della piattaforma, es. Houzz")} value={r.nome} disabled={!canEdit} onChange={(e) => cambia(i, { nome: e.target.value })} />
           ) : null}
-          {problemi[i] && (r.voto || r.numero) ? <p className="text-xs text-rose-600">{problemi[i]}</p> : null}
+          {problemi[i] && (r.voto || r.numero) ? <p className="text-xs text-rose-600">{t(problemi[i])}</p> : null}
         </div>
       ))}
 
@@ -203,7 +204,7 @@ function ModuloVoti({ canEdit, salvati }: { canEdit: boolean; salvati: unknown[]
           {anteprima.map((v) => (
             <div key={`${v.piattaforma}-${v.nome}`} className="rounded-md border-t-2 border-t-primary bg-muted/40 px-3 py-2 min-w-[140px]">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">{v.nome}</p>
-              <p className="text-xl font-bold leading-tight">{votoScritto(v.voto)} <span className="text-xs font-normal text-muted-foreground">su 5</span></p>
+              <p className="text-xl font-bold leading-tight">{votoScritto(v.voto)} <span className="text-xs font-normal text-muted-foreground">{t("su 5")}</span></p>
               <StelleAnteprima voto={v.voto} />
               {recensioniScritte(v.numero) ? <p className="text-xs font-medium mt-0.5">{recensioniScritte(v.numero)}</p> : null}
             </div>
@@ -215,12 +216,12 @@ function ModuloVoti({ canEdit, salvati }: { canEdit: boolean; salvati: unknown[]
         <div className="flex flex-wrap items-center gap-2">
           {righe.length < MAX_VOTI_NEL_PDF ? (
             <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => setRighe([...righe, rigaVuota(libere[0]?.id ?? "altro")])}>
-              <Plus className="h-3.5 w-3.5" /> Aggiungi un voto
+              <Plus className="h-3.5 w-3.5" /> {t("Aggiungi un voto")}
             </Button>
           ) : null}
           <Button type="button" size="sm" onClick={salva} disabled={salvando || problemi.some(Boolean)}>
             {salvando ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
-            Salva
+            {t("Salva")}
           </Button>
         </div>
       ) : null}

@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ const STEPS: { key: Step; label: string; icon: React.ReactNode }[] = [
 ];
 
 function StepIndicator({ current }: { current: Step }) {
+  const t = useT();
   const currentIdx = STEPS.findIndex((s) => s.key === current);
   return (
     <div className="flex items-center gap-0">
@@ -106,7 +108,7 @@ function StepIndicator({ current }: { current: Step }) {
               )}
             >
               {isDone ? <CheckCircle2 className="h-3.5 w-3.5" /> : step.icon}
-              {step.label}
+              {t(step.label)}
             </div>
             {idx < STEPS.length - 1 && (
               <div
@@ -126,6 +128,7 @@ function StepIndicator({ current }: { current: Step }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ChiusuraIntervento() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
@@ -254,11 +257,11 @@ export default function ChiusuraIntervento() {
       if (updateErr) throw updateErr;
     },
     onSuccess: () => {
-      toast.success("Intervento firmato con successo");
+      toast.success(t("Intervento firmato con successo"));
       navigate(`/azienda/assistenza/${id}`);
     },
     onError: (err: Error) => {
-      toast.error(err.message || "Errore durante il salvataggio della firma");
+      toast.error(err.message || t("Errore durante il salvataggio della firma"));
     },
   });
 
@@ -278,9 +281,9 @@ export default function ChiusuraIntervento() {
     return (
       <div className="p-6 text-center py-20">
         <AlertCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-500">Intervento non trovato</p>
+        <p className="text-gray-500">{t("Intervento non trovato")}</p>
         <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/assistenza?tipo=intervento")}>
-          Torna agli interventi
+          {t("Torna agli interventi")}
         </Button>
       </div>
     );
@@ -318,7 +321,7 @@ export default function ChiusuraIntervento() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-gray-900">Chiusura Intervento</h1>
+          <h1 className="text-xl font-bold text-gray-900">{t("Chiusura Intervento")}</h1>
           <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">{ticket.subject}</p>
         </div>
       </div>
@@ -334,14 +337,14 @@ export default function ChiusuraIntervento() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Info className="h-4 w-4 text-eic-navy" />
-              Riepilogo Intervento
+              {t("Riepilogo Intervento")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3 text-sm">
               <div className="bg-gray-50 rounded-lg p-4 space-y-2.5">
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Oggetto</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">{t("Oggetto")}</p>
                   <p className="font-medium text-gray-800">{ticket.subject}</p>
                 </div>
                 {customerName && (
@@ -360,27 +363,25 @@ export default function ChiusuraIntervento() {
                   <FileText className="h-4 w-4 text-gray-400 shrink-0" />
                   <p className="text-gray-700">
                     {rapportiniEsistenti.length > 0
-                      ? `${rapportiniEsistenti.length} rapportino/i esistente/i`
-                      : "Nessun rapportino — verrà creato automaticamente"}
+                      ? t(rapportiniEsistenti.length === 1 ? "{n} rapportino esistente" : "{n} rapportini esistenti", { n: rapportiniEsistenti.length })
+                      : t("Nessun rapportino — verrà creato automaticamente")}
                   </p>
                 </div>
               </div>
 
               {rapportiniEsistenti.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs text-gray-400 uppercase tracking-wide">Rapportini</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide">{t("Rapportini")}</p>
                   {rapportiniEsistenti.map((r) => (
                     <div
                       key={r.id}
                       className="flex items-center justify-between py-2 px-3 bg-white border rounded-lg"
                     >
-                      <span className="text-sm font-medium text-gray-700">
-                        Rapportino #{r.numero}
-                      </span>
+                      <span className="text-sm font-medium text-gray-700">{t("Rapportino #{numero}", { numero: String(r.numero ?? "") })}</span>
                       <div className="flex items-center gap-2">
                         {r.firma_tecnico_url && (
                           <Badge className="bg-green-100 text-green-700 text-xs">
-                            Già firmato
+                            {t("Già firmato")}
                           </Badge>
                         )}
                         <Badge
@@ -404,7 +405,7 @@ export default function ChiusuraIntervento() {
 
             <div className="flex justify-end pt-2">
               <Button onClick={goNext} className="gap-2 bg-eic-navy hover:bg-[#162d4a]">
-                Avanti
+                {t("Avanti")}
                 <ArrowLeft className="h-4 w-4 rotate-180" />
               </Button>
             </div>
@@ -418,25 +419,25 @@ export default function ChiusuraIntervento() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <ClipboardList className="h-4 w-4 text-eic-navy" />
-              Note di Chiusura
+              {t("Note di Chiusura")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             {/* Note */}
             <div className="space-y-1.5">
-              <Label htmlFor="note_chiusura">Note di chiusura</Label>
+              <Label htmlFor="note_chiusura">{t("Note di chiusura")}</Label>
               <Textarea
                 id="note_chiusura"
                 value={noteChiusura}
                 onChange={(e) => setNoteChiusura(e.target.value)}
-                placeholder="Descrivi i lavori eseguiti, problemi riscontrati, raccomandazioni..."
+                placeholder={t("Descrivi i lavori eseguiti, problemi riscontrati, raccomandazioni...")}
                 rows={4}
               />
             </div>
 
             {/* Ore effettive */}
             <div className="space-y-1.5">
-              <Label htmlFor="ore_lavoro_effettive">Ore di lavoro effettive</Label>
+              <Label htmlFor="ore_lavoro_effettive">{t("Ore di lavoro effettive")}</Label>
               <Input
                 id="ore_lavoro_effettive"
                 type="number"
@@ -444,14 +445,14 @@ export default function ChiusuraIntervento() {
                 step="0.5"
                 value={oreLavoro}
                 onChange={(e) => setOreLavoro(e.target.value)}
-                placeholder="es. 2.5"
+                placeholder={t("es. 2.5")}
                 className="w-36"
               />
             </div>
 
             {/* Stato chiusura */}
             <div className="space-y-1.5">
-              <Label htmlFor="stato_chiusura">Stato chiusura</Label>
+              <Label htmlFor="stato_chiusura">{t("Stato chiusura")}</Label>
               <Select
                 value={statoChiusura}
                 onValueChange={(v) => setStatoChiusura(v as StatoChiusura)}
@@ -460,8 +461,8 @@ export default function ChiusuraIntervento() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="completato">Completato</SelectItem>
-                  <SelectItem value="in_lavorazione">In lavorazione</SelectItem>
+                  <SelectItem value="completato">{t("Completato")}</SelectItem>
+                  <SelectItem value="in_lavorazione">{t("In lavorazione")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -469,10 +470,10 @@ export default function ChiusuraIntervento() {
             <div className="flex justify-between pt-2">
               <Button variant="outline" onClick={goBack}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Indietro
+                {t("Indietro")}
               </Button>
               <Button onClick={goNext} className="gap-2 bg-eic-navy hover:bg-[#162d4a]">
-                Avanti — Firma
+                {t("Avanti — Firma")}
                 <PenTool className="h-4 w-4" />
               </Button>
             </div>
@@ -486,7 +487,7 @@ export default function ChiusuraIntervento() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <PenTool className="h-4 w-4 text-eic-navy" />
-              Firma Tecnico Digitale
+              {t("Firma Tecnico Digitale")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -495,12 +496,12 @@ export default function ChiusuraIntervento() {
               <div className="space-y-4">
                 <div className="text-center space-y-2">
                   <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto" />
-                  <p className="font-medium text-gray-800">Firma acquisita</p>
+                  <p className="font-medium text-gray-800">{t("Firma acquisita")}</p>
                 </div>
                 <div className="border rounded-lg overflow-hidden bg-gray-50 p-2">
                   <img loading="lazy"
                     src={firmaDataUrl}
-                    alt="Anteprima firma"
+                    alt={t("Anteprima firma")}
                     className="max-h-28 mx-auto object-contain"
                   />
                 </div>
@@ -510,7 +511,7 @@ export default function ChiusuraIntervento() {
                     onClick={() => setFirmaDataUrl(null)}
                     className="text-red-600 border-red-200 hover:bg-red-50"
                   >
-                    Rifirma
+                    {t("Rifirma")}
                   </Button>
                   <Button
                     onClick={() => submitMutation.mutate()}
@@ -522,7 +523,7 @@ export default function ChiusuraIntervento() {
                     ) : (
                       <CheckCircle2 className="h-4 w-4" />
                     )}
-                    Conferma e salva
+                    {t("Conferma e salva")}
                   </Button>
                 </div>
               </div>

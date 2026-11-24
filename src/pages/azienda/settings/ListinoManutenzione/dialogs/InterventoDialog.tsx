@@ -20,6 +20,7 @@ import {
 import { testoErrore } from "@/lib/impostazioni/testoErrore";
 import { CATEGORIE_INTERVENTO } from "../constants";
 import type { CategoriaIntervento, TipoIntervento } from "../types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function InterventoDialog({
   open, onClose, editing, companyId, onSaved,
@@ -27,6 +28,7 @@ export function InterventoDialog({
   open: boolean; onClose: () => void; editing: TipoIntervento | null;
   companyId: string; onSaved: () => void;
 }) {
+  const t = useT();
   const idBase = useId();
   const focusReturn = useDialogFocusReturn();
   const pendingRef = useRef(false);
@@ -39,7 +41,7 @@ export function InterventoDialog({
 
   const handleSave = async () => {
     if (pendingRef.current) return;
-    if (!nome.trim()) { toast.error("Il nome è obbligatorio"); return; }
+    if (!nome.trim()) { toast.error(t("Il nome è obbligatorio")); return; }
     pendingRef.current = true;
     setSaving(true);
     try {
@@ -56,17 +58,17 @@ export function InterventoDialog({
         const { data, error } = await (supabase.from("tipi_intervento") as any)
           .update(payload).eq("id", editing.id).eq("company_id", companyId).select("id");
         if (error) throw error;
-        if (!data || data.length === 0) throw new Error("Modifica non salvata: verifica i permessi e riprova.");
+        if (!data || data.length === 0) throw new Error(t("Modifica non salvata: verifica i permessi e riprova."));
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase.from("tipi_intervento") as any).insert(payload);
         if (error) throw error;
       }
-      toast.success(editing ? "Tipo di intervento aggiornato" : "Tipo di intervento creato");
+      toast.success(editing ? t("Tipo di intervento aggiornato") : t("Tipo di intervento creato"));
       pendingRef.current = false;
       onSaved(); onClose();
     } catch (err: unknown) {
-      toast.error(testoErrore(err, "Tipo di intervento non salvato."));
+      toast.error(testoErrore(err, t("Tipo di intervento non salvato.")));
     } finally {
       pendingRef.current = false;
       setSaving(false);
@@ -77,37 +79,37 @@ export function InterventoDialog({
     <Dialog open={open} onOpenChange={(value) => { if (!value) handleClose(); }}>
       <DialogContent {...focusReturn} className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editing ? "Modifica tipo di intervento" : "Nuovo tipo di intervento"}</DialogTitle>
+          <DialogTitle>{editing ? t("Modifica tipo di intervento") : t("Nuovo tipo di intervento")}</DialogTitle>
           <DialogDescription>
-            I lavori che fai in manutenzione (per esempio Manutenzione ordinaria, Riparazione guasto): a ognuno si collegano i prezzi.
+            {t("I lavori che fai in manutenzione (per esempio Manutenzione ordinaria, Riparazione guasto): a ognuno si collegano i prezzi.")}
           </DialogDescription>
         </DialogHeader>
         <fieldset disabled={saving} className="min-w-0 space-y-4">
           <div>
-            <Label htmlFor={`${idBase}-nome`}>Nome *</Label>
+            <Label htmlFor={`${idBase}-nome`}>{t("Nome *")}</Label>
             <Input
               id={`${idBase}-nome`}
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              placeholder="Es. Manutenzione ordinaria"
+              placeholder={t("Es. Manutenzione ordinaria")}
               aria-required="true"
               className="mt-1.5 max-md:h-11"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor={`${idBase}-categoria`}>Categoria</Label>
+              <Label htmlFor={`${idBase}-categoria`}>{t("Categoria")}</Label>
               <Select value={categoria} onValueChange={(v) => setCategoria(v as CategoriaIntervento)}>
                 <SelectTrigger id={`${idBase}-categoria`} className="mt-1.5 max-md:h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIE_INTERVENTO.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    <SelectItem key={c.value} value={c.value}>{t(c.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label htmlFor={`${idBase}-durata`}>Durata stimata (h)</Label>
+              <Label htmlFor={`${idBase}-durata`}>{t("Durata stimata (h)")}</Label>
               <Input
                 id={`${idBase}-durata`}
                 type="number" min="0" step="0.5"
@@ -119,14 +121,14 @@ export function InterventoDialog({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Label htmlFor={`${idBase}-attivo`}>Attivo</Label>
+            <Label htmlFor={`${idBase}-attivo`}>{t("Attivo")}</Label>
             <Switch id={`${idBase}-attivo`} checked={attivo} onCheckedChange={setAttivo} />
           </div>
         </fieldset>
         <DialogFooter>
-          <Button variant="outline" disabled={saving} onClick={handleClose}>Annulla</Button>
+          <Button variant="outline" disabled={saving} onClick={handleClose}>{t("Annulla")}</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Salvataggio..." : "Salva"}
+            {saving ? t("Salvataggio...") : t("Salva")}
           </Button>
         </DialogFooter>
       </DialogContent>

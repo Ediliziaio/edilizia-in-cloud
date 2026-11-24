@@ -27,11 +27,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { format, differenceInDays } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function ImpiantoDetail() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const permissions = usePermissions();
   const navigate = useNavigate();
@@ -133,10 +134,10 @@ export default function ImpiantoDetail() {
 
   const registraEsecuzioneMutation = useMutation({
     mutationFn: async () => {
-      if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
-      if (!selectedPianoId) throw new Error("Seleziona un piano");
-      if (!esecuzioneForm.data) throw new Error("La data è obbligatoria");
-      if (!id) throw new Error("Impianto non disponibile");
+      if (permissions.solaLettura) throw new Error(t("Modalità di sola lettura"));
+      if (!selectedPianoId) throw new Error(t("Seleziona un piano"));
+      if (!esecuzioneForm.data) throw new Error(t("La data è obbligatoria"));
+      if (!id) throw new Error(t("Impianto non disponibile"));
       const dati = {
         p_piano_id: selectedPianoId,
         p_impianto_id: id,
@@ -156,14 +157,14 @@ export default function ImpiantoDetail() {
     },
     onSuccess: () => {
       operazioneEsecuzione.current = null;
-      toast.success("Esecuzione registrata");
+      toast.success(t("Esecuzione registrata"));
       queryClient.invalidateQueries({ queryKey: ["esecuzioni-impianto", id] });
       queryClient.invalidateQueries({ queryKey: ["piani-impianto", id] });
       queryClient.invalidateQueries({ queryKey: ["piani-attivi", effectiveCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["cal-manutenzioni", effectiveCompany?.id] });
       setEsecuzioneOpen(false);
     },
-    onError: (e: Error) => toast.error(e.message || "Errore nella registrazione"),
+    onError: (e: Error) => toast.error(e.message || t("Errore nella registrazione")),
   });
 
   /** Riempie il modulo di modifica coi dati attuali e lo apre. */
@@ -183,8 +184,8 @@ export default function ImpiantoDetail() {
 
   const salvaImpianto = useMutation({
     mutationFn: async () => {
-      if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
-      if (!formImpianto.tipo_impianto.trim()) throw new Error("Il tipo di impianto è obbligatorio");
+      if (permissions.solaLettura) throw new Error(t("Modalità di sola lettura"));
+      if (!formImpianto.tipo_impianto.trim()) throw new Error(t("Il tipo di impianto è obbligatorio"));
       const { error } = await supabase
         .from("impianti_cliente")
         .update({
@@ -201,11 +202,11 @@ export default function ImpiantoDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Impianto aggiornato");
+      toast.success(t("Impianto aggiornato"));
       queryClient.invalidateQueries({ queryKey: ["impianto", id] });
       setModificaOpen(false);
     },
-    onError: (e: Error) => toast.error(e.message || "Salvataggio non riuscito"),
+    onError: (e: Error) => toast.error(e.message || t("Salvataggio non riuscito")),
   });
 
   /**
@@ -216,7 +217,7 @@ export default function ImpiantoDetail() {
    */
   const cambiaArchiviazione = useMutation({
     mutationFn: async (attivo: boolean) => {
-      if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
+      if (permissions.solaLettura) throw new Error(t("Modalità di sola lettura"));
       const { error } = await supabase
         .from("impianti_cliente")
         .update({ attivo })
@@ -226,11 +227,11 @@ export default function ImpiantoDetail() {
       return attivo;
     },
     onSuccess: (attivo) => {
-      toast.success(attivo ? "Impianto ripristinato" : "Impianto archiviato");
+      toast.success(attivo ? t("Impianto ripristinato") : t("Impianto archiviato"));
       queryClient.invalidateQueries({ queryKey: ["impianto", id] });
       setArchiviaOpen(false);
     },
-    onError: (e: Error) => toast.error(e.message || "Operazione non riuscita"),
+    onError: (e: Error) => toast.error(e.message || t("Operazione non riuscita")),
   });
 
   const apriModificaContratto = () => {
@@ -249,12 +250,12 @@ export default function ImpiantoDetail() {
 
   const salvaContratto = useMutation({
     mutationFn: async () => {
-      if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
-      if (!contratto?.id) throw new Error("Contratto non disponibile");
-      if (!formContratto.nome_contratto.trim()) throw new Error("Il nome del contratto è obbligatorio");
-      if (!formContratto.data_inizio) throw new Error("La data di inizio è obbligatoria");
+      if (permissions.solaLettura) throw new Error(t("Modalità di sola lettura"));
+      if (!contratto?.id) throw new Error(t("Contratto non disponibile"));
+      if (!formContratto.nome_contratto.trim()) throw new Error(t("Il nome del contratto è obbligatorio"));
+      if (!formContratto.data_inizio) throw new Error(t("La data di inizio è obbligatoria"));
       const canone = Number(formContratto.importo_canone.replace(",", "."));
-      if (!Number.isFinite(canone) || canone < 0) throw new Error("Il canone non è un importo valido");
+      if (!Number.isFinite(canone) || canone < 0) throw new Error(t("Il canone non è un importo valido"));
       const { error } = await supabase
         .from("contratti_manutenzione")
         .update({
@@ -271,11 +272,11 @@ export default function ImpiantoDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Contratto aggiornato");
+      toast.success(t("Contratto aggiornato"));
       queryClient.invalidateQueries({ queryKey: ["contratto-impianto", id] });
       setModificaContrattoOpen(false);
     },
-    onError: (e: Error) => toast.error(e.message || "Salvataggio non riuscito"),
+    onError: (e: Error) => toast.error(e.message || t("Salvataggio non riuscito")),
   });
 
   if (isLoading) return (
@@ -289,17 +290,17 @@ export default function ImpiantoDetail() {
     <div className="p-6 max-w-md mx-auto">
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
-        <AlertDescription>Errore nel caricamento dell'impianto. Riprova.</AlertDescription>
+        <AlertDescription>{t("Errore nel caricamento dell'impianto. Riprova.")}</AlertDescription>
       </Alert>
-      <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/manutenzione")}>Torna alla lista</Button>
+      <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/manutenzione")}>{t("Torna alla lista")}</Button>
     </div>
   );
 
   if (!impianto) return (
     <div className="p-6 text-center py-20">
       <AlertCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-      <p className="text-gray-500">Impianto non trovato</p>
-      <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/manutenzione")}>Torna alla lista</Button>
+      <p className="text-gray-500">{t("Impianto non trovato")}</p>
+      <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/manutenzione")}>{t("Torna alla lista")}</Button>
     </div>
   );
 
@@ -312,7 +313,7 @@ export default function ImpiantoDetail() {
       {/* Mobile: titolo e due icone sulla stessa riga; la freccia indietro è
           già nella barra in alto. */}
       <div className="flex flex-wrap items-center gap-3 max-sm:flex-nowrap max-sm:gap-2">
-        <Button aria-label="Torna agli impianti" variant="ghost" size="sm" onClick={() => navigate("/azienda/manutenzione")} className="-ml-2 max-sm:hidden">
+        <Button aria-label={t("Torna agli impianti")} variant="ghost" size="sm" onClick={() => navigate("/azienda/manutenzione")} className="-ml-2 max-sm:hidden">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="min-w-0 flex-1">
@@ -323,12 +324,12 @@ export default function ImpiantoDetail() {
         <div className="flex w-full items-center gap-2 sm:w-auto max-sm:w-auto max-sm:shrink-0">
           {/* Scrivi al cliente dell'impianto, come nelle commesse. */}
           {(impianto.customer as { phone?: string | null } | null)?.phone && (
-            <Button variant="outline" size="icon" className="shrink-0 tap-compact text-emerald-700 max-sm:h-8 max-sm:w-8" title="WhatsApp al cliente" onClick={() => setContattoCanale("whatsapp")}>
+            <Button variant="outline" size="icon" className="shrink-0 tap-compact text-emerald-700 max-sm:h-8 max-sm:w-8" title={t("WhatsApp al cliente")} onClick={() => setContattoCanale("whatsapp")}>
               <MessageCircle className="h-4 w-4" />
             </Button>
           )}
           {(impianto.customer as { email?: string | null } | null)?.email && (
-            <Button variant="outline" size="icon" className="shrink-0 tap-compact text-blue-700 max-sm:h-8 max-sm:w-8" title="Email al cliente" onClick={() => setContattoCanale("email")}>
+            <Button variant="outline" size="icon" className="shrink-0 tap-compact text-blue-700 max-sm:h-8 max-sm:w-8" title={t("Email al cliente")} onClick={() => setContattoCanale("email")}>
               <Mail className="h-4 w-4" />
             </Button>
           )}
@@ -338,7 +339,7 @@ export default function ImpiantoDetail() {
             variant="outline"
             size="icon"
             className="shrink-0 tap-compact max-sm:h-8 max-sm:w-8"
-            title="Storico interventi e rapportini"
+            title={t("Storico interventi e rapportini")}
             onClick={() => navigate(`/azienda/impianti/${id}/storico`)}
           >
             <History className="h-4 w-4" />
@@ -347,13 +348,13 @@ export default function ImpiantoDetail() {
             variant="outline"
             size="icon"
             className="shrink-0 tap-compact max-sm:h-8 max-sm:w-8"
-            title={impianto.attivo === false ? "Ripristina impianto" : "Archivia impianto"}
+            title={impianto.attivo === false ? t("Ripristina impianto") : t("Archivia impianto")}
             disabled={permissions.solaLettura} onClick={() => setArchiviaOpen(true)}
           >
             {impianto.attivo === false ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
           </Button>
-          <Button className="flex-1 sm:flex-none gap-2 tap-compact max-sm:h-8 max-sm:w-8 max-sm:flex-none max-sm:p-0" aria-label="Modifica impianto" disabled={permissions.solaLettura} onClick={apriModificaImpianto}>
-            <Pencil className="h-4 w-4" /> <span className="max-sm:hidden">Modifica</span>
+          <Button className="flex-1 sm:flex-none gap-2 tap-compact max-sm:h-8 max-sm:w-8 max-sm:flex-none max-sm:p-0" aria-label={t("Modifica impianto")} disabled={permissions.solaLettura} onClick={apriModificaImpianto}>
+            <Pencil className="h-4 w-4" /> <span className="max-sm:hidden">{t("Modifica")}</span>
           </Button>
         </div>
       </div>
@@ -362,8 +363,7 @@ export default function ImpiantoDetail() {
         <Alert>
           <Archive className="h-4 w-4" />
           <AlertDescription>
-            Questo impianto è archiviato: non compare più nell'elenco manutenzione.
-            Contratti, piani e interventi restano collegati e si possono ancora consultare.
+            {t("Questo impianto è archiviato: non compare più nell'elenco manutenzione. Contratti, piani e interventi restano collegati e si possono ancora consultare.")}
           </AlertDescription>
         </Alert>
       )}
@@ -378,16 +378,16 @@ export default function ImpiantoDetail() {
           <Card>
             <CardContent className="p-4 space-y-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <Settings className="h-4 w-4 text-muted-foreground" /> Scheda tecnica
+                <Settings className="h-4 w-4 text-muted-foreground" /> {t("Scheda tecnica")}
               </h3>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 {[
-                  { label: "Tipo", value: impianto.tipo_impianto?.replace("_", " ") },
-                  { label: "Marca", value: impianto.marca },
-                  { label: "Modello", value: impianto.modello },
-                  { label: "Matricola", value: impianto.matricola },
-                  { label: "Data installazione", value: impianto.data_installazione ? format(new Date(impianto.data_installazione), "dd MMM yyyy", { locale: it }) : null },
-                  { label: "Scadenza garanzia", value: impianto.garanzia_scadenza ? format(new Date(impianto.garanzia_scadenza), "dd MMM yyyy", { locale: it }) : null },
+                  { label: t("Tipo"), value: impianto.tipo_impianto?.replace("_", " ") },
+                  { label: t("Marca"), value: impianto.marca },
+                  { label: t("Modello"), value: impianto.modello },
+                  { label: t("Matricola"), value: impianto.matricola },
+                  { label: t("Data installazione"), value: impianto.data_installazione ? format(new Date(impianto.data_installazione), "dd MMM yyyy", { locale: dateFnsCampo() }) : null },
+                  { label: t("Scadenza garanzia"), value: impianto.garanzia_scadenza ? format(new Date(impianto.garanzia_scadenza), "dd MMM yyyy", { locale: dateFnsCampo() }) : null },
                 ].map((f) => f.value && (
                   <div key={f.label}>
                     <div className="text-xs text-muted-foreground">{f.label}</div>
@@ -397,7 +397,7 @@ export default function ImpiantoDetail() {
               </div>
               {garanziaGiorni !== null && (
                 <Badge className={garanziaGiorni < 0 ? "bg-red-100 text-red-800" : garanziaGiorni < 90 ? "bg-yellow-100 text-yellow-800" : "bg-emerald-100 text-emerald-700"}>
-                  {garanziaGiorni < 0 ? `Garanzia scaduta ${Math.abs(garanziaGiorni)}gg fa` : `Garanzia valida ancora ${garanziaGiorni} giorni`}
+                  {garanziaGiorni < 0 ? t("Garanzia scaduta {valore}gg fa", { valore: Math.abs(garanziaGiorni) }) : t("Garanzia valida ancora {garanziaGiorni} giorni", { garanziaGiorni: String(garanziaGiorni ?? "") })}
                 </Badge>
               )}
               {impianto.note_tecniche && (
@@ -409,13 +409,13 @@ export default function ImpiantoDetail() {
                 ((impianto as { foto_urls?: string[] | null }).foto_urls?.length ?? 0) > 0 && (
                   <div className="space-y-2">
                     <h4 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                      <Camera className="h-3.5 w-3.5" /> Foto impianto
+                      <Camera className="h-3.5 w-3.5" /> {t("Foto impianto")}
                     </h4>
                     <div className="flex flex-wrap gap-2">
                       {(impianto as { foto_urls?: string[] | null }).foto_urls!.map((url, i) => (
                         <a key={i} href={url} target="_blank" rel="noopener noreferrer"
                            className="h-16 w-16 overflow-hidden rounded border transition-opacity hover:opacity-80">
-                          <img loading="lazy" src={url} alt={`Foto impianto ${i + 1}`} className="h-full w-full object-cover" />
+                          <img loading="lazy" src={url} alt={t("Foto impianto {i}", { i: i + 1 })} className="h-full w-full object-cover" />
                         </a>
                       ))}
                     </div>
@@ -428,30 +428,30 @@ export default function ImpiantoDetail() {
           <Card>
             <CardContent className="p-4 space-y-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <FileText className="h-4 w-4 text-muted-foreground" /> Contratto
+                <FileText className="h-4 w-4 text-muted-foreground" /> {t("Contratto")}
               </h3>
               {!contratto ? (
-                <p className="text-sm text-muted-foreground">Nessun contratto collegato a questo impianto.</p>
+                <p className="text-sm text-muted-foreground">{t("Nessun contratto collegato a questo impianto.")}</p>
               ) : (
                 <div className="space-y-3 text-sm">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-semibold">{contratto.nome_contratto}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{contratto.tipo_fatturazione} · Inizio {format(new Date(contratto.data_inizio), "dd/MM/yyyy")}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{t("{tipo_fatturazione} · Inizio {valore}", { tipo_fatturazione: String(contratto.tipo_fatturazione ?? ""), valore: format(new Date(contratto.data_inizio), "dd/MM/yyyy") })}</p>
                     </div>
                     <div className="shrink-0 text-right">
                       <div className="text-lg font-bold text-violet-700">€{Number(contratto.importo_canone).toFixed(2)}</div>
                       <Badge className={cn("text-xs capitalize", contratto.stato === "attivo" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600")}>{contratto.stato}</Badge>
                     </div>
                   </div>
-                  {contratto.rinnovo_automatico && <Badge className="bg-blue-100 text-blue-800 text-xs">Rinnovo automatico</Badge>}
+                  {contratto.rinnovo_automatico && <Badge className="bg-blue-100 text-blue-800 text-xs">{t("Rinnovo automatico")}</Badge>}
                   {contratto.note && <p className="rounded bg-muted/50 p-2 text-muted-foreground">{contratto.note}</p>}
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <Button variant="outline" size="sm" className="w-full gap-2 sm:flex-1" disabled={permissions.solaLettura} onClick={apriModificaContratto}>
-                      <Pencil className="h-4 w-4" /> Modifica
+                      <Pencil className="h-4 w-4" /> {t("Modifica")}
                     </Button>
                     <Button variant="outline" size="sm" className="w-full gap-2 sm:flex-1" disabled={permissions.solaLettura} onClick={() => setFatturaOpen(true)}>
-                      <Receipt className="h-4 w-4" /> Fattura canone
+                      <Receipt className="h-4 w-4" /> {t("Fattura canone")}
                     </Button>
                   </div>
                 </div>
@@ -467,23 +467,23 @@ export default function ImpiantoDetail() {
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="flex items-center gap-2 text-sm font-semibold">
-                  <Calendar className="h-4 w-4 text-muted-foreground" /> Piano di manutenzione
+                  <Calendar className="h-4 w-4 text-muted-foreground" /> {t("Piano di manutenzione")}
                   {piani.length > 0 && <span className="text-muted-foreground">({piani.length})</span>}
                 </h3>
                 <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={permissions.solaLettura || errorePiani || piani.length === 0}
                         onClick={() => { setSelectedPianoId(piani[0]?.id ?? null); setEsecuzioneOpen(true); }}>
-                  <Plus className="h-3.5 w-3.5" /> Registra esecuzione
+                  <Plus className="h-3.5 w-3.5" /> {t("Registra esecuzione")}
                 </Button>
               </div>
               {caricamentoPiani ? (
                 <Skeleton className="h-14" />
               ) : errorePiani ? (
                 <div className="flex items-center justify-between gap-3 text-sm" role="alert">
-                  <span>Impossibile caricare il piano di manutenzione.</span>
-                  <Button size="sm" variant="outline" onClick={() => void ricaricaPiani()}>Riprova</Button>
+                  <span>{t("Impossibile caricare il piano di manutenzione.")}</span>
+                  <Button size="sm" variant="outline" onClick={() => void ricaricaPiani()}>{t("Riprova")}</Button>
                 </div>
               ) : piani.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">Nessun piano configurato per questo impianto.</p>
+                <p className="py-6 text-center text-sm text-muted-foreground">{t("Nessun piano configurato per questo impianto.")}</p>
               ) : (
                 <div className="space-y-2">
                   {piani.map((piano) => (
@@ -492,12 +492,12 @@ export default function ImpiantoDetail() {
                         <div className="min-w-0">
                           <span className="text-sm font-medium">{piano.titolo}</span>
                           <div className="mt-0.5 text-xs text-muted-foreground">
-                            {piano.frequenza_tipo} · Prossima: {piano.prossima_scadenza ? format(new Date(piano.prossima_scadenza), "dd MMM yyyy", { locale: it }) : "—"}
-                            {piano.ultima_esecuzione && ` · Ultima: ${format(new Date(piano.ultima_esecuzione), "dd MMM yyyy", { locale: it })}`}
+                            {piano.frequenza_tipo} {t("· Prossima:")} {piano.prossima_scadenza ? format(new Date(piano.prossima_scadenza), "dd MMM yyyy", { locale: dateFnsCampo() }) : "—"}
+                            {piano.ultima_esecuzione && t(" · Ultima: {valore}", { valore: format(new Date(piano.ultima_esecuzione), "dd MMM yyyy", { locale: dateFnsCampo() }) })}
                           </div>
                         </div>
                         <Button size="sm" variant="outline" className="h-7 text-xs" disabled={permissions.solaLettura} onClick={() => { setSelectedPianoId(piano.id); setEsecuzioneOpen(true); }}>
-                          Esegui
+                          {t("Esegui")}
                         </Button>
                       </div>
                     </div>
@@ -506,16 +506,16 @@ export default function ImpiantoDetail() {
               )}
               {esecuzioni.length > 0 && (
                 <div className="space-y-2 border-t pt-3">
-                  <h4 className="text-xs font-medium text-muted-foreground">Storico esecuzioni</h4>
+                  <h4 className="text-xs font-medium text-muted-foreground">{t("Storico esecuzioni")}</h4>
                   {esecuzioni.map((e) => (
                     <div key={e.id} className="flex items-start justify-between gap-2 rounded bg-muted/50 p-2.5 text-sm">
                       <div className="min-w-0">
                         <span className="font-medium">{e.piano?.titolo}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">{format(new Date(e.data_esecuzione), "dd MMM yyyy", { locale: it })}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">{format(new Date(e.data_esecuzione), "dd MMM yyyy", { locale: dateFnsCampo() })}</span>
                         {e.note && <p className="mt-1 whitespace-pre-wrap break-words text-xs text-muted-foreground">{e.note}</p>}
                       </div>
                       <Badge className={cn("text-[10px]", e.esito === "ok" ? "bg-emerald-100 text-emerald-700" : e.esito === "anomalia_rilevata" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600")}>
-                        {e.esito === "ok" ? "OK" : e.esito === "anomalia_rilevata" ? "Anomalia" : "Rinviata"}
+                        {e.esito === "ok" ? "OK" : e.esito === "anomalia_rilevata" ? t("Anomalia") : t("Rinviata")}
                       </Badge>
                     </div>
                   ))}
@@ -529,15 +529,15 @@ export default function ImpiantoDetail() {
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="flex items-center gap-2 text-sm font-semibold">
-                  <Wrench className="h-4 w-4 text-muted-foreground" /> Interventi
+                  <Wrench className="h-4 w-4 text-muted-foreground" /> {t("Interventi")}
                   {interventiImpianto.length > 0 && <span className="text-muted-foreground">({interventiImpianto.length})</span>}
                 </h3>
                 <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={permissions.solaLettura} onClick={() => setNuovoInterventoOpen(true)}>
-                  <Plus className="h-3.5 w-3.5" /> Nuovo intervento
+                  <Plus className="h-3.5 w-3.5" /> {t("Nuovo intervento")}
                 </Button>
               </div>
               {interventiImpianto.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">Nessun intervento registrato per questo impianto.</p>
+                <p className="py-6 text-center text-sm text-muted-foreground">{t("Nessun intervento registrato per questo impianto.")}</p>
               ) : (
                 <div className="space-y-2">
                   {interventiImpianto.map((iv: any) => (
@@ -549,13 +549,13 @@ export default function ImpiantoDetail() {
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium">{iv.subject}</div>
                           <div className="mt-0.5 text-xs text-muted-foreground">
-                            {iv.tipo ?? "supporto"} · {format(new Date(iv.created_at), "dd MMM yyyy", { locale: it })}
-                            {iv.data_intervento_prevista && ` · Previsto ${format(new Date(iv.data_intervento_prevista), "dd MMM yyyy", { locale: it })}`}
+                            {iv.tipo ?? t("supporto")} · {format(new Date(iv.created_at), "dd MMM yyyy", { locale: dateFnsCampo() })}
+                            {iv.data_intervento_prevista && t(" · Previsto {valore}", { valore: format(new Date(iv.data_intervento_prevista), "dd MMM yyyy", { locale: dateFnsCampo() }) })}
                           </div>
                         </div>
                       </div>
                       <Badge className={cn("shrink-0 text-[10px]", iv.status === "risolto" ? "bg-emerald-100 text-emerald-700" : iv.status === "in_lavorazione" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600")}>
-                        {iv.status === "risolto" ? "Risolto" : iv.status === "in_lavorazione" ? "In lavorazione" : "Aperto"}
+                        {iv.status === "risolto" ? t("Risolto") : iv.status === "in_lavorazione" ? t("In lavorazione") : t("Aperto")}
                       </Badge>
                     </button>
                   ))}
@@ -573,11 +573,11 @@ export default function ImpiantoDetail() {
       <Dialog open={modificaOpen} onOpenChange={setModificaOpen}>
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Modifica impianto</DialogTitle>
+            <DialogTitle>{t("Modifica impianto")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="imp-tipo">Tipo impianto *</Label>
+              <Label htmlFor="imp-tipo">{t("Tipo impianto *")}</Label>
               <Input
                 id="imp-tipo"
                 value={formImpianto.tipo_impianto}
@@ -586,37 +586,37 @@ export default function ImpiantoDetail() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="imp-marca">Marca</Label>
+                <Label htmlFor="imp-marca">{t("Marca")}</Label>
                 <Input id="imp-marca" value={formImpianto.marca} onChange={(e) => setFormImpianto((f) => ({ ...f, marca: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="imp-modello">Modello</Label>
+                <Label htmlFor="imp-modello">{t("Modello")}</Label>
                 <Input id="imp-modello" value={formImpianto.modello} onChange={(e) => setFormImpianto((f) => ({ ...f, modello: e.target.value }))} />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="imp-matricola">Matricola</Label>
+              <Label htmlFor="imp-matricola">{t("Matricola")}</Label>
               <Input id="imp-matricola" value={formImpianto.matricola} onChange={(e) => setFormImpianto((f) => ({ ...f, matricola: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="imp-installazione">Data installazione</Label>
+                <Label htmlFor="imp-installazione">{t("Data installazione")}</Label>
                 <Input id="imp-installazione" type="date" value={formImpianto.data_installazione} onChange={(e) => setFormImpianto((f) => ({ ...f, data_installazione: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="imp-garanzia">Scadenza garanzia</Label>
+                <Label htmlFor="imp-garanzia">{t("Scadenza garanzia")}</Label>
                 <Input id="imp-garanzia" type="date" value={formImpianto.garanzia_scadenza} onChange={(e) => setFormImpianto((f) => ({ ...f, garanzia_scadenza: e.target.value }))} />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="imp-note">Note tecniche</Label>
+              <Label htmlFor="imp-note">{t("Note tecniche")}</Label>
               <Textarea id="imp-note" rows={3} value={formImpianto.note_tecniche} onChange={(e) => setFormImpianto((f) => ({ ...f, note_tecniche: e.target.value }))} />
             </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" className="w-full sm:w-auto max-sm:hidden" onClick={() => setModificaOpen(false)}>Annulla</Button>
+            <Button variant="outline" className="w-full sm:w-auto max-sm:hidden" onClick={() => setModificaOpen(false)}>{t("Annulla")}</Button>
             <Button className="w-full sm:w-auto" onClick={() => salvaImpianto.mutate()} disabled={permissions.solaLettura || salvaImpianto.isPending}>
-              {salvaImpianto.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio...</> : "Salva"}
+              {salvaImpianto.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("Salvataggio...")}</> : t("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -626,37 +626,37 @@ export default function ImpiantoDetail() {
       <Dialog open={modificaContrattoOpen} onOpenChange={setModificaContrattoOpen}>
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Modifica contratto</DialogTitle>
+            <DialogTitle>{t("Modifica contratto")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="ctr-nome">Nome contratto *</Label>
+              <Label htmlFor="ctr-nome">{t("Nome contratto *")}</Label>
               <Input id="ctr-nome" value={formContratto.nome_contratto} onChange={(e) => setFormContratto((f) => ({ ...f, nome_contratto: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="ctr-canone">Canone (€)</Label>
+                <Label htmlFor="ctr-canone">{t("Canone (€)")}</Label>
                 <Input id="ctr-canone" inputMode="decimal" value={formContratto.importo_canone} onChange={(e) => setFormContratto((f) => ({ ...f, importo_canone: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="ctr-stato">Stato</Label>
+                <Label htmlFor="ctr-stato">{t("Stato")}</Label>
                 <Select value={formContratto.stato} onValueChange={(v) => setFormContratto((f) => ({ ...f, stato: v }))}>
                   <SelectTrigger id="ctr-stato"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="attivo">Attivo</SelectItem>
-                    <SelectItem value="sospeso">Sospeso</SelectItem>
-                    <SelectItem value="cessato">Cessato</SelectItem>
+                    <SelectItem value="attivo">{t("Attivo")}</SelectItem>
+                    <SelectItem value="sospeso">{t("Sospeso")}</SelectItem>
+                    <SelectItem value="cessato">{t("Cessato")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="ctr-inizio">Data inizio *</Label>
+                <Label htmlFor="ctr-inizio">{t("Data inizio *")}</Label>
                 <Input id="ctr-inizio" type="date" value={formContratto.data_inizio} onChange={(e) => setFormContratto((f) => ({ ...f, data_inizio: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="ctr-scadenza">Data scadenza</Label>
+                <Label htmlFor="ctr-scadenza">{t("Data scadenza")}</Label>
                 <Input id="ctr-scadenza" type="date" value={formContratto.data_scadenza} onChange={(e) => setFormContratto((f) => ({ ...f, data_scadenza: e.target.value }))} />
               </div>
             </div>
@@ -667,17 +667,17 @@ export default function ImpiantoDetail() {
                 checked={formContratto.rinnovo_automatico}
                 onChange={(e) => setFormContratto((f) => ({ ...f, rinnovo_automatico: e.target.checked }))}
               />
-              Rinnovo automatico
+              {t("Rinnovo automatico")}
             </label>
             <div className="space-y-1.5">
-              <Label htmlFor="ctr-note">Note</Label>
+              <Label htmlFor="ctr-note">{t("Note")}</Label>
               <Textarea id="ctr-note" rows={3} value={formContratto.note} onChange={(e) => setFormContratto((f) => ({ ...f, note: e.target.value }))} />
             </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" className="w-full sm:w-auto max-sm:hidden" onClick={() => setModificaContrattoOpen(false)}>Annulla</Button>
+            <Button variant="outline" className="w-full sm:w-auto max-sm:hidden" onClick={() => setModificaContrattoOpen(false)}>{t("Annulla")}</Button>
             <Button className="w-full sm:w-auto" onClick={() => salvaContratto.mutate()} disabled={permissions.solaLettura || salvaContratto.isPending}>
-              {salvaContratto.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio...</> : "Salva"}
+              {salvaContratto.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("Salvataggio...")}</> : t("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -688,21 +688,21 @@ export default function ImpiantoDetail() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {impianto.attivo === false ? "Ripristinare l'impianto?" : "Archiviare l'impianto?"}
+              {impianto.attivo === false ? t("Ripristinare l'impianto?") : t("Archiviare l'impianto?")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {impianto.attivo === false
-                ? "Tornerà nell'elenco manutenzione insieme agli impianti attivi."
-                : "Esce dall'elenco manutenzione. Contratti, piani e interventi restano collegati e consultabili, e si può ripristinare quando vuoi: per questo non si cancella."}
+                ? t("Tornerà nell'elenco manutenzione insieme agli impianti attivi.")
+                : t("Esce dall'elenco manutenzione. Contratti, piani e interventi restano collegati e consultabili, e si può ripristinare quando vuoi: per questo non si cancella.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={permissions.solaLettura || cambiaArchiviazione.isPending}
               onClick={(e) => { e.preventDefault(); cambiaArchiviazione.mutate(impianto.attivo === false); }}
             >
-              {impianto.attivo === false ? "Ripristina" : "Archivia"}
+              {impianto.attivo === false ? t("Ripristina") : t("Archivia")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -723,13 +723,13 @@ export default function ImpiantoDetail() {
       {/* Dialog esecuzione */}
       <Dialog open={esecuzioneOpen} onOpenChange={setEsecuzioneOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle><span className="max-sm:hidden">Registra Esecuzione Manutenzione</span><span className="sm:hidden">Registra esecuzione</span></DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle><span className="max-sm:hidden">{t("Registra Esecuzione Manutenzione")}</span><span className="sm:hidden">{t("Registra esecuzione")}</span></DialogTitle></DialogHeader>
           <div className="space-y-4 max-sm:space-y-3">
             {piani.length > 1 && (
               <div className="space-y-1.5">
-                <Label>Piano</Label>
+                <Label>{t("Piano")}</Label>
                 <Select value={selectedPianoId ?? ""} onValueChange={setSelectedPianoId}>
-                  <SelectTrigger aria-label="Piano di manutenzione"><SelectValue placeholder="Seleziona piano..." /></SelectTrigger>
+                  <SelectTrigger aria-label={t("Piano di manutenzione")}><SelectValue placeholder={t("Seleziona piano...")} /></SelectTrigger>
                   <SelectContent>
                     {piani.map((p) => <SelectItem key={p.id} value={p.id}>{p.titolo}</SelectItem>)}
                   </SelectContent>
@@ -739,7 +739,7 @@ export default function ImpiantoDetail() {
             {/* Mobile: data ed esito affiancati. */}
             <div className="space-y-4 max-sm:grid max-sm:grid-cols-2 max-sm:gap-3 max-sm:space-y-0">
             <div className="space-y-1.5">
-              <Label htmlFor="manutenzione-data-esecuzione">Data <span className="max-sm:hidden">esecuzione</span> <span className="text-destructive">*</span></Label>
+              <Label htmlFor="manutenzione-data-esecuzione">{t("Data")} <span className="max-sm:hidden">{t("esecuzione")}</span> <span className="text-destructive">*</span></Label>
               <Input
                 id="manutenzione-data-esecuzione"
                 type="date"
@@ -749,27 +749,27 @@ export default function ImpiantoDetail() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="manutenzione-esito">Esito</Label>
+              <Label htmlFor="manutenzione-esito">{t("Esito")}</Label>
               <Select value={esecuzioneForm.esito} onValueChange={(v) => setEsecuzioneForm((f) => ({ ...f, esito: v }))}>
                 <SelectTrigger id="manutenzione-esito"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ok">OK — Tutto regolare</SelectItem>
-                  <SelectItem value="anomalia_rilevata">Anomalia rilevata</SelectItem>
-                  <SelectItem value="rinviata">Rinviata</SelectItem>
+                  <SelectItem value="ok">{t("OK — Tutto regolare")}</SelectItem>
+                  <SelectItem value="anomalia_rilevata">{t("Anomalia rilevata")}</SelectItem>
+                  <SelectItem value="rinviata">{t("Rinviata")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="manutenzione-note-esecuzione">Note</Label>
+              <Label htmlFor="manutenzione-note-esecuzione">{t("Note")}</Label>
               <Textarea id="manutenzione-note-esecuzione" value={esecuzioneForm.note} onChange={(e) => setEsecuzioneForm((f) => ({ ...f, note: e.target.value }))} rows={2} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="max-sm:hidden" onClick={() => setEsecuzioneOpen(false)}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setEsecuzioneOpen(false)}>{t("Annulla")}</Button>
             <Button onClick={() => registraEsecuzioneMutation.mutate()} disabled={permissions.solaLettura || registraEsecuzioneMutation.isPending}>
               {registraEsecuzioneMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salva
+              {t("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>

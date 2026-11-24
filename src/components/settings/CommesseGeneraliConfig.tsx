@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { messaggioGenerale, useImpostazioniCommesseGenerali } from "@/hooks/useCommesseGenerali";
 import { DEFINIZIONI_MODELLI, MODELLI_GENERALE, isModelloGenerale, type ModelloGenerale } from "@/lib/orders/commesseGenerali";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -66,6 +67,7 @@ const ANTEPRIMA: Record<ModelloGenerale, { titolo: string; righe: [string, numbe
 };
 
 export default function CommesseGeneraliConfig({ puoModificare, evidenziata = false }: { puoModificare: boolean; evidenziata?: boolean }) {
+  const t = useT();
   const { modelli, disponibile, isLoading, salva, commessaCliente, salvaCommessaCliente } = useImpostazioniCommesseGenerali();
   const { data } = useGeneraliAzienda();
   const conti = data?.conti ?? {};
@@ -79,7 +81,7 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
   const cambia = (m: ModelloGenerale, acceso: boolean) => {
     const scelti = acceso ? [...modelli, m] : modelli.filter((x) => x !== m);
     salva.mutate(scelti, {
-      onSuccess: () => toast.success(acceso ? `«${DEFINIZIONI_MODELLI[m].nome}» è attivo` : `«${DEFINIZIONI_MODELLI[m].nome}» è spento`),
+      onSuccess: () => toast.success(acceso ? t("«{nome}» è attivo", { nome: t(DEFINIZIONI_MODELLI[m].nome) }) : t("«{nome}» è spento", { nome: t(DEFINIZIONI_MODELLI[m].nome) })),
       onError: (e) => toast.error(messaggioGenerale(e, "questa impostazione")),
     });
   };
@@ -89,7 +91,7 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
   const puoSpegnereCliente = modelli.length > 0;
   const cambiaCliente = (attiva: boolean) => {
     salvaCommessaCliente.mutate(attiva, {
-      onSuccess: () => toast.success(attiva ? "«Commessa cliente» è attiva" : "«Commessa cliente» è spenta"),
+      onSuccess: () => toast.success(attiva ? t("«Commessa cliente» è attiva") : t("«Commessa cliente» è spenta")),
       onError: (e) => toast.error(messaggioGenerale(e, "questa impostazione")),
     });
   };
@@ -97,16 +99,16 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
   return (
     <SezioneImpostazione
       id="tipi"
-      titolo="Come lavori?"
-      descrizione="Accendi quello che fai: una commessa generale raccoglie più commesse e ne somma i numeri. Quello che resta spento non compare da nessuna parte."
-      ambito={<AmbitoImpostazione>Tutta l'azienda</AmbitoImpostazione>}
-      azione={<span>Si salva subito</span>}
+      titolo={t("Come lavori?")}
+      descrizione={t("Accendi quello che fai: una commessa generale raccoglie più commesse e ne somma i numeri. Quello che resta spento non compare da nessuna parte.")}
+      ambito={<AmbitoImpostazione>{t("Tutta l'azienda")}</AmbitoImpostazione>}
+      azione={<span>{t("Si salva subito")}</span>}
       evidenziata={evidenziata}
     >
       {!disponibile && (
         <div className="px-4 py-3">
           <Alert>
-            <AlertDescription>Le commesse generali non sono ancora disponibili per la tua azienda. Riprova più tardi.</AlertDescription>
+            <AlertDescription>{t("Le commesse generali non sono ancora disponibili per la tua azienda. Riprova più tardi.")}</AlertDescription>
           </Alert>
         </div>
       )}
@@ -124,12 +126,12 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
                   <Icona className="h-4.5 w-4.5" aria-hidden="true" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold leading-tight">{def.nome}</h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{def.perChi}</p>
+                  <h3 className="text-sm font-semibold leading-tight">{t(def.nome)}</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{t(def.perChi)}</p>
                 </div>
                 <Switch
                   id={`modello-generale-${m}`}
-                  aria-label={def.nome}
+                  aria-label={t(def.nome)}
                   checked={acceso}
                   disabled={!puoModificare || !disponibile || isLoading || salva.isPending}
                   onCheckedChange={(v) => cambia(m, v)}
@@ -137,11 +139,11 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
               </div>
 
               <div className="mt-3 rounded-md border bg-background px-2.5 py-2 max-sm:hidden" aria-hidden="true">
-                <p className="text-[11px] font-medium text-muted-foreground">{anteprima.titolo} · esempio</p>
+                <p className="text-[11px] font-medium text-muted-foreground">{t("{titolo} · esempio", { titolo: t(anteprima.titolo) })}</p>
                 <div className="mt-1.5 space-y-1">
                   {anteprima.righe.map(([etichetta, parte]) => (
                     <div key={etichetta} className="grid grid-cols-[4.5rem_1fr] items-center gap-2 text-[11px] text-muted-foreground">
-                      <span>{etichetta}</span>
+                      <span>{t(etichetta)}</span>
                       <span className="h-1.5 overflow-hidden rounded-full bg-muted">
                         <span className="block h-full rounded-full bg-primary/70" style={{ width: `${parte}%` }} />
                       </span>
@@ -158,7 +160,7 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
 
               {!acceso && esistenti > 0 && (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {esistenti === 1 ? "Hai già una commessa generale di questo tipo: resta visibile." : `Hai già ${esistenti} commesse generali di questo tipo: restano visibili.`}
+                  {esistenti === 1 ? t("Hai già una commessa generale di questo tipo: resta visibile.") : t("Hai già {esistenti} commesse generali di questo tipo: restano visibili.", { esistenti: String(esistenti ?? "") })}
                 </p>
               )}
 
@@ -166,13 +168,13 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
                 <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1 sm:pt-3">
                   {puoCreare && (
                     <Button type="button" size="sm" variant={esistenti > 0 ? "outline" : "default"} className="h-8" onClick={() => setNuova(m)}>
-                      <Plus className="mr-1 h-3.5 w-3.5" /> {esistenti > 0 ? "Creane un'altra" : "Crea la prima"}
+                      <Plus className="mr-1 h-3.5 w-3.5" /> {esistenti > 0 ? t("Creane un'altra") : t("Crea la prima")}
                     </Button>
                   )}
                   {esistenti > 0 && (
                     <Button asChild size="sm" variant="ghost" className="h-8 px-2">
                       <Link to="/azienda/ordini?generali=solo">
-                        {esistenti === 1 ? "Vedi quella che hai" : `Vedi le ${esistenti} che hai`} <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                        {esistenti === 1 ? t("Vedi quella che hai") : t("Vedi le {esistenti} che hai", { esistenti: String(esistenti ?? "") })} <ArrowRight className="ml-1 h-3.5 w-3.5" />
                       </Link>
                     </Button>
                   )}
@@ -191,21 +193,20 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
             <ShoppingCart className="h-4.5 w-4.5" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-semibold leading-tight">Commessa cliente</h3>
+            <h3 className="text-sm font-semibold leading-tight">{t("Commessa cliente")}</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Un lavoro per un cliente, privato o azienda. Spenta, non compare più in «Nuova Commessa»: resta solo quello che hai acceso qui sopra.
-              Le unità di una commessa generale si creano comunque.
+              {t("Un lavoro per un cliente, privato o azienda. Spenta, non compare più in «Nuova Commessa»: resta solo quello che hai acceso qui sopra. Le unità di una commessa generale si creano comunque.")}
             </p>
             {!commessaCliente && (
-              <p className="mt-1 text-xs text-muted-foreground">Le commesse cliente già create restano visibili e si possono ancora usare.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("Le commesse cliente già create restano visibili e si possono ancora usare.")}</p>
             )}
             {commessaCliente && !puoSpegnereCliente && (
-              <p className="mt-1 text-xs text-muted-foreground">Per spegnerla accendi prima un tipo di commessa generale: altrimenti non resterebbe niente da creare.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("Per spegnerla accendi prima un tipo di commessa generale: altrimenti non resterebbe niente da creare.")}</p>
             )}
           </div>
           <Switch
             id="commessa-cliente-attiva"
-            aria-label="Commessa cliente"
+            aria-label={t("Commessa cliente")}
             checked={commessaCliente}
             disabled={!puoModificare || !disponibile || isLoading || salvaCommessaCliente.isPending || (commessaCliente && !puoSpegnereCliente)}
             onCheckedChange={cambiaCliente}
@@ -215,7 +216,7 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
 
       {ultime.length > 0 && (
         <section aria-labelledby="generali-ultime-titolo" className="border-t px-3 py-3 sm:px-4">
-          <h3 id="generali-ultime-titolo" className="text-xs font-medium text-muted-foreground">Le tue commesse generali</h3>
+          <h3 id="generali-ultime-titolo" className="text-xs font-medium text-muted-foreground">{t("Le tue commesse generali")}</h3>
           <ul className="mt-2 grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
             {ultime.slice(0, 9).map((g) => {
               const Icona = ICONE[g.modello];

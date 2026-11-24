@@ -61,6 +61,7 @@ import {
   CheckCircle2, CheckSquare, Clock3, Database, FilterX, Gauge,
   Link2, Network, ShieldAlert, X, Sparkles,
 } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // ─── Constants & helpers ─────────────────────────────────────────────────────
 
@@ -90,21 +91,21 @@ function periodToCutoffIso(p: PeriodKey): string | null {
   return d.toISOString();
 }
 
-function fmtRelative(iso: string): string {
+function fmtRelative(iso: string, t: (testo: string, valori?: Record<string, string | number>) => string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const min = Math.floor(diffMs / 60_000);
-  if (min < 1) return "ora";
-  if (min < 60) return `${min} min fa`;
+  if (min < 1) return t("ora");
+  if (min < 60) return t("{n} min fa", { n: min });
   const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h fa`;
+  if (h < 24) return t("{n}h fa", { n: h });
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d}g fa`;
-  return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+  if (d < 7) return t("{n}g fa", { n: d });
+  return new Date(iso).toLocaleDateString(intlCampo(), { day: "2-digit", month: "short" });
 }
 
 function fmtEur(n: number | null | undefined, decimals = 4): string {
   if (n == null) return "—";
-  return `€ ${Number(n).toLocaleString("it-IT", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+  return `€ ${Number(n).toLocaleString(intlCampo(), { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 }
 
 function isDemoSession(session: SessionRow | null | undefined) {
@@ -250,6 +251,7 @@ const TYPE_LABEL: Record<MemoryType, string> = {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function AIPersonasSessionsTab() {
+  const t = useT();
   const qc = useQueryClient();
   const { effectiveCompany, user } = useAuth();
   const [, setSearchParams] = useSearchParams();
@@ -630,12 +632,12 @@ export default function AIPersonasSessionsTab() {
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
-      toast.success(vars.archived ? "Sessione archiviata" : "Sessione riattivata");
+      toast.success(vars.archived ? t("Sessione archiviata") : t("Sessione riattivata"));
       void qc.invalidateQueries({ queryKey: ["ai-persona-sessions-paginated"] });
       void qc.invalidateQueries({ queryKey: ["ai-persona-sessions-stats"] });
       void qc.invalidateQueries({ queryKey: ["my_persona_sessions"] });
     },
-    onError: (e) => toast.error("Errore", { description: String(e) }),
+    onError: (e) => toast.error(t("Errore"), { description: String(e) }),
   });
 
   const bulkArchiveMut = useMutation({
@@ -660,15 +662,15 @@ export default function AIPersonasSessionsTab() {
     onSuccess: (count, vars) => {
       toast.success(
         vars.archived
-          ? `${count} sessioni archiviate`
-          : `${count} sessioni riattivate`,
+          ? t("{count} sessioni archiviate", { count: String(count ?? "") })
+          : t("{count} sessioni riattivate", { count: String(count ?? "") }),
       );
       setSelectedIds(new Set());
       void qc.invalidateQueries({ queryKey: ["ai-persona-sessions-paginated"] });
       void qc.invalidateQueries({ queryKey: ["ai-persona-sessions-stats"] });
       void qc.invalidateQueries({ queryKey: ["my_persona_sessions"] });
     },
-    onError: (e) => toast.error("Errore bulk archive", { description: String(e) }),
+    onError: (e) => toast.error(t("Errore bulk archive"), { description: String(e) }),
   });
 
   const promoteMut = useMutation({
@@ -693,14 +695,14 @@ export default function AIPersonasSessionsTab() {
       return data as string;
     },
     onSuccess: () => {
-      toast.success("Promosso a memoria persistente", {
-        description: "La persona AI lo ricorderà nelle prossime conversazioni.",
+      toast.success(t("Promosso a memoria persistente"), {
+        description: t("La persona AI lo ricorderà nelle prossime conversazioni."),
       });
       setPromoteState(null);
       setSelectionPopover(null);
       void qc.invalidateQueries({ queryKey: ["ai-persona-memory"] });
     },
-    onError: (e) => toast.error("Errore promozione", { description: String(e) }),
+    onError: (e) => toast.error(t("Errore promozione"), { description: String(e) }),
   });
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -733,7 +735,7 @@ export default function AIPersonasSessionsTab() {
       return sp;
     });
     if (isDemoSession(s)) {
-      toast.info("Sessione demo", { description: "Apro la persona in chat reale: la demo non viene salvata." });
+      toast.info(t("Sessione demo"), { description: t("Apro la persona in chat reale: la demo non viene salvata.") });
     }
     setOpenSessionId(null);
   }, [setSearchParams]);
@@ -741,7 +743,7 @@ export default function AIPersonasSessionsTab() {
   const handleExport = useCallback((s: SessionRow) => {
     const messages = isDemoSession(s) ? demoOpenMessages : openMessages;
     if (messages.length === 0) {
-      toast.info("Apri prima la sessione per caricare i messaggi");
+      toast.info(t("Apri prima la sessione per caricare i messaggi"));
       return;
     }
     const persona = personaByKey.get(s.persona_key) ?? null;
@@ -904,23 +906,23 @@ export default function AIPersonasSessionsTab() {
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="bg-violet-100 text-violet-700 border-violet-200">
                   <Database className="h-3 w-3" />
-                  {sessionOps.realCount} reali
+                  {sessionOps.realCount} {t("reali")}
                 </Badge>
                 {sessionOps.demoCount > 0 && (
                   <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
                     <Sparkles className="h-3 w-3" />
-                    Sessioni demo {sessionOps.demoCount}
+                    {t("Sessioni demo")} {sessionOps.demoCount}
                   </Badge>
                 )}
                 <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
                   <CheckCircle2 className="h-3 w-3" />
-                  {sessionCoverage.coveragePct}% copertura
+                  {sessionCoverage.coveragePct}{t("% copertura")}
                 </Badge>
               </div>
               <div>
-                <h2 className="text-lg font-semibold tracking-tight">Centro controllo sessioni</h2>
+                <h2 className="text-lg font-semibold tracking-tight">{t("Centro controllo sessioni")}</h2>
                 <p className="text-xs text-muted-foreground">
-                  Trasforma le conversazioni AI in memoria persistente, controlla costi, copertura personas e sessioni da rivedere.
+                  {t("Trasforma le conversazioni AI in memoria persistente, controlla costi, copertura personas e sessioni da rivedere.")}
                 </p>
               </div>
             </div>
@@ -928,15 +930,15 @@ export default function AIPersonasSessionsTab() {
             <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[420px]">
               <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
                 <p className="text-xl font-bold tabular-nums">{sessionOps.knowledgeCount}</p>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">da trasformare</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("da trasformare")}</p>
               </div>
               <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
                 <p className="text-xl font-bold tabular-nums">{sessionOps.healthAvg}%</p>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">salute</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("salute")}</p>
               </div>
               <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
                 <p className="text-xl font-bold tabular-nums">{fmtEur(sessionOps.totalCost, 3)}</p>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">costo</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("costo")}</p>
               </div>
             </div>
           </div>
@@ -956,35 +958,35 @@ export default function AIPersonasSessionsTab() {
         ) : (
           <>
             <StatCard
-              label="Sessioni"
+              label={t("Sessioni")}
               value={String(displayStats.sessions_count)}
               icon={<History className="h-3.5 w-3.5" />}
-              subtitle={sessionOps.demoCount > 0 ? "anteprima Demo Azienda" : showArchived ? "incl. archiviate" : "solo attive"}
+              subtitle={sessionOps.demoCount > 0 ? t("anteprima Demo Azienda") : showArchived ? t("incl. archiviate") : t("solo attive")}
               accent="emerald"
             />
             <StatCard
-              label="Messaggi"
+              label={t("Messaggi")}
               value={String(displayStats.messages_count)}
               icon={<MessageSquare className="h-3.5 w-3.5" />}
               subtitle={
                 displayStats.sessions_count > 0
-                  ? `media ${Math.round(displayStats.messages_count / displayStats.sessions_count)}/sess`
-                  : "nessuna chat ancora"
+                  ? t("media {valore}/sess", { valore: Math.round(displayStats.messages_count / displayStats.sessions_count) })
+                  : t("nessuna chat ancora")
               }
               accent="blue"
             />
             <StatCard
-              label="Costo periodo"
+              label={t("Costo periodo")}
               value={fmtEur(displayStats.total_cost_eur, 3)}
               icon={<Coins className="h-3.5 w-3.5" />}
-              subtitle="scalato dal saldo AI"
+              subtitle={t("scalato dal saldo AI")}
               accent="amber"
             />
             <StatCard
-              label="Persona top"
+              label={t("Persona top")}
               value={displayStats.top_persona_key ? personaByKey.get(displayStats.top_persona_key)?.display_name ?? displayStats.top_persona_key : "—"}
               icon={<Sparkles className="h-3.5 w-3.5" />}
-              subtitle={displayStats.top_persona_count > 0 ? `${displayStats.top_persona_count} sessioni` : "—"}
+              subtitle={displayStats.top_persona_count > 0 ? t("{top_persona_count} sessioni", { top_persona_count: String(displayStats.top_persona_count ?? "") }) : "—"}
               accent="violet"
             />
           </>
@@ -993,7 +995,7 @@ export default function AIPersonasSessionsTab() {
 
       {statsError && (
         <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded px-2 py-1">
-          Statistiche non disponibili (RPC non deployata). I numeri possono essere parziali.
+          {t("Statistiche non disponibili (RPC non deployata). I numeri possono essere parziali.")}
         </p>
       )}
 
@@ -1001,20 +1003,20 @@ export default function AIPersonasSessionsTab() {
         <div className="rounded-xl border bg-card p-3">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-sm font-semibold">Copertura conversazioni per persona</p>
+              <p className="text-sm font-semibold">{t("Copertura conversazioni per persona")}</p>
               <p className="text-xs text-muted-foreground">
-                Vedi quali AI hanno gia' conversazioni utili e quali non hanno ancora contesto reale.
+                {t("Vedi quali AI hanno gia' conversazioni utili e quali non hanno ancora contesto reale.")}
               </p>
             </div>
             {sessionCoverage.personasWithoutSessions.length > 0 ? (
               <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">
                 <ShieldAlert className="h-3 w-3" />
-                {sessionCoverage.personasWithoutSessions.length} senza sessioni
+                {sessionCoverage.personasWithoutSessions.length} {t("senza sessioni")}
               </Badge>
             ) : (
               <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
                 <CheckCircle2 className="h-3 w-3" />
-                Tutte coperte
+                {t("Tutte coperte")}
               </Badge>
             )}
           </div>
@@ -1044,7 +1046,7 @@ export default function AIPersonasSessionsTab() {
                     />
                   </div>
                   <p className="mt-1 text-[10px] text-muted-foreground">
-                    {count === 0 ? "da avviare" : knowledgeCount > 0 ? `${knowledgeCount} utili` : "solo chat breve"}
+                    {count === 0 ? t("da avviare") : knowledgeCount > 0 ? t("{knowledgeCount} utili", { knowledgeCount: String(knowledgeCount ?? "") }) : t("solo chat breve")}
                   </p>
                 </button>
               );
@@ -1055,33 +1057,33 @@ export default function AIPersonasSessionsTab() {
         <div className="rounded-xl border bg-card p-3">
           <div className="flex items-center gap-2">
             <Gauge className="h-4 w-4 text-violet-600" />
-            <p className="text-sm font-semibold">Da conversazione a memoria</p>
+            <p className="text-sm font-semibold">{t("Da conversazione a memoria")}</p>
           </div>
           <div className="mt-3 space-y-2 text-xs text-muted-foreground">
             <div className="flex items-start gap-2 rounded-lg bg-muted/30 p-2">
               <span className="mt-0.5 h-5 w-5 shrink-0 rounded-full bg-violet-100 text-center text-[11px] font-bold leading-5 text-violet-700">1</span>
-              Apri una sessione con almeno 4 messaggi.
+              {t("Apri una sessione con almeno 4 messaggi.")}
             </div>
             <div className="flex items-start gap-2 rounded-lg bg-muted/30 p-2">
               <span className="mt-0.5 h-5 w-5 shrink-0 rounded-full bg-violet-100 text-center text-[11px] font-bold leading-5 text-violet-700">2</span>
-              Seleziona la frase importante o usa Promuovi tutto.
+              {t("Seleziona la frase importante o usa Promuovi tutto.")}
             </div>
             <div className="flex items-start gap-2 rounded-lg bg-muted/30 p-2">
               <span className="mt-0.5 h-5 w-5 shrink-0 rounded-full bg-violet-100 text-center text-[11px] font-bold leading-5 text-violet-700">3</span>
-              Salvala in Memoria e poi controlla il collegamento nel Cervello.
+              {t("Salvala in Memoria e poi controlla il collegamento nel Cervello.")}
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild className="h-8 gap-1.5">
               <a href="/azienda/impostazioni/ai-memoria?tab=memoria">
                 <Brain className="h-3.5 w-3.5" />
-                Apri in Memoria
+                {t("Apri in Memoria")}
               </a>
             </Button>
             <Button variant="outline" size="sm" asChild className="h-8 gap-1.5">
               <a href="/azienda/impostazioni/ai-memoria?tab=cervello">
                 <Network className="h-3.5 w-3.5" />
-                Vedi nel Cervello
+                {t("Vedi nel Cervello")}
               </a>
             </Button>
           </div>
@@ -1095,7 +1097,7 @@ export default function AIPersonasSessionsTab() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutte le personas</SelectItem>
+            <SelectItem value="all">{t("Tutte le personas")}</SelectItem>
             {personasForSessions.map((p) => (
               <SelectItem key={p.persona_key} value={p.persona_key}>{p.display_name}</SelectItem>
             ))}
@@ -1108,7 +1110,7 @@ export default function AIPersonasSessionsTab() {
           </SelectTrigger>
           <SelectContent>
             {PERIOD_OPTIONS.map((p) => (
-              <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>
+              <SelectItem key={p.key} value={p.key}>{t(p.label)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -1116,7 +1118,7 @@ export default function AIPersonasSessionsTab() {
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cerca per titolo…"
+            placeholder={t("Cerca per titolo…")}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="h-9 pl-9"
@@ -1133,22 +1135,20 @@ export default function AIPersonasSessionsTab() {
           className="h-9 gap-2"
         >
           {showArchived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-          {showArchived ? "Nascondi archiviate" : "Mostra archiviate"}
+          {showArchived ? t("Nascondi archiviate") : t("Mostra archiviate")}
         </Button>
 
-        <Badge variant="outline" className="ml-auto text-xs">
-          {sessionsForView.length} sessioni
-        </Badge>
+        <Badge variant="outline" className="ml-auto text-xs">{t("{n} sessioni", { n: sessionsForView.length })}</Badge>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         {[
-          { value: "all", label: "Tutte", icon: FilterX },
-          { value: "knowledge", label: "Da trasformare", icon: Brain },
-          { value: "costly", label: "Costo alto", icon: Coins },
-          { value: "short", label: "Brevi", icon: MessageSquare },
-          { value: "inactive", label: "Ferme", icon: Clock3 },
-          { value: "demo", label: "Sessioni demo", icon: Sparkles },
+          { value: "all", label: t("Tutte"), icon: FilterX },
+          { value: "knowledge", label: t("Da trasformare"), icon: Brain },
+          { value: "costly", label: t("Costo alto"), icon: Coins },
+          { value: "short", label: t("Brevi"), icon: MessageSquare },
+          { value: "inactive", label: t("Ferme"), icon: Clock3 },
+          { value: "demo", label: t("Sessioni demo"), icon: Sparkles },
         ].map((item) => {
           const Icon = item.icon;
           return (
@@ -1172,7 +1172,7 @@ export default function AIPersonasSessionsTab() {
         <div className="sticky top-0 z-10 rounded-lg border border-violet-300 bg-violet-50 dark:bg-violet-950/30 dark:border-violet-700 px-3 py-2 flex items-center gap-2 shadow-sm">
           <CheckSquare className="h-4 w-4 text-violet-600" />
           <span className="text-sm font-medium">
-            {selectedIds.size} {selectedIds.size === 1 ? "sessione selezionata" : "sessioni selezionate"}
+            {selectedIds.size} {selectedIds.size === 1 ? t("sessione selezionata") : t("sessioni selezionate")}
           </span>
           <Button
             size="sm"
@@ -1181,7 +1181,7 @@ export default function AIPersonasSessionsTab() {
             className="h-8 gap-1.5"
           >
             <CheckSquare className="h-3.5 w-3.5" />
-            Tutte visibili ({sessionsForView.filter((s) => !isDemoSession(s)).length})
+            {t("Tutte visibili ({n})", { n: sessionsForView.filter((s) => !isDemoSession(s)).length })}
           </Button>
           <Button
             size="sm"
@@ -1197,7 +1197,7 @@ export default function AIPersonasSessionsTab() {
             ) : (
               <Archive className="h-3.5 w-3.5" />
             )}
-            {showArchived ? "Riattiva tutte" : "Archivia tutte"}
+            {showArchived ? t("Riattiva tutte") : t("Archivia tutte")}
           </Button>
           <Button
             size="sm"
@@ -1206,7 +1206,7 @@ export default function AIPersonasSessionsTab() {
             className="h-8 gap-1.5 ml-auto"
           >
             <X className="h-3.5 w-3.5" />
-            Annulla
+            {t("Annulla")}
           </Button>
         </div>
       )}
@@ -1220,16 +1220,15 @@ export default function AIPersonasSessionsTab() {
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <History className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm font-medium">Nessuna sessione per questi filtri</p>
+            <p className="text-sm font-medium">{t("Nessuna sessione per questi filtri")}</p>
             <p className="text-xs mt-1">
-              Apri la tab <strong>Chat</strong> e parla con una delle 18 personas.
-              Le conversazioni appariranno qui, e potrai promuoverne i passaggi più utili a memoria persistente.
+              {t("Apri la tab Chat e parla con una delle 18 personas. Le conversazioni appariranno qui, e potrai promuoverne i passaggi più utili a memoria persistente.")}
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               <Button size="sm" asChild className="gap-2">
                 <a href="/azienda/impostazioni/ai-memoria?tab=chat">
                   <MessageSquare className="h-3.5 w-3.5" />
-                  Apri Chat
+                  {t("Apri Chat")}
                 </a>
               </Button>
               <Button
@@ -1245,7 +1244,7 @@ export default function AIPersonasSessionsTab() {
                 }}
               >
                 <FilterX className="h-3.5 w-3.5" />
-                Pulisci filtri
+                {t("Pulisci filtri")}
               </Button>
             </div>
           </CardContent>
@@ -1275,15 +1274,15 @@ export default function AIPersonasSessionsTab() {
           {sessionsQ.isFetchingNextPage && (
             <div className="py-4 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Carico altre sessioni…
+              {t("Carico altre sessioni…")}
             </div>
           )}
 
           {!sessionsQ.hasNextPage && allSessions.length >= PAGE_SIZE && (
             <p className="py-3 text-center text-xs text-muted-foreground">
-              Fine elenco · {allSessions.length} sessioni mostrate
+              {t("Fine elenco · {n} sessioni mostrate", { n: allSessions.length })}
               {stats && stats.sessions_count > allSessions.length && (
-                <> su {stats.sessions_count} totali (riduci il periodo per vedere più indietro)</>
+                <>{" "}{t("su {sessions_count} totali (riduci il periodo per vedere più indietro)", { sessions_count: String(stats.sessions_count ?? "") })}</>
               )}
             </p>
           )}
@@ -1296,17 +1295,15 @@ export default function AIPersonasSessionsTab() {
           <SheetHeader className="p-4 border-b">
             <SheetTitle className="text-base flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-violet-600" />
-              {openSession?.title ?? "Sessione"}
+              {openSession?.title ?? t("Sessione")}
             </SheetTitle>
             <SheetDescription className="text-xs">
               {openSession ? (
                 <>
                   {personaByKey.get(openSession.persona_key)?.display_name ?? openSession.persona_key} ·{" "}
-                  {openSession.message_count} messaggi ·{" "}
-                  {fmtEur(openSession.total_cost_billed_eur, 4)} · iniziata{" "}
-                  {fmtRelative(openSession.created_at)}
+                  {t("{n} messaggi · {costo} · iniziata {quando}", { n: openSession.message_count, costo: fmtEur(openSession.total_cost_billed_eur, 4), quando: fmtRelative(openSession.created_at, t) })}
                 </>
-              ) : "Caricamento…"}
+              ) : t("Caricamento…")}
             </SheetDescription>
           </SheetHeader>
 
@@ -1319,7 +1316,7 @@ export default function AIPersonasSessionsTab() {
               disabled={!openSession}
             >
               <ExternalLink className="h-3.5 w-3.5" />
-              Continua chat
+              {t("Continua chat")}
             </Button>
             <Button
               size="sm"
@@ -1329,7 +1326,7 @@ export default function AIPersonasSessionsTab() {
               disabled={!openSession || messagesForOpenSession.length === 0}
             >
               <Download className="h-3.5 w-3.5" />
-              Esporta MD
+              {t("Esporta MD")}
             </Button>
             <Button
               size="sm"
@@ -1339,12 +1336,12 @@ export default function AIPersonasSessionsTab() {
               disabled={!openSession || archiveMut.isPending || isDemoSession(openSession)}
             >
               {openSession?.archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-              {openSession?.archived ? "Riattiva" : "Archivia"}
+              {openSession?.archived ? t("Riattiva") : t("Archivia")}
             </Button>
           </div>
 
           <p className="text-[10px] text-muted-foreground bg-violet-50/50 dark:bg-violet-950/20 px-4 py-1.5 border-b">
-            <strong>Tip:</strong> seleziona del testo nella risposta AI per promuovere solo quella frase a memoria.
+            <strong>{t("Tip:")}</strong> {t("seleziona del testo nella risposta AI per promuovere solo quella frase a memoria.")}
           </p>
 
           <ScrollArea className="flex-1">
@@ -1355,7 +1352,7 @@ export default function AIPersonasSessionsTab() {
                 </div>
               ) : messagesForOpenSession.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-12">
-                  Nessun messaggio (sessione vuota)
+                  {t("Nessun messaggio (sessione vuota)")}
                 </p>
               ) : (
                 messagesForOpenSession
@@ -1386,7 +1383,7 @@ export default function AIPersonasSessionsTab() {
             className="bg-violet-600 hover:bg-violet-700 text-white text-xs px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 transition-colors animate-in fade-in slide-in-from-bottom-1"
           >
             <Brain className="h-3 w-3" />
-            Promuovi selezione a memoria
+            {t("Promuovi selezione a memoria")}
           </button>
         </div>
       )}
@@ -1400,19 +1397,17 @@ export default function AIPersonasSessionsTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Brain className="h-5 w-5 text-violet-600" />
-              Promuovi a memoria persistente
+              {t("Promuovi a memoria persistente")}
             </DialogTitle>
             <DialogDescription>
-              Il testo qui sotto verrà salvato come memoria della persona{" "}
-              <strong>{promoteState ? personaByKey.get(promoteState.personaKey)?.display_name ?? promoteState.personaKey : ""}</strong>.
-              Sarà iniettato nelle prossime conversazioni come contesto.
+              {t("Il testo qui sotto verrà salvato come memoria della persona {persona}. Sarà iniettato nelle prossime conversazioni come contesto.", { persona: promoteState ? personaByKey.get(promoteState.personaKey)?.display_name ?? promoteState.personaKey : "" })}
             </DialogDescription>
           </DialogHeader>
 
           {promoteState && (
             <div className="space-y-3">
               <div>
-                <Label className="text-xs">Tipo di memoria</Label>
+                <Label className="text-xs">{t("Tipo di memoria")}</Label>
                 <Select
                   value={promoteState.memoryType}
                   onValueChange={(v) => setPromoteState({ ...promoteState, memoryType: v as MemoryType })}
@@ -1422,14 +1417,14 @@ export default function AIPersonasSessionsTab() {
                   </SelectTrigger>
                   <SelectContent>
                     {Object.entries(TYPE_LABEL).map(([k, label]) => (
-                      <SelectItem key={k} value={k}>{label}</SelectItem>
+                      <SelectItem key={k} value={k}>{t(label)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <Label className="text-xs">Contenuto (modifica liberamente)</Label>
+                <Label className="text-xs">{t("Contenuto (modifica liberamente)")}</Label>
                 <Textarea
                   value={promoteState.content}
                   onChange={(e) => setPromoteState({ ...promoteState, content: e.target.value })}
@@ -1437,20 +1432,20 @@ export default function AIPersonasSessionsTab() {
                   className="text-sm"
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Suggerimento: riassumi in una frase chiara. Es. "Il cliente Rossi paga sempre a 60gg".
+                  {t("Suggerimento: riassumi in una frase chiara. Es. \"Il cliente Rossi paga sempre a 60gg\".")}
                 </p>
               </div>
 
               <div className="text-[11px] text-muted-foreground bg-muted/30 rounded p-2">
-                <strong>Provenienza:</strong> sessione{" "}
+                <strong>{t("Provenienza:")}</strong> {t("sessione")}{" "}
                 <code className="bg-background rounded px-1">{promoteState.sessionId.slice(0, 8)}</code>
-                {" — "}fiducia 90% (user-promoted).
+                {" — "}{t("fiducia 90% (user-promoted).")}
               </div>
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPromoteState(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setPromoteState(null)}>{t("Annulla")}</Button>
             <Button
               onClick={() =>
                 promoteState && promoteMut.mutate({
@@ -1464,7 +1459,7 @@ export default function AIPersonasSessionsTab() {
               className="gap-2"
             >
               {promoteMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-              Salva in memoria
+              {t("Salva in memoria")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1520,6 +1515,7 @@ function SessionCard({
   archivePending: boolean;
   hasAnySelection: boolean;
 }) {
+  const t = useT();
   const demoPreview = isDemoSession(session);
   const health = sessionHealthScore(session);
   const knowledgeCandidate = isKnowledgeCandidate(session);
@@ -1539,7 +1535,7 @@ function SessionCard({
           <Checkbox
             checked={selected}
             onCheckedChange={onToggleSelect}
-            aria-label="Seleziona sessione"
+            aria-label={t("Seleziona sessione")}
             disabled={demoPreview}
           />
         </div>
@@ -1561,29 +1557,29 @@ function SessionCard({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium truncate">{session.title}</span>
               {demoPreview && (
-                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-amber-100 text-amber-700 border-amber-200">demo</Badge>
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-amber-100 text-amber-700 border-amber-200">{t("demo")}</Badge>
               )}
               {knowledgeCandidate && (
-                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-emerald-50 text-emerald-700 border-emerald-200">da trasformare</Badge>
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-emerald-50 text-emerald-700 border-emerald-200">{t("da trasformare")}</Badge>
               )}
               {costly && (
-                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-orange-50 text-orange-700 border-orange-200">costo alto</Badge>
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-orange-50 text-orange-700 border-orange-200">{t("costo alto")}</Badge>
               )}
               {short && (
-                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-slate-100 text-slate-600 border-slate-200">breve</Badge>
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-slate-100 text-slate-600 border-slate-200">{t("breve")}</Badge>
               )}
               {session.archived && (
-                <Badge variant="outline" className="text-[10px] h-4 px-1.5">archiviata</Badge>
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5">{t("archiviata")}</Badge>
               )}
             </div>
             <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
               <span>{persona?.display_name ?? session.persona_key}</span>
               <span>·</span>
-              <span>{session.message_count} msg</span>
+              <span>{t("{message_count} msg", { message_count: String(session.message_count ?? "") })}</span>
               <span>·</span>
               <span>{fmtEur(session.total_cost_billed_eur, 4)}</span>
               <span>·</span>
-              <span>{fmtRelative(session.last_message_at)}</span>
+              <span>{fmtRelative(session.last_message_at, t)}</span>
               <span>·</span>
               <span>QA {health}%</span>
             </div>
@@ -1600,18 +1596,18 @@ function SessionCard({
       <div className="border-t px-3 py-2 flex flex-wrap items-center gap-2 bg-muted/20">
         <Button size="sm" variant="ghost" onClick={onResume} className="h-7 gap-1.5 text-xs">
           <ExternalLink className="h-3 w-3" />
-          Continua chat
+          {t("Continua chat")}
         </Button>
         <Button size="sm" variant="ghost" asChild className="h-7 gap-1.5 text-xs">
           <a href={`/azienda/impostazioni/ai-memoria?tab=memoria&persona=${encodeURIComponent(session.persona_key)}`}>
             <Brain className="h-3 w-3" />
-            Apri in Memoria
+            {t("Apri in Memoria")}
           </a>
         </Button>
         <Button size="sm" variant="ghost" asChild className="h-7 gap-1.5 text-xs">
           <a href={`/azienda/impostazioni/ai-memoria?tab=cervello&persona=${encodeURIComponent(session.persona_key)}`}>
             <Link2 className="h-3 w-3" />
-            Vedi nel Cervello
+            {t("Vedi nel Cervello")}
           </a>
         </Button>
         <Button
@@ -1624,12 +1620,12 @@ function SessionCard({
           {session.archived ? (
             <>
               <ArchiveRestore className="h-3 w-3" />
-              Riattiva
+              {t("Riattiva")}
             </>
           ) : (
             <>
               <Archive className="h-3 w-3" />
-              Archivia
+              {t("Archivia")}
             </>
           )}
         </Button>
@@ -1645,6 +1641,7 @@ function SessionMessageBubble({
   persona: PersonaLite | null;
   onPromote: () => void;
 }) {
+  const t = useT();
   const isUser = message.role === "user";
   const PIcon = getPersonaIcon(persona?.icon);
   const personaColorCls = getPersonaColorRing(persona?.color);
@@ -1669,9 +1666,9 @@ function SessionMessageBubble({
         )}
       >
         <div className="text-[10px] opacity-70 mb-1">
-          {isUser ? "Tu" : persona?.display_name ?? "Assistente"}
+          {isUser ? t("Tu") : persona?.display_name ?? t("Assistente")}
           {" · "}
-          {new Date(message.created_at).toLocaleString("it-IT", {
+          {new Date(message.created_at).toLocaleString(intlCampo(), {
             day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
           })}
         </div>
@@ -1679,7 +1676,7 @@ function SessionMessageBubble({
         {!isUser && (
           <div className="mt-2 pt-2 border-t border-foreground/10 flex items-center justify-between gap-2 text-[10px] opacity-80">
             <span>
-              {message.tokens_in ?? 0} → {message.tokens_out ?? 0} tok ·{" "}
+              {message.tokens_in ?? 0} → {message.tokens_out ?? 0} {t("tok ·")}{" "}
               {fmtEur(message.cost_billed_eur, 5)}
               {message.model_used && <> · <span className="font-mono">{message.model_used}</span></>}
             </span>
@@ -1687,10 +1684,10 @@ function SessionMessageBubble({
               type="button"
               onClick={onPromote}
               className="inline-flex items-center gap-1 hover:bg-foreground/10 rounded px-1.5 py-0.5 transition-colors"
-              title="Salva l'intero messaggio come memoria persistente"
+              title={t("Salva l'intero messaggio come memoria persistente")}
             >
               <Brain className="h-3 w-3" />
-              Promuovi tutto
+              {t("Promuovi tutto")}
             </button>
           </div>
         )}

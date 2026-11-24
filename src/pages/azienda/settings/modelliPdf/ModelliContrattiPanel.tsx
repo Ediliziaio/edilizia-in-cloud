@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export default function ModelliContrattiPanel({
   onDirty,
   onSaving,
@@ -26,14 +27,14 @@ export default function ModelliContrattiPanel({
   onDirty: (v: boolean) => void;
   onSaving: (v: boolean) => void;
 }) {
+  const t = useT();
   const permissions = usePermissions();
   return permissions.isAdmin || permissions.canViewSettingsPricing ? (
     <LibreriaContratti onDirty={onDirty} onSaving={onSaving} />
   ) : (
     <Card>
       <CardContent className="p-6 text-sm">
-        Per consultare i contratti serve il permesso di accesso ai modelli di
-        preventivo.
+        {t("Per consultare i contratti serve il permesso di accesso ai modelli di preventivo.")}
       </CardContent>
     </Card>
   );
@@ -45,6 +46,7 @@ function LibreriaContratti({
   onDirty: (v: boolean) => void;
   onSaving: (v: boolean) => void;
 }) {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const query = useQuoteTemplates({ refetchOnWindowFocus: false });
@@ -55,7 +57,7 @@ function LibreriaContratti({
   const occupato = query.upsertTemplate.isPending || ricaricando;
   const conferma = () =>
     !dirty ||
-    window.confirm("Ci sono modifiche non salvate. Uscire senza salvarle?");
+    window.confirm(tr("Ci sono modifiche non salvate. Uscire senza salvarle?"));
   const condizioni = query.templates.filter(
     (t) => t.kind === "condizioni" || t.kind === "legali",
   );
@@ -69,14 +71,14 @@ function LibreriaContratti({
       setSelected(id);
     }
   };
-  if (query.isLoading) return <p>Caricamento contratti…</p>;
+  if (query.isLoading) return <p>{tr("Caricamento contratti…")}</p>;
   if (query.fetchError && !query.templates.length && !dirty)
     return (
       <Card>
         <CardContent className="space-y-3 p-6">
-          <p role="alert">Impossibile caricare i contratti.</p>
+          <p role="alert">{tr("Impossibile caricare i contratti.")}</p>
           <Button onClick={() => query.refetch()}>
-            Riprova caricamento contratti
+            {tr("Riprova caricamento contratti")}
           </Button>
         </CardContent>
       </Card>
@@ -87,11 +89,10 @@ function LibreriaContratti({
         <div className="mr-auto">
           <h2 className="flex items-center gap-2 text-xl font-semibold">
             <PenLine className="h-5 w-5 text-orange-500" />
-            Contratti e condizioni
+            {tr("Contratti e condizioni")}
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Gli stessi blocchi collegati ai modelli dei preventivi, disponibili
-            anche qui.
+            {tr("Gli stessi blocchi collegati ai modelli dei preventivi, disponibili anche qui.")}
           </p>
         </div>
         <Button
@@ -100,7 +101,7 @@ function LibreriaContratti({
           onClick={() => select("nuovo")}
         >
           <Plus className="mr-2 h-4 w-4" />
-          Nuovo blocco contrattuale
+          {tr("Nuovo blocco contrattuale")}
         </Button>
         <Button
           variant="ghost"
@@ -112,7 +113,7 @@ function LibreriaContratti({
             try {
               const esito = await query.refetch();
               if (esito.isError) {
-                toast.error("Ricarica dei contratti non riuscita");
+                toast.error(tr("Ricarica dei contratti non riuscita"));
                 return;
               }
               setDirty(false);
@@ -124,11 +125,11 @@ function LibreriaContratti({
             }
           }}
         >
-          {ricaricando ? "Ricarico…" : "Ricarica contratti"}
+          {ricaricando ? tr("Ricarico…") : tr("Ricarica contratti")}
         </Button>
         <Button variant="ghost" asChild>
           <Link to="/azienda/impostazioni/template-preventivi">
-            Libreria preventivi
+            {tr("Libreria preventivi")}
             <ArrowUpRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>
@@ -136,7 +137,7 @@ function LibreriaContratti({
       <div
         className="flex flex-wrap gap-2"
         role="group"
-        aria-label="Blocchi contrattuali"
+        aria-label={tr("Blocchi contrattuali")}
       >
         {condizioni.map((t) => (
           <Button
@@ -199,6 +200,7 @@ function Editor({
   onDirty: (v: boolean) => void;
   save: (form: Partial<QuoteTemplate>) => Promise<void>;
 }) {
+  const t = useT();
   const savingGuard = useRef(false);
   const [base, setBase] = useState<Partial<QuoteTemplate>>(() =>
     source
@@ -221,7 +223,7 @@ function Editor({
   const salva = async () => {
     if (!canEdit || busy || savingGuard.current) return;
     if (!form.name?.trim() || !form.body_html?.replace(/<[^>]*>/g, "").trim()) {
-      setError("Indica il nome e il testo del blocco contrattuale.");
+      setError(t("Indica il nome e il testo del blocco contrattuale."));
       return;
     }
     savingGuard.current = true;
@@ -230,12 +232,12 @@ function Editor({
       await save(valori);
       setBase(valori);
       setDirty(false);
-      toast.success("Blocco contrattuale salvato");
+      toast.success(t("Blocco contrattuale salvato"));
     } catch (e) {
       setError(
         erroreInItaliano(
           e,
-          "Salvataggio non riuscito. Il testo resta nell’editor: riprova.",
+          t("Salvataggio non riuscito. Il testo resta nell’editor: riprova."),
         ),
       );
     } finally {
@@ -247,7 +249,7 @@ function Editor({
       editor={<Card className="min-w-0 xl:max-h-[70vh] xl:overflow-y-auto">
         <CardContent className="space-y-4 p-5">
           <div className="space-y-2">
-            <Label htmlFor="contratto-nome">Nome del blocco contrattuale</Label>
+            <Label htmlFor="contratto-nome">{t("Nome del blocco contrattuale")}</Label>
             <Input
               id="contratto-nome"
               maxLength={120}
@@ -256,15 +258,14 @@ function Editor({
               onChange={(e) => patch({ name: e.target.value })}
             />
           </div>
-          <Label>Testo del contratto e condizioni</Label>
+          <Label>{t("Testo del contratto e condizioni")}</Label>
           <RichTextEditorSafe
             value={form.body_html ?? ""}
             onChange={(value) => patch({ body_html: value })}
             readOnly={!canEdit || busy}
           />
           <p className="text-xs text-slate-500">
-            Le modifiche saranno usate nei preventivi che collegano questo
-            blocco. Puoi scegliere i collegamenti dalla libreria dei preventivi.
+            {t("Le modifiche saranno usate nei preventivi che collegano questo blocco. Puoi scegliere i collegamenti dalla libreria dei preventivi.")}
           </p>
           {error && (
             <p role="alert" className="text-sm text-red-700">
@@ -274,7 +275,7 @@ function Editor({
           {canEdit && <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" disabled={busy || !dirty} onClick={salva}>
               <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              {saving ? "Salvataggio…" : "Salva contratto"}
+              {saving ? t("Salvataggio…") : t("Salva contratto")}
             </Button>
             <DiscardDocumentDraft disabled={busy || !dirty} onDiscard={() => {
               setForm(base);
@@ -282,13 +283,13 @@ function Editor({
               setError("");
               onDirty(false);
             }} />
-            {dirty && <span className="text-xs text-amber-700">Modifiche non salvate</span>}
+            {dirty && <span className="text-xs text-amber-700">{t("Modifiche non salvate")}</span>}
           </div>}
         </CardContent>
       </Card>}
       anteprima={<div>
         <p className="mb-3 text-sm text-slate-500">
-          Anteprima delle condizioni nel preventivo, con dati di esempio.
+          {t("Anteprima delle condizioni nel preventivo, con dati di esempio.")}
         </p>
         {form.body_html
           ?.replace(/<[^>]*>/g, "")
@@ -305,7 +306,7 @@ function Editor({
         ) : (
           <Card>
             <CardContent className="p-8 text-sm text-slate-500">
-              Scrivi il testo per vedere l’anteprima PDF del blocco.
+              {t("Scrivi il testo per vedere l’anteprima PDF del blocco.")}
             </CardContent>
           </Card>
         )}

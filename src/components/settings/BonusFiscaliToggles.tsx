@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { RigaInterruttore } from "@/components/impostazioni/SezioneImpostazione";
 import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impostazioni/erroriPerUtente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Due interruttori opt-in nati da una richiesta specifica (serramentisti che
@@ -27,6 +28,7 @@ import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impost
 type FlagKey = "bonus_multipli_enabled" | "blocca_prezzo_enabled";
 
 export function BonusFiscaliToggles() {
+  const t = useT();
   const { effectiveCompany, refreshAuth } = useAuth();
   const { toast } = useToast();
 
@@ -57,14 +59,14 @@ export function BonusFiscaliToggles() {
         .eq("id", effectiveCompany.id)
         .select("id");
       if (error) throw error;
-      if (righeToccate(data) === 0) throw new MessaggioPerUtente("Il tuo utente non può modificare i dati dell'azienda: chiedi a un amministratore.");
-      toast({ title: next ? labels.on : labels.off });
+      if (righeToccate(data) === 0) throw new MessaggioPerUtente(t("Il tuo utente non può modificare i dati dell'azienda: chiedi a un amministratore."));
+      toast({ title: next ? t(labels.on) : t(labels.off) });
       await refreshAuth();
     } catch (e) {
       apply(previous); // rollback
       toast({
-        title: "Non salvato",
-        description: motivoDelRifiuto(e, "Impossibile aggiornare l'impostazione."),
+        title: t("Non salvato"),
+        description: motivoDelRifiuto(e, t("Impossibile aggiornare l'impostazione.")),
         variant: "destructive",
       });
     } finally {
@@ -72,14 +74,14 @@ export function BonusFiscaliToggles() {
     }
   };
 
-  const inCorso = (chiave: FlagKey) => (saving === chiave ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Salvataggio" /> : undefined);
+  const inCorso = (chiave: FlagKey) => (saving === chiave ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label={t("Salvataggio")} /> : undefined);
 
   return (
     <>
       <RigaInterruttore
         id="bonus-multipli-toggle"
-        titolo="Bonus edilizi multipli"
-        descrizione="Per le commesse con più agevolazioni sullo stesso contratto (per esempio metà Ecobonus infissi, metà sicurezza): ogni agevolazione ha la sua pratica, la sua causale di bonifico e la sua ritenuta dell'11%. Spento, la commessa ha il solo interruttore «Bonus edilizio»."
+        titolo={t("Bonus edilizi multipli")}
+        descrizione={t("Per le commesse con più agevolazioni sullo stesso contratto (per esempio metà Ecobonus infissi, metà sicurezza): ogni agevolazione ha la sua pratica, la sua causale di bonifico e la sua ritenuta dell'11%. Spento, la commessa ha il solo interruttore «Bonus edilizio».")}
         checked={bonusMultipli}
         disabled={saving !== null}
         ambito={inCorso("bonus_multipli_enabled")}
@@ -92,8 +94,8 @@ export function BonusFiscaliToggles() {
       />
       <RigaInterruttore
         id="blocca-prezzo-toggle"
-        titolo="Blocca prezzo"
-        descrizione="Per registrare le somme versate dal cliente per bloccare il prezzo del listino: entrano con bonifico ordinario, non fanno parte delle rate e vanno restituite prima dei bonifici parlanti, altrimenti il cliente perde la detrazione su quell'importo."
+        titolo={t("Blocca prezzo")}
+        descrizione={t("Per registrare le somme versate dal cliente per bloccare il prezzo del listino: entrano con bonifico ordinario, non fanno parte delle rate e vanno restituite prima dei bonifici parlanti, altrimenti il cliente perde la detrazione su quell'importo.")}
         checked={bloccaPrezzo}
         disabled={saving !== null}
         ambito={inCorso("blocca_prezzo_enabled")}

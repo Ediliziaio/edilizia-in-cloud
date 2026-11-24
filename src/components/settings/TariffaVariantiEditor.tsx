@@ -40,6 +40,7 @@ import {
   MODALITA_CONTABILE_LABELS,
   MODALITA_CONTABILE_ICONS,
 } from "@/types/costVariants";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   tariffaId: string;
@@ -65,6 +66,7 @@ const MODALITA_OPTIONS: ModalitaContabile[] = [
 ];
 
 export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraId }: Props) {
+  const t = useT();
   const companyId = useEffectiveCompanyId();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<TariffaCostoVariante | null>(null);
@@ -92,9 +94,9 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraI
   });
   const squadraName = useMemo(() => {
     const m: Record<string, string> = {};
-    for (const sq of squadre) m[sq.id] = sq.name ?? "Squadra";
+    for (const sq of squadre) m[sq.id] = sq.name ?? t("Squadra");
     return m;
-  }, [squadre]);
+  }, [squadre, t]);
 
   const openNew = () => {
     setEditing(null);
@@ -108,29 +110,29 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraI
   const handleSetDefault = async (v: TariffaCostoVariante) => {
     try {
       await setDefault.mutateAsync({ tariffaId, varianteId: v.id });
-      toast.success(`"${v.nome}" impostata come variante default`);
+      toast.success(t("\"{nome}\" impostata come variante default", { nome: String(v.nome ?? "") }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore impostazione default");
+      toast.error(err instanceof Error ? err.message : t("Errore impostazione default"));
     }
   };
 
   const handleReactivate = async (v: TariffaCostoVariante) => {
     try {
       await riattivaVariante.mutateAsync({ id: v.id, patch: { attivo: true } });
-      toast.success("Variante riattivata");
+      toast.success(t("Variante riattivata"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore riattivazione");
+      toast.error(err instanceof Error ? err.message : t("Errore riattivazione"));
     }
   };
 
   const handleDisable = async (v: TariffaCostoVariante) => {
-    if (!confirm(`Disattivare la variante "${v.nome}"? Le assegnazioni storiche resteranno intatte.`))
+    if (!confirm(t("Disattivare la variante \"{nome}\"? Le assegnazioni storiche resteranno intatte.", { nome: String(v.nome ?? "") })))
       return;
     try {
       await disableVariante.mutateAsync(v.id);
-      toast.success("Variante disattivata");
+      toast.success(t("Variante disattivata"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore disattivazione");
+      toast.error(err instanceof Error ? err.message : t("Errore disattivazione"));
     }
   };
 
@@ -141,37 +143,33 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraI
     <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <h4 className="text-sm font-semibold">Varianti di costo</h4>
+          <h4 className="text-sm font-semibold">{t("Varianti di costo")}</h4>
           <p className="text-xs text-muted-foreground">
-            La stessa lavorazione, il costo di chi la fa: legata a una squadra, la variante si applica da sola quando in commessa scegli quella squadra.
+            {t("La stessa lavorazione, il costo di chi la fa: legata a una squadra, la variante si applica da sola quando in commessa scegli quella squadra.")}
           </p>
         </div>
         <Button size="sm" variant="outline" onClick={openNew}>
           <Plus className="h-3.5 w-3.5 mr-1" />
-          Aggiungi variante
+          {t("Aggiungi variante")}
         </Button>
       </div>
 
       {tariffaSquadraId && (
         <p className="text-xs text-muted-foreground rounded-md bg-background border p-2">
-          Questa voce appartiene già al listino di{" "}
-          <span className="font-medium text-foreground">{squadraName[tariffaSquadraId] ?? "una squadra"}</span>:
-          le varianti per squadra servono di solito sulle voci generiche.
+          {t("Questa voce appartiene già al listino di {squadra}: le varianti per squadra servono di solito sulle voci generiche.", { squadra: squadraName[tariffaSquadraId] ?? t("una squadra") })}
         </p>
       )}
 
       {!hasVariants && !isLoading && (
         <div className="rounded-md bg-background border p-3 text-xs text-muted-foreground">
-          Questa tariffa usa solo il costo default
           {costoDefault != null && costoDefault > 0
-            ? ` (${formatCurrency(costoDefault)})`
-            : " (non impostato)"}
-          . Aggiungi varianti per distinguere dipendente vs subappaltatori.
+            ? t("Questa tariffa usa solo il costo default ({costo}). Aggiungi varianti per distinguere dipendente vs subappaltatori.", { costo: formatCurrency(costoDefault) })
+            : t("Questa tariffa usa solo il costo default (non impostato). Aggiungi varianti per distinguere dipendente vs subappaltatori.")}
         </div>
       )}
 
       {isLoading && (
-        <p className="text-xs text-muted-foreground py-2">Caricamento varianti…</p>
+        <p className="text-xs text-muted-foreground py-2">{t("Caricamento varianti…")}</p>
       )}
 
       {hasVariants && (
@@ -193,25 +191,25 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraI
                     <span className="font-medium">{v.nome}</span>
                     {v.external_team_id && (
                       <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal">
-                        {squadraName[v.external_team_id] ?? "Squadra"}
+                        {squadraName[v.external_team_id] ?? t("Squadra")}
                       </Badge>
                     )}
                     <Badge variant="outline" className="text-xs">{modLabel}</Badge>
                     {v.is_default && (
                       <Badge className="text-xs bg-amber-100 text-amber-800 hover:bg-amber-200">
-                        <Star className="h-3 w-3 mr-0.5" /> Default
+                        <Star className="h-3 w-3 mr-0.5" /> {t("Default")}
                       </Badge>
                     )}
-                    {!v.attivo && <Badge variant="secondary" className="text-xs">Disattivata</Badge>}
-                    {expired && <Badge variant="destructive" className="text-xs">Scaduta</Badge>}
+                    {!v.attivo && <Badge variant="secondary" className="text-xs">{t("Disattivata")}</Badge>}
+                    {expired && <Badge variant="destructive" className="text-xs">{t("Scaduta")}</Badge>}
                   </div>
                   {v.descrizione && (
                     <p className="text-xs text-muted-foreground mt-1">{v.descrizione}</p>
                   )}
                   <div className="text-xs text-muted-foreground mt-1">
-                    Costo: <span className="font-semibold text-foreground">{formatCurrency(v.costo)}</span>
-                    {v.valid_from && ` · Dal ${new Date(v.valid_from).toLocaleDateString("it-IT")}`}
-                    {v.valid_to && ` · Al ${new Date(v.valid_to).toLocaleDateString("it-IT")}`}
+                    {t("Costo:")} <span className="font-semibold text-foreground">{formatCurrency(v.costo)}</span>
+                    {v.valid_from && t(" · Dal {valore}", { valore: new Date(v.valid_from).toLocaleDateString(intlCampo()) })}
+                    {v.valid_to && t(" · Al {valore}", { valore: new Date(v.valid_to).toLocaleDateString(intlCampo()) })}
                   </div>
                 </div>
                 <div className="flex gap-1">
@@ -219,18 +217,18 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraI
                     <Button
                       variant="ghost"
                       size="icon"
-                      title="Imposta come default"
+                      title={t("Imposta come default")}
                       onClick={() => handleSetDefault(v)}
                     >
                       <StarOff className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button variant="ghost" size="icon" title="Modifica" onClick={() => openEdit(v)}>
+                  <Button variant="ghost" size="icon" title={t("Modifica")} onClick={() => openEdit(v)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                   {!v.attivo && (
-                    <Button variant="ghost" size="sm" title="Riattiva" onClick={() => handleReactivate(v)}>
-                      Riattiva
+                    <Button variant="ghost" size="sm" title={t("Riattiva")} onClick={() => handleReactivate(v)}>
+                      {t("Riattiva")}
                     </Button>
                   )}
                   {v.attivo && (
@@ -238,7 +236,7 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraI
                       variant="ghost"
                       size="icon"
                       className="text-destructive"
-                      title="Disattiva"
+                      title={t("Disattiva")}
                       onClick={() => handleDisable(v)}
                     >
                       <PowerOff className="h-4 w-4" />
@@ -251,7 +249,7 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraI
 
           {hasVariants && !defaultVar && (
             <p className="text-xs text-amber-600">
-              ⚠ Nessuna variante marcata come default: verrà usato il costo della tariffa.
+              {t("⚠ Nessuna variante marcata come default: verrà usato il costo della tariffa.")}
             </p>
           )}
         </div>
@@ -263,7 +261,7 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraI
           className="text-muted-foreground hover:text-foreground underline"
           onClick={() => setShowExpired((s) => !s)}
         >
-          {showExpired ? "Nascondi" : "Mostra"} varianti scadute / disattivate
+          {showExpired ? t("Nascondi varianti scadute / disattivate") : t("Mostra varianti scadute / disattivate")}
         </button>
       </div>
 
@@ -295,6 +293,7 @@ function VarianteDialog({
   tariffaId: string;
   squadre: SquadraOption[];
 }) {
+  const t = useT();
   const { createVariante, updateVariante } = useTariffaVariantiMutations();
   const [nome, setNome] = useState(editing?.nome ?? "");
   const [externalTeamId, setExternalTeamId] = useState(editing?.external_team_id ?? "");
@@ -314,12 +313,12 @@ function VarianteDialog({
 
   const handleSave = async () => {
     if (!nome.trim()) {
-      toast.error("Il nome è obbligatorio");
+      toast.error(t("Il nome è obbligatorio"));
       return;
     }
     const costoNum = parseFloat(costo);
     if (isNaN(costoNum) || costoNum < 0) {
-      toast.error("Il costo deve essere un numero ≥ 0");
+      toast.error(t("Il costo deve essere un numero ≥ 0"));
       return;
     }
     setSaving(true);
@@ -342,14 +341,14 @@ function VarianteDialog({
       };
       if (editing) {
         await updateVariante.mutateAsync({ id: editing.id, patch: payload });
-        toast.success("Variante aggiornata");
+        toast.success(t("Variante aggiornata"));
       } else {
         await createVariante.mutateAsync(payload);
-        toast.success("Variante creata");
+        toast.success(t("Variante creata"));
       }
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore salvataggio variante");
+      toast.error(err instanceof Error ? err.message : t("Errore salvataggio variante"));
     } finally {
       setSaving(false);
     }
@@ -359,14 +358,14 @@ function VarianteDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{editing ? "Modifica variante costo" : "Nuova variante costo"}</DialogTitle>
+          <DialogTitle>{editing ? t("Modifica variante costo") : t("Nuova variante costo")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           {/* Prima "di chi è", poi il nome: scegliendo la squadra il nome si
               precompila da solo (solo se il campo è ancora vuoto). */}
           {squadre.length > 0 && (
             <div>
-              <Label>Squadra</Label>
+              <Label>{t("Squadra")}</Label>
               <Select
                 value={externalTeamId || "generico"}
                 onValueChange={(v) => {
@@ -379,39 +378,39 @@ function VarianteDialog({
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Variante generica" />
+                  <SelectValue placeholder={t("Variante generica")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="generico">Generica (nessuna squadra)</SelectItem>
+                  <SelectItem value="generico">{t("Generica (nessuna squadra)")}</SelectItem>
                   {squadre.map((sq) => (
-                    <SelectItem key={sq.id} value={sq.id}>{sq.name ?? "Squadra"}</SelectItem>
+                    <SelectItem key={sq.id} value={sq.id}>{sq.name ?? t("Squadra")}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
-                Legata a una squadra, si applica da sola quando in commessa scegli quella squadra.
+                {t("Legata a una squadra, si applica da sola quando in commessa scegli quella squadra.")}
               </p>
             </div>
           )}
           <div>
-            <Label>Nome *</Label>
+            <Label>{t("Nome *")}</Label>
             <Input
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              placeholder="Es. Subappalto Bianchi, Squadra interna"
+              placeholder={t("Es. Subappalto Bianchi, Squadra interna")}
             />
           </div>
           <div>
-            <Label>Descrizione</Label>
+            <Label>{t("Descrizione")}</Label>
             <Textarea
               value={descrizione}
               onChange={(e) => setDescrizione(e.target.value)}
-              placeholder="Opzionale"
+              placeholder={t("Opzionale")}
               rows={2}
             />
           </div>
           <div>
-            <Label>Modalità contabile *</Label>
+            <Label>{t("Modalità contabile *")}</Label>
             <Select value={modalita} onValueChange={(v) => setModalita(v as ModalitaContabile)}>
               <SelectTrigger>
                 <SelectValue />
@@ -426,7 +425,7 @@ function VarianteDialog({
             </Select>
           </div>
           <div>
-            <Label>Costo unitario € *</Label>
+            <Label>{t("Costo unitario € *")}</Label>
             <Input
               type="number"
               min="0"
@@ -438,7 +437,7 @@ function VarianteDialog({
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label>Valido dal *</Label>
+              <Label>{t("Valido dal *")}</Label>
               <Input
                 type="date"
                 value={validFrom}
@@ -446,7 +445,7 @@ function VarianteDialog({
               />
             </div>
             <div>
-              <Label>Valido al (opz.)</Label>
+              <Label>{t("Valido al (opz.)")}</Label>
               <Input
                 type="date"
                 value={validTo}
@@ -458,24 +457,24 @@ function VarianteDialog({
           {/* FK deboli: gli autocomplete fornitori/risorse saranno aggiunti quando le tabelle target saranno definite (vedi §3.1 masterprompt). */}
           <div>
             <Label className="text-xs text-muted-foreground">
-              ID fornitore (opz.) · ID risorsa HR (opz.)
+              {t("ID fornitore (opz.) · ID risorsa HR (opz.)")}
             </Label>
             <div className="grid grid-cols-2 gap-2">
               <Input
                 value={fornitoreId}
                 onChange={(e) => setFornitoreId(e.target.value)}
-                placeholder="UUID fornitore"
+                placeholder={t("UUID fornitore")}
                 className="text-xs"
               />
               <Input
                 value={risorsaId}
                 onChange={(e) => setRisorsaId(e.target.value)}
-                placeholder="UUID risorsa"
+                placeholder={t("UUID risorsa")}
                 className="text-xs"
               />
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Quando i moduli Fornitori/HR saranno attivi, questi ID verranno risolti in un dropdown.
+              {t("Quando i moduli Fornitori/HR saranno attivi, questi ID verranno risolti in un dropdown.")}
             </p>
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
@@ -485,15 +484,15 @@ function VarianteDialog({
               onChange={(e) => setIsDefault(e.target.checked)}
               className="h-4 w-4"
             />
-            <span className="text-sm">Imposta come variante default per questa tariffa</span>
+            <span className="text-sm">{t("Imposta come variante default per questa tariffa")}</span>
           </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>
-            Annulla
+            {t("Annulla")}
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Salvataggio…" : editing ? "Aggiorna" : "Crea variante"}
+            {saving ? t("Salvataggio…") : editing ? t("Aggiorna") : t("Crea variante")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -38,6 +38,7 @@ import { StandardListinoDialog } from "./dialogs/StandardListinoDialog";
 import { ImpiantiTab } from "./sections/ImpiantiTab";
 import { InterventiTab } from "./sections/InterventiTab";
 import { TariffeTab } from "./sections/TariffeTab";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Il titolo della parte aperta, per chi usa il lettore di schermo (la fila di schede non è un titolo). */
 const TITOLO_SCHEDA: Record<SchedaManutenzione, string> = {
@@ -47,6 +48,7 @@ const TITOLO_SCHEDA: Record<SchedaManutenzione, string> = {
 };
 
 export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenzione }) {
+  const tr = useT();
   const { effectiveCompany, role } = useAuth();
   const { vertical } = useVertical();
   const companyId = effectiveCompany?.id as string | undefined;
@@ -101,10 +103,9 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
         >
           <ShieldAlert className="h-12 w-12 text-amber-500" aria-hidden="true" />
           <div>
-            <p className="font-medium">Accesso riservato</p>
+            <p className="font-medium">{tr("Accesso riservato")}</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Non hai il permesso di vedere il listino di manutenzione. Chiedilo
-              all&apos;amministratore dell&apos;azienda.
+              {tr("Non hai il permesso di vedere il listino di manutenzione. Chiedilo all'amministratore dell'azienda.")}
             </p>
           </div>
         </CardContent>
@@ -115,12 +116,12 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
   // ─── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      <h2 className="sr-only">{TITOLO_SCHEDA[scheda]}</h2>
+      <h2 className="sr-only">{tr(TITOLO_SCHEDA[scheda])}</h2>
 
       {/* Una riga: a cosa serve e, per chi può, il catalogo pronto. Niente titolo grande: lo dice la scheda aperta. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Impianti, interventi e prezzi che il modulo Manutenzione usa per calcolare i preventivi di intervento.
+          {tr("Impianti, interventi e prezzi che il modulo Manutenzione usa per calcolare i preventivi di intervento.")}
         </p>
         {puoModificareTipi && (
           <Button
@@ -131,7 +132,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
             className="shrink-0"
           >
             <Sparkles className="h-4 w-4 mr-1.5" aria-hidden />
-            {creatingDemo ? "Importazione..." : "Importa un catalogo pronto"}
+            {creatingDemo ? tr("Importazione...") : tr("Importa un catalogo pronto")}
           </Button>
         )}
       </div>
@@ -140,10 +141,12 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
         <Alert>
           <AlertDescription>
             {permissions.solaLettura
-              ? "Modalità sola lettura: puoi consultare il listino di manutenzione senza modificarlo o importare cataloghi."
+              ? tr("Modalità sola lettura: puoi consultare il listino di manutenzione senza modificarlo o importare cataloghi.")
               : scheda === "prezzi"
-              ? "Stai consultando i prezzi di manutenzione: li cambia chi ha il permesso «Listino & Prezzi» in modifica."
-              : `Stai consultando ${scheda === "impianti" ? "i tipi di impianto" : "i tipi di intervento"}: li cambia l'amministratore dell'azienda.`}
+              ? tr("Stai consultando i prezzi di manutenzione: li cambia chi ha il permesso «Listino & Prezzi» in modifica.")
+              : scheda === "impianti"
+              ? tr("Stai consultando i tipi di impianto: li cambia l'amministratore dell'azienda.")
+              : tr("Stai consultando i tipi di intervento: li cambia l'amministratore dell'azienda.")}
           </AlertDescription>
         </Alert>
       )}
@@ -228,28 +231,26 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
           {(() => {
             const impiantoInUso = listino.filter((l) => l.tipo_impianto_id === deleteImpiantoId).length;
             const blocked = impiantoInUso > 0;
-            const impiantoNome = tipiImpianto.find((t) => t.id === deleteImpiantoId)?.nome ?? "questo tipo";
+            const impiantoNome = tipiImpianto.find((t) => t.id === deleteImpiantoId)?.nome ?? tr("questo tipo");
             return (
               <>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Elimina tipo di impianto</AlertDialogTitle>
+                  <AlertDialogTitle>{tr("Elimina tipo di impianto")}</AlertDialogTitle>
                   <AlertDialogDescription>
                     {blocked ? (
                       <>
-                        <span className="text-rose-700 font-medium">Impossibile eliminare.</span>{" "}
-                        {impiantoInUso === 1 ? "C'è " : "Ci sono "}<strong>{impiantoInUso}</strong>{" "}
-                        {impiantoInUso === 1 ? "prezzo di manutenzione collegato" : "prezzi di manutenzione collegati"} a
-                        {" "}<em>{impiantoNome}</em>.
-                        Elimina prima {impiantoInUso === 1 ? "quel prezzo" : "quei prezzi"}, oppure <strong>disattiva</strong> il tipo
-                        (apri «Modifica» e spegni «Attivo»): non si potrà più scegliere nei nuovi interventi, ma resta nello storico.
+                        <span className="text-rose-700 font-medium">{tr("Impossibile eliminare.")}</span>{" "}
+                        {impiantoInUso === 1
+                          ? tr("C'è 1 prezzo di manutenzione collegato a {nome}. Elimina prima quel prezzo, oppure disattiva il tipo (apri «Modifica» e spegni «Attivo»): non si potrà più scegliere nei nuovi interventi, ma resta nello storico.", { nome: impiantoNome })
+                          : tr("Ci sono {n} prezzi di manutenzione collegati a {nome}. Elimina prima quei prezzi, oppure disattiva il tipo (apri «Modifica» e spegni «Attivo»): non si potrà più scegliere nei nuovi interventi, ma resta nello storico.", { n: impiantoInUso, nome: impiantoNome })}
                       </>
                     ) : (
-                      <>Questa azione è irreversibile. Nessun prezzo è collegato a <em>{impiantoNome}</em>.</>
+                      <>{tr("Questa azione è irreversibile. Nessun prezzo è collegato a {nome}.", { nome: impiantoNome })}</>
                     )}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
                   <AlertDialogAction
                     className="bg-destructive text-destructive-foreground"
                     disabled={blocked}
@@ -260,7 +261,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
                       }
                     }}
                   >
-                    Elimina
+                    {tr("Elimina")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </>
@@ -274,28 +275,26 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
           {(() => {
             const interventoInUso = listino.filter((l) => l.tipo_intervento_id === deleteInterventoId).length;
             const blocked = interventoInUso > 0;
-            const interventoNome = tipiIntervento.find((t) => t.id === deleteInterventoId)?.nome ?? "questo tipo";
+            const interventoNome = tipiIntervento.find((t) => t.id === deleteInterventoId)?.nome ?? tr("questo tipo");
             return (
               <>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Elimina tipo di intervento</AlertDialogTitle>
+                  <AlertDialogTitle>{tr("Elimina tipo di intervento")}</AlertDialogTitle>
                   <AlertDialogDescription>
                     {blocked ? (
                       <>
-                        <span className="text-rose-700 font-medium">Impossibile eliminare.</span>{" "}
-                        {interventoInUso === 1 ? "C'è " : "Ci sono "}<strong>{interventoInUso}</strong>{" "}
-                        {interventoInUso === 1 ? "prezzo di manutenzione collegato" : "prezzi di manutenzione collegati"} a
-                        {" "}<em>{interventoNome}</em>.
-                        Elimina prima {interventoInUso === 1 ? "quel prezzo" : "quei prezzi"}, oppure <strong>disattiva</strong> il tipo
-                        (apri «Modifica» e spegni «Attivo»): non si potrà più scegliere nei nuovi interventi, ma resta nello storico.
+                        <span className="text-rose-700 font-medium">{tr("Impossibile eliminare.")}</span>{" "}
+                        {interventoInUso === 1
+                          ? tr("C'è 1 prezzo di manutenzione collegato a {nome}. Elimina prima quel prezzo, oppure disattiva il tipo (apri «Modifica» e spegni «Attivo»): non si potrà più scegliere nei nuovi interventi, ma resta nello storico.", { nome: interventoNome })
+                          : tr("Ci sono {n} prezzi di manutenzione collegati a {nome}. Elimina prima quei prezzi, oppure disattiva il tipo (apri «Modifica» e spegni «Attivo»): non si potrà più scegliere nei nuovi interventi, ma resta nello storico.", { n: interventoInUso, nome: interventoNome })}
                       </>
                     ) : (
-                      <>Questa azione è irreversibile. Nessun prezzo è collegato a <em>{interventoNome}</em>.</>
+                      <>{tr("Questa azione è irreversibile. Nessun prezzo è collegato a {nome}.", { nome: interventoNome })}</>
                     )}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
                   <AlertDialogAction
                     className="bg-destructive text-destructive-foreground"
                     disabled={blocked}
@@ -306,7 +305,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
                       }
                     }}
                   >
-                    Elimina
+                    {tr("Elimina")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </>
@@ -318,13 +317,13 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
       <AlertDialog open={!!deleteListinoId && puoModificarePrezzi} onOpenChange={(v) => !v && setDeleteListinoId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina prezzo di manutenzione</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Elimina prezzo di manutenzione")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione è irreversibile. Il prezzo verrà rimosso definitivamente.
+              {tr("Questa azione è irreversibile. Il prezzo verrà rimosso definitivamente.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground"
               onClick={() => {
@@ -334,7 +333,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
                 }
               }}
             >
-              Elimina
+              {tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

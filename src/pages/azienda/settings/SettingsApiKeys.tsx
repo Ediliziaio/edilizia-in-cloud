@@ -35,15 +35,13 @@ import { cn } from "@/lib/utils";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { ApiDocsTab } from "@/components/api/ApiDocsTab";
 import { ApiUsageChart } from "@/components/api/ApiUsageChart";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Nome in italiano di un permesso (`contacts:read` → «Leggi contatti»); se non lo conosciamo resta com'è. */
 const ETICHETTE_PERMESSI = new Map<string, string>(
   API_SCOPE_GROUPS.flatMap((g) => g.scopes.map((sc) => [sc.id, sc.label] as [string, string])),
 );
 const etichettaPermesso = (id: string) => ETICHETTE_PERMESSI.get(id) ?? id;
-
-/** «1 chiave attiva», «3 chiavi attive»: una, tante. */
-const quante = (n: number, una: string, tante: string) => `${n} ${n === 1 ? una : tante}`;
 
 const EXPIRY_OPTIONS: { value: ExpiryOption; label: string }[] = [
   { value: "never", label: "Non scade mai" },
@@ -62,6 +60,7 @@ function CreateApiKeyDialog({
   onOpenChange: (v: boolean) => void;
   companyId: string;
 }) {
+  const t = useT();
   const createMutation = useCreateApiKey(companyId);
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
@@ -101,11 +100,11 @@ function CreateApiKeyDialog({
     const trimmedName = name.trim();
     const normalizedScopes = Array.from(new Set(selectedScopes)).filter((scope) => ALL_SCOPE_IDS.includes(scope));
     if (!trimmedName || normalizedScopes.length === 0) {
-      toast.error("Scrivi il nome della chiave e scegli almeno una cosa che può fare.");
+      toast.error(t("Scrivi il nome della chiave e scegli almeno una cosa che può fare."));
       return;
     }
     if (trimmedName.length < 3 || trimmedName.length > 80) {
-      toast.error("Il nome della chiave deve contenere tra 3 e 80 caratteri.");
+      toast.error(t("Il nome della chiave deve contenere tra 3 e 80 caratteri."));
       return;
     }
     try {
@@ -113,7 +112,7 @@ function CreateApiKeyDialog({
       setGeneratedKey(key);
       setStep(2);
     } catch (e) {
-      toast.error(userErrorMessage(e, "Non sono riuscito a creare la chiave. Riprova."));
+      toast.error(userErrorMessage(e, t("Non sono riuscito a creare la chiave. Riprova.")));
     }
   };
 
@@ -121,7 +120,7 @@ function CreateApiKeyDialog({
     if (!generatedKey) return;
     await navigator.clipboard.writeText(generatedKey);
     setCopied(true);
-    toast.success("Chiave copiata negli appunti");
+    toast.success(t("Chiave copiata negli appunti"));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -129,30 +128,30 @@ function CreateApiKeyDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{step === 1 ? "Nuova chiave di accesso" : "Chiave creata"}</DialogTitle>
+          <DialogTitle>{step === 1 ? t("Nuova chiave di accesso") : t("Chiave creata")}</DialogTitle>
           <DialogDescription>
             {step === 1
-              ? "Scegli il nome, cosa può fare e fino a quando vale."
-              : "Copiala ora: dopo non si vede più."}
+              ? t("Scegli il nome, cosa può fare e fino a quando vale.")
+              : t("Copiala ora: dopo non si vede più.")}
           </DialogDescription>
         </DialogHeader>
 
         {step === 1 ? (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="chiave-nome">Nome della chiave *</Label>
-              <Input id="chiave-nome" placeholder="Es. Claude Code di Marco" value={name} onChange={(e) => setName(e.target.value)} />
+              <Label htmlFor="chiave-nome">{t("Nome della chiave *")}</Label>
+              <Input id="chiave-nome" placeholder={t("Es. Claude Code di Marco")} value={name} onChange={(e) => setName(e.target.value)} />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="chiave-scadenza">Scadenza</Label>
+              <Label htmlFor="chiave-scadenza">{t("Scadenza")}</Label>
               <Select value={expiry} onValueChange={(v) => setExpiry(v as ExpiryOption)}>
                 <SelectTrigger id="chiave-scadenza">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {EXPIRY_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    <SelectItem key={o.value} value={o.value}>{t(o.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -162,7 +161,7 @@ function CreateApiKeyDialog({
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label id="chiave-permessi">Cosa può fare la chiave *</Label>
+                <Label id="chiave-permessi">{t("Cosa può fare la chiave *")}</Label>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -171,7 +170,7 @@ function CreateApiKeyDialog({
                     setSelectedScopes(allSelected ? [] : [...ALL_SCOPE_IDS]);
                   }}
                 >
-                  {ALL_SCOPE_IDS.every((s) => selectedScopes.includes(s)) ? "Deseleziona tutti" : "Seleziona tutti"}
+                  {ALL_SCOPE_IDS.every((s) => selectedScopes.includes(s)) ? t("Deseleziona tutti") : t("Seleziona tutti")}
                 </Button>
               </div>
 
@@ -186,11 +185,11 @@ function CreateApiKeyDialog({
                       <Checkbox
                         checked={allGroupSelected}
                         onCheckedChange={(v) => toggleGroup(groupIds, !!v)}
-                        aria-label={`${group.label}: tutto`}
+                        aria-label={t("{label}: tutto", { label: t(group.label) })}
                       />
                       <div className="flex-1">
-                        <span className="text-sm font-medium">{group.label}</span>
-                        <span className="text-xs text-muted-foreground ml-2">{group.description}</span>
+                        <span className="text-sm font-medium">{t(group.label)}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{t(group.description)}</span>
                       </div>
                       {selectedCount > 0 && (
                         <Badge variant="secondary" className="text-xs">
@@ -205,11 +204,11 @@ function CreateApiKeyDialog({
                             checked={selectedScopes.includes(scope.id)}
                             onCheckedChange={() => toggleScope(scope.id)}
                             className="mt-0.5"
-                            aria-label={`${group.label}: ${scope.label}`}
+                            aria-label={`${t(group.label)}: ${t(scope.label)}`}
                           />
                           <div>
-                            <span className="text-sm">{scope.label}</span>
-                            <p className="text-xs text-muted-foreground">{scope.description}</p>
+                            <span className="text-sm">{t(scope.label)}</span>
+                            <p className="text-xs text-muted-foreground">{t(scope.description)}</p>
                           </div>
                         </div>
                       ))}
@@ -224,39 +223,38 @@ function CreateApiKeyDialog({
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                Copia questa chiave adesso. Per sicurezza non la conserviamo in chiaro:
-                dopo aver chiuso questa finestra non potrai più vederla.
+                {t("Copia questa chiave adesso. Per sicurezza non la conserviamo in chiaro: dopo aver chiuso questa finestra non potrai più vederla.")}
               </AlertDescription>
             </Alert>
 
             <div className="space-y-2">
-              <Label>Chiave</Label>
+              <Label>{t("Chiave")}</Label>
               <div className="flex items-center gap-2">
                 <code className="flex-1 text-xs bg-muted p-3 rounded-lg font-mono break-all select-all">
                   {generatedKey}
                 </code>
-                <Button size="icon" variant="outline" onClick={copyKey} aria-label="Copia la chiave">
+                <Button size="icon" variant="outline" onClick={copyKey} aria-label={t("Copia la chiave")}>
                   {copied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
 
             <div className="rounded-lg border p-3 space-y-2">
-              <p className="text-sm font-medium">Riepilogo</p>
+              <p className="text-sm font-medium">{t("Riepilogo")}</p>
               <div className="text-sm space-y-1">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Nome:</span>
+                  <span className="text-muted-foreground">{t("Nome:")}</span>
                   <span className="font-medium">{name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Scadenza:</span>
-                  <span>{expiry === "never" ? "Mai" : EXPIRY_OPTIONS.find((o) => o.value === expiry)?.label}</span>
+                  <span className="text-muted-foreground">{t("Scadenza:")}</span>
+                  <span>{expiry === "never" ? t("Mai") : t(EXPIRY_OPTIONS.find((o) => o.value === expiry)?.label ?? "")}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Cosa può fare:</span>
+                  <span className="text-muted-foreground">{t("Cosa può fare:")}</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {selectedScopes.map((s) => (
-                      <Badge key={s} variant="secondary" className="text-xs">{etichettaPermesso(s)}</Badge>
+                      <Badge key={s} variant="secondary" className="text-xs">{t(etichettaPermesso(s))}</Badge>
                     ))}
                   </div>
                 </div>
@@ -268,15 +266,15 @@ function CreateApiKeyDialog({
         <DialogFooter>
           {step === 1 ? (
             <>
-              <Button variant="outline" onClick={() => handleClose(false)}>Annulla</Button>
+              <Button variant="outline" onClick={() => handleClose(false)}>{t("Annulla")}</Button>
               <Button onClick={handleCreate} disabled={createMutation.isPending}>
                 {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Crea chiave
+                {t("Crea chiave")}
               </Button>
             </>
           ) : (
             <Button onClick={() => handleClose(false)} className="w-full">
-              Ho salvato la chiave — Chiudi
+              {t("Ho salvato la chiave — Chiudi")}
             </Button>
           )}
         </DialogFooter>
@@ -287,10 +285,11 @@ function CreateApiKeyDialog({
 
 // ---- ScopeBadges ----
 function ScopeBadges({ scopes }: { scopes: string[] }) {
+  const t = useT();
   return (
     <div className="flex flex-wrap gap-1">
       {scopes.slice(0, 4).map((s) => (
-        <Badge key={s} variant="secondary" className="text-xs" title={s}>{etichettaPermesso(s)}</Badge>
+        <Badge key={s} variant="secondary" className="text-xs" title={s}>{t(etichettaPermesso(s))}</Badge>
       ))}
       {scopes.length > 4 && (
         <Badge variant="outline" className="text-xs">+{scopes.length - 4}</Badge>
@@ -301,6 +300,7 @@ function ScopeBadges({ scopes }: { scopes: string[] }) {
 
 // ---- PAGINA PRINCIPALE ----
 export default function SettingsApiKeys() {
+  const t = useT();
   const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id as string;
   const revokeMutation = useRevokeApiKey(companyId);
@@ -342,29 +342,29 @@ export default function SettingsApiKeys() {
 
   const handleRevoke = async (keyId: string) => {
     if (!canManageApiKeys) {
-      toast.error("Per revocare una chiave serve il permesso «Integrazioni & Canali» in modifica.");
+      toast.error(t("Per revocare una chiave serve il permesso «Integrazioni & Canali» in modifica."));
       return;
     }
     try {
       await revokeMutation.mutateAsync(keyId);
-      toast.success("Chiave revocata");
+      toast.success(t("Chiave revocata"));
     } catch (e) {
-      toast.error(userErrorMessage(e, "Non sono riuscito a revocare la chiave. Riprova."));
+      toast.error(userErrorMessage(e, t("Non sono riuscito a revocare la chiave. Riprova.")));
     }
   };
 
   const handleRotate = async (key: ApiKey) => {
     if (!canManageApiKeys) {
-      toast.error("Per sostituire una chiave serve il permesso «Integrazioni & Canali» in modifica.");
+      toast.error(t("Per sostituire una chiave serve il permesso «Integrazioni & Canali» in modifica."));
       return;
     }
     try {
       const result = await rotateMutation.mutateAsync(key);
       setRotatedKey(result);
       setRotatedCopied(false);
-      toast.success("Chiave sostituita. Copia subito quella nuova.");
+      toast.success(t("Chiave sostituita. Copia subito quella nuova."));
     } catch (e) {
-      toast.error(userErrorMessage(e, "Non sono riuscito a sostituire la chiave. Riprova."));
+      toast.error(userErrorMessage(e, t("Non sono riuscito a sostituire la chiave. Riprova.")));
     }
   };
 
@@ -372,7 +372,7 @@ export default function SettingsApiKeys() {
     if (!rotatedKey) return;
     await navigator.clipboard.writeText(rotatedKey.rawKey);
     setRotatedCopied(true);
-    toast.success("Nuova chiave copiata negli appunti");
+    toast.success(t("Nuova chiave copiata negli appunti"));
     setTimeout(() => setRotatedCopied(false), 2000);
   };
 
@@ -381,46 +381,44 @@ export default function SettingsApiKeys() {
       {/* Il titolo della pagina lo mette già la testata delle Impostazioni (un solo h1): qui una riga con i numeri e l'azione. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          {quante(activeKeys.length, "chiave attiva", "chiavi attive")}
+          {activeKeys.length === 1 ? t("1 chiave attiva") : t("{n} chiavi attive", { n: activeKeys.length })}
           {unusedCount > 0 && (
-            <> · <span className="text-amber-700 dark:text-amber-400">{quante(unusedCount, "mai usata", "mai usate")}</span></>
+            <> · <span className="text-amber-700 dark:text-amber-400">{unusedCount === 1 ? t("1 mai usata") : t("{n} mai usate", { n: unusedCount })}</span></>
           )}
           {expiredCount > 0 && (
-            <> · <span className="text-destructive">{quante(expiredCount, "scaduta", "scadute")}</span></>
+            <> · <span className="text-destructive">{expiredCount === 1 ? t("1 scaduta") : t("{n} scadute", { n: expiredCount })}</span></>
           )}
           {revokedKeys.length > 0 && (
-            <> · <span className="text-muted-foreground/60">{quante(revokedKeys.length, "revocata", "revocate")}</span></>
+            <> · <span className="text-muted-foreground/60">{revokedKeys.length === 1 ? t("1 revocata") : t("{n} revocate", { n: revokedKeys.length })}</span></>
           )}
         </p>
         <Button onClick={() => setFormOpen(true)} className="gap-2 h-9" size="sm" disabled={!canManageApiKeys}>
-          <Plus className="h-4 w-4" /> Nuova chiave
+          <Plus className="h-4 w-4" /> {t("Nuova chiave")}
         </Button>
       </div>
 
       <Tabs defaultValue="keys" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="keys" className="gap-2"><Key className="h-4 w-4" /> Chiavi</TabsTrigger>
-          <TabsTrigger value="usage" className="gap-2"><Activity className="h-4 w-4" /> Utilizzo</TabsTrigger>
-          <TabsTrigger value="docs" className="gap-2"><Book className="h-4 w-4" /> Documentazione</TabsTrigger>
+          <TabsTrigger value="keys" className="gap-2"><Key className="h-4 w-4" /> {t("Chiavi")}</TabsTrigger>
+          <TabsTrigger value="usage" className="gap-2"><Activity className="h-4 w-4" /> {t("Utilizzo")}</TabsTrigger>
+          <TabsTrigger value="docs" className="gap-2"><Book className="h-4 w-4" /> {t("Documentazione")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="keys" className="space-y-4">
           <div className="rounded-lg border bg-card px-4 py-3">
             <p className="text-sm">
-              Una chiave permette a Claude Code, Claude Desktop o a un programma di accedere ai dati dell'azienda al
-              posto tuo: scegli tu cosa può leggere e cosa può modificare. Creane una per ogni uso e revocala quando non
-              serve più.
+              {t("Una chiave permette a Claude Code, Claude Desktop o a un programma di accedere ai dati dell'azienda al posto tuo: scegli tu cosa può leggere e cosa può modificare. Creane una per ogni uso e revocala quando non serve più.")}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Claude sul sito e ChatGPT non usano le chiavi: si collegano da{" "}
-              <Link to="/azienda/impostazioni/integrazioni" className="text-primary underline">Integrazioni</Link>.
+              {t("Claude sul sito e ChatGPT non usano le chiavi: si collegano da")}{" "}
+              <Link to="/azienda/impostazioni/integrazioni" className="text-primary underline">{t("Integrazioni")}</Link>.
             </p>
             <details className="mt-2 text-xs text-muted-foreground">
-              <summary className="cursor-pointer py-1 font-medium text-foreground">Come tenerla al sicuro</summary>
+              <summary className="cursor-pointer py-1 font-medium text-foreground">{t("Come tenerla al sicuro")}</summary>
               <ul className="mt-1 list-disc list-inside space-y-0.5">
-                <li>Non scriverla in un file condiviso, in un messaggio o in un documento.</li>
-                <li>Se pensi che l'abbiano vista altri, revocala e creane una nuova.</li>
-                <li>Ogni chiave ha un limite di richieste al minuto e al giorno: lo vedi su ciascuna.</li>
+                <li>{t("Non scriverla in un file condiviso, in un messaggio o in un documento.")}</li>
+                <li>{t("Se pensi che l'abbiano vista altri, revocala e creane una nuova.")}</li>
+                <li>{t("Ogni chiave ha un limite di richieste al minuto e al giorno: lo vedi su ciascuna.")}</li>
               </ul>
             </details>
           </div>
@@ -429,8 +427,7 @@ export default function SettingsApiKeys() {
             <Alert>
               <ShieldAlert className="h-4 w-4" />
               <AlertDescription>
-                Stai solo consultando: per creare, sostituire o revocare una chiave serve il permesso «Integrazioni &amp;
-                Canali» in modifica (o essere amministratore).
+                {t("Stai solo consultando: per creare, sostituire o revocare una chiave serve il permesso «Integrazioni & Canali» in modifica (o essere amministratore).")}
               </AlertDescription>
             </Alert>
           )}
@@ -447,20 +444,20 @@ export default function SettingsApiKeys() {
                   <Input
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Cerca per nome o per cosa può fare…"
-                    aria-label="Cerca una chiave"
+                    placeholder={t("Cerca per nome o per cosa può fare…")}
+                    aria-label={t("Cerca una chiave")}
                     className="pl-9"
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
-                  <SelectTrigger className="w-full sm:w-48" aria-label="Filtra per stato">
+                  <SelectTrigger className="w-full sm:w-48" aria-label={t("Filtra per stato")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti gli stati</SelectItem>
-                    <SelectItem value="active">Usate e valide</SelectItem>
-                    <SelectItem value="unused">Mai usate</SelectItem>
-                    <SelectItem value="expired">Scadute</SelectItem>
+                    <SelectItem value="all">{t("Tutti gli stati")}</SelectItem>
+                    <SelectItem value="active">{t("Usate e valide")}</SelectItem>
+                    <SelectItem value="unused">{t("Mai usate")}</SelectItem>
+                    <SelectItem value="expired">{t("Scadute")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -474,11 +471,11 @@ export default function SettingsApiKeys() {
                         <Key className="h-8 w-8 text-muted-foreground" />
                       </div>
                       <div>
-                        <p className="font-medium">Nessuna chiave attiva</p>
-                        <p className="text-sm text-muted-foreground">Creane una per collegare Claude Code, Claude Desktop o un programma ai dati dell'azienda.</p>
+                        <p className="font-medium">{t("Nessuna chiave attiva")}</p>
+                        <p className="text-sm text-muted-foreground">{t("Creane una per collegare Claude Code, Claude Desktop o un programma ai dati dell'azienda.")}</p>
                       </div>
                       <Button onClick={() => setFormOpen(true)} className="gap-2" disabled={!canManageApiKeys}>
-                        <Plus className="h-4 w-4" /> Nuova chiave
+                        <Plus className="h-4 w-4" /> {t("Nuova chiave")}
                       </Button>
                     </div>
                   </CardContent>
@@ -487,8 +484,8 @@ export default function SettingsApiKeys() {
                 <Card>
                   <CardContent className="py-10 text-center">
                     <Search className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                    <p className="font-medium">Nessuna chiave corrisponde ai filtri</p>
-                    <p className="text-sm text-muted-foreground">Cambia la ricerca o il filtro per stato.</p>
+                    <p className="font-medium">{t("Nessuna chiave corrisponde ai filtri")}</p>
+                    <p className="text-sm text-muted-foreground">{t("Cambia la ricerca o il filtro per stato.")}</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -511,15 +508,15 @@ export default function SettingsApiKeys() {
                                 <p className="font-medium">{key.name}</p>
                                 {expired ? (
                                   <Badge variant="destructive" className="text-xs gap-1">
-                                    <AlertTriangle className="h-3 w-3" /> Scaduta
+                                    <AlertTriangle className="h-3 w-3" /> {t("Scaduta")}
                                   </Badge>
                                 ) : unused ? (
                                   <Badge variant="outline" className="text-xs gap-1 border-amber-400 text-amber-700 bg-amber-50 dark:bg-amber-950/30">
-                                    Mai usata
+                                    {t("Mai usata")}
                                   </Badge>
                                 ) : (
                                   <Badge variant="outline" className="text-xs gap-1 border-emerald-400 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30">
-                                    <CheckCircle2 className="h-3 w-3" /> Attiva
+                                    <CheckCircle2 className="h-3 w-3" /> {t("Attiva")}
                                   </Badge>
                                 )}
                               </div>
@@ -531,24 +528,21 @@ export default function SettingsApiKeys() {
                                 {key.last_used_at ? (
                                   <span className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
-                                    Usata {formatRelativeTime(key.last_used_at)}
+                                    {t("Usata {quando}", { quando: formatRelativeTime(key.last_used_at) })}
                                   </span>
                                 ) : (
                                   <span className="flex items-center gap-1 text-amber-600">
                                     <Clock className="h-3 w-3" />
-                                    Mai usata
+                                    {t("Mai usata")}
                                   </span>
                                 )}
                                 {key.expires_at && (
                                   <span className={expired ? "text-destructive" : ""}>
-                                    {expired ? "Scaduta il" : "Scade"}: {formatDate(key.expires_at)}
+                                    {expired ? t("Scaduta il: {data}", { data: formatDate(key.expires_at) }) : t("Scade: {data}", { data: formatDate(key.expires_at) })}
                                   </span>
                                 )}
-                                <span>Creata {formatRelativeTime(key.created_at)}</span>
-                                <span>
-                                  Limite: {key.rate_limit_per_minute.toLocaleString("it-IT")} richieste al minuto,{" "}
-                                  {key.rate_limit_per_day.toLocaleString("it-IT")} al giorno
-                                </span>
+                                <span>{t("Creata {created_at}", { created_at: formatRelativeTime(key.created_at) })}</span>
+                                <span>{t("Limite: {rate_limit_per_minute} richieste al minuto, {rate_limit_per_day} al giorno", { rate_limit_per_minute: key.rate_limit_per_minute.toLocaleString(intlCampo()), rate_limit_per_day: key.rate_limit_per_day.toLocaleString(intlCampo()) })}</span>
                               </div>
                             </div>
 
@@ -566,21 +560,20 @@ export default function SettingsApiKeys() {
                                   ) : (
                                     <RotateCcw className="h-3.5 w-3.5" />
                                   )}
-                                  Sostituisci
+                                  {t("Sostituisci")}
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Sostituire la chiave?</AlertDialogTitle>
+                                  <AlertDialogTitle>{t("Sostituire la chiave?")}</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Creo una chiave nuova con gli stessi permessi e revoco <strong>{key.name}</strong>.
-                                    Copia subito la nuova: dopo non si vede più.
+                                    {t("Creo una chiave nuova con gli stessi permessi e revoco {nome}. Copia subito la nuova: dopo non si vede più.", { nome: key.name })}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                  <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                                   <AlertDialogAction onClick={() => handleRotate(key)} disabled={rotateMutation.isPending}>
-                                    {rotateMutation.isPending ? "Sostituzione…" : "Sostituisci la chiave"}
+                                    {rotateMutation.isPending ? t("Sostituzione…") : t("Sostituisci la chiave")}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
@@ -599,19 +592,18 @@ export default function SettingsApiKeys() {
                                   ) : (
                                     <Trash2 className="h-3.5 w-3.5" />
                                   )}
-                                  Revoca
+                                  {t("Revoca")}
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Revocare la chiave?</AlertDialogTitle>
+                                  <AlertDialogTitle>{t("Revocare la chiave?")}</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    La chiave <strong>{key.name}</strong> ({key.key_prefix}…) smette subito di funzionare.
-                                    Non si può annullare.
+                                    {t("La chiave {nome} ({prefisso}…) smette subito di funzionare. Non si può annullare.", { nome: key.name, prefisso: key.key_prefix })}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                  <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={() => handleRevoke(key.id)}
                                     disabled={revokeMutation.isPending}
@@ -620,10 +612,10 @@ export default function SettingsApiKeys() {
                                     {revokeMutation.isPending ? (
                                       <>
                                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        Revoca in corso…
+                                        {t("Revoca in corso…")}
                                       </>
                                     ) : (
-                                      "Sì, revoca"
+                                      t("Sì, revoca")
                                     )}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
@@ -645,7 +637,7 @@ export default function SettingsApiKeys() {
                     onClick={() => setRevokedOpen(!revokedOpen)}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    Chiavi revocate ({revokedKeys.length}) {revokedOpen ? "▾" : "▸"}
+                    {t("Chiavi revocate ({n})", { n: revokedKeys.length })} {revokedOpen ? "▾" : "▸"}
                   </button>
                   {revokedOpen && (
                     <div className="mt-2 space-y-2">
@@ -656,13 +648,11 @@ export default function SettingsApiKeys() {
                               <div>
                                 <div className="flex items-center gap-2">
                                   <p className="text-sm font-medium">{key.name}</p>
-                                  <Badge variant="outline" className="text-xs">Revocata</Badge>
+                                  <Badge variant="outline" className="text-xs">{t("Revocata")}</Badge>
                                 </div>
                                 <code className="text-xs text-muted-foreground font-mono">{key.key_prefix}...</code>
                                 {key.revoked_at && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Revocata {formatRelativeTime(key.revoked_at)}
-                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-1">{t("Revocata {revoked_at}", { revoked_at: formatRelativeTime(key.revoked_at) })}</p>
                                 )}
                               </div>
                             </div>
@@ -682,10 +672,9 @@ export default function SettingsApiKeys() {
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              <p className="font-medium">Questo grafico non è ancora collegato.</p>
+              <p className="font-medium">{t("Questo grafico non è ancora collegato.")}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Resta vuoto anche quando le chiavi vengono usate. Per sapere se una chiave lavora guarda «Usata…»
-                nell'elenco delle chiavi.
+                {t("Resta vuoto anche quando le chiavi vengono usate. Per sapere se una chiave lavora guarda «Usata…» nell'elenco delle chiavi.")}
               </p>
             </AlertDescription>
           </Alert>
@@ -701,14 +690,14 @@ export default function SettingsApiKeys() {
       <Dialog open={!!rotatedKey} onOpenChange={(open) => !open && setRotatedKey(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Nuova chiave pronta</DialogTitle>
+            <DialogTitle>{t("Nuova chiave pronta")}</DialogTitle>
             <DialogDescription>
-              Copiala ora: dopo aver chiuso questa finestra non si vede più.
+              {t("Copiala ora: dopo aver chiuso questa finestra non si vede più.")}
             </DialogDescription>
           </DialogHeader>
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>La chiave vecchia è stata revocata: aggiorna subito dove la usavi.</AlertDescription>
+            <AlertDescription>{t("La chiave vecchia è stata revocata: aggiorna subito dove la usavi.")}</AlertDescription>
           </Alert>
           <div className="space-y-2">
             <Label>{rotatedKey?.name}</Label>
@@ -716,13 +705,13 @@ export default function SettingsApiKeys() {
               <code className="flex-1 text-xs bg-muted p-3 rounded-lg font-mono break-all select-all">
                 {rotatedKey?.rawKey}
               </code>
-              <Button size="icon" variant="outline" onClick={copyRotatedKey} aria-label="Copia la nuova chiave">
+              <Button size="icon" variant="outline" onClick={copyRotatedKey} aria-label={t("Copia la nuova chiave")}>
                 {rotatedCopied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={() => setRotatedKey(null)} className="w-full">Ho salvato la chiave — Chiudi</Button>
+            <Button onClick={() => setRotatedKey(null)} className="w-full">{t("Ho salvato la chiave — Chiudi")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

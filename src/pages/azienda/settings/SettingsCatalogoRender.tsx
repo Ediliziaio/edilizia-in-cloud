@@ -26,6 +26,7 @@ import {
 } from "@/lib/render/renderCatalog";
 import { motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface PendingFile {
   file: File;
@@ -52,6 +53,7 @@ function nomeDaFile(name: string): string {
  * invisibili da tastiera, e da telefono coprivano la miniatura); gli errori dicono il motivo.
  */
 export default function SettingsCatalogoRender() {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const isMobile = useIsMobile();
@@ -87,7 +89,7 @@ export default function SettingsCatalogoRender() {
   const onFiles = useCallback((files: FileList | null) => {
     if (!files || files.length === 0) return;
     if (files.length > MAX_FOTO_PER_VOLTA) {
-      toast.info(`Ho preso le prime ${MAX_FOTO_PER_VOLTA} foto: le altre caricale dopo.`);
+      toast.info(t("Ho preso le prime {MAX_FOTO_PER_VOLTA} foto: le altre caricale dopo.", { MAX_FOTO_PER_VOLTA: String(MAX_FOTO_PER_VOLTA ?? "") }));
     }
     const categoriaDefault = filtroCategoria !== "tutte" ? filtroCategoria : def.categorie[0].value;
     setPending(Array.from(files).slice(0, MAX_FOTO_PER_VOLTA).map((file) => ({
@@ -111,7 +113,7 @@ export default function SettingsCatalogoRender() {
         });
         ok += 1;
       } catch (e) {
-        fallite.push({ nome: p.file.name, motivo: motivoDelRifiuto(e, "Riprova tra poco.") });
+        fallite.push({ nome: p.file.name, motivo: motivoDelRifiuto(e, t("Riprova tra poco.")) });
       }
     }
     setUploading(false);
@@ -119,34 +121,34 @@ export default function SettingsCatalogoRender() {
     if (ok > 0) setReloadKey((k) => k + 1);
     // Un solo messaggio: tutto riuscito, o quali foto no e perché (prima uno per foto, con il testo grezzo del server).
     if (fallite.length === 0) {
-      toast.success(ok === 1 ? "Foto aggiunta al catalogo" : `${ok} foto aggiunte al catalogo`);
+      toast.success(ok === 1 ? t("Foto aggiunta al catalogo") : t("{ok} foto aggiunte al catalogo", { ok: String(ok ?? "") }));
       return;
     }
     const titolo = ok > 0
-      ? `Aggiunte ${ok} foto su ${ok + fallite.length}`
-      : fallite.length === 1 ? `Non sono riuscito a caricare ${fallite[0].nome}` : "Non sono riuscito a caricare le foto";
+      ? t("Aggiunte {ok} foto su {totale}", { ok, totale: ok + fallite.length })
+      : fallite.length === 1 ? t("Non sono riuscito a caricare {nome}", { nome: fallite[0].nome }) : t("Non sono riuscito a caricare le foto");
     toast.error(titolo, { description: fallite.slice(0, 3).map((f) => `${f.nome}: ${f.motivo}`).join(" · ") });
-  }, [companyId, user, pending, verticale]);
+  }, [companyId, user, pending, verticale, t]);
 
   const elimina = useCallback(async (asset: RenderCatalogAsset) => {
     const ok = await confirm({
-      title: `Eliminare «${asset.etichetta}» dal catalogo?`,
-      description: "La foto non sarà più tra quelle che puoi scegliere per un render. Non si può annullare.",
-      confirmLabel: "Elimina",
+      title: t("Eliminare «{etichetta}» dal catalogo?", { etichetta: String(asset.etichetta ?? "") }),
+      description: t("La foto non sarà più tra quelle che puoi scegliere per un render. Non si può annullare."),
+      confirmLabel: t("Elimina"),
       variant: "destructive",
     });
     if (!ok) return;
     setDeleting(asset.id);
     try {
       await deleteRenderCatalogAsset(asset);
-      toast.success("Foto eliminata");
+      toast.success(t("Foto eliminata"));
       setReloadKey((k) => k + 1);
     } catch (e) {
-      toast.error(`Non sono riuscito a eliminare «${asset.etichetta}»`, { description: motivoDelRifiuto(e, "Riprova tra poco.") });
+      toast.error(t("Non sono riuscito a eliminare «{etichetta}»", { etichetta: String(asset.etichetta ?? "") }), { description: motivoDelRifiuto(e, t("Riprova tra poco.")) });
     } finally {
       setDeleting(null);
     }
-  }, [confirm]);
+  }, [confirm, t]);
 
   const apriModifica = (asset: RenderCatalogAsset) => {
     setInModifica(asset);
@@ -160,29 +162,25 @@ export default function SettingsCatalogoRender() {
     setSalvando(true);
     try {
       await updateRenderCatalogAsset(inModifica.id, { etichetta: etichetta.slice(0, 120), categoria: bozza.categoria });
-      toast.success("Foto aggiornata");
+      toast.success(t("Foto aggiornata"));
       setInModifica(null);
       setReloadKey((k) => k + 1);
     } catch (e) {
-      toast.error(`Non sono riuscito ad aggiornare «${inModifica.etichetta}»`, { description: motivoDelRifiuto(e, "Riprova tra poco.") });
+      toast.error(t("Non sono riuscito ad aggiornare «{etichetta}»", { etichetta: String(inModifica.etichetta ?? "") }), { description: motivoDelRifiuto(e, t("Riprova tra poco.")) });
     } finally {
       setSalvando(false);
     }
-  }, [inModifica, bozza]);
+  }, [inModifica, bozza, t]);
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        Carica le foto dei prodotti che vendi (su fondo neutro, da catalogo). Quando prepari un render potrai
-        sceglierne fino a {MAX_CATALOG_REFERENCES}: il render mostrerà il tuo prodotto, adattato alla prospettiva
-        e alla luce della foto del cliente.
-      </p>
+      <p className="text-sm text-muted-foreground">{t("Carica le foto dei prodotti che vendi (su fondo neutro, da catalogo). Quando prepari un render potrai sceglierne fino a {MAX_CATALOG_REFERENCES}: il render mostrerà il tuo prodotto, adattato alla prospettiva e alla luce della foto del cliente.", { MAX_CATALOG_REFERENCES: String(MAX_CATALOG_REFERENCES ?? "") })}</p>
 
       {!canEdit && (
         <Alert>
           <Lock className="h-4 w-4" />
           <AlertDescription>
-            Stai consultando il catalogo: lo cambia chi ha il permesso «Personalizzazione» in modifica.
+            {t("Stai consultando il catalogo: lo cambia chi ha il permesso «Personalizzazione» in modifica.")}
           </AlertDescription>
         </Alert>
       )}
@@ -190,13 +188,13 @@ export default function SettingsCatalogoRender() {
       <div className={cn("flex gap-2", isMobile ? "flex-col" : "flex-wrap items-center")}>
         {isMobile ? (
           <Select value={verticale} onValueChange={(v) => cambiaVerticale(v as RenderCatalogVerticale)}>
-            <SelectTrigger className="h-9" aria-label="Tipo di prodotto"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9" aria-label={t("Tipo di prodotto")}><SelectValue /></SelectTrigger>
             <SelectContent>
-              {RENDER_CATALOG_VERTICALI.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+              {RENDER_CATALOG_VERTICALI.map((v) => <SelectItem key={v.value} value={v.value}>{t(v.label)}</SelectItem>)}
             </SelectContent>
           </Select>
         ) : (
-          <div className="flex flex-wrap gap-1" role="group" aria-label="Tipo di prodotto">
+          <div className="flex flex-wrap gap-1" role="group" aria-label={t("Tipo di prodotto")}>
             {RENDER_CATALOG_VERTICALI.map((v) => (
               <Button
                 key={v.value}
@@ -205,23 +203,23 @@ export default function SettingsCatalogoRender() {
                 aria-pressed={v.value === verticale}
                 onClick={() => cambiaVerticale(v.value)}
               >
-                {v.label}
+                {t(v.label)}
               </Button>
             ))}
           </div>
         )}
         <div className="flex flex-1 gap-2">
           <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
-            <SelectTrigger className="h-9 flex-1 md:max-w-[220px]" aria-label="Filtra per categoria"><SelectValue placeholder="Categoria" /></SelectTrigger>
+            <SelectTrigger className="h-9 flex-1 md:max-w-[220px]" aria-label={t("Filtra per categoria")}><SelectValue placeholder={t("Categoria")} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutte">Tutte le categorie</SelectItem>
-              {def.categorie.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+              <SelectItem value="tutte">{t("Tutte le categorie")}</SelectItem>
+              {def.categorie.map((c) => <SelectItem key={c.value} value={c.value}>{t(c.label)}</SelectItem>)}
             </SelectContent>
           </Select>
           {canEdit && (
             <>
               <Button className="flex-1 md:flex-none" onClick={() => fileInput.current?.click()}>
-                <ImagePlus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Carica foto
+                <ImagePlus className="mr-1.5 h-4 w-4" aria-hidden="true" /> {t("Carica foto")}
               </Button>
               <input ref={fileInput} type="file" accept={RENDER_CATALOG_ACCEPT} multiple hidden onChange={(e) => onFiles(e.target.files)} />
             </>
@@ -231,12 +229,12 @@ export default function SettingsCatalogoRender() {
 
       {error && (
         <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-destructive">
-          Non riesco a leggere il catalogo.
-          <Button size="sm" variant="outline" onClick={() => setReloadKey((k) => k + 1)}>Riprova</Button>
+          {t("Non riesco a leggere il catalogo.")}
+          <Button size="sm" variant="outline" onClick={() => setReloadKey((k) => k + 1)}>{t("Riprova")}</Button>
         </div>
       )}
       {loading ? (
-        <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Caricamento…</div>
+        <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t("Caricamento…")}</div>
       ) : visibili.length === 0 ? (
         canEdit ? (
           <button
@@ -245,11 +243,11 @@ export default function SettingsCatalogoRender() {
             className="flex w-full flex-col items-center gap-2 rounded-xl border border-dashed py-10 text-sm text-muted-foreground hover:border-primary/60"
           >
             <ImagePlus className="h-6 w-6" aria-hidden="true" />
-            Nessuna foto per {def.label.toLowerCase()}{filtroCategoria !== "tutte" ? ` · ${categoriaLabel(verticale, filtroCategoria)}` : ""}. Tocca per caricare.
+            {t("Nessuna foto per {cosa}. Tocca per caricare.", { cosa: `${t(def.label).toLowerCase()}${filtroCategoria !== "tutte" ? ` · ${t(categoriaLabel(verticale, filtroCategoria))}` : ""}` })}
           </button>
         ) : (
           <p className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground">
-            Nessuna foto per {def.label.toLowerCase()}{filtroCategoria !== "tutte" ? ` · ${categoriaLabel(verticale, filtroCategoria)}` : ""}.
+            {t("Nessuna foto per {cosa}.", { cosa: `${t(def.label).toLowerCase()}${filtroCategoria !== "tutte" ? ` · ${t(categoriaLabel(verticale, filtroCategoria))}` : ""}` })}
           </p>
         )
       ) : (
@@ -261,13 +259,13 @@ export default function SettingsCatalogoRender() {
               </div>
               <div className="space-y-1 p-1.5">
                 <p className="truncate text-xs font-medium" title={a.etichetta}>{a.etichetta}</p>
-                <Badge variant="secondary" className="block h-4 max-w-full truncate px-1 text-[10px] font-normal">{categoriaLabel(verticale, a.categoria)}</Badge>
+                <Badge variant="secondary" className="block h-4 max-w-full truncate px-1 text-[10px] font-normal">{t(categoriaLabel(verticale, a.categoria))}</Badge>
                 {canEdit && (
                   <div className="flex items-center justify-end">
                     <button
                       type="button"
-                      aria-label={`Modifica «${a.etichetta}»`}
-                      title="Modifica etichetta e categoria"
+                      aria-label={t("Modifica «{etichetta}»", { etichetta: String(a.etichetta ?? "") })}
+                      title={t("Modifica etichetta e categoria")}
                       onClick={() => apriModifica(a)}
                       className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                     >
@@ -275,8 +273,8 @@ export default function SettingsCatalogoRender() {
                     </button>
                     <button
                       type="button"
-                      aria-label={`Elimina «${a.etichetta}»`}
-                      title="Elimina dal catalogo"
+                      aria-label={t("Elimina «{etichetta}»", { etichetta: String(a.etichetta ?? "") })}
+                      title={t("Elimina dal catalogo")}
                       disabled={deleting === a.id}
                       onClick={() => void elimina(a)}
                       className="rounded-full p-1 text-destructive hover:bg-destructive/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
@@ -294,7 +292,7 @@ export default function SettingsCatalogoRender() {
       <Dialog open={pending.length > 0} onOpenChange={(open) => { if (!open && !uploading) setPending([]); }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{pending.length === 1 ? "Nuova foto prodotto" : `${pending.length} nuove foto prodotto`} · {def.label}</DialogTitle>
+            <DialogTitle>{pending.length === 1 ? t("Nuova foto prodotto") : t("{n} nuove foto prodotto", { n: pending.length })} · {t(def.label)}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             {pending.map((p, i) => (
@@ -302,20 +300,20 @@ export default function SettingsCatalogoRender() {
                 <img src={p.preview} alt="" className="h-16 w-16 shrink-0 rounded-md border object-cover" />
                 <div className="flex-1 space-y-1.5">
                   <div>
-                    <Label htmlFor={`catalogo-etichetta-${i}`} className="text-[11px]">Etichetta (come la vedrà il render)</Label>
+                    <Label htmlFor={`catalogo-etichetta-${i}`} className="text-[11px]">{t("Etichetta (come la vedrà il render)")}</Label>
                     <Input
                       id={`catalogo-etichetta-${i}`}
                       value={p.etichetta}
                       maxLength={120}
-                      placeholder="es. Mobile sospeso rovere 120 cm"
+                      placeholder={t("es. Mobile sospeso rovere 120 cm")}
                       onChange={(e) => setPending((arr) => arr.map((x, j) => j === i ? { ...x, etichetta: e.target.value } : x))}
                       className="h-8 text-sm"
                     />
                   </div>
                   <Select value={p.categoria} onValueChange={(v) => setPending((arr) => arr.map((x, j) => j === i ? { ...x, categoria: v } : x))}>
-                    <SelectTrigger className="h-8 text-sm" aria-label={`Categoria di ${p.etichetta || p.file.name}`}><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-sm" aria-label={t("Categoria di {nome}", { nome: p.etichetta || p.file.name })}><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {def.categorie.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                      {def.categorie.map((c) => <SelectItem key={c.value} value={c.value}>{t(c.label)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -323,10 +321,10 @@ export default function SettingsCatalogoRender() {
             ))}
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" disabled={uploading} onClick={() => setPending([])}>Annulla</Button>
+            <Button variant="outline" disabled={uploading} onClick={() => setPending([])}>{t("Annulla")}</Button>
             <Button className="flex-1 sm:flex-none" disabled={uploading || pending.some((p) => !p.etichetta.trim())} onClick={salva}>
               {uploading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-              Salva nel catalogo
+              {t("Salva nel catalogo")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -336,7 +334,7 @@ export default function SettingsCatalogoRender() {
       <Dialog open={inModifica !== null} onOpenChange={(open) => { if (!open && !salvando) setInModifica(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Modifica la foto</DialogTitle>
+            <DialogTitle>{t("Modifica la foto")}</DialogTitle>
           </DialogHeader>
           {inModifica && (
             <div className="flex gap-3">
@@ -345,7 +343,7 @@ export default function SettingsCatalogoRender() {
               )}
               <div className="flex-1 space-y-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="catalogo-modifica-etichetta" className="text-xs">Etichetta (come la vedrà il render)</Label>
+                  <Label htmlFor="catalogo-modifica-etichetta" className="text-xs">{t("Etichetta (come la vedrà il render)")}</Label>
                   <Input
                     id="catalogo-modifica-etichetta"
                     value={bozza.etichetta}
@@ -354,11 +352,11 @@ export default function SettingsCatalogoRender() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="catalogo-modifica-categoria" className="text-xs">Categoria</Label>
+                  <Label htmlFor="catalogo-modifica-categoria" className="text-xs">{t("Categoria")}</Label>
                   <Select value={bozza.categoria} onValueChange={(v) => setBozza((b) => ({ ...b, categoria: v }))}>
                     <SelectTrigger id="catalogo-modifica-categoria"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {def.categorie.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                      {def.categorie.map((c) => <SelectItem key={c.value} value={c.value}>{t(c.label)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -366,10 +364,10 @@ export default function SettingsCatalogoRender() {
             </div>
           )}
           <DialogFooter className="gap-2">
-            <Button variant="outline" disabled={salvando} onClick={() => setInModifica(null)}>Annulla</Button>
+            <Button variant="outline" disabled={salvando} onClick={() => setInModifica(null)}>{t("Annulla")}</Button>
             <Button disabled={salvando || !bozza.etichetta.trim()} onClick={() => void salvaModifica()}>
               {salvando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-              Salva
+              {t("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>

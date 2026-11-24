@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CheckCircle2, XCircle, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TRUSTED_ORIGINS = [
   "https://app.ediliziaincloud.com",
@@ -40,6 +41,7 @@ function postResultToOpener(status: "success" | "error", error: string | null) {
 }
 
 export default function CalendarOAuthCallbackPage() {
+  const t = useT();
   const [searchParams] = useSearchParams();
   const status = searchParams.get("status") === "success" ? "success" : "error";
   const error = searchParams.get("error");
@@ -63,9 +65,9 @@ export default function CalendarOAuthCallbackPage() {
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
               <CheckCircle2 className="h-7 w-7 text-emerald-600" />
             </div>
-            <h1 className="text-xl font-semibold text-slate-900">Google Calendar collegato</h1>
+            <h1 className="text-xl font-semibold text-slate-900">{t("Google Calendar collegato")}</h1>
             <p className="mt-2 text-sm text-slate-600">
-              Tutto fatto. Puoi chiudere questa finestra — l'app si aggiorna da sola.
+              {t("Tutto fatto. Puoi chiudere questa finestra — l'app si aggiorna da sola.")}
             </p>
           </>
         ) : (
@@ -73,11 +75,11 @@ export default function CalendarOAuthCallbackPage() {
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-100">
               <XCircle className="h-7 w-7 text-rose-600" />
             </div>
-            <h1 className="text-xl font-semibold text-slate-900">Collegamento non riuscito</h1>
+            <h1 className="text-xl font-semibold text-slate-900">{t("Collegamento non riuscito")}</h1>
             <p className="mt-2 text-sm text-slate-600">
               {error
-                ? `Errore: ${error}`
-                : "Si è verificato un problema con il collegamento. Riprova dalle impostazioni."}
+                ? t("Errore: {error}", { error: String(error ?? "") })
+                : t("Si è verificato un problema con il collegamento. Riprova dalle impostazioni.")}
             </p>
           </>
         )}
@@ -86,10 +88,10 @@ export default function CalendarOAuthCallbackPage() {
           {closing ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" />
-              Chiudo la finestra…
+              {t("Chiudo la finestra…")}
             </>
           ) : (
-            <>Chiusura automatica in corso…</>
+            <>{t("Chiusura automatica in corso…")}</>
           )}
         </div>
 
@@ -106,7 +108,7 @@ export default function CalendarOAuthCallbackPage() {
           }}
         >
           <X className="mr-1 h-3.5 w-3.5" />
-          Chiudi finestra
+          {t("Chiudi finestra")}
         </Button>
       </div>
     </div>

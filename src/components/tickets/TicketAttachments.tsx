@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { LinkAllegatoTicket } from "./LinkAllegatoTicket";
 import { completaAllegato, preparaAllegato, type AllegatoDaCaricare } from "@/lib/tickets/caricaAllegato";
 import { Upload, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface TicketAttachmentsProps {
   ticketId: string;
@@ -27,6 +28,7 @@ export function TicketAttachments(props: TicketAttachmentsProps) {
 }
 
 function AllegatiPerTicket({ ticketId }: TicketAttachmentsProps) {
+  const t = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
   const { user } = useAuth();
@@ -45,7 +47,7 @@ function AllegatiPerTicket({ ticketId }: TicketAttachmentsProps) {
     return () => {
       window.removeEventListener("beforeunload", primaDiUscire);
       if (daCompletare.current.length > 0) {
-        toast({ title: "Allegati ancora da completare", description: "I file già collegati restano nel ticket. Per quelli mancanti torna a selezionare i file." });
+        toast({ title: t("Allegati ancora da completare"), description: t("I file già collegati restano nel ticket. Per quelli mancanti torna a selezionare i file.") });
       }
     };
   }, []);
@@ -86,7 +88,7 @@ function AllegatiPerTicket({ ticketId }: TicketAttachmentsProps) {
 
   const uploadMutation = useMutation({
     mutationFn: async (fileDaInviare: AllegatoDaCaricare[]) => {
-      if (!user?.id) throw new Error("Sessione non valida. Ricarica la pagina e riprova.");
+      if (!user?.id) throw new Error(t("Sessione non valida. Ricarica la pagina e riprova."));
       const falliti: AllegatoDaCaricare[] = [];
       for (const allegato of fileDaInviare) {
         try {
@@ -101,9 +103,9 @@ function AllegatiPerTicket({ ticketId }: TicketAttachmentsProps) {
       daCompletare.current = falliti;
       setMancanti(falliti);
       if (falliti.length > 0) {
-        toast({ title: `${falliti.length} allegati da completare`, description: "Riprova mancanti per completare i file in elenco." });
+        toast({ title: t("{n} allegati da completare", { n: falliti.length }), description: t("Riprova mancanti per completare i file in elenco.") });
       } else {
-        toast({ title: inviati.length === 1 ? "Allegato caricato" : "Allegati caricati" });
+        toast({ title: inviati.length === 1 ? t("Allegato caricato") : t("Allegati caricati") });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.ticketAttachments.byTicket(ticketId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicketMessages.byTicket(ticketId) });
@@ -111,7 +113,7 @@ function AllegatiPerTicket({ ticketId }: TicketAttachmentsProps) {
       queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
     },
     onError: (err: Error) => {
-      toast({ title: "Caricamento non completato", description: err.message, variant: "destructive" });
+      toast({ title: t("Caricamento non completato"), description: err.message, variant: "destructive" });
     },
     onSettled: () => { inCorso.current = false; },
   });
@@ -151,14 +153,14 @@ function AllegatiPerTicket({ ticketId }: TicketAttachmentsProps) {
       {isDragging && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-lg backdrop-blur-sm">
           <Upload className="h-8 w-8 text-primary mb-2" />
-          <p className="text-sm font-medium text-primary">Rilascia per caricare</p>
+          <p className="text-sm font-medium text-primary">{t("Rilascia per caricare")}</p>
         </div>
       )}
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium">Allegati</CardTitle>
+          <CardTitle className="text-sm font-medium">{t("Allegati")}</CardTitle>
           <Button
-            aria-label="Carica allegati"
+            aria-label={t("Carica allegati")}
             variant="ghost"
             size="icon"
             className="h-7 w-7"
@@ -184,25 +186,25 @@ function AllegatiPerTicket({ ticketId }: TicketAttachmentsProps) {
       <CardContent>
         {mancanti.length > 0 && !uploadMutation.isPending && (
           <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
-            <p className="font-medium">Allegati da completare</p>
+            <p className="font-medium">{t("Allegati da completare")}</p>
             <ul className="my-2 space-y-1">{mancanti.map((a) => <li key={a.id} className="break-all">{a.file.name}</li>)}</ul>
-            <Button variant="outline" size="sm" onClick={() => invia(mancanti)}>Riprova mancanti</Button>
-            <Button variant="ghost" size="sm" onClick={() => { daCompletare.current = []; setMancanti([]); }}>Rimuovi dalla coda</Button>
+            <Button variant="outline" size="sm" onClick={() => invia(mancanti)}>{t("Riprova mancanti")}</Button>
+            <Button variant="ghost" size="sm" onClick={() => { daCompletare.current = []; setMancanti([]); }}>{t("Rimuovi dalla coda")}</Button>
           </div>
         )}
         {isLoading ? (
-          <p className="text-xs text-muted-foreground">Caricamento...</p>
+          <p className="text-xs text-muted-foreground">{t("Caricamento...")}</p>
         ) : isError ? (
           <div className="flex flex-col items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-center">
             <AlertCircle className="h-4 w-4 text-red-600" />
-            <p className="text-xs text-red-700">Impossibile caricare gli allegati.</p>
+            <p className="text-xs text-red-700">{t("Impossibile caricare gli allegati.")}</p>
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => refetch()}>
               <RefreshCw className="mr-1.5 h-3 w-3" />
-              Riprova
+              {t("Riprova")}
             </Button>
           </div>
         ) : attachments.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-2">Nessun allegato</p>
+          <p className="text-xs text-muted-foreground text-center py-2">{t("Nessun allegato")}</p>
         ) : (
           <div className="space-y-2 max-h-60 overflow-y-auto">
             {attachments.map((a) => (

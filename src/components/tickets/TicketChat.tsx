@@ -13,6 +13,7 @@ import type { TicketMessage } from "@/types/tickets";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LinkAllegatoTicket } from "./LinkAllegatoTicket";
 import { TICKET_ATTACHMENTS_BUCKET } from "@/lib/tickets/allegato";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_TYPES = "image/*,.pdf,.doc,.docx,.xls,.xlsx";
@@ -80,6 +81,7 @@ export function TicketChat({
   invalidateKeys = [],
   height = "calc(100vh - 400px)",
 }: TicketChatProps) {
+  const t = useT();
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -117,7 +119,7 @@ export function TicketChat({
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
     if (file.size > MAX_FILE_SIZE) {
-      toast({ title: "File troppo grande", description: "La dimensione massima consentita è 10MB.", variant: "destructive" });
+      toast({ title: t("File troppo grande"), description: t("La dimensione massima consentita è 10MB."), variant: "destructive" });
       return;
     }
     setSelectedFile(file);
@@ -161,8 +163,8 @@ export function TicketChat({
     if (!file) return;
     if (file.size > MAX_FILE_SIZE) {
       toast({
-        title: "File troppo grande",
-        description: "La dimensione massima consentita è 10MB.",
+        title: t("File troppo grande"),
+        description: t("La dimensione massima consentita è 10MB."),
         variant: "destructive",
       });
       return;
@@ -174,7 +176,7 @@ export function TicketChat({
 
   const uploadFile = async (file: File): Promise<string | null> => {
     if (file.size > MAX_FILE_SIZE) {
-      throw new Error("La dimensione massima consentita è 10MB.");
+      throw new Error(t("La dimensione massima consentita è 10MB."));
     }
     const path = `${ticketId}/${crypto.randomUUID()}-${file.name}`;
     const { error } = await supabase.storage
@@ -187,7 +189,7 @@ export function TicketChat({
 
   const sendMessageMutation = useMutation({
     mutationFn: async () => {
-      if (!user?.id) throw new Error("Sessione non valida. Ricarica la pagina e riprova.");
+      if (!user?.id) throw new Error(t("Sessione non valida. Ricarica la pagina e riprova."));
       setUploading(true);
       let attachmentUrl: string | null = null;
 
@@ -227,8 +229,8 @@ export function TicketChat({
     onError: (err: Error) => {
       setUploading(false);
       toast({
-        title: "Errore",
-        description: err.message || "Impossibile inviare il messaggio. Riprova.",
+        title: t("Errore"),
+        description: err.message || t("Impossibile inviare il messaggio. Riprova."),
         variant: "destructive",
       });
     },
@@ -266,18 +268,18 @@ export function TicketChat({
       const draft = (data?.reply ?? "").trim();
       if (!draft) {
         toast({
-          title: "Nessuna bozza",
-          description: "L'AI non ha prodotto una risposta. Riprova.",
+          title: t("Nessuna bozza"),
+          description: t("L'AI non ha prodotto una risposta. Riprova."),
           variant: "destructive",
         });
         return;
       }
       setNewMessage(draft);
-      toast({ title: "Bozza generata", description: "Rivedi e modifica prima di inviare." });
+      toast({ title: t("Bozza generata"), description: t("Rivedi e modifica prima di inviare.") });
     } catch (err) {
       toast({
-        title: "Errore AI",
-        description: err instanceof Error ? err.message : "Impossibile generare la bozza.",
+        title: t("Errore AI"),
+        description: err instanceof Error ? err.message : t("Impossibile generare la bozza."),
         variant: "destructive",
       });
     } finally {
@@ -299,8 +301,8 @@ export function TicketChat({
     const query = (newMessage.trim() || lastCustomer?.message || "").trim();
     if (query.length < 3) {
       toast({
-        title: "Niente da cercare",
-        description: "Scrivi una domanda o attendi un messaggio del cliente.",
+        title: t("Niente da cercare"),
+        description: t("Scrivi una domanda o attendi un messaggio del cliente."),
         variant: "destructive",
       });
       return;
@@ -313,23 +315,23 @@ export function TicketChat({
       if (error) throw error;
       const results = (data?.results ?? []) as Array<{ title?: string; content?: string }>;
       if (!results.length) {
-        toast({ title: "Nessun articolo trovato", description: "La Knowledge Base non ha risposte pertinenti." });
+        toast({ title: t("Nessun articolo trovato"), description: t("La Knowledge Base non ha risposte pertinenti.") });
         return;
       }
       const top = results[0];
       const snippet = `📚 ${top.title ?? "Articolo KB"}\n\n${(top.content ?? "").trim()}`;
       setNewMessage((prev) => (prev.trim() ? `${prev}\n\n${snippet}` : snippet));
       toast({
-        title: "Articolo KB inserito",
+        title: t("Articolo KB inserito"),
         description:
           results.length > 1
-            ? `${results.length} articoli trovati: inserito il più pertinente.`
-            : "Inserito nella risposta.",
+            ? t("{n} articoli trovati: inserito il più pertinente.", { n: results.length })
+            : t("Inserito nella risposta."),
       });
     } catch (err) {
       toast({
-        title: "Errore KB",
-        description: err instanceof Error ? err.message : "Ricerca KB non riuscita.",
+        title: t("Errore KB"),
+        description: err instanceof Error ? err.message : t("Ricerca KB non riuscita."),
         variant: "destructive",
       });
     } finally {
@@ -350,11 +352,11 @@ export function TicketChat({
       {isDragging && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-lg backdrop-blur-sm">
           <Upload className="h-10 w-10 text-primary mb-2" />
-          <p className="text-sm font-medium text-primary">Rilascia per allegare</p>
+          <p className="text-sm font-medium text-primary">{t("Rilascia per allegare")}</p>
         </div>
       )}
       <CardHeader className="border-b flex-shrink-0 max-sm:px-3 max-sm:py-2.5">
-        <CardTitle className="text-lg max-sm:text-sm">Conversazione</CardTitle>
+        <CardTitle className="text-lg max-sm:text-sm">{t("Conversazione")}</CardTitle>
       </CardHeader>
       <CardContent
         ref={messageListRef}
@@ -367,16 +369,16 @@ export function TicketChat({
           <div className="flex flex-col items-center gap-1 [overflow-anchor:none]">
             <Button size="sm" variant="outline" disabled={olderMessages.refreshing}
                     onClick={() => void olderMessages.load()}>
-              {olderMessages.loading ? "Caricamento…" : olderMessages.error ? "Riprova a caricare" : "Carica messaggi precedenti"}
+              {olderMessages.loading ? t("Caricamento…") : olderMessages.error ? t("Riprova a caricare") : t("Carica messaggi precedenti")}
             </Button>
-            {olderMessages.error && <p role="alert" className="text-xs text-destructive">Impossibile caricare i messaggi precedenti.</p>}
+            {olderMessages.error && <p role="alert" className="text-xs text-destructive">{t("Impossibile caricare i messaggi precedenti.")}</p>}
           </div>
         )}
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center py-12 max-sm:py-1">
             <MessageSquare className="h-12 w-12 text-muted-foreground/40 mb-3 max-sm:hidden" />
-            <p className="text-sm font-medium text-muted-foreground max-sm:text-xs max-sm:font-normal">Nessun messaggio</p>
-            <p className="text-xs text-muted-foreground/70 mt-1 max-sm:hidden">Scrivi il primo messaggio per iniziare la conversazione.</p>
+            <p className="text-sm font-medium text-muted-foreground max-sm:text-xs max-sm:font-normal">{t("Nessun messaggio")}</p>
+            <p className="text-xs text-muted-foreground/70 mt-1 max-sm:hidden">{t("Scrivi il primo messaggio per iniziare la conversazione.")}</p>
           </div>
         )}
         {messages.map((msg) => {
@@ -466,7 +468,7 @@ export function TicketChat({
             />
             <ToolbarIconButton
               icon={<Paperclip className="h-4 w-4" />}
-              tooltip="Allega file (max 10MB)"
+              tooltip={t("Allega file (max 10MB)")}
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
             />
@@ -475,8 +477,8 @@ export function TicketChat({
               loading={aiDrafting}
               tooltip={
                 messages.length === 0
-                  ? "Bozza AI disponibile dopo il primo messaggio"
-                  : "Genera bozza risposta con AI"
+                  ? t("Bozza AI disponibile dopo il primo messaggio")
+                  : t("Genera bozza risposta con AI")
               }
               onClick={handleAiDraft}
               disabled={aiDrafting || uploading || messages.length === 0}
@@ -486,7 +488,7 @@ export function TicketChat({
               <ToolbarIconButton
                 icon={<BookOpen className="h-4 w-4" />}
                 loading={kbLoading}
-                tooltip="Cerca in Knowledge Base e inserisci"
+                tooltip={t("Cerca in Knowledge Base e inserisci")}
                 onClick={handleKbLookup}
                 disabled={kbLoading || uploading}
                 className="text-sky-600 hover:text-sky-700 dark:text-sky-400"
@@ -496,7 +498,7 @@ export function TicketChat({
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={isMobile ? "Scrivi un messaggio" : "Scrivi un messaggio... (Enter per inviare, Shift+Enter per a capo)"}
+              placeholder={isMobile ? t("Scrivi un messaggio") : t("Scrivi un messaggio... (Enter per inviare, Shift+Enter per a capo)")}
               rows={isMobile ? 1 : 2}
               maxLength={2000}
               className="resize-none max-sm:min-h-[36px] max-sm:border-0 max-sm:px-2 max-sm:py-2 max-sm:shadow-none max-sm:focus-visible:ring-0 max-sm:focus-visible:ring-offset-0"
@@ -504,7 +506,7 @@ export function TicketChat({
             <Button
               type="submit"
               size="icon"
-              aria-label="Invia messaggio"
+              aria-label={t("Invia messaggio")}
               disabled={(!newMessage.trim() && !selectedFile) || sendMessageMutation.isPending || uploading}
               className="tap-compact flex-shrink-0 h-auto max-sm:h-9 max-sm:w-9 max-sm:rounded-full"
             >

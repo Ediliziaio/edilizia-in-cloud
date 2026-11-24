@@ -38,6 +38,7 @@ import { CalendarioEsternoPicker, type SceltaCalendarioEsterno } from "./Calenda
 import { VariablePicker } from "@/components/flow-builder/config-panels/VariablePicker";
 import { MODELLO_DESCRIZIONE_STANDARD, VARIABILI_DESCRIZIONE_EVENTO } from "../../../supabase/functions/_shared/descrizioneAppuntamentoGoogle";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export interface CalendarFormData {
   name: string;
@@ -256,6 +257,7 @@ function EtichettaConAiuto({ htmlFor, aiuto, className, children }: { htmlFor?: 
 }
 
 export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvancedSettings, haOrari = true, initialData, isLoading }: CalendarDialogProps) {
+  const t = useT();
   const modelloRef = useRef<HTMLTextAreaElement>(null);
   // Inserisce la variabile dove sta il cursore (o in fondo), come nei messaggi dei flussi.
   const inserisciNelModello = (variabile: string) => {
@@ -336,15 +338,15 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
   // «Pronto per le prenotazioni» conta solo quello che serve a prenotare: nome, link, durata e orari. Responsabile e calendario
   // esterno sono consigliati ma non servono; la sede non è richiesta (molti calendari sono videochiamate o sopralluoghi dal cliente).
   const readinessChecks = [
-    { label: "Nome pubblico", ok: !!form.name.trim() },
-    { label: "Link di prenotazione", ok: !!form.booking_slug.trim() },
-    { label: "Durata appuntamento", ok: form.duration_minutes > 0 },
-    { label: "Orari di prenotazione", ok: haOrari },
-    ...(form.calendar_type==="team"?[{label:"Partecipanti della squadra",ok:!!form.team_calendar_ids?.length}]:[]),
+    { label: t("Nome pubblico"), ok: !!form.name.trim() },
+    { label: t("Link di prenotazione"), ok: !!form.booking_slug.trim() },
+    { label: t("Durata appuntamento"), ok: form.duration_minutes > 0 },
+    { label: t("Orari di prenotazione"), ok: haOrari },
+    ...(form.calendar_type==="team"?[{label:t("Partecipanti della squadra"),ok:!!form.team_calendar_ids?.length}]:[]),
   ];
   const consigliati = [
-    { label: "Responsabile", ok: !!form.owner_id },
-    { label: "Calendario esterno", ok: !!form.external_calendar_id },
+    { label: t("Responsabile"), ok: !!form.owner_id },
+    { label: t("Calendario esterno"), ok: !!form.external_calendar_id },
   ];
   const completedChecks = readinessChecks.filter((check) => check.ok).length;
 
@@ -405,9 +407,9 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
         }}
       >
         <DialogHeader className="space-y-2">
-          <DialogTitle>{isEditing ? "Modifica calendario" : "Nuovo calendario"}</DialogTitle>
+          <DialogTitle>{isEditing ? t("Modifica calendario") : t("Nuovo calendario")}</DialogTitle>
           <DialogDescription>
-            Configura in un unico flusso cosa vede il cliente, chi riceve l'appuntamento e come condividere il link.
+            {t("Configura in un unico flusso cosa vede il cliente, chi riceve l'appuntamento e come condividere il link.")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -419,14 +421,14 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 <div className="mb-4 flex items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">1</div>
                   <div>
-                    <h3 className="text-sm font-semibold">Nome e link</h3>
-                    <p className="text-xs text-muted-foreground">Nome, descrizione e link che userai nelle campagne.</p>
+                    <h3 className="text-sm font-semibold">{t("Nome e link")}</h3>
+                    <p className="text-xs text-muted-foreground">{t("Nome, descrizione e link che userai nelle campagne.")}</p>
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   <div className="space-y-2">
-                    <EtichettaConAiuto htmlFor="cal-name" aiuto="Inserisci un nome descrittivo per il tuo calendario. Questo verrà mostrato ai tuoi clienti.">Nome del calendario</EtichettaConAiuto>
+                    <EtichettaConAiuto htmlFor="cal-name" aiuto={t("Inserisci un nome descrittivo per il tuo calendario. Questo verrà mostrato ai tuoi clienti.")}>{t("Nome del calendario")}</EtichettaConAiuto>
                     <Input
                       id="cal-name"
                       value={form.name}
@@ -438,14 +440,14 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                           booking_slug: slugTouched ? f.booking_slug : normalizeBookingSlug(nextName),
                         }));
                       }}
-                      placeholder="(es.) Sopralluogo infissi Milano"
+                      placeholder={t("(es.) Sopralluogo infissi Milano")}
                       className="max-md:h-11"
                       required
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <EtichettaConAiuto aiuto="Colore con cui gli appuntamenti di questo calendario vengono mostrati nel calendario marketing. Lascia su 'Automatico' per assegnarlo in base alla posizione.">Colore calendario</EtichettaConAiuto>
+                    <EtichettaConAiuto aiuto={t("Colore con cui gli appuntamenti di questo calendario vengono mostrati nel calendario marketing. Lascia su 'Automatico' per assegnarlo in base alla posizione.")}>{t("Colore calendario")}</EtichettaConAiuto>
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
@@ -456,7 +458,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                         )}
                         aria-pressed={!form.color}
                       >
-                        Automatico
+                        {t("Automatico")}
                       </button>
                       {CALENDAR_COLOR_PRESETS.map((preset) => {
                         const selected = form.color === preset.token;
@@ -465,8 +467,8 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                             key={preset.token}
                             type="button"
                             onClick={() => setForm((f) => ({ ...f, color: preset.token }))}
-                            title={preset.label}
-                            aria-label={preset.label}
+                            title={t(preset.label)}
+                            aria-label={t(preset.label)}
                             aria-pressed={selected}
                             className={cn(
                               "h-7 w-7 rounded-full border-2 transition-transform hover:scale-110 max-md:h-11 max-md:w-11",
@@ -482,7 +484,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   </div>
 
                   <div className="space-y-2">
-                    <EtichettaConAiuto htmlFor="cal-slug" aiuto="La parte finale del link da mandare ai clienti o da mettere nel sito.">Link di prenotazione</EtichettaConAiuto>
+                    <EtichettaConAiuto htmlFor="cal-slug" aiuto={t("La parte finale del link da mandare ai clienti o da mettere nel sito.")}>{t("Link di prenotazione")}</EtichettaConAiuto>
                     <div className="flex overflow-hidden rounded-md border bg-muted/40">
                       <span className="inline-flex items-center border-r px-2 text-xs text-muted-foreground">/prenota/</span>
                       <Input
@@ -496,7 +498,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                         placeholder="link-calendario"
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">Scrivi la parte finale del link, per esempio sopralluogo-milano.</p>
+                    <p className="text-xs text-muted-foreground">{t("Scrivi la parte finale del link, per esempio sopralluogo-milano.")}</p>
                   </div>
 
                   <button
@@ -508,9 +510,9 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                     className="flex items-center gap-1 text-sm font-medium text-primary hover:underline max-md:min-h-11"
                   >
                     {showDescription ? (
-                      <><Minus className="h-3.5 w-3.5" /> Rimuovi descrizione</>
+                      <><Minus className="h-3.5 w-3.5" /> {t("Rimuovi descrizione")}</>
                     ) : (
-                      <><Plus className="h-3.5 w-3.5" /> Aggiungi descrizione</>
+                      <><Plus className="h-3.5 w-3.5" /> {t("Aggiungi descrizione")}</>
                     )}
                   </button>
 
@@ -518,8 +520,8 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                     <Textarea
                       value={form.description}
                       onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-                      placeholder="Spiega cosa prenota il cliente e cosa deve preparare prima dell'appuntamento."
-                      aria-label="Descrizione del calendario"
+                      placeholder={t("Spiega cosa prenota il cliente e cosa deve preparare prima dell'appuntamento.")}
+                      aria-label={t("Descrizione del calendario")}
                       rows={3}
                     />
                   )}
@@ -530,8 +532,8 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 <div className="mb-4 flex items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">2</div>
                   <div>
-                    <h3 className="text-sm font-semibold">Tipo e responsabile</h3>
-                    <p className="text-xs text-muted-foreground">Scegli se il link è personale, di team o legato a un evento.</p>
+                    <h3 className="text-sm font-semibold">{t("Tipo e responsabile")}</h3>
+                    <p className="text-xs text-muted-foreground">{t("Scegli se il link è personale, di team o legato a un evento.")}</p>
                   </div>
                 </div>
 
@@ -551,28 +553,28 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                       >
                         <div className="flex items-center gap-2 text-sm font-medium">
                           <OptionIcon className="h-4 w-4 text-primary" />
-                          {option.label}
+                          {t(option.label)}
                         </div>
-                        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{option.description}</p>
+                        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{t(option.description)}</p>
                       </button>
                     );
                   })}
                 </div>
 
                 <div className="mt-4 space-y-2">
-                  <EtichettaConAiuto htmlFor="cal-owner" aiuto="Seleziona chi riceverà l'appuntamento quando il cliente prenota.">{form.calendar_type==="team"?"Responsabile di gestione":"Responsabile"}</EtichettaConAiuto>
+                  <EtichettaConAiuto htmlFor="cal-owner" aiuto={t("Seleziona chi riceverà l'appuntamento quando il cliente prenota.")}>{form.calendar_type==="team"?t("Responsabile di gestione"):t("Responsabile")}</EtichettaConAiuto>
                   <Select
                     value={form.owner_id || "none"}
                     onValueChange={(v) => setForm(f => ({ ...f, owner_id: v === "none" ? "" : v }))}
                   >
                     <SelectTrigger id="cal-owner" className="max-md:h-11">
-                      <SelectValue placeholder="Seleziona un membro" />
+                      <SelectValue placeholder={t("Seleziona un membro")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nessuna assegnazione</SelectItem>
+                      <SelectItem value="none">{t("Nessuna assegnazione")}</SelectItem>
                       {teamMembers.map((m) => (
                         <SelectItem key={m.id} value={m.id}>
-                          {[m.first_name, m.last_name].filter(Boolean).join(" ") || "Senza nome"}
+                          {[m.first_name, m.last_name].filter(Boolean).join(" ") || t("Senza nome")}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -581,18 +583,18 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
               </section>
 
               {form.calendar_type==="team"&&<section className="space-y-3 rounded-lg border bg-background p-4">
-                <h3 className="font-semibold">Partecipanti della squadra</h3>
-                <p className="text-sm text-muted-foreground">Scegli un calendario personale per venditore. Valgono i suoi orari e impegni; ogni prenotazione riceve un responsabile disponibile.</p>
+                <h3 className="font-semibold">{t("Partecipanti della squadra")}</h3>
+                <p className="text-sm text-muted-foreground">{t("Scegli un calendario personale per venditore. Valgono i suoi orari e impegni; ogni prenotazione riceve un responsabile disponibile.")}</p>
                 {personalCalendars.filter(c=>c.owner_id).map(c=><label key={c.id} className="flex items-center gap-3 rounded border p-3"><Checkbox checked={(form.team_calendar_ids??[]).includes(c.id)} onCheckedChange={on=>setForm(f=>({...f,team_calendar_ids:on?[...(f.team_calendar_ids??[]),c.id]:(f.team_calendar_ids??[]).filter(id=>id!==c.id),team_member_priorities:on?{...f.team_member_priorities,[c.id]:2}:Object.fromEntries(Object.entries(f.team_member_priorities??{}).filter(([id])=>id!==c.id))}))}/><span>{c.name}</span></label>)}
-                {!personalCalendars.length&&<p role="status">Crea prima un calendario personale con un responsabile.</p>}
-                <Label htmlFor="team-strategy">Distribuzione</Label>
+                {!personalCalendars.length&&<p role="status">{t("Crea prima un calendario personale con un responsabile.")}</p>}
+                <Label htmlFor="team-strategy">{t("Distribuzione")}</Label>
                 <UniformSelect id="team-strategy" className="h-10 w-full rounded border bg-background px-3" value={form.team_assignment_strategy??"round_robin"} onChange={e=>setForm(f=>({...f,team_assignment_strategy:e.target.value as "round_robin"|"priority"}))}>
-                  <option value="round_robin">A rotazione tra le persone disponibili</option><option value="priority">Priorità tra le persone disponibili</option>
+                  <option value="round_robin">{t("A rotazione tra le persone disponibili")}</option><option value="priority">{t("Priorità tra le persone disponibili")}</option>
                 </UniformSelect>
-                {form.team_assignment_strategy==="priority"&&(form.team_calendar_ids??[]).map(id=><div key={id} className="flex items-center justify-between gap-3"><Label htmlFor={`priority-${id}`}>{personalCalendars.find(c=>c.id===id)?.name??"Calendario non disponibile"}</Label><UniformSelect id={`priority-${id}`} className="h-10 rounded border bg-background px-3" value={form.team_member_priorities?.[id]??2} onChange={e=>setForm(f=>({...f,team_member_priorities:{...f.team_member_priorities,[id]:Number(e.target.value)}}))}><option value={1}>Alta</option><option value={2}>Media</option><option value={3}>Bassa</option></UniformSelect></div>)}
-                <p className="text-xs text-muted-foreground">A parità di priorità, l’assegnazione ruota tra le persone disponibili.</p>
-                <p className="text-xs text-muted-foreground">Ordine: {(form.team_calendar_ids??[]).map((id,i)=>`${i+1}. ${personalCalendars.find(c=>c.id===id)?.name??"Calendario non disponibile"}`).join(" · ")||"nessun partecipante"}</p>
-                <p className="text-xs text-muted-foreground">Gli account esterni e i relativi calendari si collegano nei calendari personali dei partecipanti.</p>
+                {form.team_assignment_strategy==="priority"&&(form.team_calendar_ids??[]).map(id=><div key={id} className="flex items-center justify-between gap-3"><Label htmlFor={`priority-${id}`}>{personalCalendars.find(c=>c.id===id)?.name??t("Calendario non disponibile")}</Label><UniformSelect id={`priority-${id}`} className="h-10 rounded border bg-background px-3" value={form.team_member_priorities?.[id]??2} onChange={e=>setForm(f=>({...f,team_member_priorities:{...f.team_member_priorities,[id]:Number(e.target.value)}}))}><option value={1}>{t("Alta")}</option><option value={2}>{t("Media")}</option><option value={3}>{t("Bassa")}</option></UniformSelect></div>)}
+                <p className="text-xs text-muted-foreground">{t("A parità di priorità, l’assegnazione ruota tra le persone disponibili.")}</p>
+                <p className="text-xs text-muted-foreground">{t("Ordine:")} {(form.team_calendar_ids??[]).map((id,i)=>`${i+1}. ${personalCalendars.find(c=>c.id===id)?.name??t("Calendario non disponibile")}`).join(" · ")||t("nessun partecipante")}</p>
+                <p className="text-xs text-muted-foreground">{t("Gli account esterni e i relativi calendari si collegano nei calendari personali dei partecipanti.")}</p>
               </section>}
 
               {/* 08/09/2026: l'associazione al calendario esterno sta QUI, dentro
@@ -603,13 +605,13 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 <div className="mb-4 flex items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">3</div>
                   <div>
-                    <h3 className="text-sm font-semibold">Dove finiscono gli appuntamenti</h3>
+                    <h3 className="text-sm font-semibold">{t("Dove finiscono gli appuntamenti")}</h3>
                     <p className="text-xs text-muted-foreground">
-                      In quale calendario di Google, Outlook o Apple finiscono gli appuntamenti di questo calendario.
+                      {t("In quale calendario di Google, Outlook o Apple finiscono gli appuntamenti di questo calendario.")}
                     </p>
                   </div>
                 </div>
-                {form.calendar_type==="team"?<p className="text-sm text-muted-foreground">Usa gli account e le destinazioni dei calendari personali selezionati nella squadra.</p>:<CalendarioEsternoPicker
+                {form.calendar_type==="team"?<p className="text-sm text-muted-foreground">{t("Usa gli account e le destinazioni dei calendari personali selezionati nella squadra.")}</p>:<CalendarioEsternoPicker
                   value={{
                     external_provider: form.external_provider,
                     external_connection_id: form.external_connection_id,
@@ -622,13 +624,13 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 {/* Descrizione degli eventi: come in GHL, con le variabili del cliente. */}
                 <div className="mt-5 space-y-2 border-t pt-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <EtichettaConAiuto htmlFor="cal-modello-evento" className="text-sm" aiuto="Quello che chi va dal cliente legge aprendo l'evento: nome, telefono, indirizzo… Scrivi il testo e inserisci le variabili: al momento dell'appuntamento diventano i dati del cliente. Una riga con variabili vuote sparisce da sola.">Descrizione degli eventi su Google Calendar</EtichettaConAiuto>
+                    <EtichettaConAiuto htmlFor="cal-modello-evento" className="text-sm" aiuto={t("Quello che chi va dal cliente legge aprendo l'evento: nome, telefono, indirizzo… Scrivi il testo e inserisci le variabili: al momento dell'appuntamento diventano i dati del cliente. Una riga con variabili vuote sparisce da sola.")}>{t("Descrizione degli eventi su Google Calendar")}</EtichettaConAiuto>
                     <div className="flex items-center gap-2">
                       <VariablePicker onInsert={inserisciNelModello} companyId={effectiveCompany?.id} />
                       {form.modello_descrizione_evento.trim() !== MODELLO_DESCRIZIONE_STANDARD && (
                         <Button type="button" variant="ghost" size="sm" className="h-7 text-xs max-md:h-11"
                           onClick={() => setForm(f => ({ ...f, modello_descrizione_evento: MODELLO_DESCRIZIONE_STANDARD }))}>
-                          Usa il modello standard
+                          {t("Usa il modello standard")}
                         </Button>
                       )}
                     </div>
@@ -649,7 +651,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                         key={v.key}
                         type="button"
                         onClick={() => inserisciNelModello(v.key)}
-                        title={v.label}
+                        title={t(v.label)}
                         className="rounded-full border bg-muted/40 px-2 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:border-primary hover:text-foreground max-md:min-h-9"
                       >
                         {`{{${v.key}}}`}
@@ -657,8 +659,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                     ))}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Vuoto = scheda cliente standard (nome, telefono, email, indirizzo e mappa). La nota scritta a mano nell'appuntamento resta sempre sopra.
-                    Vale per Google Calendar; si applica quando l'appuntamento viene creato o modificato.
+                    {t("Vuoto = scheda cliente standard (nome, telefono, email, indirizzo e mappa). La nota scritta a mano nell'appuntamento resta sempre sopra. Vale per Google Calendar; si applica quando l'appuntamento viene creato o modificato.")}
                   </p>
                 </div>
               </section>
@@ -667,14 +668,14 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 <div className="mb-4 flex items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">4</div>
                   <div>
-                    <h3 className="text-sm font-semibold">Orari e regole</h3>
-                    <p className="text-xs text-muted-foreground">Durata, margini, preavviso e limiti. Gli orari della settimana si impostano nella scheda «Orari».</p>
+                    <h3 className="text-sm font-semibold">{t("Orari e regole")}</h3>
+                    <p className="text-xs text-muted-foreground">{t("Durata, margini, preavviso e limiti. Gli orari della settimana si impostano nella scheda «Orari».")}</p>
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-[1fr_220px]">
                   <div className="space-y-2">
-                    <EtichettaConAiuto htmlFor="cal-durata" aiuto="Imposta la durata predefinita per gli appuntamenti in questo calendario.">Durata dell'incontro</EtichettaConAiuto>
+                    <EtichettaConAiuto htmlFor="cal-durata" aiuto={t("Imposta la durata predefinita per gli appuntamenti in questo calendario.")}>{t("Durata dell'incontro")}</EtichettaConAiuto>
                     <div className="flex gap-2">
                       <Input
                         id="cal-durata"
@@ -685,12 +686,12 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                         className="w-24 max-md:h-11"
                       />
                       <Select value={durationUnit} onValueChange={(v) => setDurationUnit(v as "minutes" | "hours")}>
-                        <SelectTrigger className="w-28 max-md:h-11" aria-label="Unità della durata">
+                        <SelectTrigger className="w-28 max-md:h-11" aria-label={t("Unità della durata")}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="minutes">Minuti</SelectItem>
-                          <SelectItem value="hours">Ore</SelectItem>
+                          <SelectItem value="minutes">{t("Minuti")}</SelectItem>
+                          <SelectItem value="hours">{t("Ore")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -708,41 +709,41 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                             setForm(f => ({ ...f, duration_minutes: mins }));
                           }}
                         >
-                          {mins < 60 ? `${mins} min` : `${mins / 60}h`}
+                          {mins < 60 ? t("{mins} min", { mins: String(mins ?? "") }) : `${mins / 60}h`}
                         </Button>
                       ))}
                     </div>
 
                     {/* Regole di agenda: margini, preavviso e tetto giornaliero. */}
                     <div className="space-y-3 rounded-lg border p-3">
-                      <EtichettaConAiuto aiuto="Margini fra un appuntamento e l'altro, preavviso minimo per prenotare e tetto di appuntamenti al giorno.">Regole di agenda</EtichettaConAiuto>
+                      <EtichettaConAiuto aiuto={t("Margini fra un appuntamento e l'altro, preavviso minimo per prenotare e tetto di appuntamenti al giorno.")}>{t("Regole di agenda")}</EtichettaConAiuto>
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                         <div className="space-y-1">
-                          <Label htmlFor="cal-margine-prima" className="text-xs text-muted-foreground">Margine prima (min)</Label>
+                          <Label htmlFor="cal-margine-prima" className="text-xs text-muted-foreground">{t("Margine prima (min)")}</Label>
                           <Input id="cal-margine-prima" type="number" min={0} max={240} value={form.buffer_before_min} className="max-md:h-11"
                             onChange={(e) => setForm(f => ({ ...f, buffer_before_min: Math.max(0, parseInt(e.target.value) || 0) }))} />
                         </div>
                         <div className="space-y-1">
-                          <Label htmlFor="cal-margine-dopo" className="text-xs text-muted-foreground">Margine dopo (min)</Label>
+                          <Label htmlFor="cal-margine-dopo" className="text-xs text-muted-foreground">{t("Margine dopo (min)")}</Label>
                           <Input id="cal-margine-dopo" type="number" min={0} max={240} value={form.buffer_after_min} className="max-md:h-11"
                             onChange={(e) => setForm(f => ({ ...f, buffer_after_min: Math.max(0, parseInt(e.target.value) || 0) }))} />
                         </div>
                         <div className="space-y-1">
-                          <Label htmlFor="cal-preavviso" className="text-xs text-muted-foreground">Preavviso minimo (min)</Label>
+                          <Label htmlFor="cal-preavviso" className="text-xs text-muted-foreground">{t("Preavviso minimo (min)")}</Label>
                           <Input id="cal-preavviso" type="number" min={0} max={20160} value={form.min_notice_minutes} className="max-md:h-11"
                             onChange={(e) => setForm(f => ({ ...f, min_notice_minutes: Math.max(0, parseInt(e.target.value) || 0) }))} />
                         </div>
                         <div className="space-y-1">
-                          <Label htmlFor="cal-massimo-giorno" className="text-xs text-muted-foreground">Massimo al giorno</Label>
-                          <Input id="cal-massimo-giorno" type="number" min={1} placeholder="nessun limite" className="max-md:h-11"
+                          <Label htmlFor="cal-massimo-giorno" className="text-xs text-muted-foreground">{t("Massimo al giorno")}</Label>
+                          <Input id="cal-massimo-giorno" type="number" min={1} placeholder={t("nessun limite")} className="max-md:h-11"
                             value={form.max_per_day ?? ""}
                             onChange={(e) => setForm(f => ({ ...f, max_per_day: e.target.value.trim() ? Math.max(1, parseInt(e.target.value) || 1) : null }))} />
                         </div>
                         <div className="space-y-1">
-                          <EtichettaConAiuto htmlFor="cal-passo" aiuto="Ogni quanto si offre un orario. Lascia vuoto per usare la durata. Esempio: durata 45 min e passo 60 offre le 9:00, 10:00, 11:00… con 15 minuti di respiro in mezzo.">
-                            <span className="text-xs text-muted-foreground">Un appuntamento ogni (min)</span>
+                          <EtichettaConAiuto htmlFor="cal-passo" aiuto={t("Ogni quanto si offre un orario. Lascia vuoto per usare la durata. Esempio: durata 45 min e passo 60 offre le 9:00, 10:00, 11:00… con 15 minuti di respiro in mezzo.")}>
+                            <span className="text-xs text-muted-foreground">{t("Un appuntamento ogni (min)")}</span>
                           </EtichettaConAiuto>
-                          <Input id="cal-passo" type="number" min={5} max={240} placeholder="come la durata" className="max-md:h-11"
+                          <Input id="cal-passo" type="number" min={5} max={240} placeholder={t("come la durata")} className="max-md:h-11"
                             value={form.slot_interval_min ?? ""}
                             onChange={(e) => setForm(f => ({ ...f, slot_interval_min: e.target.value.trim() ? Math.min(240, Math.max(5, parseInt(e.target.value) || 5)) : null }))} />
                         </div>
@@ -751,14 +752,14 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   </div>
 
                   <div className="space-y-2">
-                    <EtichettaConAiuto htmlFor="cal-km" aiuto="Limite km giornalieri per questo calendario. Lascia vuoto per usare il valore della scheda «Spostamenti».">Km massimi A/R</EtichettaConAiuto>
+                    <EtichettaConAiuto htmlFor="cal-km" aiuto={t("Limite km giornalieri per questo calendario. Lascia vuoto per usare il valore della scheda «Spostamenti».")}>{t("Km massimi A/R")}</EtichettaConAiuto>
                     <Input
                       id="cal-km"
                       type="number"
                       min={1}
                       value={form.max_daily_km ?? ""}
                       onChange={(e) => setForm(f => ({ ...f, max_daily_km: e.target.value ? parseInt(e.target.value) : null }))}
-                      placeholder="Come in «Spostamenti»"
+                      placeholder={t("Come in «Spostamenti»")}
                       className="max-md:h-11"
                     />
                   </div>
@@ -770,41 +771,41 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 <div className="mb-4 flex items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">5</div>
                   <div>
-                    <h3 className="text-sm font-semibold">Messaggi al cliente</h3>
-                    <p className="text-xs text-muted-foreground">Promemoria, firma, cosa preparare e mittente delle email.</p>
+                    <h3 className="text-sm font-semibold">{t("Messaggi al cliente")}</h3>
+                    <p className="text-xs text-muted-foreground">{t("Promemoria, firma, cosa preparare e mittente delle email.")}</p>
                   </div>
                 </div>
                 <details className="group rounded-lg border">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm font-medium max-md:min-h-11">
-                    <span>Promemoria, firma e mittente</span>
-                    <span className="text-xs font-normal text-muted-foreground group-open:hidden">Mostra</span>
-                    <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">Nascondi</span>
+                    <span>{t("Promemoria, firma e mittente")}</span>
+                    <span className="text-xs font-normal text-muted-foreground group-open:hidden">{t("Mostra")}</span>
+                    <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">{t("Nascondi")}</span>
                   </summary>
                   <div className="space-y-3 border-t p-3">
                     <div className="space-y-1.5 text-sm">
                       <label className="flex items-center gap-2 max-md:min-h-11">
                         <input type="checkbox" checked={form.reminder_24h}
                           onChange={(e) => setForm(f => ({ ...f, reminder_24h: e.target.checked }))} />
-                        Promemoria al cliente il giorno prima
+                        {t("Promemoria al cliente il giorno prima")}
                       </label>
                       <label className="flex items-center gap-2 max-md:min-h-11">
                         <input type="checkbox" checked={form.reminder_1h}
                           onChange={(e) => setForm(f => ({ ...f, reminder_1h: e.target.checked }))} />
-                        Promemoria un'ora prima
+                        {t("Promemoria un'ora prima")}
                       </label>
                       <div className="flex items-center">
                         <label className="flex items-center gap-2 max-md:min-h-11">
                           <input type="checkbox" checked={!!form.messaggi_crm_dal}
                             onChange={(e) => setForm(f => ({ ...f, messaggi_crm_dal: e.target.checked ? (f.messaggi_crm_dal ?? new Date().toISOString()) : null }))} />
-                          Conferma e promemoria anche per gli appuntamenti fissati a mano
+                          {t("Conferma e promemoria anche per gli appuntamenti fissati a mano")}
                         </label>
-                        <InfoTooltip text="Chi viene fissato al telefono riceve gli stessi messaggi di chi prenota dal link. Vale per gli appuntamenti creati da adesso in poi." />
+                        <InfoTooltip text={t("Chi viene fissato al telefono riceve gli stessi messaggi di chi prenota dal link. Vale per gli appuntamenti creati da adesso in poi.")} />
                       </div>
                     </div>
                     {dellaPiattaforma && (
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-1">
-                          <Label htmlFor="cal-whatsapp" className="text-xs text-muted-foreground">WhatsApp di conferma e promemoria</Label>
+                          <Label htmlFor="cal-whatsapp" className="text-xs text-muted-foreground">{t("WhatsApp di conferma e promemoria")}</Label>
                           <Select
                             value={form.whatsapp_numero_id ?? "__solo_email__"}
                             onValueChange={(v) => setForm(f => ({
@@ -815,11 +816,11 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                           >
                             <SelectTrigger id="cal-whatsapp" className="max-md:h-11"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="__solo_email__">Nessuno: solo email</SelectItem>
+                              <SelectItem value="__solo_email__">{t("Nessuno: solo email")}</SelectItem>
                               {numeriWhatsapp.map((n) => (
                                 <SelectItem key={n.id} value={n.id}>
-                                  {[n.display_name, n.numero].filter(Boolean).join(" · ") || "Numero senza nome"}
-                                  {n.stato !== "connected" ? " (non collegato)" : ""}
+                                  {[n.display_name, n.numero].filter(Boolean).join(" · ") || t("Numero senza nome")}
+                                  {n.stato !== "connected" ? ` ${t("(non collegato)")}` : ""}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -831,21 +832,21 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                               disabled={!form.whatsapp_numero_id || !modoLink || !form.link_videochiamata.trim()}
                               checked={form.promemoria_5min && !!form.whatsapp_numero_id && modoLink && !!form.link_videochiamata.trim()}
                               onChange={(e) => setForm(f => ({ ...f, promemoria_5min: e.target.checked }))} />
-                            «Siamo già collegati» 5 minuti prima
+                            {t("«Siamo già collegati» 5 minuti prima")}
                           </label>
-                          <InfoTooltip text="Un WhatsApp col link della videochiamata poco prima dell'inizio. Serve il link fisso del calendario." />
+                          <InfoTooltip text={t("Un WhatsApp col link della videochiamata poco prima dell'inizio. Serve il link fisso del calendario.")} />
                         </div>
                       </div>
                     )}
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-1">
-                        <Label htmlFor="cal-firma" className="text-xs text-muted-foreground">Firma dei messaggi</Label>
+                        <Label htmlFor="cal-firma" className="text-xs text-muted-foreground">{t("Firma dei messaggi")}</Label>
                         <Input id="cal-firma" value={form.firma_messaggi} maxLength={120} className="max-md:h-11"
                           placeholder={`Il team di ${effectiveCompany?.name || "…"}`}
                           onChange={(e) => setForm(f => ({ ...f, firma_messaggi: e.target.value }))} />
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor="cal-cosa-preparare" className="text-xs text-muted-foreground">Cosa preparare (nella conferma, uno per riga)</Label>
+                        <Label htmlFor="cal-cosa-preparare" className="text-xs text-muted-foreground">{t("Cosa preparare (nella conferma, uno per riga)")}</Label>
                         <Textarea id="cal-cosa-preparare" rows={3} value={form.cosa_preparare} maxLength={1000}
                           placeholder={"come fate oggi i preventivi\ndove segnate ore e materiali"}
                           onChange={(e) => setForm(f => ({ ...f, cosa_preparare: e.target.value }))} />
@@ -853,13 +854,13 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-1">
-                        <Label htmlFor="cal-mittente-nome" className="text-xs text-muted-foreground">Nome del mittente</Label>
+                        <Label htmlFor="cal-mittente-nome" className="text-xs text-muted-foreground">{t("Nome del mittente")}</Label>
                         <Input id="cal-mittente-nome" value={form.mittente_nome} maxLength={80} className="max-md:h-11"
-                          placeholder={effectiveCompany?.name || "Nome che legge il cliente"}
+                          placeholder={effectiveCompany?.name || t("Nome che legge il cliente")}
                           onChange={(e) => setForm(f => ({ ...f, mittente_nome: e.target.value }))} />
                       </div>
                       <div className="space-y-1">
-                        <EtichettaConAiuto htmlFor="cal-mittente-email" className="text-xs text-muted-foreground" aiuto="Solo su un dominio verificato (Impostazioni → Dominio email). Vuoto, o su un dominio non verificato: le email partono dal mittente della piattaforma.">Indirizzo del mittente</EtichettaConAiuto>
+                        <EtichettaConAiuto htmlFor="cal-mittente-email" className="text-xs text-muted-foreground" aiuto={t("Solo su un dominio verificato (Impostazioni → Dominio email). Vuoto, o su un dominio non verificato: le email partono dal mittente della piattaforma.")}>{t("Indirizzo del mittente")}</EtichettaConAiuto>
                         <Input id="cal-mittente-email" type="email" value={form.mittente_email} maxLength={160} className="max-md:h-11"
                           placeholder="nome@tuodominio.it"
                           onChange={(e) => setForm(f => ({ ...f, mittente_email: e.target.value }))} />
@@ -873,8 +874,8 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 <div className="mb-4 flex items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">6</div>
                   <div>
-                    <h3 className="text-sm font-semibold">Come si svolge</h3>
-                    <p className="text-xs text-muted-foreground">In presenza, con un link fisso sempre uguale o con un Google Meet diverso per ogni appuntamento.</p>
+                    <h3 className="text-sm font-semibold">{t("Come si svolge")}</h3>
+                    <p className="text-xs text-muted-foreground">{t("In presenza, con un link fisso sempre uguale o con un Google Meet diverso per ogni appuntamento.")}</p>
                   </div>
                 </div>
 
@@ -892,10 +893,10 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   >
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <MapPin className="h-4 w-4 text-primary" />
-                      In presenza / telefono
+                      {t("In presenza / telefono")}
                     </div>
                     <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                      L'appuntamento resta senza link video. Puoi aggiungere un indirizzo o note operative.
+                      {t("L'appuntamento resta senza link video. Puoi aggiungere un indirizzo o note operative.")}
                     </p>
                   </button>
 
@@ -912,10 +913,10 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   >
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <Video className="h-4 w-4 text-primary" />
-                      Link fisso
+                      {t("Link fisso")}
                     </div>
                     <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                      Sempre lo stesso link (Meet, Zoom…): arriva al cliente in conferma, promemoria ed evento.
+                      {t("Sempre lo stesso link (Meet, Zoom…): arriva al cliente in conferma, promemoria ed evento.")}
                     </p>
                   </button>
 
@@ -932,17 +933,17 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   >
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <Video className="h-4 w-4 text-primary" />
-                      Google Meet automatico
+                      {t("Google Meet automatico")}
                     </div>
                     <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                      Quando il calendario Google è collegato, EiC crea il link Meet e lo salva sull'appuntamento.
+                      {t("Quando il calendario Google è collegato, EiC crea il link Meet e lo salva sull'appuntamento.")}
                     </p>
                   </button>
                 </div>
 
                 {modoLink && (
                   <div className="mt-3 space-y-1">
-                    <Label htmlFor="cal-link-video" className="text-xs text-muted-foreground">Link della videochiamata</Label>
+                    <Label htmlFor="cal-link-video" className="text-xs text-muted-foreground">{t("Link della videochiamata")}</Label>
                     <Input id="cal-link-video" value={form.link_videochiamata} maxLength={500} className="max-md:h-11"
                       placeholder="https://meet.google.com/abc-defg-hij"
                       onChange={(e) => setForm(f => ({ ...f, link_videochiamata: e.target.value }))} />
@@ -951,7 +952,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
 
                 {!modoLink && form.default_meeting_provider === "google_meet" && (
                   <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
-                    Serve il collegamento Google Calendar del responsabile. Se manca, l'appuntamento resta in attesa e il link verrà creato al primo sync utile.
+                    {t("Serve il collegamento Google Calendar del responsabile. Se manca, l'appuntamento resta in attesa e il link verrà creato al primo sync utile.")}
                   </div>
                 )}
               </section>
@@ -960,8 +961,8 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 <div className="mb-4 flex items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">7</div>
                   <div>
-                    <h3 className="text-sm font-semibold">Base per i percorsi</h3>
-                    <p className="text-xs text-muted-foreground">Facoltativa: serve per percorsi, distanze e appuntamenti sul territorio.</p>
+                    <h3 className="text-sm font-semibold">{t("Base per i percorsi")}</h3>
+                    <p className="text-xs text-muted-foreground">{t("Facoltativa: serve per percorsi, distanze e appuntamenti sul territorio.")}</p>
                   </div>
                 </div>
 
@@ -985,38 +986,38 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                     <SelectedTypeIcon className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{form.name || "Nome calendario"}</p>
-                    <p className="text-xs text-muted-foreground">{selectedType.label}</p>
+                    <p className="truncate text-sm font-semibold">{form.name || t("Nome calendario")}</p>
+                    <p className="text-xs text-muted-foreground">{t(selectedType.label)}</p>
                   </div>
                 </div>
 
                 <div className="mt-4 space-y-2 rounded-lg border bg-background p-3 text-xs">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Clock3 className="h-3.5 w-3.5" />
-                    <span>{form.duration_minutes || 30} min</span>
+                    <span>{form.duration_minutes || 30} {t("min")}</span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Globe2 className="h-3.5 w-3.5" />
-                    <span className="truncate">{bookingPreviewUrl || "Link generato dal nome"}</span>
+                    <span className="truncate">{bookingPreviewUrl || t("Link generato dal nome")}</span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5" />
-                    <span className="truncate">{form.base_formatted_address || form.base_address_city || "Base per i percorsi non indicata"}</span>
+                    <span className="truncate">{form.base_formatted_address || form.base_address_city || t("Base per i percorsi non indicata")}</span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Video className="h-3.5 w-3.5" />
                     <span className="truncate">
                       {modoLink && form.link_videochiamata.trim()
                         ? linkCompleto(form.link_videochiamata)
-                        : form.default_meeting_provider === "google_meet" ? "Google Meet automatico" : "Nessun link video automatico"}
+                        : form.default_meeting_provider === "google_meet" ? t("Google Meet automatico") : t("Nessun link video automatico")}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <CalendarDays className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">
                       {form.external_calendar_id
-                        ? `Appuntamenti in "${form.external_calendar_name || "calendario collegato"}"`
-                        : "Nessun calendario esterno collegato"}
+                        ? t("Appuntamenti in \"{nome}\"", { nome: form.external_calendar_name || t("calendario collegato") })
+                        : t("Nessun calendario esterno collegato")}
                     </span>
                   </div>
                 </div>
@@ -1025,7 +1026,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                     Responsabile e calendario esterno sono consigliati, ma non servono a prenotare; la sede non è richiesta. */}
                 <div className="mt-4">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium">Pronto per le prenotazioni</span>
+                    <span className="font-medium">{t("Pronto per le prenotazioni")}</span>
                     <span className="text-muted-foreground">{completedChecks}/{readinessChecks.length}</span>
                   </div>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
@@ -1050,7 +1051,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 </div>
 
                 <div className="mt-3 border-t pt-3">
-                  <p className="text-xs font-medium text-muted-foreground">Consigliato</p>
+                  <p className="text-xs font-medium text-muted-foreground">{t("Consigliato")}</p>
                   <div className="mt-2 space-y-2">
                     {consigliati.map((check) => (
                       <div key={check.label} className="flex items-center gap-2 text-xs">
@@ -1067,11 +1068,11 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
               </div>
 
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
-                <p className="font-medium">Orari di prenotazione</p>
+                <p className="font-medium">{t("Orari di prenotazione")}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {canOpenAdvancedSettings
-                    ? "I giorni e gli orari in cui i clienti possono prenotare si cambiano nella scheda «Orari»."
-                    : "Dopo il salvataggio il calendario ha orari di partenza (lunedì-venerdì 9-18): li cambi nella scheda «Orari»."}
+                    ? t("I giorni e gli orari in cui i clienti possono prenotare si cambiano nella scheda «Orari».")
+                    : t("Dopo il salvataggio il calendario ha orari di partenza (lunedì-venerdì 9-18): li cambi nella scheda «Orari».")}
                 </p>
                 <Button
                   type="button"
@@ -1082,16 +1083,16 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   disabled={!canOpenAdvancedSettings}
                 >
                   <Settings2 className="h-3.5 w-3.5" />
-                  {canOpenAdvancedSettings ? "Imposta gli orari" : "Salva prima il calendario"}
+                  {canOpenAdvancedSettings ? t("Imposta gli orari") : t("Salva prima il calendario")}
                 </Button>
               </div>
             </aside>
           </div>
 
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => chiudi(false)} className="max-md:h-11">Annulla</Button>
+            <Button type="button" variant="outline" onClick={() => chiudi(false)} className="max-md:h-11">{t("Annulla")}</Button>
             <Button type="submit" disabled={!form.name.trim() || isLoading} className="max-md:h-11">
-              {isLoading ? "Salvataggio…" : isEditing ? "Salva" : "Crea calendario"}
+              {isLoading ? t("Salvataggio…") : isEditing ? t("Salva") : t("Crea calendario")}
             </Button>
           </DialogFooter>
         </form>

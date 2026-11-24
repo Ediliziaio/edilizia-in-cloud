@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { abbinaProfilo, NOMI_MESI, periodoPrevalente, TIPI_DOCUMENTO, type ProfiloPerAbbinamento, type TipoDocumentoPaghe } from "@/lib/paghe/lettoreBustePaga";
 import { espandiFile, leggiFile, ritagliaPdf, type DocumentoDaFile } from "@/lib/paghe/pdfBustePaga";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface RigaAnteprima extends DocumentoDaFile {
   profiloId: string | null;
@@ -37,6 +38,7 @@ const SENZA_PERSONA: TipoDocumentoPaghe[] = ["riepilogo", "f24"];
 const periodoTesto = (anno: number | null, mese: number | null) => (anno && mese ? `${NOMI_MESI[mese - 1]} ${anno}` : "—");
 
 export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { companyId: string; open: boolean; onOpenChange: (v: boolean) => void }) {
+  const tTesto = useT();
   const queryClient = useQueryClient();
   const [righe, setRighe] = useState<RigaAnteprima[]>([]);
   const [nomiFile, setNomiFile] = useState<string[]>([]);
@@ -72,7 +74,7 @@ export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { compa
     setLettura("Apro i file…");
     try {
       const { pdf, scartati } = await espandiFile(files);
-      if (scartati.length) toast.info(`${scartati.length} file non sono PDF e sono stati lasciati fuori`, { description: scartati.slice(0, 5).join(", ") });
+      if (scartati.length) toast.info(tTesto("{n} file non sono PDF e sono stati lasciati fuori", { n: scartati.length }), { description: scartati.slice(0, 5).join(", ") });
       const nuove: RigaAnteprima[] = [];
       let pagine = 0;
       // Lo stesso file trascinato due volte non raddoppia le righe.
@@ -95,10 +97,10 @@ export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { compa
       setNomiFile((n) => [...n, ...daLeggere.map((f) => f.nome)]);
       setFirme((x) => [...x, ...daLeggere.map(firma)]);
       setPagineTot((p) => p + pagine);
-      if (!nuove.length) toast.error("In questi file non ho trovato pagine leggibili", { description: "Se sono scansioni (foto), chiedi al consulente il PDF originale del programma paghe." });
+      if (!nuove.length) toast.error(tTesto("In questi file non ho trovato pagine leggibili"), { description: tTesto("Se sono scansioni (foto), chiedi al consulente il PDF originale del programma paghe.") });
     } catch (e) {
       logger.warn("[buste-paga] lettura dei file non riuscita", e);
-      toast.error("Non riesco ad aprire questi file", { description: "Controlla che siano PDF non protetti da password." });
+      toast.error(tTesto("Non riesco ad aprire questi file"), { description: tTesto("Controlla che siano PDF non protetti da password.") });
     } finally {
       setLettura(null);
     }
@@ -171,7 +173,7 @@ export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { compa
         throw new Error(error.code === "P0001" ? error.message : "Salvataggio non riuscito. Riprova tra poco: niente è stato pubblicato.");
       }
       const esito = data as unknown as { cedolini: number; documenti_azienda: number; codici_fiscali_imparati: number; senza_anagrafica: string[] };
-      toast.success(pubblica ? `Pubblicate ${esito.cedolini} buste paga` : `Salvate ${esito.cedolini} buste paga, non ancora pubblicate`, {
+      toast.success(pubblica ? tTesto("Pubblicate {cedolini} buste paga", { cedolini: String(esito.cedolini ?? "") }) : tTesto("Salvate {cedolini} buste paga, non ancora pubblicate", { cedolini: String(esito.cedolini ?? "") }), {
         description: [
           esito.documenti_azienda ? `${esito.documenti_azienda} documenti restano all'azienda.` : "",
           esito.codici_fiscali_imparati ? `Codice fiscale aggiunto a ${esito.codici_fiscali_imparati} profili: dal prossimo mese l'aggancio è automatico.` : "",
@@ -184,7 +186,7 @@ export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { compa
     } catch (e) {
       // Niente file orfani: se il salvataggio non va in fondo, si tolgono quelli già caricati.
       if (caricati.length) await supabase.storage.from("buste-paga").remove(caricati);
-      toast.error(e instanceof Error ? e.message : "Salvataggio non riuscito");
+      toast.error(e instanceof Error ? e.message : tTesto("Salvataggio non riuscito"));
     } finally {
       setSalvataggio(null);
     }
@@ -194,10 +196,9 @@ export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { compa
     <Dialog open={open} onOpenChange={chiudi}>
       <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Carica le buste paga dal consulente</DialogTitle>
+          <DialogTitle>{tTesto("Carica le buste paga dal consulente")}</DialogTitle>
           <DialogDescription>
-            Trascina il PDF del mese (il Libro Unico), anche più file o uno ZIP. Il gestionale lo divide per persona:
-            la busta va al dipendente, il resto resta all'azienda. Controlli e poi pubblichi.
+            {tTesto("Trascina il PDF del mese (il Libro Unico), anche più file o uno ZIP. Il gestionale lo divide per persona: la busta va al dipendente, il resto resta all'azienda. Controlli e poi pubblichi.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -207,14 +208,14 @@ export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { compa
         )}>
           <input {...getInputProps()} />
           {erroreProfili ? (
-            <p className="text-sm text-destructive">Non riesco a leggere l'elenco dei dipendenti. Chiudi e riapri la finestra.</p>
+            <p className="text-sm text-destructive">{tTesto("Non riesco a leggere l'elenco dei dipendenti. Chiudi e riapri la finestra.")}</p>
           ) : lettura || caricoProfili ? (
-            <><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="text-sm">{lettura ?? "Preparo l'elenco dei dipendenti…"}</p></>
+            <><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="text-sm">{lettura ?? tTesto("Preparo l'elenco dei dipendenti…")}</p></>
           ) : (
             <>
               <FileUp className="h-6 w-6 text-primary" aria-hidden="true" />
-              <p className="text-sm font-medium">{righe.length ? "Aggiungi altri file" : "Trascina qui i file del consulente, o clicca per sceglierli"}</p>
-              {!righe.length && <p className="text-xs text-muted-foreground">PDF o ZIP · buste paga, foglio presenze, riepilogo, F24, Cassa Edile, CU</p>}
+              <p className="text-sm font-medium">{righe.length ? tTesto("Aggiungi altri file") : tTesto("Trascina qui i file del consulente, o clicca per sceglierli")}</p>
+              {!righe.length && <p className="text-xs text-muted-foreground">{tTesto("PDF o ZIP · buste paga, foglio presenze, riepilogo, F24, Cassa Edile, CU")}</p>}
             </>
           )}
         </div>
@@ -222,19 +223,19 @@ export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { compa
         {righe.length > 0 && (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="font-semibold">{periodo ? periodoTesto(periodo.anno, periodo.mese) : "Mese non riconosciuto"}</span>
+              <span className="font-semibold">{periodo ? periodoTesto(periodo.anno, periodo.mese) : tTesto("Mese non riconosciuto")}</span>
               {programma && <Badge variant="secondary">{programma}</Badge>}
-              <span className="text-muted-foreground">· {pagineTot} pagine ·</span>
+              <span className="text-muted-foreground">{tTesto("· {pagineTot} pagine ·", { pagineTot: String(pagineTot ?? "") })}</span>
               {[...conteggio.perTipo.entries()].map(([tipo, n]) => (
-                <Badge key={tipo} variant="outline">{n} {n === 1 ? TIPI_DOCUMENTO[tipo].label.toLowerCase() : TIPI_DOCUMENTO[tipo].plurale}</Badge>
+                <Badge key={tipo} variant="outline">{n} {n === 1 ? tTesto(TIPI_DOCUMENTO[tipo].label).toLowerCase() : tTesto(TIPI_DOCUMENTO[tipo].plurale)}</Badge>
               ))}
             </div>
 
             {(conteggio.senzaPersona > 0 || conteggio.senzaAnagrafica > 0 || conteggio.senzaAccesso > 0) && (
               <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                {conteggio.senzaPersona > 0 && <p className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{conteggio.senzaPersona} documenti per i dipendenti non hanno ancora una persona: sceglila nella riga, altrimenti non arrivano a nessuno.</p>}
-                {conteggio.senzaAnagrafica > 0 && <p className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{conteggio.senzaAnagrafica} buste sono di persone con la scheda dipendente incompleta: il PDF si archivia, ma gli importi non entrano nei cedolini.</p>}
-                {conteggio.senzaAccesso > 0 && <p className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{conteggio.senzaAccesso === 1 ? "1 persona non ha" : `${conteggio.senzaAccesso} persone non hanno`} ancora l'accesso all'app: la busta è pronta e la vedrà al primo accesso.</p>}
+                {conteggio.senzaPersona > 0 && <p className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{tTesto("{n} documenti per i dipendenti non hanno ancora una persona: sceglila nella riga, altrimenti non arrivano a nessuno.", { n: conteggio.senzaPersona })}</p>}
+                {conteggio.senzaAnagrafica > 0 && <p className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{tTesto("{n} buste sono di persone con la scheda dipendente incompleta: il PDF si archivia, ma gli importi non entrano nei cedolini.", { n: conteggio.senzaAnagrafica })}</p>}
+                {conteggio.senzaAccesso > 0 && <p className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{conteggio.senzaAccesso === 1 ? tTesto("1 persona non ha ancora l'accesso all'app: la busta è pronta e la vedrà al primo accesso.") : tTesto("{n} persone non hanno ancora l'accesso all'app: la busta è pronta e la vedrà al primo accesso.", { n: conteggio.senzaAccesso })}</p>}
               </div>
             )}
 
@@ -242,11 +243,11 @@ export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { compa
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2 font-medium">Documento</th>
-                    <th className="px-3 py-2 font-medium">Persona</th>
-                    <th className="px-3 py-2 font-medium">Mese</th>
-                    <th className="px-3 py-2 text-right font-medium">Netto</th>
-                    <th className="px-3 py-2 font-medium">Al dipendente</th>
+                    <th className="px-3 py-2 font-medium">{tTesto("Documento")}</th>
+                    <th className="px-3 py-2 font-medium">{tTesto("Persona")}</th>
+                    <th className="px-3 py-2 font-medium">{tTesto("Mese")}</th>
+                    <th className="px-3 py-2 text-right font-medium">{tTesto("Netto")}</th>
+                    <th className="px-3 py-2 font-medium">{tTesto("Al dipendente")}</th>
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
@@ -262,30 +263,30 @@ export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { compa
                         })}>
                           <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {(Object.keys(TIPI_DOCUMENTO) as TipoDocumentoPaghe[]).map((t) => <SelectItem key={t} value={t}>{TIPI_DOCUMENTO[t].label}</SelectItem>)}
+                            {(Object.keys(TIPI_DOCUMENTO) as TipoDocumentoPaghe[]).map((t) => <SelectItem key={t} value={t}>{tTesto(TIPI_DOCUMENTO[t].label)}</SelectItem>)}
                           </SelectContent>
                         </Select>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">{r.file.nome} · pag. {r.pagine.map((p) => p + 1).join("–")}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">{r.file.nome} {tTesto("· pag.")} {r.pagine.map((p) => p + 1).join("–")}</p>
                       </td>
                       <td className="px-3 py-2">
                         {SENZA_PERSONA.includes(r.tipo) ? (
-                          <span className="text-xs text-muted-foreground">Tutta l'azienda</span>
+                          <span className="text-xs text-muted-foreground">{tTesto("Tutta l'azienda")}</span>
                         ) : (
                           <>
                             <Select value={r.profiloId ?? NESSUNO} onValueChange={(v) => cambia(r.chiave, { profiloId: v === NESSUNO ? null : v, abbinatoPer: v === NESSUNO ? null : "scelto" })}>
-                              <SelectTrigger className={cn("h-8 w-52", !r.profiloId && r.alDipendente && "border-amber-400")}><SelectValue placeholder="Scegli la persona" /></SelectTrigger>
+                              <SelectTrigger className={cn("h-8 w-52", !r.profiloId && r.alDipendente && "border-amber-400")}><SelectValue placeholder={tTesto("Scegli la persona")} /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value={NESSUNO}>Nessuno</SelectItem>
+                                <SelectItem value={NESSUNO}>{tTesto("Nessuno")}</SelectItem>
                                 {profili.map((p) => (
-                                  <SelectItem key={p.id} value={p.id}>{`${p.cognome ?? ""} ${p.nome ?? ""}`.trim()}{p.attivo === false ? " (cessato)" : ""}</SelectItem>
+                                  <SelectItem key={p.id} value={p.id}>{`${p.cognome ?? ""} ${p.nome ?? ""}`.trim()}{p.attivo === false ? ` ${tTesto("(cessato)")}` : ""}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                             <p className="mt-0.5 text-[11px] text-muted-foreground">
-                              {r.abbinatoPer === "codice_fiscale" ? <span className="text-green-700">Riconosciuto dal codice fiscale</span>
-                                : r.abbinatoPer === "nome" ? <span className="text-green-700">Riconosciuto dal nome</span>
-                                : r.abbinatoPer === "scelto" ? "Scelto a mano"
-                                : r.nome ? `Sulla busta: ${r.nome}` : "Nome non trovato sulla pagina"}
+                              {r.abbinatoPer === "codice_fiscale" ? <span className="text-green-700">{tTesto("Riconosciuto dal codice fiscale")}</span>
+                                : r.abbinatoPer === "nome" ? <span className="text-green-700">{tTesto("Riconosciuto dal nome")}</span>
+                                : r.abbinatoPer === "scelto" ? tTesto("Scelto a mano")
+                                : r.nome ? tTesto("Sulla busta: {nome}", { nome: String(r.nome ?? "") }) : tTesto("Nome non trovato sulla pagina")}
                             </p>
                           </>
                         )}
@@ -293,15 +294,15 @@ export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { compa
                       <td className="whitespace-nowrap px-3 py-2">
                         {periodoTesto(r.anno ?? periodo?.anno ?? null, r.mese ?? periodo?.mese ?? null)}
                         {periodo && r.mese && r.anno && (r.mese !== periodo.mese || r.anno !== periodo.anno) && (
-                          <p className="text-[11px] text-amber-700">Mese diverso dagli altri: controlla</p>
+                          <p className="text-[11px] text-amber-700">{tTesto("Mese diverso dagli altri: controlla")}</p>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right font-medium tabular-nums">{r.tipo === "cedolino" && r.netto != null ? formatCurrency(r.netto) : ""}</td>
                       <td className="px-3 py-2">
-                        <Switch checked={r.alDipendente} onCheckedChange={(v) => cambia(r.chiave, { alDipendente: v })} aria-label="Al dipendente" disabled={!PUO_ANDARE_AL_DIPENDENTE.includes(r.tipo)} />
+                        <Switch checked={r.alDipendente} onCheckedChange={(v) => cambia(r.chiave, { alDipendente: v })} aria-label={tTesto("Al dipendente")} disabled={!PUO_ANDARE_AL_DIPENDENTE.includes(r.tipo)} />
                       </td>
                       <td className="px-3 py-2 text-right">
-                        <Button variant="ghost" size="sm" className="h-8 gap-1" onClick={() => anteprima(r)}><Eye className="h-3.5 w-3.5" />Vedi</Button>
+                        <Button variant="ghost" size="sm" className="h-8 gap-1" onClick={() => anteprima(r)}><Eye className="h-3.5 w-3.5" />{tTesto("Vedi")}</Button>
                       </td>
                     </tr>
                   ))}
@@ -313,14 +314,14 @@ export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { compa
 
         <DialogFooter className="gap-2 sm:justify-between">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            {righe.length > 0 && <><CheckCircle2 className="h-3.5 w-3.5 text-green-600" />{conteggio.alDipendente} documenti arriveranno ai dipendenti, con un avviso</>}
+            {righe.length > 0 && <><CheckCircle2 className="h-3.5 w-3.5 text-green-600" />{tTesto("{n} documenti arriveranno ai dipendenti, con un avviso", { n: conteggio.alDipendente })}</>}
           </p>
           <div className="flex gap-2">
             <Button variant="outline" disabled={!righe.length || !!salvataggio} onClick={() => salva(false)}>
-              {salvataggio === "bozza" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}Salva senza pubblicare
+              {salvataggio === "bozza" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}{tTesto("Salva senza pubblicare")}
             </Button>
             <Button disabled={!righe.length || !!salvataggio} onClick={() => salva(true)}>
-              {salvataggio === "pubblica" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}Salva e pubblica ai dipendenti
+              {salvataggio === "pubblica" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}{tTesto("Salva e pubblica ai dipendenti")}
             </Button>
           </div>
         </DialogFooter>

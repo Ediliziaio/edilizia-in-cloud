@@ -39,6 +39,7 @@ import Employees from "@/pages/azienda/Employees";
 import SettingsTeams from "@/pages/azienda/settings/SettingsTeams";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type PeopleTab = "utenti" | "accessi-azienda" | "sicurezza-accessi" | "template-permessi" | "dipendenti" | "subappaltatori" | "venditori" | "team" | "commercialista";
 
@@ -50,16 +51,18 @@ function isValidTab(tab: string | null): tab is PeopleTab {
 
 /** L'avviso in cima alle schede che un non-amministratore può solo guardare. */
 function AvvisoSolaLettura() {
+  const t = useT();
   return (
     <Alert className="mb-4">
       <AlertDescription>
-        Stai guardando. Utenti, ruoli, permessi, venditori e dipendenti li cambia solo l'amministratore.
+        {t("Stai guardando. Utenti, ruoli, permessi, venditori e dipendenti li cambia solo l'amministratore.")}
       </AlertDescription>
     </Alert>
   );
 }
 
 export default function SettingsPeople() {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const permissions = usePermissions();
   // Mobile: solo «Utenti» (chi c'è, invitare qualcuno). Dipendenti e
@@ -85,7 +88,7 @@ export default function SettingsPeople() {
     return (
       <div role="status" className="flex items-center gap-2 py-8 text-muted-foreground text-sm">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        Caricamento dei permessi…
+        {t("Caricamento dei permessi…")}
       </div>
     );
   }
@@ -93,7 +96,7 @@ export default function SettingsPeople() {
   if (!canViewUsers && !canViewPeople && !canViewAccessSecurity) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[40vh] gap-3 text-center">
-        <p className="text-sm text-muted-foreground">Non hai accesso a questa sezione.</p>
+        <p className="text-sm text-muted-foreground">{t("Non hai accesso a questa sezione.")}</p>
       </div>
     );
   }
@@ -143,19 +146,19 @@ export default function SettingsPeople() {
   // Le schede meno usate stanno in «Altro»: la riga resta di sei schede, che da
   // 640 px ci stanno tutte (con nove scorreva di lato e a 1024 metà erano fuori).
   const schedeAltro = ([
-    canViewUsers && { tab: "accessi-azienda", label: "Da altre aziende" },
-    canViewAccessSecurity && { tab: "sicurezza-accessi", label: "Controllo accessi" },
-    canManagePermissionTemplates && { tab: "template-permessi", label: "Modelli di permessi" },
+    canViewUsers && { tab: "accessi-azienda", label: t("Da altre aziende") },
+    canViewAccessSecurity && { tab: "sicurezza-accessi", label: t("Controllo accessi") },
+    canManagePermissionTemplates && { tab: "template-permessi", label: t("Modelli di permessi") },
   ] as const).filter(Boolean) as { tab: PeopleTab; label: string }[];
   const schedaAltro = schedeAltro.find((x) => x.tab === activeTab);
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
       <p className="mb-4 text-sm text-muted-foreground">
-        {activeTab === "utenti" ? "Chi può entrare nel gestionale, con quali ruoli e permessi. La stessa persona può avere più ruoli."
+        {activeTab === "utenti" ? t("Chi può entrare nel gestionale, con quali ruoli e permessi. La stessa persona può avere più ruoli.")
           : ["dipendenti", "subappaltatori", "venditori", "team"].includes(activeTab)
-            ? "Organizzazione delle persone e dei team. Gli accessi al gestionale si gestiscono nella scheda Utenti."
-            : "Deleghe e controlli degli accessi: ogni scheda mantiene i propri permessi."}
+            ? t("Organizzazione delle persone e dei team. Gli accessi al gestionale si gestiscono nella scheda Utenti.")
+            : t("Deleghe e controlli degli accessi: ogni scheda mantiene i propri permessi.")}
       </p>
       {/* Su telefono la barra c'è solo se non si è bloccati sulla scheda «Utenti»:
           chi non vede gli utenti ma vede i dipendenti prima restava sulla prima
@@ -167,33 +170,33 @@ export default function SettingsPeople() {
         )}
       >
         {canViewUsers && (
-          <TabsTrigger value="utenti" className="shrink-0">Utenti</TabsTrigger>
+          <TabsTrigger value="utenti" className="shrink-0">{t("Utenti")}</TabsTrigger>
         )}
         {canViewPeople && (
-          <TabsTrigger value="dipendenti" className="shrink-0">Dipendenti</TabsTrigger>
+          <TabsTrigger value="dipendenti" className="shrink-0">{t("Dipendenti")}</TabsTrigger>
         )}
         {canViewPeople && (
-          <TabsTrigger value="venditori" className="shrink-0">Venditori</TabsTrigger>
+          <TabsTrigger value="venditori" className="shrink-0">{t("Venditori")}</TabsTrigger>
         )}
         {canViewPeople && (
-          <TabsTrigger value="subappaltatori" className="shrink-0">Subappaltatori</TabsTrigger>
+          <TabsTrigger value="subappaltatori" className="shrink-0">{t("Subappaltatori")}</TabsTrigger>
         )}
         {canViewPeople && (
-          <TabsTrigger value="team" className="shrink-0">Team</TabsTrigger>
+          <TabsTrigger value="team" className="shrink-0">{t("Team")}</TabsTrigger>
         )}
         {canViewUsers && (
-          <TabsTrigger value="commercialista" className="shrink-0">Commercialista</TabsTrigger>
+          <TabsTrigger value="commercialista" className="shrink-0">{t("Commercialista")}</TabsTrigger>
         )}
         {/* Le linguette di «Altro» restano (nascoste) perché Radix sappia quale
             scheda è attiva; il menu le apre. */}
         {canViewUsers && (
-          <TabsTrigger value="accessi-azienda" className="hidden">Da altre aziende</TabsTrigger>
+          <TabsTrigger value="accessi-azienda" className="hidden">{t("Da altre aziende")}</TabsTrigger>
         )}
         {canViewAccessSecurity && (
-          <TabsTrigger value="sicurezza-accessi" className="hidden">Controllo accessi</TabsTrigger>
+          <TabsTrigger value="sicurezza-accessi" className="hidden">{t("Controllo accessi")}</TabsTrigger>
         )}
         {canManagePermissionTemplates && (
-          <TabsTrigger value="template-permessi" className="hidden">Modelli di permessi</TabsTrigger>
+          <TabsTrigger value="template-permessi" className="hidden">{t("Modelli di permessi")}</TabsTrigger>
         )}
         {schedeAltro.length > 0 && (
           // «Altro» prende il nome della scheda aperta quando è una delle sue.
@@ -206,7 +209,7 @@ export default function SettingsPeople() {
                   schedaAltro && "bg-background text-foreground shadow-sm",
                 )}
               >
-                {schedaAltro ? schedaAltro.label : "Altro"}
+                {schedaAltro ? schedaAltro.label : t("Altro")}
                 <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </DropdownMenuTrigger>
@@ -231,11 +234,10 @@ export default function SettingsPeople() {
           {/* Una frase sola, chiusa: spingeva giù l'elenco. */}
           {puoGestirePersone && (
             <details className="mb-4 rounded-lg border bg-muted/30 px-3 py-2 text-sm max-sm:hidden">
-              <summary className="cursor-pointer font-medium">Una persona può avere più ruoli</summary>
+              <summary className="cursor-pointer font-medium">{t("Una persona può avere più ruoli")}</summary>
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Un impiegato che fa anche il venditore? Apri il menu <strong>⋮</strong> sulla sua riga e scegli{" "}
-                <em>«Aggiungi ruolo Venditore»</em>: comparirà nel calendario, negli elenchi dei venditori e
-                nelle provvigioni.
+                {t("Un impiegato che fa anche il venditore? Apri il menu")} <strong>⋮</strong> {t("sulla sua riga e scegli")}{" "}
+                <em>{t("«Aggiungi ruolo Venditore»")}</em>{t(": comparirà nel calendario, negli elenchi dei venditori e nelle provvigioni.")}
               </p>
             </details>
           )}

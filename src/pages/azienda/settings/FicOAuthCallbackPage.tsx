@@ -16,6 +16,7 @@ import { useSearchParams } from "react-router-dom";
 import { CheckCircle2, XCircle, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TRUSTED_ORIGINS = [
   "https://app.ediliziaincloud.com",
@@ -36,6 +37,7 @@ function postResultToOpener(status: "ok" | "error", message: string | null, comp
 }
 
 export default function FicOAuthCallbackPage() {
+  const tr = useT();
   const [searchParams] = useSearchParams();
   const [phase, setPhase] = useState<"exchanging" | "scegli" | "ok" | "error">("exchanging");
   const [message, setMessage] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export default function FicOAuthCallbackPage() {
     const risposta = data as { error?: string; company_name?: string } | null;
     setSalvando(null);
     if (error || risposta?.error) {
-      const msg = risposta?.error || error?.message || "Scelta non salvata";
+      const msg = risposta?.error || error?.message || tr("Scelta non salvata");
       setMessage(msg);
       setPhase("error");
       postResultToOpener("error", msg);
@@ -80,7 +82,7 @@ export default function FicOAuthCallbackPage() {
 
     (async () => {
       if (oauthError || !code) {
-        const msg = oauthError || "Codice di autorizzazione mancante";
+        const msg = oauthError || tr("Codice di autorizzazione mancante");
         setMessage(msg);
         setPhase("error");
         postResultToOpener("error", msg);
@@ -97,7 +99,7 @@ export default function FicOAuthCallbackPage() {
           aziende?: Array<{ id: string; name: string | null; vat_number: string | null }>;
         } | null;
         if (error || errBody?.error) {
-          const msg = errBody?.error || error?.message || "Scambio token non riuscito";
+          const msg = errBody?.error || error?.message || tr("Scambio token non riuscito");
           setMessage(msg);
           setPhase("error");
           postResultToOpener("error", msg);
@@ -112,7 +114,7 @@ export default function FicOAuthCallbackPage() {
         setMessage(errBody?.company_name ?? null);
         postResultToOpener("ok", null, errBody?.company_name ?? null);
       } catch (e) {
-        const msg = (e as Error).message || "Errore imprevisto durante il collegamento";
+        const msg = (e as Error).message || tr("Errore imprevisto durante il collegamento");
         setMessage(msg);
         setPhase("error");
         postResultToOpener("error", msg);
@@ -137,17 +139,16 @@ export default function FicOAuthCallbackPage() {
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-100">
               <Loader2 className="h-7 w-7 animate-spin text-blue-600" />
             </div>
-            <h1 className="text-xl font-semibold text-slate-900">Collegamento a Fatture in Cloud…</h1>
-            <p className="mt-2 text-sm text-slate-600">Sto completando l'autorizzazione, un istante.</p>
+            <h1 className="text-xl font-semibold text-slate-900">{tr("Collegamento a Fatture in Cloud…")}</h1>
+            <p className="mt-2 text-sm text-slate-600">{tr("Sto completando l'autorizzazione, un istante.")}</p>
           </>
         )}
 
         {phase === "scegli" && (
           <>
-            <h1 className="text-xl font-semibold text-slate-900">Quale azienda colleghi?</h1>
+            <h1 className="text-xl font-semibold text-slate-900">{tr("Quale azienda colleghi?")}</h1>
             <p className="mt-2 text-sm text-slate-600">
-              Il tuo account Fatture in Cloud gestisce più aziende e nessuna ha la partita IVA di questa.
-              Scegli quella da cui importare le fatture.
+              {tr("Il tuo account Fatture in Cloud gestisce più aziende e nessuna ha la partita IVA di questa. Scegli quella da cui importare le fatture.")}
             </p>
             <div className="mt-5 space-y-2 text-left">
               {aziende.map((a) => (
@@ -159,7 +160,7 @@ export default function FicOAuthCallbackPage() {
                   className="flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-60"
                 >
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-slate-900">{a.name || `Azienda ${a.id}`}</span>
+                    <span className="block truncate text-sm font-medium text-slate-900">{a.name || tr("Azienda {id}", { id: String(a.id ?? "") })}</span>
                     {a.vat_number && <span className="block text-xs text-slate-500">P.IVA {a.vat_number}</span>}
                   </span>
                   {salvando === a.id && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-blue-600" />}
@@ -174,9 +175,9 @@ export default function FicOAuthCallbackPage() {
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
               <CheckCircle2 className="h-7 w-7 text-emerald-600" />
             </div>
-            <h1 className="text-xl font-semibold text-slate-900">Fatture in Cloud collegato</h1>
+            <h1 className="text-xl font-semibold text-slate-900">{tr("Fatture in Cloud collegato")}</h1>
             <p className="mt-2 text-sm text-slate-600">
-              {message ? `Account: ${message}. ` : ""}Puoi chiudere questa finestra — l'app si aggiorna da sola.
+              {message ? tr("Account: {message}. ", { message: String(message ?? "") }) : ""}{tr("Puoi chiudere questa finestra — l'app si aggiorna da sola.")}
             </p>
           </>
         )}
@@ -186,9 +187,9 @@ export default function FicOAuthCallbackPage() {
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-100">
               <XCircle className="h-7 w-7 text-rose-600" />
             </div>
-            <h1 className="text-xl font-semibold text-slate-900">Collegamento non riuscito</h1>
+            <h1 className="text-xl font-semibold text-slate-900">{tr("Collegamento non riuscito")}</h1>
             <p className="mt-2 text-sm text-slate-600">
-              {message ? `Errore: ${message}` : "Si è verificato un problema. Riprova dalle impostazioni."}
+              {message ? tr("Errore: {message}", { message: String(message ?? "") }) : tr("Si è verificato un problema. Riprova dalle impostazioni.")}
             </p>
           </>
         )}
@@ -205,7 +206,7 @@ export default function FicOAuthCallbackPage() {
             }}
           >
             <X className="mr-1 h-3.5 w-3.5" />
-            Chiudi finestra
+            {tr("Chiudi finestra")}
           </Button>
         )}
       </div>

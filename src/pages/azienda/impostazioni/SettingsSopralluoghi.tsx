@@ -55,6 +55,7 @@ import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CATEGORY_ICON: Record<string, string> = {
   infissi: "🪟",
@@ -97,25 +98,28 @@ class ErroreControllo extends Error {}
  * Difesa oltre ai pulsanti nascosti: una funzione di scrittura chiamata senza il permesso di modifica
  * non parte e dice perché. Restituisce true se ha rifiutato.
  */
-function rifiutaSolaLettura(puoModificare: boolean): boolean {
+type Tr = (testo: string, valori?: Record<string, string | number>) => string;
+
+function rifiutaSolaLettura(puoModificare: boolean, t: Tr): boolean {
   if (puoModificare) return false;
-  toast.error("Modello non modificato", { description: MSG_SOLA_LETTURA });
+  toast.error(t("Modello non modificato"), { description: t(MSG_SOLA_LETTURA) });
   return true;
 }
 
 /** Il motivo di un errore, in italiano e senza la parola «template» che l'API scrive nei suoi messaggi. */
-function motivo(e: unknown, ripiego: string): string {
+function motivo(e: unknown, ripiego: string, t: Tr): string {
   if (e instanceof ErroreControllo) return e.message;
   const messaggio = e instanceof Error ? e.message : "";
   const usato = /usato da (\d+) riliev/i.exec(messaggio);
   if (usato) {
     const n = Number(usato[1]);
-    return `Questo modello è già stato usato in ${n} ${n === 1 ? "sopralluogo" : "sopralluoghi"}: finché esistono non si può eliminare.`;
+    return t(n === 1 ? "Questo modello è già stato usato in {n} sopralluogo: finché esistono non si può eliminare." : "Questo modello è già stato usato in {n} sopralluoghi: finché esistono non si può eliminare.", { n });
   }
   return userErrorMessage(e, ripiego);
 }
 
 export default function SettingsSopralluoghi() {
+  const tr = useT();
   const qc = useQueryClient();
   const { isFeatureEnabled } = useFeatureFlags();
   const enabled = isFeatureEnabled("surveys_module");
@@ -140,16 +144,16 @@ export default function SettingsSopralluoghi() {
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
       toggleTemplateEnabled(id, enabled),
     onSuccess: (_esito, { enabled }) => {
-      toast.success(enabled ? "Modello attivato" : "Modello disattivato");
+      toast.success(enabled ? tr("Modello attivato") : tr("Modello disattivato"));
       qc.invalidateQueries({ queryKey: ["survey-templates-with-settings"] });
     },
-    onError: (e) => toast.error("Modello non aggiornato", {
-      description: motivo(e, "Non sono riuscito ad attivare o disattivare il modello. Riprova."),
+    onError: (e) => toast.error(tr("Modello non aggiornato"), {
+      description: motivo(e, tr("Non sono riuscito ad attivare o disattivare il modello. Riprova."), tr),
     }),
   });
 
   const attiva = (id: string, attivo: boolean) => {
-    if (rifiutaSolaLettura(puoModificare)) return;
+    if (rifiutaSolaLettura(puoModificare, tr)) return;
     toggleMut.mutate({ id, enabled: attivo });
   };
 
@@ -160,10 +164,9 @@ export default function SettingsSopralluoghi() {
         <CardContent className="p-6 flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
           <div>
-            <p className="font-semibold">Modulo Sopralluoghi non attivo</p>
+            <p className="font-semibold">{tr("Modulo Sopralluoghi non attivo")}</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Le impostazioni dei sopralluoghi sono disponibili solo per le
-              aziende con il modulo Sopralluoghi abilitato.
+              {tr("Le impostazioni dei sopralluoghi sono disponibili solo per le aziende con il modulo Sopralluoghi abilitato.")}
             </p>
           </div>
         </CardContent>
@@ -174,8 +177,8 @@ export default function SettingsSopralluoghi() {
   const list = templates ?? [];
   const activeCount = list.filter((t) => t.enabled_for_company).length;
   const ownCount = list.filter((t) => !t.is_system).length;
-  const riepilogo = `${activeCount} ${activeCount === 1 ? "attivo" : "attivi"} su ${list.length}${
-    ownCount > 0 ? ` · ${ownCount} ${ownCount === 1 ? "tuo" : "tuoi"}` : ""
+  const riepilogo = `${tr(activeCount === 1 ? "{n} attivo su {totale}" : "{n} attivi su {totale}", { n: activeCount, totale: list.length })}${
+    ownCount > 0 ? ` · ${tr(ownCount === 1 ? "{n} tuo" : "{n} tuoi", { n: ownCount })}` : ""
   }`;
 
   return (
@@ -188,7 +191,7 @@ export default function SettingsSopralluoghi() {
         {puoModificare && (
           <Button onClick={() => setNewDialogOpen(true)} className="ml-auto gap-2">
             <Plus className="h-4 w-4" />
-            Nuovo modello
+            {tr("Nuovo modello")}
           </Button>
         )}
       </div>
@@ -196,11 +199,11 @@ export default function SettingsSopralluoghi() {
       {isError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Non riesco a leggere i modelli</AlertTitle>
+          <AlertTitle>{tr("Non riesco a leggere i modelli")}</AlertTitle>
           <AlertDescription className="space-y-3">
-            <p className="text-xs">{userErrorMessage(error, "Non sono riuscito a caricare i modelli. Riprova.")}</p>
+            <p className="text-xs">{userErrorMessage(error, tr("Non sono riuscito a caricare i modelli. Riprova."))}</p>
             <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
-              Riprova
+              {tr("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -211,10 +214,9 @@ export default function SettingsSopralluoghi() {
         <Card className="border-dashed">
           <CardContent className="p-10 text-center">
             <ClipboardList className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-            <p className="font-semibold">Nessun modello disponibile</p>
+            <p className="font-semibold">{tr("Nessun modello disponibile")}</p>
             <p className="text-sm text-muted-foreground mt-1">
-              I modelli di serie (Infissi, Bagno, Fotovoltaico, Ristrutturazione)
-              dovrebbero esserci. Se non li vedi, scrivici.
+              {tr("I modelli di serie (Infissi, Bagno, Fotovoltaico, Ristrutturazione) dovrebbero esserci. Se non li vedi, scrivici.")}
             </p>
           </CardContent>
         </Card>
@@ -303,7 +305,7 @@ export default function SettingsSopralluoghi() {
             const fresh = (qc.getQueryData<TemplateWithSettings[]>(["survey-templates-with-settings"]) ?? [])
               .find((t) => t.id === newId);
             if (fresh) setEditing(fresh);
-            else toast.success("Modello creato. Modificalo dalla lista.");
+            else toast.success(tr("Modello creato. Modificalo dalla lista."));
           }}
         />
       )}
@@ -313,30 +315,30 @@ export default function SettingsSopralluoghi() {
         <AlertDialog open onOpenChange={() => setDeleteDialog(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Eliminare «{deleteDialog.name}»?</AlertDialogTitle>
+              <AlertDialogTitle>{tr("Eliminare «{name}»?", { name: String(deleteDialog.name ?? "") })}</AlertDialogTitle>
               <AlertDialogDescription>
-                Il modello verrà eliminato per sempre. Si può eliminare solo un modello che nessun sopralluogo ha mai usato.
+                {tr("Il modello verrà eliminato per sempre. Si può eliminare solo un modello che nessun sopralluogo ha mai usato.")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-rose-600 hover:bg-rose-700"
                 onClick={async () => {
-                  if (rifiutaSolaLettura(puoModificare)) return;
+                  if (rifiutaSolaLettura(puoModificare, tr)) return;
                   try {
                     await deleteTemplate(deleteDialog.id);
-                    toast.success("Modello eliminato");
+                    toast.success(tr("Modello eliminato"));
                     qc.invalidateQueries({ queryKey: ["survey-templates-with-settings"] });
                     setDeleteDialog(null);
                   } catch (e) {
-                    toast.error("Modello non eliminato", {
-                      description: motivo(e, "Non sono riuscito a eliminare il modello. Riprova."),
+                    toast.error(tr("Modello non eliminato"), {
+                      description: motivo(e, tr("Non sono riuscito a eliminare il modello. Riprova."), tr),
                     });
                   }
                 }}
               >
-                Elimina
+                {tr("Elimina")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -361,6 +363,7 @@ function TemplateRow({
   onClone: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const stats = useMemo(() => {
     const schema = template.schema as TemplateSchema;
     const headerFields = (schema?.header_schema ?? []).reduce(
@@ -396,12 +399,12 @@ function TemplateRow({
             {template.is_system ? (
               <Badge variant="secondary" className="text-[10px]">
                 <Lock className="h-2.5 w-2.5 mr-0.5" />
-                Di serie
+                {t("Di serie")}
               </Badge>
             ) : (
               <Badge variant="outline" className="text-[10px]">
                 <FileEdit className="h-2.5 w-2.5 mr-0.5" />
-                Tuo
+                {t("Tuo")}
               </Badge>
             )}
           </div>
@@ -410,11 +413,11 @@ function TemplateRow({
           )}
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1.5 flex-wrap">
             <span className="flex items-center gap-1">
-              <FormInput className="h-3 w-3" /> {stats.headerFields + stats.totalElementFields} campi
+              <FormInput className="h-3 w-3" /> {t("{n} campi", { n: stats.headerFields + stats.totalElementFields })}
             </span>
-            <span>· {stats.elementTypes} tipologie elementi</span>
+            <span>· {stats.elementTypes} {t("tipologie elementi")}</span>
             <span className="flex items-center gap-1">
-              <Camera className="h-3 w-3" /> {stats.requiredPhotos} foto richieste
+              <Camera className="h-3 w-3" /> {stats.requiredPhotos} {t("foto richieste")}
             </span>
           </div>
         </div>
@@ -427,11 +430,11 @@ function TemplateRow({
                 checked={template.enabled_for_company}
                 disabled={!puoModificare}
                 onCheckedChange={onToggle}
-                aria-label={`Usa il modello ${template.name}`}
+                aria-label={t("Usa il modello {name}", { name: String(template.name ?? "") })}
                 aria-describedby={statoId}
               />
               <span id={statoId} className="text-[11px] text-muted-foreground">
-                {template.enabled_for_company ? "Attivo" : "Disattivo"}
+                {template.enabled_for_company ? t("Attivo") : t("Disattivo")}
               </span>
             </div>
           )}
@@ -443,32 +446,32 @@ function TemplateRow({
             variant="outline" size="sm"
             className="gap-1"
             onClick={onPreview}
-            title="Prova il modello come lo vede il tecnico"
-            aria-label="Anteprima"
+            title={t("Prova il modello come lo vede il tecnico")}
+            aria-label={t("Anteprima")}
           >
             <Eye className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Anteprima</span>
+            <span className="hidden sm:inline">{t("Anteprima")}</span>
           </Button>
           {onEdit ? (
-            <Button variant="default" size="sm" className="gap-1" onClick={onEdit} aria-label="Modifica">
+            <Button variant="default" size="sm" className="gap-1" onClick={onEdit} aria-label={t("Modifica")}>
               <FileEdit className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Modifica</span>
+              <span className="hidden sm:inline">{t("Modifica")}</span>
             </Button>
           ) : (
-            <Button variant="outline" size="sm" className="gap-1" onClick={onView} aria-label="Vedi i campi">
+            <Button variant="outline" size="sm" className="gap-1" onClick={onView} aria-label={t("Vedi i campi")}>
               {/* Su telefono resta solo l'icona: diversa da quella di «Anteprima», che era uguale (due occhi di fila). */}
               <List className="h-3.5 w-3.5 sm:hidden" />
-              <span className="hidden sm:inline">Vedi i campi</span>
+              <span className="hidden sm:inline">{t("Vedi i campi")}</span>
             </Button>
           )}
           {puoModificare && (
-            <Button variant="outline" size="sm" className="gap-1" onClick={onClone} title="Fai una copia che puoi modificare" aria-label="Copia">
+            <Button variant="outline" size="sm" className="gap-1" onClick={onClone} title={t("Fai una copia che puoi modificare")} aria-label={t("Copia")}>
               <Copy className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Copia</span>
+              <span className="hidden sm:inline">{t("Copia")}</span>
             </Button>
           )}
           {puoModificare && !template.is_system && (
-            <Button variant="ghost" size="icon" onClick={onDelete} className="text-rose-600" aria-label="Elimina">
+            <Button variant="ghost" size="icon" onClick={onDelete} className="text-rose-600" aria-label={t("Elimina")}>
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           )}
@@ -484,6 +487,7 @@ function TemplateRow({
 export function TemplateDetailDialog({
   template, puoModificare, onClose,
 }: { template: TemplateWithSettings; puoModificare: boolean; onClose: () => void }) {
+  const t = useT();
   const schema = template.schema as TemplateSchema;
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const qc = useQueryClient();
@@ -498,28 +502,28 @@ export function TemplateDetailDialog({
 
   const saveSchemaMut = useMutation({
     mutationFn: async () => {
-      if (!puoModificare) throw new ErroreControllo(MSG_SOLA_LETTURA);
+      if (!puoModificare) throw new ErroreControllo(t(MSG_SOLA_LETTURA));
       let parsed: unknown;
       try {
         parsed = JSON.parse(jsonText);
       } catch (e) {
         throw new ErroreControllo(
-          `Errore di sintassi: controlla virgole, parentesi e virgolette. Nulla è stato salvato. (${e instanceof Error ? e.message : String(e)})`,
+          t("Errore di sintassi: controlla virgole, parentesi e virgolette. Nulla è stato salvato. ({dettaglio})", { dettaglio: e instanceof Error ? e.message : String(e) }),
           { cause: e },
         );
       }
       await updateTemplate(template.id, { schema: parsed });
     },
     onSuccess: () => {
-      toast.success("Modifica avanzata salvata");
+      toast.success(t("Modifica avanzata salvata"));
       qc.invalidateQueries({ queryKey: ["survey-templates-with-settings"] });
       setJsonError(null);
       setJsonSalvato(jsonText);
     },
     onError: (e) => {
-      const msg = motivo(e, "Non sono riuscito a salvare la modifica. Riprova.");
+      const msg = motivo(e, t("Non sono riuscito a salvare la modifica. Riprova."), t);
       setJsonError(msg);
-      toast.error("Modifica avanzata non salvata", { description: msg });
+      toast.error(t("Modifica avanzata non salvata"), { description: msg });
     },
   });
 
@@ -538,12 +542,12 @@ export function TemplateDetailDialog({
             {template.is_system && (
               <Badge variant="secondary" className="text-[10px]">
                 <Lock className="h-2.5 w-2.5 mr-0.5" />
-                Di serie: si può solo copiare
+                {t("Di serie: si può solo copiare")}
               </Badge>
             )}
           </DialogTitle>
           <DialogDescription>
-            {template.description ?? "Tutti i campi del modello"}
+            {template.description ?? t("Tutti i campi del modello")}
           </DialogDescription>
         </DialogHeader>
 
@@ -554,7 +558,7 @@ export function TemplateDetailDialog({
               <section>
                 <h3 className="text-sm font-bold uppercase tracking-wide text-orange-700 mb-2 flex items-center gap-1.5">
                   <FormInput className="h-3.5 w-3.5" />
-                  Sezioni iniziali ({schema.header_schema.length})
+                  {t("Sezioni iniziali ({n})", { n: schema.header_schema.length })}
                 </h3>
                 <div className="space-y-1.5">
                   {schema.header_schema.map((sec) => {
@@ -569,7 +573,7 @@ export function TemplateDetailDialog({
                         >
                           <div>
                             <p className="text-sm font-semibold">{sec.label}</p>
-                            <p className="text-[11px] text-muted-foreground">{sec.fields?.length ?? 0} campi</p>
+                            <p className="text-[11px] text-muted-foreground">{t("{n} campi", { n: sec.fields?.length ?? 0 })}</p>
                           </div>
                           {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </button>
@@ -577,7 +581,7 @@ export function TemplateDetailDialog({
                           <div className="p-3 space-y-1 text-xs">
                             {(sec.fields ?? []).map((f) => (
                               <div key={f.key} className="flex items-center gap-2 flex-wrap py-1 border-b last:border-b-0">
-                                <Badge variant="outline" className="text-[10px]">{FIELD_TYPE_LABEL[f.type] ?? f.type}</Badge>
+                                <Badge variant="outline" className="text-[10px]">{FIELD_TYPE_LABEL[f.type] ? t(FIELD_TYPE_LABEL[f.type]) : f.type}</Badge>
                                 <span className="font-medium">{f.label}</span>
                                 {f.required && <span className="text-rose-500">*</span>}
                                 <code className="text-[10px] text-muted-foreground ml-auto">{f.key}</code>
@@ -595,15 +599,13 @@ export function TemplateDetailDialog({
             {/* Area */}
             {schema?.area_definition && (
               <section>
-                <h3 className="text-sm font-bold uppercase tracking-wide text-orange-700 mb-2">
-                  Definizione {template.area_label_plural}
-                </h3>
+                <h3 className="text-sm font-bold uppercase tracking-wide text-orange-700 mb-2">{t("Definizione {area_label_plural}", { area_label_plural: String(template.area_label_plural ?? "") })}</h3>
                 <div className="border rounded-md p-3 text-xs space-y-2">
-                  <p><span className="font-semibold">Nome al singolare:</span> {schema.area_definition.label}</p>
-                  <p><span className="font-semibold">Nome al plurale:</span> {schema.area_definition.label_plural}</p>
+                  <p><span className="font-semibold">{t("Nome al singolare:")}</span> {schema.area_definition.label}</p>
+                  <p><span className="font-semibold">{t("Nome al plurale:")}</span> {schema.area_definition.label_plural}</p>
                   {schema.area_definition.name_suggestions && (
                     <div>
-                      <p className="font-semibold">Suggerimenti nomi:</p>
+                      <p className="font-semibold">{t("Suggerimenti nomi:")}</p>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {schema.area_definition.name_suggestions.map((n) => (
                           <Badge key={n} variant="outline" className="text-[10px]">{n}</Badge>
@@ -611,11 +613,11 @@ export function TemplateDetailDialog({
                       </div>
                     </div>
                   )}
-                  <p><span className="font-semibold">{schema.area_definition.fields?.length ?? 0} campi</span> per area</p>
+                  <p>{t("{n} campi per area", { n: schema.area_definition.fields?.length ?? 0 })}</p>
                   {(schema.area_definition.required_photos?.length ?? 0) > 0 && (
                     <p className="flex items-center gap-1">
                       <Camera className="h-3 w-3" />
-                      <span className="font-semibold">{schema.area_definition.required_photos!.length} foto richieste</span> per area
+                      <span className="font-semibold">{t("{n} foto richieste", { n: schema.area_definition.required_photos!.length })}</span> {t("per area")}
                     </p>
                   )}
                 </div>
@@ -626,7 +628,7 @@ export function TemplateDetailDialog({
             {(schema?.element_types?.length ?? 0) > 0 && (
               <section>
                 <h3 className="text-sm font-bold uppercase tracking-wide text-orange-700 mb-2">
-                  Tipologie elementi ({schema.element_types.length})
+                  {t("Tipologie elementi ({n})", { n: schema.element_types.length })}
                 </h3>
                 <div className="space-y-1.5">
                   {schema.element_types.map((et) => {
@@ -643,7 +645,7 @@ export function TemplateDetailDialog({
                           <div>
                             <p className="text-sm font-semibold">{et.label}</p>
                             <p className="text-[11px] text-muted-foreground">
-                              {et.sections?.length ?? 0} sezioni · {totalFields} campi · {et.required_photos?.length ?? 0} foto
+                              {t("{sezioni} sezioni · {campi} campi · {foto} foto", { sezioni: et.sections?.length ?? 0, campi: totalFields, foto: et.required_photos?.length ?? 0 })}
                             </p>
                           </div>
                           {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -656,7 +658,7 @@ export function TemplateDetailDialog({
                                 <div className="ml-2 mt-1 space-y-0.5">
                                   {(sec.fields ?? []).map((f) => (
                                     <div key={f.key} className="flex items-center gap-2 flex-wrap py-0.5">
-                                      <Badge variant="outline" className="text-[10px]">{FIELD_TYPE_LABEL[f.type] ?? f.type}</Badge>
+                                      <Badge variant="outline" className="text-[10px]">{FIELD_TYPE_LABEL[f.type] ? t(FIELD_TYPE_LABEL[f.type]) : f.type}</Badge>
                                       <span>{f.label}</span>
                                       {f.required && <span className="text-rose-500 text-xs">*</span>}
                                     </div>
@@ -667,7 +669,7 @@ export function TemplateDetailDialog({
                             {(et.required_photos?.length ?? 0) > 0 && (
                               <div className="pt-2 border-t">
                                 <p className="font-semibold text-violet-700 flex items-center gap-1">
-                                  <Camera className="h-3 w-3" /> Foto richieste:
+                                  <Camera className="h-3 w-3" /> {t("Foto richieste:")}
                                 </p>
                                 <div className="grid grid-cols-2 gap-1 mt-1">
                                   {et.required_photos.map((p) => (
@@ -693,17 +695,16 @@ export function TemplateDetailDialog({
               <section className="pt-4 border-t">
                 <h3 className="text-sm font-bold uppercase tracking-wide text-orange-700 mb-2 flex items-center gap-1.5">
                   <FileEdit className="h-3.5 w-3.5" />
-                  Modifica avanzata (solo per tecnici)
+                  {t("Modifica avanzata (solo per tecnici)")}
                 </h3>
                 <p className="text-[11px] text-muted-foreground mb-2">
-                  Per chi conosce la struttura del modello: modifica direttamente il suo schema (JSON).
-                  Un errore di sintassi blocca il salvataggio. Per vedere come è fatto, copia un modello di serie.
+                  {t("Per chi conosce la struttura del modello: modifica direttamente il suo schema (JSON). Un errore di sintassi blocca il salvataggio. Per vedere come è fatto, copia un modello di serie.")}
                 </p>
                 <Textarea
                   value={jsonText}
                   onChange={(e) => setJsonText(e.target.value)}
                   rows={16}
-                  aria-label="Schema del modello"
+                  aria-label={t("Schema del modello")}
                   className="font-mono text-[11px]"
                 />
                 {jsonError && (
@@ -716,7 +717,7 @@ export function TemplateDetailDialog({
                     className="gap-1.5"
                   >
                     {saveSchemaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Salva modifica avanzata
+                    {t("Salva modifica avanzata")}
                   </Button>
                 </div>
               </section>
@@ -725,7 +726,7 @@ export function TemplateDetailDialog({
         </ScrollArea>
 
         <DialogFooter className="px-5 py-3 border-t">
-          <Button variant="outline" onClick={chiudi}>Chiudi</Button>
+          <Button variant="outline" onClick={chiudi}>{t("Chiudi")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -742,6 +743,7 @@ function NewTemplateDialog({
   onClose: () => void;
   onCreated: (newId: string) => void | Promise<void>;
 }) {
+  const tr = useT();
   const [mode, setMode] = useState<"blank" | "clone" | "ai">("blank");
   const [modelloAi, setModelloAi] = useState<{ schema: TemplateSchema; avvisi: string[] } | null>(null);
   const [name, setName] = useState("");
@@ -754,23 +756,23 @@ function NewTemplateDialog({
 
   const createMut = useMutation({
     mutationFn: async () => {
-      if (!name.trim()) throw new ErroreControllo("Scrivi il nome del modello.");
+      if (!name.trim()) throw new ErroreControllo(tr("Scrivi il nome del modello."));
       if (mode === "clone") {
-        if (!sourceId) throw new ErroreControllo("Scegli il modello di serie da copiare.");
+        if (!sourceId) throw new ErroreControllo(tr("Scegli il modello di serie da copiare."));
         return cloneTemplate(sourceId, name);
       }
       if (mode === "ai") {
-        if (!modelloAi) throw new ErroreControllo("Genera prima l'anteprima del modello.");
+        if (!modelloAi) throw new ErroreControllo(tr("Genera prima l'anteprima del modello."));
         return createBlankTemplate({ name, category, description: description || null, schema: modelloAi.schema });
       }
       return createBlankTemplate({ name, category, description: description || null });
     },
     onSuccess: (id) => {
-      toast.success(mode === "clone" ? "Modello copiato: ora puoi personalizzarlo" : mode === "ai" ? "Modello creato dall'AI: controllalo nell'editor" : "Modello creato");
+      toast.success(mode === "clone" ? tr("Modello copiato: ora puoi personalizzarlo") : mode === "ai" ? tr("Modello creato dall'AI: controllalo nell'editor") : tr("Modello creato"));
       onCreated(id);
     },
-    onError: (e) => toast.error("Modello non creato", {
-      description: motivo(e, "Non sono riuscito a creare il modello. Riprova."),
+    onError: (e) => toast.error(tr("Modello non creato"), {
+      description: motivo(e, tr("Non sono riuscito a creare il modello. Riprova."), tr),
     }),
   });
 
@@ -780,7 +782,7 @@ function NewTemplateDialog({
   };
 
   const crea = () => {
-    if (rifiutaSolaLettura(puoModificare)) return;
+    if (rifiutaSolaLettura(puoModificare, tr)) return;
     createMut.mutate();
   };
 
@@ -792,10 +794,10 @@ function NewTemplateDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-4 w-4 text-orange-600" />
-            Nuovo modello di sopralluogo
+            {tr("Nuovo modello di sopralluogo")}
           </DialogTitle>
           <DialogDescription>
-            Parti da zero o da un modello di serie e personalizzalo.
+            {tr("Parti da zero o da un modello di serie e personalizzalo.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -811,8 +813,8 @@ function NewTemplateDialog({
             )}
           >
             <FileEdit className="h-5 w-5 text-primary mb-1" />
-            <p className="font-semibold text-sm">Da zero</p>
-            <p className="text-[11px] text-muted-foreground">Modello vuoto: aggiungi tu sezioni, campi e foto</p>
+            <p className="font-semibold text-sm">{tr("Da zero")}</p>
+            <p className="text-[11px] text-muted-foreground">{tr("Modello vuoto: aggiungi tu sezioni, campi e foto")}</p>
           </button>
           <button
             type="button"
@@ -824,8 +826,8 @@ function NewTemplateDialog({
             )}
           >
             <Copy className="h-5 w-5 text-primary mb-1" />
-            <p className="font-semibold text-sm">Parti da uno di serie</p>
-            <p className="text-[11px] text-muted-foreground">Copia un modello di serie (Infissi, Bagno…) e cambialo</p>
+            <p className="font-semibold text-sm">{tr("Parti da uno di serie")}</p>
+            <p className="text-[11px] text-muted-foreground">{tr("Copia un modello di serie (Infissi, Bagno…) e cambialo")}</p>
           </button>
           <button
             type="button"
@@ -837,26 +839,26 @@ function NewTemplateDialog({
             )}
           >
             <Sparkles className="h-5 w-5 text-primary mb-1" />
-            <p className="font-semibold text-sm">Descrivilo all'AI</p>
-            <p className="text-[11px] text-muted-foreground">Racconta cosa si rileva: l'AI propone sezioni, campi e righe di preventivo</p>
+            <p className="font-semibold text-sm">{tr("Descrivilo all'AI")}</p>
+            <p className="text-[11px] text-muted-foreground">{tr("Racconta cosa si rileva: l'AI propone sezioni, campi e righe di preventivo")}</p>
           </button>
         </div>
 
         <div className="space-y-3">
           <div>
-            <Label htmlFor="nuovo-modello-nome" className="text-xs">Nome del nuovo modello</Label>
+            <Label htmlFor="nuovo-modello-nome" className="text-xs">{tr("Nome del nuovo modello")}</Label>
             <Input
               id="nuovo-modello-nome"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Es. Rilievo Infissi Personalizzato"
+              placeholder={tr("Es. Rilievo Infissi Personalizzato")}
             />
           </div>
 
           {(mode === "blank" || mode === "ai") && (
             <>
               <div>
-                <Label htmlFor="nuovo-modello-categoria" className="text-xs">Categoria</Label>
+                <Label htmlFor="nuovo-modello-categoria" className="text-xs">{tr("Categoria")}</Label>
                 <Select value={category} onValueChange={setCategory}>
                   <SelectTrigger id="nuovo-modello-categoria"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -876,19 +878,19 @@ function NewTemplateDialog({
                       ["pergole", "⛱️ Pergole e tende"],
                       ["piscine", "🏊 Piscine"],
                     ].map(([v, l]) => (
-                      <SelectItem key={v} value={v}>{l}</SelectItem>
+                      <SelectItem key={v} value={v}>{tr(l)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="nuovo-modello-descrizione" className="text-xs">Descrizione (facoltativa)</Label>
+                <Label htmlFor="nuovo-modello-descrizione" className="text-xs">{tr("Descrizione (facoltativa)")}</Label>
                 <Textarea
                   id="nuovo-modello-descrizione"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={2}
-                  placeholder="Cosa si rileva con questo modello e quando usarlo"
+                  placeholder={tr("Cosa si rileva con questo modello e quando usarlo")}
                 />
               </div>
             </>
@@ -898,9 +900,9 @@ function NewTemplateDialog({
 
           {mode === "clone" && (
             <div>
-              <Label htmlFor="nuovo-modello-origine" className="text-xs">Modello di serie da copiare</Label>
+              <Label htmlFor="nuovo-modello-origine" className="text-xs">{tr("Modello di serie da copiare")}</Label>
               <Select value={sourceId} onValueChange={setSourceId}>
-                <SelectTrigger id="nuovo-modello-origine"><SelectValue placeholder="Scegli un modello…" /></SelectTrigger>
+                <SelectTrigger id="nuovo-modello-origine"><SelectValue placeholder={tr("Scegli un modello…")} /></SelectTrigger>
                 <SelectContent>
                   {systemTemplates.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -908,21 +910,21 @@ function NewTemplateDialog({
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Ne verrà creata una copia completa che potrai modificare.
+                {tr("Ne verrà creata una copia completa che potrai modificare.")}
               </p>
             </div>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={chiudi}>Annulla</Button>
+          <Button variant="outline" onClick={chiudi}>{tr("Annulla")}</Button>
           <Button
             onClick={crea}
             disabled={!canSubmit || createMut.isPending}
             className="gap-1.5"
           >
             {createMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            {mode === "clone" ? "Copia e modifica" : "Crea e modifica"}
+            {mode === "clone" ? tr("Copia e modifica") : tr("Crea e modifica")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -938,17 +940,18 @@ function CloneDialog({
   onClose: () => void;
   onCloned: (newId: string) => void;
 }) {
+  const t = useT();
   const nomeIniziale = `Copia di ${source.name}`;
   const [name, setName] = useState(nomeIniziale);
   const confermaUscita = useSettingsDraftGuard(name !== nomeIniziale);
   const cloneMut = useMutation({
     mutationFn: () => cloneTemplate(source.id, name),
     onSuccess: (newId) => {
-      toast.success("Modello copiato: ora puoi personalizzarlo");
+      toast.success(t("Modello copiato: ora puoi personalizzarlo"));
       onCloned(newId);
     },
-    onError: (e) => toast.error("Copia non riuscita", {
-      description: motivo(e, "Non sono riuscito a copiare il modello. Riprova."),
+    onError: (e) => toast.error(t("Copia non riuscita"), {
+      description: motivo(e, t("Non sono riuscito a copiare il modello. Riprova."), t),
     }),
   });
 
@@ -958,7 +961,7 @@ function CloneDialog({
   };
 
   const copia = () => {
-    if (rifiutaSolaLettura(puoModificare)) return;
+    if (rifiutaSolaLettura(puoModificare, t)) return;
     cloneMut.mutate();
   };
 
@@ -968,32 +971,32 @@ function CloneDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Copy className="h-4 w-4 text-orange-600" />
-            Copia «{source.name}»
+            {t("Copia «{nome}»", { nome: source.name })}
           </DialogTitle>
           <DialogDescription>
-            Fai una copia che puoi modificare: campi, foto richieste, sezioni.
+            {t("Fai una copia che puoi modificare: campi, foto richieste, sezioni.")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label htmlFor="copia-modello-nome" className="text-xs">Nome del nuovo modello</Label>
+            <Label htmlFor="copia-modello-nome" className="text-xs">{t("Nome del nuovo modello")}</Label>
             <Input
               id="copia-modello-nome"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Es. Rilievo Infissi Personalizzato"
+              placeholder={t("Es. Rilievo Infissi Personalizzato")}
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={chiudi}>Annulla</Button>
+          <Button variant="outline" onClick={chiudi}>{t("Annulla")}</Button>
           <Button
             onClick={copia}
             disabled={!name.trim() || cloneMut.isPending}
             className="gap-1.5"
           >
             {cloneMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Copia e crea
+            {t("Copia e crea")}
           </Button>
         </DialogFooter>
       </DialogContent>

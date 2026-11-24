@@ -15,6 +15,7 @@ import { AmbitoImpostazione, IndiceSezioni, SezioneImpostazione, type VoceIndice
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useVaiASezione } from "@/hooks/useVaiASezione";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const SEZIONI: VoceIndice[] = [
   { id: "lavori", etichetta: "I nostri lavori" },
@@ -24,14 +25,15 @@ const SEZIONI: VoceIndice[] = [
 ];
 
 export default function SettingsModelliFasi() {
+  const t = useT();
   const { role } = useAuth();
   const permissions = usePermissions();
   const puoModificare = !permissions.isLoading && (role === "company_admin" || role === "super_admin" || !!permissions.canEditSettingsOrders);
   const { evidenziata, vai } = useVaiASezione(true);
   return (
     <div className="max-w-3xl space-y-4">
-      {!permissions.isLoading && !puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
-      <IndiceSezioni voci={SEZIONI} onVai={vai} />
+      {!permissions.isLoading && !puoModificare && <AvvisoSolaLetturaImpostazioni permesso={t("Configurazione Ordini")} />}
+      <IndiceSezioni voci={SEZIONI.map((v) => ({ ...v, etichetta: t(v.etichetta) }))} onVai={vai} />
       {/* Prima i lavori: decidono quali modelli standard si vedono qui sotto e nelle commesse. */}
       <TipiLavoroConfig puoModificare={puoModificare} evidenziata={evidenziata === "lavori"} />
       <ModelliFasiConfig evidenziata={evidenziata === "modelli"} />
@@ -42,10 +44,10 @@ export default function SettingsModelliFasi() {
       />
       <SezioneImpostazione
         id="regole"
-        titolo="Regole per tutte le commesse"
-        descrizione="Valgono per ogni commessa dell'azienda, anche per quelle già aperte."
-        ambito={<AmbitoImpostazione>Tutte le commesse</AmbitoImpostazione>}
-        azione={<span>Si salvano subito</span>}
+        titolo={t("Regole per tutte le commesse")}
+        descrizione={t("Valgono per ogni commessa dell'azienda, anche per quelle già aperte.")}
+        ambito={<AmbitoImpostazione>{t("Tutte le commesse")}</AmbitoImpostazione>}
+        azione={<span>{t("Si salvano subito")}</span>}
         evidenziata={evidenziata === "regole"}
       >
         <AvanzamentoCommessaConfig puoModificare={puoModificare} />

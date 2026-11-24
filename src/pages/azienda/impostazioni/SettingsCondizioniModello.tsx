@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Il testo di prima (Markdown importato) diventa HTML una volta sola, all'apertura. */
 const comeHtml = (testo: string | null | undefined): string => DOMPurify.sanitize(htmlPerEditorContratto(String(testo ?? "")));
@@ -38,6 +39,7 @@ const comeHtml = (testo: string | null | undefined): string => DOMPurify.sanitiz
 interface Bozza { nome: string; ambito: AmbitoCondizioni; predefinito: boolean; clausole: Clausola[] }
 
 export default function SettingsCondizioniModello() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const [parametri] = useSearchParams();
   const navigate = useNavigate();
@@ -90,12 +92,12 @@ export default function SettingsCondizioniModello() {
   ), [attiva, salvato, effectiveCompany]);
   const chiaveAnteprima = JSON.stringify(attiva?.clausole ?? []) + (attiva?.nome ?? "");
 
-  if (archivio.inCaricamento) return <p role="status" className="p-4 text-sm text-muted-foreground">Apro il modello…</p>;
+  if (archivio.inCaricamento) return <p role="status" className="p-4 text-sm text-muted-foreground">{t("Apro il modello…")}</p>;
   if (!attiva) {
     return (
       <div className="space-y-2 p-4">
-        <p role="alert" className="text-sm">Questo modello non c'è più: forse è stato archiviato.</p>
-        <Button asChild variant="outline" size="sm"><Link to={PAGINA_CONDIZIONI}>Torna a Contratti e condizioni</Link></Button>
+        <p role="alert" className="text-sm">{t("Questo modello non c'è più: forse è stato archiviato.")}</p>
+        <Button asChild variant="outline" size="sm"><Link to={PAGINA_CONDIZIONI}>{t("Torna a Contratti e condizioni")}</Link></Button>
       </div>
     );
   }
@@ -126,52 +128,50 @@ export default function SettingsCondizioniModello() {
 
   salvaRef.current = salva;
   const esci = (e: { preventDefault: () => void }) => {
-    if (modificato && !window.confirm("Ci sono modifiche non salvate. Uscire lo stesso?")) e.preventDefault();
+    if (modificato && !window.confirm(t("Ci sono modifiche non salvate. Uscire lo stesso?"))) e.preventDefault();
   };
 
   return (
     <div className="space-y-3 p-3 sm:p-4">
       {/* ── La riga in alto: tutto quello che riguarda il modello intero ── */}
       <div className="flex flex-wrap items-center gap-2">
-        <Button asChild variant="ghost" size="sm" className="h-9 px-2"><Link to={PAGINA_CONDIZIONI} onClick={esci} aria-label="Torna a Contratti e condizioni"><ArrowLeft className="h-4 w-4" /></Link></Button>
-        <Input aria-label="Nome del modello" className="h-9 min-w-[12rem] flex-1" value={attiva.nome} disabled={!puoGestire}
-          placeholder="Es. Condizioni standard 2026" onChange={(e) => cambia({ nome: e.target.value })} />
-        <UniformSelect aria-label="Per quale documento" className="h-9 rounded-md border bg-background px-2 text-sm" value={attiva.ambito} disabled={!puoGestire}
+        <Button asChild variant="ghost" size="sm" className="h-9 px-2"><Link to={PAGINA_CONDIZIONI} onClick={esci} aria-label={t("Torna a Contratti e condizioni")}><ArrowLeft className="h-4 w-4" /></Link></Button>
+        <Input aria-label={t("Nome del modello")} className="h-9 min-w-[12rem] flex-1" value={attiva.nome} disabled={!puoGestire}
+          placeholder={t("Es. Condizioni standard 2026")} onChange={(e) => cambia({ nome: e.target.value })} />
+        <UniformSelect aria-label={t("Per quale documento")} className="h-9 rounded-md border bg-background px-2 text-sm" value={attiva.ambito} disabled={!puoGestire}
           onChange={(e) => cambia({ ambito: e.target.value as AmbitoCondizioni })}>
-          {AMBITI_CONDIZIONI.map((a) => <option key={a} value={a}>{NOMI_AMBITI[a]}</option>)}
+          {AMBITI_CONDIZIONI.map((a) => <option key={a} value={a}>{t(NOMI_AMBITI[a])}</option>)}
         </UniformSelect>
         <label className="flex items-center gap-2 text-sm">
-          <Switch checked={attiva.predefinito} disabled={!puoGestire} onCheckedChange={(v) => cambia({ predefinito: v })} aria-label="Modello predefinito" />
-          Predefinito
+          <Switch checked={attiva.predefinito} disabled={!puoGestire} onCheckedChange={(v) => cambia({ predefinito: v })} aria-label={t("Modello predefinito")} />
+          {t("Predefinito")}
         </label>
         {puoGestire && (
           <Button size="sm" className="h-9" disabled={!valido || archivio.salvaModello.isPending || !bozza} onClick={salva}>
-            <Save className="mr-1.5 h-4 w-4" />{archivio.salvaModello.isPending ? "Salvo…" : bozza ? "Salva" : "Salvato"}
+            <Save className="mr-1.5 h-4 w-4" />{archivio.salvaModello.isPending ? t("Salvo…") : bozza ? t("Salva") : t("Salvato")}
             {bozza && !archivio.salvaModello.isPending && <kbd className="ml-2 hidden rounded bg-primary-foreground/20 px-1 text-[10px] sm:inline">⌘S</kbd>}
           </Button>
         )}
-        {modificato && <span role="status" className="text-xs font-medium text-amber-700">Modifiche non salvate</span>}
+        {modificato && <span role="status" className="text-xs font-medium text-amber-700">{t("Modifiche non salvate")}</span>}
       </div>
-      <p className="text-xs text-muted-foreground">
-        {DOVE_SI_USA[attiva.ambito]}. I documenti già partiti non cambiano.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("{valore}. I documenti già partiti non cambiano.", { valore: t(DOVE_SI_USA[attiva.ambito]) })}</p>
 
       <div className="grid gap-3 lg:grid-cols-[15rem_minmax(0,1fr)_minmax(0,26rem)]">
         {/* ── Le clausole, nell'ordine in cui escono ── */}
-        <nav aria-label="Clausole del modello" className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Clausole ({dentro.length})</p>
+        <nav aria-label={t("Clausole del modello")} className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Clausole ({n})", { n: dentro.length })}</p>
           {dentro.map((c, i) => (
             <div key={i} className={cn("group flex items-center gap-1 rounded-md border px-2 py-1.5 text-sm",
               i === scelta ? "border-primary bg-primary/5" : "hover:bg-muted/50")}>
               <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{i + 1}.</span>
               <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={() => setScelta(i)} aria-current={i === scelta}>
-                {c.titolo.trim() || <span className="italic text-muted-foreground">Senza titolo</span>}
-                {c.vessatoria && <span className="ml-1 text-[10px] font-medium text-amber-700">· a parte</span>}
+                {c.titolo.trim() || <span className="italic text-muted-foreground">{t("Senza titolo")}</span>}
+                {c.vessatoria && <span className="ml-1 text-[10px] font-medium text-amber-700">{t("· a parte")}</span>}
               </button>
               {puoGestire && (
                 <span className="flex shrink-0 opacity-60 group-hover:opacity-100">
-                  <button type="button" aria-label={`Sposta su ${c.titolo}`} disabled={i === 0} onClick={() => sposta(i, -1)} className="p-0.5 disabled:opacity-30"><ChevronUp className="h-3.5 w-3.5" /></button>
-                  <button type="button" aria-label={`Sposta giù ${c.titolo}`} disabled={i === dentro.length - 1} onClick={() => sposta(i, 1)} className="p-0.5 disabled:opacity-30"><ChevronDown className="h-3.5 w-3.5" /></button>
+                  <button type="button" aria-label={t("Sposta su {titolo}", { titolo: String(c.titolo ?? "") })} disabled={i === 0} onClick={() => sposta(i, -1)} className="p-0.5 disabled:opacity-30"><ChevronUp className="h-3.5 w-3.5" /></button>
+                  <button type="button" aria-label={t("Sposta giù {titolo}", { titolo: String(c.titolo ?? "") })} disabled={i === dentro.length - 1} onClick={() => sposta(i, 1)} className="p-0.5 disabled:opacity-30"><ChevronDown className="h-3.5 w-3.5" /></button>
                 </span>
               )}
             </div>
@@ -179,15 +179,15 @@ export default function SettingsCondizioniModello() {
           {puoGestire && (
             <div className="space-y-1 pt-1">
               <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => aggiungi({ titolo: "", testo: "" })}>
-                <Plus className="mr-1.5 h-3.5 w-3.5" />Scrivi una clausola
+                <Plus className="mr-1.5 h-3.5 w-3.5" />{t("Scrivi una clausola")}
               </Button>
               {archivio.clausole.length > 0 && (
-                <UniformSelect aria-label="Aggiungi dalla libreria" className="h-9 w-full rounded-md border bg-background px-2 text-sm" value=""
+                <UniformSelect aria-label={t("Aggiungi dalla libreria")} className="h-9 w-full rounded-md border bg-background px-2 text-sm" value=""
                   onChange={(e) => {
                     const c = archivio.clausole.find((x) => x.id === e.target.value);
                     if (c) aggiungi({ clausola_id: c.id, titolo: c.titolo, testo: comeHtml(c.testo), vessatoria: c.vessatoria });
                   }}>
-                  <option value="">+ Dalla libreria…</option>
+                  <option value="">{t("+ Dalla libreria…")}</option>
                   {archivio.clausole.filter((c) => c.attiva).map((c) => <option key={c.id} value={c.id}>{c.titolo}</option>)}
                 </UniformSelect>
               )}
@@ -196,42 +196,42 @@ export default function SettingsCondizioniModello() {
         </nav>
 
         {/* ── La clausola scelta: un editor solo ── */}
-        <section aria-label="Clausola scelta" className="min-w-0 space-y-2">
+        <section aria-label={t("Clausola scelta")} className="min-w-0 space-y-2">
           {corrente ? (
             <>
               <div className="flex items-center gap-2">
-                <Input aria-label="Titolo della clausola" className="h-9 flex-1 font-medium" value={corrente.titolo} disabled={!puoGestire}
-                  placeholder="Es. Modalità di pagamento" onChange={(e) => cambiaClausola(scelta, { titolo: e.target.value })} />
+                <Input aria-label={t("Titolo della clausola")} className="h-9 flex-1 font-medium" value={corrente.titolo} disabled={!puoGestire}
+                  placeholder={t("Es. Modalità di pagamento")} onChange={(e) => cambiaClausola(scelta, { titolo: e.target.value })} />
                 {puoGestire && (
                   <>
-                    <Button variant="ghost" size="sm" className="h-9 px-2" aria-label="Duplica la clausola"
+                    <Button variant="ghost" size="sm" className="h-9 px-2" aria-label={t("Duplica la clausola")}
                       onClick={() => aggiungi({ ...corrente, clausola_id: null })}><Copy className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="sm" className="h-9 px-2" aria-label="Togli la clausola" onClick={() => togli(scelta)}><X className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="sm" className="h-9 px-2" aria-label={t("Togli la clausola")} onClick={() => togli(scelta)}><X className="h-4 w-4" /></Button>
                   </>
                 )}
               </div>
               {/* `key`: cambiando clausola l'editor riparte dal suo testo, senza portarsi dietro il cursore dell'altra. */}
               <RichTextEditor key={scelta} senzaFont value={corrente.testo} readOnly={!puoGestire} minHeight={420}
-                placeholder="Il testo della clausola, come lo vuoi sul documento."
+                placeholder={t("Il testo della clausola, come lo vuoi sul documento.")}
                 onChange={(html) => cambiaClausola(scelta, { testo: html })} />
               <label className="flex items-center gap-2 text-sm">
                 <Switch checked={!!corrente.vessatoria} disabled={!puoGestire} onCheckedChange={(v) => cambiaClausola(scelta, { vessatoria: v })} />
-                Il cliente la approva a parte, con una seconda firma (art. 1341 c.c.)
+                {t("Il cliente la approva a parte, con una seconda firma (art. 1341 c.c.)")}
               </label>
             </>
           ) : (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Ancora nessuna clausola: scrivine una, o prendila dalla libreria.
+              {t("Ancora nessuna clausola: scrivine una, o prendila dalla libreria.")}
             </div>
           )}
         </section>
 
         {/* ── Il PDF vero ── */}
-        <aside aria-label="Come esce sul documento" className="min-w-0 lg:sticky lg:top-4 lg:self-start">
-          <p className="mb-1 text-xs text-muted-foreground">Come esce, con dati d'esempio.</p>
+        <aside aria-label={t("Come esce sul documento")} className="min-w-0 lg:sticky lg:top-4 lg:self-start">
+          <p className="mb-1 text-xs text-muted-foreground">{t("Come esce, con dati d'esempio.")}</p>
           <div className="h-[70dvh] min-h-[420px]">
             <PdfBlobLivePreviewPanel renderBlobUrl={anteprima} depsKey={chiaveAnteprima} debounceMs={700}
-              enabled={dentro.length > 0} downloadFileName={`${(attiva.nome || "condizioni").replace(/[^\w-]+/g, "-")}.pdf`} headerLabel="Anteprima" />
+              enabled={dentro.length > 0} downloadFileName={`${(attiva.nome || "condizioni").replace(/[^\w-]+/g, "-")}.pdf`} headerLabel={t("Anteprima")} />
           </div>
         </aside>
       </div>

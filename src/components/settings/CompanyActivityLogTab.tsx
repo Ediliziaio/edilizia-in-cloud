@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, RefreshCw, ScrollText, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
 import {
   OGGETTI_FILTRO_LOG_AZIENDA,
@@ -23,6 +22,7 @@ import {
   vocedaLogAzienda,
   type RigaLogAzienda,
 } from "@/lib/users/logAttivitaUtente";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const PAGE_SIZE = 20;
 
@@ -44,6 +44,7 @@ interface RigaRegistro extends RigaLogAzienda {
 }
 
 export default function CompanyActivityLogTab() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [page, setPage] = useState(0);
@@ -154,7 +155,7 @@ export default function CompanyActivityLogTab() {
     // la riga, non che l'abbia fatto un'automazione — sui salvataggi fatti a
     // mano è valorizzata lo stesso. Chiamarla "Automazione" sarebbe un'altra
     // attribuzione inventata, come "Sistema".
-    return { testo: "Non attribuito", attribuito: false };
+    return { testo: t("Non attribuito"), attribuito: false };
   }, [data]);
 
   const logs = data?.logs ?? [];
@@ -175,11 +176,11 @@ export default function CompanyActivityLogTab() {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <ScrollText className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-            <h2 className="text-lg font-semibold leading-none tracking-tight">Registro attività</h2>
+            <h2 className="text-lg font-semibold leading-none tracking-tight">{t("Registro attività")}</h2>
           </div>
-          <p className="mt-1.5 text-sm text-muted-foreground">Chi ha fatto cosa nell'azienda, dal più recente.</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">{t("Chi ha fatto cosa nell'azienda, dal più recente.")}</p>
         </div>
-        <Button variant="outline" size="icon" onClick={() => refetch()} aria-label="Aggiorna il registro" className="shrink-0">
+        <Button variant="outline" size="icon" onClick={() => refetch()} aria-label={t("Aggiorna il registro")} className="shrink-0">
           <RefreshCw className="h-4 w-4" />
         </Button>
       </CardHeader>
@@ -189,24 +190,24 @@ export default function CompanyActivityLogTab() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
             <Input
               type="search"
-              aria-label="Cerca nel registro"
-              placeholder="Cerca un nome o una parola…"
+              aria-label={t("Cerca nel registro")}
+              placeholder={t("Cerca un nome o una parola…")}
               value={ricercaScritta}
               onChange={(e) => { setRicercaScritta(e.target.value); setPage(0); }}
               className="pl-9"
             />
           </div>
           <DateRangeFilter
-            label="Periodo"
+            label={t("Periodo")}
             range={dateRange}
             onRangeChange={(r) => { setDateRange(r); setPage(0); }}
           />
           <Select value={oggetto} onValueChange={(v) => { setOggetto(v); setPage(0); }}>
-            <SelectTrigger className="w-[200px]" aria-label="Filtra per tipo di dato">
-              <SelectValue placeholder="Tutto" />
+            <SelectTrigger className="w-[200px]" aria-label={t("Filtra per tipo di dato")}>
+              <SelectValue placeholder={t("Tutto")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutto</SelectItem>
+              <SelectItem value="all">{t("Tutto")}</SelectItem>
               {OGGETTI_FILTRO_LOG_AZIENDA.map((o) => (
                 <SelectItem key={o.chiave} value={o.chiave}>{o.etichetta}</SelectItem>
               ))}
@@ -217,21 +218,21 @@ export default function CompanyActivityLogTab() {
         {isLoading ? (
           <div role="status" className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
-            <span className="sr-only">Caricamento del registro…</span>
+            <span className="sr-only">{t("Caricamento del registro…")}</span>
           </div>
         ) : isError ? (
           <div role="alert" className="py-8 text-center text-muted-foreground">
-            Non riesco a leggere il registro.{" "}
-            <Button variant="link" onClick={() => refetch()}>Riprova</Button>
+            {t("Non riesco a leggere il registro.")}{" "}
+            <Button variant="link" onClick={() => refetch()}>{t("Riprova")}</Button>
           </div>
         ) : logs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <ScrollText className="mb-3 h-10 w-10 opacity-40" aria-hidden="true" />
-            <p className="font-medium">{haFiltri ? "Nessun risultato con questi filtri" : "Nessuna attività registrata"}</p>
+            <p className="font-medium">{haFiltri ? t("Nessun risultato con questi filtri") : t("Nessuna attività registrata")}</p>
             <p className="mt-1 text-sm">
               {haFiltri
-                ? <Button variant="link" className="h-auto p-0" onClick={togliFiltri}>Togli i filtri</Button>
-                : "Le azioni svolte nell'azienda appariranno qui."}
+                ? <Button variant="link" className="h-auto p-0" onClick={togliFiltri}>{t("Togli i filtri")}</Button>
+                : t("Le azioni svolte nell'azienda appariranno qui.")}
             </p>
           </div>
         ) : (
@@ -239,10 +240,10 @@ export default function CompanyActivityLogTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Chi</TableHead>
-                  <TableHead>Cosa è successo</TableHead>
-                  <TableHead>Su cosa</TableHead>
+                  <TableHead>{t("Data")}</TableHead>
+                  <TableHead>{t("Chi")}</TableHead>
+                  <TableHead>{t("Cosa è successo")}</TableHead>
+                  <TableHead>{t("Su cosa")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -254,7 +255,7 @@ export default function CompanyActivityLogTab() {
                   return (
                     <TableRow key={log.id}>
                       <TableCell className="whitespace-nowrap text-sm">
-                        {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: it })}
+                        {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: dateFnsCampo() })}
                       </TableCell>
                       <TableCell className="text-sm">
                         {attore.attribuito ? attore.testo : (
@@ -276,20 +277,18 @@ export default function CompanyActivityLogTab() {
 
             {cisonoNonAttribuiti && (
               <p className="mt-3 text-xs text-muted-foreground">
-                «Non attribuito»: azione fatta da un'importazione, da un'automazione o registrata senza il nome di chi l'ha fatta.
+                {t("«Non attribuito»: azione fatta da un'importazione, da un'automazione o registrata senza il nome di chi l'ha fatta.")}
               </p>
             )}
 
             {totalPages > 1 && (
               <div className="mt-4 flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Pagina {page + 1} di {totalPages} ({data?.total} risultati)
-                </p>
+                <p className="text-sm text-muted-foreground">{t("Pagina {page} di {totalPages} ({total} risultati)", { page: page + 1, totalPages: String(totalPages ?? ""), total: String(data?.total ?? "") })}</p>
                 <div className="flex gap-1">
-                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)} aria-label="Pagina precedente">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)} aria-label={t("Pagina precedente")}>
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} aria-label="Pagina successiva">
+                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} aria-label={t("Pagina successiva")}>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>

@@ -42,6 +42,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { useVaiASezione } from "@/hooks/useVaiASezione";
 import { MessaggioPerUtente, motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type ChannelKey = "silvio_chat" | "telegram" | "whatsapp" | "email";
 
@@ -106,6 +107,7 @@ const DEFAULT_ORDER: ChannelKey[] = ["silvio_chat", "telegram", "whatsapp", "ema
 const STATO_MESSAGGIO: Record<string, string> = { published: "attivo", draft: "in pausa", archived: "archiviato" };
 
 export default function SettingsNotifiche({ soloPersonali = false }: { soloPersonali?: boolean } = {}) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const { isAdmin: amministratore } = usePermissions();
   const isAdmin = amministratore && !soloPersonali;
@@ -160,7 +162,7 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
   // Toggle status flow (pause/resume)
   const toggleFlowMut = useMutation({
     mutationFn: async ({ id, newStatus }: { id: string; newStatus: string }) => {
-      if (!isAdmin || !effectiveCompany?.id) throw new MessaggioPerUtente("Non hai i permessi per gestire le automazioni aziendali.");
+      if (!isAdmin || !effectiveCompany?.id) throw new MessaggioPerUtente(t("Non hai i permessi per gestire le automazioni aziendali."));
       const { error } = await supabase
         .from("automation_flows")
         .update({ status: newStatus })
@@ -169,24 +171,24 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Stato aggiornato");
+      toast.success(t("Stato aggiornato"));
       void qc.invalidateQueries({ queryKey: ["settings-notifiche-bulk-flows"] });
     },
-    onError: (e: unknown) => toast.error("Non aggiornato", { description: motivoDelRifiuto(e, "Riprova tra poco.") }),
+    onError: (e: unknown) => toast.error(t("Non aggiornato"), { description: motivoDelRifiuto(e, t("Riprova tra poco.")) }),
   });
 
   const deleteFlowMut = useMutation({
     mutationFn: async (id: string) => {
-      if (!isAdmin || !effectiveCompany?.id) throw new MessaggioPerUtente("Non hai i permessi per gestire le automazioni aziendali.");
+      if (!isAdmin || !effectiveCompany?.id) throw new MessaggioPerUtente(t("Non hai i permessi per gestire le automazioni aziendali."));
       // Nel cestino delle automazioni, come «Elimina» nella lista.
       const { error } = await supabase.from("automation_flows").update({ deleted_at: new Date().toISOString() }).eq("id", id).eq("company_id", effectiveCompany.id).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Messaggio programmato spostato nel cestino", { description: "Lo ritrovi in Automazioni → Cestino." });
+      toast.success(t("Messaggio programmato spostato nel cestino"), { description: t("Lo ritrovi in Automazioni → Cestino.") });
       void qc.invalidateQueries({ queryKey: ["settings-notifiche-bulk-flows"] });
     },
-    onError: (e: unknown) => toast.error("Non spostato nel cestino", { description: motivoDelRifiuto(e, "Riprova tra poco.") }),
+    onError: (e: unknown) => toast.error(t("Non spostato nel cestino"), { description: motivoDelRifiuto(e, t("Riprova tra poco.")) }),
   });
 
   // Carica preferenze esistenti (può essere null → defaults)
@@ -247,9 +249,9 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
   // Save
   const saveMut = useMutation({
     mutationFn: async () => {
-      if (!user?.id) throw new MessaggioPerUtente("Utente non autenticato");
-      if (isLoading || isError) throw new MessaggioPerUtente("Carica le preferenze prima di salvarle.");
-      if (!!quietFrom !== !!quietTo) throw new MessaggioPerUtente("Indica sia l'inizio sia la fine dell'orario di silenzio.");
+      if (!user?.id) throw new MessaggioPerUtente(t("Utente non autenticato"));
+      if (isLoading || isError) throw new MessaggioPerUtente(t("Carica le preferenze prima di salvarle."));
+      if (!!quietFrom !== !!quietTo) throw new MessaggioPerUtente(t("Indica sia l'inizio sia la fine dell'orario di silenzio."));
       // WhatsApp e Telegram non si scrivono: sono «Prossimamente» e i dati che ci fossero restano come sono.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
@@ -269,10 +271,10 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
     onSuccess: () => {
       setBaseline(snapshot);
       dirtyRef.current = false;
-      toast.success("Preferenze salvate");
+      toast.success(t("Preferenze salvate"));
       void qc.invalidateQueries({ queryKey: ["user-messaging-channels"] });
     },
-    onError: (e: unknown) => toast.error("Preferenze non salvate", { description: motivoDelRifiuto(e, "Riprova tra poco.") }),
+    onError: (e: unknown) => toast.error(t("Preferenze non salvate"), { description: motivoDelRifiuto(e, t("Riprova tra poco.")) }),
   });
   useSettingsDraftGuard(dirty || saveMut.isPending);
 
@@ -302,7 +304,7 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
     );
   }
   if (isError || !user?.id) {
-    return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">Non riesco a leggere le preferenze. Nessuna modifica verrà salvata.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert>;
+    return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">{t("Non riesco a leggere le preferenze. Nessuna modifica verrà salvata.")}<Button size="sm" variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button></AlertDescription></Alert>;
   }
 
 
@@ -310,10 +312,10 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
     // Niente titolo né riquadro informativo: il titolo lo mette il layout delle impostazioni (un solo h1).
     // Da 768 senza margine proprio né centratura: il margine lo dà la cornice delle impostazioni.
     <div className="max-w-3xl space-y-4 max-sm:space-y-3">
-      {soloPersonali && <h1 className="text-xl font-semibold">Notifiche</h1>}
-      {isAdmin && <nav aria-label="Ambito delle notifiche" className="flex flex-wrap gap-1.5">
-        <Button className="min-h-11 px-2.5 md:min-h-9" variant={messaggiAziendali ? "ghost" : "secondary"} onClick={() => cambiaAmbito("personale")} aria-pressed={!messaggiAziendali}>Le mie notifiche</Button>
-        <Button className="min-h-11 px-2.5 md:min-h-9" variant={messaggiAziendali ? "secondary" : "ghost"} onClick={() => cambiaAmbito("azienda")} aria-pressed={messaggiAziendali}>Messaggi all’azienda</Button>
+      {soloPersonali && <h1 className="text-xl font-semibold">{t("Notifiche")}</h1>}
+      {isAdmin && <nav aria-label={t("Ambito delle notifiche")} className="flex flex-wrap gap-1.5">
+        <Button className="min-h-11 px-2.5 md:min-h-9" variant={messaggiAziendali ? "ghost" : "secondary"} onClick={() => cambiaAmbito("personale")} aria-pressed={!messaggiAziendali}>{t("Le mie notifiche")}</Button>
+        <Button className="min-h-11 px-2.5 md:min-h-9" variant={messaggiAziendali ? "secondary" : "ghost"} onClick={() => cambiaAmbito("azienda")} aria-pressed={messaggiAziendali}>{t("Messaggi all’azienda")}</Button>
       </nav>}
       <div hidden={messaggiAziendali} className="space-y-4">
       {/* 1 · Avvisi: la campanella e le email delle attività. Si salvano da soli. */}
@@ -322,12 +324,12 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
       {/* Orari di silenzio e canali si salvano insieme, col pulsante: la barra resta in vista mentre si scorre. */}
       <fieldset disabled={saveMut.isPending} className="m-0 min-w-0 space-y-4 border-0 p-0 max-sm:space-y-3">
         <div className="settings-save-bar sticky top-2 z-20 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
-          <p className="text-xs text-muted-foreground max-sm:hidden">Orari di silenzio e canali si salvano con il pulsante.</p>
+          <p className="text-xs text-muted-foreground max-sm:hidden">{t("Orari di silenzio e canali si salvano con il pulsante.")}</p>
           <div className="ml-auto flex items-center gap-3">
             <StatoSalvataggio modificato={dirty} inCorso={saveMut.isPending} />
             <Button size="sm" onClick={() => saveMut.mutate()} disabled={saveMut.isPending || !dirty} className="gap-2">
               <Save className="h-4 w-4" />
-              {saveMut.isPending ? "Salvataggio..." : "Salva preferenze"}
+              {saveMut.isPending ? t("Salvataggio...") : t("Salva preferenze")}
             </Button>
           </div>
         </div>
@@ -335,18 +337,18 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
         {/* 2 · Orari di silenzio */}
         <SezioneImpostazione
           id="orari-di-silenzio"
-          titolo="Orari di silenzio"
-          descrizione="In questi orari non arrivano avvisi sul telefono né messaggi automatici. Lascia vuoto per riceverli sempre."
-          ambito={<AmbitoImpostazione>Per te</AmbitoImpostazione>}
+          titolo={t("Orari di silenzio")}
+          descrizione={t("In questi orari non arrivano avvisi sul telefono né messaggi automatici. Lascia vuoto per riceverli sempre.")}
+          ambito={<AmbitoImpostazione>{t("Per te")}</AmbitoImpostazione>}
           evidenziata={evidenziata === "orari-di-silenzio"}
         >
           <div className="grid grid-cols-2 gap-3 px-4 py-4 max-sm:px-3">
             <div className="space-y-1.5">
-              <Label htmlFor="silenzio-dalle" className="text-sm">Dalle</Label>
+              <Label htmlFor="silenzio-dalle" className="text-sm">{t("Dalle")}</Label>
               <Input id="silenzio-dalle" type="time" value={quietFrom} onChange={(e) => setQuietFrom(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="silenzio-alle" className="text-sm">Alle</Label>
+              <Label htmlFor="silenzio-alle" className="text-sm">{t("Alle")}</Label>
               <Input id="silenzio-alle" type="time" value={quietTo} onChange={(e) => setQuietTo(e.target.value)} />
             </div>
           </div>
@@ -355,16 +357,16 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
         {/* 3 · Messaggi automatici dell'amministratore: canali e ordine (chiusa) */}
         <SezioneImpostazione
           id="messaggi-automatici"
-          titolo="Messaggi automatici dell'amministratore"
-          descrizione="Se l'amministratore programma messaggi per te (briefing, promemoria), arrivano da questi canali, nell'ordine che scegli."
-          ambito={<AmbitoImpostazione>Per te</AmbitoImpostazione>}
+          titolo={t("Messaggi automatici dell'amministratore")}
+          descrizione={t("Se l'amministratore programma messaggi per te (briefing, promemoria), arrivano da questi canali, nell'ordine che scegli.")}
+          ambito={<AmbitoImpostazione>{t("Per te")}</AmbitoImpostazione>}
           evidenziata={evidenziata === "messaggi-automatici"}
         >
           <details key={hash === "#messaggi-automatici" ? "aperta" : "chiusa"} open={hash === "#messaggi-automatici"} className="group">
-            <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium max-sm:px-3">Scegli i canali e l'ordine</summary>
+            <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium max-sm:px-3">{t("Scegli i canali e l'ordine")}</summary>
             <div className="space-y-4 border-t px-4 py-4 max-sm:px-3">
               <div className="space-y-2">
-                <h3 className="text-sm font-semibold">Canali</h3>
+                <h3 className="text-sm font-semibold">{t("Canali")}</h3>
                 {CHANNELS.map((ch) => {
                   const Icon = ch.icon;
                   const acceso = ch.key === "silvio_chat" ? silvioChatEnabled : ch.key === "email" ? emailEnabled : false;
@@ -381,15 +383,15 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
                       </div>
                       <div className="min-w-0 flex-1 max-sm:pt-1.5">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className={cn("text-sm font-medium", !ch.available && "text-muted-foreground")}>{ch.label}</p>
-                          {!ch.available && <Badge variant="outline" className="text-[10px]">Prossimamente</Badge>}
+                          <p className={cn("text-sm font-medium", !ch.available && "text-muted-foreground")}>{t(ch.label)}</p>
+                          {!ch.available && <Badge variant="outline" className="text-[10px]">{t("Prossimamente")}</Badge>}
                         </div>
                         {/* Telefono: il nome del canale basta. */}
-                        <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{ch.description}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{t(ch.description)}</p>
                         {ch.key === "email" && emailEnabled && (
                           // Telefono no: facoltativa, basta l'email del profilo.
                           <div className="mt-2 max-w-xs max-sm:hidden">
-                            <Label htmlFor="notifications-email" className="text-[11px] text-muted-foreground">Email alternativa (opzionale)</Label>
+                            <Label htmlFor="notifications-email" className="text-[11px] text-muted-foreground">{t("Email alternativa (opzionale)")}</Label>
                             <Input
                               id="notifications-email"
                               type="email"
@@ -402,7 +404,7 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
                         )}
                       </div>
                       <Switch
-                        aria-label={`Abilita ${ch.label}`}
+                        aria-label={t("Abilita {label}", { label: t(ch.label) })}
                         className="max-sm:mt-1"
                         checked={acceso}
                         disabled={!ch.available}
@@ -419,9 +421,9 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
               {/* Ordine di preferenza (riordinabile): il sistema prova prima il canale in cima. */}
               <div className="space-y-2">
                 <div>
-                  <h3 className="text-sm font-semibold">Ordine di preferenza</h3>
+                  <h3 className="text-sm font-semibold">{t("Ordine di preferenza")}</h3>
                   <p className="text-xs text-muted-foreground max-sm:hidden">
-                    Il sistema prova prima il canale in cima. Se non è disponibile o è spento, passa al successivo.
+                    {t("Il sistema prova prima il canale in cima. Se non è disponibile o è spento, passa al successivo.")}
                   </p>
                 </div>
                 {order.map((key, idx) => {
@@ -436,15 +438,15 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
                       <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded", ch.color)}>
                         <Icon className="h-3.5 w-3.5" />
                       </div>
-                      <span className="flex-1 text-sm font-medium">{ch.label}</span>
-                      {!ch.available && <Badge variant="outline" className="text-[10px] max-sm:hidden">Prossimamente</Badge>}
+                      <span className="flex-1 text-sm font-medium">{t(ch.label)}</span>
+                      {!ch.available && <Badge variant="outline" className="text-[10px] max-sm:hidden">{t("Prossimamente")}</Badge>}
                       <Button
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7"
                         onClick={() => moveChannel(idx, "up")}
                         disabled={idx === 0}
-                        aria-label={`Sposta ${ch.label} più in alto`}
+                        aria-label={t("Sposta {label} più in alto", { label: t(ch.label) })}
                       >
                         <ArrowUp className="h-3.5 w-3.5" />
                       </Button>
@@ -454,7 +456,7 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
                         className="h-7 w-7"
                         onClick={() => moveChannel(idx, "down")}
                         disabled={idx === order.length - 1}
-                        aria-label={`Sposta ${ch.label} più in basso`}
+                        aria-label={t("Sposta {label} più in basso", { label: t(ch.label) })}
                       >
                         <ArrowDown className="h-3.5 w-3.5" />
                       </Button>
@@ -472,35 +474,35 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
         <div>
           <SezioneImpostazione
             id="messaggi-programmati"
-            titolo="Messaggi programmati"
+            titolo={t("Messaggi programmati")}
             descrizione={
               <>
-                Messaggi automatici che invii ai tuoi utenti (operai, staff, amministratori): briefing, promemoria. Li trovi anche in{" "}
-                <Link to="/azienda/automazioni" className="font-medium underline">Automazioni</Link>, con l'editor completo.
+                {t("Messaggi automatici che invii ai tuoi utenti (operai, staff, amministratori): briefing, promemoria. Li trovi anche in")}{" "}
+                <Link to="/azienda/automazioni" className="font-medium underline">{t("Automazioni")}</Link>{t(", con l'editor completo.")}
               </>
             }
-            ambito={<AmbitoImpostazione>Tutta l'azienda</AmbitoImpostazione>}
+            ambito={<AmbitoImpostazione>{t("Tutta l'azienda")}</AmbitoImpostazione>}
             azione={
               <Button size="sm" onClick={() => setBulkWizardOpen(true)} className="min-h-11 gap-1.5 md:min-h-9">
                 <Plus className="h-3.5 w-3.5" />
-                Nuovo
+                {t("Nuovo")}
               </Button>
             }
             evidenziata={evidenziata === "messaggi-programmati"}
           >
-            {flowsLoading ? <p role="status" className="p-3 text-sm text-muted-foreground">Carico i messaggi…</p>
+            {flowsLoading ? <p role="status" className="p-3 text-sm text-muted-foreground">{t("Carico i messaggi…")}</p>
               : flowsError ? <p role="alert" className="p-3 text-sm">
-                Non riesco a caricare i messaggi programmati.{" "}
-                <Button variant="ghost" className="min-h-11" onClick={() => void rileggiFlussi()}>Riprova</Button>
+                {t("Non riesco a caricare i messaggi programmati.")}{" "}
+                <Button variant="ghost" className="min-h-11" onClick={() => void rileggiFlussi()}>{t("Riprova")}</Button>
               </p>
               : companyFlows.length === 0 ? (
               <p className="px-4 py-4 text-sm text-muted-foreground">
-                Nessun messaggio programmato. Premi «Nuovo» per crearne uno (per esempio il briefing del mattino agli operai).
+                {t("Nessun messaggio programmato. Premi «Nuovo» per crearne uno (per esempio il briefing del mattino agli operai).")}
               </p>
             ) : (
               <details key={hash === "#messaggi-programmati" ? "aperta" : "chiusa"} open={hash === "#messaggi-programmati"}>
                 <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
-                  {companyFlows.length === 1 ? "1 messaggio programmato" : `${companyFlows.length} messaggi programmati`}
+                  {companyFlows.length === 1 ? t("1 messaggio programmato") : t("{n} messaggi programmati", { n: companyFlows.length })}
                 </summary>
                 <div className="space-y-2 border-t px-3 py-3 md:px-4">
                   {companyFlows.map((f) => {
@@ -515,9 +517,9 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="text-sm font-medium">{f.name}</span>
                             {isActive ? (
-                              <Badge className="border-emerald-300 bg-emerald-100 text-[10px] text-emerald-700">attivo</Badge>
+                              <Badge className="border-emerald-300 bg-emerald-100 text-[10px] text-emerald-700">{t("attivo")}</Badge>
                             ) : (
-                              <Badge variant="outline" className="text-[10px]">{STATO_MESSAGGIO[f.status] ?? "in pausa"}</Badge>
+                              <Badge variant="outline" className="text-[10px]">{STATO_MESSAGGIO[f.status] ? t(STATO_MESSAGGIO[f.status]) : t("in pausa")}</Badge>
                             )}
                             {cfg.template.mode === "ai_generated" && (
                               <Badge variant="outline" className="border-violet-200 bg-violet-50 text-[10px] text-violet-700">AI</Badge>
@@ -531,29 +533,27 @@ export default function SettingsNotifiche({ soloPersonali = false }: { soloPerso
                             <span>{cfg.channels.map((c) => c.type).join(", ") || "—"}</span>
                           </div>
                           {cfg.next_run_at && isActive && (
-                            <p className="mt-0.5 text-[11px] text-muted-foreground">
-                              Prossimo invio: {new Date(cfg.next_run_at).toLocaleString("it-IT")}
-                            </p>
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("Prossimo invio: {valore}", { valore: new Date(cfg.next_run_at).toLocaleString(intlCampo()) })}</p>
                           )}
                         </div>
                         <div className="flex shrink-0 items-center gap-0.5">
                           <Button
                             size="icon" variant="ghost" className="size-11 md:size-8"
-                            aria-label={isActive ? `Metti in pausa «${f.name}»` : `Riattiva «${f.name}»`}
-                            title={isActive ? "Metti in pausa" : "Riattiva"}
+                            aria-label={isActive ? t("Metti in pausa «{name}»", { name: String(f.name ?? "") }) : t("Riattiva «{name}»", { name: String(f.name ?? "") })}
+                            title={isActive ? t("Metti in pausa") : t("Riattiva")}
                             onClick={() => toggleFlowMut.mutate({ id: f.id, newStatus: isActive ? "draft" : "published" })}
                           >
                             {isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
                           </Button>
                           <Button
                             size="icon" variant="ghost" className="size-11 text-rose-600 md:size-8"
-                            aria-label={`Sposta «${f.name}» nel cestino`}
-                            title="Sposta nel cestino"
+                            aria-label={t("Sposta «{name}» nel cestino", { name: String(f.name ?? "") })}
+                            title={t("Sposta nel cestino")}
                             onClick={async () => {
                               const ok = await confirm({
-                                title: `Spostare «${f.name}» nel cestino?`,
-                                description: "Lo ritrovi in Automazioni → Cestino.",
-                                confirmLabel: "Sposta nel cestino",
+                                title: t("Spostare «{name}» nel cestino?", { name: String(f.name ?? "") }),
+                                description: t("Lo ritrovi in Automazioni → Cestino."),
+                                confirmLabel: t("Sposta nel cestino"),
                                 variant: "destructive",
                               });
                               if (ok) deleteFlowMut.mutate(f.id);

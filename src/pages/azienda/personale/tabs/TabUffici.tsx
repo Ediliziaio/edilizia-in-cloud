@@ -31,6 +31,7 @@ import {
 import { Building2, Plus, Pencil, Trash2, UserRound, Users } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { HrQueryError } from "@/components/hr/HrQueryError";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const NESSUN_RESPONSABILE = "__nessuno__";
 
@@ -38,6 +39,7 @@ const NESSUN_RESPONSABILE = "__nessuno__";
 const UFFICI_TIPICI = ["Amministrazione", "Ufficio tecnico", "Commerciale", "Cantiere", "Acquisti"];
 
 export function TabUffici() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -67,14 +69,14 @@ export function TabUffici() {
 
   return (
     <div className="space-y-4">
-      {staffQuery.isError && <HrQueryError label="Membri aziendali non disponibili" onRetry={staffQuery.refetch} />}
+      {staffQuery.isError && <HrQueryError label={t("Membri aziendali non disponibili")} onRetry={staffQuery.refetch} />}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-muted"><Building2 className="h-5 w-5 text-muted-foreground" /></div>
             <div>
               <p className="text-2xl font-bold">{uffici.length}</p>
-              <p className="text-xs text-muted-foreground">Uffici</p>
+              <p className="text-xs text-muted-foreground">{t("Uffici")}</p>
             </div>
           </CardContent>
         </Card>
@@ -83,7 +85,7 @@ export function TabUffici() {
             <div className="p-2 rounded-lg bg-muted"><Users className="h-5 w-5 text-muted-foreground" /></div>
             <div>
               <p className="text-2xl font-bold">{personeInUnUfficio.size}</p>
-              <p className="text-xs text-muted-foreground">Persone assegnate</p>
+              <p className="text-xs text-muted-foreground">{t("Persone assegnate")}</p>
             </div>
           </CardContent>
         </Card>
@@ -92,7 +94,7 @@ export function TabUffici() {
             <div className="p-2 rounded-lg bg-muted"><UserRound className="h-5 w-5 text-muted-foreground" /></div>
             <div>
               <p className="text-2xl font-bold">{senzaUfficio.length}</p>
-              <p className="text-xs text-muted-foreground">Fuori da ogni ufficio</p>
+              <p className="text-xs text-muted-foreground">{t("Fuori da ogni ufficio")}</p>
             </div>
           </CardContent>
         </Card>
@@ -100,20 +102,20 @@ export function TabUffici() {
 
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Un passo del flusso commessa può essere assegnato a un ufficio invece che a una persona.
+          {t("Un passo del flusso commessa può essere assegnato a un ufficio invece che a una persona.")}
         </p>
         <Button disabled={!canEdit || staffQuery.isError || staffQuery.isLoading} size="sm" onClick={() => setNuovoAperto(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Nuovo ufficio
+          <Plus className="h-4 w-4 mr-1" /> {t("Nuovo ufficio")}
         </Button>
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Caricamento…</div>
-      ) : isError ? <HrQueryError label="Uffici non disponibili" onRetry={refetch} /> : uffici.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">{t("Caricamento…")}</div>
+      ) : isError ? <HrQueryError label={t("Uffici non disponibili")} onRetry={refetch} /> : uffici.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center space-y-3">
             <p className="text-sm text-muted-foreground">
-              Nessun ufficio. Finché non ce n'è uno, i passi del flusso si possono assegnare solo a singole persone.
+              {t("Nessun ufficio. Finché non ce n'è uno, i passi del flusso si possono assegnare solo a singole persone.")}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {UFFICI_TIPICI.map((nome) => (
@@ -124,7 +126,7 @@ export function TabUffici() {
                   disabled={!canEdit || salva.isPending}
                   onClick={() => salva.mutate({ nome, membri: [] })}
                 >
-                  <Plus className="h-3.5 w-3.5 mr-1" /> {nome}
+                  <Plus className="h-3.5 w-3.5 mr-1" /> {t(nome)}
                 </Button>
               ))}
             </div>
@@ -140,17 +142,17 @@ export function TabUffici() {
                     <div className="flex items-center gap-2">
                       <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="font-semibold truncate">{u.nome}</span>
-                      {!u.attivo && <Badge variant="secondary" className="text-[10px]">Disattivato</Badge>}
+                      {!u.attivo && <Badge variant="secondary" className="text-[10px]">{t("Disattivato")}</Badge>}
                     </div>
                     {u.descrizione && (
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{u.descrizione}</p>
                     )}
                   </div>
                   <div className="flex shrink-0">
-                    <Button disabled={!canEdit || staffQuery.isLoading || staffQuery.isError} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setInModifica(u)} aria-label="Modifica ufficio">
+                    <Button disabled={!canEdit || staffQuery.isLoading || staffQuery.isError} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setInModifica(u)} aria-label={t("Modifica ufficio")}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button disabled={!canEdit} variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => setDaEliminare(u)} aria-label="Elimina ufficio">
+                    <Button disabled={!canEdit} variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => setDaEliminare(u)} aria-label={t("Elimina ufficio")}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -158,20 +160,20 @@ export function TabUffici() {
 
                 <div className="mt-3 space-y-1.5 text-xs">
                   <p className="text-muted-foreground">
-                    Responsabile:{" "}
+                    {t("Responsabile:")}{" "}
                     <span className="text-foreground font-medium">
-                      {u.responsabile_id ? nomePersona.get(u.responsabile_id) ?? "—" : "nessuno"}
+                      {u.responsabile_id ? nomePersona.get(u.responsabile_id) ?? "—" : t("nessuno")}
                     </span>
                   </p>
                   {u.membri.length === 0 ? (
                     // Un ufficio vuoto non e' un dettaglio estetico: le attivita'
                     // che gli arrivano non le vedrebbe nessuno.
-                    <p className="text-amber-600">Nessun membro: le attività assegnate qui non le vedrebbe nessuno.</p>
+                    <p className="text-amber-600">{t("Nessun membro: le attività assegnate qui non le vedrebbe nessuno.")}</p>
                   ) : (
                     <div className="flex flex-wrap gap-1">
                       {u.membri.map((id) => (
                         <Badge key={id} variant="secondary" className="text-[10px] font-normal">
-                          {nomePersona.get(id) ?? "Utente"}
+                          {nomePersona.get(id) ?? t("Utente")}
                         </Badge>
                       ))}
                     </div>
@@ -199,19 +201,18 @@ export function TabUffici() {
       <AlertDialog open={!!daEliminare} onOpenChange={(o) => !o && setDaEliminare(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare «{daEliminare?.nome}»?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare «{nome}»?", { nome: String(daEliminare?.nome ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              I passi del flusso e le attività assegnate a questo ufficio non si perdono: restano
-              semplicemente senza ufficio, da riassegnare.
+              {t("I passi del flusso e le attività assegnate a questo ufficio non si perdono: restano semplicemente senza ufficio, da riassegnare.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={!canEdit || elimina.isPending}
               onClick={(event) => { event.preventDefault(); if (daEliminare) elimina.mutate(daEliminare.id, { onSuccess: () => setDaEliminare(null) }); }}
             >
-              Elimina
+              {t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -232,6 +233,7 @@ interface UfficioDialogProps {
 }
 
 function UfficioDialog({ ufficio, staff, salvataggioInCorso, onSalva, onClose }: UfficioDialogProps) {
+  const t = useT();
   const [nome, setNome] = useState(ufficio?.nome ?? "");
   const [descrizione, setDescrizione] = useState(ufficio?.descrizione ?? "");
   const [responsabile, setResponsabile] = useState<string>(ufficio?.responsabile_id ?? NESSUN_RESPONSABILE);
@@ -256,43 +258,42 @@ function UfficioDialog({ ufficio, staff, salvataggioInCorso, onSalva, onClose }:
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{ufficio ? "Modifica ufficio" : "Nuovo ufficio"}</DialogTitle>
+          <DialogTitle>{ufficio ? t("Modifica ufficio") : t("Nuovo ufficio")}</DialogTitle>
           <DialogDescription>
-            Le attività assegnate a questo ufficio le vedono tutti i membri; il responsabile se le
-            trova in carico, ma chiunque del gruppo può prenderle.
+            {t("Le attività assegnate a questo ufficio le vedono tutti i membri; il responsabile se le trova in carico, ma chiunque del gruppo può prenderle.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label>Nome</Label>
-            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Es. Amministrazione" maxLength={60} />
+            <Label>{t("Nome")}</Label>
+            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder={t("Es. Amministrazione")} maxLength={60} />
           </div>
 
           <div className="space-y-1.5">
-            <Label>Descrizione <span className="text-muted-foreground font-normal">(facoltativa)</span></Label>
-            <Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} placeholder="Di cosa si occupa" maxLength={160} />
+            <Label>{t("Descrizione")} <span className="text-muted-foreground font-normal">{t("(facoltativa)")}</span></Label>
+            <Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} placeholder={t("Di cosa si occupa")} maxLength={160} />
           </div>
 
           <div className="space-y-1.5">
-            <Label>Responsabile</Label>
+            <Label>{t("Responsabile")}</Label>
             <Select value={responsabile} onValueChange={setResponsabile}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={NESSUN_RESPONSABILE}>Nessuno — resta da prendere in carico</SelectItem>
+                <SelectItem value={NESSUN_RESPONSABILE}>{t("Nessuno — resta da prendere in carico")}</SelectItem>
                 {staff.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
               </SelectContent>
             </Select>
             <p className="text-[11px] text-muted-foreground">
-              Il responsabile entra automaticamente fra i membri.
+              {t("Il responsabile entra automaticamente fra i membri.")}
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <Label>Membri</Label>
+            <Label>{t("Membri")}</Label>
             <div className="rounded-md border divide-y max-h-60 overflow-y-auto">
               {staff.length === 0 ? (
-                <p className="p-3 text-sm text-muted-foreground">Nessun utente nello staff.</p>
+                <p className="p-3 text-sm text-muted-foreground">{t("Nessun utente nello staff.")}</p>
               ) : staff.map((p) => (
                 <label key={p.id} className="flex items-center gap-2 p-2 text-sm cursor-pointer hover:bg-muted/50">
                   <Checkbox
@@ -302,7 +303,7 @@ function UfficioDialog({ ufficio, staff, salvataggioInCorso, onSalva, onClose }:
                   />
                   <span>{p.nome}</span>
                   {p.id === responsabile && (
-                    <Badge variant="secondary" className="ml-auto text-[10px]">responsabile</Badge>
+                    <Badge variant="secondary" className="ml-auto text-[10px]">{t("responsabile")}</Badge>
                   )}
                 </label>
               ))}
@@ -311,17 +312,17 @@ function UfficioDialog({ ufficio, staff, salvataggioInCorso, onSalva, onClose }:
 
           <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2.5">
             <div>
-              <p className="text-sm font-medium">Ufficio attivo</p>
-              <p className="text-xs text-muted-foreground">Se lo spegni non viene più proposto nei flussi.</p>
+              <p className="text-sm font-medium">{t("Ufficio attivo")}</p>
+              <p className="text-xs text-muted-foreground">{t("Se lo spegni non viene più proposto nei flussi.")}</p>
             </div>
             <Switch checked={attivo} onCheckedChange={setAttivo} />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose}>{t("Annulla")}</Button>
           <Button onClick={salva} disabled={salvataggioInCorso || !nome.trim()}>
-            {salvataggioInCorso ? "Salvataggio…" : "Salva ufficio"}
+            {salvataggioInCorso ? t("Salvataggio…") : t("Salva ufficio")}
           </Button>
         </DialogFooter>
       </DialogContent>

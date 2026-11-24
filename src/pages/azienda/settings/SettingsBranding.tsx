@@ -61,6 +61,7 @@ import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { cn } from "@/lib/utils";
 import { campiMarginiModificati } from "@/lib/impostazioni/salvataggioMargini";
 import { motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    UTILITY validazione
@@ -84,12 +85,12 @@ const STANDARD_COLORS = {
   brand_text_on_primary: "#FFFFFF",
 };
 
-async function copyText(value: string) {
+async function copyText(value: string, t: (testo: string) => string) {
   try {
     await navigator.clipboard.writeText(value);
-    toast.success("Copiato");
+    toast.success(t("Copiato"));
   } catch {
-    toast.error("Non riesco a copiare automaticamente");
+    toast.error(t("Non riesco a copiare automaticamente"));
   }
 }
 
@@ -140,6 +141,7 @@ function HexColorInput({
   disabled?: boolean;
   hint?: string;
 }) {
+  const t = useT();
   const valid = isValidHexColor(value);
   return (
     <div className="space-y-1.5">
@@ -151,7 +153,7 @@ function HexColorInput({
           onChange={(e) => onChange(e.target.value.toUpperCase())}
           disabled={disabled}
           className="h-9 w-12 rounded border cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 bg-transparent p-0.5"
-          aria-label={`Selettore ${label}`}
+          aria-label={t("Selettore {label}", { label: String(label ?? "") })}
         />
         <Input
           id={id}
@@ -164,7 +166,7 @@ function HexColorInput({
           className={`max-w-28 font-mono text-xs uppercase ${!valid ? "border-destructive" : ""}`}
         />
       </div>
-      {!valid && <p className="text-[10px] text-destructive">Scrivi il colore così: #1E40AF</p>}
+      {!valid && <p className="text-[10px] text-destructive">{t("Scrivi il colore così: #1E40AF")}</p>}
       {hint && valid && <p className="text-[10px] text-muted-foreground">{hint}</p>}
     </div>
   );
@@ -186,6 +188,7 @@ function AnteprimaPiattaforma({
   primary: string; accent: string; textOnPrimary: string;
   logoUrl?: string | null; nome: string; sfondoLogin?: string | null;
 }) {
+  const tr = useT();
   const [vista, setVista] = useState<"piattaforma" | "accesso">("piattaforma");
   const c = coloriApplicati({ primaryColor: primary, accentColor: accent, textOnPrimary });
   const standard = usesPlatformColors({ primaryColor: primary, accentColor: accent, textOnPrimary });
@@ -198,12 +201,12 @@ function AnteprimaPiattaforma({
   const logo = logoUrl ? (
     <img src={logoUrl} alt="" className="max-h-7 max-w-full object-contain" />
   ) : (
-    <span className="truncate text-xs font-semibold" style={{ color: p }}>{nome || "La tua azienda"}</span>
+    <span className="truncate text-xs font-semibold" style={{ color: p }}>{nome || tr("La tua azienda")}</span>
   );
   const voci = ["Commesse", "Clienti", "Calendario"];
   return (
     <div className="space-y-3">
-      <div className="inline-flex rounded-md border p-0.5 text-xs" role="tablist" aria-label="Vista anteprima">
+      <div className="inline-flex rounded-md border p-0.5 text-xs" role="tablist" aria-label={tr("Vista anteprima")}>
         {([["piattaforma", "Piattaforma", Monitor], ["accesso", "Accesso", LogIn]] as const).map(([k, t, Icona]) => (
           <button
             key={k}
@@ -215,7 +218,7 @@ function AnteprimaPiattaforma({
               vista === k ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Icona className="h-3.5 w-3.5" /> {t}
+            <Icona className="h-3.5 w-3.5" /> {tr(t)}
           </button>
         ))}
       </div>
@@ -230,7 +233,7 @@ function AnteprimaPiattaforma({
                 className="rounded-md px-2 py-1.5 text-xs"
                 style={i === 0 ? { backgroundColor: att, color: attTesto, fontWeight: 500 } : undefined}
               >
-                {v}
+                {tr(v)}
               </div>
             ))}
           </div>
@@ -239,17 +242,17 @@ function AnteprimaPiattaforma({
               className="inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium shadow-sm"
               style={{ backgroundColor: p, color: c.textOnPrimary }}
             >
-              Nuova commessa
+              {tr("Nuova commessa")}
             </span>
             <div className="w-full rounded-md p-2.5 text-white" style={{ backgroundColor: scuro }}>
-              <div className="text-[10px] opacity-80">Riepilogo</div>
+              <div className="text-[10px] opacity-80">{tr("Riepilogo")}</div>
               <div className="text-sm font-semibold">€ 48.250</div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: att, color: attTesto }}>
-                In corso
+                {tr("In corso")}
               </span>
-              <span className="text-xs font-medium" style={{ color: p }}>Vedi tutte →</span>
+              <span className="text-xs font-medium" style={{ color: p }}>{tr("Vedi tutte →")}</span>
             </div>
           </div>
         </div>
@@ -266,17 +269,14 @@ function AnteprimaPiattaforma({
               className="rounded-md py-1.5 text-center text-xs font-medium"
               style={{ backgroundColor: p, color: c.textOnPrimary }}
             >
-              Accedi
+              {tr("Accedi")}
             </div>
           </div>
         </div>
       )}
 
       {scurito && (
-        <p className="text-[11px] text-muted-foreground">
-          Il colore scelto è troppo chiaro per il testo bianco: per tenerlo leggibile nei bottoni
-          viene usato un tono più scuro della stessa tinta ({c.primary}).
-        </p>
+        <p className="text-[11px] text-muted-foreground">{tr("Il colore scelto è troppo chiaro per il testo bianco: per tenerlo leggibile nei bottoni viene usato un tono più scuro della stessa tinta ({primary}).", { primary: String(c.primary ?? "") })}</p>
       )}
     </div>
   );
@@ -296,19 +296,19 @@ const COSA_SI_OTTIENE = [
 ];
 
 /** Il rifiuto del salvataggio dei dati dell'azienda: nessuna riga toccata (PGRST116) vuol dire che le regole di accesso hanno detto no. */
-function motivoSalvataggio(err: unknown): string {
+function motivoSalvataggio(err: unknown, t: (testo: string) => string): string {
   if ((err as { code?: unknown } | null)?.code === "PGRST116") {
-    return "Il tuo utente non può modificare il marchio dell'azienda.";
+    return t("Il tuo utente non può modificare il marchio dell'azienda.");
   }
-  return motivoDelRifiuto(err, "Riprova tra poco.");
+  return motivoDelRifiuto(err, t("Riprova tra poco."));
 }
 
 /** Un sottodominio è unico in tutta la piattaforma: se è già di un'altra azienda il database dice «duplicato». */
-function motivoSottodominio(err: unknown): string {
+function motivoSottodominio(err: unknown, t: (testo: string) => string): string {
   if ((err as { code?: unknown } | null)?.code === "23505") {
-    return "Questo sottodominio è già di un'altra azienda: provane un altro.";
+    return t("Questo sottodominio è già di un'altra azienda: provane un altro.");
   }
-  return motivoDelRifiuto(err, "Riprova tra poco.");
+  return motivoDelRifiuto(err, t("Riprova tra poco."));
 }
 
 /**
@@ -327,6 +327,7 @@ async function motivoDelServer(err: unknown, fallback: string): Promise<string> 
 }
 
 export default function SettingsBranding() {
+  const t = useT();
   const { effectiveCompany, user, refreshAuth } = useAuth();
   const permissions = usePermissions();
   const { brand, saveBrand, uploadBrandFile, isLoading, isError, refetch } = useBrandSettings();
@@ -374,9 +375,9 @@ export default function SettingsBranding() {
     try {
       await removeDomainMut.mutateAsync();
       setCustomDomain("");
-      toast.success("Dominio rimosso");
+      toast.success(t("Dominio rimosso"));
     } catch (err) {
-      toast.error("Dominio non rimosso", { description: await motivoDelServer(err, "Riprova tra poco.") });
+      toast.error(t("Dominio non rimosso"), { description: await motivoDelServer(err, t("Riprova tra poco.")) });
     }
   };
 
@@ -430,7 +431,7 @@ export default function SettingsBranding() {
 
   const handleSave = async () => {
     if (!canEdit) {
-      toast.error(NIENTE_PERMESSI);
+      toast.error(t(NIENTE_PERMESSI));
       return;
     }
     // I nomi sono quelli che si leggono sulla pagina (il colore «secondario» non ha un campo: lo ricava il colore del marchio).
@@ -442,7 +443,7 @@ export default function SettingsBranding() {
     ];
     const invalid = hexFields.find(([, v]) => !isValidHexColor(v));
     if (invalid) {
-      toast.error(`${invalid[0]}: scrivi il colore così, #1E40AF`);
+      toast.error(t("{valore}: scrivi il colore così, #1E40AF", { valore: t(invalid[0]) }));
       return;
     }
     setSaving(true);
@@ -512,10 +513,10 @@ export default function SettingsBranding() {
       setForm(savedForm);
       setSyncNeeded(syncFailed);
       if (!syncFailed) setPendingImageSync(null);
-      if (syncFailed) toast.warning("Marchio salvato, ma la pagina di accesso non è stata aggiornata. Riprova.");
-      else toast.success("Marchio aggiornato");
+      if (syncFailed) toast.warning(t("Marchio salvato, ma la pagina di accesso non è stata aggiornata. Riprova."));
+      else toast.success(t("Marchio aggiornato"));
     } catch (err) {
-      toast.error("Marchio non salvato", { description: motivoSalvataggio(err) });
+      toast.error(t("Marchio non salvato"), { description: motivoSalvataggio(err, t) });
     } finally {
       setSaving(false);
     }
@@ -525,7 +526,7 @@ export default function SettingsBranding() {
       Logo, favicon, subdomain e dominio NON vengono toccati. */
   const handleResetToSystem = async () => {
     if (!canEdit) {
-      toast.error(NIENTE_PERMESSI);
+      toast.error(t(NIENTE_PERMESSI));
       return;
     }
     setConfirmResetSystem(false);
@@ -568,10 +569,10 @@ export default function SettingsBranding() {
       setSyncNeeded(syncFailed);
       queryClient.invalidateQueries({ queryKey: ["company-branding"] });
       queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
-      if (syncFailed) toast.warning("Aspetto standard ripristinato, ma la pagina di accesso non è stata aggiornata. Riprova.");
-      else toast.success("Aspetto standard ripristinato");
+      if (syncFailed) toast.warning(t("Aspetto standard ripristinato, ma la pagina di accesso non è stata aggiornata. Riprova."));
+      else toast.success(t("Aspetto standard ripristinato"));
     } catch (err) {
-      toast.error("Aspetto non ripristinato", { description: motivoSalvataggio(err) });
+      toast.error(t("Aspetto non ripristinato"), { description: motivoSalvataggio(err, t) });
     } finally {
       setResetting(false);
     }
@@ -607,11 +608,11 @@ export default function SettingsBranding() {
     try {
       const colore = await coloreDelLogo(url);
       if (!colore) {
-        toast.error("Dal logo non riesco a ricavare un colore (è tutto bianco, nero o grigio, oppure non si legge). Scegli il colore a mano.");
+        toast.error(t("Dal logo non riesco a ricavare un colore (è tutto bianco, nero o grigio, oppure non si legge). Scegli il colore a mano."));
         return;
       }
       setForm((f) => ({ ...f, ...coloriDaPalette(paletteDaColore(colore)) }));
-      toast.success(`Colore del logo: ${colore}. Controlla l'anteprima e salva.`);
+      toast.success(t("Colore del logo: {colore}. Controlla l'anteprima e salva.", { colore: String(colore ?? "") }));
     } finally {
       setLeggendoLogo(false);
     }
@@ -620,7 +621,7 @@ export default function SettingsBranding() {
   type ImageField = "brand_favicon_url" | "brand_login_bg_url" | "brand_logo_dark_url";
 
   const syncImages = async (patch: Record<string, unknown>) => {
-    if (!companyId) throw new Error("Nessuna azienda associata");
+    if (!companyId) throw new Error(t("Nessuna azienda associata"));
     try {
       const { error } = await supabase.from("company_branding").upsert({
         company_id: companyId, ...patch, updated_at: new Date().toISOString(),
@@ -651,10 +652,10 @@ export default function SettingsBranding() {
     setUploading(field);
     try {
       const synced = await saveImage(field, null);
-      if (synced) toast.success("Immagine rimossa");
-      else toast.warning("Immagine rimossa, ma la pagina di accesso non è stata aggiornata. Riprova la sincronizzazione.");
+      if (synced) toast.success(t("Immagine rimossa"));
+      else toast.warning(t("Immagine rimossa, ma la pagina di accesso non è stata aggiornata. Riprova la sincronizzazione."));
     } catch (err) {
-      toast.error("Immagine non rimossa", { description: motivoSalvataggio(err) });
+      toast.error(t("Immagine non rimossa"), { description: motivoSalvataggio(err, t) });
     } finally { setUploading(null); }
   };
 
@@ -665,29 +666,29 @@ export default function SettingsBranding() {
       if (await syncImages(imageSyncPatch)) {
         queryClient.invalidateQueries({ queryKey: ["company-branding"] });
         queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
-        toast.success("Immagini sincronizzate");
-      } else toast.warning("Pagina di accesso non aggiornata. Riprova tra poco.");
+        toast.success(t("Immagini sincronizzate"));
+      } else toast.warning(t("Pagina di accesso non aggiornata. Riprova tra poco."));
     } finally { setUploading(null); }
   };
 
   const handleFileUpload = async (file: File, field: ImageField, path: string) => {
     if (!canEdit) {
-      toast.error(NIENTE_PERMESSI);
+      toast.error(t(NIENTE_PERMESSI));
       return;
     }
     const MAX_BYTES = 2 * 1024 * 1024;
     if (file.size > MAX_BYTES) {
-      toast.error("File troppo grande: al massimo 2 MB.");
+      toast.error(t("File troppo grande: al massimo 2 MB."));
       return;
     }
     setUploading(field);
     try {
       const url = await uploadBrandFile(file, path);
       const synced = await saveImage(field, url);
-      if (synced) toast.success("Immagine caricata");
-      else toast.warning("Immagine caricata, ma la pagina di accesso non è stata aggiornata. Riprova la sincronizzazione.");
+      if (synced) toast.success(t("Immagine caricata"));
+      else toast.warning(t("Immagine caricata, ma la pagina di accesso non è stata aggiornata. Riprova la sincronizzazione."));
     } catch (err) {
-      toast.error("Immagine non caricata", { description: motivoSalvataggio(err) });
+      toast.error(t("Immagine non caricata"), { description: motivoSalvataggio(err, t) });
     } finally {
       setUploading(null);
     }
@@ -695,7 +696,7 @@ export default function SettingsBranding() {
 
   const handleSaveSubdomain = async () => {
     if (!canEdit) {
-      toast.error(NIENTE_PERMESSI);
+      toast.error(t(NIENTE_PERMESSI));
       return;
     }
     // Se l'utente sta SVUOTANDO un subdomain esistente → chiede conferma
@@ -705,23 +706,23 @@ export default function SettingsBranding() {
     }
     try {
       await saveSubdomainMut.mutateAsync(subdomain);
-      toast.success(subdomain ? "Sottodominio salvato" : "Sottodominio rimosso");
+      toast.success(subdomain ? t("Sottodominio salvato") : t("Sottodominio rimosso"));
     } catch (err) {
-      toast.error("Sottodominio non salvato", { description: motivoSottodominio(err) });
+      toast.error(t("Sottodominio non salvato"), { description: motivoSottodominio(err, t) });
     }
   };
 
   const confirmRemoveSubdomain = async () => {
     if (!canEdit) {
-      toast.error(NIENTE_PERMESSI);
+      toast.error(t(NIENTE_PERMESSI));
       return;
     }
     setConfirmRemoveSub(false);
     try {
       await saveSubdomainMut.mutateAsync("");
-      toast.success("Sottodominio rimosso");
+      toast.success(t("Sottodominio rimosso"));
     } catch (err) {
-      toast.error("Sottodominio non rimosso", { description: motivoSottodominio(err) });
+      toast.error(t("Sottodominio non rimosso"), { description: motivoSottodominio(err, t) });
     }
   };
 
@@ -732,9 +733,9 @@ export default function SettingsBranding() {
     try {
       await requestVerifMut.mutateAsync(normalizedCustomDomain);
       setCustomDomain(normalizedCustomDomain);
-      toast.success("Configurazione avviata: aggiungi il record CNAME qui sotto al tuo DNS.");
+      toast.success(t("Configurazione avviata: aggiungi il record CNAME qui sotto al tuo DNS."));
     } catch (err) {
-      toast.error("Dominio non configurato", { description: await motivoDelServer(err, "Riprova tra poco.") });
+      toast.error(t("Dominio non configurato"), { description: await motivoDelServer(err, t("Riprova tra poco.")) });
     }
   };
 
@@ -742,12 +743,12 @@ export default function SettingsBranding() {
     try {
       const result = await verifyMut.mutateAsync();
       if (result.verified) {
-        toast.success("Dominio verificato");
+        toast.success(t("Dominio verificato"));
       } else {
-        toast.error(result.error || "Il record CNAME non risulta ancora attivo: può servire fino a 48 ore. Riprova più tardi.");
+        toast.error(result.error || t("Il record CNAME non risulta ancora attivo: può servire fino a 48 ore. Riprova più tardi."));
       }
     } catch (err) {
-      toast.error("Verifica non riuscita", { description: await motivoDelServer(err, "Riprova tra poco.") });
+      toast.error(t("Verifica non riuscita"), { description: await motivoDelServer(err, t("Riprova tra poco.")) });
     }
   };
 
@@ -760,7 +761,7 @@ export default function SettingsBranding() {
   }
 
   if (isError || !brand || !companyId) {
-    return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">Non riesco a leggere il branding aziendale. Nessuna modifica verrà salvata.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert>;
+    return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">{t("Non riesco a leggere il branding aziendale. Nessuna modifica verrà salvata.")}<Button size="sm" variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button></AlertDescription></Alert>;
   }
 
   const isWhiteLabel = wlGate.isWhiteLabel || (brand?.white_label_enabled ?? false);
@@ -781,7 +782,7 @@ export default function SettingsBranding() {
         <Alert>
           <Lock className="h-4 w-4" />
           <AlertDescription>
-            Stai guardando il marchio dell'azienda: lo cambia solo un amministratore.
+            {t("Stai guardando il marchio dell'azienda: lo cambia solo un amministratore.")}
           </AlertDescription>
         </Alert>
       )}
@@ -792,13 +793,11 @@ export default function SettingsBranding() {
       <Card>
         <CardHeader>
           <TitoloRiquadro className="flex items-center gap-2 text-base">
-            <ImageIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Logo aziendale
+            <ImageIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> {t("Logo aziendale")}
           </TitoloRiquadro>
           <CardDescription>
-            È lo stesso logo della barra laterale, delle email, dei preventivi in PDF, del portale clienti e della
-            pagina di accesso: dove ne imposti uno diverso (un modello PDF, le preferenze email) vale quello. Lo cambi
-            qui o in{" "}
-            <Link to="/azienda/impostazioni/profilo#logo" className="underline">Profilo aziendale</Link>.
+            {t("È lo stesso logo della barra laterale, delle email, dei preventivi in PDF, del portale clienti e della pagina di accesso: dove ne imposti uno diverso (un modello PDF, le preferenze email) vale quello. Lo cambi qui o in")}{" "}
+            <Link to="/azienda/impostazioni/profilo#logo" className="underline">{t("Profilo aziendale")}</Link>.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -841,19 +840,18 @@ export default function SettingsBranding() {
           <CardContent className="py-8 text-center space-y-4">
             <Lock className="h-10 w-10 text-muted-foreground mx-auto" aria-hidden="true" />
             <div>
-              <h2 className="text-lg font-semibold">Personalizzazione completa: White-Label</h2>
+              <h2 className="text-lg font-semibold">{t("Personalizzazione completa: White-Label")}</h2>
               <p className="text-muted-foreground mt-1 max-w-md mx-auto">
-                Colori, nome della piattaforma, icona del browser, sfondo della pagina di accesso e un indirizzo web
-                tuo, per esempio crm.tuaazienda.it. È una funzione a pagamento.
+                {t("Colori, nome della piattaforma, icona del browser, sfondo della pagina di accesso e un indirizzo web tuo, per esempio crm.tuaazienda.it. È una funzione a pagamento.")}
               </p>
             </div>
             {permissions.isAdmin ? (
               <Button variant="outline" onClick={() => setApriAttivazione(true)}>
                 <HeadphonesIcon className="h-4 w-4 mr-2" aria-hidden="true" />
-                Chiedi l'attivazione
+                {t("Chiedi l'attivazione")}
               </Button>
             ) : (
-              <p className="text-sm text-muted-foreground">Per attivarla parlane con l'amministratore dell'azienda.</p>
+              <p className="text-sm text-muted-foreground">{t("Per attivarla parlane con l'amministratore dell'azienda.")}</p>
             )}
           </CardContent>
         </Card>
@@ -864,19 +862,19 @@ export default function SettingsBranding() {
         <>
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Palette className="h-5 w-5" aria-hidden="true" /> Marchio personalizzato
+              <Palette className="h-5 w-5" aria-hidden="true" /> {t("Marchio personalizzato")}
             </h2>
-            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-200">{wlGate.isIncludedInPlan ? "Incluso nel piano" : "Attivo"}</Badge>
+            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-200">{wlGate.isIncludedInPlan ? t("Incluso nel piano") : t("Attivo")}</Badge>
           </div>
 
           <Tabs value={scheda} onValueChange={cambiaScheda} className="space-y-6">
             {imageSyncPatch && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-              <span>Immagini salvate nell'azienda. La pagina di accesso deve ancora essere aggiornata.</span>
-              <Button size="sm" variant="outline" disabled={!canEdit} onClick={retryImageSync}>Riprova sincronizzazione immagini</Button>
+              <span>{t("Immagini salvate nell'azienda. La pagina di accesso deve ancora essere aggiornata.")}</span>
+              <Button size="sm" variant="outline" disabled={!canEdit} onClick={retryImageSync}>{t("Riprova sincronizzazione immagini")}</Button>
             </AlertDescription></Alert>}
             <TabsList>
-              <TabsTrigger value="aspetto">Aspetto</TabsTrigger>
-              <TabsTrigger value="indirizzo">Indirizzo web</TabsTrigger>
+              <TabsTrigger value="aspetto">{t("Aspetto")}</TabsTrigger>
+              <TabsTrigger value="indirizzo">{t("Indirizzo web")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="aspetto" className="mt-0 space-y-4">
@@ -890,19 +888,19 @@ export default function SettingsBranding() {
               >
                 <p role="status" className="mr-auto min-w-0 text-xs">
                   {isDirty ? (
-                    <span className="text-amber-700">Modifiche non salvate</span>
+                    <span className="text-amber-700">{t("Modifiche non salvate")}</span>
                   ) : syncNeeded ? (
-                    <span className="text-amber-700">Marchio salvato. La pagina di accesso non è ancora aggiornata: riprova.</span>
+                    <span className="text-amber-700">{t("Marchio salvato. La pagina di accesso non è ancora aggiornata: riprova.")}</span>
                   ) : (
-                    <span className="text-muted-foreground">Colori, nome e «Powered by» si salvano qui; le immagini, appena le carichi.</span>
+                    <span className="text-muted-foreground">{t("Colori, nome e «Powered by» si salvano qui; le immagini, appena le carichi.")}</span>
                   )}
                 </p>
                 <Button size="sm" variant="outline" onClick={resetForm} disabled={!canEdit || !isDirty || saving}>
-                  Annulla modifiche
+                  {t("Annulla modifiche")}
                 </Button>
                 <Button onClick={handleSave} disabled={!canEdit || (!isDirty && !syncNeeded) || saving} size="sm">
                   {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" aria-hidden="true" />}
-                  {syncNeeded && !isDirty ? "Riprova sincronizzazione" : "Salva marchio"}
+                  {syncNeeded && !isDirty ? t("Riprova sincronizzazione") : t("Salva marchio")}
                 </Button>
               </div>
 
@@ -912,22 +910,18 @@ export default function SettingsBranding() {
                 <Card>
                   <CardHeader>
                     <TitoloRiquadro className="text-base flex items-center gap-2">
-                      <Palette className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Colori
+                      <Palette className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> {t("Colori")}
                     </TitoloRiquadro>
                     <CardDescription>
-                      I colori standard restano invariati finché non scegli e salvi quelli della tua azienda.
-                      Scegli il colore del tuo marchio: bottoni, link e voci attive si adattano da soli,
-                      restando sempre leggibili.
+                      {t("I colori standard restano invariati finché non scegli e salvi quelli della tua azienda. Scegli il colore del tuo marchio: bottoni, link e voci attive si adattano da soli, restando sempre leggibili.")}
                     </CardDescription>
                     {!canChangeColors && (
-                      <CardDescription className="text-amber-600">
-                        Il tuo piano ({wlGate.name}) non include i colori personalizzati.
-                      </CardDescription>
+                      <CardDescription className="text-amber-600">{t("Il tuo piano ({name}) non include i colori personalizzati.", { name: String(wlGate.name ?? "") })}</CardDescription>
                     )}
                   </CardHeader>
                   <CardContent className="space-y-5">
                     <RadioGroup
-                      aria-label="Modalità colori"
+                      aria-label={t("Modalità colori")}
                       value={standardColors ? "standard" : "personalizzati"}
                       disabled={!canEdit || !canChangeColors}
                       onValueChange={changeColorMode}
@@ -935,19 +929,19 @@ export default function SettingsBranding() {
                     >
                       <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3" htmlFor="bnd-colori-standard">
                         <RadioGroupItem id="bnd-colori-standard" value="standard" />
-                        <span><span className="block font-medium text-sm">Colori standard</span><span className="text-xs text-muted-foreground">Aspetto originale di EdiliziaInCloud</span></span>
+                        <span><span className="block font-medium text-sm">{t("Colori standard")}</span><span className="text-xs text-muted-foreground">{t("Aspetto originale di EdiliziaInCloud")}</span></span>
                       </label>
                       <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3" htmlFor="bnd-colori-personalizzati">
                         <RadioGroupItem id="bnd-colori-personalizzati" value="personalizzati" />
-                        <span><span className="block font-medium text-sm">Colori personalizzati</span><span className="text-xs text-muted-foreground">Scegli i colori della tua azienda</span></span>
+                        <span><span className="block font-medium text-sm">{t("Colori personalizzati")}</span><span className="text-xs text-muted-foreground">{t("Scegli i colori della tua azienda")}</span></span>
                       </label>
                     </RadioGroup>
-                    {standardColors && <p className="text-sm text-muted-foreground">Sono selezionati i colori standard. Scegli «Colori personalizzati» per modificarli, poi salva il marchio.</p>}
-                    <fieldset disabled={standardColors || !canEdit || !canChangeColors} className="space-y-5 disabled:opacity-60" aria-label="Personalizzazione colori">
+                    {standardColors && <p className="text-sm text-muted-foreground">{t("Sono selezionati i colori standard. Scegli «Colori personalizzati» per modificarli, poi salva il marchio.")}</p>}
+                    <fieldset disabled={standardColors || !canEdit || !canChangeColors} className="space-y-5 disabled:opacity-60" aria-label={t("Personalizzazione colori")}>
                     <div className="flex flex-wrap items-end gap-4">
                       <HexColorInput
                         id="bnd-colore-marchio"
-                        label="Colore del marchio"
+                        label={t("Colore del marchio")}
                         value={form.brand_primary_color}
                         onChange={(v) => setForm((f) => (
                           isValidHexColor(v)
@@ -963,7 +957,7 @@ export default function SettingsBranding() {
                         onClick={usaColoriDelLogo}
                       >
                         {leggendoLogo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wand2 className="h-4 w-4 mr-2" aria-hidden="true" />}
-                        Usa i colori del logo
+                        {t("Usa i colori del logo")}
                       </Button>
                       <Button
                         variant="ghost"
@@ -971,12 +965,12 @@ export default function SettingsBranding() {
                         disabled={!canEdit || !canChangeColors}
                         onClick={() => setForm((f) => ({ ...f, ...STANDARD_COLORS }))}
                       >
-                        Colori di EdiliziaInCloud
+                        {t("Colori di EdiliziaInCloud")}
                       </Button>
                     </div>
 
                     <div role="group" aria-labelledby="bnd-colori-pronti" className="space-y-1.5">
-                      <p id="bnd-colori-pronti" className="text-xs font-medium leading-none">Oppure parti da uno di questi</p>
+                      <p id="bnd-colori-pronti" className="text-xs font-medium leading-none">{t("Oppure parti da uno di questi")}</p>
                       <div className="flex flex-wrap gap-2">
                         {COLORI_SUGGERITI.map((hex) => {
                           const scelto = !standardColors && form.brand_primary_color.toUpperCase() === hex;
@@ -984,7 +978,7 @@ export default function SettingsBranding() {
                             <button
                               key={hex}
                               type="button"
-                              aria-label={`Usa il colore ${hex}`}
+                              aria-label={t("Usa il colore {hex}", { hex: String(hex ?? "") })}
                               aria-pressed={scelto}
                               title={hex}
                               disabled={!canEdit || !canChangeColors}
@@ -1000,23 +994,23 @@ export default function SettingsBranding() {
                     </div>
 
                     <details className="rounded-lg border px-4 py-3 text-sm">
-                      <summary className="cursor-pointer select-none font-medium">Regola i dettagli</summary>
+                      <summary className="cursor-pointer select-none font-medium">{t("Regola i dettagli")}</summary>
                       <div className="mt-4 grid gap-4 sm:grid-cols-2">
                         <HexColorInput
                           id="bnd-sfondo-voci"
-                          label="Sfondo delle voci attive"
+                          label={t("Sfondo delle voci attive")}
                           value={form.brand_accent_color}
                           onChange={(v) => setForm((f) => ({ ...f, brand_accent_color: v }))}
                           disabled={!canEdit || !canChangeColors}
-                          hint="Barra laterale e hover: un tono molto chiaro"
+                          hint={t("Barra laterale e hover: un tono molto chiaro")}
                         />
                         <HexColorInput
                           id="bnd-testo-bottoni"
-                          label="Testo sui bottoni"
+                          label={t("Testo sui bottoni")}
                           value={form.brand_text_on_primary}
                           onChange={(v) => setForm((f) => ({ ...f, brand_text_on_primary: v }))}
                           disabled={!canEdit || !canChangeColors}
-                          hint="Bianco o quasi nero, secondo il colore"
+                          hint={t("Bianco o quasi nero, secondo il colore")}
                         />
                       </div>
                     </details>
@@ -1027,15 +1021,14 @@ export default function SettingsBranding() {
                 {/* 2 · NOME E IMMAGINI */}
                 <Card>
                   <CardHeader>
-                    <TitoloRiquadro className="text-base">Nome e immagini</TitoloRiquadro>
+                    <TitoloRiquadro className="text-base">{t("Nome e immagini")}</TitoloRiquadro>
                     <CardDescription>
-                      Come si presenta la piattaforma ai tuoi utenti e ai tuoi clienti. Le immagini si salvano appena le
-                      carichi; il nome e «Powered by» con «Salva marchio».
+                      {t("Come si presenta la piattaforma ai tuoi utenti e ai tuoi clienti. Le immagini si salvano appena le carichi; il nome e «Powered by» con «Salva marchio».")}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="space-y-1.5">
-                      <Label htmlFor="bnd-name">Nome della piattaforma</Label>
+                      <Label htmlFor="bnd-name">{t("Nome della piattaforma")}</Label>
                       <Input
                         id="bnd-name"
                         value={form.brand_platform_name}
@@ -1045,80 +1038,80 @@ export default function SettingsBranding() {
                         disabled={!canEdit}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Sostituisce «EdiliziaInCloud» nella barra e nel titolo del browser. Vuoto = nome standard.
+                        {t("Sostituisce «EdiliziaInCloud» nella barra e nel titolo del browser. Vuoto = nome standard.")}
                       </p>
                     </div>
 
                     <div className="grid gap-6 md:grid-cols-3">
                       <div className="space-y-2">
-                        <h3 className="text-sm font-medium leading-none">Logo chiaro</h3>
-                        <p className="text-xs text-muted-foreground">Versione bianca, per le copertine scure dei preventivi.</p>
+                        <h3 className="text-sm font-medium leading-none">{t("Logo chiaro")}</h3>
+                        <p className="text-xs text-muted-foreground">{t("Versione bianca, per le copertine scure dei preventivi.")}</p>
                         <div className="h-16 w-full rounded border bg-slate-900 flex items-center justify-center p-2">
                           {brand?.brand_logo_dark_url ? (
-                            <img loading="lazy" src={brand.brand_logo_dark_url} alt="Logo versione chiara" className="h-full w-full object-contain" />
+                            <img loading="lazy" src={brand.brand_logo_dark_url} alt={t("Logo versione chiara")} className="h-full w-full object-contain" />
                           ) : (
-                            <span className="text-[10px] text-slate-400 text-center leading-tight px-1">Si usa il logo principale</span>
+                            <span className="text-[10px] text-slate-400 text-center leading-tight px-1">{t("Si usa il logo principale")}</span>
                           )}
                         </div>
                         <FileUploadButton
-                          label={brand?.brand_logo_dark_url ? "Cambia" : "Carica"}
-                          nome="il logo chiaro"
+                          label={brand?.brand_logo_dark_url ? t("Cambia") : t("Carica")}
+                          nome={t("il logo chiaro")}
                           isUploading={uploading === "brand_logo_dark_url"}
                           onUpload={(f) => handleFileUpload(f, "brand_logo_dark_url", "logo-dark")}
                           accept="image/png,image/svg+xml,image/webp"
                           disabled={!canEdit}
                         />
-                        {brand.brand_logo_dark_url && <Button variant="ghost" size="sm" disabled={!canEdit} onClick={() => handleRemoveImage("brand_logo_dark_url")} aria-label="Rimuovi il logo chiaro">Rimuovi</Button>}
+                        {brand.brand_logo_dark_url && <Button variant="ghost" size="sm" disabled={!canEdit} onClick={() => handleRemoveImage("brand_logo_dark_url")} aria-label={t("Rimuovi il logo chiaro")}>{t("Rimuovi")}</Button>}
                       </div>
 
                       <div className="space-y-2">
-                        <h3 className="text-sm font-medium leading-none">Icona del browser</h3>
-                        <p className="text-xs text-muted-foreground">Quadrata, 64×64 px (PNG, ICO o SVG).</p>
+                        <h3 className="text-sm font-medium leading-none">{t("Icona del browser")}</h3>
+                        <p className="text-xs text-muted-foreground">{t("Quadrata, 64×64 px (PNG, ICO o SVG).")}</p>
                         <div className="h-16 w-16 rounded border bg-muted/30 flex items-center justify-center p-1.5">
                           {brand?.brand_favicon_url ? (
-                            <img loading="lazy" src={brand.brand_favicon_url} alt="Icona del browser" className="h-full w-full object-contain" />
+                            <img loading="lazy" src={brand.brand_favicon_url} alt={t("Icona del browser")} className="h-full w-full object-contain" />
                           ) : (
-                            <span className="text-[10px] text-muted-foreground">Vuota</span>
+                            <span className="text-[10px] text-muted-foreground">{t("Vuota")}</span>
                           )}
                         </div>
                         <FileUploadButton
-                          label={brand?.brand_favicon_url ? "Cambia" : "Carica"}
-                          nome="l'icona del browser"
+                          label={brand?.brand_favicon_url ? t("Cambia") : t("Carica")}
+                          nome={t("l'icona del browser")}
                           isUploading={uploading === "brand_favicon_url"}
                           onUpload={(f) => handleFileUpload(f, "brand_favicon_url", "favicon")}
                           accept="image/png,image/x-icon,image/svg+xml"
                           disabled={!canEdit}
                         />
-                        {brand.brand_favicon_url && <Button variant="ghost" size="sm" disabled={!canEdit} onClick={() => handleRemoveImage("brand_favicon_url")} aria-label="Rimuovi l'icona del browser">Rimuovi</Button>}
+                        {brand.brand_favicon_url && <Button variant="ghost" size="sm" disabled={!canEdit} onClick={() => handleRemoveImage("brand_favicon_url")} aria-label={t("Rimuovi l'icona del browser")}>{t("Rimuovi")}</Button>}
                       </div>
 
                       <div className="space-y-2">
-                        <h3 className="text-sm font-medium leading-none">Sfondo della pagina di accesso</h3>
-                        <p className="text-xs text-muted-foreground">Facoltativo, 1920×1080 px.</p>
+                        <h3 className="text-sm font-medium leading-none">{t("Sfondo della pagina di accesso")}</h3>
+                        <p className="text-xs text-muted-foreground">{t("Facoltativo, 1920×1080 px.")}</p>
                         <div className="h-16 w-full rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
                           {brand?.brand_login_bg_url ? (
                             <img loading="lazy" src={brand.brand_login_bg_url} alt="" className="h-full w-full object-cover" />
                           ) : (
-                            <span className="text-[10px] text-muted-foreground">Nessuno sfondo</span>
+                            <span className="text-[10px] text-muted-foreground">{t("Nessuno sfondo")}</span>
                           )}
                         </div>
                         <FileUploadButton
-                          label={brand?.brand_login_bg_url ? "Cambia" : "Carica"}
-                          nome="lo sfondo della pagina di accesso"
+                          label={brand?.brand_login_bg_url ? t("Cambia") : t("Carica")}
+                          nome={t("lo sfondo della pagina di accesso")}
                           isUploading={uploading === "brand_login_bg_url"}
                           onUpload={(f) => handleFileUpload(f, "brand_login_bg_url", "login-bg")}
                           disabled={!canEdit || !canLoginPage}
                         />
-                        {brand.brand_login_bg_url && <Button variant="ghost" size="sm" disabled={!canEdit || !canLoginPage} onClick={() => handleRemoveImage("brand_login_bg_url")} aria-label="Rimuovi lo sfondo della pagina di accesso">Rimuovi</Button>}
-                        {!canLoginPage && <p className="text-[10px] text-amber-600">Non incluso nel tuo piano</p>}
+                        {brand.brand_login_bg_url && <Button variant="ghost" size="sm" disabled={!canEdit || !canLoginPage} onClick={() => handleRemoveImage("brand_login_bg_url")} aria-label={t("Rimuovi lo sfondo della pagina di accesso")}>{t("Rimuovi")}</Button>}
+                        {!canLoginPage && <p className="text-[10px] text-amber-600">{t("Non incluso nel tuo piano")}</p>}
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between gap-4 border-t pt-4">
                       <div className="min-w-0">
-                        <Label htmlFor="bnd-hide-pby">Nascondi «Powered by EdiliziaInCloud»</Label>
-                        <p className="text-xs text-muted-foreground">Toglie la scritta «Powered by EdiliziaInCloud» dalla piattaforma e dalle email.</p>
-                        {!canHidePoweredBy && <p className="text-[10px] text-amber-600 mt-1">Non incluso nel tuo piano</p>}
+                        <Label htmlFor="bnd-hide-pby">{t("Nascondi «Powered by EdiliziaInCloud»")}</Label>
+                        <p className="text-xs text-muted-foreground">{t("Toglie la scritta «Powered by EdiliziaInCloud» dalla piattaforma e dalle email.")}</p>
+                        {!canHidePoweredBy && <p className="text-[10px] text-amber-600 mt-1">{t("Non incluso nel tuo piano")}</p>}
                       </div>
                       <Switch
                         id="bnd-hide-pby"
@@ -1133,7 +1126,7 @@ export default function SettingsBranding() {
                 {/* Ripristino */}
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3">
                   <p className="text-sm text-muted-foreground">
-                    Vuoi tornare all'aspetto originale? Cambiano colori, nome e «Powered by»; logo, icona e indirizzi restano.
+                    {t("Vuoi tornare all'aspetto originale? Cambiano colori, nome e «Powered by»; logo, icona e indirizzi restano.")}
                   </p>
                   <Button
                     variant="outline"
@@ -1142,7 +1135,7 @@ export default function SettingsBranding() {
                     onClick={() => setConfirmResetSystem(true)}
                   >
                     {resetting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />}
-                    Ripristina aspetto standard
+                    {t("Ripristina aspetto standard")}
                   </Button>
                 </div>
               </div>
@@ -1151,8 +1144,8 @@ export default function SettingsBranding() {
               <div className="lg:sticky lg:top-20">
                 <Card>
                   <CardHeader className="pb-3">
-                    <TitoloRiquadro className="text-base">Anteprima</TitoloRiquadro>
-                    <CardDescription>Si aggiorna mentre scegli. Dopo «Salva marchio» la vedono tutti gli utenti.</CardDescription>
+                    <TitoloRiquadro className="text-base">{t("Anteprima")}</TitoloRiquadro>
+                    <CardDescription>{t("Si aggiorna mentre scegli. Dopo «Salva marchio» la vedono tutti gli utenti.")}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <AnteprimaPiattaforma
@@ -1171,20 +1164,20 @@ export default function SettingsBranding() {
 
             <TabsContent value="indirizzo" className="mt-0 space-y-6">
               {addressesDirty && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-                <span>Indirizzi modificati e non salvati. Usa il pulsante del singolo indirizzo per confermare.</span>
-                <Button size="sm" variant="outline" disabled={!canEdit || saveSubdomainMut.isPending || requestVerifMut.isPending} onClick={() => setAddressDraft({})}>Annulla modifiche agli indirizzi</Button>
+                <span>{t("Indirizzi modificati e non salvati. Usa il pulsante del singolo indirizzo per confermare.")}</span>
+                <Button size="sm" variant="outline" disabled={!canEdit || saveSubdomainMut.isPending || requestVerifMut.isPending} onClick={() => setAddressDraft({})}>{t("Annulla modifiche agli indirizzi")}</Button>
               </AlertDescription></Alert>}
               {/* Sottodominio */}
               <Card>
                 <CardHeader>
                   <TitoloRiquadro className="text-base flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Sottodominio
+                    <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> {t("Sottodominio")}
                   </TitoloRiquadro>
-                  <CardDescription>Accedi alla piattaforma da un indirizzo personalizzato gratuito.</CardDescription>
+                  <CardDescription>{t("Accedi alla piattaforma da un indirizzo personalizzato gratuito.")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="bnd-subdomain">Il tuo sottodominio</Label>
+                    <Label htmlFor="bnd-subdomain">{t("Il tuo sottodominio")}</Label>
                     <div className="flex items-center gap-2 flex-wrap">
                       <Input
                         id="bnd-subdomain"
@@ -1199,10 +1192,10 @@ export default function SettingsBranding() {
                       <span className="text-sm text-muted-foreground">.ediliziaincloud.com</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Da 3 a 63 caratteri: lettere minuscole, numeri e trattini; non può cominciare né finire con un trattino.
+                      {t("Da 3 a 63 caratteri: lettere minuscole, numeri e trattini; non può cominciare né finire con un trattino.")}
                     </p>
                     {subdomain.length > 0 && !isValidSubdomain(subdomain) && (
-                      <p className="text-xs text-destructive">Il sottodominio non è valido: guarda le regole qui sopra.</p>
+                      <p className="text-xs text-destructive">{t("Il sottodominio non è valido: guarda le regole qui sopra.")}</p>
                     )}
                   </div>
                   <Button
@@ -1216,7 +1209,7 @@ export default function SettingsBranding() {
                     onClick={handleSaveSubdomain}
                   >
                     {saveSubdomainMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                    {!subdomain && companyBranding?.subdomain ? "Rimuovi sottodominio" : "Salva sottodominio"}
+                    {!subdomain && companyBranding?.subdomain ? t("Rimuovi sottodominio") : t("Salva sottodominio")}
                   </Button>
                 </CardContent>
               </Card>
@@ -1225,16 +1218,13 @@ export default function SettingsBranding() {
               <Card>
                 <CardHeader>
                   <TitoloRiquadro className="text-base flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Dominio personalizzato
+                    <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> {t("Dominio personalizzato")}
                   </TitoloRiquadro>
                   <CardDescription>
-                    Usa un dominio tuo, per esempio crm.tuaazienda.it. Richiede una modifica al DNS del dominio e potrebbe
-                    servirti l'aiuto di chi lo gestisce.
+                    {t("Usa un dominio tuo, per esempio crm.tuaazienda.it. Richiede una modifica al DNS del dominio e potrebbe servirti l'aiuto di chi lo gestisce.")}
                   </CardDescription>
                   {!canCustomDomain && (
-                    <CardDescription className="text-amber-600">
-                      Il tuo piano ({wlGate.name}) non include i domini personalizzati.
-                    </CardDescription>
+                    <CardDescription className="text-amber-600">{t("Il tuo piano ({name}) non include i domini personalizzati.", { name: String(wlGate.name ?? "") })}</CardDescription>
                   )}
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1242,19 +1232,19 @@ export default function SettingsBranding() {
                     <Alert>
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                       <AlertDescription className="flex items-center justify-between gap-2 flex-wrap">
-                        <span><strong>{savedCustomDomain}</strong> è verificato e attivo.</span>
+                        <span>{t("{dominio} è verificato e attivo.", { dominio: savedCustomDomain ?? "" })}</span>
                         <span className="flex items-center gap-1">
                           <Button variant="ghost" size="sm" onClick={() => window.open(`https://${savedCustomDomain}`, "_blank", "noopener,noreferrer")}>
-                            Apri ↗
+                            {t("Apri ↗")}
                           </Button>
                           <Button
                             variant="ghost" size="sm"
                             className="text-destructive hover:text-destructive"
                             disabled={!canEdit || removeDomainMut.isPending}
-                            aria-label="Rimuovi il dominio"
+                            aria-label={t("Rimuovi il dominio")}
                             onClick={() => setConfirmRemoveDomain(true)}
                           >
-                            {removeDomainMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Rimuovi"}
+                            {removeDomainMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("Rimuovi")}
                           </Button>
                         </span>
                       </AlertDescription>
@@ -1262,7 +1252,7 @@ export default function SettingsBranding() {
                   ) : (
                     <>
                       <div className="space-y-2">
-                        <Label htmlFor="bnd-custom-domain">Dominio</Label>
+                        <Label htmlFor="bnd-custom-domain">{t("Dominio")}</Label>
                         <div className="flex items-center gap-2 flex-wrap">
                           <Input
                             id="bnd-custom-domain"
@@ -1275,20 +1265,20 @@ export default function SettingsBranding() {
                           />
                           <Button
                             size="sm"
-                            aria-label="Configura il dominio"
+                            aria-label={t("Configura il dominio")}
                             disabled={requestVerifMut.isPending || !customDomain || customDomainInvalid || !canEdit || !canCustomDomain}
                             onClick={handleConfigureDomain}
                           >
-                            {requestVerifMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Configura"}
+                            {requestVerifMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("Configura")}
                           </Button>
                         </div>
                         {customDomainInvalid ? (
                           <p className="text-xs text-destructive">
-                            Inserisci un dominio valido, esterno alla piattaforma, per esempio crm.tuaazienda.it.
+                            {t("Inserisci un dominio valido, esterno alla piattaforma, per esempio crm.tuaazienda.it.")}
                           </p>
                         ) : customDomain && normalizedCustomDomain !== customDomain ? (
                           <p className="text-xs text-muted-foreground">
-                            Verrà salvato come <strong>{normalizedCustomDomain}</strong>.
+                            {t("Verrà salvato come {dominio}.", { dominio: normalizedCustomDomain })}
                           </p>
                         ) : null}
                       </div>
@@ -1297,32 +1287,32 @@ export default function SettingsBranding() {
                        !(companyBranding as { custom_domain_verified?: boolean } | null)?.custom_domain_verified && (
                         <Alert>
                           <AlertDescription className="space-y-3">
-                            <p className="font-medium">Aggiungi questo record CNAME al DNS del tuo dominio:</p>
+                            <p className="font-medium">{t("Aggiungi questo record CNAME al DNS del tuo dominio:")}</p>
                             <div className="space-y-2 text-sm">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-muted-foreground w-16 shrink-0">Tipo:</span>
+                                <span className="text-muted-foreground w-16 shrink-0">{t("Tipo:")}</span>
                                 <Badge variant="secondary">CNAME</Badge>
                               </div>
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-muted-foreground w-16 shrink-0">Nome:</span>
+                                <span className="text-muted-foreground w-16 shrink-0">{t("Nome:")}</span>
                                 <code className="bg-muted px-2 py-0.5 rounded text-xs break-all">{savedCustomDomain}</code>
                                 <Button
-                                  variant="ghost" size="icon" aria-label="Copia nome CNAME" className="h-9 w-9 md:h-6 md:w-6"
-                                  onClick={() => copyText(savedCustomDomain)}
+                                  variant="ghost" size="icon" aria-label={t("Copia nome CNAME")} className="h-9 w-9 md:h-6 md:w-6"
+                                  onClick={() => copyText(savedCustomDomain, t)}
                                 >
                                   <Copy className="h-3 w-3" />
                                 </Button>
                               </div>
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-muted-foreground w-16 shrink-0">Valore:</span>
+                                <span className="text-muted-foreground w-16 shrink-0">{t("Valore:")}</span>
                                 <code className="bg-muted px-2 py-0.5 rounded text-xs break-all">
                                   {(companyBranding as { custom_domain_cname?: string }).custom_domain_cname}
                                 </code>
                                 <Button
-                                  variant="ghost" size="icon" aria-label="Copia valore CNAME" className="h-9 w-9 md:h-6 md:w-6"
+                                  variant="ghost" size="icon" aria-label={t("Copia valore CNAME")} className="h-9 w-9 md:h-6 md:w-6"
                                   onClick={() => {
                                     const v = (companyBranding as { custom_domain_cname?: string }).custom_domain_cname || "";
-                                    copyText(v);
+                                    copyText(v, t);
                                   }}
                                 >
                                   <Copy className="h-3 w-3" />
@@ -1330,7 +1320,7 @@ export default function SettingsBranding() {
                               </div>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              La propagazione DNS può richiedere da 5 minuti a 48 ore.
+                              {t("La propagazione DNS può richiedere da 5 minuti a 48 ore.")}
                             </p>
                             <div className="flex items-center gap-2 flex-wrap">
                               <Button
@@ -1343,7 +1333,7 @@ export default function SettingsBranding() {
                                 ) : (
                                   <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
                                 )}
-                                Verifica ora
+                                {t("Verifica ora")}
                               </Button>
                               <Button
                                 size="sm" variant="ghost"
@@ -1351,7 +1341,7 @@ export default function SettingsBranding() {
                                 disabled={!canEdit || removeDomainMut.isPending}
                                 onClick={() => setConfirmRemoveDomain(true)}
                               >
-                                {removeDomainMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Rimuovi dominio"}
+                                {removeDomainMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("Rimuovi dominio")}
                               </Button>
                             </div>
                           </AlertDescription>
@@ -1370,17 +1360,15 @@ export default function SettingsBranding() {
       <AlertDialog open={confirmRemoveDomain} onOpenChange={setConfirmRemoveDomain}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Rimuovere il dominio personalizzato?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Rimuovere il dominio personalizzato?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{savedCustomDomain}</strong> non sarà più collegato alla
-              piattaforma: chi lo usava dovrà entrare dall'indirizzo standard. Potrai configurare un nuovo dominio
-              quando vuoi.
+              {t("{dominio} non sarà più collegato alla piattaforma: chi lo usava dovrà entrare dall'indirizzo standard. Potrai configurare un nuovo dominio quando vuoi.", { dominio: savedCustomDomain ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleRemoveDomain} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Rimuovi
+              {t("Rimuovi")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1390,17 +1378,14 @@ export default function SettingsBranding() {
       <AlertDialog open={confirmResetSystem} onOpenChange={setConfirmResetSystem}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Tornare all'aspetto standard?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Tornare all'aspetto standard?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Colori, nome della piattaforma e «Powered by» tornano a quelli di EdiliziaInCloud, per tutti gli utenti
-              della tua azienda. Logo, icona del browser, sottodominio e dominio personalizzato restano come sono.
-              Potrai rimettere i tuoi colori quando vuoi.
-              Il White-Label resta attivo.
+              {t("Colori, nome della piattaforma e «Powered by» tornano a quelli di EdiliziaInCloud, per tutti gli utenti della tua azienda. Logo, icona del browser, sottodominio e dominio personalizzato restano come sono. Potrai rimettere i tuoi colori quando vuoi. Il White-Label resta attivo.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={handleResetToSystem}>Ripristina</AlertDialogAction>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetToSystem}>{t("Ripristina")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1409,15 +1394,14 @@ export default function SettingsBranding() {
       <AlertDialog open={confirmRemoveSub} onOpenChange={setConfirmRemoveSub}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Rimuovere il sottodominio?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Rimuovere il sottodominio?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{companyBranding?.subdomain}.ediliziaincloud.com</strong> non sarà più raggiungibile: chi aveva
-              salvato quel link vedrà una pagina non trovata.
+              {t("{indirizzo} non sarà più raggiungibile: chi aveva salvato quel link vedrà una pagina non trovata.", { indirizzo: `${companyBranding?.subdomain ?? ""}.ediliziaincloud.com` })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRemoveSubdomain}>Rimuovi</AlertDialogAction>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRemoveSubdomain}>{t("Rimuovi")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1429,9 +1413,9 @@ export default function SettingsBranding() {
         featureKey="white_label"
         featureLabel="White-Label"
         actionLabel="Personalizzare il marchio"
-        description="Colori, nome della piattaforma, icona, pagina di accesso e indirizzo web con il tuo marchio, al posto di quelli di EdiliziaInCloud."
-        benefits={COSA_SI_OTTIENE}
-        chiudiLabel="Non ora"
+        description={t("Colori, nome della piattaforma, icona, pagina di accesso e indirizzo web con il tuo marchio, al posto di quelli di EdiliziaInCloud.")}
+        benefits={COSA_SI_OTTIENE.map((b) => t(b))}
+        chiudiLabel={t("Non ora")}
       />
     </div>
   );

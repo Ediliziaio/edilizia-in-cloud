@@ -81,6 +81,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const BarcodeScanner = lazy(() =>
   import("@/components/warehouse/BarcodeScanner").then((m) => ({ default: m.BarcodeScanner })),
@@ -214,8 +215,8 @@ const MSG_SOLA_LETTURA = "Non puoi modificare i QR: serve «Configurazione Ordin
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Il motivo di un errore, in italiano: i controlli della pagina come sono, gli errori del database tradotti. */
-function motivoErrore(e: unknown, ripiego: string) {
-  return e instanceof ErroreControllo ? e.message : userErrorMessage(e, ripiego);
+function motivoErrore(e: unknown, ripiego: string, t: (testo: string) => string = (testo) => testo) {
+  return e instanceof ErroreControllo ? t(e.message) : userErrorMessage(e, ripiego);
 }
 
 function generateQrToken() {
@@ -274,6 +275,7 @@ function formDaQr(qr: DynamicQrCode | null): DynamicQrFormData {
 // ────────────────────────────────────────────────────────────
 
 function QrDinamiciTab({ puoModificare }: { puoModificare: boolean }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -325,7 +327,7 @@ function QrDinamiciTab({ puoModificare }: { puoModificare: boolean }) {
     mutationFn: async (qr: DynamicQrCode) => {
       // Difesa oltre al pulsante nascosto: senza il permesso di modifica non si scrive.
       if (!puoModificare) throw new ErroreControllo(MSG_SOLA_LETTURA);
-      if (!companyId) throw new ErroreControllo("Azienda non selezionata.");
+      if (!companyId) throw new ErroreControllo(t("Azienda non selezionata."));
       const { error } = await (supabase as any)
         .from("company_qr_codes")
         .update({ status: "archived" })
@@ -334,11 +336,11 @@ function QrDinamiciTab({ puoModificare }: { puoModificare: boolean }) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("QR archiviato");
+      toast.success(t("QR archiviato"));
       queryClient.invalidateQueries({ queryKey: ["company-dynamic-qr-codes"] });
     },
-    onError: (e) => toast.error("QR non archiviato", {
-      description: motivoErrore(e, "Non sono riuscito ad archiviare il QR. Riprova."),
+    onError: (e) => toast.error(t("QR non archiviato"), {
+      description: motivoErrore(e, t("Non sono riuscito ad archiviare il QR. Riprova."), t),
     }),
   });
 
@@ -355,9 +357,9 @@ function QrDinamiciTab({ puoModificare }: { puoModificare: boolean }) {
   const copyLink = async (qr: DynamicQrCode) => {
     try {
       await navigator.clipboard.writeText(getPublicQrUrl(qr.public_token));
-      toast.success("Link copiato");
+      toast.success(t("Link copiato"));
     } catch {
-      toast.error("Link non copiato", { description: "Il browser non ha permesso di copiarlo. Riprova." });
+      toast.error(t("Link non copiato"), { description: t("Il browser non ha permesso di copiarlo. Riprova.") });
     }
   };
 
@@ -374,17 +376,17 @@ function QrDinamiciTab({ puoModificare }: { puoModificare: boolean }) {
       a.download = `${qr.name.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase()}-qr.png`;
       a.click();
     } catch {
-      toast.error("QR non scaricato", { description: "Non sono riuscito a creare l'immagine. Riprova." });
+      toast.error(t("QR non scaricato"), { description: t("Non sono riuscito a creare l'immagine. Riprova.") });
     }
   };
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon={QrCode} label="QR totali" value={String(stats.total)} hint="con link" accent="primary" />
-        <KpiCard icon={CheckCircle2} label="Attivi" value={String(stats.active)} hint="accessibili ora" accent="emerald" />
-        <KpiCard icon={AlertCircle} label="Scaduti" value={String(stats.expired)} hint="da verificare" accent={stats.expired > 0 ? "amber" : "blue"} />
-        <KpiCard icon={ScanLine} label="Scansioni" value={String(stats.scans)} hint="totale storico" accent="primary" />
+        <KpiCard icon={QrCode} label={t("QR totali")} value={String(stats.total)} hint={t("con link")} accent="primary" />
+        <KpiCard icon={CheckCircle2} label={t("Attivi")} value={String(stats.active)} hint={t("accessibili ora")} accent="emerald" />
+        <KpiCard icon={AlertCircle} label={t("Scaduti")} value={String(stats.expired)} hint={t("da verificare")} accent={stats.expired > 0 ? "amber" : "blue"} />
+        <KpiCard icon={ScanLine} label={t("Scansioni")} value={String(stats.scans)} hint={t("totale storico")} accent="primary" />
       </div>
 
       <Card>
@@ -393,16 +395,16 @@ function QrDinamiciTab({ puoModificare }: { puoModificare: boolean }) {
             <div>
               <CardTitle aria-level={2} className="text-base flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4" />
-                QR con link
+                {t("QR con link")}
               </CardTitle>
               <CardDescription>
-                Crea QR che aprono un link e contano le scansioni: per clienti, commesse, cantieri, materiali, documenti o richieste di assistenza.
+                {t("Crea QR che aprono un link e contano le scansioni: per clienti, commesse, cantieri, materiali, documenti o richieste di assistenza.")}
               </CardDescription>
             </div>
             {puoModificare && (
               <Button onClick={openCreate}>
                 <Plus className="h-4 w-4 mr-2" />
-                Nuovo QR
+                {t("Nuovo QR")}
               </Button>
             )}
           </div>
@@ -414,27 +416,27 @@ function QrDinamiciTab({ puoModificare }: { puoModificare: boolean }) {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cerca per nome, descrizione, link o codice…"
-                aria-label="Cerca tra i QR"
+                placeholder={t("Cerca per nome, descrizione, link o codice…")}
+                aria-label={t("Cerca tra i QR")}
                 className="pl-9"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger aria-label="Filtra per stato"><SelectValue placeholder="Stato" /></SelectTrigger>
+              <SelectTrigger aria-label={t("Filtra per stato")}><SelectValue placeholder={t("Stato")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti gli stati</SelectItem>
-                <SelectItem value="active">Attivi</SelectItem>
-                <SelectItem value="inactive">Disattivati</SelectItem>
-                <SelectItem value="expired">Scaduti</SelectItem>
-                <SelectItem value="archived">Archiviati</SelectItem>
+                <SelectItem value="all">{t("Tutti gli stati")}</SelectItem>
+                <SelectItem value="active">{t("Attivi")}</SelectItem>
+                <SelectItem value="inactive">{t("Disattivati")}</SelectItem>
+                <SelectItem value="expired">{t("Scaduti")}</SelectItem>
+                <SelectItem value="archived">{t("Archiviati")}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger aria-label="Filtra per tipo"><SelectValue placeholder="Tipo" /></SelectTrigger>
+              <SelectTrigger aria-label={t("Filtra per tipo")}><SelectValue placeholder={t("Tipo")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti i tipi</SelectItem>
+                <SelectItem value="all">{t("Tutti i tipi")}</SelectItem>
                 {Object.entries(qrTypeLabels).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                  <SelectItem key={value} value={value}>{t(label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -443,11 +445,11 @@ function QrDinamiciTab({ puoModificare }: { puoModificare: boolean }) {
           {isError ? (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Non riesco a leggere i QR</AlertTitle>
+              <AlertTitle>{t("Non riesco a leggere i QR")}</AlertTitle>
               <AlertDescription className="space-y-3">
-                <p className="text-xs">{userErrorMessage(error, "Non sono riuscito a caricare i QR. Riprova.")}</p>
+                <p className="text-xs">{userErrorMessage(error, t("Non sono riuscito a caricare i QR. Riprova."))}</p>
                 <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
-                  Riprova
+                  {t("Riprova")}
                 </Button>
               </AlertDescription>
             </Alert>
@@ -458,9 +460,9 @@ function QrDinamiciTab({ puoModificare }: { puoModificare: boolean }) {
           ) : filteredQrs.length === 0 ? (
             <div className="rounded-lg border border-dashed py-10 text-center text-muted-foreground">
               <QrCode className="h-10 w-10 mx-auto mb-3 opacity-40" />
-              <p className="font-medium text-foreground">Nessun QR trovato</p>
+              <p className="font-medium text-foreground">{t("Nessun QR trovato")}</p>
               {puoModificare && (
-                <p className="text-sm mt-1">Crea un QR per tracciare gli accessi a link, documenti o schede operative.</p>
+                <p className="text-sm mt-1">{t("Crea un QR per tracciare gli accessi a link, documenti o schede operative.")}</p>
               )}
             </div>
           ) : (
@@ -471,12 +473,12 @@ function QrDinamiciTab({ puoModificare }: { puoModificare: boolean }) {
               <TableHeader className="hidden md:table-header-group">
                 <TableRow>
                   <TableHead>QR</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Accesso</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead className="text-right">Scansioni</TableHead>
-                  <TableHead>Ultima scansione</TableHead>
-                  <TableHead className="w-[220px]">Azioni</TableHead>
+                  <TableHead>{t("Tipo")}</TableHead>
+                  <TableHead>{t("Accesso")}</TableHead>
+                  <TableHead>{t("Stato")}</TableHead>
+                  <TableHead className="text-right">{t("Scansioni")}</TableHead>
+                  <TableHead>{t("Ultima scansione")}</TableHead>
+                  <TableHead className="w-[220px]">{t("Azioni")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="block space-y-3 md:table-row-group md:space-y-0">
@@ -489,36 +491,36 @@ function QrDinamiciTab({ puoModificare }: { puoModificare: boolean }) {
                       <div className="font-medium">{qr.name}</div>
                       <div className="text-xs text-muted-foreground truncate md:max-w-[320px]">{qr.destination_url}</div>
                     </TableCell>
-                    <TableCell className="p-0 md:p-4"><Badge variant="outline">{qrTypeLabels[qr.qr_type] ?? qr.qr_type}</Badge></TableCell>
+                    <TableCell className="p-0 md:p-4"><Badge variant="outline">{t(qrTypeLabels[qr.qr_type] ?? qr.qr_type)}</Badge></TableCell>
                     <TableCell className="p-0 md:p-4">
                       <Badge variant={qr.access_level === "public" ? "default" : "secondary"}>
-                        {qr.access_level === "public" ? "Chiunque" : "Solo con accesso"}
+                        {qr.access_level === "public" ? t("Chiunque") : t("Solo con accesso")}
                       </Badge>
                     </TableCell>
                     <TableCell className="p-0 md:p-4"><QrStatusBadge qr={qr} /></TableCell>
                     <TableCell className="p-0 text-xs text-muted-foreground md:p-4 md:text-right md:text-sm md:font-medium md:text-foreground">
                       {qr.scan_count ?? 0}
-                      <span className="md:hidden"> {(qr.scan_count ?? 0) === 1 ? "scansione" : "scansioni"}</span>
+                      <span className="md:hidden"> {(qr.scan_count ?? 0) === 1 ? t("scansione") : t("scansioni")}</span>
                     </TableCell>
                     <TableCell className="hidden text-xs text-muted-foreground md:table-cell">
                       {qr.last_scanned_at ? format(new Date(qr.last_scanned_at), "dd/MM/yyyy HH:mm") : "—"}
                     </TableCell>
                     <TableCell className="w-full p-0 md:w-auto md:p-4">
                       <div className="flex flex-wrap gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => void copyLink(qr)} aria-label={`Copia link ${qr.name}`}>
+                        <Button variant="ghost" size="icon" onClick={() => void copyLink(qr)} aria-label={t("Copia link {name}", { name: String(qr.name ?? "") })}>
                           <Copy className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => void downloadPng(qr)} aria-label={`Scarica QR ${qr.name}`}>
+                        <Button variant="ghost" size="icon" onClick={() => void downloadPng(qr)} aria-label={t("Scarica QR {name}", { name: String(qr.name ?? "") })}>
                           <Download className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => window.open(getPublicQrUrl(qr.public_token), "_blank", "noopener,noreferrer")} aria-label={`Apri QR ${qr.name}`}>
+                        <Button variant="ghost" size="icon" onClick={() => window.open(getPublicQrUrl(qr.public_token), "_blank", "noopener,noreferrer")} aria-label={t("Apri QR {name}", { name: String(qr.name ?? "") })}>
                           <ExternalLink className="h-4 w-4" />
                         </Button>
                         {puoModificare && (
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(qr)} aria-label={`Modifica ${qr.name}`}>Modifica</Button>
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(qr)} aria-label={t("Modifica {nome}", { nome: String(qr.name ?? "") })}>{t("Modifica")}</Button>
                         )}
                         {puoModificare && qr.status !== "archived" && (
-                          <Button variant="ghost" size="icon" onClick={() => archiveMutation.mutate(qr)} aria-label={`Archivia ${qr.name}`}>
+                          <Button variant="ghost" size="icon" onClick={() => archiveMutation.mutate(qr)} aria-label={t("Archivia {name}", { name: String(qr.name ?? "") })}>
                             <Archive className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         )}
@@ -559,6 +561,7 @@ function FinestraQr({
   puoModificare: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [iniziale] = useState(() => formDaQr(qr));
   const [formData, setFormData] = useState<DynamicQrFormData>(iniziale);
@@ -569,23 +572,23 @@ function FinestraQr({
     mutationFn: async () => {
       // Difesa oltre al pulsante nascosto: senza il permesso di modifica non si scrive.
       if (!puoModificare) throw new ErroreControllo(MSG_SOLA_LETTURA);
-      if (!companyId) throw new ErroreControllo("Azienda non selezionata.");
+      if (!companyId) throw new ErroreControllo(t("Azienda non selezionata."));
       const name = formData.name.trim();
       const destinationUrl = normalizeDestinationUrl(formData.destination_url);
-      if (!name) throw new ErroreControllo("Il nome del QR è obbligatorio.");
-      if (!destinationUrl) throw new ErroreControllo("La destinazione è obbligatoria.");
+      if (!name) throw new ErroreControllo(t("Il nome del QR è obbligatorio."));
+      if (!destinationUrl) throw new ErroreControllo(t("La destinazione è obbligatoria."));
       // v8.6.43 — Allowlist schemi sicuri (coerente con CHECK constraint DB)
       const isInternal = destinationUrl.startsWith("/") && !destinationUrl.startsWith("//");
       const isHttp = /^https?:\/\//i.test(destinationUrl);
       const isMailto = /^mailto:/i.test(destinationUrl);
       const isTel = /^tel:/i.test(destinationUrl);
       if (!isInternal && !isHttp && !isMailto && !isTel) {
-        throw new ErroreControllo("Schema non consentito. Usa https://, mailto:, tel: o un percorso interno (/...).");
+        throw new ErroreControllo(t("Schema non consentito. Usa https://, mailto:, tel: o un percorso interno (/...)."));
       }
       // La colonna è un codice interno (uuid): un testo qualsiasi farebbe rifiutare il salvataggio dal database.
       const codiceCollegato = formData.linked_entity_id.trim();
       if (codiceCollegato && !UUID_RE.test(codiceCollegato)) {
-        throw new ErroreControllo("Il codice dell'elemento collegato non è valido. Se non ce l'hai, lascia il campo vuoto.");
+        throw new ErroreControllo(t("Il codice dell'elemento collegato non è valido. Se non ce l'hai, lascia il campo vuoto."));
       }
 
       const payload = {
@@ -621,12 +624,12 @@ function FinestraQr({
       }
     },
     onSuccess: () => {
-      toast.success(qr ? "QR aggiornato" : "QR creato");
+      toast.success(qr ? t("QR aggiornato") : t("QR creato"));
       queryClient.invalidateQueries({ queryKey: ["company-dynamic-qr-codes"] });
       onClose();
     },
-    onError: (e) => toast.error("QR non salvato", {
-      description: motivoErrore(e, "Non sono riuscito a salvare il QR. Riprova."),
+    onError: (e) => toast.error(t("QR non salvato"), {
+      description: motivoErrore(e, t("Non sono riuscito a salvare il QR. Riprova."), t),
     }),
   });
 
@@ -639,29 +642,29 @@ function FinestraQr({
     <Dialog open onOpenChange={(aperta) => { if (!aperta) chiudi(); }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{qr ? "Modifica QR" : "Nuovo QR con link"}</DialogTitle>
+          <DialogTitle>{qr ? t("Modifica QR") : t("Nuovo QR con link")}</DialogTitle>
           <DialogDescription>
-            Scegli dove porta il QR, chi può aprirlo e fino a quando. Il link si crea da solo.
+            {t("Scegli dove porta il QR, chi può aprirlo e fino a quando. Il link si crea da solo.")}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="qr-nome">Nome del QR *</Label>
+            <Label htmlFor="qr-nome">{t("Nome del QR *")}</Label>
             <Input id="qr-nome" value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} maxLength={120} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="qr-tipo">Tipo di QR</Label>
+            <Label htmlFor="qr-tipo">{t("Tipo di QR")}</Label>
             <Select value={formData.qr_type} onValueChange={(value) => setFormData((p) => ({ ...p, qr_type: value }))}>
               <SelectTrigger id="qr-tipo"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(qrTypeLabels).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                  <SelectItem key={value} value={value}>{t(label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="qr-destinazione">Destinazione *</Label>
+            <Label htmlFor="qr-destinazione">{t("Destinazione *")}</Label>
             <Input
               id="qr-destinazione"
               value={formData.destination_url}
@@ -671,52 +674,52 @@ function FinestraQr({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="qr-accesso">Accesso</Label>
+            <Label htmlFor="qr-accesso">{t("Accesso")}</Label>
             <Select value={formData.access_level} onValueChange={(value: "public" | "private") => setFormData((p) => ({ ...p, access_level: value }))}>
               <SelectTrigger id="qr-accesso"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="public">Chiunque abbia il link</SelectItem>
-                <SelectItem value="private">Solo chi ha fatto l'accesso</SelectItem>
+                <SelectItem value="public">{t("Chiunque abbia il link")}</SelectItem>
+                <SelectItem value="private">{t("Solo chi ha fatto l'accesso")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="qr-stato">Stato</Label>
+            <Label htmlFor="qr-stato">{t("Stato")}</Label>
             <Select value={formData.status} onValueChange={(value: "active" | "inactive") => setFormData((p) => ({ ...p, status: value }))}>
               <SelectTrigger id="qr-stato"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="active">Attivo</SelectItem>
-                <SelectItem value="inactive">Disattivato</SelectItem>
+                <SelectItem value="active">{t("Attivo")}</SelectItem>
+                <SelectItem value="inactive">{t("Disattivato")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="qr-collegato-a">Collegato a</Label>
+            <Label htmlFor="qr-collegato-a">{t("Collegato a")}</Label>
             <Select value={formData.linked_entity_type} onValueChange={(value) => setFormData((p) => ({ ...p, linked_entity_type: value }))}>
               <SelectTrigger id="qr-collegato-a"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {entityTypeOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="qr-codice-collegato">Codice dell'elemento collegato (facoltativo)</Label>
+            <Label htmlFor="qr-codice-collegato">{t("Codice dell'elemento collegato (facoltativo)")}</Label>
             <Input
               id="qr-codice-collegato"
               value={formData.linked_entity_id}
               onChange={(e) => setFormData((p) => ({ ...p, linked_entity_id: e.target.value }))}
-              placeholder="Lascia vuoto se non serve"
+              placeholder={t("Lascia vuoto se non serve")}
               aria-describedby="qr-codice-collegato-aiuto"
               autoComplete="off"
             />
             <p id="qr-codice-collegato-aiuto" className="text-xs text-muted-foreground">
-              Serve solo se un tecnico ti ha dato il codice interno di una commessa o di un cliente.
+              {t("Serve solo se un tecnico ti ha dato il codice interno di una commessa o di un cliente.")}
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="qr-scadenza">Scadenza (facoltativa)</Label>
+            <Label htmlFor="qr-scadenza">{t("Scadenza (facoltativa)")}</Label>
             <Input
               id="qr-scadenza"
               type="datetime-local"
@@ -725,7 +728,7 @@ function FinestraQr({
             />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="qr-descrizione">Descrizione (facoltativa)</Label>
+            <Label htmlFor="qr-descrizione">{t("Descrizione (facoltativa)")}</Label>
             <Textarea
               id="qr-descrizione"
               value={formData.description}
@@ -736,10 +739,10 @@ function FinestraQr({
           </div>
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={chiudi}>Annulla</Button>
+          <Button type="button" variant="outline" onClick={chiudi}>{t("Annulla")}</Button>
           <Button type="button" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
             {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {qr ? "Salva" : "Crea QR"}
+            {qr ? t("Salva") : t("Crea QR")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -748,10 +751,11 @@ function FinestraQr({
 }
 
 function QrStatusBadge({ qr }: { qr: DynamicQrCode }) {
-  if (qr.status === "archived") return <Badge variant="outline" className="text-muted-foreground">Archiviato</Badge>;
-  if (isExpired(qr.expires_at)) return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Scaduto</Badge>;
-  if (qr.status === "inactive") return <Badge variant="secondary">Disattivato</Badge>;
-  return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Attivo</Badge>;
+  const t = useT();
+  if (qr.status === "archived") return <Badge variant="outline" className="text-muted-foreground">{t("Archiviato")}</Badge>;
+  if (isExpired(qr.expires_at)) return <Badge className="bg-amber-100 text-amber-700 border-amber-200">{t("Scaduto")}</Badge>;
+  if (qr.status === "inactive") return <Badge variant="secondary">{t("Disattivato")}</Badge>;
+  return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">{t("Attivo")}</Badge>;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -759,6 +763,7 @@ function QrStatusBadge({ qr }: { qr: DynamicQrCode }) {
 // ────────────────────────────────────────────────────────────
 
 function PanoramicaTab() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -842,10 +847,10 @@ function PanoramicaTab() {
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Non riesco a leggere le scansioni</AlertTitle>
+        <AlertTitle>{t("Non riesco a leggere le scansioni")}</AlertTitle>
         <AlertDescription className="space-y-3">
           <p className="text-xs">
-            {userErrorMessage(statsError ?? scansError, "Non sono riuscito a caricare i dati delle scansioni. Riprova.")}
+            {userErrorMessage(statsError ?? scansError, t("Non sono riuscito a caricare i dati delle scansioni. Riprova."))}
           </p>
           <Button
             type="button"
@@ -856,7 +861,7 @@ function PanoramicaTab() {
               void refetchScans();
             }}
           >
-            Riprova
+            {t("Riprova")}
           </Button>
         </AlertDescription>
       </Alert>
@@ -869,30 +874,30 @@ function PanoramicaTab() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <KpiCard
           icon={Package}
-          label="Articoli"
+          label={t("Articoli")}
           value={statsLoading ? "…" : String(stats?.totalItems ?? 0)}
-          hint={`${stats?.itemsWithBarcode ?? 0} con codice a barre`}
+          hint={t("{n} con codice a barre", { n: stats?.itemsWithBarcode ?? 0 })}
           accent="primary"
         />
         <KpiCard
           icon={QrCode}
-          label="Articoli con codice"
+          label={t("Articoli con codice")}
           value={statsLoading ? "…" : `${coveragePct}%`}
-          hint="hanno un codice a barre"
+          hint={t("hanno un codice a barre")}
           accent={coveragePct >= 50 ? "emerald" : coveragePct >= 20 ? "amber" : "rose"}
         />
         <KpiCard
           icon={Users}
-          label="Seriali"
+          label={t("Seriali")}
           value={statsLoading ? "…" : String(stats?.unitsAvailable ?? 0)}
           hint={`su ${stats?.totalUnits ?? 0} totali · ${stats?.itemsSerialized ?? 0} articoli`}
           accent="blue"
         />
         <KpiCard
           icon={ScanLine}
-          label="Scansioni 7 giorni"
+          label={t("Scansioni 7 giorni")}
           value={statsLoading ? "…" : String(stats?.scans7d ?? 0)}
-          hint={`${matchRate7d}% trovate`}
+          hint={t("{matchRate7d}% trovate", { matchRate7d: String(matchRate7d ?? "") })}
           accent="primary"
         />
       </div>
@@ -902,10 +907,10 @@ function PanoramicaTab() {
         <CardHeader>
           <CardTitle aria-level={2} className="text-base flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
-            Ultime scansioni
+            {t("Ultime scansioni")}
           </CardTitle>
           <CardDescription>
-            Le ultime 50 scansioni (ricerche, carichi, scarichi).
+            {t("Le ultime 50 scansioni (ricerche, carichi, scarichi).")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -916,17 +921,17 @@ function PanoramicaTab() {
           ) : recentScans.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <ScanLine className="h-10 w-10 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">Nessuna scansione registrata. Inizia a usare lo scanner dal magazzino.</p>
+              <p className="text-sm">{t("Nessuna scansione registrata. Inizia a usare lo scanner dal magazzino.")}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[160px]">Quando</TableHead>
-                    <TableHead>Codice</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Esito</TableHead>
+                    <TableHead className="w-[160px]">{t("Quando")}</TableHead>
+                    <TableHead>{t("Codice")}</TableHead>
+                    <TableHead>{t("Tipo")}</TableHead>
+                    <TableHead>{t("Esito")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -936,10 +941,10 @@ function PanoramicaTab() {
                         {format(new Date(s.created_at), "dd MMM HH:mm", { locale: itLocale })}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {s.scanned_code?.trim() ? (s.scanned_code.length > 32 ? `${s.scanned_code.slice(0, 32)}…` : s.scanned_code) : "Codice non registrato"}
+                        {s.scanned_code?.trim() ? (s.scanned_code.length > 32 ? `${s.scanned_code.slice(0, 32)}…` : s.scanned_code) : t("Codice non registrato")}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-[10px]">{scanTypeLabel(s.scan_type)}</Badge>
+                        <Badge variant="outline" className="text-[10px]">{t(scanTypeLabel(s.scan_type))}</Badge>
                       </TableCell>
                       <TableCell>
                         <ResolutionBadge status={s.resolution_status} />
@@ -957,12 +962,13 @@ function PanoramicaTab() {
 }
 
 function ResolutionBadge({ status }: { status: string }) {
+  const t = useT();
   const cfg: Record<string, { label: string; className: string; icon: typeof CheckCircle2 }> = {
-    matched: { label: "Trovato", className: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
-    matched_ambiguous: { label: "Ambiguo", className: "bg-amber-100 text-amber-700 border-amber-200", icon: HelpCircle },
-    new_item_created: { label: "Nuovo articolo", className: "bg-blue-100 text-blue-700 border-blue-200", icon: Package },
-    unresolved: { label: "Non trovato", className: "bg-zinc-100 text-zinc-700 border-zinc-200", icon: HelpCircle },
-    rejected: { label: "Rifiutato", className: "bg-rose-100 text-rose-700 border-rose-200", icon: AlertCircle },
+    matched: { label: t("Trovato"), className: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+    matched_ambiguous: { label: t("Ambiguo"), className: "bg-amber-100 text-amber-700 border-amber-200", icon: HelpCircle },
+    new_item_created: { label: t("Nuovo articolo"), className: "bg-blue-100 text-blue-700 border-blue-200", icon: Package },
+    unresolved: { label: t("Non trovato"), className: "bg-zinc-100 text-zinc-700 border-zinc-200", icon: HelpCircle },
+    rejected: { label: t("Rifiutato"), className: "bg-rose-100 text-rose-700 border-rose-200", icon: AlertCircle },
   };
   const c = cfg[status] ?? cfg.unresolved;
   const Icon = c.icon;
@@ -1011,6 +1017,7 @@ function KpiCard({
 // ────────────────────────────────────────────────────────────
 
 function PerFornitoreTab() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -1067,21 +1074,21 @@ function PerFornitoreTab() {
       <CardHeader>
         <CardTitle aria-level={2} className="text-base flex items-center gap-2">
           <Users className="h-4 w-4" />
-          Codici per fornitore
+          {t("Codici per fornitore")}
         </CardTitle>
         <CardDescription>
-          Quanti articoli di ogni fornitore hanno un codice a barre o QR.
+          {t("Quanti articoli di ogni fornitore hanno un codice a barre o QR.")}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {isError ? (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Non riesco a leggere i fornitori</AlertTitle>
+            <AlertTitle>{t("Non riesco a leggere i fornitori")}</AlertTitle>
             <AlertDescription className="space-y-3">
-              <p className="text-xs">{userErrorMessage(error, "Non sono riuscito a caricare i fornitori. Riprova.")}</p>
+              <p className="text-xs">{userErrorMessage(error, t("Non sono riuscito a caricare i fornitori. Riprova."))}</p>
               <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
-                Riprova
+                {t("Riprova")}
               </Button>
             </AlertDescription>
           </Alert>
@@ -1091,18 +1098,18 @@ function PerFornitoreTab() {
           </div>
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground py-6 text-center">
-            Nessun fornitore configurato. Aggiungi i fornitori da Impostazioni → Fornitori.
+            {t("Nessun fornitore configurato. Aggiungi i fornitori da Impostazioni → Fornitori.")}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Fornitore</TableHead>
-                  <TableHead className="text-right">Articoli</TableHead>
-                  <TableHead className="text-right">Con codice</TableHead>
-                  <TableHead className="text-right">Percentuale</TableHead>
-                  <TableHead>Usa GS1</TableHead>
+                  <TableHead>{t("Fornitore")}</TableHead>
+                  <TableHead className="text-right">{t("Articoli")}</TableHead>
+                  <TableHead className="text-right">{t("Con codice")}</TableHead>
+                  <TableHead className="text-right">{t("Percentuale")}</TableHead>
+                  <TableHead>{t("Usa GS1")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1116,9 +1123,9 @@ function PerFornitoreTab() {
                     </TableCell>
                     <TableCell>
                       {r.uses_gs1 ? (
-                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">Sì</Badge>
+                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">{t("Sì")}</Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[10px]">No</Badge>
+                        <Badge variant="outline" className="text-[10px]">{t("No")}</Badge>
                       )}
                     </TableCell>
                   </TableRow>
@@ -1150,6 +1157,7 @@ function CoverageBar({ pct }: { pct: number }) {
 
 // È una ricerca (la funzione del database legge e basta): resta usabile anche da chi può solo consultare.
 function TestScanTab() {
+  const t = useT();
   const lookup = useBarcodeLookup();
   const [manualCode, setManualCode] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -1175,21 +1183,21 @@ function TestScanTab() {
         <CardHeader>
           <CardTitle aria-level={2} className="text-base flex items-center gap-2">
             <ScanLine className="h-4 w-4" />
-            Prova una scansione
+            {t("Prova una scansione")}
           </CardTitle>
           <CardDescription>
-            Scrivi o scansiona un codice per vedere cosa riconosce il magazzino.
+            {t("Scrivi o scansiona un codice per vedere cosa riconosce il magazzino.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleManualSubmit} className="flex flex-col sm:flex-row gap-2">
             <div className="flex-1 space-y-1">
-              <Label htmlFor="test-code" className="text-xs">Codice (incolla o digita)</Label>
+              <Label htmlFor="test-code" className="text-xs">{t("Codice (incolla o digita)")}</Label>
               <Input
                 id="test-code"
                 value={manualCode}
                 onChange={(e) => setManualCode(e.target.value)}
-                placeholder="Es. 8001234567890 oppure 0108001234567890..."
+                placeholder={t("Es. 8001234567890 oppure 0108001234567890...")}
                 autoComplete="off"
                 className="font-mono"
               />
@@ -1197,7 +1205,7 @@ function TestScanTab() {
             <div className="flex gap-2 sm:items-end">
               <Button type="submit" disabled={!manualCode.trim() || lookup.isPending}>
                 {lookup.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ScanLine className="h-4 w-4 mr-2" />}
-                Cerca
+                {t("Cerca")}
               </Button>
               <Button
                 type="button"
@@ -1206,7 +1214,7 @@ function TestScanTab() {
                 disabled={lookup.isPending}
               >
                 <Camera className="h-4 w-4 mr-2" />
-                Camera
+                {t("Camera")}
               </Button>
             </div>
           </form>
@@ -1214,9 +1222,9 @@ function TestScanTab() {
           {lookup.isError && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Ricerca non riuscita</AlertTitle>
+              <AlertTitle>{t("Ricerca non riuscita")}</AlertTitle>
               <AlertDescription className="text-xs">
-                {userErrorMessage(lookup.error, "Non sono riuscito a cercare il codice. Riprova.")}
+                {userErrorMessage(lookup.error, t("Non sono riuscito a cercare il codice. Riprova."))}
               </AlertDescription>
             </Alert>
           )}
@@ -1239,32 +1247,33 @@ function TestScanTab() {
 }
 
 function TestResultCard({ result }: { result: NonNullable<ReturnType<typeof useBarcodeLookup>["data"]> }) {
+  const t = useT();
   const action = result.action;
   return (
     <div className="rounded-lg border p-4 space-y-3 bg-muted/30">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
         <div>
-          <p className="text-[11px] uppercase text-muted-foreground">Codice letto</p>
+          <p className="text-[11px] uppercase text-muted-foreground">{t("Codice letto")}</p>
           <p className="font-mono text-xs break-all">{result.rawScan}</p>
         </div>
         <div>
-          <p className="text-[11px] uppercase text-muted-foreground">Codice usato per la ricerca</p>
+          <p className="text-[11px] uppercase text-muted-foreground">{t("Codice usato per la ricerca")}</p>
           <p className="font-mono text-xs break-all">{result.parsedPrimary}</p>
         </div>
       </div>
 
       {result.gs1Detected && result.gs1 && (
         <div className="text-xs space-y-1 border-l-2 border-emerald-300 pl-3">
-          <p className="font-medium text-emerald-700">GS1 rilevato</p>
-          {result.gs1.gtin && <p>GTIN: <span className="font-mono">{result.gs1.gtin}</span></p>}
-          {result.gs1.serialNumber && <p>Seriale: <span className="font-mono">{result.gs1.serialNumber}</span></p>}
-          {result.gs1.lotNumber && <p>Lotto: <span className="font-mono">{result.gs1.lotNumber}</span></p>}
-          {result.gs1.expiryDate && <p>Scadenza: <span className="font-mono">{result.gs1.expiryDate}</span></p>}
+          <p className="font-medium text-emerald-700">{t("GS1 rilevato")}</p>
+          {result.gs1.gtin && <p>{t("GTIN:")} <span className="font-mono">{result.gs1.gtin}</span></p>}
+          {result.gs1.serialNumber && <p>{t("Seriale:")} <span className="font-mono">{result.gs1.serialNumber}</span></p>}
+          {result.gs1.lotNumber && <p>{t("Lotto:")} <span className="font-mono">{result.gs1.lotNumber}</span></p>}
+          {result.gs1.expiryDate && <p>{t("Scadenza:")} <span className="font-mono">{result.gs1.expiryDate}</span></p>}
         </div>
       )}
 
       <div className="border-t pt-3">
-        <p className="text-[11px] uppercase text-muted-foreground mb-1">Cosa fa il magazzino</p>
+        <p className="text-[11px] uppercase text-muted-foreground mb-1">{t("Cosa fa il magazzino")}</p>
         <ActionDescription action={action} rows={result.rows} />
         {action.kind === "confirm_ambiguous" && (
           <ul className="mt-2 space-y-1 text-xs">
@@ -1284,6 +1293,7 @@ function TestResultCard({ result }: { result: NonNullable<ReturnType<typeof useB
 }
 
 function ActionDescription({ action, rows }: { action: UiAction; rows: RawMatchRow[] }) {
+  const t = useT();
   // Il nome dell'articolo, se la ricerca lo ha restituito: più utile del codice interno.
   const nomeArticolo = (itemId: string) => rows.find((r) => r.stock_item_id === itemId)?.item_name ?? null;
   switch (action.kind) {
@@ -1292,9 +1302,9 @@ function ActionDescription({ action, rows }: { action: UiAction; rows: RawMatchR
         <div className="flex items-start gap-2 text-sm">
           <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
           <div>
-            <p className="font-medium">Pezzo trovato</p>
+            <p className="font-medium">{t("Pezzo trovato")}</p>
             <p className="text-xs text-muted-foreground">
-              Il sistema procede da solo con questo pezzo:{" "}
+              {t("Il sistema procede da solo con questo pezzo:")}{" "}
               {nomeArticolo(action.itemId) ?? <code className="font-mono">{action.unitId.slice(0, 8)}…</code>}
             </p>
           </div>
@@ -1305,11 +1315,11 @@ function ActionDescription({ action, rows }: { action: UiAction; rows: RawMatchR
         <div className="flex items-start gap-2 text-sm">
           <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
           <div>
-            <p className="font-medium">Articolo trovato</p>
+            <p className="font-medium">{t("Articolo trovato")}</p>
             <p className="text-xs text-muted-foreground">
-              Articolo identificato:{" "}
+              {t("Articolo identificato:")}{" "}
               {nomeArticolo(action.itemId) ?? <code className="font-mono">{action.itemId.slice(0, 8)}…</code>}
-              {" "}— il sistema procede.
+              {" "}{t("— il sistema procede.")}
             </p>
           </div>
         </div>
@@ -1319,10 +1329,8 @@ function ActionDescription({ action, rows }: { action: UiAction; rows: RawMatchR
         <div className="flex items-start gap-2 text-sm">
           <HelpCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
           <div>
-            <p className="font-medium">Più articoli possibili: l'operatore sceglie</p>
-            <p className="text-xs text-muted-foreground">
-              {action.rows.length} candidati. Il magazzino mostra una finestra per scegliere.
-            </p>
+            <p className="font-medium">{t("Più articoli possibili: l'operatore sceglie")}</p>
+            <p className="text-xs text-muted-foreground">{t("{n} candidati. Il magazzino mostra una finestra per scegliere.", { n: action.rows.length })}</p>
           </div>
         </div>
       );
@@ -1331,9 +1339,9 @@ function ActionDescription({ action, rows }: { action: UiAction; rows: RawMatchR
         <div className="flex items-start gap-2 text-sm">
           <Package className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
           <div>
-            <p className="font-medium">Codice nuovo: si propone di creare l'articolo</p>
+            <p className="font-medium">{t("Codice nuovo: si propone di creare l'articolo")}</p>
             <p className="text-xs text-muted-foreground">
-              Si apre la scheda dell'articolo con il codice già inserito.
+              {t("Si apre la scheda dell'articolo con il codice già inserito.")}
             </p>
           </div>
         </div>
@@ -1346,6 +1354,7 @@ function ActionDescription({ action, rows }: { action: UiAction; rows: RawMatchR
 // ────────────────────────────────────────────────────────────
 
 export default function SettingsQrCodici() {
+  const t = useT();
   const { role } = useAuth();
   const navigate = useNavigate();
   const permissions = usePermissions();
@@ -1365,14 +1374,14 @@ export default function SettingsQrCodici() {
   // Il titolo della pagina lo mette già il layout delle impostazioni: qui non se ne ripete uno.
   return (
     <div className="space-y-4">
-      {!isAdmin && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
+      {!isAdmin && <AvvisoSolaLetturaImpostazioni permesso={t("Configurazione Ordini")} />}
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex h-auto flex-wrap">
-          <TabsTrigger value="dinamici">QR con link</TabsTrigger>
-          <TabsTrigger value="panoramica">Scansioni</TabsTrigger>
-          <TabsTrigger value="per-fornitore">Per fornitore</TabsTrigger>
-          <TabsTrigger value="test-scan">Prova una scansione</TabsTrigger>
+          <TabsTrigger value="dinamici">{t("QR con link")}</TabsTrigger>
+          <TabsTrigger value="panoramica">{t("Scansioni")}</TabsTrigger>
+          <TabsTrigger value="per-fornitore">{t("Per fornitore")}</TabsTrigger>
+          <TabsTrigger value="test-scan">{t("Prova una scansione")}</TabsTrigger>
         </TabsList>
         <TabsContent value="dinamici" className="mt-4">
           <QrDinamiciTab puoModificare={isAdmin} />

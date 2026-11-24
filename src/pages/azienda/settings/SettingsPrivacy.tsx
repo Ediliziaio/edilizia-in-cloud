@@ -15,10 +15,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Shield, Download, Trash2, FileCheck, Clock, CheckCircle, XCircle, AlertTriangle, FileText } from "lucide-react";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
+import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Privacy personale: consensi, copia dei propri dati, richiesta di cancellazione.
@@ -61,6 +61,7 @@ async function chiamaGdpr<T = unknown>(body: Record<string, unknown>): Promise<T
 }
 
 export default function SettingsPrivacy() {
+  const t = useT();
   const queryClient = useQueryClient();
   const [deletionReason, setDeletionReason] = useState("");
 
@@ -83,9 +84,9 @@ export default function SettingsPrivacy() {
       chiamaGdpr({ action: "update_consent", consent_type, granted }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.gdpr.consents });
-      toast.success("Consenso registrato");
+      toast.success(t("Consenso registrato"));
     },
-    onError: (e: Error) => toast.error(messaggioErrorePersone(e, "Non sono riuscito a registrare il consenso. Riprova tra un attimo.")),
+    onError: (e: Error) => toast.error(messaggioErrorePersone(e, t("Non sono riuscito a registrare il consenso. Riprova tra un attimo."))),
   });
 
   const requestExport = useMutation({
@@ -97,15 +98,15 @@ export default function SettingsPrivacy() {
         // secondo) il file resta nello «Storico richieste», valido 24 ore.
         const finestra = window.open(data.download_url, "_blank");
         if (finestra) {
-          toast.success("File pronto: il download parte da solo");
+          toast.success(t("File pronto: il download parte da solo"));
         } else {
-          toast.success("File pronto", { description: "Il browser ha bloccato il download: lo trovi in «Storico richieste», con il pulsante «Scarica»." });
+          toast.success(t("File pronto"), { description: t("Il browser ha bloccato il download: lo trovi in «Storico richieste», con il pulsante «Scarica».") });
         }
       } else {
-        toast.success("Richiesta inviata");
+        toast.success(t("Richiesta inviata"));
       }
     },
-    onError: (e: Error) => toast.error(messaggioErrorePersone(e, "Non sono riuscito a preparare il file. Riprova tra un attimo.")),
+    onError: (e: Error) => toast.error(messaggioErrorePersone(e, t("Non sono riuscito a preparare il file. Riprova tra un attimo."))),
   });
 
   const requestDeletion = useMutation({
@@ -115,9 +116,9 @@ export default function SettingsPrivacy() {
       setDeletionReason("");
       // La richiesta la tratta oggi solo la schermata dell'assistenza (super admin):
       // un amministratore d'azienda non ha dove vederla.
-      toast.success("Richiesta inviata. La esamina l'assistenza di Edilizia in Cloud.");
+      toast.success(t("Richiesta inviata. La esamina l'assistenza di Edilizia in Cloud."));
     },
-    onError: (e: Error) => toast.error(messaggioErrorePersone(e, "Non sono riuscito a inviare la richiesta. Riprova tra un attimo.")),
+    onError: (e: Error) => toast.error(messaggioErrorePersone(e, t("Non sono riuscito a inviare la richiesta. Riprova tra un attimo."))),
   });
 
   const isMobile = useIsMobile();
@@ -134,7 +135,7 @@ export default function SettingsPrivacy() {
     if (!quando) return null;
     const d = new Date(quando);
     if (Number.isNaN(d.getTime())) return null;
-    return d.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+    return d.toLocaleDateString(intlCampo(), { day: "numeric", month: "long", year: "numeric" });
   };
 
   const hasPendingDeletion = requests.some(r => r.request_type === "deletion" && ["pending", "processing"].includes(r.status));
@@ -143,47 +144,44 @@ export default function SettingsPrivacy() {
     <div className="space-y-6 max-sm:space-y-3">
       {/* Mobile no: il titolo è già nella testata delle impostazioni. */}
       <div className="max-sm:hidden">
-        <h2 className="text-2xl font-bold">Privacy e consensi</h2>
-        <p className="text-muted-foreground">I tuoi dati personali, i consensi che hai dato e le richieste di privacy.</p>
+        <h2 className="text-2xl font-bold">{t("Privacy e consensi")}</h2>
+        <p className="text-muted-foreground">{t("I tuoi dati personali, i consensi che hai dato e le richieste di privacy.")}</p>
       </div>
 
       {/* Mobile: solo i consensi; esportazione, cancellazione e storico delle
           richieste si gestiscono al computer. */}
       <Tabs defaultValue="consents" className="space-y-4">
         <TabsList className="max-sm:hidden">
-          <TabsTrigger value="consents" className="gap-2"><Shield className="h-4 w-4" aria-hidden="true" /> Consensi</TabsTrigger>
-          <TabsTrigger value="data" className="gap-2"><Download className="h-4 w-4" aria-hidden="true" /> I miei dati</TabsTrigger>
-          <TabsTrigger value="requests" className="gap-2"><FileCheck className="h-4 w-4" aria-hidden="true" /> Storico richieste</TabsTrigger>
+          <TabsTrigger value="consents" className="gap-2"><Shield className="h-4 w-4" aria-hidden="true" /> {t("Consensi")}</TabsTrigger>
+          <TabsTrigger value="data" className="gap-2"><Download className="h-4 w-4" aria-hidden="true" /> {t("I miei dati")}</TabsTrigger>
+          <TabsTrigger value="requests" className="gap-2"><FileCheck className="h-4 w-4" aria-hidden="true" /> {t("Storico richieste")}</TabsTrigger>
         </TabsList>
 
         {/* CONSENTS TAB */}
         <TabsContent value="consents" className="space-y-4">
           <Card>
             <CardHeader className="max-sm:p-4 max-sm:pb-2">
-              <CardTitle className="text-lg max-sm:text-base">Consensi</CardTitle>
+              <CardTitle className="text-lg max-sm:text-base">{t("Consensi")}</CardTitle>
               <CardDescription className="text-xs sm:text-sm">
-                Qui si registra cosa hai accettato e da quando: ogni scelta resta
-                con la sua data, ed è la prova. Per ora non comanda nessun invio:
-                se revochi un consenso e vuoi che abbia effetto subito, scrivilo
-                all'assistenza.
+                {t("Qui si registra cosa hai accettato e da quando: ogni scelta resta con la sua data, ed è la prova. Per ora non comanda nessun invio: se revochi un consenso e vuoi che abbia effetto subito, scrivilo all'assistenza.")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 max-sm:space-y-2 max-sm:p-4 max-sm:pt-0">
-              {consentsError && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2">Non riesco a leggere i consensi. Non sono stati modificati.<Button size="sm" variant="outline" onClick={() => reloadConsents()}>Riprova</Button></AlertDescription></Alert>}
-              {consentsLoading && <p role="status" className="text-sm text-muted-foreground">Caricamento dei consensi…</p>}
+              {consentsError && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2">{t("Non riesco a leggere i consensi. Non sono stati modificati.")}<Button size="sm" variant="outline" onClick={() => reloadConsents()}>{t("Riprova")}</Button></AlertDescription></Alert>}
+              {consentsLoading && <p role="status" className="text-sm text-muted-foreground">{t("Caricamento dei consensi…")}</p>}
               {CONSENT_TYPES.map((ct) => (
                 <div key={ct.key} className="flex items-center justify-between p-4 border rounded-lg max-sm:gap-2 max-sm:px-3 max-sm:py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium max-sm:text-sm">{ct.label}</p>
-                    <p className="text-sm text-muted-foreground max-sm:hidden">{ct.desc}</p>
+                    <p className="font-medium max-sm:text-sm">{t(ct.label)}</p>
+                    <p className="text-sm text-muted-foreground max-sm:hidden">{t(ct.desc)}</p>
                     {dataConsenso(ct.key) && (
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {getConsentValue(ct.key) ? "Concesso il" : "Revocato il"} {dataConsenso(ct.key)}
+                        {getConsentValue(ct.key) ? t("Concesso il") : t("Revocato il")} {dataConsenso(ct.key)}
                       </p>
                     )}
                   </div>
                   <Switch
-                    aria-label={ct.label}
+                    aria-label={t(ct.label)}
                     checked={getConsentValue(ct.key)}
                     disabled={updateConsent.isPending || consentsLoading || consentsError}
                     onCheckedChange={(granted) => updateConsent.mutate({ consent_type: ct.key, granted })}
@@ -201,12 +199,10 @@ export default function SettingsPrivacy() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Download className="h-5 w-5 text-primary" aria-hidden="true" /> Scarica i tuoi dati
+                  <Download className="h-5 w-5 text-primary" aria-hidden="true" /> {t("Scarica i tuoi dati")}
                 </CardTitle>
                 <CardDescription>
-                  Una copia dei tuoi dati personali in formato JSON (Art. 20 GDPR — portabilità dei dati): il tuo
-                  profilo, la tua attività e i tuoi consensi. Gli amministratori con il permesso «Esporta Clienti»
-                  trovano nel file anche commesse, contatti e appuntamenti dell'azienda.
+                  {t("Una copia dei tuoi dati personali in formato JSON (Art. 20 GDPR — portabilità dei dati): il tuo profilo, la tua attività e i tuoi consensi. Gli amministratori con il permesso «Esporta Clienti» trovano nel file anche commesse, contatti e appuntamenti dell'azienda.")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -214,16 +210,15 @@ export default function SettingsPrivacy() {
                     con dove esercitarlo. Nasconderlo e basta lo farebbe sparire. */}
                 {isMobile ? (
                   <p className="text-sm text-muted-foreground">
-                    Il download si fa da computer: apri questa pagina da lì e
-                    trovi il pulsante per scaricare la copia dei tuoi dati.
+                    {t("Il download si fa da computer: apri questa pagina da lì e trovi il pulsante per scaricare la copia dei tuoi dati.")}
                   </p>
                 ) : (
                   <>
                     <Button onClick={() => requestExport.mutate()} disabled={requestExport.isPending} className="w-full gap-2">
                       <Download className="h-4 w-4" aria-hidden="true" />
-                      {requestExport.isPending ? "Preparazione del file…" : "Scarica i miei dati"}
+                      {requestExport.isPending ? t("Preparazione del file…") : t("Scarica i miei dati")}
                     </Button>
-                    <p className="text-xs text-muted-foreground mt-2">Il link per scaricare vale 24 ore.</p>
+                    <p className="text-xs text-muted-foreground mt-2">{t("Il link per scaricare vale 24 ore.")}</p>
                   </>
                 )}
               </CardContent>
@@ -233,29 +228,27 @@ export default function SettingsPrivacy() {
             <Card className="border-destructive/30">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2 text-destructive">
-                  <Trash2 className="h-5 w-5" aria-hidden="true" /> Cancella il tuo account
+                  <Trash2 className="h-5 w-5" aria-hidden="true" /> {t("Cancella il tuo account")}
                 </CardTitle>
                 <CardDescription>
-                  Chiedi la cancellazione del tuo account (Art. 17 GDPR — diritto all'oblio). La richiesta la esamina
-                  l'assistenza di Edilizia in Cloud. Se viene approvata, il tuo accesso viene cancellato e il tuo
-                  profilo anonimizzato: non si torna indietro.
+                  {t("Chiedi la cancellazione del tuo account (Art. 17 GDPR — diritto all'oblio). La richiesta la esamina l'assistenza di Edilizia in Cloud. Se viene approvata, il tuo accesso viene cancellato e il tuo profilo anonimizzato: non si torna indietro.")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {hasPendingDeletion ? (
                   <div className="p-3 bg-destructive/10 rounded-lg text-sm text-destructive flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    Hai già una richiesta di cancellazione in corso.
+                    {t("Hai già una richiesta di cancellazione in corso.")}
                   </div>
                 ) : (
                   <>
                     <div>
-                      <Label htmlFor="motivo-cancellazione">Motivo (facoltativo)</Label>
+                      <Label htmlFor="motivo-cancellazione">{t("Motivo (facoltativo)")}</Label>
                       <Textarea
                         id="motivo-cancellazione"
                         value={deletionReason}
                         onChange={(e) => setDeletionReason(e.target.value)}
-                        placeholder="Se vuoi, scrivi il motivo della richiesta…"
+                        placeholder={t("Se vuoi, scrivi il motivo della richiesta…")}
                         className="mt-1"
                         rows={2}
                       />
@@ -263,25 +256,24 @@ export default function SettingsPrivacy() {
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="destructive" className="w-full gap-2">
-                          <Trash2 className="h-4 w-4" aria-hidden="true" /> Chiedi la cancellazione
+                          <Trash2 className="h-4 w-4" aria-hidden="true" /> {t("Chiedi la cancellazione")}
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Confermi la richiesta di cancellazione?</AlertDialogTitle>
+                          <AlertDialogTitle>{t("Confermi la richiesta di cancellazione?")}</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Se l'assistenza la approva, il tuo accesso viene cancellato e il tuo profilo anonimizzato
-                            (nome, cognome, telefono e foto vengono tolti). <strong>Non si può annullare.</strong>
+                            {t("Se l'assistenza la approva, il tuo accesso viene cancellato e il tuo profilo anonimizzato (nome, cognome, telefono e foto vengono tolti).")} <strong>{t("Non si può annullare.")}</strong>
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Annulla</AlertDialogCancel>
+                          <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => requestDeletion.mutate()}
                             disabled={requestDeletion.isPending}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                           >
-                            {requestDeletion.isPending ? "Invio…" : "Sì, chiedi la cancellazione"}
+                            {requestDeletion.isPending ? t("Invio…") : t("Sì, chiedi la cancellazione")}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -297,19 +289,19 @@ export default function SettingsPrivacy() {
         <TabsContent value="requests">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Storico richieste</CardTitle>
-              <CardDescription>Le richieste di privacy che hai inviato</CardDescription>
+              <CardTitle className="text-lg">{t("Storico richieste")}</CardTitle>
+              <CardDescription>{t("Le richieste di privacy che hai inviato")}</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              {requestsError && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2">Non riesco a leggere lo storico.<Button size="sm" variant="outline" onClick={() => reloadRequests()}>Riprova</Button></AlertDescription></Alert>}
-              {requestsLoading && <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento delle richieste…</p>}
+              {requestsError && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2">{t("Non riesco a leggere lo storico.")}<Button size="sm" variant="outline" onClick={() => reloadRequests()}>{t("Riprova")}</Button></AlertDescription></Alert>}
+              {requestsLoading && <p role="status" className="p-4 text-sm text-muted-foreground">{t("Caricamento delle richieste…")}</p>}
               {/* Su telefono la tabella a 4 colonne diventava illeggibile e
                   portava un pulsante di download: qui l'elenco è a schede e il
                   download resta al computer. */}
               {!requestsLoading && !requestsError && (isMobile ? (
                 <div className="divide-y">
                   {requests.length === 0 ? (
-                    <p className="py-8 text-center text-sm text-muted-foreground">Nessuna richiesta</p>
+                    <p className="py-8 text-center text-sm text-muted-foreground">{t("Nessuna richiesta")}</p>
                   ) : requests.map((req) => {
                     const status = STATUS_MAP[req.status] || STATUS_MAP.pending;
                     const StatusIcon = status.icon;
@@ -318,14 +310,14 @@ export default function SettingsPrivacy() {
                     return (
                       <div key={req.id} className="flex items-center justify-between gap-2 px-4 py-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{tipo.nome}</p>
+                          <p className="truncate text-sm font-medium">{t(tipo.nome)}</p>
                           <p className="text-xs text-muted-foreground">
-                            {format(new Date(req.created_at), "d MMM yyyy · HH:mm", { locale: it })}
-                            {pronto && " · pronto da scaricare al computer"}
+                            {format(new Date(req.created_at), "d MMM yyyy · HH:mm", { locale: dateFnsCampo() })}
+                            {pronto && ` ${t("· pronto da scaricare al computer")}`}
                           </p>
                         </div>
                         <Badge variant={status.variant} className="shrink-0 gap-1 text-[10px]">
-                          <StatusIcon className="h-3 w-3" aria-hidden="true" /> {status.label}
+                          <StatusIcon className="h-3 w-3" aria-hidden="true" /> {t(status.label)}
                         </Badge>
                       </div>
                     );
@@ -335,31 +327,31 @@ export default function SettingsPrivacy() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead>Data richiesta</TableHead>
-                    <TableHead><span className="sr-only">Azioni</span></TableHead>
+                    <TableHead>{t("Tipo")}</TableHead>
+                    <TableHead>{t("Stato")}</TableHead>
+                    <TableHead>{t("Data richiesta")}</TableHead>
+                    <TableHead><span className="sr-only">{t("Azioni")}</span></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {requests.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nessuna richiesta</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">{t("Nessuna richiesta")}</TableCell></TableRow>
                   ) : requests.map((req) => {
                     const status = STATUS_MAP[req.status] || STATUS_MAP.pending;
                     const StatusIcon = status.icon;
                     const tipo = tipoRichiesta(req.request_type);
                     const TipoIcona = tipo.icona;
-                    const dataRichiesta = format(new Date(req.created_at), "dd MMM yyyy HH:mm", { locale: it });
+                    const dataRichiesta = format(new Date(req.created_at), "dd MMM yyyy HH:mm", { locale: dateFnsCampo() });
                     return (
                       <TableRow key={req.id}>
                         <TableCell>
                           <Badge variant="outline" className="gap-1">
-                            <TipoIcona className="h-3 w-3" aria-hidden="true" /> {tipo.nome}
+                            <TipoIcona className="h-3 w-3" aria-hidden="true" /> {t(tipo.nome)}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <Badge variant={status.variant} className="gap-1">
-                            <StatusIcon className="h-3 w-3" aria-hidden="true" /> {status.label}
+                            <StatusIcon className="h-3 w-3" aria-hidden="true" /> {t(status.label)}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
@@ -367,8 +359,8 @@ export default function SettingsPrivacy() {
                         </TableCell>
                         <TableCell>
                           {req.request_type === "export" && req.status === "completed" && req.download_url && (
-                            <Button size="sm" variant="outline" className="gap-1" aria-label={`Scarica la copia dei dati richiesta il ${dataRichiesta}`} onClick={() => window.open(req.download_url!, "_blank")}>
-                              <Download className="h-3 w-3" aria-hidden="true" /> Scarica
+                            <Button size="sm" variant="outline" className="gap-1" aria-label={t("Scarica la copia dei dati richiesta il {dataRichiesta}", { dataRichiesta: String(dataRichiesta ?? "") })} onClick={() => window.open(req.download_url!, "_blank")}>
+                              <Download className="h-3 w-3" aria-hidden="true" /> {t("Scarica")}
                             </Button>
                           )}
                         </TableCell>

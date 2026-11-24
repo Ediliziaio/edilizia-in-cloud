@@ -4,6 +4,7 @@ import {
   Plus, Type, Mail, Phone, Hash, AlignLeft, List,
   CheckSquare, CircleDot, Calendar, Heading, FileText, Minus, EyeOff, ShieldCheck,
 } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const INPUT_FIELDS: { type: FormFieldType; label: string; icon: React.ReactNode }[] = [
   { type: "text", label: "Testo", icon: <Type className="h-4 w-4" /> },
@@ -31,10 +32,11 @@ interface Props {
 }
 
 export function FormFieldLibrary({ onAddField, disabled = false }: Props) {
+  const t = useT();
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Campi</h3>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">{t("Campi")}</h3>
         {INPUT_FIELDS.map((ft) => (
           <Button
             key={ft.type}
@@ -43,16 +45,16 @@ export function FormFieldLibrary({ onAddField, disabled = false }: Props) {
             className="w-full justify-start gap-2 text-xs max-md:h-11"
             onClick={() => onAddField(ft.type)}
             disabled={disabled}
-            aria-label={`Aggiungi un campo: ${ft.label}`}
+            aria-label={t("Aggiungi un campo: {label}", { label: t(ft.label) })}
           >
             <Plus className="h-3 w-3 text-muted-foreground" />
             {ft.icon}
-            {ft.label}
+            {t(ft.label)}
           </Button>
         ))}
       </div>
       <div className="space-y-2">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Struttura</h3>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">{t("Struttura")}</h3>
         {STRUCTURE_FIELDS.map((ft) => (
           <Button
             key={ft.type}
@@ -61,11 +63,11 @@ export function FormFieldLibrary({ onAddField, disabled = false }: Props) {
             className="w-full justify-start gap-2 text-xs max-md:h-11"
             onClick={() => onAddField(ft.type)}
             disabled={disabled}
-            aria-label={`Aggiungi un campo: ${ft.label}`}
+            aria-label={t("Aggiungi un campo: {label}", { label: t(ft.label) })}
           >
             <Plus className="h-3 w-3 text-muted-foreground" />
             {ft.icon}
-            {ft.label}
+            {t(ft.label)}
           </Button>
         ))}
       </div>

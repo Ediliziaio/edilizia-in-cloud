@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import "leaflet/dist/leaflet.css";
 
 /** Direct Leaflet avoids the React 19 provider required by react-leaflet v5. */
@@ -12,6 +13,7 @@ export default function HrSedeMap({
   lng: number;
   radius: number;
 }) {
+  const t = useT();
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const shapes = useRef<L.LayerGroup | null>(null);
@@ -64,18 +66,16 @@ export default function HrSedeMap({
         ref={container}
         className="relative isolate h-64 overflow-hidden rounded-xl border"
         role="region"
-        aria-label="Mappa area timbratura"
+        aria-label={t("Mappa area timbratura")}
       />
       {tileError && (
         <p role="status" className="text-xs text-orange-700">
-          Cartografia non disponibile. Coordinate e raggio restano consultabili
-          nello schema.
+          {t("Cartografia non disponibile. Coordinate e raggio restano consultabili nello schema.")}
         </p>
       )}
       {Math.abs(lat) > 85 && (
         <p className="text-xs text-orange-700">
-          Coordinate oltre la copertura cartografica: il centro della mappa è
-          approssimato. Il punto GPS salvato non viene cambiato.
+          {t("Coordinate oltre la copertura cartografica: il centro della mappa è approssimato. Il punto GPS salvato non viene cambiato.")}
         </p>
       )}
     </div>

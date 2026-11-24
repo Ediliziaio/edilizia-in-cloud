@@ -41,6 +41,7 @@ import {
   orgLinksToReview,
 } from "@/lib/personale/organizzazione";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function TabOrganigramma() {
   const companyId = useEffectiveCompanyId();
@@ -48,6 +49,7 @@ export function TabOrganigramma() {
 }
 
 function OrganigrammaContent() {
+  const t = useT();
   const { data, isLoading, isError, refetch } = useOrganigramma();
   const sites = useHrSedi();
   const permissions = usePermissions();
@@ -139,13 +141,12 @@ function OrganigrammaContent() {
         role="alert"
         className="rounded-xl border border-orange-200 bg-orange-50 p-5"
       >
-        <h2 className="font-semibold">Organigramma non disponibile</h2>
+        <h2 className="font-semibold">{t("Organigramma non disponibile")}</h2>
         <p className="my-2 text-sm">
-          Non è stato possibile caricare i profili. Non significa che l’azienda
-          sia vuota.
+          {t("Non è stato possibile caricare i profili. Non significa che l’azienda sia vuota.")}
         </p>
         <Button variant="outline" onClick={() => refetch()}>
-          Riprova
+          {t("Riprova")}
         </Button>
       </div>
     );
@@ -154,14 +155,9 @@ function OrganigrammaContent() {
     <div className="space-y-4">
       {linksToReview.length > 0 && (
         <details className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
-          <summary className="cursor-pointer font-medium">
-            {linksToReview.length} collegamenti da verificare
-          </summary>
+          <summary className="cursor-pointer font-medium">{t("{n} collegamenti da verificare", { n: linksToReview.length })}</summary>
           <p className="my-2 text-xs">
-            Responsabile non presente tra gli attivi, riferimento a sé stessi o
-            catena circolare. Per non nascondere persone l’albero interrompe
-            questi collegamenti solo nella vista; i dati salvati non sono
-            modificati.
+            {t("Responsabile non presente tra gli attivi, riferimento a sé stessi o catena circolare. Per non nascondere persone l’albero interrompe questi collegamenti solo nella vista; i dati salvati non sono modificati.")}
           </p>
           <ul className="list-inside list-disc text-xs">
             {linksToReview.map((p) => (
@@ -175,20 +171,18 @@ function OrganigrammaContent() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">
-            Persone e responsabilità
+            {t("Persone e responsabilità")}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {profili.length} persone attive · {data?.reparti.length || 0}{" "}
-            reparti · {roots.length}{" "}
             {roots.length === 1
-              ? "struttura con collaboratori"
-              : "strutture con collaboratori"}
+              ? t("{persone} persone attive · {reparti} reparti · {n} struttura con collaboratori", { persone: profili.length, reparti: data?.reparti.length || 0, n: roots.length })
+              : t("{persone} persone attive · {reparti} reparti · {n} strutture con collaboratori", { persone: profili.length, reparti: data?.reparti.length || 0, n: roots.length })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="ghost" size="sm" onClick={gotoSites}>
             <MapPin className="mr-1.5 h-4 w-4" />
-            Gestisci sedi
+            {t("Gestisci sedi")}
           </Button>
           <Button
             variant="outline"
@@ -197,34 +191,33 @@ function OrganigrammaContent() {
             onClick={() => {
               if (canEdit) syncMutation.mutate();
             }}
-            title="Aggiunge soltanto i dipendenti che non hanno ancora un profilo HR"
+            title={t("Aggiunge soltanto i dipendenti che non hanno ancora un profilo HR")}
           >
             <RefreshCw
               className={`mr-1.5 h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`}
             />
             {syncMutation.isPending
-              ? "Sincronizzazione…"
-              : "Importa dipendenti mancanti"}
+              ? t("Sincronizzazione…")
+              : t("Importa dipendenti mancanti")}
           </Button>
           <Button size="sm" onClick={newProfile} disabled={!canEdit}>
             <UserPlus className="mr-1.5 h-4 w-4" />
-            Nuovo profilo
+            {t("Nuovo profilo")}
           </Button>
         </div>
       </div>
       {!canEdit && (
         <p className="text-sm text-muted-foreground">
-          Consultazione in sola lettura.
+          {t("Consultazione in sola lettura.")}
         </p>
       )}
       {profili.length === 0 ? (
         <Card>
           <CardContent className="py-14 text-center">
             <Users className="mx-auto mb-3 h-10 w-10 text-blue-500" />
-            <h3 className="font-semibold">Nessun profilo nell’organigramma</h3>
+            <h3 className="font-semibold">{t("Nessun profilo nell’organigramma")}</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Importa i dipendenti mancanti oppure crea il primo profilo con il
-              pulsante in alto.
+              {t("Importa i dipendenti mancanti oppure crea il primo profilo con il pulsante in alto.")}
             </p>
           </CardContent>
         </Card>
@@ -234,20 +227,20 @@ function OrganigrammaContent() {
             <div className="relative min-w-48 flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                aria-label="Cerca persona nell’organigramma"
-                placeholder="Cerca nome, ruolo o email…"
+                aria-label={t("Cerca persona nell’organigramma")}
+                placeholder={t("Cerca nome, ruolo o email…")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
               />
             </div>
             <UniformSelect
-              aria-label="Filtra reparto"
+              aria-label={t("Filtra reparto")}
               className="h-10 max-w-full rounded-md border bg-white px-3 text-sm"
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
             >
-              <option value="__all__">Tutti i reparti</option>
+              <option value="__all__">{t("Tutti i reparti")}</option>
               {data?.reparti.map((r) => (
                 <option key={r} value={r}>
                   {r}
@@ -255,31 +248,31 @@ function OrganigrammaContent() {
               ))}
             </UniformSelect>
             <UniformSelect
-              aria-label="Filtra sede"
+              aria-label={t("Filtra sede")}
               className="h-10 max-w-full rounded-md border bg-white px-3 text-sm"
               value={siteFilter}
               onChange={(e) => selectSite(e.target.value)}
             >
-              <option value="__all__">Tutte le sedi</option>
-              <option value="__none__">Sede da assegnare</option>
+              <option value="__all__">{t("Tutte le sedi")}</option>
+              <option value="__none__">{t("Sede da assegnare")}</option>
               {sites.data?.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.nome}
-                  {!s.attiva ? " (inattiva)" : ""}
+                  {!s.attiva ? ` ${t("(inattiva)")}` : ""}
                 </option>
               ))}
               {siteFilter !== "__all__" &&
                 siteFilter !== "__none__" &&
                 !siteNames.has(siteFilter) && (
                   <option value={siteFilter}>
-                    Sede selezionata non disponibile
+                    {t("Sede selezionata non disponibile")}
                   </option>
                 )}
             </UniformSelect>
             <div
               className="flex gap-1 rounded-lg bg-slate-100 p-1"
               role="group"
-              aria-label="Vista organigramma"
+              aria-label={t("Vista organigramma")}
             >
               <Button
                 aria-pressed={viewMode === "tree"}
@@ -288,7 +281,7 @@ function OrganigrammaContent() {
                 onClick={() => setViewMode("tree")}
               >
                 <Network className="mr-1.5 h-4 w-4" />
-                Albero
+                {t("Albero")}
               </Button>
               <Button
                 aria-pressed={viewMode === "list"}
@@ -297,38 +290,38 @@ function OrganigrammaContent() {
                 onClick={() => setViewMode("list")}
               >
                 <List className="mr-1.5 h-4 w-4" />
-                Lista
+                {t("Lista")}
               </Button>
             </div>
           </div>
           {sites.isError && (
             <p role="alert" className="text-sm text-orange-700">
-              Nomi delle sedi non disponibili.{" "}
+              {t("Nomi delle sedi non disponibili.")}{" "}
               <button className="underline" onClick={() => sites.refetch()}>
-                Riprova
+                {t("Riprova")}
               </button>
             </p>
           )}
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <p>
-              {filtered.length} persone corrispondenti
+              {t("{n} persone corrispondenti", { n: filtered.length })}
               {viewMode === "tree"
-                ? " · i responsabili restano visibili come contesto"
+                ? ` ${t("· i responsabili restano visibili come contesto")}`
                 : ""}
             </p>
             {(search ||
               department !== "__all__" ||
               siteFilter !== "__all__") && (
               <Button variant="ghost" size="sm" onClick={reset}>
-                Azzera filtri
+                {t("Azzera filtri")}
               </Button>
             )}
           </div>
           {filtered.length === 0 ? (
             <div className="rounded-xl border border-dashed p-12 text-center">
-              <p>Nessuna persona corrisponde ai filtri.</p>
+              <p>{t("Nessuna persona corrisponde ai filtri.")}</p>
               <Button className="mt-3" variant="outline" onClick={reset}>
-                Mostra tutte le persone
+                {t("Mostra tutte le persone")}
               </Button>
             </div>
           ) : viewMode === "tree" ? (
@@ -340,16 +333,12 @@ function OrganigrammaContent() {
               />
               {independent.length > 0 && (
                 <section
-                  aria-label="Profili senza collegamenti"
+                  aria-label={t("Profili senza collegamenti")}
                   className="rounded-2xl border bg-white p-4"
                 >
-                  <h3 className="text-sm font-semibold">
-                    Profili senza collegamenti · {independent.length}
-                  </h3>
+                  <h3 className="text-sm font-semibold">{t("Profili senza collegamenti · {n}", { n: independent.length })}</h3>
                   <p className="mb-4 mt-1 text-xs text-muted-foreground">
-                    Non hanno collegamenti visibili nell’albero. Possono essere
-                    ruoli autonomi o profili da completare: non sono
-                    automaticamente errori.
+                    {t("Non hanno collegamenti visibili nell’albero. Possono essere ruoli autonomi o profili da completare: non sono automaticamente errori.")}
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
                     {independent.map((n) => (
@@ -373,11 +362,11 @@ function OrganigrammaContent() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Persona</TableHead>
-                      <TableHead>Ruolo e reparto</TableHead>
-                      <TableHead>Responsabile</TableHead>
-                      <TableHead>Sede</TableHead>
-                      <TableHead className="text-right">Profilo</TableHead>
+                      <TableHead>{t("Persona")}</TableHead>
+                      <TableHead>{t("Ruolo e reparto")}</TableHead>
+                      <TableHead>{t("Responsabile")}</TableHead>
+                      <TableHead>{t("Sede")}</TableHead>
+                      <TableHead className="text-right">{t("Profilo")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -391,31 +380,31 @@ function OrganigrammaContent() {
                             {p.nome} {p.cognome}
                           </TableCell>
                           <TableCell>
-                            {p.mansione || "Da definire"}
+                            {p.mansione || t("Da definire")}
                             <p className="text-xs text-muted-foreground">
-                              {p.reparto || "Reparto da definire"}
+                              {p.reparto || t("Reparto da definire")}
                             </p>
                           </TableCell>
                           <TableCell>
                             {manager
                               ? `${manager.nome} ${manager.cognome}`
                               : p.responsabile_id
-                                ? "Collegamento da verificare"
-                                : "Nessuno assegnato"}
+                                ? t("Collegamento da verificare")
+                                : t("Nessuno assegnato")}
                           </TableCell>
                           <TableCell>
                             {p.sede_id
-                              ? siteNames.get(p.sede_id) || "Sede assegnata"
-                              : "Da assegnare"}
+                              ? siteNames.get(p.sede_id) || t("Sede assegnata")
+                              : t("Da assegnare")}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
                               size="sm"
                               variant="ghost"
-                              aria-label={`Apri profilo di ${p.nome} ${p.cognome}`}
+                              aria-label={t("Apri profilo di {nome} {cognome}", { nome: String(p.nome ?? ""), cognome: String(p.cognome ?? "") })}
                               onClick={() => openProfile(p)}
                             >
-                              Apri profilo
+                              {t("Apri profilo")}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -444,24 +433,24 @@ function OrganigrammaContent() {
                 {editing?.nome} {editing?.cognome}
               </SheetTitle>
               <SheetDescription>
-                Profilo organizzativo · sola lettura
+                {t("Profilo organizzativo · sola lettura")}
               </SheetDescription>
             </SheetHeader>
             <dl className="mt-6 space-y-4">
               <div>
-                <dt className="text-xs text-muted-foreground">Ruolo</dt>
-                <dd>{editing?.mansione || "Da definire"}</dd>
+                <dt className="text-xs text-muted-foreground">{t("Ruolo")}</dt>
+                <dd>{editing?.mansione || t("Da definire")}</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Reparto</dt>
-                <dd>{editing?.reparto || "Da definire"}</dd>
+                <dt className="text-xs text-muted-foreground">{t("Reparto")}</dt>
+                <dd>{editing?.reparto || t("Da definire")}</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Sede</dt>
+                <dt className="text-xs text-muted-foreground">{t("Sede")}</dt>
                 <dd>
                   {editing?.sede_id
-                    ? siteNames.get(editing.sede_id) || "Sede assegnata"
-                    : "Da assegnare"}
+                    ? siteNames.get(editing.sede_id) || t("Sede assegnata")
+                    : t("Da assegnare")}
                 </dd>
               </div>
             </dl>

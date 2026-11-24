@@ -20,6 +20,7 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import { ListinoFilterBar, type FilterChip } from "./ListinoFilterBar";
 import type { ListinoPrezzo, TipoImpianto, TipoIntervento } from "../types";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type StatoFilter = "all" | "attivi" | "disattivi";
 
@@ -40,6 +41,7 @@ interface Props {
 export function TariffeTab({
   listino, loadingListino, tipiImpianto, tipiIntervento, puoModificare, puoImportare, onAdd, onEdit, onDelete,
 }: Props) {
+  const tr = useT();
   const noTipi = tipiImpianto.length === 0 || tipiIntervento.length === 0;
 
   const [search, setSearch] = useState("");
@@ -67,16 +69,16 @@ export function TariffeTab({
   const resetFilters = () => { setSearch(""); setImpiantoId("all"); setInterventoId("all"); setStato("all"); };
 
   const chips: FilterChip[] = [];
-  if (search.trim()) chips.push({ key: "search", label: `Cerca: "${search.trim()}"`, onRemove: () => setSearch("") });
+  if (search.trim()) chips.push({ key: "search", label: tr("Cerca: \"{testo}\"", { testo: search.trim() }), onRemove: () => setSearch("") });
   if (impiantoId !== "all") {
     const nome = tipiImpianto.find((t) => t.id === impiantoId)?.nome ?? "—";
-    chips.push({ key: "impianto", label: `Impianto: ${nome}`, onRemove: () => setImpiantoId("all") });
+    chips.push({ key: "impianto", label: tr("Impianto: {nome}", { nome }), onRemove: () => setImpiantoId("all") });
   }
   if (interventoId !== "all") {
     const nome = tipiIntervento.find((t) => t.id === interventoId)?.nome ?? "—";
-    chips.push({ key: "intervento", label: `Intervento: ${nome}`, onRemove: () => setInterventoId("all") });
+    chips.push({ key: "intervento", label: tr("Intervento: {nome}", { nome }), onRemove: () => setInterventoId("all") });
   }
-  if (stato !== "all") chips.push({ key: "stato", label: stato === "attivi" ? "Stato: attivi" : "Stato: disattivi", onRemove: () => setStato("all") });
+  if (stato !== "all") chips.push({ key: "stato", label: stato === "attivi" ? tr("Stato: attivi") : tr("Stato: disattivi"), onRemove: () => setStato("all") });
 
   /** Tutta la riga apre Modifica — tranne i controlli veri (menu, checkbox…). */
   const rowClick = (l: ListinoPrezzo) => (e: React.MouseEvent) => {
@@ -87,7 +89,6 @@ export function TariffeTab({
   };
 
   const colonne = puoModificare ? 7 : 6;
-  const importa = puoImportare ? " o usa «Importa un catalogo pronto»" : "";
 
   return (
     <div className="space-y-3">
@@ -96,16 +97,16 @@ export function TariffeTab({
           {puoModificare && (
             <div className="flex justify-end">
               <Button size="sm" onClick={onAdd} disabled>
-                <Plus className="h-4 w-4 mr-1" aria-hidden />Nuovo prezzo
+                <Plus className="h-4 w-4 mr-1" aria-hidden />{tr("Nuovo prezzo")}
               </Button>
             </div>
           )}
           <div className="rounded-md border p-8 text-center text-muted-foreground">
             {!puoModificare
-              ? "Nessun prezzo di manutenzione."
+              ? tr("Nessun prezzo di manutenzione.")
               : puoImportare
-                ? "Prima di aggiungere un prezzo serve almeno un tipo di impianto e un tipo di intervento (schede «Impianti» e «Interventi»): aggiungili, oppure usa «Importa un catalogo pronto»."
-                : "Prima di aggiungere un prezzo servono un tipo di impianto e un tipo di intervento: li aggiunge l'amministratore."}
+                ? tr("Prima di aggiungere un prezzo serve almeno un tipo di impianto e un tipo di intervento (schede «Impianti» e «Interventi»): aggiungili, oppure usa «Importa un catalogo pronto».")
+                : tr("Prima di aggiungere un prezzo servono un tipo di impianto e un tipo di intervento: li aggiunge l'amministratore.")}
           </div>
         </>
       ) : (
@@ -113,34 +114,34 @@ export function TariffeTab({
           <ListinoFilterBar
             search={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Cerca per impianto, intervento, unità o note…"
-            searchLabel="Cerca tra i prezzi di manutenzione"
+            searchPlaceholder={tr("Cerca per impianto, intervento, unità o note…")}
+            searchLabel={tr("Cerca tra i prezzi di manutenzione")}
             filters={
               <>
                 <Select value={impiantoId} onValueChange={setImpiantoId}>
-                  <SelectTrigger aria-label="Filtra per impianto" className="h-9 w-full md:w-[170px] max-md:h-11"><SelectValue placeholder="Impianto" /></SelectTrigger>
+                  <SelectTrigger aria-label={tr("Filtra per impianto")} className="h-9 w-full md:w-[170px] max-md:h-11"><SelectValue placeholder={tr("Impianto")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti gli impianti</SelectItem>
+                    <SelectItem value="all">{tr("Tutti gli impianti")}</SelectItem>
                     {tipiImpianto.map((t) => (
                       <SelectItem key={t.id} value={t.id}>{`${t.icona ?? ""} ${t.nome}`.trim()}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <Select value={interventoId} onValueChange={setInterventoId}>
-                  <SelectTrigger aria-label="Filtra per intervento" className="h-9 w-full md:w-[170px] max-md:h-11"><SelectValue placeholder="Intervento" /></SelectTrigger>
+                  <SelectTrigger aria-label={tr("Filtra per intervento")} className="h-9 w-full md:w-[170px] max-md:h-11"><SelectValue placeholder={tr("Intervento")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti gli interventi</SelectItem>
+                    <SelectItem value="all">{tr("Tutti gli interventi")}</SelectItem>
                     {tipiIntervento.map((t) => (
                       <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <Select value={stato} onValueChange={(v) => setStato(v as StatoFilter)}>
-                  <SelectTrigger aria-label="Filtra per stato" className="h-9 w-full md:w-[140px] max-md:h-11"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label={tr("Filtra per stato")} className="h-9 w-full md:w-[140px] max-md:h-11"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutti gli stati</SelectItem>
-                    <SelectItem value="attivi">Solo attivi</SelectItem>
-                    <SelectItem value="disattivi">Solo disattivi</SelectItem>
+                    <SelectItem value="all">{tr("Tutti gli stati")}</SelectItem>
+                    <SelectItem value="attivi">{tr("Solo attivi")}</SelectItem>
+                    <SelectItem value="disattivi">{tr("Solo disattivi")}</SelectItem>
                   </SelectContent>
                 </Select>
               </>
@@ -151,7 +152,7 @@ export function TariffeTab({
                 onClick={onAdd}
                 className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
               >
-                <Plus className="h-4 w-4 mr-1" aria-hidden />Nuovo prezzo
+                <Plus className="h-4 w-4 mr-1" aria-hidden />{tr("Nuovo prezzo")}
               </Button>
             ) : undefined}
             chips={chips}
@@ -165,32 +166,32 @@ export function TariffeTab({
             <Table className="table-fixed min-w-[720px] [&_thead_th]:h-10 [&_thead_th]:px-3 [&_tbody_td]:px-3 [&_tbody_td]:py-2">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[168px]">Impianto</TableHead>
-                  <TableHead>Intervento</TableHead>
-                  <TableHead className="w-[104px] text-right">Prezzo</TableHead>
+                  <TableHead className="w-[168px]">{tr("Impianto")}</TableHead>
+                  <TableHead>{tr("Intervento")}</TableHead>
+                  <TableHead className="w-[104px] text-right">{tr("Prezzo")}</TableHead>
                   <TableHead className="w-[56px] text-right">IVA</TableHead>
-                  <TableHead className="w-[96px]">Unità</TableHead>
-                  <TableHead className="w-[96px]">Attivo</TableHead>
-                  {puoModificare && <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>}
+                  <TableHead className="w-[96px]">{tr("Unità")}</TableHead>
+                  <TableHead className="w-[96px]">{tr("Attivo")}</TableHead>
+                  {puoModificare && <TableHead className="w-[48px]"><span className="sr-only">{tr("Azioni")}</span></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loadingListino ? (
                   <TableRow>
                     <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
-                      Caricamento...
+                      {tr("Caricamento...")}
                     </TableCell>
                   </TableRow>
                 ) : listino.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
-                      {puoModificare ? `Nessun prezzo di manutenzione. Aggiungine uno${importa}.` : "Nessun prezzo di manutenzione."}
+                      {puoModificare ? (puoImportare ? tr("Nessun prezzo di manutenzione. Aggiungine uno o usa «Importa un catalogo pronto».") : tr("Nessun prezzo di manutenzione. Aggiungine uno.")) : tr("Nessun prezzo di manutenzione.")}
                     </TableCell>
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
-                      Nessun prezzo corrisponde ai filtri.
+                      {tr("Nessun prezzo corrisponde ai filtri.")}
                     </TableCell>
                   </TableRow>
                 ) : filtered.map((l) => (
@@ -211,7 +212,7 @@ export function TariffeTab({
                     <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
                       {l.prezzo_base != null && l.prezzo_base > 0
                         ? formatCurrency(l.prezzo_base)
-                        : <Badge title="Prezzo a zero" className="bg-amber-100 text-amber-700 border-amber-200">€0</Badge>
+                        : <Badge title={tr("Prezzo a zero")} className="bg-amber-100 text-amber-700 border-amber-200">€0</Badge>
                       }
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground tabular-nums">{l.iva_percentuale ?? 22}%</TableCell>
@@ -220,7 +221,7 @@ export function TariffeTab({
                     </TableCell>
                     <TableCell>
                       <Badge variant={l.attivo ? "default" : "secondary"} className="h-5 px-2 text-[11px]">
-                        {l.attivo ? "Attivo" : "Disattivo"}
+                        {l.attivo ? tr("Attivo") : tr("Disattivo")}
                       </Badge>
                     </TableCell>
                     {puoModificare && (
@@ -231,21 +232,21 @@ export function TariffeTab({
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
-                              aria-label={`Azioni per il prezzo ${[l.tipo_impianto?.nome, l.tipo_intervento?.nome].filter(Boolean).join(" · ") || ""}`.trim()}
+                              aria-label={tr("Azioni per il prezzo {nome}", { nome: [l.tipo_impianto?.nome, l.tipo_intervento?.nome].filter(Boolean).join(" · ") }).trim()}
                             >
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => onEdit(l)}>
-                              <Pencil className="h-4 w-4 mr-2" />Modifica
+                              <Pencil className="h-4 w-4 mr-2" />{tr("Modifica")}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
                               onClick={() => onDelete(l.id)}
                             >
-                              <Trash2 className="h-4 w-4 mr-2" />Elimina
+                              <Trash2 className="h-4 w-4 mr-2" />{tr("Elimina")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

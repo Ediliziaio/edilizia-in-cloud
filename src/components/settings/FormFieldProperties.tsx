@@ -10,6 +10,7 @@ import { Trash2 } from "lucide-react";
 import { normalizeLeadFormOptions, sanitizeLeadFormFieldName } from "@/lib/formBuilder";
 import { useEntityCustomFields } from "@/hooks/useEntityCustomFields";
 import { compatibleFormDestination } from "../../../supabase/functions/_shared/formCustomFields";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const CONTACT_MAPPINGS = [
   { value: "", label: "Non salvare nel contatto" },
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export function FormFieldProperties({ field, onUpdate, onDelete, disabled = false }: Props) {
+  const t = useT();
   const custom = useEntityCustomFields("contact");
   // Ogni etichetta è collegata al suo campo: chi usa la tastiera o il lettore di schermo sa cosa sta compilando.
   const id = useId();
@@ -53,7 +55,7 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
   if (!field) {
     return (
       <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-        Seleziona un campo per modificarne le proprietà
+        {t("Seleziona un campo per modificarne le proprietà")}
       </div>
     );
   }
@@ -62,10 +64,10 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Proprietà</h3>
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("Proprietà")}</h3>
 
       <div className="space-y-2">
-        <Label htmlFor={idTesto} className="text-xs">Testo del campo</Label>
+        <Label htmlFor={idTesto} className="text-xs">{t("Testo del campo")}</Label>
         <Input
           id={idTesto}
           value={field.label}
@@ -77,7 +79,7 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
 
       {field.type !== "divider" && (
         <div className="space-y-2">
-          <Label htmlFor={idNome} className="text-xs">Nome interno</Label>
+          <Label htmlFor={idNome} className="text-xs">{t("Nome interno")}</Label>
           <Input
             id={idNome}
             value={field.name}
@@ -85,13 +87,13 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
             className="h-8 text-sm max-md:h-11"
             disabled={disabled}
           />
-          <p className="text-[11px] text-muted-foreground">Serve al sistema: non cambiarlo se il modulo è già pubblicato.</p>
+          <p className="text-[11px] text-muted-foreground">{t("Serve al sistema: non cambiarlo se il modulo è già pubblicato.")}</p>
         </div>
       )}
 
       {!NO_PLACEHOLDER_TYPES.includes(field.type) && (
         <div className="space-y-2">
-          <Label htmlFor={idEsempio} className="text-xs">Testo di esempio nel campo</Label>
+          <Label htmlFor={idEsempio} className="text-xs">{t("Testo di esempio nel campo")}</Label>
           <Input
             id={idEsempio}
             value={field.placeholder || ""}
@@ -104,13 +106,13 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
 
       {field.type === "hidden" && (
         <div className="space-y-2">
-          <Label htmlFor={idValoreFisso} className="text-xs">Valore fisso (o parametro UTM)</Label>
+          <Label htmlFor={idValoreFisso} className="text-xs">{t("Valore fisso (o parametro UTM)")}</Label>
           <Input
             id={idValoreFisso}
             value={field.defaultValue || ""}
             onChange={(e) => onUpdate({ defaultValue: e.target.value })}
             className="h-8 text-sm max-md:h-11"
-            placeholder="Valore fisso o parametro UTM"
+            placeholder={t("Valore fisso o parametro UTM")}
             disabled={disabled}
           />
         </div>
@@ -119,7 +121,7 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
       {field.type === "consent" && (
         <>
           <div className="space-y-2">
-            <Label htmlFor={idLinkUrl} className="text-xs">Link dell'informativa</Label>
+            <Label htmlFor={idLinkUrl} className="text-xs">{t("Link dell'informativa")}</Label>
             <Input
               id={idLinkUrl}
               value={field.linkUrl || ""}
@@ -129,17 +131,17 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
               disabled={disabled}
             />
             <p className="text-[11px] text-muted-foreground">
-              Solo link https://. Verrà mostrato come link cliccabile accanto al testo.
+              {t("Solo link https://. Verrà mostrato come link cliccabile accanto al testo.")}
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor={idLinkTesto} className="text-xs">Testo del link</Label>
+            <Label htmlFor={idLinkTesto} className="text-xs">{t("Testo del link")}</Label>
             <Input
               id={idLinkTesto}
               value={field.linkText || ""}
               onChange={(e) => onUpdate({ linkText: e.target.value })}
               className="h-8 text-sm max-md:h-11"
-              placeholder="Informativa privacy"
+              placeholder={t("Informativa privacy")}
               disabled={disabled}
             />
           </div>
@@ -148,7 +150,7 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
 
       {!isStructural && field.type !== "hidden" && (
         <div className="flex items-center justify-between max-md:min-h-11">
-          <Label htmlFor={idObbligatorio} className="text-xs">Obbligatorio</Label>
+          <Label htmlFor={idObbligatorio} className="text-xs">{t("Obbligatorio")}</Label>
           <Switch
             id={idObbligatorio}
             checked={field.required}
@@ -161,7 +163,7 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
 
       {HAS_OPTIONS_TYPES.includes(field.type) && (
         <div className="space-y-2">
-          <Label htmlFor={idOpzioni} className="text-xs">Opzioni (una per riga)</Label>
+          <Label htmlFor={idOpzioni} className="text-xs">{t("Opzioni (una per riga)")}</Label>
           <Textarea
             id={idOpzioni}
             value={(field.options || []).join("\n")}
@@ -175,26 +177,26 @@ export function FormFieldProperties({ field, onUpdate, onDelete, disabled = fals
 
       {!isStructural && field.type !== "hidden" && !NO_MAPPING_TYPES.includes(field.type) && (
         <div className="space-y-2">
-          <Label htmlFor={idContatto} className="text-xs">Salva nel contatto come</Label>
+          <Label htmlFor={idContatto} className="text-xs">{t("Salva nel contatto come")}</Label>
           <Select value={field.mapping || ""} onValueChange={(v) => onUpdate({ mapping: v === "none" ? undefined : v || undefined })} disabled={disabled}>
             <SelectTrigger id={idContatto} className="h-8 text-sm max-md:h-11">
-              <SelectValue placeholder="Non salvare nel contatto" />
+              <SelectValue placeholder={t("Non salvare nel contatto")} />
             </SelectTrigger>
             <SelectContent>
               {CONTACT_MAPPINGS.map((m) => (
-                <SelectItem key={m.value} value={m.value || "none"}>{m.label}</SelectItem>
+                <SelectItem key={m.value} value={m.value || "none"}>{t(m.label)}</SelectItem>
               ))}
-              {(custom.data ?? []).filter(f => compatibleFormDestination(field.type, f.field_type)).map(f => <SelectItem key={f.id} value={`cf:${f.id}`}>Campo personalizzato · {f.name}</SelectItem>)}
-              {field.mapping?.startsWith("cf:") && !(custom.data ?? []).some(f => `cf:${f.id}` === field.mapping && compatibleFormDestination(field.type, f.field_type)) && <SelectItem value={field.mapping} disabled>Destinazione non disponibile · da verificare</SelectItem>}
+              {(custom.data ?? []).filter(f => compatibleFormDestination(field.type, f.field_type)).map(f => <SelectItem key={f.id} value={`cf:${f.id}`}>{t("Campo personalizzato · {name}", { name: String(f.name ?? "") })}</SelectItem>)}
+              {field.mapping?.startsWith("cf:") && !(custom.data ?? []).some(f => `cf:${f.id}` === field.mapping && compatibleFormDestination(field.type, f.field_type)) && <SelectItem value={field.mapping} disabled>{t("Destinazione non disponibile · da verificare")}</SelectItem>}
             </SelectContent>
           </Select>
-          {custom.isError && <p role="alert" className="text-xs text-destructive">Impossibile caricare le destinazioni personalizzate. Le mappature esistenti non sono state cancellate.</p>}
-          {field.mapping?.startsWith("cf:") && <p className="text-xs text-muted-foreground">Collegamento tramite ID stabile, senza duplicare il campo. Richiede il servizio di invio moduli aggiornato; non sostituisce email o telefono di contatto.</p>}
+          {custom.isError && <p role="alert" className="text-xs text-destructive">{t("Impossibile caricare le destinazioni personalizzate. Le mappature esistenti non sono state cancellate.")}</p>}
+          {field.mapping?.startsWith("cf:") && <p className="text-xs text-muted-foreground">{t("Collegamento tramite ID stabile, senza duplicare il campo. Richiede il servizio di invio moduli aggiornato; non sostituisce email o telefono di contatto.")}</p>}
         </div>
       )}
 
       <Button variant="destructive" size="sm" className="w-full mt-4 max-md:h-11" onClick={onDelete} disabled={disabled}>
-        <Trash2 className="h-3.5 w-3.5 mr-1" /> Elimina campo
+        <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("Elimina campo")}
       </Button>
     </div>
   );

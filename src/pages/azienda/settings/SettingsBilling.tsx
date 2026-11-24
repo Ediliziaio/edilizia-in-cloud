@@ -9,7 +9,6 @@ import { useBillingMode } from "@/contexts/BillingModeContext";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Loader2, Plus, Trash2, Star, CheckCircle2, XCircle, RefreshCw, Plug, ScrollText, ExternalLink, AlertTriangle } from "lucide-react";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const PROVIDERS = [
   { value: "fattureincloud", label: "Fatture in Cloud", authType: "oauth", icon: "🇮🇹" },
@@ -80,11 +80,12 @@ const PROVIDER_HELP: Record<string, { text: string; link: string; linkLabel: str
 };
 
 /** Il testo di un errore da mostrare: quello che l'errore dice se è già una frase, altrimenti la traduzione. */
-const messaggioErrore = (e: unknown): string =>
-  e instanceof Error && e.message ? e.message : userErrorMessage(e, "Operazione non riuscita. Riprova tra poco.");
+const messaggioErrore = (e: unknown, t: (testo: string) => string): string =>
+  e instanceof Error && e.message ? e.message : userErrorMessage(e, t("Operazione non riuscita. Riprova tra poco."));
 
 /* ─── Main page ──────────────────────────────────────────────── */
 export default function SettingsBilling() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { isNative } = useBillingMode();
   const queryClient = useQueryClient();
@@ -140,13 +141,13 @@ export default function SettingsBilling() {
     if (error || !res?.auth_url) {
       // Se manca la configurazione della piattaforma l'azienda non può farci niente: si dice a chi rivolgersi,
       // senza i nomi tecnici dei segreti.
-      throw new Error(res?.error || "Il collegamento con Fatture in Cloud non è pronto: avvisa l'assistenza.");
+      throw new Error(res?.error || t("Il collegamento con Fatture in Cloud non è pronto: avvisa l'assistenza."));
     }
     const w = 620, h = 760;
     const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
     const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
     const popup = window.open(res.auth_url, "fic-oauth", `width=${w},height=${h},left=${left},top=${top}`);
-    if (!popup) throw new Error("Popup bloccato dal browser: abilita i popup per questo sito e riprova.");
+    if (!popup) throw new Error(t("Popup bloccato dal browser: abilita i popup per questo sito e riprova."));
     popup.focus();
   };
 
@@ -156,12 +157,12 @@ export default function SettingsBilling() {
       const d = e.data as { source?: string; status?: string; message?: string; companyName?: string } | null;
       if (!d || d.source !== "fic-oauth") return;
       if (d.status === "ok") {
-        toast.success("Fatture in Cloud collegato", {
-          description: d.companyName ? `Account: ${d.companyName}` : undefined,
+        toast.success(t("Fatture in Cloud collegato"), {
+          description: d.companyName ? t("Account: {companyName}", { companyName: String(d.companyName ?? "") }) : undefined,
         });
         queryClient.invalidateQueries({ queryKey: ["billing_integrations"] });
       } else {
-        toast.error("Collegamento Fatture in Cloud non riuscito", { description: d.message || undefined });
+        toast.error(t("Collegamento Fatture in Cloud non riuscito"), { description: d.message || undefined });
       }
     };
     window.addEventListener("message", handler);
@@ -207,11 +208,11 @@ export default function SettingsBilling() {
     },
     onSuccess: () => {
       if (newProvider === "fattureincloud") {
-        toast.info("Autorizza nella finestra di Fatture in Cloud", {
-          description: "Completa l'accesso nel popup: al termine l'integrazione si attiva da sola.",
+        toast.info(t("Autorizza nella finestra di Fatture in Cloud"), {
+          description: t("Completa l'accesso nel popup: al termine l'integrazione si attiva da sola."),
         });
       } else {
-        toast.success("Integrazione aggiunta e verificata");
+        toast.success(t("Integrazione aggiunta e verificata"));
       }
       setShowAdd(false);
       setNewProvider("");
@@ -222,7 +223,7 @@ export default function SettingsBilling() {
       setNewCompany("");
       queryClient.invalidateQueries({ queryKey: ["billing_integrations"] });
     },
-    onError: (e) => toast.error("Operazione non riuscita", { description: messaggioErrore(e) }),
+    onError: (e) => toast.error(t("Operazione non riuscita"), { description: messaggioErrore(e, t) }),
   });
 
   const deleteMutation = useMutation({
@@ -238,10 +239,10 @@ export default function SettingsBilling() {
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
-      toast.success("Integrazione rimossa");
+      toast.success(t("Integrazione rimossa"));
       queryClient.invalidateQueries({ queryKey: ["billing_integrations"] });
     },
-    onError: (e) => toast.error("Operazione non riuscita", { description: messaggioErrore(e) }),
+    onError: (e) => toast.error(t("Operazione non riuscita"), { description: messaggioErrore(e, t) }),
   });
 
   const setPrimaryMutation = useMutation({
@@ -257,10 +258,10 @@ export default function SettingsBilling() {
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
-      toast.success("Provider primario aggiornato");
+      toast.success(t("Provider primario aggiornato"));
       queryClient.invalidateQueries({ queryKey: ["billing_integrations"] });
     },
-    onError: (e) => toast.error("Operazione non riuscita", { description: messaggioErrore(e) }),
+    onError: (e) => toast.error(t("Operazione non riuscita"), { description: messaggioErrore(e, t) }),
   });
 
   const toggleActiveMutation = useMutation({
@@ -271,7 +272,7 @@ export default function SettingsBilling() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing_integrations"] });
     },
-    onError: (e) => toast.error("Non sono riuscito ad aggiornare lo stato", { description: messaggioErrore(e) }),
+    onError: (e) => toast.error(t("Non sono riuscito ad aggiornare lo stato"), { description: messaggioErrore(e, t) }),
   });
 
   const testConnection = async (integration: any) => {
@@ -286,12 +287,12 @@ export default function SettingsBilling() {
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       if (data?.success) {
-        toast.success("Connessione OK", { description: `Provider ${integration.provider} funzionante` });
+        toast.success(t("Connessione OK"), { description: t("Provider {provider} funzionante", { provider: String(integration.provider ?? "") }) });
       } else {
-        toast.error("Test fallito", { description: data?.error || "Errore sconosciuto" });
+        toast.error(t("Test fallito"), { description: data?.error || t("Errore sconosciuto") });
       }
     } catch (e) {
-      toast.error("Prova non riuscita", { description: messaggioErrore(e) });
+      toast.error(t("Prova non riuscita"), { description: messaggioErrore(e, t) });
     } finally {
       setTesting(null);
     }
@@ -306,17 +307,16 @@ export default function SettingsBilling() {
       {isNative && (
         <Alert>
           <AlertDescription className="text-sm">
-            Oggi fatturi con Edilizia in Cloud. Il programma collegato qui sotto resta collegato e continua a portare le
-            fatture, ma finché non torni a «Con un altro programma» non le vedrai nell'elenco.
+            {t("Oggi fatturi con Edilizia in Cloud. Il programma collegato qui sotto resta collegato e continua a portare le fatture, ma finché non torni a «Con un altro programma» non le vedrai nell'elenco.")}
           </AlertDescription>
         </Alert>
       )}
 
       <Tabs defaultValue="integrations">
         <TabsList>
-          <TabsTrigger value="integrations">Programma collegato</TabsTrigger>
-          <TabsTrigger value="logs">Sincronizzazioni</TabsTrigger>
-          <TabsTrigger value="massive">Recupera da AdE</TabsTrigger>
+          <TabsTrigger value="integrations">{t("Programma collegato")}</TabsTrigger>
+          <TabsTrigger value="logs">{t("Sincronizzazioni")}</TabsTrigger>
+          <TabsTrigger value="massive">{t("Recupera da AdE")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="massive" className="mt-4">
@@ -330,15 +330,13 @@ export default function SettingsBilling() {
           <Card className="border-blue-100 bg-blue-50/40">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
-                🗄️ Cassetto fiscale — fatture emesse e ricevute
+                {t("🗄️ Cassetto fiscale — fatture emesse e ricevute")}
               </CardTitle>
               <CardDescription>
-                Le fatture del cassetto fiscale AdE passano tutte dallo SDI. Per importarle collega
-                un provider con il bollino{" "}
+                {t("Le fatture del cassetto fiscale AdE passano tutte dallo SDI. Per importarle collega un provider con il bollino")}{" "}
                 {/* span, non Badge: Badge è un div e dentro il paragrafo della descrizione non può stare */}
-                <span className={`${badgeVariants({ variant: "secondary" })} bg-emerald-100 text-emerald-800 text-[10px] align-middle`}>Emesse + Ricevute</span>{" "}
-                e le trovi in <strong>Fatturazione → Fatture ricevute</strong>, senza inserirle a mano.
-                Con gli altri provider vengono importate solo le emesse.
+                <span className={`${badgeVariants({ variant: "secondary" })} bg-emerald-100 text-emerald-800 text-[10px] align-middle`}>{t("Emesse + Ricevute")}</span>{" "}
+                {t("e le trovi in")} <strong>{t("Fatturazione → Fatture ricevute")}</strong>{t(", senza inserirle a mano. Con gli altri provider vengono importate solo le emesse.")}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -354,10 +352,10 @@ export default function SettingsBilling() {
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
                 <Plug className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                <p>Nessun programma collegato.</p>
-                <p className="text-sm">Collegane uno per portare qui le fatture, oppure fattura con Edilizia in Cloud.</p>
+                <p>{t("Nessun programma collegato.")}</p>
+                <p className="text-sm">{t("Collegane uno per portare qui le fatture, oppure fattura con Edilizia in Cloud.")}</p>
                 <Button className="mt-4" onClick={() => setShowAdd(true)}>
-                  <Plus className="h-4 w-4 mr-2" /> Aggiungi provider
+                  <Plus className="h-4 w-4 mr-2" /> {t("Aggiungi provider")}
                 </Button>
               </CardContent>
             </Card>
@@ -375,20 +373,20 @@ export default function SettingsBilling() {
                             <CardTitle className="text-base flex items-center gap-2">
                               {cfg?.label || integ.provider}
                               {integ.is_primary && (
-                                <Badge variant="secondary" className="text-xs"><Star className="h-3 w-3 mr-1" /> Primario</Badge>
+                                <Badge variant="secondary" className="text-xs"><Star className="h-3 w-3 mr-1" /> {t("Primario")}</Badge>
                               )}
                               {integ.is_active ? (
-                                <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">Attivo</Badge>
+                                <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">{t("Attivo")}</Badge>
                               ) : (
-                                <Badge variant="secondary" className="text-xs">Disattivato</Badge>
+                                <Badge variant="secondary" className="text-xs">{t("Disattivato")}</Badge>
                               )}
                               {IMPORTA_RICEVUTE.has(integ.provider) && (
-                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-xs">Emesse + Ricevute</Badge>
+                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-xs">{t("Emesse + Ricevute")}</Badge>
                               )}
                             </CardTitle>
                             <CardDescription className="text-xs">
-                              {integ.company_external_id && `ID: ${integ.company_external_id} · `}
-                              Aggiunto {format(new Date(integ.created_at), "dd/MM/yyyy", { locale: it })}
+                              {integ.company_external_id && t("ID: {company_external_id} · ", { company_external_id: String(integ.company_external_id ?? "") })}
+                              {t("Aggiunto {data}", { data: format(new Date(integ.created_at), "dd/MM/yyyy", { locale: dateFnsCampo() }) })}
                             </CardDescription>
                           </div>
                         </div>
@@ -400,11 +398,11 @@ export default function SettingsBilling() {
                             disabled={testing === integ.id || !integ.is_active}
                           >
                             {testing === integ.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                            <span className="ml-1.5">Test</span>
+                            <span className="ml-1.5">{t("Test")}</span>
                           </Button>
                           {!integ.is_primary && integ.is_active && (
                             <Button variant="outline" size="sm" onClick={() => setPrimaryMutation.mutate(integ.provider)}>
-                              <Star className="h-4 w-4 mr-1" /> Rendi primario
+                              <Star className="h-4 w-4 mr-1" /> {t("Rendi primario")}
                             </Button>
                           )}
                         </div>
@@ -418,15 +416,15 @@ export default function SettingsBilling() {
                         <div className="flex flex-col gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40 sm:flex-row sm:items-center sm:justify-between">
                           <p className="flex items-start gap-2 text-amber-900 dark:text-amber-200">
                             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                            Ricollega Fatture in Cloud per segnare pagate anche lì le fatture che incassi qui.
+                            {t("Ricollega Fatture in Cloud per segnare pagate anche lì le fatture che incassi qui.")}
                           </p>
                           <Button
                             size="sm"
                             variant="outline"
                             className="shrink-0"
-                            onClick={() => connectFic().catch((e: unknown) => toast.error(messaggioErrore(e)))}
+                            onClick={() => connectFic().catch((e: unknown) => toast.error(messaggioErrore(e, t)))}
                           >
-                            Ricollega
+                            {t("Ricollega")}
                           </Button>
                         </div>
                       )}
@@ -444,23 +442,23 @@ export default function SettingsBilling() {
                               checked={integ.is_active}
                               onCheckedChange={(v) => toggleActiveMutation.mutate({ id: integ.id, active: v })}
                             />
-                            <Label htmlFor={`attivo-${integ.id}`} className="text-sm">Attivo</Label>
+                            <Label htmlFor={`attivo-${integ.id}`} className="text-sm">{t("Attivo")}</Label>
                           </div>
                         </div>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="sm" className="text-destructive">
-                              <Trash2 className="h-4 w-4 mr-1" /> Rimuovi
+                              <Trash2 className="h-4 w-4 mr-1" /> {t("Rimuovi")}
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Rimuovere questa integrazione?</AlertDialogTitle>
-                              <AlertDialogDescription>Le fatture già sincronizzate non verranno eliminate.</AlertDialogDescription>
+                              <AlertDialogTitle>{t("Rimuovere questa integrazione?")}</AlertDialogTitle>
+                              <AlertDialogDescription>{t("Le fatture già sincronizzate non verranno eliminate.")}</AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Annulla</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deleteMutation.mutate(integ.provider)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Rimuovi</AlertDialogAction>
+                              <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteMutation.mutate(integ.provider)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{t("Rimuovi")}</AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
@@ -472,7 +470,7 @@ export default function SettingsBilling() {
 
               {!showAdd && (
                 <Button variant="outline" onClick={() => setShowAdd(true)}>
-                  <Plus className="h-4 w-4 mr-2" /> Aggiungi provider
+                  <Plus className="h-4 w-4 mr-2" /> {t("Aggiungi provider")}
                 </Button>
               )}
             </>
@@ -482,17 +480,17 @@ export default function SettingsBilling() {
           {showAdd && (
             <Card className="border-dashed">
               <CardHeader>
-                <CardTitle className="text-base">Nuovo provider</CardTitle>
+                <CardTitle className="text-base">{t("Nuovo provider")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label>Provider</Label>
+                  <Label>{t("Provider")}</Label>
                   <Select value={newProvider} onValueChange={setNewProvider}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona provider..." /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t("Seleziona provider...")} /></SelectTrigger>
                     <SelectContent>
                       {PROVIDERS.filter(p => p.value !== "itala").map((p) => (
                         <SelectItem key={p.value} value={p.value}>
-                          {p.icon} {p.label}{IMPORTA_RICEVUTE.has(p.value) ? " · Emesse + Ricevute" : ""}
+                          {p.icon} {p.label}{IMPORTA_RICEVUTE.has(p.value) ? ` ${t("· Emesse + Ricevute")}` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -503,10 +501,10 @@ export default function SettingsBilling() {
                   <div className="space-y-2">
                     {PROVIDER_HELP[newProvider] && (
                       <div className="bg-muted/50 rounded-md p-3 text-xs text-muted-foreground space-y-1.5">
-                        <p className="font-medium text-foreground">Dove trovo la chiave</p>
-                        <p>{PROVIDER_HELP[newProvider].text}</p>
+                        <p className="font-medium text-foreground">{t("Dove trovo la chiave")}</p>
+                        <p>{t(PROVIDER_HELP[newProvider].text)}</p>
                         {PROVIDER_HELP[newProvider].warn && (
-                          <p className="text-amber-600">⚠ {PROVIDER_HELP[newProvider].warn}</p>
+                          <p className="text-amber-600">⚠ {t(PROVIDER_HELP[newProvider].warn ?? "")}</p>
                         )}
                         <a
                           href={PROVIDER_HELP[newProvider].link}
@@ -514,14 +512,14 @@ export default function SettingsBilling() {
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-primary hover:underline"
                         >
-                          {PROVIDER_HELP[newProvider].linkLabel} <ExternalLink className="h-3 w-3" />
+                          {t(PROVIDER_HELP[newProvider].linkLabel)} <ExternalLink className="h-3 w-3" />
                         </a>
                       </div>
                     )}
                     {providerConfig(newProvider)?.authType === "zucchetti" ? (
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="sm:col-span-2">
-                          <Label>URL servizio Digital Hub</Label>
+                          <Label>{t("URL servizio Digital Hub")}</Label>
                           <Input
                             type="text"
                             autoComplete="off"
@@ -531,68 +529,68 @@ export default function SettingsBilling() {
                           />
                         </div>
                         <div>
-                          <Label>Utente</Label>
+                          <Label>{t("Utente")}</Label>
                           <Input
                             type="text"
                             autoComplete="off"
                             value={newUsername}
                             onChange={(e) => setNewUsername(e.target.value)}
-                            placeholder="Utente del pannello Digital Hub"
+                            placeholder={t("Utente del pannello Digital Hub")}
                           />
                         </div>
                         <div>
-                          <Label>Password</Label>
+                          <Label>{t("Password")}</Label>
                           <Input
                             type="password"
                             autoComplete="new-password"
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
-                            placeholder="Password Digital Hub"
+                            placeholder={t("Password Digital Hub")}
                           />
                         </div>
                         <div>
-                          <Label>Company</Label>
+                          <Label>{t("Company")}</Label>
                           <Input
                             type="text"
                             autoComplete="off"
                             value={newCompany}
                             onChange={(e) => setNewCompany(e.target.value)}
-                            placeholder="es. 001"
+                            placeholder={t("es. 001")}
                           />
                         </div>
                       </div>
                     ) : providerConfig(newProvider)?.authType === "userpass" ? (
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div>
-                          <Label>{newProvider === "acube" ? "Email A-Cube" : "Username Aruba"}</Label>
+                          <Label>{newProvider === "acube" ? t("Email A-Cube") : t("Username Aruba")}</Label>
                           <Input
                             type={newProvider === "acube" ? "email" : "text"}
                             autoComplete="off"
                             value={newUsername}
                             onChange={(e) => setNewUsername(e.target.value)}
-                            placeholder={newProvider === "acube" ? "Email dell'account A-Cube" : "Username account Aruba FE"}
+                            placeholder={newProvider === "acube" ? t("Email dell'account A-Cube") : t("Username account Aruba FE")}
                           />
                         </div>
                         <div>
-                          <Label>Password</Label>
+                          <Label>{t("Password")}</Label>
                           <Input
                             type="password"
                             autoComplete="new-password"
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
-                            aria-label="Password provider"
-                            placeholder={newProvider === "acube" ? "Password account A-Cube" : "Password account Aruba FE"}
+                            aria-label={t("Password provider")}
+                            placeholder={newProvider === "acube" ? t("Password account A-Cube") : t("Password account Aruba FE")}
                           />
                         </div>
                       </div>
                     ) : (
                       <div>
-                        <Label>API Key</Label>
+                        <Label>{t("API Key")}</Label>
                         <Input
                           type="password"
                           value={newApiKey}
                           onChange={(e) => setNewApiKey(e.target.value)}
-                          placeholder="Inserisci la chiave API"
+                          placeholder={t("Inserisci la chiave API")}
                         />
                       </div>
                     )}
@@ -601,15 +599,12 @@ export default function SettingsBilling() {
 
                 {newProvider === "fattureincloud" && (
                   <div className="bg-blue-50 dark:bg-blue-950/40 rounded-md p-3 text-sm text-muted-foreground space-y-1">
-                    <p className="font-medium text-foreground">Collegamento con OAuth</p>
+                    <p className="font-medium text-foreground">{t("Collegamento con OAuth")}</p>
                     <p>
-                      Premi <strong>Connetti con OAuth</strong>: si apre la finestra di Fatture in Cloud dove
-                      autorizzi l'accesso. Al termine torni qui e l'integrazione si attiva da sola — non serve inserire chiavi.
+                      {t("Premi Connetti con OAuth: si apre la finestra di Fatture in Cloud dove autorizzi l'accesso. Al termine torni qui e l'integrazione si attiva da sola — non serve inserire chiavi.")}
                     </p>
                     <p className="text-xs">
-                      Le fatture emesse su Fatture in Cloud verranno importate e monitorate in EiC (numero, cliente,
-                      importi, stato SDI e pagamento). Quando incassi una fattura qui, viene segnata pagata anche su
-                      Fatture in Cloud: per questo il collegamento chiede anche il permesso di modificare le fatture.
+                      {t("Le fatture emesse su Fatture in Cloud verranno importate e monitorate in EiC (numero, cliente, importi, stato SDI e pagamento). Quando incassi una fattura qui, viene segnata pagata anche su Fatture in Cloud: per questo il collegamento chiede anche il permesso di modificare le fatture.")}
                     </p>
                   </div>
                 )}
@@ -628,10 +623,10 @@ export default function SettingsBilling() {
                     }
                   >
                     {addMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    {newProvider === "fattureincloud" ? "Connetti con OAuth" : "Salva"}
+                    {newProvider === "fattureincloud" ? t("Connetti con OAuth") : t("Salva")}
                   </Button>
                   <Button variant="outline" onClick={() => { setShowAdd(false); setNewProvider(""); setNewApiKey(""); }}>
-                    Annulla
+                    {t("Annulla")}
                   </Button>
                 </div>
               </CardContent>
@@ -644,9 +639,9 @@ export default function SettingsBilling() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <ScrollText className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-base">Log sincronizzazione</CardTitle>
+                <CardTitle className="text-base">{t("Log sincronizzazione")}</CardTitle>
               </div>
-              <CardDescription>Ultime 50 operazioni di sincronizzazione</CardDescription>
+              <CardDescription>{t("Ultime 50 operazioni di sincronizzazione")}</CardDescription>
             </CardHeader>
             <CardContent>
               {logsLoading ? (
@@ -654,7 +649,7 @@ export default function SettingsBilling() {
                   {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-lg" />)}
                 </div>
               ) : syncLogs.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground">Nessun log di sincronizzazione.</p>
+                <p className="text-center py-8 text-muted-foreground">{t("Nessun log di sincronizzazione.")}</p>
               ) : (
                 <div className="space-y-2 max-h-[500px] overflow-y-auto">
                   {syncLogs.map((log: any) => (
@@ -677,7 +672,7 @@ export default function SettingsBilling() {
                         )}
                       </div>
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {format(new Date(log.executed_at), "dd/MM HH:mm", { locale: it })}
+                        {format(new Date(log.executed_at), "dd/MM HH:mm", { locale: dateFnsCampo() })}
                       </span>
                     </div>
                   ))}

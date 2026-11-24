@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface OrdinaMerceDialogProps {
   open: boolean;
@@ -29,6 +30,7 @@ interface OrdinaMerceDialogProps {
 }
 
 export function OrdinaMerceDialog({ open, onOpenChange, ticketId, orderId, companyId, onCreated }: OrdinaMerceDialogProps) {
+  const t = useT();
   const { user } = useAuth();
   const qc = useQueryClient();
   const [supplierId, setSupplierId] = useState("");
@@ -50,8 +52,8 @@ export function OrdinaMerceDialog({ open, onOpenChange, ticketId, orderId, compa
 
   const crea = useMutation({
     mutationFn: async () => {
-      if (!supplierId) throw new Error("Scegli il fornitore");
-      if (!descrizione.trim()) throw new Error("Scrivi cosa stai ordinando");
+      if (!supplierId) throw new Error(t("Scegli il fornitore"));
+      if (!descrizione.trim()) throw new Error(t("Scrivi cosa stai ordinando"));
       const { data: po, error } = await supabase
         .from("purchase_orders")
         .insert({
@@ -78,48 +80,46 @@ export function OrdinaMerceDialog({ open, onOpenChange, ticketId, orderId, compa
     onSuccess: (odaId) => {
       qc.invalidateQueries({ queryKey: ["ticket-merce", ticketId] });
       qc.invalidateQueries({ queryKey: ["ticket", ticketId] });
-      toast.success("Ordine creato: l'assistenza è in attesa merce");
+      toast.success(t("Ordine creato: l'assistenza è in attesa merce"));
       setSupplierId(""); setDescrizione(""); setAttesa("");
       onOpenChange(false);
       onCreated?.(odaId);
     },
-    onError: (e: Error) => toast.error(e.message || "Non sono riuscito a creare l'ordine"),
+    onError: (e: Error) => toast.error(e.message || t("Non sono riuscito a creare l'ordine")),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Ordina materiale per l'assistenza</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("Ordina materiale per l'assistenza")}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">Fornitore *</Label>
+            <Label className="text-xs">{t("Fornitore *")}</Label>
             <Select value={supplierId} onValueChange={setSupplierId}>
-              <SelectTrigger><SelectValue placeholder="Scegli il fornitore" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("Scegli il fornitore")} /></SelectTrigger>
               <SelectContent>
                 {fornitori.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Cosa serve *</Label>
+            <Label className="text-xs">{t("Cosa serve *")}</Label>
             <Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)}
-                   placeholder="Es. maniglia cromata + cerniera anta" />
+                   placeholder={t("Es. maniglia cromata + cerniera anta")} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Arrivo previsto</Label>
+            <Label className="text-xs">{t("Arrivo previsto")}</Label>
             <Input type="date" value={attesa} onChange={(e) => setAttesa(e.target.value)} />
           </div>
           <p className="text-xs text-muted-foreground">
-            Viene creato un ordine fornitore in bozza collegato a questa assistenza
-            {orderId ? " e alla commessa" : ""}. L'assistenza passa in "attesa merce"
-            e il materiale è tracciato come ogni ordine (arrivo, magazzino).
+            {orderId ? t("Viene creato un ordine fornitore in bozza collegato a questa assistenza e alla commessa") : t("Viene creato un ordine fornitore in bozza collegato a questa assistenza")}{". "}{t("L'assistenza passa in \"attesa merce\" e il materiale è tracciato come ogni ordine (arrivo, magazzino).")}
           </p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
           <Button onClick={() => crea.mutate()} disabled={crea.isPending}>
             {crea.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-            Crea ordine
+            {t("Crea ordine")}
           </Button>
         </DialogFooter>
       </DialogContent>

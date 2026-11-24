@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { HrQueryError } from "@/components/hr/HrQueryError";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function fmt(d: string | null): string {
   if (!d) return "—";
@@ -39,6 +40,7 @@ interface Props { profiloId: string; companyId: string; }
 const EMPTY: Partial<HrDocumento> = { categoria: "contratto", alert_giorni_prima: 30 };
 
 export function HrDocumentiSection({ profiloId, companyId }: Props) {
+  const t = useT();
   const { data: docs = [], isLoading, isError, refetch } = useHrDocumenti(profiloId);
   const permissions = usePermissions();
   const canEdit = !permissions.isLoading && !permissions.solaLettura && (permissions.isAdmin || permissions.canViewPersone);
@@ -73,7 +75,7 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
       await upsert.mutateAsync(patch as any);
       setOpen(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore upload");
+      toast.error(e instanceof Error ? e.message : t("Errore upload"));
     } finally { setUploading(false); }
   };
 
@@ -81,7 +83,7 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
     if (!d.file_path) return;
     const url = await getHrFileUrl(d.file_path);
     if (url) window.open(url, "_blank");
-    else toast.error("File non disponibile");
+    else toast.error(t("File non disponibile"));
   };
 
   return (
@@ -89,17 +91,17 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
       <QualificheAddetto key={companyId+profiloId} companyId={companyId} tipo="hr" personaId={profiloId} />
       {/* Mobile: niente titolo (lo dice già la scheda), il bottone riempie la riga. */}
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-muted-foreground max-sm:hidden">DOCUMENTI & SCADENZE</h4>
-        <Button disabled={!canEdit || isError} size="sm" variant="outline" onClick={openNew} className="max-sm:flex-1"><Plus className="h-4 w-4 mr-1" />Aggiungi</Button>
+        <h4 className="text-sm font-semibold text-muted-foreground max-sm:hidden">{t("DOCUMENTI & SCADENZE")}</h4>
+        <Button disabled={!canEdit || isError} size="sm" variant="outline" onClick={openNew} className="max-sm:flex-1"><Plus className="h-4 w-4 mr-1" />{t("Aggiungi")}</Button>
       </div>
 
       {isLoading ? (
         <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-      ) : isError ? <HrQueryError label="Documenti della persona non disponibili" onRetry={refetch} /> : docs.length === 0 ? (
+      ) : isError ? <HrQueryError label={t("Documenti della persona non disponibili")} onRetry={refetch} /> : docs.length === 0 ? (
         <div className="text-center py-8 text-sm text-muted-foreground max-sm:py-2 max-sm:text-xs">
           <FileText className="h-8 w-8 mx-auto mb-2 opacity-40 max-sm:hidden" />
-          <span className="max-sm:hidden">Nessun documento. Carica contratto, visita medica, corsi sicurezza…</span>
-          <span className="sm:hidden">Nessun documento</span>
+          <span className="max-sm:hidden">{t("Nessun documento. Carica contratto, visita medica, corsi sicurezza…")}</span>
+          <span className="sm:hidden">{t("Nessun documento")}</span>
         </div>
       ) : (
         // Mobile: righe da ~52px (documento, scadenza, stato a destra); si tocca
@@ -117,49 +119,49 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap max-sm:flex-nowrap">
                     <span className="font-medium text-sm max-sm:truncate max-sm:text-[13px] max-sm:font-semibold max-sm:leading-tight">
-                      {categoriaLabel(d.categoria)}
+                      {t(categoriaLabel(d.categoria))}
                       {d.titolo && <span className="font-normal text-muted-foreground sm:hidden"> · {d.titolo}</span>}
                     </span>
                     {d.titolo && <span className="text-xs text-muted-foreground max-sm:hidden">· {d.titolo}</span>}
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${sb.cls} max-sm:hidden`}>{sb.label}</Badge>
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${sb.cls} max-sm:hidden`}>{t(sb.label)}</Badge>
                   </div>
                   <div className="text-xs text-muted-foreground mt-1 max-sm:mt-0.5 max-sm:truncate max-sm:text-[11px] max-sm:leading-tight">
-                    {d.data_scadenza ? <>Scadenza <b>{fmt(d.data_scadenza)}</b></> : "Senza scadenza"}
+                    {d.data_scadenza ? <>{t("Scadenza")} <b>{fmt(d.data_scadenza)}</b></> : t("Senza scadenza")}
                     <span className="max-sm:hidden">
-                      {d.data_rilascio && <> · rilascio {fmt(d.data_rilascio)}</>}
+                      {d.data_rilascio && <>{" "}{t("· rilascio {data_rilascio}", { data_rilascio: fmt(d.data_rilascio) })}</>}
                       {d.ente && <> · {d.ente}</>}
                     </span>
                   </div>
                 </div>
                 {/* Stato a parole (solo il colore del testo del badge); «Senza scadenza» lo dice già la riga sotto. */}
                 {stato !== "senza_scadenza" && (
-                  <span className={`shrink-0 text-[11px] font-medium sm:hidden ${sb.cls.split(" ").filter((c) => c.startsWith("text-")).join(" ")}`}>{sb.label}</span>
+                  <span className={`shrink-0 text-[11px] font-medium sm:hidden ${sb.cls.split(" ").filter((c) => c.startsWith("text-")).join(" ")}`}>{t(sb.label)}</span>
                 )}
                 <div className="flex items-center gap-1 shrink-0 max-sm:hidden">
                   {d.file_path && (
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => download(d)} title="Scarica">
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => download(d)} title={t("Scarica")}>
                       <Download className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button disabled={!canEdit} size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(d)} title="Modifica">
+                  <Button disabled={!canEdit} size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(d)} title={t("Modifica")}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button disabled={!canEdit} size="icon" variant="ghost" className="h-8 w-8 text-destructive" title="Elimina">
+                      <Button disabled={!canEdit} size="icon" variant="ghost" className="h-8 w-8 text-destructive" title={t("Elimina")}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Eliminare il documento?</AlertDialogTitle>
+                        <AlertDialogTitle>{t("Eliminare il documento?")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                          {categoriaLabel(d.categoria)}{d.titolo ? ` · ${d.titolo}` : ""}. L'operazione è irreversibile.
+                          {t("{documento}. L'operazione è irreversibile.", { documento: `${t(categoriaLabel(d.categoria))}${d.titolo ? ` · ${d.titolo}` : ""}` })}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Annulla</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => del.mutate(d)}>Elimina</AlertDialogAction>
+                        <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => del.mutate(d)}>{t("Elimina")}</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
@@ -174,54 +176,54 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
         {/* Mobile: categoria, titolo, date e file; ente, preavviso (resta quello
             della categoria) e note si compilano al computer. */}
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>{form.id ? "Modifica documento" : "Nuovo documento"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{form.id ? t("Modifica documento") : t("Nuovo documento")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Categoria</Label>
+              <Label>{t("Categoria")}</Label>
               <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={form.categoria ?? "contratto"} onChange={(e) => onCategoria(e.target.value)}>
-                {CATEGORIA_DOC.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                {CATEGORIA_DOC.map((c) => <option key={c.value} value={c.value}>{t(c.label)}</option>)}
               </UniformSelect>
             </div>
             <div>
-              <Label>Titolo / descrizione</Label>
-              <Input value={form.titolo ?? ""} onChange={(e) => set("titolo", e.target.value)} placeholder="es. Corso primo soccorso" />
+              <Label>{t("Titolo / descrizione")}</Label>
+              <Input value={form.titolo ?? ""} onChange={(e) => set("titolo", e.target.value)} placeholder={t("es. Corso primo soccorso")} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Data rilascio</Label>
+                <Label>{t("Data rilascio")}</Label>
                 <Input type="date" value={form.data_rilascio ?? ""} onChange={(e) => set("data_rilascio", e.target.value)} />
               </div>
               <div>
-                <Label>Data scadenza</Label>
+                <Label>{t("Data scadenza")}</Label>
                 <Input type="date" value={form.data_scadenza ?? ""} onChange={(e) => set("data_scadenza", e.target.value)} />
               </div>
               <div className="max-sm:hidden">
-                <Label>Ente / rilasciato da</Label>
+                <Label>{t("Ente / rilasciato da")}</Label>
                 <Input value={form.ente ?? ""} onChange={(e) => set("ente", e.target.value)} />
               </div>
               <div className="max-sm:hidden">
-                <Label>Avvisa giorni prima</Label>
+                <Label>{t("Avvisa giorni prima")}</Label>
                 <Input type="number" min={0} value={form.alert_giorni_prima ?? 30}
                   onChange={(e) => set("alert_giorni_prima", Number(e.target.value))} />
               </div>
             </div>
             <div>
-              <Label>File {form.file_name && <span className="text-xs text-muted-foreground">(attuale: {form.file_name})</span>}</Label>
+              <Label>{t("File")} {form.file_name && <span className="text-xs text-muted-foreground">{t("(attuale: {file_name})", { file_name: String(form.file_name ?? "") })}</span>}</Label>
               <div className="flex items-center gap-2">
                 <Paperclip className="h-4 w-4 text-muted-foreground shrink-0" />
                 <Input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
               </div>
             </div>
             <div className="max-sm:hidden">
-              <Label>Note</Label>
+              <Label>{t("Note")}</Label>
               <Textarea rows={2} value={form.note ?? ""} onChange={(e) => set("note", e.target.value)} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} className="max-sm:hidden">Annulla</Button>
+            <Button variant="outline" onClick={() => setOpen(false)} className="max-sm:hidden">{t("Annulla")}</Button>
             <Button onClick={save} disabled={!canEdit || uploading || upsert.isPending}>
-              {(uploading || upsert.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Salva
+              {(uploading || upsert.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{t("Salva")}
             </Button>
           </DialogFooter>
         </DialogContent>

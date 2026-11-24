@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLetturaBolleTelefono, useSalvaLetturaBolleTelefono, type LetturaBolleTelefono } from "@/hooks/useImpostazioniAcquisti";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MODI_BOLLE: Array<{ valore: LetturaBolleTelefono; titolo: string; descrizione: string }> = [
   {
@@ -25,6 +26,7 @@ const MODI_BOLLE: Array<{ valore: LetturaBolleTelefono; titolo: string; descrizi
 
 /** Bolle dal telefono: le legge subito l'AI o restano da leggere per l'ufficio. */
 export function BolleDalTelefono({ puoModificare }: { puoModificare: boolean }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const lettura = useLetturaBolleTelefono(effectiveCompany?.id);
   const salva = useSalvaLetturaBolleTelefono();
@@ -32,24 +34,24 @@ export function BolleDalTelefono({ puoModificare }: { puoModificare: boolean }) 
   return (
     <SezioneImpostazione
       id="bolle-telefono"
-      titolo="Letture automatiche: bolle dal telefono"
-      descrizione="Cosa succede quando un operaio fotografa una bolla dall'app cantiere. In ufficio l'interruttore «Leggi con l'AI» della bolla nuova parte come scegli qui, e si può cambiare bolla per bolla."
+      titolo={t("Letture automatiche: bolle dal telefono")}
+      descrizione={t("Cosa succede quando un operaio fotografa una bolla dall'app cantiere. In ufficio l'interruttore «Leggi con l'AI» della bolla nuova parte come scegli qui, e si può cambiare bolla per bolla.")}
     >
       <RadioGroup
         value={valore}
         onValueChange={(v) => { if (v !== valore) salva.mutate(v as LetturaBolleTelefono); }}
         disabled={!puoModificare || lettura.isLoading || salva.isPending}
         className="gap-0 divide-y"
-        aria-label="Bolle dal telefono: lettura AI"
+        aria-label={t("Bolle dal telefono: lettura AI")}
       >
         {MODI_BOLLE.map((m) => (
           <div key={m.valore} className="flex items-start gap-3 px-4 py-3">
             <RadioGroupItem value={m.valore} id={`bolle-telefono-${m.valore}`} className="mt-0.5" aria-describedby={`bolle-telefono-${m.valore}-descrizione`} />
             <div className="min-w-0">
               <Label htmlFor={`bolle-telefono-${m.valore}`} className="text-sm font-medium leading-snug">
-                {m.titolo}{m.valore === "ai_subito" && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(predefinito)</span>}
+                {t(m.titolo)}{m.valore === "ai_subito" && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{t("(predefinito)")}</span>}
               </Label>
-              <p id={`bolle-telefono-${m.valore}-descrizione`} className="mt-0.5 text-xs text-muted-foreground">{m.descrizione}</p>
+              <p id={`bolle-telefono-${m.valore}-descrizione`} className="mt-0.5 text-xs text-muted-foreground">{t(m.descrizione)}</p>
             </div>
           </div>
         ))}

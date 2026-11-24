@@ -15,8 +15,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-const eur = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+const eur = (n: number) => n.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" });
 
 export interface TicketCosti {
   assigned_to?: string | null;
@@ -33,6 +34,7 @@ export interface TicketCosti {
 export function TicketCostiCard({
   ticketId, ticket, companyId,
 }: { ticketId: string; ticket: TicketCosti; companyId: string }) {
+  const t = useT();
   const qc = useQueryClient();
   const [ore, setOre] = useState(
     (ticket.ore_effettive ?? ticket.durata_ore ?? "").toString(),
@@ -75,9 +77,9 @@ export function TicketCostiCard({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ticket", ticketId] });
-      toast.success("Costi aggiornati");
+      toast.success(t("Costi aggiornati"));
     },
-    onError: (e: Error) => toast.error(e.message || "Non sono riuscito a salvare i costi"),
+    onError: (e: Error) => toast.error(e.message || t("Non sono riuscito a salvare i costi")),
   });
 
   return (
@@ -85,22 +87,22 @@ export function TicketCostiCard({
       <CardContent className="space-y-3 p-4">
         <div className="flex items-center gap-2">
           <Calculator className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Costo dell'intervento</h3>
+          <h3 className="text-sm font-semibold">{t("Costo dell'intervento")}</h3>
         </div>
 
         <div className="grid grid-cols-3 gap-2">
           <div className="space-y-1.5">
-            <Label className="text-xs">Ore</Label>
+            <Label className="text-xs">{t("Ore")}</Label>
             <Input type="number" min="0" step="0.5" inputMode="decimal" className="h-9"
                    value={ore} onChange={(e) => setOre(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Trasferta €</Label>
+            <Label className="text-xs">{t("Trasferta €")}</Label>
             <Input type="number" min="0" step="0.01" inputMode="decimal" className="h-9"
                    value={trasferta} onChange={(e) => setTrasferta(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Materiale €</Label>
+            <Label className="text-xs">{t("Materiale €")}</Label>
             <Input type="number" min="0" step="0.01" inputMode="decimal" className="h-9"
                    value={materiale} onChange={(e) => setMateriale(e.target.value)} />
           </div>
@@ -109,46 +111,44 @@ export function TicketCostiCard({
         <div className="space-y-1 rounded-lg bg-muted/60 p-3 text-xs">
           <div className="flex justify-between">
             <span className="text-muted-foreground">
-              Manodopera {nOre ? `(${nOre} h × ${eur(Number(orario || 0))})` : ""}
+              {t("Manodopera")} {nOre ? `(${nOre} h × ${eur(Number(orario || 0))})` : ""}
             </span>
             <span className="font-medium">{eur(manodopera)}</span>
           </div>
           <div className="flex justify-between border-t border-border pt-1">
-            <span className="text-muted-foreground">Costo totale</span>
+            <span className="text-muted-foreground">{t("Costo totale")}</span>
             <span className="font-semibold">{eur(costoTotale)}</span>
           </div>
           {ticket.a_pagamento ? (
             <>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Incasso previsto</span>
+                <span className="text-muted-foreground">{t("Incasso previsto")}</span>
                 <span className="font-medium">{eur(ricavo)}</span>
               </div>
               <div className={`flex items-center justify-between border-t border-border pt-1 font-bold ${margine >= 0 ? "text-green-700" : "text-red-600"}`}>
                 <span className="flex items-center gap-1">
                   {margine >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                  Margine
+                  {t("Margine")}
                 </span>
                 <span>{eur(margine)}</span>
               </div>
             </>
           ) : (
             costoTotale > 0 && (
-              <p className="border-t border-border pt-1 text-amber-700">
-                Intervento in garanzia: {eur(costoTotale)} è costo a carico nostro.
-              </p>
+              <p className="border-t border-border pt-1 text-amber-700">{t("Intervento in garanzia: {costoTotale} è costo a carico nostro.", { costoTotale: String(eur(costoTotale) ?? "") })}</p>
             )
           )}
         </div>
 
         {!orario && ticket.assigned_to && (
           <p className="text-[11px] text-muted-foreground">
-            Il tecnico assegnato non ha un costo orario nella sua scheda: la manodopera resta a zero.
+            {t("Il tecnico assegnato non ha un costo orario nella sua scheda: la manodopera resta a zero.")}
           </p>
         )}
 
         <Button size="sm" variant="outline" className="w-full"
                 onClick={() => salva.mutate()} disabled={salva.isPending}>
-          {salva.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salva costi"}
+          {salva.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("Salva costi")}
         </Button>
       </CardContent>
     </Card>

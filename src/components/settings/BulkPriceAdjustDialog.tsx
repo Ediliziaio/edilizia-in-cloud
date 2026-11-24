@@ -26,6 +26,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TrendingUp, TrendingDown, AlertTriangle, ArrowRight, Percent, Euro } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface BulkPriceAdjustDialogProps {
   open: boolean;
@@ -43,6 +44,7 @@ interface BulkPriceAdjustDialogProps {
 export function BulkPriceAdjustDialog({
   open, onClose, items, isAdmin, companyId, onApplied, sogliaMinima = 15, speseGenerali = 0,
 }: BulkPriceAdjustDialogProps) {
+  const tr = useT();
   const queryClient = useQueryClient();
   const [target, setTarget] = useState<AdjustTarget>("vendita");
   const [mode, setMode] = useState<AdjustMode>("percent");
@@ -119,8 +121,8 @@ export function BulkPriceAdjustDialog({
 
   const mutation = useMutation({
     mutationFn: async (righe: typeof changed) => {
-      if (!companyId) throw new Error("Azienda non disponibile");
-      if (!isAdmin && righe.some(({res}) => res.changedCosto)) throw new Error("Non hai il permesso di modificare i costi.");
+      if (!companyId) throw new Error(tr("Azienda non disponibile"));
+      if (!isAdmin && righe.some(({res}) => res.changedCosto)) throw new Error(tr("Non hai il permesso di modificare i costi."));
       const completate = new Set(salvate);
       // Valori assoluti congelati dalla prima anteprima: il retry non ricalcola
       // il rincaro sulle righe già aggiornate, nemmeno dopo il refetch parziale.
@@ -145,7 +147,7 @@ export function BulkPriceAdjustDialog({
             .eq("id", t.id)
             .eq("company_id", companyId).select("id").single();
           if (error) throw error;
-          if (!data) throw new Error(`Voce non aggiornata: ${t.nome}. Verifica i permessi e riprova.`);
+          if (!data) throw new Error(tr("Voce non aggiornata: {nome}. Verifica i permessi e riprova.", { nome: t.nome }));
           completate.add(t.id);
           setSalvate(new Set(completate));
       }
@@ -153,13 +155,13 @@ export function BulkPriceAdjustDialog({
     },
     onSuccess: (count) => {
       invalidateAllTariffe(queryClient);
-      toast.success(`Prezzi aggiornati su ${count} ${count === 1 ? "voce" : "voci"}`);
+      toast.success(tr(count === 1 ? "Prezzi aggiornati su {n} voce" : "Prezzi aggiornati su {n} voci", { n: count }));
       onApplied();
       onClose();
     },
     onError: (err: unknown) => {
       invalidateAllTariffe(queryClient);
-      const testo = testoErrore(err, "Errore aggiornamento prezzi");
+      const testo = testoErrore(err, tr("Errore aggiornamento prezzi"));
       setErroreApplicazione(testo);
       toast.error(testo);
     },
@@ -174,17 +176,16 @@ export function BulkPriceAdjustDialog({
     <Dialog open={open} onOpenChange={(v) => !v && !mutation.isPending && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Adegua prezzi in blocco</DialogTitle>
+          <DialogTitle>{tr("Adegua prezzi in blocco")}</DialogTitle>
           <DialogDescription>
-            Applica un adeguamento a {numeroSelezionate} {numeroSelezionate === 1 ? "voce selezionata" : "voci selezionate"}.
-            L'anteprima mostra l'effetto prima di confermare.
+            {tr(numeroSelezionate === 1 ? "Applica un adeguamento a {n} voce selezionata. L'anteprima mostra l'effetto prima di confermare." : "Applica un adeguamento a {n} voci selezionate. L'anteprima mostra l'effetto prima di confermare.", { n: numeroSelezionate })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* Cosa adeguare */}
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Applica a</Label>
+            <Label className="text-xs text-muted-foreground">{tr("Applica a")}</Label>
             <ToggleGroup
               type="single"
               variant="outline"
@@ -195,16 +196,16 @@ export function BulkPriceAdjustDialog({
               className="justify-start flex-wrap gap-1"
             >
               <ToggleGroupItem value="vendita" className="data-[state=on]:bg-orange-100 data-[state=on]:text-orange-800">
-                Prezzo di vendita
+                {tr("Prezzo di vendita")}
               </ToggleGroupItem>
               {isAdmin && (
                 <ToggleGroupItem value="costo" className="data-[state=on]:bg-orange-100 data-[state=on]:text-orange-800">
-                  Costo interno
+                  {tr("Costo interno")}
                 </ToggleGroupItem>
               )}
               {isAdmin && (
                 <ToggleGroupItem value="entrambi" className="data-[state=on]:bg-orange-100 data-[state=on]:text-orange-800">
-                  Entrambi
+                  {tr("Entrambi")}
                 </ToggleGroupItem>
               )}
             </ToggleGroup>
@@ -213,7 +214,7 @@ export function BulkPriceAdjustDialog({
           {/* Direzione + importo + modalità */}
           <div className="grid grid-cols-[auto,1fr,auto] gap-2 items-end">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Direzione</Label>
+              <Label className="text-xs text-muted-foreground">{tr("Direzione")}</Label>
               <ToggleGroup
                 type="single"
                 variant="outline"
@@ -222,16 +223,16 @@ export function BulkPriceAdjustDialog({
                 disabled={parametriBloccati}
                 onValueChange={(v) => v && setDirection(v as "aumenta" | "diminuisci")}
               >
-                <ToggleGroupItem value="aumenta" aria-label="Aumenta" className="data-[state=on]:bg-emerald-100 data-[state=on]:text-emerald-800">
+                <ToggleGroupItem value="aumenta" aria-label={tr("Aumenta")} className="data-[state=on]:bg-emerald-100 data-[state=on]:text-emerald-800">
                   <TrendingUp className="h-4 w-4" />
                 </ToggleGroupItem>
-                <ToggleGroupItem value="diminuisci" aria-label="Diminuisci" className="data-[state=on]:bg-rose-100 data-[state=on]:text-rose-800">
+                <ToggleGroupItem value="diminuisci" aria-label={tr("Diminuisci")} className="data-[state=on]:bg-rose-100 data-[state=on]:text-rose-800">
                   <TrendingDown className="h-4 w-4" />
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="adjust-amount" className="text-xs text-muted-foreground">Valore</Label>
+              <Label htmlFor="adjust-amount" className="text-xs text-muted-foreground">{tr("Valore")}</Label>
               <div className="relative">
                 <Input
                   id="adjust-amount"
@@ -239,7 +240,7 @@ export function BulkPriceAdjustDialog({
                   value={amountStr}
                   disabled={parametriBloccati}
                   onChange={(e) => setAmountStr(e.target.value)}
-                  placeholder="es. 5"
+                  placeholder={tr("es. 5")}
                   className="pr-8"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
@@ -248,7 +249,7 @@ export function BulkPriceAdjustDialog({
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Tipo</Label>
+              <Label className="text-xs text-muted-foreground">{tr("Tipo")}</Label>
               <ToggleGroup
                 type="single"
                 variant="outline"
@@ -257,10 +258,10 @@ export function BulkPriceAdjustDialog({
                 disabled={parametriBloccati}
                 onValueChange={(v) => v && setMode(v as AdjustMode)}
               >
-                <ToggleGroupItem value="percent" aria-label="Percentuale">
+                <ToggleGroupItem value="percent" aria-label={tr("Percentuale")}>
                   <Percent className="h-4 w-4" />
                 </ToggleGroupItem>
-                <ToggleGroupItem value="fixed" aria-label="Importo fisso">
+                <ToggleGroupItem value="fixed" aria-label={tr("Importo fisso")}>
                   <Euro className="h-4 w-4" />
                 </ToggleGroupItem>
               </ToggleGroup>
@@ -269,15 +270,15 @@ export function BulkPriceAdjustDialog({
 
           {/* Arrotondamento */}
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Arrotonda il risultato</Label>
+            <Label className="text-xs text-muted-foreground">{tr("Arrotonda il risultato")}</Label>
             <Select disabled={parametriBloccati} value={round} onValueChange={(v) => setRound(v as RoundMode)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Mantieni la precisione (4 decimali)</SelectItem>
+                <SelectItem value="none">{tr("Mantieni la precisione (4 decimali)")}</SelectItem>
                 <SelectItem value="0.50">A 0,50 €</SelectItem>
-                <SelectItem value="1">All'intero (1 €)</SelectItem>
+                <SelectItem value="1">{tr("All'intero (1 €)")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -286,41 +287,39 @@ export function BulkPriceAdjustDialog({
           <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
             {amountValid ? (
               <span>
-                <span className="font-medium">{segnoLabel}{amountAbs}{unitLabel}</span> su{" "}
-                <span className="font-medium">{changed.length}</span> di {numeroSelezionate}{" "}
-                {numeroSelezionate === 1 ? "voce" : "voci"}
-                {changed.length === 0 && " — nessuna voce ha un valore da adeguare per questa scelta"}
+                <span className="font-medium">{segnoLabel}{amountAbs}{unitLabel}</span> {tr("su")}{" "}
+                <span className="font-medium">{changed.length}</span> {tr("di")} {numeroSelezionate}{" "}
+                {numeroSelezionate === 1 ? tr("voce") : tr("voci")}
+                {changed.length === 0 && ` — ${tr("nessuna voce ha un valore da adeguare per questa scelta")}`}
               </span>
             ) : ribassoTroppo ? (
-              <span className="text-muted-foreground">Un ribasso deve stare sotto il 100%: oltre, i prezzi andrebbero a zero</span>
+              <span className="text-muted-foreground">{tr("Un ribasso deve stare sotto il 100%: oltre, i prezzi andrebbero a zero")}</span>
             ) : (
-              <span className="text-muted-foreground">Inserisci un valore maggiore di zero</span>
+              <span className="text-muted-foreground">{tr("Inserisci un valore maggiore di zero")}</span>
             )}
           </div>
 
-          {fuoriLimite && <Alert variant="destructive"><AlertDescription>Il risultato supera il limite di importo di una tariffa. Riduci l’adeguamento.</AlertDescription></Alert>}
-          {erroreApplicazione && <Alert variant="destructive"><AlertDescription>{salvate.size} di {changed.length} voci aggiornate. {erroreApplicazione} Riprova per completare le {rimanenti.length} voci rimaste con i prezzi dell’anteprima.</AlertDescription></Alert>}
+          {fuoriLimite && <Alert variant="destructive"><AlertDescription>{tr("Il risultato supera il limite di importo di una tariffa. Riduci l’adeguamento.")}</AlertDescription></Alert>}
+          {erroreApplicazione && <Alert variant="destructive"><AlertDescription>{tr("{size} di {n} voci aggiornate. {erroreApplicazione} Riprova per completare le {n2} voci rimaste con i prezzi dell’anteprima.", { size: String(salvate.size ?? ""), n: changed.length, erroreApplicazione: String(erroreApplicazione ?? ""), n2: rimanenti.length })}</AlertDescription></Alert>}
           {sottocostoCount > 0 && (
             <Alert variant="destructive" className="py-2">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                {sottocostoCount} {sottocostoCount === 1 ? "voce andrebbe" : "voci andrebbero"} sottocosto
-                (prezzo di vendita inferiore al costo). Controlla l'anteprima.
+                {tr(sottocostoCount === 1 ? "{n} voce andrebbe sottocosto (prezzo di vendita inferiore al costo). Controlla l'anteprima." : "{n} voci andrebbero sottocosto (prezzo di vendita inferiore al costo). Controlla l'anteprima.", { n: sottocostoCount })}
               </AlertDescription>
             </Alert>
           )}
 
           {diventanoLibere > 0 && (
             <p className="text-xs text-amber-700">
-              {diventanoLibere} {diventanoLibere === 1 ? "voce con prezzo dal costo diventa" : "voci con prezzo dal costo diventano"} a
-              prezzo libero: il prezzo non seguirà più il costo.
+              {tr(diventanoLibere === 1 ? "{n} voce con prezzo dal costo diventa a prezzo libero: il prezzo non seguirà più il costo." : "{n} voci con prezzo dal costo diventano a prezzo libero: il prezzo non seguirà più il costo.", { n: diventanoLibere })}
             </p>
           )}
 
           {/* Anteprima */}
           {amountValid && changed.length > 0 && (
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Anteprima</Label>
+              <Label className="text-xs text-muted-foreground">{tr("Anteprima")}</Label>
               <ScrollArea className="h-44 rounded-md border">
                 <div className="divide-y">
                   {changed.map(({ t, res }) => {
@@ -332,14 +331,14 @@ export function BulkPriceAdjustDialog({
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs">
                           {res.changedVendita && (
                             <span className="inline-flex items-center gap-1 text-muted-foreground">
-                              Vendita: {formatCurrency(t.prezzo_vendita ?? 0)}
+                              {tr("Vendita:")} {formatCurrency(t.prezzo_vendita ?? 0)}
                               <ArrowRight className="h-3 w-3" />
                               <span className="font-medium text-foreground">{formatCurrency(res.prezzo_vendita ?? 0)}</span>
                             </span>
                           )}
                           {res.changedCosto && (
                             <span className="inline-flex items-center gap-1 text-muted-foreground">
-                              Costo: {formatCurrency(costoTariffaConosciuto(t) ?? 0)}
+                              {tr("Costo:")} {formatCurrency(costoTariffaConosciuto(t) ?? 0)}
                               <ArrowRight className="h-3 w-3" />
                               <span className="font-medium text-foreground">{formatCurrency(res.costo_interno ?? 0)}</span>
                             </span>
@@ -349,9 +348,7 @@ export function BulkPriceAdjustDialog({
                               variant="outline"
                               title={sem.label}
                               className={sem.text}
-                            >
-                              margine {m.toFixed(1)}%
-                            </Badge>
+                            >{tr("margine {m}%", { m: m.toFixed(1) })}</Badge>
                           )}
                         </div>
                       </div>
@@ -365,14 +362,14 @@ export function BulkPriceAdjustDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
-            Annulla
+            {tr("Annulla")}
           </Button>
           <Button
             onClick={() => { const operazione = piano ?? { righe: changed, totale: items.length }; setPiano(operazione); setErroreApplicazione(null); mutation.mutate(operazione.righe); }}
             disabled={!canApply || mutation.isPending}
             className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white"
           >
-            {mutation.isPending ? `Applico… ${salvate.size}/${changed.length}` : `${piano ? (rimanenti.length === 1 ? "Riprova sulla" : "Riprova sulle") : "Applica a"} ${rimanenti.length} ${rimanenti.length === 1 ? "voce" : "voci"}`}
+            {mutation.isPending ? tr("Applico… {size}/{n}", { size: String(salvate.size ?? ""), n: changed.length }) : tr(piano ? (rimanenti.length === 1 ? "Riprova sulla {n} voce" : "Riprova sulle {n} voci") : (rimanenti.length === 1 ? "Applica a {n} voce" : "Applica a {n} voci"), { n: rimanenti.length })}
           </Button>
         </DialogFooter>
       </DialogContent>

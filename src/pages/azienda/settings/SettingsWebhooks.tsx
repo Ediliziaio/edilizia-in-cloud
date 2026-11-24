@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type ValidatedWebhookUrl = { ok: true; url: string } | { ok: false; message: string };
 
@@ -105,6 +106,7 @@ function WebhookFormDialog({
   companyId: string;
   canManage: boolean;
 }) {
+  const t = useT();
   const { toast } = useToast();
   const createMutation = useCreateWebhook(companyId);
   const updateMutation = useUpdateWebhook(companyId);
@@ -146,12 +148,12 @@ function WebhookFormDialog({
   const handleTest = async () => {
     if (busy) return;
     if (!canManage) {
-      toast({ title: "Non puoi farlo", description: "Per mandare una prova serve il permesso «Integrazioni & Canali» in modifica.", variant: "destructive" });
+      toast({ title: t("Non puoi farlo"), description: t("Per mandare una prova serve il permesso «Integrazioni & Canali» in modifica."), variant: "destructive" });
       return;
     }
     const validatedUrl = validateWebhookUrl(url);
     if (validatedUrl.ok === false) {
-      toast({ title: "Indirizzo non valido", description: validatedUrl.message, variant: "destructive" });
+      toast({ title: t("Indirizzo non valido"), description: t(validatedUrl.message), variant: "destructive" });
       return;
     }
     setTesting(true);
@@ -169,7 +171,7 @@ function WebhookFormDialog({
         },
       });
       if (error) {
-        let message = error.message || "Invio non riuscito";
+        let message = error.message || t("Invio non riuscito");
         try {
           const context: unknown = error.context;
           if (context instanceof Response) {
@@ -189,22 +191,22 @@ function WebhookFormDialog({
   const handleSave = async () => {
     if (busy) return;
     if (!canManage) {
-      toast({ title: "Non puoi farlo", description: "Per salvare un webhook serve il permesso «Integrazioni & Canali» in modifica.", variant: "destructive" });
+      toast({ title: t("Non puoi farlo"), description: t("Per salvare un webhook serve il permesso «Integrazioni & Canali» in modifica."), variant: "destructive" });
       return;
     }
     const trimmedName = name.trim();
     const normalizedEvents = Array.from(new Set(selectedEvents)).filter((event) => allEvents.includes(event));
     if (!trimmedName || !url || normalizedEvents.length === 0) {
-      toast({ title: "Manca qualcosa", description: "Scrivi il nome e l'indirizzo e scegli almeno un evento.", variant: "destructive" });
+      toast({ title: t("Manca qualcosa"), description: t("Scrivi il nome e l'indirizzo e scegli almeno un evento."), variant: "destructive" });
       return;
     }
     if (trimmedName.length < 3 || trimmedName.length > 100) {
-      toast({ title: "Nome non valido", description: "Il nome deve avere da 3 a 100 caratteri.", variant: "destructive" });
+      toast({ title: t("Nome non valido"), description: t("Il nome deve avere da 3 a 100 caratteri."), variant: "destructive" });
       return;
     }
     const validatedUrl = validateWebhookUrl(url);
     if (validatedUrl.ok === false) {
-      toast({ title: "Indirizzo non valido", description: validatedUrl.message, variant: "destructive" });
+      toast({ title: t("Indirizzo non valido"), description: t(validatedUrl.message), variant: "destructive" });
       return;
     }
 
@@ -225,12 +227,12 @@ function WebhookFormDialog({
       } else {
         await createMutation.mutateAsync({ ...basePayload, secret: secret.trim() || null });
       }
-      toast({ title: webhook ? "Webhook aggiornato" : "Webhook creato" });
+      toast({ title: webhook ? t("Webhook aggiornato") : t("Webhook creato") });
       onOpenChange(false);
     } catch (e) {
       toast({
-        title: "Non sono riuscito a salvare",
-        description: userErrorMessage(e, "Non sono riuscito a salvare il webhook. Riprova."),
+        title: t("Non sono riuscito a salvare"),
+        description: userErrorMessage(e, t("Non sono riuscito a salvare il webhook. Riprova.")),
         variant: "destructive",
       });
     }
@@ -240,59 +242,58 @@ function WebhookFormDialog({
     <Dialog open={open} onOpenChange={(next) => { if (next || (!busy && confermaUscita())) onOpenChange(next); }}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{webhook ? "Modifica webhook" : "Nuovo webhook"}</DialogTitle>
+          <DialogTitle>{webhook ? t("Modifica webhook") : t("Nuovo webhook")}</DialogTitle>
           <DialogDescription>
-            Scrivi l'indirizzo dell'altro programma che deve ricevere l'avviso e scegli per quali eventi.
+            {t("Scrivi l'indirizzo dell'altro programma che deve ricevere l'avviso e scegli per quali eventi.")}
           </DialogDescription>
         </DialogHeader>
 
         <fieldset disabled={busy || !canManage} className="min-w-0 space-y-5 py-2">
           {/* Name */}
           <div className="space-y-2">
-            <Label htmlFor="webhook-name">Nome *</Label>
-            <Input id="webhook-name" placeholder="Es. Notifica CRM" value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} />
+            <Label htmlFor="webhook-name">{t("Nome *")}</Label>
+            <Input id="webhook-name" placeholder={t("Es. Notifica CRM")} value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} />
           </div>
 
           {/* URL */}
           <div className="space-y-2">
-            <Label htmlFor="webhook-url">Indirizzo a cui mandare l'avviso *</Label>
+            <Label htmlFor="webhook-url">{t("Indirizzo a cui mandare l'avviso *")}</Label>
             <div className="flex gap-2">
               <Input id="webhook-url" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} className="min-w-0 flex-1" disabled={!canManage} />
               <Button variant="outline" size="sm" onClick={handleTest} disabled={!url || testing || !canManage}>
                 {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                <span className="ml-1">Prova</span>
+                <span className="ml-1">{t("Prova")}</span>
               </Button>
             </div>
             {testResult && (
               <div className={`flex items-center gap-2 text-sm ${testResult.status === "success" ? "text-green-600" : "text-destructive"}`}>
                 {testResult.status === "success" ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
                 {testResult.status === "success"
-                  ? `Risposta ricevuta: HTTP ${testResult.http_status}`
-                  : `Test fallito${testResult.http_status ? ` (HTTP ${testResult.http_status})` : ""}`}
+                  ? t("Risposta ricevuta: HTTP {http_status}", { http_status: String(testResult.http_status ?? "") })
+                  : testResult.http_status ? t("Test fallito (HTTP {http_status})", { http_status: testResult.http_status }) : t("Test fallito")}
               </div>
             )}
           </div>
 
           {/* Secret */}
           <div className="space-y-2">
-            <Label htmlFor="webhook-secret">Chiave di firma (facoltativa)</Label>
+            <Label htmlFor="webhook-secret">{t("Chiave di firma (facoltativa)")}</Label>
             <div className="flex gap-2">
               <Input
                 id="webhook-secret"
-                placeholder={webhook ? "Lascia vuoto per tenere la chiave di prima" : "Chiave di firma"}
+                placeholder={webhook ? t("Lascia vuoto per tenere la chiave di prima") : t("Chiave di firma")}
                 value={secret}
                 onChange={(e) => setSecret(e.target.value)}
                 className="flex-1 font-mono text-sm"
                 disabled={!canManage}
               />
               <Button variant="outline" size="sm" onClick={generateSecret} disabled={!canManage}>
-                <RefreshCw className="h-4 w-4 mr-1" />Genera
+                <RefreshCw className="h-4 w-4 mr-1" />{t("Genera")}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Se la imposti, ogni avviso porta una firma (intestazione X-Webhook-Signature) con cui l'altro programma
-              controlla che arriva da noi.
-              {webhook ? " La chiave salvata non si vede più." : ""}
+              {t("Se la imposti, ogni avviso porta una firma (intestazione X-Webhook-Signature) con cui l'altro programma controlla che arriva da noi.")}
+              {webhook ? ` ${t("La chiave salvata non si vede più.")}` : ""}
             </p>
           </div>
 
@@ -301,14 +302,13 @@ function WebhookFormDialog({
           {/* Events */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label>Eventi *</Label>
+              <Label>{t("Eventi *")}</Label>
               <Button variant="ghost" size="sm" onClick={() => toggleGroup(allEvents, !allSelected)} disabled={!canManage}>
-                {allSelected ? "Deseleziona tutti" : "Seleziona tutti"}
+                {allSelected ? t("Deseleziona tutti") : t("Seleziona tutti")}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              La scelta si salva, ma oggi nessuno di questi eventi manda un avviso da solo: l'unico che parte è quello
-              del pulsante «Prova» qui sopra.
+              {t("La scelta si salva, ma oggi nessuno di questi eventi manda un avviso da solo: l'unico che parte è quello del pulsante «Prova» qui sopra.")}
             </p>
             {Object.entries(WEBHOOK_EVENTS).map(([group, events]) => {
               const groupSelected = events.filter((e) => selectedEvents.includes(e)).length;
@@ -316,14 +316,14 @@ function WebhookFormDialog({
               return (
                 <div key={group} className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Checkbox aria-label={`Tutti gli eventi ${group}`} checked={allGroupSelected} onCheckedChange={(v) => toggleGroup(events, !!v)} disabled={!canManage} />
+                    <Checkbox aria-label={t("Tutti gli eventi {group}", { group: String(group ?? "") })} checked={allGroupSelected} onCheckedChange={(v) => toggleGroup(events, !!v)} disabled={!canManage} />
                     <span className="font-medium text-sm">{group}</span>
                     <Badge variant="secondary" className="text-xs">{groupSelected}/{events.length}</Badge>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-6">
                     {events.map((evt) => (
                       <div key={evt} className="flex items-center gap-2">
-                        <Checkbox aria-label={`Evento ${evt}`} checked={selectedEvents.includes(evt)} onCheckedChange={() => toggleEvent(evt)} disabled={!canManage} />
+                        <Checkbox aria-label={t("Evento {evt}", { evt: String(evt ?? "") })} checked={selectedEvents.includes(evt)} onCheckedChange={() => toggleEvent(evt)} disabled={!canManage} />
                         <span className="min-w-0 break-words text-sm text-muted-foreground">{evt}</span>
                       </div>
                     ))}
@@ -335,10 +335,10 @@ function WebhookFormDialog({
         </fieldset>
 
         <DialogFooter>
-          <Button variant="outline" disabled={busy} onClick={() => { if (confermaUscita()) onOpenChange(false); }}>Annulla</Button>
+          <Button variant="outline" disabled={busy} onClick={() => { if (confermaUscita()) onOpenChange(false); }}>{t("Annulla")}</Button>
           <Button onClick={handleSave} disabled={!canManage || busy || !name.trim() || !url.trim() || selectedEvents.length === 0}>
             {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            {webhook ? "Salva modifiche" : "Crea webhook"}
+            {webhook ? t("Salva modifiche") : t("Crea webhook")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -360,6 +360,7 @@ function WebhookHealthIndicator({
   onDisable: () => void;
   canManage: boolean;
 }) {
+  const t = useT();
   const { data: deliveries = [] } = useWebhookDeliveries(
     webhook.is_active ? webhook.id : null
   );
@@ -376,12 +377,9 @@ function WebhookHealthIndicator({
       <div className="flex items-start gap-2">
         <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
         <div className="flex-1 text-xs">
-          <p className="font-medium text-destructive">
-            L'indirizzo sembra non rispondere: {recent.length} invii falliti di fila
-          </p>
+          <p className="font-medium text-destructive">{t("L'indirizzo sembra non rispondere: {n} invii falliti di fila", { n: recent.length })}</p>
           <p className="text-destructive/80 mt-0.5">
-            Controlla l'indirizzo prima di ripetere gli invii. I tentativi sono automatici; dopo troppi
-            fallimenti consecutivi il webhook viene messo in pausa.
+            {t("Controlla l'indirizzo prima di ripetere gli invii. I tentativi sono automatici; dopo troppi fallimenti consecutivi il webhook viene messo in pausa.")}
           </p>
           <Button
             variant="outline"
@@ -390,7 +388,7 @@ function WebhookHealthIndicator({
             onClick={onDisable}
             disabled={!canManage}
           >
-            Metti in pausa
+            {t("Metti in pausa")}
           </Button>
         </div>
       </div>
@@ -410,6 +408,7 @@ function DeliveriesSheet({
   webhook: Webhook | null;
   canManage: boolean;
 }) {
+  const t = useT();
   const { data: deliveries = [], isLoading, isError, refetch } = useWebhookDeliveries(open ? webhook?.id ?? null : null, open);
   const retryMutation = useRetryDelivery(webhook?.id ?? null);
   const { toast } = useToast();
@@ -436,10 +435,10 @@ function DeliveriesSheet({
   const hasMore = visibleCount < deliveries.length;
 
   const statusConfig: Record<string, { label: string; className: string; icon: typeof CheckCircle2 }> = {
-    success:  { label: "Successo",  className: "text-green-600 bg-green-100 dark:bg-green-950/30 dark:text-green-400",  icon: CheckCircle2 },
-    failed:   { label: "Fallito",   className: "text-destructive bg-red-100 dark:bg-red-950/30 dark:text-red-400",  icon: XCircle },
-    pending:  { label: "In attesa", className: "text-yellow-600 bg-yellow-100 dark:bg-yellow-950/30 dark:text-yellow-400", icon: Clock },
-    retrying: { label: "Nuovo tentativo", className: "text-blue-600 bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400",    icon: RotateCcw },
+    success:  { label: t("Successo"),  className: "text-green-600 bg-green-100 dark:bg-green-950/30 dark:text-green-400",  icon: CheckCircle2 },
+    failed:   { label: t("Fallito"),   className: "text-destructive bg-red-100 dark:bg-red-950/30 dark:text-red-400",  icon: XCircle },
+    pending:  { label: t("In attesa"), className: "text-yellow-600 bg-yellow-100 dark:bg-yellow-950/30 dark:text-yellow-400", icon: Clock },
+    retrying: { label: t("Nuovo tentativo"), className: "text-blue-600 bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400",    icon: RotateCcw },
   };
 
   return (
@@ -448,24 +447,24 @@ function DeliveriesSheet({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
-            Invii — {webhook?.name}
+            {t("Invii —")} {webhook?.name}
           </SheetTitle>
-          <SheetDescription>Gli ultimi 100 invii di questo webhook.</SheetDescription>
+          <SheetDescription>{t("Gli ultimi 100 invii di questo webhook.")}</SheetDescription>
         </SheetHeader>
 
         {/* KPI statistiche */}
         {!isLoading && !isError && deliveries.length > 0 && (
           <div className="grid grid-cols-3 gap-2 mt-4 p-3 rounded-lg bg-muted/30 border">
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Totali</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Totali")}</p>
               <p className="text-lg font-bold tabular-nums">{stats.total}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Successi</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Successi")}</p>
               <p className="text-lg font-bold tabular-nums text-emerald-600">{stats.success}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Riusciti</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("Riusciti")}</p>
               <p className={cn(
                 "text-lg font-bold tabular-nums",
                 stats.successRate != null && stats.successRate >= 95 ? "text-emerald-600"
@@ -479,13 +478,13 @@ function DeliveriesSheet({
         )}
 
         <div className="mt-4 space-y-3">
-          {isError ? <Alert variant="destructive"><AlertDescription>Invii non disponibili.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova invii</Button></AlertDescription></Alert> : isLoading ? (
+          {isError ? <Alert variant="destructive"><AlertDescription>{t("Invii non disponibili.")}<Button size="sm" variant="outline" onClick={() => refetch()}>{t("Riprova invii")}</Button></AlertDescription></Alert> : isLoading ? (
             Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)
           ) : deliveries.length === 0 ? (
             <div className="text-center py-12">
               <Activity className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
-              <p className="font-medium">Nessun invio ancora</p>
-              <p className="text-xs text-muted-foreground mt-1">Qui compaiono gli eventi aziendali. L'esito della Prova resta nel modulo di configurazione.</p>
+              <p className="font-medium">{t("Nessun invio ancora")}</p>
+              <p className="text-xs text-muted-foreground mt-1">{t("Qui compaiono gli eventi aziendali. L'esito della Prova resta nel modulo di configurazione.")}</p>
             </div>
           ) : (
             visibleDeliveries.map((d) => {
@@ -496,11 +495,11 @@ function DeliveriesSheet({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant="outline" className={cfg.className}>
-                        <Icon className="h-3 w-3 mr-1" />{d.status === "retrying" ? (d.lease_until && new Date(d.lease_until).getTime() > now ? "Invio in corso" : "Nuovo tentativo programmato") : cfg.label}
+                        <Icon className="h-3 w-3 mr-1" />{d.status === "retrying" ? (d.lease_until && new Date(d.lease_until).getTime() > now ? t("Invio in corso") : t("Nuovo tentativo programmato")) : cfg.label}
                       </Badge>
                       <span className="text-sm font-medium">{d.event_type}</span>
                       {d.http_status && <Badge variant="secondary">HTTP {d.http_status}</Badge>}
-                      {d.duration_ms != null && <span className="text-xs text-muted-foreground">{d.duration_ms}ms</span>}
+                      {d.duration_ms != null && <span className="text-xs text-muted-foreground">{t("{duration_ms}ms", { duration_ms: String(d.duration_ms ?? "") })}</span>}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{formatRelativeTime(d.created_at)}</span>
@@ -511,11 +510,11 @@ function DeliveriesSheet({
                           onClick={async () => {
                             try {
                               await retryMutation.mutateAsync(d.id);
-                              toast({ title: "Invio rimesso in coda" });
+                              toast({ title: t("Invio rimesso in coda") });
                             } catch (e) {
                               toast({
-                                title: "Non sono riuscito a ripetere l'invio",
-                                description: userErrorMessage(e, "Riprova tra poco."),
+                                title: t("Non sono riuscito a ripetere l'invio"),
+                                description: userErrorMessage(e, t("Riprova tra poco.")),
                                 variant: "destructive",
                               });
                             }
@@ -527,7 +526,7 @@ function DeliveriesSheet({
                           ) : (
                             <RotateCcw className="h-3 w-3 mr-1" />
                           )}
-                          Riprova
+                          {t("Riprova")}
                         </Button>
                       )}
                     </div>
@@ -549,9 +548,7 @@ function DeliveriesSheet({
                 variant="outline"
                 size="sm"
                 onClick={() => setVisibleCount((n) => n + 20)}
-              >
-                Carica altri {Math.min(20, deliveries.length - visibleCount)}
-              </Button>
+              >{t("Carica altri {valore}", { valore: Math.min(20, deliveries.length - visibleCount) })}</Button>
             </div>
           )}
         </div>
@@ -562,6 +559,7 @@ function DeliveriesSheet({
 
 // ===== SettingsWebhooks (main page) =====
 export default function SettingsWebhooks() {
+  const t = useT();
   const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const { toast } = useToast();
@@ -586,16 +584,16 @@ export default function SettingsWebhooks() {
 
   const handleDelete = async (id: string) => {
     if (!canManageWebhooks) {
-      toast({ title: "Non puoi farlo", description: "Per eliminare un webhook serve il permesso «Integrazioni & Canali» in modifica.", variant: "destructive" });
+      toast({ title: t("Non puoi farlo"), description: t("Per eliminare un webhook serve il permesso «Integrazioni & Canali» in modifica."), variant: "destructive" });
       return;
     }
     try {
       await deleteMutation.mutateAsync(id);
-      toast({ title: "Webhook eliminato" });
+      toast({ title: t("Webhook eliminato") });
     } catch (e) {
       toast({
-        title: "Non sono riuscito a eliminarlo",
-        description: userErrorMessage(e, "Riprova tra poco."),
+        title: t("Non sono riuscito a eliminarlo"),
+        description: userErrorMessage(e, t("Riprova tra poco.")),
         variant: "destructive",
       });
     }
@@ -603,15 +601,15 @@ export default function SettingsWebhooks() {
 
   const handleToggleActive = async (w: Webhook) => {
     if (!canManageWebhooks) {
-      toast({ title: "Non puoi farlo", description: "Per modificare un webhook serve il permesso «Integrazioni & Canali» in modifica.", variant: "destructive" });
+      toast({ title: t("Non puoi farlo"), description: t("Per modificare un webhook serve il permesso «Integrazioni & Canali» in modifica."), variant: "destructive" });
       return;
     }
     try {
       await updateMutation.mutateAsync({ id: w.id, is_active: !w.is_active });
     } catch (e) {
       toast({
-        title: "Non sono riuscito ad aggiornarlo",
-        description: userErrorMessage(e, "Riprova tra poco."),
+        title: t("Non sono riuscito ad aggiornarlo"),
+        description: userErrorMessage(e, t("Riprova tra poco.")),
         variant: "destructive",
       });
     }
@@ -626,11 +624,9 @@ export default function SettingsWebhooks() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <p className="font-medium">Gli eventi scelti vengono inviati automaticamente.</p>
+          <p className="font-medium">{t("Gli eventi scelti vengono inviati automaticamente.")}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Gli avvisi entrano in coda e vengono consegnati agli indirizzi attivi. In caso di errore, il gestionale
-            riprova dopo 5, 15 e 60 minuti. Ogni evento conserva lo stesso identificativo: il servizio ricevente deve
-            usarlo per scartare gli eventi già elaborati. La «Prova» non genera eventi aziendali.
+            {t("Gli avvisi entrano in coda e vengono consegnati agli indirizzi attivi. In caso di errore, il gestionale riprova dopo 5, 15 e 60 minuti. Ogni evento conserva lo stesso identificativo: il servizio ricevente deve usarlo per scartare gli eventi già elaborati. La «Prova» non genera eventi aziendali.")}
           </p>
         </AlertDescription>
       </Alert>
@@ -638,11 +634,11 @@ export default function SettingsWebhooks() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           {webhooks.length > 0
-            ? <><span className="font-medium text-foreground">{activeCount}</span> attivi su {webhooks.length}</>
-            : "Nessun webhook"}
+            ? <><span className="font-medium text-foreground">{activeCount}</span> {t("attivi su")} {webhooks.length}</>
+            : t("Nessun webhook")}
         </p>
         <Button onClick={openCreate} className="h-9 self-start" size="sm" disabled={!canManageWebhooks || isLoading || isError}>
-          <Plus className="h-4 w-4 mr-2" />Crea Webhook
+          <Plus className="h-4 w-4 mr-2" />{t("Crea Webhook")}
         </Button>
       </div>
 
@@ -650,13 +646,12 @@ export default function SettingsWebhooks() {
         <Alert>
           <ShieldCheck className="h-4 w-4" />
           <AlertDescription>
-            Stai solo consultando: per modificare, mandare prove o ripetere invii serve il permesso «Integrazioni &amp;
-            Canali» in modifica (o essere amministratore).
+            {t("Stai solo consultando: per modificare, mandare prove o ripetere invii serve il permesso «Integrazioni & Canali» in modifica (o essere amministratore).")}
           </AlertDescription>
         </Alert>
       )}
 
-      {isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2">Impossibile caricare i webhook. L'elenco non è vuoto: non è disponibile.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert> : isLoading ? (
+      {isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2">{t("Impossibile caricare i webhook. L'elenco non è vuoto: non è disponibile.")}<Button size="sm" variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button></AlertDescription></Alert> : isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
         </div>
@@ -666,11 +661,11 @@ export default function SettingsWebhooks() {
             <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mb-4">
               <WebhookIcon className="h-7 w-7 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold">Nessun webhook configurato</h3>
+            <h3 className="text-lg font-semibold">{t("Nessun webhook configurato")}</h3>
             <p className="text-muted-foreground text-sm mb-4 text-center max-w-md">
-              Crea un webhook e scegli gli eventi da inviare automaticamente al tuo servizio.
+              {t("Crea un webhook e scegli gli eventi da inviare automaticamente al tuo servizio.")}
             </p>
-            <Button onClick={openCreate} disabled={!canManageWebhooks}><Plus className="h-4 w-4 mr-2" />Crea il primo webhook</Button>
+            <Button onClick={openCreate} disabled={!canManageWebhooks}><Plus className="h-4 w-4 mr-2" />{t("Crea il primo webhook")}</Button>
           </CardContent>
         </Card>
       ) : (
@@ -702,25 +697,23 @@ export default function SettingsWebhooks() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold truncate">{w.name}</h3>
                           {!w.is_active && (
-                            <Badge variant="outline" className="text-[10px] text-muted-foreground">In pausa</Badge>
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground">{t("In pausa")}</Badge>
                           )}
                           {hasFailures && (
-                            <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50">
-                              {w.consecutive_failures} errori
-                            </Badge>
+                            <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50">{t("{n} errori", { n: String(w.consecutive_failures ?? "") })}</Badge>
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground truncate font-mono">{w.url}</p>
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                           <Badge variant="secondary" className="text-[10px] gap-1">
-                            <Zap className="h-2.5 w-2.5" /> {w.events.length} event{w.events.length === 1 ? "o" : "i"}
+                            <Zap className="h-2.5 w-2.5" /> {w.events.length} {t("event")}{w.events.length === 1 ? "o" : "i"}
                           </Badge>
                           {w.secret && (
                             <Badge variant="outline" className="text-[10px] gap-1 text-emerald-700 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30">
-                              <ShieldCheck className="h-2.5 w-2.5" /> Con firma
+                              <ShieldCheck className="h-2.5 w-2.5" /> {t("Con firma")}
                             </Badge>
                           )}
-                          <span className="text-[10px] text-muted-foreground">Creato {formatRelativeTime(w.created_at)}</span>
+                          <span className="text-[10px] text-muted-foreground">{t("Creato {created_at}", { created_at: formatRelativeTime(w.created_at) })}</span>
                         </div>
                       </div>
                     </div>
@@ -728,40 +721,40 @@ export default function SettingsWebhooks() {
                     <div className="flex items-center justify-end gap-1 shrink-0">
                       <Switch
                         checked={w.is_active}
-                        aria-label={`Attiva il webhook ${w.name}`}
+                        aria-label={t("Attiva il webhook {name}", { name: String(w.name ?? "") })}
                         onCheckedChange={() => handleToggleActive(w)}
                         disabled={!canManageWebhooks || updateMutation.isPending}
                       />
-                      <Button variant="ghost" size="icon" onClick={() => openLogs(w)} title="Invii" aria-label={`Invii di ${w.name}`} className="h-11 w-11 sm:h-8 sm:w-8">
+                      <Button variant="ghost" size="icon" onClick={() => openLogs(w)} title={t("Invii")} aria-label={t("Invii di {name}", { name: String(w.name ?? "") })} className="h-11 w-11 sm:h-8 sm:w-8">
                         <Activity className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(w)} title="Modifica" aria-label={`Modifica ${w.name}`} className="h-11 w-11 sm:h-8 sm:w-8" disabled={!canManageWebhooks}>
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(w)} title={t("Modifica")} aria-label={t("Modifica {nome}", { nome: String(w.name ?? "") })} className="h-11 w-11 sm:h-8 sm:w-8" disabled={!canManageWebhooks}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" title="Elimina" aria-label={`Elimina ${w.name}`} className="h-11 w-11 sm:h-8 sm:w-8 text-destructive hover:text-destructive hover:bg-destructive/10" disabled={!canManageWebhooks}>
+                          <Button variant="ghost" size="icon" title={t("Elimina")} aria-label={t("Elimina {nome}", { nome: String(w.name ?? "") })} className="h-11 w-11 sm:h-8 sm:w-8 text-destructive hover:text-destructive hover:bg-destructive/10" disabled={!canManageWebhooks}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Eliminare il webhook «{w.name}»?</AlertDialogTitle>
+                            <AlertDialogTitle>{t("Eliminare il webhook «{name}»?", { name: String(w.name ?? "") })}</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Sparisce anche il registro dei suoi invii. Non verrà più mandato nessun avviso a{" "}
-                              <code className="text-xs bg-muted px-1 py-0.5 rounded">{w.url}</code>. Non si può annullare.
+                              {t("Sparisce anche il registro dei suoi invii. Non verrà più mandato nessun avviso a")}{" "}
+                              <code className="text-xs bg-muted px-1 py-0.5 rounded">{w.url}</code>{t(". Non si può annullare.")}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Annulla</AlertDialogCancel>
+                            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => handleDelete(w.id)}
                               disabled={deleteMutation.isPending}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
                               {deleteMutation.isPending ? (
-                                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Elimino…</>
-                              ) : "Elimina"}
+                                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t("Elimino…")}</>
+                              ) : t("Elimina")}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>

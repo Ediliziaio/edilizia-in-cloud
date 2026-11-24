@@ -6,6 +6,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -83,27 +84,27 @@ export function vociDaFare(d: DaFare): Voce[] {
   return voci.filter((v) => v.numero > 0);
 }
 
-const numero = new Intl.NumberFormat("it-IT");
 
 export function DaFareAcquisti({ companyId }: { companyId: string }) {
+  const t = useT();
   const { data, isLoading, isError } = useDaFareAcquisti(companyId);
   const voci = data ? vociDaFare(data) : [];
   return (
     <section className="space-y-2" aria-labelledby="da-fare-acquisti">
-      <h3 id="da-fare-acquisti" className="font-medium">Da fare</h3>
-      {isLoading && <p className="text-sm text-muted-foreground">Carico…</p>}
-      {isError && <p className="text-sm text-muted-foreground">Non riesco a leggere il lavoro da fare (permesso o rete).</p>}
-      {data && !voci.length && <p className="text-sm text-muted-foreground">Niente da fare: le regole hanno chiuso tutto.</p>}
+      <h3 id="da-fare-acquisti" className="font-medium">{t("Da fare")}</h3>
+      {isLoading && <p className="text-sm text-muted-foreground">{t("Carico…")}</p>}
+      {isError && <p className="text-sm text-muted-foreground">{t("Non riesco a leggere il lavoro da fare (permesso o rete).")}</p>}
+      {data && !voci.length && <p className="text-sm text-muted-foreground">{t("Niente da fare: le regole hanno chiuso tutto.")}</p>}
       {voci.length > 0 && (
         <ul className="rounded-lg border divide-y">
           {voci.map((v) => (
             <li key={v.chiave} className="grid gap-1 px-4 py-2 text-sm md:grid-cols-[5rem_minmax(0,1fr)_16rem] md:items-center">
-              <span className="font-semibold tabular-nums">{numero.format(v.numero)}</span>
-              <span>{v.testo}</span>
+              <span className="font-semibold tabular-nums">{new Intl.NumberFormat(intlCampo()).format(v.numero)}</span>
+              <span>{t(v.testo)}</span>
               {v.link ? (
-                <Link to={v.link} className="text-primary hover:underline md:text-right">{v.dove}</Link>
+                <Link to={v.link} className="text-primary hover:underline md:text-right">{t(v.dove)}</Link>
               ) : (
-                <span className="text-muted-foreground md:text-right">{v.dove}</span>
+                <span className="text-muted-foreground md:text-right">{t(v.dove)}</span>
               )}
             </li>
           ))}

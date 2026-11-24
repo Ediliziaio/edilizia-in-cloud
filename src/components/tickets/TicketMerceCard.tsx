@@ -9,7 +9,6 @@ import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Package, Plus, Truck, Loader2, ExternalLink, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { TICKET_MERCE_STATI, type TicketMerceStato } from "@/types/tickets";
@@ -20,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OrdinaMerceDialog } from "@/components/tickets/OrdinaMerceDialog";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface OdaRow {
   id: string;
@@ -37,7 +37,7 @@ const STATO_LABEL: Record<string, string> = {
 };
 
 function dataIt(d: string | null) {
-  return d ? format(new Date(d), "d MMM yyyy", { locale: it }) : null;
+  return d ? format(new Date(d), "d MMM yyyy", { locale: dateFnsCampo() }) : null;
 }
 
 export function TicketMerceCard({
@@ -49,6 +49,7 @@ export function TicketMerceCard({
   companyId: string;
   ticket?: { merce_stato?: string | null; merce_mancante?: string | null } | null;
 }) {
+  const t = useT();
   const merceStato = (ticket?.merce_stato ?? null) as TicketMerceStato | null;
   const [mancante, setMancante] = useState(ticket?.merce_mancante ?? "");
   // Dichiarato qui e non piu' in fondo: il `onSuccess` sotto invocava
@@ -67,9 +68,9 @@ export function TicketMerceCard({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(ticketId) });
       qc.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
-      toast.success("Merce aggiornata");
+      toast.success(t("Merce aggiornata"));
     },
-    onError: (e) => toast.error("Non salvato", { description: (e as Error).message }),
+    onError: (e) => toast.error(t("Non salvato"), { description: (e as Error).message }),
   });
 
   const [aperto, setAperto] = useState(false);
@@ -99,10 +100,10 @@ export function TicketMerceCard({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Package className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold">Merce</h3>
+            <h3 className="text-sm font-semibold">{t("Merce")}</h3>
           </div>
           <Button size="sm" variant="outline" onClick={() => setAperto(true)}>
-            <Plus className="mr-1 h-3.5 w-3.5" /> Ordina
+            <Plus className="mr-1 h-3.5 w-3.5" /> {t("Ordina")}
           </Button>
         </div>
 
@@ -120,9 +121,9 @@ export function TicketMerceCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__nessuna__">Non serve merce</SelectItem>
+              <SelectItem value="__nessuna__">{t("Non serve merce")}</SelectItem>
               {TICKET_MERCE_STATI.map((m) => (
-                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                <SelectItem key={m.value} value={m.value}>{t(m.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -130,7 +131,7 @@ export function TicketMerceCard({
           {merceStato === "arrivata_parziale" && (
             <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-red-800">
-                <AlertTriangle className="h-3.5 w-3.5" /> Bolla incompleta: cosa manca
+                <AlertTriangle className="h-3.5 w-3.5" /> {t("Bolla incompleta: cosa manca")}
               </div>
               <Textarea
                 value={mancante}
@@ -140,7 +141,7 @@ export function TicketMerceCard({
                     salvaStato.mutate({ merce_stato: "arrivata_parziale", merce_mancante: mancante.trim() || null });
                   }
                 }}
-                placeholder="Es. mancano 2 maniglie e la guarnizione inferiore"
+                placeholder={t("Es. mancano 2 maniglie e la guarnizione inferiore")}
                 rows={2}
                 className="border-red-200 bg-white focus-visible:ring-red-400"
               />
@@ -154,7 +155,7 @@ export function TicketMerceCard({
                   }
                 >
                   {salvaStato.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-                  Salva cosa manca
+                  {t("Salva cosa manca")}
                 </Button>
               )}
             </div>
@@ -164,7 +165,7 @@ export function TicketMerceCard({
         {prossima && (
           <div className="flex items-center gap-2 rounded-lg bg-purple-50 px-3 py-2 text-xs text-purple-800">
             <Truck className="h-3.5 w-3.5 shrink-0" />
-            <span>Prossimo arrivo previsto: <strong>{dataIt(prossima)}</strong></span>
+            <span>{t("Prossimo arrivo previsto:")} <strong>{dataIt(prossima)}</strong></span>
           </div>
         )}
 
@@ -172,7 +173,7 @@ export function TicketMerceCard({
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         ) : ordini.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            Nessun materiale ordinato per questa assistenza.
+            {t("Nessun materiale ordinato per questa assistenza.")}
           </p>
         ) : (
           <div className="space-y-2">
@@ -181,18 +182,18 @@ export function TicketMerceCard({
                     className="block rounded-lg border border-border p-2.5 transition-colors hover:bg-muted/60">
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-xs font-semibold">
-                    {o.oda_number || "Bozza"} · {o.supplier?.name ?? "—"}
+                    {o.oda_number || t("Bozza")} · {o.supplier?.name ?? "—"}
                   </span>
                   <Badge variant="outline" className="shrink-0 text-[10px]">
-                    {STATO_LABEL[o.status] ?? o.status}
+                    {STATO_LABEL[o.status] ? t(STATO_LABEL[o.status]) : o.status}
                   </Badge>
                 </div>
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {o.actual_delivery_date
-                    ? `Arrivata il ${dataIt(o.actual_delivery_date)}`
+                    ? t("Arrivata il {actual_delivery_date}", { actual_delivery_date: String(dataIt(o.actual_delivery_date) ?? "") })
                     : o.expected_delivery_date
-                      ? `Attesa per il ${dataIt(o.expected_delivery_date)}`
-                      : "Data di arrivo non ancora indicata"}
+                      ? t("Attesa per il {expected_delivery_date}", { expected_delivery_date: String(dataIt(o.expected_delivery_date) ?? "") })
+                      : t("Data di arrivo non ancora indicata")}
                   <ExternalLink className="ml-1 inline h-3 w-3" />
                 </p>
               </Link>

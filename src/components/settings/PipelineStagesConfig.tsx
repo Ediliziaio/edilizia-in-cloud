@@ -21,6 +21,7 @@ import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { queryKeys } from "@/lib/queryKeys";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Stage {
   id: string;
@@ -123,6 +124,7 @@ function SortableStage({ stage, indice, totale, modificabile, evidenziata, onUpd
   onSalesOSChange: (id: string, field: 'win_probability' | 'stalled_threshold_days', value: number | null) => void;
   onSposta: (id: string, direzione: -1 | 1) => void;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const numero = indice + 1;
@@ -151,8 +153,8 @@ function SortableStage({ stage, indice, totale, modificabile, evidenziata, onUpd
             ref={setActivatorNodeRef}
             {...attributes}
             {...listeners}
-            aria-label={`Trascina la fase ${numero} per cambiare l'ordine`}
-            title="Trascina per cambiare l'ordine"
+            aria-label={t("Trascina la fase {numero} per cambiare l'ordine", { numero: String(numero ?? "") })}
+            title={t("Trascina per cambiare l'ordine")}
             className="hidden h-8 w-6 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:text-foreground active:cursor-grabbing md:inline-flex"
           >
             <GripVertical className="h-4 w-4" />
@@ -162,7 +164,7 @@ function SortableStage({ stage, indice, totale, modificabile, evidenziata, onUpd
             type="button"
             variant="ghost"
             size="icon"
-            aria-label={`Sposta ${quale} più in alto`}
+            aria-label={t("Sposta {quale} più in alto", { quale: String(quale ?? "") })}
             disabled={indice === 0}
             onClick={() => onSposta(stage.id, -1)}
             className="h-8 w-7 text-muted-foreground max-md:h-11 max-md:w-11"
@@ -174,7 +176,7 @@ function SortableStage({ stage, indice, totale, modificabile, evidenziata, onUpd
             type="button"
             variant="ghost"
             size="icon"
-            aria-label={`Sposta ${quale} più in basso`}
+            aria-label={t("Sposta {quale} più in basso", { quale: String(quale ?? "") })}
             disabled={indice === totale - 1}
             onClick={() => onSposta(stage.id, 1)}
             className="h-8 w-7 text-muted-foreground max-md:h-11 max-md:w-11"
@@ -187,7 +189,7 @@ function SortableStage({ stage, indice, totale, modificabile, evidenziata, onUpd
         id={ids.nome}
         value={stage.name}
         onChange={(e) => onUpdate(stage.id, e.target.value)}
-        aria-label={`Nome della fase ${numero}`}
+        aria-label={t("Nome della fase {numero}", { numero: String(numero ?? "") })}
         className="col-start-2 row-start-1 h-8 min-w-0 px-2 text-sm max-md:h-11 lg:flex-1"
         maxLength={100}
       />
@@ -197,7 +199,7 @@ function SortableStage({ stage, indice, totale, modificabile, evidenziata, onUpd
           onValueChange={(v) => onAutoStatusChange(stage.id, v === "none" ? null : v)}
         >
           <SelectTrigger
-            aria-label={`Esito della fase ${numero}`}
+            aria-label={t("Esito della fase {numero}", { numero: String(numero ?? "") })}
             aria-describedby={ids.aiutoEsito}
             title={esito?.hint}
             className="h-8 min-w-0 flex-1 px-2 text-xs max-md:h-11 lg:w-[8.5rem] lg:flex-none"
@@ -206,7 +208,7 @@ function SortableStage({ stage, indice, totale, modificabile, evidenziata, onUpd
                 Così il campo mostra solo il nome dell'esito e la spiegazione resta nel menu, sotto ogni voce. */}
             <SelectValue>
               <PallinoEsito valore={valoreEsito} />
-              <span className="text-muted-foreground lg:hidden">Esito: </span>
+              <span className="text-muted-foreground lg:hidden">{t("Esito:")} </span>
               <span className={cn(valoreEsito === "none" && "text-muted-foreground")}>{esito?.label ?? valoreEsito}</span>
             </SelectValue>
           </SelectTrigger>
@@ -224,8 +226,8 @@ function SortableStage({ stage, indice, totale, modificabile, evidenziata, onUpd
           <Input
             type="number"
             inputMode="numeric"
-            aria-label={`Prob. vittoria % della fase ${numero}`}
-            title="Probabilità di vittoria della fase"
+            aria-label={t("Prob. vittoria % della fase {numero}", { numero: String(numero ?? "") })}
+            title={t("Probabilità di vittoria della fase")}
             placeholder="—"
             value={stage.win_probability ?? ""}
             onChange={(e) => onSalesOSChange(stage.id, "win_probability", normalizeNumber(e.target.value, 0, 100))}
@@ -239,8 +241,8 @@ function SortableStage({ stage, indice, totale, modificabile, evidenziata, onUpd
           <Input
             type="number"
             inputMode="numeric"
-            aria-label={`Ferma da (giorni) della fase ${numero}`}
-            title={SPIEGAZIONE_FERMA}
+            aria-label={t("Ferma da (giorni) della fase {numero}", { numero: String(numero ?? "") })}
+            title={t(SPIEGAZIONE_FERMA)}
             placeholder="—"
             value={stage.stalled_threshold_days ?? ""}
             onChange={(e) =>
@@ -253,7 +255,7 @@ function SortableStage({ stage, indice, totale, modificabile, evidenziata, onUpd
             className={cn("h-8 pl-2 pr-7 text-right text-xs tabular-nums max-md:h-11 md:text-xs", SENZA_FRECCETTE)}
             min={1}
           />
-          <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted-foreground">gg</span>
+          <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted-foreground">{t("gg")}</span>
         </div>
       </div>
       {modificabile && (canDelete ? (
@@ -261,7 +263,7 @@ function SortableStage({ stage, indice, totale, modificabile, evidenziata, onUpd
           type="button"
           variant="ghost"
           size="icon"
-          aria-label={nome ? `Elimina la fase «${nome}»` : `Elimina la fase ${numero}`}
+          aria-label={nome ? t("Elimina la fase «{nome}»", { nome: String(nome ?? "") }) : t("Elimina la fase {numero}", { numero: String(numero ?? "") })}
           onClick={() => onDelete(stage.id)}
           className="col-start-3 row-start-1 h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive max-md:h-11 max-md:w-11"
         >
@@ -276,6 +278,7 @@ function SortableStage({ stage, indice, totale, modificabile, evidenziata, onUpd
 }
 
 export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId: string; pipelineName: string }) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const puoModificare = !permissions.isLoading && permissions.canEditSettingsCustomization;
@@ -383,7 +386,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
       return arrayMove(items, i, j).map((item, idx) => ({ ...item, position: idx }));
     });
     const nome = normalizeName(stages[da].name);
-    setAnnuncio(`${nome ? `«${nome}»` : "Fase senza nome"}: posizione ${a + 1} di ${stages.length}.`);
+    setAnnuncio(t("{nome}: posizione {pos} di {tot}.", { nome: nome ? `«${nome}»` : t("Fase senza nome"), pos: a + 1, tot: stages.length }));
     setEvidenziata(id);
     daRaggiungere.current = { id, controllo: direzione < 0 ? "su" : "giu" };
   };
@@ -399,7 +402,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   const handleDelete = async (id: string) => {
     if (!puoModificare || isSaving) return;
     if (!companyId) {
-      toast.error("Azienda non disponibile. Ricarica la pagina e riprova.");
+      toast.error(t("Azienda non disponibile. Ricarica la pagina e riprova."));
       return;
     }
 
@@ -410,9 +413,9 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
           .eq("stage_id", id)
           .eq("company_id", companyId);
 
-      if (error) { toast.error("Impossibile verificare le opportunità collegate. Riprova."); return; }
+      if (error) { toast.error(t("Impossibile verificare le opportunità collegate. Riprova.")); return; }
       if (count && count > 0) {
-        toast.error(`Impossibile rimuovere: ${count} opportunità collegate a questa fase. Spostale prima.`);
+        toast.error(t("Impossibile rimuovere: {count} opportunità collegate a questa fase. Spostale prima.", { count: String(count ?? "") }));
         return;
       }
     }
@@ -452,13 +455,13 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
         .filter((stage) => stage.name);
 
       if (normalizedStages.length === 0) {
-        toast.error("Aggiungi almeno una fase valida prima di salvare.");
+        toast.error(t("Aggiungi almeno una fase valida prima di salvare."));
         setIsSaving(false);
         return;
       }
 
       if (hasDuplicateStageNames(normalizedStages)) {
-        toast.error("Le fasi non possono avere nomi duplicati.");
+        toast.error(t("Le fasi non possono avere nomi duplicati."));
         setIsSaving(false);
         return;
       }
@@ -478,7 +481,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
 
         if (error) throw error;
         if (count && count > 0) {
-          toast.error(`Impossibile eliminare la fase "${stage.name}": ${count} opportunità collegate.`);
+          toast.error(t("Impossibile eliminare la fase \"{name}\": {count} opportunità collegate.", { name: String(stage.name ?? ""), count: String(count ?? "") }));
           setIsSaving(false);
           return;
         }
@@ -536,13 +539,13 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       queryClient.invalidateQueries({ queryKey: ["bulk-opp-stages", pipelineId] });
-      toast.success("Fasi salvate");
+      toast.success(t("Fasi salvate"));
     } catch (e: unknown) {
-      toast.error(getErrorMessage(e));
+      toast.error(t(getErrorMessage(e)));
       if (scritte > 0) {
         // Il salvataggio è fatto di più scritture una dopo l'altra: se una fallisce, quelle prima sono già nel database.
         // Si rilegge l'elenco (la bozza resta com'è) così «Salva le fasi» riparte da come sono le fasi adesso.
-        toast.warning("Una parte delle modifiche era già stata salvata. Ho riletto le fasi: controlla e premi «Salva le fasi» di nuovo.");
+        toast.warning(t("Una parte delle modifiche era già stata salvata. Ho riletto le fasi: controlla e premi «Salva le fasi» di nuovo."));
         void queryClient.refetchQueries({ queryKey: chiaveFasi });
         queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
         queryClient.invalidateQueries({ queryKey: queryKeys.pipelines.list(companyId) });
@@ -560,12 +563,12 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Fasi non disponibili</CardTitle>
-          <CardDescription>{getErrorMessage(error)}</CardDescription>
+          <CardTitle>{t("Fasi non disponibili")}</CardTitle>
+          <CardDescription>{t(getErrorMessage(error))}</CardDescription>
         </CardHeader>
         <CardContent>
           <Button variant="outline" onClick={() => refetch()} className="max-md:h-11">
-            Riprova
+            {t("Riprova")}
           </Button>
         </CardContent>
       </Card>
@@ -577,8 +580,8 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
       {/* I pulsanti vanno sotto il titolo quando la scheda è stretta (telefono, tablet con la barra laterale), non lo schiacciano. */}
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
         <div className="min-w-0 flex-1 basis-64 space-y-1.5">
-          <CardTitle>Fasi di «{pipelineName}»</CardTitle>
-          <CardDescription>La prima fase è dove entrano i nuovi contatti dei moduli.</CardDescription>
+          <CardTitle>{t("Fasi di «{pipelineName}»", { pipelineName: String(pipelineName ?? "") })}</CardTitle>
+          <CardDescription>{t("La prima fase è dove entrano i nuovi contatti dei moduli.")}</CardDescription>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Sul telefono si legge «Guida», così i due pulsanti stanno su una riga; il nome per intero resta nell'etichetta. */}
@@ -586,18 +589,18 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
             type="button"
             variant="ghost"
             size="sm"
-            aria-label="Guida alle colonne"
+            aria-label={t("Guida alle colonne")}
             aria-expanded={guidaAperta}
             aria-controls={idGuida}
             onClick={() => setGuidaAperta((aperta) => !aperta)}
             className="text-muted-foreground max-md:h-11"
           >
             <Info />
-            <span>Guida<span className="max-sm:hidden"> alle colonne</span></span>
+            <span>{t("Guida")}<span className="max-sm:hidden"> {t("alle colonne")}</span></span>
           </Button>
           {puoModificare && (
             <Button ref={aggiungiFaseRef} disabled={isSaving} variant="outline" size="sm" onClick={handleAdd} className="max-md:h-11">
-              <Plus /> Aggiungi una fase
+              <Plus /> {t("Aggiungi una fase")}
             </Button>
           )}
         </div>
@@ -605,15 +608,15 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
       <CardContent className="space-y-3">
         {!puoModificare && (
           <AvvisoSolaLettura>
-            Sola lettura: per modificare le fasi serve il permesso «Modifica» su Personalizzazione.
+            {t("Sola lettura: per modificare le fasi serve il permesso «Modifica» su Personalizzazione.")}
           </AvvisoSolaLettura>
         )}
         {/* Le spiegazioni stanno qui, una volta sola, e non sotto ogni fase. */}
         <div id={idGuida} hidden={!guidaAperta} className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           <dl className="grid gap-x-3 gap-y-2 sm:grid-cols-[5.5rem_minmax(0,1fr)]">
-            <dt className="font-medium text-foreground">Esito</dt>
+            <dt className="font-medium text-foreground">{t("Esito")}</dt>
             <dd>
-              <p>Lo stato che prende la trattativa quando arriva nella fase.</p>
+              <p>{t("Lo stato che prende la trattativa quando arriva nella fase.")}</p>
               <ul className="mt-1 space-y-0.5">
                 {AUTO_STATUS_OPTIONS.map((opt) => (
                   <li key={opt.value}>
@@ -622,26 +625,26 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
                   </li>
                 ))}
               </ul>
-              <p className="mt-1">Per far partire un&apos;automazione su una fase basta il cambio di fase: le regole scattano già lì.</p>
+              <p className="mt-1">{t("Per far partire un'automazione su una fase basta il cambio di fase: le regole scattano già lì.")}</p>
             </dd>
-            <dt className="font-medium text-foreground">Prob. %</dt>
-            <dd>{SPIEGAZIONE_PROBABILITA}</dd>
-            <dt className="font-medium text-foreground">Ferma (gg)</dt>
-            <dd>{SPIEGAZIONE_FERMA}</dd>
+            <dt className="font-medium text-foreground">{t("Prob. %")}</dt>
+            <dd>{t(SPIEGAZIONE_PROBABILITA)}</dd>
+            <dt className="font-medium text-foreground">{t("Ferma (gg)")}</dt>
+            <dd>{t(SPIEGAZIONE_FERMA)}</dd>
           </dl>
         </div>
         <div className="rounded-lg border">
           {stages.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Nessuna fase. Aggiungi la prima fase della pipeline.</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">{t("Nessuna fase. Aggiungi la prima fase della pipeline.")}</p>
           ) : (
             <>
               {/* Intestazione delle colonne, solo dove la fase sta su una riga: stesse larghezze delle righe. */}
               <div aria-hidden="true" className="hidden items-center gap-1.5 rounded-t-lg border-b bg-muted/40 px-1.5 py-1 text-xs font-medium text-muted-foreground lg:flex">
                 {puoModificare && <span className="w-20 shrink-0" />}
-                <span className="flex-1 px-2">Fase</span>
-                <span className="w-[8.5rem] shrink-0 px-2" title="Lo stato che prende la trattativa quando arriva nella fase">Esito</span>
-                <span className="w-16 shrink-0 pr-2 text-right" title="Probabilità di vittoria della fase">Prob. %</span>
-                <span className="w-[4.5rem] shrink-0 pr-2 text-right" title={SPIEGAZIONE_FERMA}>Ferma (gg)</span>
+                <span className="flex-1 px-2">{t("Fase")}</span>
+                <span className="w-[8.5rem] shrink-0 px-2" title={t("Lo stato che prende la trattativa quando arriva nella fase")}>{t("Esito")}</span>
+                <span className="w-16 shrink-0 pr-2 text-right" title={t("Probabilità di vittoria della fase")}>{t("Prob. %")}</span>
+                <span className="w-[4.5rem] shrink-0 pr-2 text-right" title={t(SPIEGAZIONE_FERMA)}>{t("Ferma (gg)")}</span>
                 {puoModificare && <span className="w-8 shrink-0" />}
               </div>
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -680,7 +683,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
                 onClick={handleAdd}
                 className="h-8 w-full justify-start text-muted-foreground max-md:h-11"
               >
-                <Plus /> Aggiungi fase
+                <Plus /> {t("Aggiungi fase")}
               </Button>
             </div>
           )}
@@ -689,13 +692,13 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
         {/* La barra del salvataggio resta in vista: con una decina di fasi il pulsante in cima usciva dallo schermo. */}
         {puoModificare && (hasChanges || isSaving) && (
           <div className="sticky bottom-0 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-2 rounded-b-lg border-t bg-card px-6 py-3">
-            <span role="status" className="text-sm text-muted-foreground">Modifiche non salvate</span>
+            <span role="status" className="text-sm text-muted-foreground">{t("Modifiche non salvate")}</span>
             <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={() => { setBozza(null); aggiungiFaseRef.current?.focus(); }} disabled={isSaving} className="max-md:h-11">
-              Annulla modifiche
+              {t("Annulla modifiche")}
             </Button>
             <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving} className="max-md:h-11">
-              {isSaving && <Loader2 className="animate-spin" />} Salva le fasi
+              {isSaving && <Loader2 className="animate-spin" />} {t("Salva le fasi")}
             </Button>
             </div>
           </div>

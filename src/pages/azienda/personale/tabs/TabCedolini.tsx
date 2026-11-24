@@ -25,6 +25,7 @@ import { apriDocumentoPaghe } from "@/lib/paghe/apriDocumentoPaghe";
 import { TIPI_DOCUMENTO, type TipoDocumentoPaghe } from "@/lib/paghe/lettoreBustePaga";
 import { PagheWorkspace } from "@/components/personale/PagheWorkspace";
 import { payrollAmount,optionalPayrollAmount } from "@/lib/paghe/registri";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Un documento ricavato dal PDF del consulente (hr_paghe_documenti). */
 interface DocumentoPaghe {
@@ -40,7 +41,7 @@ interface DocumentoPaghe {
   visto_at: string | null;
 }
 
-const dataBreve = (iso: string) => new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" });
+const dataBreve = (iso: string) => new Date(iso).toLocaleDateString(intlCampo(), { day: "2-digit", month: "2-digit", year: "2-digit" });
 
 const MESI = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -88,14 +89,16 @@ const emptyForm = (): CedolinoForm => ({
 type PeriodoIniziale = { annoIniziale?: string | null; meseIniziale?: string | null };
 
 export function TabCedolini(periodo: PeriodoIniziale = {}) {
+  const t = useT();
   const [view,setView]=useState<'cedolini'|'benefit'|'registers'>('cedolini');
   const permissions=usePermissions();
-  return <div className="mt-4 space-y-4"><nav aria-label="Sezioni paghe" className="flex flex-wrap gap-2 rounded-xl border bg-white p-2">
+  return <div className="mt-4 space-y-4"><nav aria-label={t("Sezioni paghe")} className="flex flex-wrap gap-2 rounded-xl border bg-white p-2">
     {([['cedolini','Cedolini'],['benefit','Benefit e rimborsi'],['registers','TFR e welfare']] as const).map(([key,label])=><Button key={key} aria-pressed={view===key} variant={view===key?'default':'ghost'} disabled={key!=='cedolini'&&(!permissions.isAdmin||permissions.isLoading)} onClick={()=>setView(key)}>{label}</Button>)}
   </nav>{view==='cedolini'?<CedoliniArchivio {...periodo} />:<PagheWorkspace key={view} area={view}/>}</div>;
 }
 
 function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -150,18 +153,18 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
       }
     },
     onSuccess: () => {
-      toast.success("Buste paga pubblicate: i dipendenti hanno ricevuto l'avviso");
+      toast.success(t("Buste paga pubblicate: i dipendenti hanno ricevuto l'avviso"));
       queryClient.invalidateQueries({ queryKey: ["paghe-documenti", companyId] });
       queryClient.invalidateQueries({ queryKey: ["cedolini", companyId] });
       // Il titolare che è anche dipendente vede subito la sua busta in «Il mio stato».
       queryClient.invalidateQueries({ queryKey: ["my-cedolini"] });
       queryClient.invalidateQueries({ queryKey: ["my-documenti-paghe"] });
     },
-    onError: () => toast.error("Pubblicazione non riuscita. Riprova tra poco."),
+    onError: () => toast.error(t("Pubblicazione non riuscita. Riprova tra poco.")),
   });
 
   const apri = async (documentoId: string) => {
-    try { await apriDocumentoPaghe(documentoId); } catch { toast.error("Non riesco ad aprire il documento. Riprova tra poco."); }
+    try { await apriDocumentoPaghe(documentoId); } catch { toast.error(t("Non riesco ad aprire il documento. Riprova tra poco.")); }
   };
 
   const { data: cedolini = [], isLoading, isError, refetch } = useQuery({
@@ -204,11 +207,11 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
 
   const autoFetchOre = async () => {
     if (!companyId) {
-      toast.error("Azienda non disponibile");
+      toast.error(t("Azienda non disponibile"));
       return;
     }
     if (!form.profilo_id) {
-      toast.error("Seleziona prima il dipendente");
+      toast.error(t("Seleziona prima il dipendente"));
       return;
     }
     setIsFetchingOre(true);
@@ -229,14 +232,14 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
         .select("id, nome, cognome, employee_id")
         .eq("company_id", companyId!)
         .eq("id", form.profilo_id);
-      if (profErr) { toast.error("Errore nel recupero dei profili"); return; }
+      if (profErr) { toast.error(t("Errore nel recupero dei profili")); return; }
       const match = profili || [];
       if (match.length === 0) {
-        toast.info(`Nessun profilo HR trovato per "${form.employee_name}"`);
+        toast.info(t("Nessun profilo HR trovato per \"{employee_name}\"", { employee_name: String(form.employee_name ?? "") }));
         return;
       }
       if (match.length > 1) {
-        toast.error(`Più profili corrispondono a "${form.employee_name}": scrivi nome e cognome completi`);
+        toast.error(t("Più profili corrispondono a \"{employee_name}\": scrivi nome e cognome completi", { employee_name: String(form.employee_name ?? "") }));
         return;
       }
 
@@ -248,9 +251,9 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
         .gte("data", inizioMese)
         .lte("data", fineMese);
 
-      if (error) { toast.error("Errore nel recupero delle giornate"); return; }
+      if (error) { toast.error(t("Errore nel recupero delle giornate")); return; }
       if (!data || data.length === 0) {
-        toast.info(`Nessuna giornata registrata per ${form.employee_name} nel ${MESI[mese - 1]} ${anno}`);
+        toast.info(t("Nessuna giornata registrata per {employee_name} nel {valore} {anno}", { employee_name: String(form.employee_name ?? ""), valore: String(MESI[mese - 1] ?? ""), anno: String(anno ?? "") }));
         return;
       }
 
@@ -268,8 +271,8 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
       const employeeId = match[0].employee_id;
       if (!employeeId) {
         setForm((f) => ({ ...f, note: f.note ? `${f.note}\n${oreLine}` : oreLine }));
-        toast.warning(`Recuperate ${totalOre.toFixed(1)} ore, ma il lordo non si può calcolare`, {
-          description: `${form.employee_name} non è collegato a un'anagrafica dipendente: inseriscilo a mano.`,
+        toast.warning(t("Recuperate {totalOre} ore, ma il lordo non si può calcolare", { totalOre: totalOre.toFixed(1) }), {
+          description: t("{employee_name} non è collegato a un'anagrafica dipendente: inseriscilo a mano.", { employee_name: String(form.employee_name ?? "") }),
         });
         return;
       }
@@ -284,8 +287,8 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
       if (calcErr || !esito || esito.calcolabile !== true || esito.tipo_risultato !== 'stima_non_validata') {
         const motivo = (esito?.motivo as string | undefined) ?? calcErr?.message;
         setForm((f) => ({ ...f, note: f.note ? `${f.note}\n${oreLine}` : oreLine }));
-        toast.warning(`Recuperate ${totalOre.toFixed(1)} ore, ma il lordo non si può calcolare`, {
-          description: motivo ? `${motivo}. Inseriscilo a mano.` : "Inserisci il lordo a mano.",
+        toast.warning(t("Recuperate {totalOre} ore, ma il lordo non si può calcolare", { totalOre: totalOre.toFixed(1) }), {
+          description: motivo ? t("{motivo}. Inseriscilo a mano.", { motivo: String(motivo ?? "") }) : t("Inserisci il lordo a mano."),
         });
         return;
       }
@@ -315,11 +318,11 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
       }));
 
       toast.success(
-        `Stima non validata: lordo ${Number(esito.lordo ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`,
+        t("Stima non validata: lordo {valore} €", { valore: Number(esito.lordo ?? 0).toLocaleString(intlCampo(), { minimumFractionDigits: 2 }) }),
         {
           description: avvisi.length
             ? `${avvisi.length} ${avvisi.length === 1 ? "avviso" : "avvisi"} nelle note — controlla prima di salvare.`
-            : "Ipotesi e ore nelle note. Da far verificare al consulente.",
+            : t("Ipotesi e ore nelle note. Da far verificare al consulente."),
         },
       );
     } finally {
@@ -383,7 +386,7 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
       if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => {
-      toast.success("Prospetto interno salvato in bozza: non è una busta paga validata");
+      toast.success(t("Prospetto interno salvato in bozza: non è una busta paga validata"));
       queryClient.invalidateQueries({ queryKey: ["cedolini", companyId] });
       setDialogOpen(false);
       setForm(emptyForm());
@@ -427,7 +430,7 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
       setPrintTitle(`Cedolino ${mese} ${cedolino.anno ?? ""}`);
       setPrintHtml(data.html);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore nell'esportazione");
+      toast.error(err instanceof Error ? err.message : t("Errore nell'esportazione"));
     } finally {
       setIsExporting(false);
       setExportingId(null);
@@ -446,31 +449,31 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
   if (isRestricted) {
     return (
       <div className="p-6 text-center text-muted-foreground">
-        Sezione riservata agli amministratori.
+        {t("Sezione riservata agli amministratori.")}
       </div>
     );
   }
 
   return (
     <div className="space-y-4 mt-4">
-      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-medium">Busta paga originale e prospetto interno sono documenti diversi</p><p className="mt-1">Carica il PDF del consulente per archivio e consegna. Gli inserimenti a mano e i calcoli automatici sono bozze indicative: non ricostruiscono tutte le voci, i fondi o i conguagli. Ore mancanti non autorizzano trattenute.</p></div>
-      {documentsError && <HrQueryError label="Documenti e stato di consegna non disponibili" onRetry={retryDocuments} />}
+      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-medium">{t("Busta paga originale e prospetto interno sono documenti diversi")}</p><p className="mt-1">{t("Carica il PDF del consulente per archivio e consegna. Gli inserimenti a mano e i calcoli automatici sono bozze indicative: non ricostruiscono tutte le voci, i fondi o i conguagli. Ore mancanti non autorizzano trattenute.")}</p></div>
+      {documentsError && <HrQueryError label={t("Documenti e stato di consegna non disponibili")} onRetry={retryDocuments} />}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
-          <h3 className="font-semibold">Cedolini Paga</h3>
+          <h3 className="font-semibold">{t("Cedolini Paga")}</h3>
           <Badge variant="secondary">{cedoliniVisibili.length}</Badge>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca dipendente" className="h-8 w-44 pl-7 text-sm" />
+            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder={t("Cerca dipendente")} className="h-8 w-44 pl-7 text-sm" />
           </div>
           <Select value={filterMese} onValueChange={setFilterMese}>
             <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutti">Tutti i mesi</SelectItem>
-              {MESI.map((m, i) => <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>)}
+              <SelectItem value="tutti">{t("Tutti i mesi")}</SelectItem>
+              {MESI.map((m, i) => <SelectItem key={m} value={String(i + 1)}>{t(m)}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterYear} onValueChange={setFilterYear}>
@@ -482,12 +485,12 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
             </SelectContent>
           </Select>
           <Button disabled={!canEdit} size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo prospetto
+            <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> {t("Nuovo prospetto")}
           </Button>
           {/* Caricare e pubblicare è del titolare (così le regole del database). */}
           {canEdit && permissions.isAdmin && (
             <Button size="sm" onClick={() => setCaricaOpen(true)}>
-              <FileUp className="h-4 w-4 mr-1" aria-hidden="true" /> Carica dal consulente
+              <FileUp className="h-4 w-4 mr-1" aria-hidden="true" /> {t("Carica dal consulente")}
             </Button>
           )}
         </div>
@@ -495,9 +498,9 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
 
       {daPubblicare > 0 && canEdit && permissions.isAdmin && !documentsError && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          <span>{daPubblicare} documenti per i dipendenti sono salvati ma non ancora pubblicati: i dipendenti non li vedono.</span>
+          <span>{t("{daPubblicare} documenti per i dipendenti sono salvati ma non ancora pubblicati: i dipendenti non li vedono.", { daPubblicare: String(daPubblicare ?? "") })}</span>
           <Button size="sm" onClick={() => pubblicaMutation.mutate()} disabled={pubblicaMutation.isPending}>
-            {pubblicaMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}Pubblica ora
+            {pubblicaMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}{t("Pubblica ora")}
           </Button>
         </div>
       )}
@@ -506,16 +509,16 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
         <div className="space-y-2">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
         </div>
-      ) : isError ? <HrQueryError label="Cedolini non disponibili" onRetry={refetch} /> : cedoliniVisibili.length === 0 ? (
+      ) : isError ? <HrQueryError label={t("Cedolini non disponibili")} onRetry={refetch} /> : cedoliniVisibili.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center space-y-2">
             <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto" aria-hidden="true" />
             <p className="text-sm text-muted-foreground">
-              {cedolini.length === 0 ? `Nessun cedolino per il ${filterYear}` : "Nessun cedolino con questi filtri"}
+              {cedolini.length === 0 ? t("Nessun cedolino per il {filterYear}", { filterYear: String(filterYear ?? "") }) : t("Nessun cedolino con questi filtri")}
             </p>
             {cedolini.length === 0 && permissions.isAdmin && (
               <Button size="sm" onClick={() => setCaricaOpen(true)}>
-                <FileUp className="h-4 w-4 mr-1" /> Carica il PDF del consulente
+                <FileUp className="h-4 w-4 mr-1" /> {t("Carica il PDF del consulente")}
               </Button>
             )}
           </CardContent>
@@ -525,15 +528,15 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Dipendente</TableHead>
-                <TableHead>Periodo</TableHead>
-                <TableHead className="text-right">Lordo</TableHead>
-                <TableHead className="text-right hidden sm:table-cell">Contributi</TableHead>
+                <TableHead>{t("Dipendente")}</TableHead>
+                <TableHead>{t("Periodo")}</TableHead>
+                <TableHead className="text-right">{t("Lordo")}</TableHead>
+                <TableHead className="text-right hidden sm:table-cell">{t("Contributi")}</TableHead>
                 <TableHead className="text-right hidden sm:table-cell">IRPEF</TableHead>
-                <TableHead className="text-right">Netto</TableHead>
-                <TableHead>Stato</TableHead>
-                <TableHead className="hidden md:table-cell">Consegna</TableHead>
-                <TableHead className="text-right">Azioni</TableHead>
+                <TableHead className="text-right">{t("Netto")}</TableHead>
+                <TableHead>{t("Stato")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("Consegna")}</TableHead>
+                <TableHead className="text-right">{t("Azioni")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -542,12 +545,12 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
                 const doc = docPerCedolino.get(c.id);
                 return (
                   <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.employee_name}<p className="mt-1 text-xs font-normal text-muted-foreground">{doc?'PDF originale del consulente':'Prospetto interno · non validato'}</p></TableCell>
-                    <TableCell className="text-sm">{MESI[c.mese - 1]} {c.anno}</TableCell>
-                    <TableCell className="text-right text-sm">{c.lordo==null?'Da verificare':formatCurrency(c.lordo)}</TableCell>
-                    <TableCell className="text-right text-sm hidden sm:table-cell">{c.contributi_dipendente==null?'Da verificare':formatCurrency(c.contributi_dipendente)}</TableCell>
-                    <TableCell className="text-right text-sm hidden sm:table-cell">{c.ritenute_irpef==null?'Da verificare':formatCurrency(c.ritenute_irpef)}</TableCell>
-                    <TableCell className="text-right font-semibold text-primary">{netto==null?'Da verificare':formatCurrency(netto)}</TableCell>
+                    <TableCell className="font-medium">{c.employee_name}<p className="mt-1 text-xs font-normal text-muted-foreground">{doc?t("PDF originale del consulente"):t("Prospetto interno · non validato")}</p></TableCell>
+                    <TableCell className="text-sm">{t(MESI[c.mese - 1])} {c.anno}</TableCell>
+                    <TableCell className="text-right text-sm">{c.lordo==null?t("Da verificare"):formatCurrency(c.lordo)}</TableCell>
+                    <TableCell className="text-right text-sm hidden sm:table-cell">{c.contributi_dipendente==null?t("Da verificare"):formatCurrency(c.contributi_dipendente)}</TableCell>
+                    <TableCell className="text-right text-sm hidden sm:table-cell">{c.ritenute_irpef==null?t("Da verificare"):formatCurrency(c.ritenute_irpef)}</TableCell>
+                    <TableCell className="text-right font-semibold text-primary">{netto==null?t("Da verificare"):formatCurrency(netto)}</TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-0.5">
                         {(!canEdit || !doc) && <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATO_COLORS[c.stato] || "bg-muted text-muted-foreground"}`}>
@@ -560,26 +563,26 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
                         </SelectTrigger>
                         <SelectContent>
                           {(["bozza", "emesso", "pagato"] as const).map((s) => (
-                            <SelectItem key={s} value={s} className="text-xs">{STATO_LABELS[s]}</SelectItem>
+                            <SelectItem key={s} value={s} className="text-xs">{t(STATO_LABELS[s])}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>}
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-xs">
                       {!doc ? <span className="text-muted-foreground">—</span>
-                        : !doc.pubblicato_at ? <span className="text-amber-700">Non pubblicata</span>
-                        : doc.visto_at ? <span className="inline-flex items-center gap-1 text-green-700"><CheckCircle2 className="h-3.5 w-3.5" />Aperta il {dataBreve(doc.visto_at)}</span>
-                        : <span className="inline-flex items-center gap-1 text-muted-foreground"><Clock className="h-3.5 w-3.5" />Non ancora aperta</span>}
+                        : !doc.pubblicato_at ? <span className="text-amber-700">{t("Non pubblicata")}</span>
+                        : doc.visto_at ? <span className="inline-flex items-center gap-1 text-green-700"><CheckCircle2 className="h-3.5 w-3.5" />{t("Aperta il")} {dataBreve(doc.visto_at)}</span>
+                        : <span className="inline-flex items-center gap-1 text-muted-foreground"><Clock className="h-3.5 w-3.5" />{t("Non ancora aperta")}</span>}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0"
-                        title={doc ? "Apri il PDF del consulente" : "Carica prima il PDF originale del consulente"}
+                        title={doc ? t("Apri il PDF del consulente") : t("Carica prima il PDF originale del consulente")}
                         onClick={() => (doc ? apri(doc.id) : handleExportPdf(c))}
                         disabled={!doc || documentsError || (isExporting && exportingId === c.id)}
-                        aria-label={doc?"Apri PDF originale":"PDF originale non disponibile"}
+                        aria-label={doc?t("Apri PDF originale"):t("PDF originale non disponibile")}
                       >
                         {isExporting && exportingId === c.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -601,19 +604,19 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <h4 className="text-sm font-semibold">Altri documenti del consulente</h4>
-            <span className="text-xs text-muted-foreground">riepiloghi, presenze, F24, Cassa Edile, CU</span>
+            <h4 className="text-sm font-semibold">{t("Altri documenti del consulente")}</h4>
+            <span className="text-xs text-muted-foreground">{t("riepiloghi, presenze, F24, Cassa Edile, CU")}</span>
           </div>
           <div className="divide-y rounded-lg border">
             {altriDocumentiVisibili.map((d) => (
               <button key={d.id} type="button" onClick={() => apri(d.id)} className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50">
-                <Badge variant="outline" className="shrink-0">{TIPI_DOCUMENTO[d.tipo]?.label ?? d.tipo}</Badge>
+                <Badge variant="outline" className="shrink-0">{t(TIPI_DOCUMENTO[d.tipo]?.label ?? d.tipo)}</Badge>
                 <span className="min-w-0 flex-1 truncate">{d.titolo}</span>
                 <span className="hidden shrink-0 text-xs sm:inline">
-                  {!d.per_dipendente ? <span className="text-muted-foreground">Solo ufficio</span>
-                    : !d.pubblicato_at ? <span className="text-amber-700">Al dipendente · non pubblicato</span>
-                    : d.visto_at ? <span className="text-green-700">Al dipendente · aperto il {dataBreve(d.visto_at)}</span>
-                    : <span className="text-muted-foreground">Al dipendente · non ancora aperto</span>}
+                  {!d.per_dipendente ? <span className="text-muted-foreground">{t("Solo ufficio")}</span>
+                    : !d.pubblicato_at ? <span className="text-amber-700">{t("Al dipendente · non pubblicato")}</span>
+                    : d.visto_at ? <span className="text-green-700">{t("Al dipendente · aperto il {visto_at}", { visto_at: String(dataBreve(d.visto_at) ?? "") })}</span>
+                    : <span className="text-muted-foreground">{t("Al dipendente · non ancora aperto")}</span>}
                 </span>
                 <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
               </button>
@@ -629,34 +632,34 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nuovo prospetto interno · bozza</DialogTitle>
-            <DialogDescription>Non è una busta paga. Gli importi mancanti restano da verificare; per emissione e consegna carica il PDF originale del consulente.</DialogDescription>
+            <DialogTitle>{t("Nuovo prospetto interno · bozza")}</DialogTitle>
+            <DialogDescription>{t("Non è una busta paga. Gli importi mancanti restano da verificare; per emissione e consegna carica il PDF originale del consulente.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
-              <Label>Dipendente *</Label>
+              <Label>{t("Dipendente *")}</Label>
               <Select disabled={peopleQuery.isLoading || peopleQuery.isError} value={form.profilo_id} onValueChange={(id) => {
                 const person = peopleQuery.data?.find((p) => p.id === id);
                 if (person) setForm((p) => ({ ...p, profilo_id: id, employee_name: `${person.nome} ${person.cognome}` }));
-              }}><SelectTrigger aria-label="Dipendente del cedolino"><SelectValue placeholder="Seleziona dipendente" /></SelectTrigger>
-                <SelectContent>{(peopleQuery.data || []).map((p) => <SelectItem key={p.id} value={p.id}>{p.nome} {p.cognome} · {p.matricola || p.id.slice(0, 8)}{!p.attivo ? " · Storico" : ""}</SelectItem>)}</SelectContent>
+              }}><SelectTrigger aria-label={t("Dipendente del cedolino")}><SelectValue placeholder={t("Seleziona dipendente")} /></SelectTrigger>
+                <SelectContent>{(peopleQuery.data || []).map((p) => <SelectItem key={p.id} value={p.id}>{p.nome} {p.cognome} · {p.matricola || p.id.slice(0, 8)}{!p.attivo ? ` ${t("· Storico")}` : ""}</SelectItem>)}</SelectContent>
               </Select>
-              {peopleQuery.isError && <HrQueryError label="Anagrafica non disponibile" onRetry={peopleQuery.refetch} />}
+              {peopleQuery.isError && <HrQueryError label={t("Anagrafica non disponibile")} onRetry={peopleQuery.refetch} />}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Mese</Label>
+                <Label>{t("Mese")}</Label>
                 <Select value={form.mese} onValueChange={(v) => setForm((p) => ({ ...p, mese: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {MESI.map((m, i) => (
-                      <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>
+                      <SelectItem key={i + 1} value={String(i + 1)}>{t(m)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>Anno</Label>
+                <Label>{t("Anno")}</Label>
                 <Select value={form.anno} onValueChange={(v) => setForm((p) => ({ ...p, anno: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -679,42 +682,42 @@ function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
               ) : (
                 <Download className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
               )}
-              {isFetchingOre ? "Verifica in corso…" : "Verifica ore e prepara una stima"}
+              {isFetchingOre ? t("Verifica in corso…") : t("Verifica ore e prepara una stima")}
             </Button>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Lordo (€) *</Label>
+                <Label>{t("Lordo (€) *")}</Label>
                 <Input type="number" min="0" step="0.01" value={form.lordo} onChange={(e) => setForm((p) => ({ ...p, lordo: e.target.value }))} placeholder="0.00" />
               </div>
               <div className="space-y-1">
-                <Label>Contributi dip. (€)</Label>
+                <Label>{t("Contributi dip. (€)")}</Label>
                 <Input type="number" min="0" step="0.01" value={form.contributi_dipendente} onChange={(e) => setForm((p) => ({ ...p, contributi_dipendente: e.target.value }))} placeholder="0.00" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Ritenute IRPEF (€)</Label>
+                <Label>{t("Ritenute IRPEF (€)")}</Label>
                 <Input type="number" min="0" step="0.01" value={form.ritenute_irpef} onChange={(e) => setForm((p) => ({ ...p, ritenute_irpef: e.target.value }))} placeholder="0.00" />
               </div>
               <div className="space-y-1">
-                <Label>Contributi datore (€)</Label>
+                <Label>{t("Contributi datore (€)")}</Label>
                 <Input type="number" min="0" step="0.01" value={form.contributi_datore} onChange={(e) => setForm((p) => ({ ...p, contributi_datore: e.target.value }))} placeholder="0.00" />
               </div>
             </div>
             <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
-              <span className="text-sm font-medium">Risultato aritmetico non validato</span>
-              <span className="text-primary font-bold">{[form.lordo,form.contributi_dipendente,form.ritenute_irpef].every(v=>v.trim())?formatCurrency(computedNetto()):'Dati incompleti'}</span>
+              <span className="text-sm font-medium">{t("Risultato aritmetico non validato")}</span>
+              <span className="text-primary font-bold">{[form.lordo,form.contributi_dipendente,form.ritenute_irpef].every(v=>v.trim())?formatCurrency(computedNetto()):t("Dati incompleti")}</span>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Salvataggio solo in bozza. Per emissione e consegna importa il documento originale validato dal consulente. Compila anche gli importi pari a zero: un dato vuoto non è uno zero verificato.</p>
+              <p className="text-xs text-muted-foreground">{t("Salvataggio solo in bozza. Per emissione e consegna importa il documento originale validato dal consulente. Compila anche gli importi pari a zero: un dato vuoto non è uno zero verificato.")}</p>
             </div>
-            {form.note&&<details className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><summary className="cursor-pointer font-medium">Ipotesi e avvisi della stima · da verificare</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed">{form.note}</p></details>}
+            {form.note&&<details className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><summary className="cursor-pointer font-medium">{t("Ipotesi e avvisi della stima · da verificare")}</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed">{form.note}</p></details>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("Annulla")}</Button>
             <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-              {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salva prospetto in bozza"}
+              {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("Salva prospetto in bozza")}
             </Button>
           </DialogFooter>
         </DialogContent>

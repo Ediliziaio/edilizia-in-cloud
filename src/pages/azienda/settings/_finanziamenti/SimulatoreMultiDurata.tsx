@@ -24,6 +24,7 @@ import { calcolaFinanziamento } from "@/lib/finanziamenti/calcolaFinanziamento";
 import type { RigaTabellaFinanziamento } from "@/lib/finanziamenti/types";
 import { formattaPercentuale } from "./comuni";
 import { TitoloAvviso } from "./pezzi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   /** Importo finanziato richiesto (€). */
@@ -39,6 +40,7 @@ export function SimulatoreMultiDurata({
   durateDisponibili,
   righe,
 }: Props) {
+  const t = useT();
   const risultati = useMemo(() => {
     if (!importo || importo <= 0 || durateDisponibili.length === 0) return [];
     return durateDisponibili.map((d) => ({
@@ -71,10 +73,9 @@ export function SimulatoreMultiDurata({
     return (
       <Alert>
         <Info className="h-4 w-4" />
-        <TitoloAvviso>Inserisci un importo</TitoloAvviso>
+        <TitoloAvviso>{t("Inserisci un importo")}</TitoloAvviso>
         <AlertDescription>
-          Il simulatore confronta tutte le durate disponibili in tabella per
-          l&apos;importo che inserisci.
+          {t("Il simulatore confronta tutte le durate disponibili in tabella per l'importo che inserisci.")}
         </AlertDescription>
       </Alert>
     );
@@ -84,9 +85,9 @@ export function SimulatoreMultiDurata({
     return (
       <Alert variant="destructive">
         <Info className="h-4 w-4" />
-        <TitoloAvviso>Nessuna durata disponibile</TitoloAvviso>
+        <TitoloAvviso>{t("Nessuna durata disponibile")}</TitoloAvviso>
         <AlertDescription>
-          La tabella selezionata non ha righe caricate.
+          {t("La tabella selezionata non ha righe caricate.")}
         </AlertDescription>
       </Alert>
     );
@@ -99,16 +100,16 @@ export function SimulatoreMultiDurata({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Durata</TableHead>
-                <TableHead className="text-right">Rata mensile</TableHead>
-                <TableHead className="text-right">Spese incasso</TableHead>
-                <TableHead className="text-right">Rata totale</TableHead>
-                <TableHead className="text-right">Totale dovuto</TableHead>
-                <TableHead className="text-right">Interessi</TableHead>
+                <TableHead>{t("Durata")}</TableHead>
+                <TableHead className="text-right">{t("Rata mensile")}</TableHead>
+                <TableHead className="text-right">{t("Spese incasso")}</TableHead>
+                <TableHead className="text-right">{t("Rata totale")}</TableHead>
+                <TableHead className="text-right">{t("Totale dovuto")}</TableHead>
+                <TableHead className="text-right">{t("Interessi")}</TableHead>
                 <TableHead className="text-right">TAN</TableHead>
                 <TableHead className="text-right">TAEG</TableHead>
-                <TableHead className="text-right">Provvigione</TableHead>
-                <TableHead>Note</TableHead>
+                <TableHead className="text-right">{t("Provvigione")}</TableHead>
+                <TableHead>{t("Note")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -128,9 +129,7 @@ export function SimulatoreMultiDurata({
                         : ""
                     }
                   >
-                    <TableCell className="font-medium whitespace-nowrap">
-                      {durata} mesi
-                    </TableCell>
+                    <TableCell className="font-medium whitespace-nowrap">{t("{n} mesi", { n: String(durata ?? "") })}</TableCell>
                     {isError ? (
                       <TableCell colSpan={8} className="text-xs text-muted-foreground italic">
                         {calc.messaggio}
@@ -176,7 +175,7 @@ export function SimulatoreMultiDurata({
                               variant="outline"
                               className="bg-amber-50 text-amber-800 border-amber-200 text-xs"
                             >
-                              calcolato tra due righe
+                              {t("calcolato tra due righe")}
                             </Badge>
                           )}
                         </TableCell>
@@ -194,14 +193,14 @@ export function SimulatoreMultiDurata({
         {winners.rataPiuBassa != null && (
           <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
             <Trophy className="h-3 w-3 mr-1" />
-            Rata mensile più bassa: {winners.rataPiuBassa} mesi
+            {t("Rata mensile più bassa:")} {t("{n} mesi", { n: winners.rataPiuBassa })}
           </Badge>
         )}
         {winners.taegPiuBasso != null &&
           winners.taegPiuBasso !== winners.rataPiuBassa && (
             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
               <TrendingDown className="h-3 w-3 mr-1" />
-              TAEG più basso: {winners.taegPiuBasso} mesi
+              {t("TAEG più basso:")} {t("{n} mesi", { n: winners.taegPiuBasso })}
             </Badge>
           )}
         {winners.totalePiuBasso != null &&
@@ -209,7 +208,7 @@ export function SimulatoreMultiDurata({
           winners.totalePiuBasso !== winners.taegPiuBasso && (
             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
               <TrendingDown className="h-3 w-3 mr-1" />
-              Totale dovuto più basso: {winners.totalePiuBasso} mesi
+              {t("Totale dovuto più basso:")} {t("{n} mesi", { n: winners.totalePiuBasso })}
             </Badge>
           )}
       </div>
@@ -218,7 +217,7 @@ export function SimulatoreMultiDurata({
 }
 
 function fmt(n: number, frac = 0): string {
-  return n.toLocaleString("it-IT", {
+  return n.toLocaleString(intlCampo(), {
     minimumFractionDigits: frac,
     maximumFractionDigits: frac,
   });

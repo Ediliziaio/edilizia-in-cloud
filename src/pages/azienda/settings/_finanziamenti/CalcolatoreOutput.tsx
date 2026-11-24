@@ -15,20 +15,21 @@ import { differenzaTotaleVisibile } from "@/lib/finanziamenti/riconciliaTotale";
 import type { RisultatoCalcolo } from "@/lib/finanziamenti/types";
 import { formattaPercentuale } from "./comuni";
 import { TitoloAvviso } from "./pezzi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CalcolatoreOutput({
   risultato,
 }: {
   risultato: RisultatoCalcolo | null;
 }) {
+  const t = useT();
   if (!risultato) {
     return (
       <Alert>
         <Info className="h-4 w-4" />
-        <TitoloAvviso>Inserisci importo e durata</TitoloAvviso>
+        <TitoloAvviso>{t("Inserisci importo e durata")}</TitoloAvviso>
         <AlertDescription>
-          Compila i due campi sopra per vedere il calcolo della rata e dei
-          tassi.
+          {t("Compila i due campi sopra per vedere il calcolo della rata e dei tassi.")}
         </AlertDescription>
       </Alert>
     );
@@ -43,17 +44,14 @@ export function CalcolatoreOutput({
           {risultato.errore === "durata_non_disponibile" &&
             risultato.durate_disponibili && (
               <p className="text-sm mt-1">
-                Durate disponibili in tabella:{" "}
-                <strong>
-                  {risultato.durate_disponibili.join(", ")} rate
-                </strong>
+                {t("Durate disponibili in tabella:")}{" "}
+                <strong>{t("{n} rate", { n: risultato.durate_disponibili.join(", ") })}</strong>
                 .
               </p>
             )}
           {risultato.errore === "importo_fuori_range" && (
             <p className="text-sm mt-1">
-              Scegli un importo entro il range della tabella o carica una
-              tabella con un range più ampio.
+              {t("Scegli un importo entro il range della tabella o carica una tabella con un range più ampio.")}
             </p>
           )}
         </AlertDescription>
@@ -66,18 +64,18 @@ export function CalcolatoreOutput({
     <div className="space-y-4">
       {differenza !== null && <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
-        <TitoloAvviso>Verifica il totale con la tabella originale</TitoloAvviso>
-        <AlertDescription>Il totale riportato differisce di € {formatEur(differenza, 2)} dalla somma delle rate e delle spese di istruttoria visibili. Potrebbero mancare componenti o esserci dati da correggere: verifica la fonte prima di usare questa simulazione. Gli importi della tabella non sono stati modificati.</AlertDescription>
+        <TitoloAvviso>{t("Verifica il totale con la tabella originale")}</TitoloAvviso>
+        <AlertDescription>{t("Il totale riportato differisce di € {differenza} dalla somma delle rate e delle spese di istruttoria visibili. Potrebbero mancare componenti o esserci dati da correggere: verifica la fonte prima di usare questa simulazione. Gli importi della tabella non sono stati modificati.", { differenza: formatEur(differenza, 2) })}</AlertDescription>
       </Alert>}
       {/* Highlight: rata + totale */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Highlight
-          label="Rata mensile (spese di incasso comprese)"
+          label={t("Rata mensile (spese di incasso comprese)")}
           value={`€ ${formatEur(risultato.rata_completa ?? 0, 2)}`}
           accent
         />
         <Highlight
-          label="Totale dovuto dal cliente"
+          label={t("Totale dovuto dal cliente")}
           value={`€ ${formatEur(risultato.importo_totale_dovuto ?? 0, 2)}`}
         />
         <Highlight
@@ -91,51 +89,45 @@ export function CalcolatoreOutput({
         {risultato.modalita === "esatto" ? (
           <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
             <CheckCircle2 className="h-3 w-3 mr-1" />
-            Importo presente in tabella
+            {t("Importo presente in tabella")}
           </Badge>
         ) : (
           <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">
             <TrendingUp className="h-3 w-3 mr-1" />
-            Calcolato tra le righe di €{" "}
-            {formatEur(risultato.righe_interpolazione?.sotto.importo_erogato ?? 0)}
-            {" e € "}
-            {formatEur(risultato.righe_interpolazione?.sopra.importo_erogato ?? 0)}
+            {t("Calcolato tra le righe di € {sotto} e € {sopra}", { sotto: formatEur(risultato.righe_interpolazione?.sotto.importo_erogato ?? 0), sopra: formatEur(risultato.righe_interpolazione?.sopra.importo_erogato ?? 0) })}
           </Badge>
         )}
-        <span className="text-muted-foreground">
-          Importo richiesto: € {formatEur(risultato.importo_richiesto, 2)} ·{" "}
-          {risultato.numero_rate} rate
-        </span>
+        <span className="text-muted-foreground">{t("Importo richiesto: € {importo_richiesto} · {numero_rate} rate", { importo_richiesto: formatEur(risultato.importo_richiesto, 2), numero_rate: String(risultato.numero_rate ?? "") })}</span>
       </div>
 
       {/* Tabella dettagli */}
       <div className="rounded-md border bg-muted/20 divide-y">
         <DetailRow
-          label="Importo finanziato"
+          label={t("Importo finanziato")}
           value={`€ ${formatEur(risultato.importo_richiesto, 2)}`}
         />
         <DetailRow
-          label="Importo della rata (senza spese di incasso)"
+          label={t("Importo della rata (senza spese di incasso)")}
           value={`€ ${formatEur(risultato.importo_rata ?? 0, 2)}`}
         />
         <DetailRow
-          label="Spese di incasso della rata"
+          label={t("Spese di incasso della rata")}
           value={`€ ${formatEur(risultato.spese_incasso_rata ?? 0, 2)}`}
         />
         <DetailRow
-          label="Spese di istruttoria (una sola volta)"
+          label={t("Spese di istruttoria (una sola volta)")}
           value={`€ ${formatEur(risultato.spese_istruttoria ?? 0, 2)}`}
         />
         <DetailRow
-          label="Importo totale del credito"
+          label={t("Importo totale del credito")}
           value={`€ ${formatEur(risultato.importo_totale_credito ?? 0, 2)}`}
         />
         <DetailRow
-          label="Costo totale del credito"
+          label={t("Costo totale del credito")}
           value={`€ ${formatEur(Math.max(0, (risultato.importo_totale_dovuto ?? 0) - risultato.importo_richiesto), 2)}`}
         />
         <DetailRow
-          label="Interessi totali al cliente"
+          label={t("Interessi totali al cliente")}
           value={`€ ${formatEur(risultato.interessi_cliente ?? 0, 2)}`}
         />
         <DetailRow
@@ -143,7 +135,7 @@ export function CalcolatoreOutput({
           value={formattaPercentuale(risultato.tan ?? 0)}
         />
         <DetailRow
-          label="ICC (Indicatore Costo Credito)"
+          label={t("ICC (Indicatore Costo Credito)")}
           value={
             risultato.icc != null
               ? formattaPercentuale(risultato.icc)
@@ -151,21 +143,13 @@ export function CalcolatoreOutput({
           }
         />
         <DetailRow
-          label="Provvigione"
+          label={t("Provvigione")}
           value={`€ ${formatEur(risultato.provvigione_dealer ?? 0, 2)}`}
           muted
         />
       </div>
 
-      <p className="text-xs text-muted-foreground italic">
-        I dati provengono dalla tabella ufficiale della finanziaria. La rata
-        finale al cliente è di € {formatEur(risultato.rata_completa ?? 0, 2)}{" "}
-        per {risultato.numero_rate} mesi (€{" "}
-        {formatEur(risultato.importo_rata ?? 0, 2)} di quota +{" € "}
-        {formatEur(risultato.spese_incasso_rata ?? 0, 2)} di spese di incasso).
-        Simulazione indicativa: prima di presentare l&apos;offerta verifica
-        documenti, validità condizioni e approvazione dell&apos;istituto.
-      </p>
+      <p className="text-xs text-muted-foreground italic">{t("I dati provengono dalla tabella ufficiale della finanziaria. La rata finale al cliente è di € {valore} per {numero_rate} mesi (€ {valore2} di quota + € {valore3} di spese di incasso). Simulazione indicativa: prima di presentare l'offerta verifica documenti, validità condizioni e approvazione dell'istituto.", { valore: formatEur(risultato.rata_completa ?? 0, 2), numero_rate: String(risultato.numero_rate ?? ""), valore2: formatEur(risultato.importo_rata ?? 0, 2), valore3: formatEur(risultato.spese_incasso_rata ?? 0, 2) })}</p>
     </div>
   );
 }
@@ -222,7 +206,7 @@ function DetailRow({
 }
 
 function formatEur(n: number, frac = 0): string {
-  return n.toLocaleString("it-IT", {
+  return n.toLocaleString(intlCampo(), {
     minimumFractionDigits: frac,
     maximumFractionDigits: frac,
   });

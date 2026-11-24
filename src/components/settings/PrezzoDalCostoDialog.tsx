@@ -27,6 +27,7 @@ import {
   prezzoAttesoDalCosto, prezzoDaRiallineare, prezzoDaRicarico, ricaricoDaMargine,
 } from "@/lib/tariffe/prezzoDalCosto";
 import type { Tariffa } from "@/pages/azienda/settings/SettingsTariffe/types";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export type ModoPrezzoDalCosto = "applica" | "ricalcola";
 
@@ -52,6 +53,7 @@ interface Riga {
 const MOSTRATE = 8;
 
 export function PrezzoDalCostoDialog({ open, onClose, modo, items, companyId, speseGenerali, sogliaMinima, ricaricoObiettivo, onApplied }: Props) {
+  const tTesto = useT();
   const queryClient = useQueryClient();
   const [ricaricoTesto, setRicaricoTesto] = useState(String(arrotondaPercento(ricaricoObiettivo)));
   const [margineTesto, setMargineTesto] = useState(String(arrotondaPercento(margineDaRicarico(ricaricoObiettivo) ?? 0)));
@@ -117,7 +119,7 @@ export function PrezzoDalCostoDialog({ open, onClose, modo, items, companyId, sp
           .select("id")
           .single();
         if (error) throw error;
-        if (!data) throw new Error(`Voce non aggiornata: ${r.t.nome}. Verifica i permessi e riprova.`);
+        if (!data) throw new Error(tTesto("Voce non aggiornata: {nome}. Verifica i permessi e riprova.", { nome: r.t.nome }));
         fatte.add(r.t.id);
         setSalvate(new Set(fatte));
       }
@@ -125,14 +127,14 @@ export function PrezzoDalCostoDialog({ open, onClose, modo, items, companyId, sp
     },
     onSuccess: (n) => {
       invalidateAllTariffe(queryClient);
-      toast.success(`Prezzi aggiornati su ${n} ${n === 1 ? "voce" : "voci"}`);
+      toast.success(tTesto(n === 1 ? "Prezzi aggiornati su {n} voce" : "Prezzi aggiornati su {n} voci", { n }));
       onApplied();
       onClose();
     },
     onError: (err) => {
       // le voci già salvate restano salvate: riprovando si riparte dalle altre
       invalidateAllTariffe(queryClient);
-      toast.error(testoErrore(err, "Prezzi non aggiornati."));
+      toast.error(testoErrore(err, tTesto("Prezzi non aggiornati.")));
     },
   });
 
@@ -142,23 +144,23 @@ export function PrezzoDalCostoDialog({ open, onClose, modo, items, companyId, sp
     <Dialog open={open} onOpenChange={(v) => { if (!v && !mutation.isPending) onClose(); }}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{modo === "applica" ? "Prezzo dal costo con un ricarico" : "Ricalcola i prezzi dai costi"}</DialogTitle>
+          <DialogTitle>{modo === "applica" ? tTesto("Prezzo dal costo con un ricarico") : tTesto("Ricalcola i prezzi dai costi")}</DialogTitle>
           <DialogDescription>
             {modo === "applica"
-              ? "Le voci selezionate passano a «dal costo»: prezzo = costo pieno × (1 + ricarico). Da qui in poi seguono il costo."
-              : "Le voci «dal costo» il cui costo è cambiato tornano al prezzo del loro ricarico."}
-            {speseGenerali > 0 ? ` Costo pieno = costo + spese generali (${speseGenerali.toLocaleString("it-IT")}%).` : ""}
+              ? tTesto("Le voci selezionate passano a «dal costo»: prezzo = costo pieno × (1 + ricarico). Da qui in poi seguono il costo.")
+              : tTesto("Le voci «dal costo» il cui costo è cambiato tornano al prezzo del loro ricarico.")}
+            {speseGenerali > 0 ? ` ${tTesto("Costo pieno = costo + spese generali ({speseGenerali}%).", { speseGenerali: speseGenerali.toLocaleString(intlCampo()) })}` : ""}
           </DialogDescription>
         </DialogHeader>
 
         {modo === "applica" && (
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor="pdc-ricarico">Ricarico sul costo %</Label>
+              <Label htmlFor="pdc-ricarico">{tTesto("Ricarico sul costo %")}</Label>
               <Input id="pdc-ricarico" type="number" min="0" step="0.01" value={ricaricoTesto} onChange={(e) => cambiaRicarico(e.target.value)} className="mt-1.5" />
             </div>
             <div>
-              <Label htmlFor="pdc-margine">oppure margine %</Label>
+              <Label htmlFor="pdc-margine">{tTesto("oppure margine %")}</Label>
               <Input id="pdc-margine" type="number" min="0" max="99.99" step="0.01" value={margineTesto} onChange={(e) => cambiaMargine(e.target.value)} className="mt-1.5" />
             </div>
           </div>
@@ -167,18 +169,18 @@ export function PrezzoDalCostoDialog({ open, onClose, modo, items, companyId, sp
         {righe.length === 0 ? (
           <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
             {modo === "applica"
-              ? senzaCosto > 0 ? "Nessuna delle voci selezionate ha un costo: scrivilo prima, il prezzo nasce da lì." : ricaricoEsatto != null && ricaricoEsatto > RICARICO_MASSIMO ? "Il ricarico è troppo alto: al massimo 9.999% (un margine del 99%)." : "Scrivi il ricarico, o un margine sotto il 100%."
-              : "Tutte le voci «dal costo» hanno già il prezzo del loro ricarico."}
+              ? senzaCosto > 0 ? tTesto("Nessuna delle voci selezionate ha un costo: scrivilo prima, il prezzo nasce da lì.") : ricaricoEsatto != null && ricaricoEsatto > RICARICO_MASSIMO ? tTesto("Il ricarico è troppo alto: al massimo 9.999% (un margine del 99%).") : tTesto("Scrivi il ricarico, o un margine sotto il 100%.")
+              : tTesto("Tutte le voci «dal costo» hanno già il prezzo del loro ricarico.")}
           </p>
         ) : (
           <div className="rounded-lg border">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50 text-left text-xs">
-                  <th className="p-2 font-medium">Voce</th>
-                  <th className="p-2 text-right font-medium">Prezzo ora</th>
-                  <th className="p-2 text-right font-medium">Nuovo</th>
-                  <th className="p-2 text-right font-medium">Margine</th>
+                  <th className="p-2 font-medium">{tTesto("Voce")}</th>
+                  <th className="p-2 text-right font-medium">{tTesto("Prezzo ora")}</th>
+                  <th className="p-2 text-right font-medium">{tTesto("Nuovo")}</th>
+                  <th className="p-2 text-right font-medium">{tTesto("Margine")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -188,31 +190,31 @@ export function PrezzoDalCostoDialog({ open, onClose, modo, items, companyId, sp
                     <td className="p-2 text-right tabular-nums text-muted-foreground">{formatPrezzoUnitario(r.prima)}</td>
                     <td className="p-2 text-right font-medium tabular-nums">{formatPrezzoUnitario(r.dopo)}</td>
                     <td className={`p-2 text-right tabular-nums ${r.margine != null && r.margine < sogliaMinima ? "text-amber-700" : ""}`}>
-                      {r.margine != null ? `${r.margine.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%` : "—"}
+                      {r.margine != null ? `${r.margine.toLocaleString(intlCampo(), { maximumFractionDigits: 1 })}%` : "—"}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {righe.length > MOSTRATE && (
-              <p className="border-t px-3 py-1.5 text-center text-xs text-muted-foreground">e altre {righe.length - MOSTRATE} voci</p>
+              <p className="border-t px-3 py-1.5 text-center text-xs text-muted-foreground">{tTesto("e altre {n} voci", { n: righe.length - MOSTRATE })}</p>
             )}
           </div>
         )}
 
         <div className="space-y-1 text-xs text-muted-foreground">
           {modo === "applica" && ricaricoValido && righe.length > 0 && (
-            <p>Ricarico {formatRicarico(ricarico)} = margine {(margineDaRicarico(ricarico) ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% su {righe.length} {righe.length === 1 ? "voce" : "voci"}.</p>
+            <p>{tTesto(righe.length === 1 ? "Ricarico {ricarico} = margine {margine}% su {n} voce." : "Ricarico {ricarico} = margine {margine}% su {n} voci.", { ricarico: formatRicarico(ricarico), margine: (margineDaRicarico(ricarico) ?? 0).toLocaleString(intlCampo(), { maximumFractionDigits: 1 }), n: righe.length })}</p>
           )}
-          {senzaCosto > 0 && modo === "applica" && <p>{senzaCosto} {senzaCosto === 1 ? "voce senza costo resta" : "voci senza costo restano"} com'è.</p>}
-          {sottoMinimo > 0 && <p className="text-amber-700">{sottoMinimo} {sottoMinimo === 1 ? "voce resta" : "voci restano"} sotto il margine minimo del {sogliaMinima}%.</p>}
-          <p>I preventivi già fatti non cambiano: hanno il loro prezzo copiato dentro.</p>
+          {senzaCosto > 0 && modo === "applica" && <p>{tTesto(senzaCosto === 1 ? "{n} voce senza costo resta com'è." : "{n} voci senza costo restano com'è.", { n: senzaCosto })}</p>}
+          {sottoMinimo > 0 && <p className="text-amber-700">{tTesto(sottoMinimo === 1 ? "{n} voce resta sotto il margine minimo del {soglia}%." : "{n} voci restano sotto il margine minimo del {soglia}%.", { n: sottoMinimo, soglia: sogliaMinima })}</p>}
+          <p>{tTesto("I preventivi già fatti non cambiano: hanno il loro prezzo copiato dentro.")}</p>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>Annulla</Button>
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>{tTesto("Annulla")}</Button>
           <Button onClick={() => mutation.mutate()} disabled={rimanenti.length === 0 || mutation.isPending}>
-            {mutation.isPending ? "Aggiorno…" : `Aggiorna ${rimanenti.length} ${rimanenti.length === 1 ? "prezzo" : "prezzi"}`}
+            {mutation.isPending ? tTesto("Aggiorno…") : tTesto(rimanenti.length === 1 ? "Aggiorna {n} prezzo" : "Aggiorna {n} prezzi", { n: rimanenti.length })}
           </Button>
         </DialogFooter>
       </DialogContent>

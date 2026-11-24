@@ -64,7 +64,6 @@ import {
 import type { RisultatoImportCsv } from "@/lib/finanziamenti/types";
 import { toast } from "sonner";
 import {
-  conteggio,
   dataItaliana,
   erroreComprensibile,
   formattaEuro,
@@ -73,6 +72,7 @@ import {
   useAccessoFinanziamenti,
 } from "./_finanziamenti/comuni";
 import { AccessoNegato, AvvisoSolaLettura, TitoloAvviso } from "./_finanziamenti/pezzi";
+import { useT, sostituisci } from "@/lib/campo/lingua/LinguaCampo";
 
 type Step = 1 | 2 | 3;
 
@@ -160,12 +160,12 @@ const CSV_MIME_TYPES = new Set([
   "",
 ]);
 
-function parsePercentuale(value: string, label: string): number | null {
+function parsePercentuale(value: string, label: string, t: (testo: string, valori?: Record<string, string | number>) => string = sostituisci): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
   const parsed = Number(trimmed.replace(",", "."));
   if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
-    throw new Error(`${label} deve essere un numero tra 0 e 100`);
+    throw new Error(t("{label} deve essere un numero tra 0 e 100", { label }));
   }
   return parsed;
 }
@@ -175,39 +175,40 @@ function emailValida(value: string): boolean {
   return !trimmed || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
 }
 
-function validaDate(decorrenza: string, scadenza: string): void {
+function validaDate(decorrenza: string, scadenza: string, t: (testo: string, valori?: Record<string, string | number>) => string = sostituisci): void {
   if (decorrenza && scadenza && scadenza < decorrenza) {
-    throw new Error("La data di scadenza non può essere precedente alla decorrenza");
+    throw new Error(t("La data di scadenza non può essere precedente alla decorrenza"));
   }
 }
 
-function validaCsvFile(file: File): void {
+function validaCsvFile(file: File, t: (testo: string, valori?: Record<string, string | number>) => string = sostituisci): void {
   const name = file.name.toLowerCase();
   const isCsvLike = name.endsWith(".csv") || name.endsWith(".txt") || name.endsWith(".tsv");
   if (!isCsvLike || !CSV_MIME_TYPES.has(file.type)) {
-    throw new Error("Formato non supportato: importa un file CSV, TXT o TSV. Converti eventuali Excel in CSV prima del caricamento.");
+    throw new Error(t("Formato non supportato: importa un file CSV, TXT o TSV. Converti eventuali Excel in CSV prima del caricamento."));
   }
   if (file.size <= 0) {
-    throw new Error("Il file CSV è vuoto");
+    throw new Error(t("Il file CSV è vuoto"));
   }
   if (file.size > MAX_UPLOAD_BYTES) {
-    throw new Error("CSV troppo grande (max 20 MB)");
+    throw new Error(t("CSV troppo grande (max 20 MB)"));
   }
 }
 
-function validaPdfFile(file: File): void {
+function validaPdfFile(file: File, t: (testo: string, valori?: Record<string, string | number>) => string = sostituisci): void {
   if (!file.name.toLowerCase().endsWith(".pdf") || (file.type && file.type !== "application/pdf")) {
-    throw new Error("Solo file PDF supportati");
+    throw new Error(t("Solo file PDF supportati"));
   }
   if (file.size <= 0) {
-    throw new Error("Il file PDF è vuoto");
+    throw new Error(t("Il file PDF è vuoto"));
   }
   if (file.size > MAX_UPLOAD_BYTES) {
-    throw new Error("PDF troppo grande (max 20 MB)");
+    throw new Error(t("PDF troppo grande (max 20 MB)"));
   }
 }
 
 export default function SettingsFinanziamentiNuova() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const { puoVedere, puoModificare } = useAccessoFinanziamenti();
   const navigate = useNavigate();
@@ -262,7 +263,7 @@ export default function SettingsFinanziamentiNuova() {
   // ─── Passo 2: lettura del CSV ───────────────────────────────────────────
   const handleCsvSelect = async (file: File) => {
     try {
-      validaCsvFile(file);
+      validaCsvFile(file, t);
       update("csv_file", file);
       const text = await file.text();
       update("csv_text", text);
@@ -271,28 +272,28 @@ export default function SettingsFinanziamentiNuova() {
       });
       update("parse_result", result);
       if (result.errori.length > 0) {
-        toast.error("Il file ha degli errori", {
-          description: `Correggi ${conteggio(result.errori.length, "errore", "errori")} prima di salvare.`,
+        toast.error(t("Il file ha degli errori"), {
+          description: t(result.errori.length === 1 ? "Correggi {n} errore prima di salvare." : "Correggi {n} errori prima di salvare.", { n: result.errori.length }),
         });
       }
     } catch (e) {
       update("csv_file", null);
       update("csv_text", "");
       update("parse_result", null);
-      toast.error("Non riesco a leggere il file CSV", {
-        description: erroreComprensibile(e, "Controlla che sia un file CSV."),
+      toast.error(t("Non riesco a leggere il file CSV"), {
+        description: erroreComprensibile(e, t("Controlla che sia un file CSV.")),
       });
     }
   };
 
   const handlePdfSelect = (file: File) => {
     try {
-      validaPdfFile(file);
+      validaPdfFile(file, t);
       update("pdf_file", file);
     } catch (e) {
       update("pdf_file", null);
-      toast.error("Il PDF non va bene", {
-        description: erroreComprensibile(e, "Scegli un file PDF."),
+      toast.error(t("Il PDF non va bene"), {
+        description: erroreComprensibile(e, t("Scegli un file PDF.")),
       });
     }
   };
@@ -300,14 +301,14 @@ export default function SettingsFinanziamentiNuova() {
   // ─── Passo 2 (AI): carica il PDF e chiama la funzione che ne legge le righe ──
   const handleAiExtract = async (file: File) => {
     if (!effectiveCompany?.id) {
-      toast.error("Non riesco a capire a quale azienda appartieni. Ricarica la pagina e riprova.");
+      toast.error(t("Non riesco a capire a quale azienda appartieni. Ricarica la pagina e riprova."));
       return;
     }
     try {
-      validaPdfFile(file);
+      validaPdfFile(file, t);
     } catch (e) {
-      toast.error("Il PDF non va bene", {
-        description: erroreComprensibile(e, "Scegli un file PDF."),
+      toast.error(t("Il PDF non va bene"), {
+        description: erroreComprensibile(e, t("Scegli un file PDF.")),
       });
       return;
     }
@@ -334,7 +335,7 @@ export default function SettingsFinanziamentiNuova() {
           upsert: false,
           contentType: "application/pdf",
         });
-      if (upErr) throw new Error(`Non riesco a caricare il PDF. ${erroreComprensibile(upErr, "Riprova tra poco.")}`);
+      if (upErr) throw new Error(`${t("Non riesco a caricare il PDF.")} ${erroreComprensibile(upErr, t("Riprova tra poco."))}`);
       setForm((p) => ({ ...p, ai_progress: 35 }));
 
       // 2. Chiama la funzione che legge il PDF
@@ -438,11 +439,11 @@ export default function SettingsFinanziamentiNuova() {
       }));
 
       toast.success(
-        `${conteggio(mapped.length, "riga letta", "righe lette")} dal PDF (affidabilità ${(result.confidence * 100).toFixed(0)}%)`,
+        t(mapped.length === 1 ? "{n} riga letta dal PDF (affidabilità {valore}%)" : "{n} righe lette dal PDF (affidabilità {valore}%)", { n: mapped.length, valore: (result.confidence * 100).toFixed(0) }),
       );
     } catch (e) {
-      toast.error("Non sono riuscito a leggere il PDF", {
-        description: erroreComprensibile(e, "Riprova tra poco, oppure carica un file CSV con le righe."),
+      toast.error(t("Non sono riuscito a leggere il PDF"), {
+        description: erroreComprensibile(e, t("Riprova tra poco, oppure carica un file CSV con le righe.")),
       });
     } finally {
       setForm((p) => ({ ...p, ai_extracting: false }));
@@ -465,32 +466,32 @@ export default function SettingsFinanziamentiNuova() {
   const handleSalva = async () => {
     if (!puoModificare) return;
     if (!form.parse_result || form.parse_result.righe_valide.length === 0) {
-      toast.error("Carica prima un file con le righe.");
+      toast.error(t("Carica prima un file con le righe."));
       return;
     }
     if (form.parse_result.errori.length > 0) {
-      toast.error("Correggi gli errori della tabella prima di salvare.", {
-        description: `${conteggio(form.parse_result.errori.length, "errore trovato", "errori trovati")} nel file.`,
+      toast.error(t("Correggi gli errori della tabella prima di salvare."), {
+        description: t(form.parse_result.errori.length === 1 ? "{n} errore trovato nel file." : "{n} errori trovati nel file.", { n: form.parse_result.errori.length }),
       });
       return;
     }
     if (!effectiveCompany?.id) {
-      toast.error("Non riesco a capire a quale azienda appartieni. Ricarica la pagina e riprova.");
+      toast.error(t("Non riesco a capire a quale azienda appartieni. Ricarica la pagina e riprova."));
       return;
     }
 
     setIsSaving(true);
     try {
-      parsePercentuale(form.tan_base, "TAN base");
-      validaDate(form.data_decorrenza, form.data_scadenza);
+      parsePercentuale(form.tan_base, "TAN base", t);
+      validaDate(form.data_decorrenza, form.data_scadenza, t);
       if (form.finanziaria_modalita === "nuova" && !emailValida(form.finanziaria_email)) {
-        throw new Error("Email pratiche non valida");
+        throw new Error(t("Email pratiche non valida"));
       }
       if (form.csv_file && form.csv_file.size > MAX_UPLOAD_BYTES) {
-        throw new Error("CSV troppo grande (max 20 MB)");
+        throw new Error(t("CSV troppo grande (max 20 MB)"));
       }
       if (form.pdf_file && form.pdf_file.size > MAX_UPLOAD_BYTES) {
-        throw new Error("PDF troppo grande (max 20 MB)");
+        throw new Error(t("PDF troppo grande (max 20 MB)"));
       }
 
       // 1. Risolvi la finanziaria (nuova o già registrata)
@@ -522,7 +523,7 @@ export default function SettingsFinanziamentiNuova() {
             upsert: false,
             contentType: form.pdf_file.type || "application/pdf",
           });
-        if (error) throw new Error(`Non riesco a caricare il PDF. ${erroreComprensibile(error, "Riprova tra poco.")}`);
+        if (error) throw new Error(`${t("Non riesco a caricare il PDF.")} ${erroreComprensibile(error, t("Riprova tra poco."))}`);
         pdfUrl = path;
         pdfFilename = form.pdf_file.name;
       }
@@ -535,7 +536,7 @@ export default function SettingsFinanziamentiNuova() {
             upsert: false,
             contentType: "text/csv",
           });
-        if (error) throw new Error(`Non riesco a caricare il file CSV. ${erroreComprensibile(error, "Riprova tra poco.")}`);
+        if (error) throw new Error(`${t("Non riesco a caricare il file CSV.")} ${erroreComprensibile(error, t("Riprova tra poco."))}`);
         csvUrl = path;
         csvFilename = form.csv_file.name;
       }
@@ -546,7 +547,7 @@ export default function SettingsFinanziamentiNuova() {
         nome_prodotto: form.nome_prodotto.trim(),
         codice_condizione: form.codice_condizione.trim() || null,
         subtariffa_default: form.subtariffa_default.trim() || null,
-        tan_base: parsePercentuale(form.tan_base, "TAN base"),
+        tan_base: parsePercentuale(form.tan_base, "TAN base", t),
         pdf_url: pdfUrl,
         pdf_filename: pdfFilename,
         csv_url: csvUrl,
@@ -563,12 +564,12 @@ export default function SettingsFinanziamentiNuova() {
       });
 
       toast.success(
-        `Tabella "${tabella.nome_prodotto}" caricata con ${conteggio(form.parse_result.righe_valide.length, "riga", "righe")}.`
+        t(form.parse_result.righe_valide.length === 1 ? "Tabella \"{nome_prodotto}\" caricata con {n} riga." : "Tabella \"{nome_prodotto}\" caricata con {n} righe.", { nome_prodotto: String(tabella.nome_prodotto ?? ""), n: form.parse_result.righe_valide.length })
       );
       navigate(`/azienda/impostazioni/finanziamenti/${tabella.id}`);
     } catch (e) {
-      toast.error("Non sono riuscito a salvare la tabella", {
-        description: erroreComprensibile(e, "Riprova tra poco."),
+      toast.error(t("Non sono riuscito a salvare la tabella"), {
+        description: erroreComprensibile(e, t("Riprova tra poco.")),
       });
     } finally {
       setIsSaving(false);
@@ -588,7 +589,7 @@ export default function SettingsFinanziamentiNuova() {
         <Button asChild variant="ghost" size="sm">
           <Link to="/azienda/impostazioni/finanziamenti">
             <ArrowLeft className="h-4 w-4 mr-1" aria-hidden="true" />
-            Torna alle tabelle
+            {t("Torna alle tabelle")}
           </Link>
         </Button>
       </div>
@@ -604,12 +605,12 @@ export default function SettingsFinanziamentiNuova() {
             <div className="flex items-center gap-3">
               <Banknote className="h-6 w-6 text-primary" aria-hidden="true" />
               <div>
-                <h2 className="font-semibold">Nuova tabella</h2>
+                <h2 className="font-semibold">{t("Nuova tabella")}</h2>
                 <p className="text-sm text-muted-foreground">
-                  Passo {step} di 3 —{" "}
-                  {step === 1 && "Finanziaria e prodotto"}
-                  {step === 2 && "File con le righe e PDF"}
-                  {step === 3 && "Controlla e salva"}
+                  {t("Passo {step} di 3 —", { step })}{" "}
+                  {step === 1 && t("Finanziaria e prodotto")}
+                  {step === 2 && t("File con le righe e PDF")}
+                  {step === 3 && t("Controlla e salva")}
                 </p>
               </div>
             </div>
@@ -621,7 +622,7 @@ export default function SettingsFinanziamentiNuova() {
           <Card>
             <CardContent className="py-6 space-y-5">
               <div role="group" aria-labelledby="fin-gruppo">
-                <p id="fin-gruppo" className="text-sm font-medium leading-none">Finanziaria *</p>
+                <p id="fin-gruppo" className="text-sm font-medium leading-none">{t("Finanziaria *")}</p>
                 <div className="flex gap-2 mt-1.5">
                   <Button
                     type="button"
@@ -634,7 +635,7 @@ export default function SettingsFinanziamentiNuova() {
                     aria-pressed={form.finanziaria_modalita === "esistente"}
                     onClick={() => update("finanziaria_modalita", "esistente")}
                   >
-                    Già registrata
+                    {t("Già registrata")}
                   </Button>
                   <Button
                     type="button"
@@ -645,7 +646,7 @@ export default function SettingsFinanziamentiNuova() {
                     aria-pressed={form.finanziaria_modalita === "nuova"}
                     onClick={() => update("finanziaria_modalita", "nuova")}
                   >
-                    Nuova finanziaria
+                    {t("Nuova finanziaria")}
                   </Button>
                 </div>
 
@@ -653,9 +654,9 @@ export default function SettingsFinanziamentiNuova() {
                   <div className="mt-3">
                     {finanziarie.length === 0 ? (
                       <Alert>
-                        <TitoloAvviso>Nessuna finanziaria registrata</TitoloAvviso>
+                        <TitoloAvviso>{t("Nessuna finanziaria registrata")}</TitoloAvviso>
                         <AlertDescription>
-                          Non ne hai ancora registrate: scegli «Nuova finanziaria» qui sopra.
+                          {t("Non ne hai ancora registrate: scegli «Nuova finanziaria» qui sopra.")}
                         </AlertDescription>
                       </Alert>
                     ) : (
@@ -663,8 +664,8 @@ export default function SettingsFinanziamentiNuova() {
                         value={form.finanziaria_id}
                         onValueChange={(v) => update("finanziaria_id", v)}
                       >
-                        <SelectTrigger aria-label="Finanziaria">
-                          <SelectValue placeholder="Seleziona finanziaria…" />
+                        <SelectTrigger aria-label={t("Finanziaria")}>
+                          <SelectValue placeholder={t("Seleziona finanziaria…")} />
                         </SelectTrigger>
                         <SelectContent>
                           {finanziarie.map((f) => (
@@ -682,10 +683,10 @@ export default function SettingsFinanziamentiNuova() {
                 {form.finanziaria_modalita === "nuova" && (
                   <div className="grid sm:grid-cols-2 gap-3 mt-3">
                     <div>
-                      <Label htmlFor="fin_nome">Nome breve *</Label>
+                      <Label htmlFor="fin_nome">{t("Nome breve *")}</Label>
                       <Input
                         id="fin_nome"
-                        placeholder="es. Fiditalia"
+                        placeholder={t("es. Fiditalia")}
                         value={form.finanziaria_nome_nuova}
                         onChange={(e) =>
                           update("finanziaria_nome_nuova", e.target.value)
@@ -693,10 +694,10 @@ export default function SettingsFinanziamentiNuova() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="fin_rs">Ragione sociale</Label>
+                      <Label htmlFor="fin_rs">{t("Ragione sociale")}</Label>
                       <Input
                         id="fin_rs"
-                        placeholder="es. Fiditalia S.p.A."
+                        placeholder={t("es. Fiditalia S.p.A.")}
                         value={form.finanziaria_ragione_sociale}
                         onChange={(e) =>
                           update("finanziaria_ragione_sociale", e.target.value)
@@ -704,10 +705,10 @@ export default function SettingsFinanziamentiNuova() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="fin_piva">Partita IVA</Label>
+                      <Label htmlFor="fin_piva">{t("Partita IVA")}</Label>
                       <Input
                         id="fin_piva"
-                        placeholder="es. 01259520031"
+                        placeholder={t("es. 01259520031")}
                         value={form.finanziaria_partita_iva}
                         onChange={(e) =>
                           update("finanziaria_partita_iva", e.target.value)
@@ -715,7 +716,7 @@ export default function SettingsFinanziamentiNuova() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="fin_email">Email pratiche</Label>
+                      <Label htmlFor="fin_email">{t("Email pratiche")}</Label>
                       <Input
                         id="fin_email"
                         type="email"
@@ -732,45 +733,45 @@ export default function SettingsFinanziamentiNuova() {
 
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="prod">Nome prodotto *</Label>
+                  <Label htmlFor="prod">{t("Nome prodotto *")}</Label>
                   <Input
                     id="prod"
-                    placeholder="es. OKNOPLAST TAN 8.75"
+                    placeholder={t("es. OKNOPLAST TAN 8.75")}
                     value={form.nome_prodotto}
                     onChange={(e) => update("nome_prodotto", e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="cond">Codice condizione</Label>
+                  <Label htmlFor="cond">{t("Codice condizione")}</Label>
                   <Input
                     id="cond"
-                    placeholder="es. 255891"
+                    placeholder={t("es. 255891")}
                     value={form.codice_condizione}
                     onChange={(e) => update("codice_condizione", e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="sub">Subtariffa (se le righe non la riportano)</Label>
+                  <Label htmlFor="sub">{t("Subtariffa (se le righe non la riportano)")}</Label>
                   <Input
                     id="sub"
-                    placeholder="es. GT57T"
+                    placeholder={t("es. GT57T")}
                     value={form.subtariffa_default}
                     onChange={(e) => update("subtariffa_default", e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="tan">TAN base (%)</Label>
+                  <Label htmlFor="tan">{t("TAN base (%)")}</Label>
                   <Input
                     id="tan"
                     type="text"
                     inputMode="decimal"
-                    placeholder="es. 8,75"
+                    placeholder={t("es. 8,75")}
                     value={form.tan_base}
                     onChange={(e) => update("tan_base", e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="dec">Decorrenza</Label>
+                  <Label htmlFor="dec">{t("Decorrenza")}</Label>
                   <Input
                     id="dec"
                     type="date"
@@ -779,7 +780,7 @@ export default function SettingsFinanziamentiNuova() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="sca">Scadenza</Label>
+                  <Label htmlFor="sca">{t("Scadenza")}</Label>
                   <Input
                     id="sca"
                     type="date"
@@ -790,10 +791,10 @@ export default function SettingsFinanziamentiNuova() {
               </div>
 
               <div>
-                <Label htmlFor="note">Note interne</Label>
+                <Label htmlFor="note">{t("Note interne")}</Label>
                 <Textarea
                   id="note"
-                  placeholder="Note opzionali (visibili solo internamente)"
+                  placeholder={t("Note opzionali (visibili solo internamente)")}
                   value={form.note}
                   onChange={(e) => update("note", e.target.value)}
                   rows={3}
@@ -805,7 +806,7 @@ export default function SettingsFinanziamentiNuova() {
                   onClick={() => setStep(2)}
                   disabled={!step1Valido}
                 >
-                  Avanti
+                  {t("Avanti")}
                   <ArrowRight className="h-4 w-4 ml-2" aria-hidden="true" />
                 </Button>
               </div>
@@ -819,7 +820,7 @@ export default function SettingsFinanziamentiNuova() {
             <CardContent className="py-6 space-y-5">
               {/* Come si caricano le righe */}
               <div role="group" aria-labelledby="come-carichi">
-                <p id="come-carichi" className="text-sm font-medium leading-none">Come carichi le righe</p>
+                <p id="come-carichi" className="text-sm font-medium leading-none">{t("Come carichi le righe")}</p>
                 <div className="grid sm:grid-cols-2 gap-2 mt-1.5">
                   <button
                     type="button"
@@ -834,11 +835,10 @@ export default function SettingsFinanziamentiNuova() {
                   >
                     <div className="flex items-center gap-2 font-medium">
                       <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
-                      Leggi il PDF con l&apos;AI (consigliato)
+                      {t("Leggi il PDF con l'AI (consigliato)")}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Carichi il PDF della finanziaria e l&apos;AI ne legge tutte le
-                      righe (importo, rata, TAN, TAEG…). Poi controlli l&apos;anteprima.
+                      {t("Carichi il PDF della finanziaria e l'AI ne legge tutte le righe (importo, rata, TAN, TAEG…). Poi controlli l'anteprima.")}
                     </p>
                   </button>
                   <button
@@ -854,11 +854,10 @@ export default function SettingsFinanziamentiNuova() {
                   >
                     <div className="flex items-center gap-2 font-medium">
                       <Upload className="h-4 w-4" aria-hidden="true" />
-                      Carica un file CSV
+                      {t("Carica un file CSV")}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Hai già un file CSV con le righe? Caricalo direttamente, senza
-                      AI. Se hai un foglio Excel, salvalo prima come CSV.
+                      {t("Hai già un file CSV con le righe? Caricalo direttamente, senza AI. Se hai un foglio Excel, salvalo prima come CSV.")}
                     </p>
                   </button>
                 </div>
@@ -868,7 +867,7 @@ export default function SettingsFinanziamentiNuova() {
               {form.import_mode === "ai_pdf" && (
                 <div className="space-y-3">
                   <div>
-                    <Label id="lbl-pdf-ai" htmlFor="file-pdf-ai">PDF della tabella *</Label>
+                    <Label id="lbl-pdf-ai" htmlFor="file-pdf-ai">{t("PDF della tabella *")}</Label>
                     <input
                       id="file-pdf-ai"
                       ref={pdfInputRef}
@@ -899,13 +898,11 @@ export default function SettingsFinanziamentiNuova() {
                         <Wand2 className="h-4 w-4 mr-2 text-primary" aria-hidden="true" />
                       )}
                       <span className="min-w-0 truncate" title={form.pdf_file?.name}>
-                        {form.pdf_file ? form.pdf_file.name : "Scegli il PDF (max 20 MB)…"}
+                        {form.pdf_file ? form.pdf_file.name : t("Scegli il PDF (max 20 MB)…")}
                       </span>
                     </Button>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Compatibile con le tabelle di Fiditalia, Findomestic, Compass,
-                      Agos, Cofidis, BNL e altre finanziarie. Se nel passo 1 mancano il
-                      nome del prodotto, il codice condizione o il TAN, l&apos;AI li compila.
+                      {t("Compatibile con le tabelle di Fiditalia, Findomestic, Compass, Agos, Cofidis, BNL e altre finanziarie. Se nel passo 1 mancano il nome del prodotto, il codice condizione o il TAN, l'AI li compila.")}
                     </p>
                   </div>
 
@@ -913,8 +910,7 @@ export default function SettingsFinanziamentiNuova() {
                     <div className="space-y-2">
                       <Progress value={form.ai_progress} />
                       <p className="text-xs text-muted-foreground text-center" role="status">
-                        Lettura del PDF in corso… Sulle tabelle grandi può richiedere
-                        un minuto o più.
+                        {t("Lettura del PDF in corso… Sulle tabelle grandi può richiedere un minuto o più.")}
                       </p>
                     </div>
                   )}
@@ -924,36 +920,36 @@ export default function SettingsFinanziamentiNuova() {
                       form.ai_detected.prodotto) && (
                       <Alert>
                         <Sparkles className="h-4 w-4" aria-hidden="true" />
-                        <TitoloAvviso>Cosa ha riconosciuto l&apos;AI</TitoloAvviso>
+                        <TitoloAvviso>{t("Cosa ha riconosciuto l'AI")}</TitoloAvviso>
                         <AlertDescription>
                           <ul className="text-xs mt-1 space-y-0.5">
                             {form.ai_detected.finanziaria && (
                               <li>
-                                Finanziaria:{" "}
+                                {t("Finanziaria:")}{" "}
                                 <strong>{form.ai_detected.finanziaria}</strong>
                               </li>
                             )}
                             {form.ai_detected.prodotto && (
                               <li>
-                                Prodotto:{" "}
+                                {t("Prodotto:")}{" "}
                                 <strong>{form.ai_detected.prodotto}</strong>
                               </li>
                             )}
                             {form.ai_detected.condizione && (
                               <li>
-                                Condizione:{" "}
+                                {t("Condizione:")}{" "}
                                 <strong>{form.ai_detected.condizione}</strong>
                               </li>
                             )}
                             {form.ai_detected.tan_base != null && (
                               <li>
-                                TAN base:{" "}
+                                {t("TAN base:")}{" "}
                                 <strong>{formattaPercentuale(form.ai_detected.tan_base)}</strong>
                               </li>
                             )}
                             {form.ai_confidence != null && (
                               <li>
-                                Affidabilità:{" "}
+                                {t("Affidabilità:")}{" "}
                                 <strong>
                                   {(form.ai_confidence * 100).toFixed(0)}%
                                 </strong>
@@ -961,8 +957,7 @@ export default function SettingsFinanziamentiNuova() {
                             )}
                           </ul>
                           <p className="text-xs mt-2 text-muted-foreground">
-                            I campi del passo 1 (nome del prodotto, codice condizione, TAN base)
-                            sono stati compilati se erano vuoti. Torna indietro per controllarli.
+                            {t("I campi del passo 1 (nome del prodotto, codice condizione, TAN base) sono stati compilati se erano vuoti. Torna indietro per controllarli.")}
                           </p>
                         </AlertDescription>
                       </Alert>
@@ -975,7 +970,7 @@ export default function SettingsFinanziamentiNuova() {
                 <>
                   <div>
                     <div className="flex flex-wrap items-center justify-between gap-1">
-                      <Label id="lbl-csv" htmlFor="file-csv">File CSV con le righe *</Label>
+                      <Label id="lbl-csv" htmlFor="file-csv">{t("File CSV con le righe *")}</Label>
                       <Button
                         type="button"
                         variant="ghost"
@@ -983,7 +978,7 @@ export default function SettingsFinanziamentiNuova() {
                         onClick={downloadTemplate}
                       >
                         <Download className="h-4 w-4 mr-1" aria-hidden="true" />
-                        Scarica il file di esempio
+                        {t("Scarica il file di esempio")}
                       </Button>
                     </div>
                     <input
@@ -1011,51 +1006,47 @@ export default function SettingsFinanziamentiNuova() {
                     >
                       <Upload className="h-4 w-4 mr-2" aria-hidden="true" />
                       <span className="min-w-0 truncate" title={form.csv_file?.name}>
-                        {form.csv_file ? form.csv_file.name : "Scegli il file CSV…"}
+                        {form.csv_file ? form.csv_file.name : t("Scegli il file CSV…")}
                       </span>
                     </Button>
                     <details className="mt-2 text-xs text-muted-foreground">
                       <summary className="cursor-pointer py-1 text-sm font-medium text-foreground">
-                        Quali colonne servono?
+                        {t("Quali colonne servono?")}
                       </summary>
                       <div className="mt-1 space-y-2">
                         <p>
-                          La prima riga del file contiene i nomi delle colonne. Tra parentesi c&apos;è il nome
-                          tecnico, quello da scrivere nel file: molte intestazioni usate dalle finanziarie
-                          (come «N° rate» o «T.A.N.») vengono riconosciute lo stesso. Per non sbagliare,
-                          scarica il file di esempio e riempilo.
+                          {t("La prima riga del file contiene i nomi delle colonne. Tra parentesi c'è il nome tecnico, quello da scrivere nel file: molte intestazioni usate dalle finanziarie (come «N° rate» o «T.A.N.») vengono riconosciute lo stesso. Per non sbagliare, scarica il file di esempio e riempilo.")}
                         </p>
-                        <p className="font-medium text-foreground">Servono sempre</p>
+                        <p className="font-medium text-foreground">{t("Servono sempre")}</p>
                         <ul className="list-disc space-y-0.5 pl-5">
-                          <li>Importo erogato (<code>importo_erogato</code>)</li>
-                          <li>Numero di rate (<code>numero_rate</code>)</li>
-                          <li>Importo della rata (<code>importo_rata</code>)</li>
-                          <li>Interessi pagati dal cliente (<code>interessi_cliente</code>)</li>
-                          <li>Totale dovuto dal cliente (<code>importo_totale_dovuto</code>)</li>
-                          <li>TAN (<code>tan</code>)</li>
-                          <li>TAEG (<code>taeg</code>)</li>
+                          <li>{t("Importo erogato (")}<code>importo_erogato</code>)</li>
+                          <li>{t("Numero di rate (")}<code>numero_rate</code>)</li>
+                          <li>{t("Importo della rata (")}<code>importo_rata</code>)</li>
+                          <li>{t("Interessi pagati dal cliente (")}<code>interessi_cliente</code>)</li>
+                          <li>{t("Totale dovuto dal cliente (")}<code>importo_totale_dovuto</code>)</li>
+                          <li>{t("TAN (")}<code>tan</code>)</li>
+                          <li>{t("TAEG (")}<code>taeg</code>)</li>
                         </ul>
-                        <p className="font-medium text-foreground">Facoltative</p>
+                        <p className="font-medium text-foreground">{t("Facoltative")}</p>
                         <ul className="list-disc space-y-0.5 pl-5">
-                          <li>Subtariffa (<code>subtariffa</code>)</li>
-                          <li>Spese di istruttoria (<code>spese_istruttoria</code>)</li>
-                          <li>Importo totale del credito (<code>importo_totale_credito</code>)</li>
-                          <li>Durata in mesi (<code>durata_mesi</code>)</li>
-                          <li>Giorni alla prima rata (<code>prima_rata_giorni</code>)</li>
-                          <li>Spese di incasso della rata (<code>spese_incasso_rata</code>)</li>
-                          <li>ICC (<code>icc</code>)</li>
-                          <li>Provvigione (<code>provvigione_dealer</code>)</li>
+                          <li>{t("Subtariffa (")}<code>subtariffa</code>)</li>
+                          <li>{t("Spese di istruttoria (")}<code>spese_istruttoria</code>)</li>
+                          <li>{t("Importo totale del credito (")}<code>importo_totale_credito</code>)</li>
+                          <li>{t("Durata in mesi (")}<code>durata_mesi</code>)</li>
+                          <li>{t("Giorni alla prima rata (")}<code>prima_rata_giorni</code>)</li>
+                          <li>{t("Spese di incasso della rata (")}<code>spese_incasso_rata</code>)</li>
+                          <li>{t("ICC (")}<code>icc</code>)</li>
+                          <li>{t("Provvigione (")}<code>provvigione_dealer</code>)</li>
                         </ul>
                         <p>
-                          Se una colonna facoltativa manca, si parte da questi valori: spese e provvigione a
-                          zero, durata uguale al numero di rate, prima rata dopo 30 giorni.
+                          {t("Se una colonna facoltativa manca, si parte da questi valori: spese e provvigione a zero, durata uguale al numero di rate, prima rata dopo 30 giorni.")}
                         </p>
                       </div>
                     </details>
                   </div>
 
                   <div>
-                    <Label id="lbl-pdf-orig" htmlFor="file-pdf-orig">PDF originale (facoltativo)</Label>
+                    <Label id="lbl-pdf-orig" htmlFor="file-pdf-orig">{t("PDF originale (facoltativo)")}</Label>
                     <input
                       id="file-pdf-orig"
                       type="file"
@@ -1081,11 +1072,11 @@ export default function SettingsFinanziamentiNuova() {
                     >
                       <FileText className="h-4 w-4 mr-2" aria-hidden="true" />
                       <span className="min-w-0 truncate" title={form.pdf_file?.name}>
-                        {form.pdf_file ? form.pdf_file.name : "Scegli il PDF…"}
+                        {form.pdf_file ? form.pdf_file.name : t("Scegli il PDF…")}
                       </span>
                     </Button>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Il PDF resta insieme alla tabella, nella scheda «Allegati».
+                      {t("Il PDF resta insieme alla tabella, nella scheda «Allegati».")}
                     </p>
                   </div>
                 </>
@@ -1106,7 +1097,7 @@ export default function SettingsFinanziamentiNuova() {
               <div className="flex justify-between gap-2">
                 <Button variant="outline" onClick={() => setStep(1)}>
                   <ArrowLeft className="h-4 w-4 mr-1" aria-hidden="true" />
-                  Indietro
+                  {t("Indietro")}
                 </Button>
                 <Button
                   onClick={() => setStep(3)}
@@ -1116,7 +1107,7 @@ export default function SettingsFinanziamentiNuova() {
                     form.ai_extracting
                   }
                 >
-                  Avanti
+                  {t("Avanti")}
                   <ArrowRight className="h-4 w-4 ml-2" aria-hidden="true" />
                 </Button>
               </div>
@@ -1128,11 +1119,11 @@ export default function SettingsFinanziamentiNuova() {
         {step === 3 && form.parse_result && (
           <Card>
             <CardContent className="py-6 space-y-4">
-              <h3 className="font-medium">Riepilogo prima del salvataggio</h3>
+              <h3 className="font-medium">{t("Riepilogo prima del salvataggio")}</h3>
               <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                <DataRow label="Prodotto" value={form.nome_prodotto} />
+                <DataRow label={t("Prodotto")} value={form.nome_prodotto} />
                 <DataRow
-                  label="Finanziaria"
+                  label={t("Finanziaria")}
                   value={
                     form.finanziaria_modalita === "nuova"
                       ? `${form.finanziaria_nome_nuova} (nuova)`
@@ -1141,57 +1132,56 @@ export default function SettingsFinanziamentiNuova() {
                   }
                 />
                 <DataRow
-                  label="Codice condizione"
+                  label={t("Codice condizione")}
                   value={form.codice_condizione || "—"}
                 />
                 <DataRow
-                  label="Subtariffa"
+                  label={t("Subtariffa")}
                   value={form.subtariffa_default || "—"}
                 />
-                <DataRow label="TAN base" value={tanBaseScritto ? `${tanBaseScritto.replace(".", ",")}%` : "—"} />
+                <DataRow label={t("TAN base")} value={tanBaseScritto ? `${tanBaseScritto.replace(".", ",")}%` : "—"} />
                 <DataRow
-                  label="Decorrenza"
+                  label={t("Decorrenza")}
                   value={dataItaliana(form.data_decorrenza)}
                 />
                 <DataRow
-                  label="Scadenza"
+                  label={t("Scadenza")}
                   value={dataItaliana(form.data_scadenza)}
                 />
                 <DataRow
-                  label="Righe valide"
+                  label={t("Righe valide")}
                   value={`${form.parse_result.righe_valide.length}`}
                 />
                 <DataRow
-                  label="PDF allegato"
+                  label={t("PDF allegato")}
                   value={form.pdf_file?.name ?? "—"}
                 />
               </div>
               {financeSummary && (
                 <div className="grid sm:grid-cols-3 gap-3">
-                  <SummaryMetric label="Importi" value={`€ ${formattaEuro(financeSummary.importoMin)} - € ${formattaEuro(financeSummary.importoMax)}`} />
-                  <SummaryMetric label="Durate" value={`${financeSummary.durate.join(", ")} mesi`} />
+                  <SummaryMetric label={t("Importi")} value={`€ ${formattaEuro(financeSummary.importoMin)} - € ${formattaEuro(financeSummary.importoMax)}`} />
+                  <SummaryMetric label={t("Durate")} value={`${financeSummary.durate.join(", ")} mesi`} />
                   <SummaryMetric label="TAEG" value={`${formattaPercentuale(financeSummary.taegMin)} - ${formattaPercentuale(financeSummary.taegMax)}`} />
-                  <SummaryMetric label="Rata" value={`€ ${formattaEuro(financeSummary.rataMin, 2)} - € ${formattaEuro(financeSummary.rataMax, 2)}`} />
-                  <SummaryMetric label="Totale dovuto più alto" value={`€ ${formattaEuro(financeSummary.totaleDovutoMax, 2)}`} />
-                  <SummaryMetric label="Provvigione" value={`€ ${formattaEuro(financeSummary.provvigioneMin, 2)} - € ${formattaEuro(financeSummary.provvigioneMax, 2)}`} />
+                  <SummaryMetric label={t("Rata")} value={`€ ${formattaEuro(financeSummary.rataMin, 2)} - € ${formattaEuro(financeSummary.rataMax, 2)}`} />
+                  <SummaryMetric label={t("Totale dovuto più alto")} value={`€ ${formattaEuro(financeSummary.totaleDovutoMax, 2)}`} />
+                  <SummaryMetric label={t("Provvigione")} value={`€ ${formattaEuro(financeSummary.provvigioneMin, 2)} - € ${formattaEuro(financeSummary.provvigioneMax, 2)}`} />
                 </div>
               )}
               <Alert>
                 <ShieldAlert className="h-4 w-4" aria-hidden="true" />
-                <TitoloAvviso>Prima di salvare</TitoloAvviso>
+                <TitoloAvviso>{t("Prima di salvare")}</TitoloAvviso>
                 <AlertDescription>
-                  Le rate sono indicative: valgono quelle ufficiali della finanziaria. Una tabella già usata nei
-                  preventivi non va sostituita: disattivala e caricane una nuova, così lo storico resta com&apos;era.
+                  {t("Le rate sono indicative: valgono quelle ufficiali della finanziaria. Una tabella già usata nei preventivi non va sostituita: disattivala e caricane una nuova, così lo storico resta com'era.")}
                 </AlertDescription>
               </Alert>
               {erroriPresenti && (
                 <Alert variant="destructive" id="errori-salvataggio">
                   <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                   <TitoloAvviso>
-                    {conteggio(form.parse_result.errori.length, "errore trovato", "errori trovati")}
+                    {t(form.parse_result.errori.length === 1 ? "{n} errore trovato" : "{n} errori trovati", { n: form.parse_result.errori.length })}
                   </TitoloAvviso>
                   <AlertDescription>
-                    Con degli errori non puoi salvare. Torna indietro e correggi il file (o rileggi il PDF).
+                    {t("Con degli errori non puoi salvare. Torna indietro e correggi il file (o rileggi il PDF).")}
                   </AlertDescription>
                 </Alert>
               )}
@@ -1202,7 +1192,7 @@ export default function SettingsFinanziamentiNuova() {
                   disabled={isSaving}
                 >
                   <ArrowLeft className="h-4 w-4 mr-1" aria-hidden="true" />
-                  Indietro
+                  {t("Indietro")}
                 </Button>
                 <Button
                   onClick={handleSalva}
@@ -1212,12 +1202,12 @@ export default function SettingsFinanziamentiNuova() {
                   {isSaving ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                      Salvataggio…
+                      {t("Salvataggio…")}
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4 mr-2" aria-hidden="true" />
-                      Salva tabella ({conteggio(form.parse_result.righe_valide.length, "riga", "righe")})
+                      {t(form.parse_result.righe_valide.length === 1 ? "Salva tabella ({n} riga)" : "Salva tabella ({n} righe)", { n: form.parse_result.righe_valide.length })}
                     </>
                   )}
                 </Button>
@@ -1270,6 +1260,7 @@ function ParseResultCard({
   result: RisultatoImportCsv;
   fileName: string;
 }) {
+  const t = useT();
   const [showAllErrors, setShowAllErrors] = useState(false);
   const erroriDaMostrare = showAllErrors
     ? result.errori
@@ -1282,17 +1273,17 @@ function ParseResultCard({
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="break-words text-sm font-medium">
-            {fileName ? `Anteprima ${fileName}` : "Anteprima"}
+            {fileName ? t("Anteprima {nome}", { nome: String(fileName ?? "") }) : t("Anteprima")}
           </p>
           <p className="text-xs text-muted-foreground">
-            {conteggio(result.righe_valide.length, "riga valida", "righe valide")}
-            {hasErrors && `, ${conteggio(result.errori.length, "errore", "errori")}`}
+            {t(result.righe_valide.length === 1 ? "{n} riga valida" : "{n} righe valide", { n: result.righe_valide.length })}
+            {hasErrors && `, ${t(result.errori.length === 1 ? "{n} errore" : "{n} errori", { n: result.errori.length })}`}
           </p>
         </div>
         {result.righe_valide.length > 0 && (
           <span className="inline-flex items-center text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded">
             <CheckCircle2 className="h-3 w-3 mr-1" aria-hidden="true" />
-            Righe lette
+            {t("Righe lette")}
           </span>
         )}
       </div>
@@ -1300,13 +1291,12 @@ function ParseResultCard({
       {hasErrors && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-          <TitoloAvviso>{conteggio(result.errori.length, "errore", "errori")}</TitoloAvviso>
+          <TitoloAvviso>{t(result.errori.length === 1 ? "{n} errore" : "{n} errori", { n: result.errori.length })}</TitoloAvviso>
           <AlertDescription>
             <ul className="text-xs space-y-1 mt-1">
               {erroriDaMostrare.map((e, i) => (
                 <li key={i}>
-                  Riga {e.riga}
-                  {e.colonna && ` (colonna ${e.colonna})`}: {e.messaggio}
+                  {e.colonna ? t("Riga {riga} (colonna {colonna})", { riga: e.riga, colonna: String(e.colonna) }) : t("Riga {riga}", { riga: e.riga })}: {e.messaggio}
                 </li>
               ))}
             </ul>
@@ -1315,9 +1305,7 @@ function ParseResultCard({
                 type="button"
                 className="text-xs underline mt-1"
                 onClick={() => setShowAllErrors(true)}
-              >
-                Mostra tutti i {result.errori.length} errori
-              </button>
+              >{t("Mostra tutti i {n} errori", { n: result.errori.length })}</button>
             )}
           </AlertDescription>
         </Alert>
@@ -1328,11 +1316,11 @@ function ParseResultCard({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Importo</TableHead>
-                <TableHead>Rate</TableHead>
-                <TableHead>Rata</TableHead>
-                <TableHead>Interessi</TableHead>
-                <TableHead>Totale dovuto</TableHead>
+                <TableHead>{t("Importo")}</TableHead>
+                <TableHead>{t("Rate")}</TableHead>
+                <TableHead>{t("Rata")}</TableHead>
+                <TableHead>{t("Interessi")}</TableHead>
+                <TableHead>{t("Totale dovuto")}</TableHead>
                 <TableHead>TAN</TableHead>
                 <TableHead>TAEG</TableHead>
               </TableRow>
@@ -1364,9 +1352,7 @@ function ParseResultCard({
             </TableBody>
           </Table>
           {result.righe_valide.length > 5 && (
-            <p className="text-xs text-muted-foreground mt-2">
-              … e altre {result.righe_valide.length - 5} righe.
-            </p>
+            <p className="text-xs text-muted-foreground mt-2">{t("… e altre {n} righe.", { n: result.righe_valide.length - 5 })}</p>
           )}
         </div>
       )}

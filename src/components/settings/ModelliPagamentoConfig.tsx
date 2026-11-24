@@ -40,11 +40,12 @@ import {
 } from "@/lib/orders/modelliPagamento";
 import ModelloPagamentoEditor from "./ModelloPagamentoEditor";
 import AnteprimaModelloPagamento from "./AnteprimaModelloPagamento";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
-const testoMancanti = (n: number): string =>
+const testoMancanti = (n: number, t: (testo: string, valori?: Record<string, string | number>) => string): string =>
   n === 1
-    ? "Ti manca 1 modello di partenza."
-    : `Ti mancano ${n} modelli di partenza.`;
+    ? t("Ti manca 1 modello di partenza.")
+    : t("Ti mancano {n} modelli di partenza.", { n });
 const AVVISO =
   "rounded-lg border border-dashed p-4 text-sm text-muted-foreground";
 
@@ -56,6 +57,7 @@ export default function ModelliPagamentoConfig({
   evidenziata?: boolean;
   regolaSal?: ReactNode;
 }) {
+  const t = useT();
   const { role } = useAuth();
   const permissions = usePermissions();
   const puoModificare =
@@ -126,7 +128,7 @@ export default function ModelliPagamentoConfig({
       { modelli: modelliPagamentoPerInizializzare(), soloMancanti: true },
       {
         onSuccess: (n) =>
-          toast.success(n === 1 ? "1 modello rimesso" : `${n} modelli rimessi`),
+          toast.success(n === 1 ? t("1 modello rimesso") : t("{n} modelli rimessi", { n: String(n ?? "") })),
       },
     );
 
@@ -138,13 +140,13 @@ export default function ModelliPagamentoConfig({
       >
         <SezioneImpostazione
           id="modelli"
-          titolo="Come si paga"
-          descrizione="Scegli le percentuali e i momenti d’incasso. Con la stella scegli quello con cui partono le commesse nuove. Le commesse già fatte non cambiano."
+          titolo={t("Come si paga")}
+          descrizione={t("Scegli le percentuali e i momenti d’incasso. Con la stella scegli quello con cui partono le commesse nuove. Le commesse già fatte non cambiano.")}
           azione={
             puoAgire ? (
               <Button size="sm" onClick={() => setBozza(bozzaPagamentoVuota())}>
                 <Plus className="mr-1 h-4 w-4" />
-                Nuovo modello
+                {t("Nuovo modello")}
               </Button>
             ) : undefined
           }
@@ -153,7 +155,7 @@ export default function ModelliPagamentoConfig({
           <div className="min-w-0 space-y-3 p-4">
             {isLoading && (
               <p role="status" className={AVVISO}>
-                Caricamento modelli…
+                {t("Caricamento modelli…")}
               </p>
             )}
             {!isLoading && !disponibile && (
@@ -162,85 +164,80 @@ export default function ModelliPagamentoConfig({
                 className={`${AVVISO} flex flex-wrap items-center justify-between gap-3`}
               >
                 <span>
-                  Non riesco a leggere i modelli in questo momento. Riprova tra
-                  poco.
+                  {t("Non riesco a leggere i modelli in questo momento. Riprova tra poco.")}
                 </span>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => void refetch()}
                 >
-                  Riprova
+                  {t("Riprova")}
                 </Button>
               </div>
             )}
             {preparazione && !busy && !inizializza.isError && (
               <div className={`${AVVISO} space-y-2`}>
                 <p>
-                  Importa gli standard per personalizzarli e per scegliere
-                  quello delle commesse nuove. Le commesse esistenti non
-                  cambiano.
+                  {t("Importa gli standard per personalizzarli e per scegliere quello delle commesse nuove. Le commesse esistenti non cambiano.")}
                 </p>
                 <Button size="sm" variant="outline" onClick={importa}>
-                  Importa modelli standard
+                  {t("Importa modelli standard")}
                 </Button>
               </div>
             )}
             {inizializza.isPending && (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Preparo i tuoi modelli…
+                {t("Preparo i tuoi modelli…")}
               </p>
             )}
             {preparazione && !busy && inizializza.isError && (
               <div
                 className={`${AVVISO} flex items-center justify-between gap-3`}
               >
-                <span>Non sono riuscito a preparare i modelli.</span>
+                <span>{t("Non sono riuscito a preparare i modelli.")}</span>
                 <Button size="sm" variant="outline" onClick={importa}>
-                  Riprova
+                  {t("Riprova")}
                 </Button>
               </div>
             )}
             {disponibile && !inizializzati && !puoModificare && (
               <p className={AVVISO}>
-                Sono i modelli di partenza. Chi gestisce le impostazioni delle
-                commesse li potrà fare suoi e cambiarli.
+                {t("Sono i modelli di partenza. Chi gestisce le impostazioni delle commesse li potrà fare suoi e cambiarli.")}
               </p>
             )}
 
             {!isLoading && offerti.length > 0 && (
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground">
-                  {offerti.length} modelli disponibili · Nuove commesse:{" "}
+                  {offerti.length} {t("modelli disponibili · Nuove commesse:")}{" "}
                   {offerti.find((m) => m.id === predefinito)?.nome ??
-                    "nessun modello scelto"}
+                    t("nessun modello scelto")}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Input
-                    aria-label="Cerca modelli di pagamento"
-                    placeholder="Cerca nome o momento d’incasso…"
+                    aria-label={t("Cerca modelli di pagamento")}
+                    placeholder={t("Cerca nome o momento d’incasso…")}
                     value={cerca}
                     onChange={(e) => setCerca(e.target.value)}
                     className="min-w-0 flex-1"
                   />
                   <UniformSelect
-                    aria-label="Filtra modelli per SAL"
+                    aria-label={t("Filtra modelli per SAL")}
                     value={filtro}
                     onChange={(e) => setFiltro(e.target.value)}
                     className="h-10 rounded-md border bg-background px-3 text-sm"
                   >
-                    <option value="tutti">Tutti i modelli</option>
-                    <option value="sal">Con SAL</option>
-                    <option value="senza-sal">Senza SAL</option>
+                    <option value="tutti">{t("Tutti i modelli")}</option>
+                    <option value="sal">{t("Con SAL")}</option>
+                    <option value="senza-sal">{t("Senza SAL")}</option>
                   </UniformSelect>
                 </div>
               </div>
             )}
             {offerti.length === 0 ? (
               <p className={AVVISO}>
-                Non hai modelli. Creane uno con «Nuovo modello», oppure rimetti
-                quelli di partenza.
+                {t("Non hai modelli. Creane uno con «Nuovo modello», oppure rimetti quelli di partenza.")}
               </p>
             ) : (
               <ul className="divide-y rounded-lg border">
@@ -254,7 +251,7 @@ export default function ModelliPagamentoConfig({
                     >
                       <button
                         type="button"
-                        aria-label={`Anteprima ${m.nome}`}
+                        aria-label={t("Anteprima {nome}", { nome: String(m.nome ?? "") })}
                         aria-pressed={modelloScelto?.id === m.id}
                         onClick={() => scegliModello(m.id)}
                         className={`min-w-0 flex-1 basis-40 rounded-lg p-2 text-left transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${modelloScelto?.id === m.id ? "bg-primary/5" : ""}`}
@@ -263,7 +260,7 @@ export default function ModelliPagamentoConfig({
                           <span className="break-words">{m.nome}</span>
                           {diPartenza && (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
-                              Per le commesse nuove
+                              {t("Per le commesse nuove")}
                             </span>
                           )}
                         </p>
@@ -272,13 +269,13 @@ export default function ModelliPagamentoConfig({
                         </p>
                         <span className="mt-1 block text-[11px] text-muted-foreground">
                           {m.righe.length}{" "}
-                          {m.righe.length === 1 ? "rata" : "rate"} ·{" "}
+                          {m.righe.length === 1 ? t("rata") : t("rate")} ·{" "}
                           {dellAzienda
-                            ? "Modello aziendale"
-                            : "Standard da personalizzare"}
+                            ? t("Modello aziendale")
+                            : t("Standard da personalizzare")}
                         </span>
                         <span className="mt-2 flex items-center gap-1 text-xs font-medium text-primary xl:hidden">
-                          Vedi piano{" "}
+                          {t("Vedi piano")}{" "}
                           <ArrowRight className="h-3 w-3" aria-hidden />
                         </span>
                       </button>
@@ -290,13 +287,13 @@ export default function ModelliPagamentoConfig({
                             className={`h-8 w-8 ${diPartenza ? "text-amber-600" : ""}`}
                             aria-label={
                               diPartenza
-                                ? `Togli ${m.nome} dalle commesse nuove`
-                                : `Usa ${m.nome} per le commesse nuove`
+                                ? t("Togli {nome} dalle commesse nuove", { nome: String(m.nome ?? "") })
+                                : t("Usa {nome} per le commesse nuove", { nome: String(m.nome ?? "") })
                             }
                             title={
                               diPartenza
-                                ? "Non usare più per le commesse nuove"
-                                : "Usa per le commesse nuove"
+                                ? t("Non usare più per le commesse nuove")
+                                : t("Usa per le commesse nuove")
                             }
                             aria-pressed={diPartenza}
                             disabled={impostazioni.isPending}
@@ -314,7 +311,7 @@ export default function ModelliPagamentoConfig({
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            aria-label={`Modifica ${m.nome}`}
+                            aria-label={t("Modifica {nome}", { nome: String(m.nome ?? "") })}
                             onClick={() =>
                               setBozza(bozzaPagamentoDaModello(m, false))
                             }
@@ -325,7 +322,7 @@ export default function ModelliPagamentoConfig({
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            aria-label={`Duplica ${m.nome}`}
+                            aria-label={t("Duplica {nome}", { nome: String(m.nome ?? "") })}
                             onClick={() =>
                               setBozza(bozzaPagamentoDaModello(m, true))
                             }
@@ -336,7 +333,7 @@ export default function ModelliPagamentoConfig({
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-rose-600"
-                            aria-label={`Elimina ${m.nome}`}
+                            aria-label={t("Elimina {nome}", { nome: String(m.nome ?? "") })}
                             onClick={() => setDaEliminare(m)}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -350,7 +347,7 @@ export default function ModelliPagamentoConfig({
             )}
             {offerti.length > 0 && visibili.length === 0 && (
               <div className="rounded-lg border border-dashed p-5 text-center text-sm">
-                <p>Nessun modello corrisponde alla ricerca.</p>
+                <p>{t("Nessun modello corrisponde alla ricerca.")}</p>
                 <Button
                   variant="link"
                   onClick={() => {
@@ -358,7 +355,7 @@ export default function ModelliPagamentoConfig({
                     setFiltro("tutti");
                   }}
                 >
-                  Azzera i filtri
+                  {t("Azzera i filtri")}
                 </Button>
               </div>
             )}
@@ -366,7 +363,7 @@ export default function ModelliPagamentoConfig({
             {puoAgire && mancanti > 0 && (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-3">
                 <p className="text-xs text-muted-foreground">
-                  {testoMancanti(mancanti)}
+                  {testoMancanti(mancanti, t)}
                 </p>
                 <Button
                   size="sm"
@@ -375,7 +372,7 @@ export default function ModelliPagamentoConfig({
                   onClick={ripristina}
                 >
                   <RotateCcw className="mr-1 h-4 w-4" />
-                  Ripristina i predefiniti
+                  {t("Ripristina i predefiniti")}
                 </Button>
               </div>
             )}
@@ -396,7 +393,7 @@ export default function ModelliPagamentoConfig({
                 }
               >
                 <ArrowLeft className="mr-1 h-4 w-4" />
-                Torna ai modelli
+                {t("Torna ai modelli")}
               </Button>
               <AnteprimaModelloPagamento modello={modelloScelto} />
               {puoAgire && modelloScelto.origine === "partenza" && (
@@ -408,13 +405,12 @@ export default function ModelliPagamentoConfig({
                   }
                 >
                   <Copy className="mr-2 h-4 w-4" />
-                  Crea da questo standard
+                  {t("Crea da questo standard")}
                 </Button>
               )}
               {!disponibile && (
                 <p className="text-xs text-amber-800">
-                  L’elenco aziendale non è disponibile: l’anteprima mostra uno
-                  standard di riferimento.
+                  {t("L’elenco aziendale non è disponibile: l’anteprima mostra uno standard di riferimento.")}
                 </p>
               )}
             </div>
@@ -446,19 +442,13 @@ export default function ModelliPagamentoConfig({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Eliminare «{daEliminare?.nome}»?
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare «{nome}»?", { nome: String(daEliminare?.nome ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Le commesse che hanno già usato questo modello restano come sono:
-              cambia solo l'elenco. Se era quello per le commesse nuove, le
-              commesse nuove tornano senza modello di partenza. Se era uno dei
-              modelli di partenza, puoi rimetterlo con «Ripristina i
-              predefiniti».
+              {t("Le commesse che hanno già usato questo modello restano come sono: cambia solo l'elenco. Se era quello per le commesse nuove, le commesse nuove tornano senza modello di partenza. Se era uno dei modelli di partenza, puoi rimetterlo con «Ripristina i predefiniti».")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={!puoAgire}
               onClick={(e) => {
@@ -469,7 +459,7 @@ export default function ModelliPagamentoConfig({
                   });
               }}
             >
-              Elimina il modello
+              {t("Elimina il modello")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

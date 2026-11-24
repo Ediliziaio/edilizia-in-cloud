@@ -61,6 +61,7 @@ import type { AxisSelection } from "@/types/articleFamily";
 import { unitaTariffa } from "@/lib/listino/costoTariffa";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { cn } from "@/lib/utils";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type VoceType = "family" | "product" | "tariff";
 
@@ -151,12 +152,11 @@ function IntestazioneOrdinabile({
 }) {
   const verso = ordine?.chiave === chiave ? ordine.verso : null;
   const Icona = verso === "asc" ? ArrowUp : verso === "desc" ? ArrowDown : ArrowUpDown;
-  const dalBasso = chiave === "potenza" ? "dalla più piccola" : "dal più basso";
-  const dalAlto = chiave === "potenza" ? "dalla più grande" : "dal più alto";
+  const t = useT();
   const suggerimento =
-    verso === "asc" ? `Ordinati ${dalBasso}. Tocca per invertire.`
-    : verso === "desc" ? `Ordinati ${dalAlto}. Tocca per tornare all'ordine per nome.`
-    : `Ordina per ${etichetta.toLowerCase()}`;
+    verso === "asc" ? (chiave === "potenza" ? t("Ordinati dalla più piccola. Tocca per invertire.") : t("Ordinati dal più basso. Tocca per invertire."))
+    : verso === "desc" ? (chiave === "potenza" ? t("Ordinati dalla più grande. Tocca per tornare all'ordine per nome.") : t("Ordinati dal più alto. Tocca per tornare all'ordine per nome."))
+    : t("Ordina per {campo}", { campo: etichetta.toLowerCase() });
   return (
     <TableHead aria-sort={verso === "asc" ? "ascending" : verso === "desc" ? "descending" : "none"}>
       <button
@@ -202,9 +202,9 @@ function motivoErrore(errore: unknown, generico: string): string {
 
 /** «7.900 €»: l'italiano non raggruppa i numeri a quattro cifre da solo, e in tabella servono i punti dei migliaia. */
 // `useGrouping: "always"` è dei browser di oggi ma non è ancora nei tipi della libreria di TypeScript usata qui.
-const EURO_SENZA_CENTESIMI = new Intl.NumberFormat("it-IT", {
+const euroSenzaCentesimi = (n: number) => new Intl.NumberFormat(intlCampo(), {
   style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always",
-} as unknown as Intl.NumberFormatOptions);
+} as unknown as Intl.NumberFormatOptions).format(n);
 
 function emptyDraft(): DraftBundle {
   return {
@@ -261,6 +261,7 @@ function bundleToDraft(b: Bundle): DraftBundle {
 }
 
 export default function SettingsBundle() {
+  const tr = useT();
   const companyId = useEffectiveCompanyId();
   const { vertical } = useVertical();
   // Mostra i campi "Kit FV" se l'azienda ha il vertical fotovoltaico OPPURE il modulo
@@ -271,7 +272,7 @@ export default function SettingsBundle() {
   // chi vedeva la pagina poteva creare, cambiare ed eliminare i kit.
   const permissions = usePermissions();
   const puoModificare = permissions.isAdmin || permissions.canEditSettingsBundle;
-  const senzaPermesso = "Serve il permesso di modificare i pacchetti";
+  const senzaPermesso = tr("Serve il permesso di modificare i pacchetti");
   // I 5 pacchetti di esempio sono di infissi (le voci cercano prodotti come «Finestra 1 anta»):
   // il pulsante compare solo per chi ha Serramenti come settore. Prima restava, spento, per tutti gli altri.
   const puoInstallareEsempi = vertical === "serramentista";
@@ -285,7 +286,7 @@ export default function SettingsBundle() {
     // L'esito lo dice questa pagina: senza `silent` si aggiungeva l'avviso generico di App.tsx.
     meta: { silent: true },
     mutationFn: async () => {
-      if (!companyId) throw new Error("Company non identificata");
+      if (!companyId) throw new Error(tr("Company non identificata"));
       const { data, error } = await supabase.functions.invoke(
         "installa-bundle-template",
         { body: { company_id: companyId, vertical } },
@@ -298,14 +299,17 @@ export default function SettingsBundle() {
       const saltati = res.saltati.length;
       toast.success(
         creati === 0
-          ? "I pacchetti di esempio c'erano già: non ho aggiunto niente."
-          : `Installati ${creati} ${creati === 1 ? "pacchetto" : "pacchetti"} di esempio (${res.voci_create} ${res.voci_create === 1 ? "voce" : "voci"}).` +
-            (saltati > 0 ? ` ${saltati} ${saltati === 1 ? "saltato" : "saltati"}: già presenti o senza il prodotto nel listino.` : ""),
+          ? tr("I pacchetti di esempio c'erano già: non ho aggiunto niente.")
+          : tr("Installati {pacchetti} di esempio ({voci}).", {
+              pacchetti: creati === 1 ? tr("1 pacchetto") : tr("{n} pacchetti", { n: creati }),
+              voci: res.voci_create === 1 ? tr("1 voce") : tr("{n} voci", { n: res.voci_create }),
+            }) +
+            (saltati > 0 ? ` ${saltati === 1 ? tr("1 saltato: già presenti o senza il prodotto nel listino.") : tr("{n} saltati: già presenti o senza il prodotto nel listino.", { n: saltati })}` : ""),
       );
       refetch();
     },
     onError: (e) => {
-      toast.error("Installazione non riuscita", { description: userErrorMessage(e, "Riprova tra poco.") });
+      toast.error(tr("Installazione non riuscita"), { description: userErrorMessage(e, tr("Riprova tra poco.")) });
     },
   });
 
@@ -460,18 +464,18 @@ export default function SettingsBundle() {
   // Perché «Crea pacchetto» / «Salva modifiche» è spento (null = si può salvare). Le regole sono quelle di sempre;
   // in più si dice quale manca, invece di lasciare un pulsante spento senza una parola.
   const motivoNonSalvabile = useMemo((): string | null => {
-    if (!draft.nome.trim()) return "Scrivi il nome del pacchetto.";
+    if (!draft.nome.trim()) return tr("Scrivi il nome del pacchetto.");
     // Un kit FV (ha la taglia in kWp) senza prezzo finiva nel preventivatore a 0 €.
     if (isFvVertical && draft.fv_kwp != null && !(Number(draft.prezzo_offerta) > 0)) {
-      return "Scrivi il prezzo d'offerta del kit: senza, nel preventivo andrebbe a 0 €.";
+      return tr("Scrivi il prezzo d'offerta del kit: senza, nel preventivo andrebbe a 0 €.");
     }
     if (draft.voci.length === 0) {
       // Kit FV: può bastare la taglia (kWp) + prezzo offerta, voci opzionali.
       return isFvVertical && draft.fv_kwp != null && draft.prezzo_offerta != null
         ? null
         : isFvVertical
-          ? "Aggiungi almeno una voce, oppure indica potenza e prezzo del kit."
-          : "Aggiungi almeno una voce.";
+          ? tr("Aggiungi almeno una voce, oppure indica potenza e prezzo del kit.")
+          : tr("Aggiungi almeno una voce.");
     }
     const completa = draft.voci.every((v) => {
       if (v.type === "family") return !!v.family_id;
@@ -479,8 +483,8 @@ export default function SettingsBundle() {
       if (v.type === "tariff") return !!v.tariffa_id;
       return false;
     });
-    return completa ? null : "Scegli cosa va in ogni voce.";
-  }, [draft, isFvVertical]);
+    return completa ? null : tr("Scegli cosa va in ogni voce.");
+  }, [draft, isFvVertical, tr]);
   const canSave = motivoNonSalvabile === null;
 
   const handleCoverUpload = async (file: File) => {
@@ -497,9 +501,9 @@ export default function SettingsBundle() {
       if (upErr) throw upErr;
       const { data: pubblico } = supabase.storage.from("article-images").getPublicUrl(path);
       setDraft((d) => ({ ...d, cover_image_url: pubblico.publicUrl }));
-      toast.success("Immagine caricata");
+      toast.success(tr("Immagine caricata"));
     } catch (e) {
-      toast.error("Caricamento non riuscito", { description: userErrorMessage(e, "Riprova con un'altra immagine.") });
+      toast.error(tr("Caricamento non riuscito"), { description: userErrorMessage(e, tr("Riprova con un'altra immagine.")) });
     } finally {
       setCoverUploading(false);
     }
@@ -508,7 +512,7 @@ export default function SettingsBundle() {
   // Foto della singola voce del pacchetto: nel PDF del preventivo fotovoltaico compare fra i «Componenti inclusi».
   const handleVoceImageUpload = async (key: string, file: File) => {
     if (!companyId) return;
-    if (!file.type.startsWith("image/")) return toast.error("Carica un file immagine");
+    if (!file.type.startsWith("image/")) return toast.error(tr("Carica un file immagine"));
     setUploadingVoceKey(key);
     try {
       const ext = file.name.split(".").pop() ?? "jpg";
@@ -519,9 +523,9 @@ export default function SettingsBundle() {
       if (upErr) throw upErr;
       const { data: pubblico } = supabase.storage.from("article-images").getPublicUrl(path);
       updateVoce(key, { immagine_url: pubblico.publicUrl });
-      toast.success("Foto prodotto caricata");
+      toast.success(tr("Foto prodotto caricata"));
     } catch (e) {
-      toast.error("Caricamento non riuscito", { description: userErrorMessage(e, "Riprova con un'altra immagine.") });
+      toast.error(tr("Caricamento non riuscito"), { description: userErrorMessage(e, tr("Riprova con un'altra immagine.")) });
     } finally {
       setUploadingVoceKey(null);
     }
@@ -561,11 +565,11 @@ export default function SettingsBundle() {
         cover_image_url: draft.cover_image_url,
         voci,
       });
-      toast.success(draft.id ? "Pacchetto aggiornato" : "Pacchetto creato");
+      toast.success(draft.id ? tr("Pacchetto aggiornato") : tr("Pacchetto creato"));
       setDialogOpen(false);
       refetch();
     } catch (e) {
-      toast.error("Salvataggio non riuscito", { description: motivoErrore(e, "Controlla i dati e riprova tra poco.") });
+      toast.error(tr("Salvataggio non riuscito"), { description: motivoErrore(e, tr("Controlla i dati e riprova tra poco.")) });
     }
   };
 
@@ -577,11 +581,11 @@ export default function SettingsBundle() {
     }
     try {
       await deleteMut.mutateAsync(deleteTarget.id);
-      toast.success("Pacchetto eliminato");
+      toast.success(tr("Pacchetto eliminato"));
       setDeleteTarget(null);
       refetch();
     } catch (e) {
-      toast.error("Eliminazione non riuscita", { description: motivoErrore(e, "Riprova tra poco.") });
+      toast.error(tr("Eliminazione non riuscita"), { description: motivoErrore(e, tr("Riprova tra poco.")) });
     }
   };
 
@@ -594,7 +598,7 @@ export default function SettingsBundle() {
       await toggleMut.mutateAsync({ id: b.id, attivo: !b.attivo });
       refetch();
     } catch (e) {
-      toast.error("Cambio di stato non riuscito", { description: motivoErrore(e, "Riprova tra poco.") });
+      toast.error(tr("Cambio di stato non riuscito"), { description: motivoErrore(e, tr("Riprova tra poco.")) });
     }
   };
 
@@ -603,8 +607,8 @@ export default function SettingsBundle() {
       {/* Il titolo della pagina lo mette il layout (Listino › scheda «Kit e pacchetti»): qui solo a cosa serve, e i pulsanti. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <p className="min-w-0 max-w-2xl text-sm text-muted-foreground">
-          Gruppi di voci già pronti, da aggiungere a un preventivo con un clic, per partire da una configurazione standard.
-          {isFvVertical && " I kit fotovoltaici portano la loro potenza e il loro prezzo: si scelgono nel preventivo fotovoltaico."}
+          {tr("Gruppi di voci già pronti, da aggiungere a un preventivo con un clic, per partire da una configurazione standard.")}
+          {isFvVertical && ` ${tr("I kit fotovoltaici portano la loro potenza e il loro prezzo: si scelgono nel preventivo fotovoltaico.")}`}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {puoInstallareEsempi && (
@@ -616,12 +620,12 @@ export default function SettingsBundle() {
               title={!puoModificare ? senzaPermesso : undefined}
             >
               <Sparkles className="h-4 w-4 mr-1.5" aria-hidden="true" />
-              {installTemplatesMut.isPending ? "Installazione…" : "Installa 5 pacchetti di esempio"}
+              {installTemplatesMut.isPending ? tr("Installazione…") : tr("Installa 5 pacchetti di esempio")}
             </Button>
           )}
           <Button size="sm" onClick={openNew} disabled={!puoModificare} title={!puoModificare ? senzaPermesso : undefined}>
             <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-            Nuovo pacchetto
+            {tr("Nuovo pacchetto")}
           </Button>
         </div>
       </div>
@@ -629,7 +633,7 @@ export default function SettingsBundle() {
       {!puoModificare && (
         <Alert>
           <AlertDescription>
-            Stai consultando i pacchetti: li crea e li cambia chi ha in modifica il permesso «Listino · Kit e pacchetti» (o «Listino & Prezzi (tutto)»).
+            {tr("Stai consultando i pacchetti: li crea e li cambia chi ha in modifica il permesso «Listino · Kit e pacchetti» (o «Listino & Prezzi (tutto)»).")}
           </AlertDescription>
         </Alert>
       )}
@@ -644,8 +648,8 @@ export default function SettingsBundle() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Cerca per nome, descrizione o tipo di lavoro…"
-                  aria-label="Cerca un pacchetto"
+                  placeholder={tr("Cerca per nome, descrizione o tipo di lavoro…")}
+                  aria-label={tr("Cerca un pacchetto")}
                   className="pl-8 pr-8 h-9 text-sm"
                 />
                 {search && (
@@ -653,58 +657,52 @@ export default function SettingsBundle() {
                     type="button"
                     onClick={() => setSearch("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted"
-                    aria-label="Cancella la ricerca"
+                    aria-label={tr("Cancella la ricerca")}
                   >
                     <X className="h-3 w-3" aria-hidden="true" />
                   </button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Mostra">
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label={tr("Mostra")}>
                 <Button
                   variant={filterAttivi === "all" ? "default" : "outline"}
                   size="sm"
                   aria-pressed={filterAttivi === "all"}
                   onClick={() => setFilterAttivi("all")}
-                >
-                  Tutti ({stats.totali})
-                </Button>
+                >{tr("Tutti ({totali})", { totali: String(stats.totali ?? "") })}</Button>
                 <Button
                   variant={filterAttivi === "active" ? "default" : "outline"}
                   size="sm"
                   aria-pressed={filterAttivi === "active"}
                   onClick={() => setFilterAttivi("active")}
-                >
-                  Attivi ({stats.attivi})
-                </Button>
+                >{tr("Attivi ({attivi})", { attivi: String(stats.attivi ?? "") })}</Button>
                 <Button
                   variant={filterAttivi === "inactive" ? "default" : "outline"}
                   size="sm"
                   aria-pressed={filterAttivi === "inactive"}
                   onClick={() => setFilterAttivi("inactive")}
-                >
-                  Disattivi ({stats.disattivi})
-                </Button>
+                >{tr("Disattivi ({disattivi})", { disattivi: String(stats.disattivi ?? "") })}</Button>
               </div>
             </div>
           )}
 
           {isLoading ? (
-            <div className="text-sm text-muted-foreground py-6 text-center">Caricamento…</div>
+            <div className="text-sm text-muted-foreground py-6 text-center">{tr("Caricamento…")}</div>
           ) : isError && bundles.length === 0 ? (
             <Alert variant="destructive">
               <AlertDescription className="flex flex-wrap items-center gap-3">
-                Non riesco a leggere i pacchetti. Riprova tra poco.
-                <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+                {tr("Non riesco a leggere i pacchetti. Riprova tra poco.")}
+                <Button size="sm" variant="outline" onClick={() => refetch()}>{tr("Riprova")}</Button>
               </AlertDescription>
             </Alert>
           ) : bundles.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Package className="h-12 w-12 mx-auto mb-3 opacity-40" aria-hidden="true" />
-              <p className="font-medium">Nessun pacchetto ancora creato.</p>
+              <p className="font-medium">{tr("Nessun pacchetto ancora creato.")}</p>
               <p className="text-xs mt-1 max-w-sm mx-auto">
                 {puoInstallareEsempi
-                  ? "Crea un pacchetto a mano oppure installa i 5 pacchetti di esempio."
-                  : "Crea un pacchetto a mano."}
+                  ? tr("Crea un pacchetto a mano oppure installa i 5 pacchetti di esempio.")
+                  : tr("Crea un pacchetto a mano.")}
               </p>
               <Button
                 variant="outline"
@@ -713,33 +711,33 @@ export default function SettingsBundle() {
                 disabled={!puoModificare}
                 title={!puoModificare ? senzaPermesso : undefined}
               >
-                <Plus className="h-4 w-4 mr-2" aria-hidden="true" /> Crea il primo pacchetto
+                <Plus className="h-4 w-4 mr-2" aria-hidden="true" /> {tr("Crea il primo pacchetto")}
               </Button>
             </div>
           ) : filteredBundles.length === 0 ? (
             <div className="py-10 text-center text-muted-foreground">
-              <p className="text-sm">Nessun pacchetto corrisponde ai filtri attuali.</p>
+              <p className="text-sm">{tr("Nessun pacchetto corrisponde ai filtri attuali.")}</p>
               <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setSearch(""); setFilterAttivi("all"); }}>
-                Azzera filtri
+                {tr("Azzera filtri")}
               </Button>
             </div>
           ) : (
             // La tabella scorre di lato dentro il suo contenitore (Table): a 375 px le colonne non si schiacciano.
-            <Table aria-label="Elenco dei pacchetti" className={isFvVertical ? "min-w-[760px]" : "min-w-[600px]"}>
+            <Table aria-label={tr("Elenco dei pacchetti")} className={isFvVertical ? "min-w-[760px]" : "min-w-[600px]"}>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Tipo di lavoro</TableHead>
-                  <TableHead>Voci</TableHead>
+                  <TableHead>{tr("Nome")}</TableHead>
+                  <TableHead>{tr("Tipo di lavoro")}</TableHead>
+                  <TableHead>{tr("Voci")}</TableHead>
                   {isFvVertical && (
                     <>
-                      <IntestazioneOrdinabile etichetta="Potenza" chiave="potenza" ordine={ordine} onOrdina={cambiaOrdine} />
-                      <IntestazioneOrdinabile etichetta="Prezzo offerta" chiave="prezzo" ordine={ordine} onOrdina={cambiaOrdine} />
+                      <IntestazioneOrdinabile etichetta={tr("Potenza")} chiave="potenza" ordine={ordine} onOrdina={cambiaOrdine} />
+                      <IntestazioneOrdinabile etichetta={tr("Prezzo offerta")} chiave="prezzo" ordine={ordine} onOrdina={cambiaOrdine} />
                     </>
                   )}
-                  <TableHead>Sconto</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
+                  <TableHead>{tr("Sconto")}</TableHead>
+                  <TableHead>{tr("Stato")}</TableHead>
+                  <TableHead className="text-right">{tr("Azioni")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -753,7 +751,7 @@ export default function SettingsBundle() {
                     </TableCell>
                     <TableCell>
                       {b.tipo_lavoro ? (
-                        <Badge variant="outline">{etichettaTipoLavoro(b.tipo_lavoro)}</Badge>
+                        <Badge variant="outline">{tr(etichettaTipoLavoro(b.tipo_lavoro))}</Badge>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
@@ -762,10 +760,10 @@ export default function SettingsBundle() {
                     {isFvVertical && (
                       <>
                         <TableCell className="whitespace-nowrap tabular-nums">
-                          {b.fv_kwp != null ? `${Number(b.fv_kwp).toLocaleString("it-IT")} kWp` : "—"}
+                          {b.fv_kwp != null ? `${Number(b.fv_kwp).toLocaleString(intlCampo())} kWp` : "—"}
                         </TableCell>
                         <TableCell className="whitespace-nowrap tabular-nums">
-                          {b.prezzo_offerta != null ? `${EURO_SENZA_CENTESIMI.format(Number(b.prezzo_offerta))} + IVA` : "—"}
+                          {b.prezzo_offerta != null ? tr("{prezzo} + IVA", { prezzo: euroSenzaCentesimi(Number(b.prezzo_offerta)) }) : "—"}
                         </TableCell>
                       </>
                     )}
@@ -777,7 +775,7 @@ export default function SettingsBundle() {
                         checked={b.attivo}
                         disabled={!puoModificare}
                         onCheckedChange={() => handleToggle(b)}
-                        aria-label={`Attivo: ${b.nome}`}
+                        aria-label={tr("Attivo: {nome}", { nome: String(b.nome ?? "") })}
                         title={!puoModificare ? senzaPermesso : undefined}
                         // Da telefono l'area di tocco supera i 44 px (l'interruttore da solo è alto 24).
                         className="max-md:relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-3 max-md:before:content-['']"
@@ -789,8 +787,8 @@ export default function SettingsBundle() {
                           size="icon"
                           variant="ghost"
                           onClick={() => openDuplicate(b)}
-                          title={puoModificare ? "Duplica" : senzaPermesso}
-                          aria-label={`Duplica il pacchetto ${b.nome}`}
+                          title={puoModificare ? tr("Duplica") : senzaPermesso}
+                          aria-label={tr("Duplica il pacchetto {nome}", { nome: String(b.nome ?? "") })}
                           disabled={!puoModificare}
                         >
                           <Copy className="h-4 w-4" aria-hidden="true" />
@@ -799,8 +797,8 @@ export default function SettingsBundle() {
                           size="icon"
                           variant="ghost"
                           onClick={() => openEdit(b)}
-                          title={puoModificare ? "Modifica" : "Apri (sola lettura)"}
-                          aria-label={puoModificare ? `Modifica il pacchetto ${b.nome}` : `Apri il pacchetto ${b.nome}`}
+                          title={puoModificare ? tr("Modifica") : tr("Apri (sola lettura)")}
+                          aria-label={puoModificare ? tr("Modifica il pacchetto {nome}", { nome: String(b.nome ?? "") }) : tr("Apri il pacchetto {nome}", { nome: String(b.nome ?? "") })}
                         >
                           <Pencil className="h-4 w-4" aria-hidden="true" />
                         </Button>
@@ -809,8 +807,8 @@ export default function SettingsBundle() {
                           variant="ghost"
                           disabled={!puoModificare}
                           onClick={() => setDeleteTarget(b)}
-                          title={puoModificare ? "Elimina" : senzaPermesso}
-                          aria-label={`Elimina il pacchetto ${b.nome}`}
+                          title={puoModificare ? tr("Elimina") : senzaPermesso}
+                          aria-label={tr("Elimina il pacchetto {nome}", { nome: String(b.nome ?? "") })}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
                         </Button>
@@ -829,16 +827,16 @@ export default function SettingsBundle() {
         {/* Altezza massima e scorrimento li dà già DialogContent (90dvh): `90vh` copriva la barra di Safari su telefono. */}
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>{!puoModificare ? "Pacchetto" : draft.id ? "Modifica pacchetto" : "Nuovo pacchetto"}</DialogTitle>
+            <DialogTitle>{!puoModificare ? tr("Pacchetto") : draft.id ? tr("Modifica pacchetto") : tr("Nuovo pacchetto")}</DialogTitle>
             <DialogDescription>
-              Un pacchetto è un gruppo di voci già pronte, da aggiungere a un preventivo con un clic.
+              {tr("Un pacchetto è un gruppo di voci già pronte, da aggiungere a un preventivo con un clic.")}
             </DialogDescription>
           </DialogHeader>
 
           {!puoModificare && (
             <Alert>
               <AlertDescription>
-                Stai consultando questo pacchetto: per cambiarlo serve il permesso di modificare i pacchetti.
+                {tr("Stai consultando questo pacchetto: per cambiarlo serve il permesso di modificare i pacchetti.")}
               </AlertDescription>
             </Alert>
           )}
@@ -848,17 +846,17 @@ export default function SettingsBundle() {
             {/* Dati del pacchetto */}
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <Label htmlFor="pacchetto-nome" className="mb-1 block">Nome <span aria-hidden="true">*</span></Label>
+                <Label htmlFor="pacchetto-nome" className="mb-1 block">{tr("Nome")} <span aria-hidden="true">*</span></Label>
                 <Input
                   id="pacchetto-nome"
                   aria-required="true"
                   value={draft.nome}
                   onChange={(e) => setDraft((d) => ({ ...d, nome: e.target.value }))}
-                  placeholder="Es. Bilocale standard — sostituzione 3 finestre + 1 portafinestra"
+                  placeholder={tr("Es. Bilocale standard — sostituzione 3 finestre + 1 portafinestra")}
                 />
               </div>
               <div className="col-span-2">
-                <Label htmlFor="pacchetto-descrizione" className="mb-1 block">Descrizione</Label>
+                <Label htmlFor="pacchetto-descrizione" className="mb-1 block">{tr("Descrizione")}</Label>
                 <Textarea
                   id="pacchetto-descrizione"
                   value={draft.descrizione}
@@ -867,7 +865,7 @@ export default function SettingsBundle() {
                 />
               </div>
               <div>
-                <Label htmlFor="pacchetto-tipo-lavoro" className="mb-1 block">Tipo di lavoro</Label>
+                <Label htmlFor="pacchetto-tipo-lavoro" className="mb-1 block">{tr("Tipo di lavoro")}</Label>
                 <Select
                   value={draft.tipo_lavoro ?? ""}
                   onValueChange={(v) =>
@@ -875,17 +873,17 @@ export default function SettingsBundle() {
                   }
                 >
                   <SelectTrigger id="pacchetto-tipo-lavoro">
-                    <SelectValue placeholder="Scegli (facoltativo)" />
+                    <SelectValue placeholder={tr("Scegli (facoltativo)")} />
                   </SelectTrigger>
                   <SelectContent>
                     {TIPO_LAVORO_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      <SelectItem key={o.value} value={o.value}>{tr(o.label)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="pacchetto-sconto" className="mb-1 block">Sconto del pacchetto (%)</Label>
+                <Label htmlFor="pacchetto-sconto" className="mb-1 block">{tr("Sconto del pacchetto (%)")}</Label>
                 <Input
                   id="pacchetto-sconto"
                   type="number"
@@ -903,14 +901,13 @@ export default function SettingsBundle() {
             {/* Kit fotovoltaico: potenza + prezzo d'offerta (li usa il preventivatore fotovoltaico: FotovoltaicoWizard, passo del kit) */}
             {isFvVertical && (
               <div className="border-t pt-4">
-                <h3 className="font-semibold mb-1">Kit fotovoltaico</h3>
+                <h3 className="font-semibold mb-1">{tr("Kit fotovoltaico")}</h3>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Taglia e prezzo d'offerta del kit: il preventivatore fotovoltaico li usa quando scegli questo kit.
-                  Le voci qui sotto sono facoltative: se le aggiungi, compaiono fra i «Componenti inclusi» nel PDF.
+                  {tr("Taglia e prezzo d'offerta del kit: il preventivatore fotovoltaico li usa quando scegli questo kit. Le voci qui sotto sono facoltative: se le aggiungi, compaiono fra i «Componenti inclusi» nel PDF.")}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <Label htmlFor="pacchetto-fv-kwp" className="mb-1 block">Potenza (kWp)</Label>
+                    <Label htmlFor="pacchetto-fv-kwp" className="mb-1 block">{tr("Potenza (kWp)")}</Label>
                     <Input
                       id="pacchetto-fv-kwp"
                       type="number" min={0} step={0.1} inputMode="decimal"
@@ -918,11 +915,11 @@ export default function SettingsBundle() {
                       onChange={(e) =>
                         setDraft((d) => ({ ...d, fv_kwp: e.target.value === "" ? null : Number(e.target.value) }))
                       }
-                      placeholder="es. 6"
+                      placeholder={tr("es. 6")}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="pacchetto-fv-accumulo" className="mb-1 block">Accumulo (kWh)</Label>
+                    <Label htmlFor="pacchetto-fv-accumulo" className="mb-1 block">{tr("Accumulo (kWh)")}</Label>
                     <Input
                       id="pacchetto-fv-accumulo"
                       type="number" min={0} step={0.1} inputMode="decimal"
@@ -930,11 +927,11 @@ export default function SettingsBundle() {
                       onChange={(e) =>
                         setDraft((d) => ({ ...d, fv_accumulo_kwh: e.target.value === "" ? null : Number(e.target.value) }))
                       }
-                      placeholder="0 = senza accumulo"
+                      placeholder={tr("0 = senza accumulo")}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="pacchetto-fv-prezzo" className="mb-1 block">Prezzo offerta (€, IVA esclusa)</Label>
+                    <Label htmlFor="pacchetto-fv-prezzo" className="mb-1 block">{tr("Prezzo offerta (€, IVA esclusa)")}</Label>
                     <Input
                       id="pacchetto-fv-prezzo"
                       type="number" min={0} step={1} inputMode="decimal"
@@ -942,16 +939,16 @@ export default function SettingsBundle() {
                       onChange={(e) =>
                         setDraft((d) => ({ ...d, prezzo_offerta: e.target.value === "" ? null : Number(e.target.value) }))
                       }
-                      placeholder="chiavi in mano, + IVA"
+                      placeholder={tr("chiavi in mano, + IVA")}
                     />
                   </div>
                 </div>
 
                 {/* Immagine di copertina del kit (usata nel PDF del preventivo fotovoltaico) */}
                 <div className="mt-3" role="group" aria-labelledby="pacchetto-copertina-titolo">
-                  <p id="pacchetto-copertina-titolo" className="mb-1 text-sm font-medium leading-none">Immagine di copertina del kit</p>
+                  <p id="pacchetto-copertina-titolo" className="mb-1 text-sm font-medium leading-none">{tr("Immagine di copertina del kit")}</p>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Compare nella pagina del kit, nel PDF del preventivo fotovoltaico.
+                    {tr("Compare nella pagina del kit, nel PDF del preventivo fotovoltaico.")}
                   </p>
                   <input
                     ref={coverInputRef}
@@ -968,7 +965,7 @@ export default function SettingsBundle() {
                     <div className="flex items-center gap-3">
                       <img
                         src={draft.cover_image_url}
-                        alt="Copertina kit"
+                        alt={tr("Copertina kit")}
                         className="h-20 w-32 object-cover rounded border"
                       />
                       <div className="flex flex-col gap-1">
@@ -978,9 +975,9 @@ export default function SettingsBundle() {
                           variant="outline"
                           onClick={() => coverInputRef.current?.click()}
                           disabled={coverUploading}
-                          aria-label={coverUploading ? "Caricamento dell'immagine di copertina…" : "Sostituisci l'immagine di copertina"}
+                          aria-label={coverUploading ? tr("Caricamento dell'immagine di copertina…") : tr("Sostituisci l'immagine di copertina")}
                         >
-                          {coverUploading ? "Caricamento…" : "Sostituisci"}
+                          {coverUploading ? tr("Caricamento…") : tr("Sostituisci")}
                         </Button>
                         <Button
                           type="button"
@@ -988,9 +985,9 @@ export default function SettingsBundle() {
                           variant="ghost"
                           className="text-destructive"
                           onClick={() => setDraft((d) => ({ ...d, cover_image_url: null }))}
-                          aria-label="Rimuovi l'immagine di copertina"
+                          aria-label={tr("Rimuovi l'immagine di copertina")}
                         >
-                          Rimuovi
+                          {tr("Rimuovi")}
                         </Button>
                       </div>
                     </div>
@@ -1002,7 +999,7 @@ export default function SettingsBundle() {
                       onClick={() => coverInputRef.current?.click()}
                       disabled={coverUploading}
                     >
-                      {coverUploading ? "Caricamento…" : "Carica immagine"}
+                      {coverUploading ? tr("Caricamento…") : tr("Carica immagine")}
                     </Button>
                   )}
                 </div>
@@ -1012,24 +1009,24 @@ export default function SettingsBundle() {
             {/* Voci */}
             <div className="border-t pt-4">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                <h3 className="font-semibold">Voci del pacchetto</h3>
+                <h3 className="font-semibold">{tr("Voci del pacchetto")}</h3>
                 <div className="flex flex-wrap items-center gap-2" role="group" aria-labelledby="pacchetto-aggiungi-voce">
-                  <span id="pacchetto-aggiungi-voce" className="text-sm text-muted-foreground">Aggiungi:</span>
+                  <span id="pacchetto-aggiungi-voce" className="text-sm text-muted-foreground">{tr("Aggiungi:")}</span>
                   <Button type="button" size="sm" variant="outline" onClick={() => addVoce("family")}>
-                    <Home className="h-4 w-4 mr-1" aria-hidden="true" /> {TIPI_VOCE.family.nome}
+                    <Home className="h-4 w-4 mr-1" aria-hidden="true" /> {tr(TIPI_VOCE.family.nome)}
                   </Button>
                   <Button type="button" size="sm" variant="outline" onClick={() => addVoce("product")}>
-                    <Box className="h-4 w-4 mr-1" aria-hidden="true" /> {TIPI_VOCE.product.nome}
+                    <Box className="h-4 w-4 mr-1" aria-hidden="true" /> {tr(TIPI_VOCE.product.nome)}
                   </Button>
                   <Button type="button" size="sm" variant="outline" onClick={() => addVoce("tariff")}>
-                    <Wrench className="h-4 w-4 mr-1" aria-hidden="true" /> {TIPI_VOCE.tariff.nome}
+                    <Wrench className="h-4 w-4 mr-1" aria-hidden="true" /> {tr(TIPI_VOCE.tariff.nome)}
                   </Button>
                 </div>
               </div>
 
               {draft.voci.length === 0 ? (
                 <div className="text-sm text-muted-foreground text-center py-6 border rounded-md">
-                  Nessuna voce. Aggiungi un prodotto del listino, un articolo o una voce di manodopera e servizi.
+                  {tr("Nessuna voce. Aggiungi un prodotto del listino, un articolo o una voce di manodopera e servizi.")}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -1057,7 +1054,7 @@ export default function SettingsBundle() {
                 onCheckedChange={(v) => setDraft((d) => ({ ...d, attivo: v }))}
                 id="bundle-attivo"
               />
-              <Label htmlFor="bundle-attivo">Attivo: si può scegliere nel preventivo</Label>
+              <Label htmlFor="bundle-attivo">{tr("Attivo: si può scegliere nel preventivo")}</Label>
             </div>
           </fieldset>
 
@@ -1068,7 +1065,7 @@ export default function SettingsBundle() {
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                {puoModificare ? "Annulla" : "Torna all'elenco"}
+                {puoModificare ? tr("Annulla") : tr("Torna all'elenco")}
               </Button>
               <Button
                 onClick={handleSave}
@@ -1076,7 +1073,7 @@ export default function SettingsBundle() {
                 aria-describedby={puoModificare && motivoNonSalvabile ? "pacchetto-motivo" : undefined}
                 title={!puoModificare ? senzaPermesso : undefined}
               >
-                {upsertMut.isPending ? "Salvataggio…" : draft.id ? "Salva modifiche" : "Crea pacchetto"}
+                {upsertMut.isPending ? tr("Salvataggio…") : draft.id ? tr("Salva modifiche") : tr("Crea pacchetto")}
               </Button>
             </DialogFooter>
           </div>
@@ -1087,16 +1084,13 @@ export default function SettingsBundle() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina pacchetto</AlertDialogTitle>
-            <AlertDialogDescription>
-              Vuoi eliminare il pacchetto &ldquo;{deleteTarget?.nome}&rdquo;? Non si può annullare.
-              Se vuoi solo metterlo da parte, disattivalo.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{tr("Elimina pacchetto")}</AlertDialogTitle>
+            <AlertDialogDescription>{tr("Vuoi eliminare il pacchetto “{nome}”? Non si può annullare. Se vuoi solo metterlo da parte, disattivalo.", { nome: String(deleteTarget?.nome ?? "") })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-              Elimina
+              {tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1120,6 +1114,7 @@ interface VoceRowProps {
 }
 
 function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove, uploadingImage, onUploadImage }: VoceRowProps) {
+  const tr = useT();
   const uid = useId();
   const tipo = TIPI_VOCE[voce.type];
   const selectedFamily = families.find((f) => f.id === voce.family_id) ?? null;
@@ -1135,28 +1130,28 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
   const fotoMostrata = voce.immagine_url ?? fotoDalListino;
   const imgInputRef = useRef<HTMLInputElement | null>(null);
   const testoPulsanteFoto = uploadingImage
-    ? "Caricamento…"
+    ? tr("Caricamento…")
     : voce.immagine_url
-      ? "Cambia foto"
+      ? tr("Cambia foto")
       : fotoDalListino
-        ? "Usa un'altra foto"
-        : "Carica foto prodotto";
+        ? tr("Usa un'altra foto")
+        : tr("Carica foto prodotto");
 
   return (
     // Il gruppo dà il numero della voce ai campi: «Quantità» ripetuto per ogni riga si legge «Voce 2: …, Quantità».
-    <div role="group" aria-label={`Voce ${index + 1}: ${tipo.nome}`} className="border rounded-md p-3 bg-muted/30 space-y-3">
+    <div role="group" aria-label={tr("Voce {index}: {nome}", { index: index + 1, nome: tr(tipo.nome) })} className="border rounded-md p-3 bg-muted/30 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Badge variant="secondary">#{index + 1}</Badge>
-          <Badge variant="outline">{tipo.nome}</Badge>
+          <Badge variant="outline">{tr(tipo.nome)}</Badge>
         </div>
         <Button
           type="button"
           size="icon"
           variant="ghost"
           onClick={onRemove}
-          title="Elimina la voce"
-          aria-label={`Elimina la voce ${index + 1}`}
+          title={tr("Elimina la voce")}
+          aria-label={tr("Elimina la voce {index}", { index: index + 1 })}
         >
           <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
         </Button>
@@ -1165,14 +1160,14 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
       <div className="grid grid-cols-12 gap-2">
         {/* Selezione item */}
         <div className="col-span-12 md:col-span-6">
-          <Label htmlFor={`${uid}-voce`} className="text-xs mb-1 block">{tipo.nome}</Label>
+          <Label htmlFor={`${uid}-voce`} className="text-xs mb-1 block">{tr(tipo.nome)}</Label>
           {voce.type === "family" && (
             <Select
               value={voce.family_id ?? ""}
               onValueChange={(v) => onUpdate({ family_id: v || null, axis_selections: {} })}
             >
               <SelectTrigger id={`${uid}-voce`}>
-                <SelectValue placeholder={tipo.scegli} />
+                <SelectValue placeholder={tr(tipo.scegli)} />
               </SelectTrigger>
               <SelectContent>
                 {families.map((f) => (
@@ -1187,7 +1182,7 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
               onValueChange={(v) => onUpdate({ prodotto_id: v || null })}
             >
               <SelectTrigger id={`${uid}-voce`}>
-                <SelectValue placeholder={tipo.scegli} />
+                <SelectValue placeholder={tr(tipo.scegli)} />
               </SelectTrigger>
               <SelectContent>
                 {articoli.map((a) => (
@@ -1202,7 +1197,7 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
               onValueChange={(v) => onUpdate({ tariffa_id: v || null })}
             >
               <SelectTrigger id={`${uid}-voce`}>
-                <SelectValue placeholder={tipo.scegli} />
+                <SelectValue placeholder={tr(tipo.scegli)} />
               </SelectTrigger>
               <SelectContent>
                 {tariffe.map((t) => (
@@ -1214,7 +1209,7 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
         </div>
 
         <div className="col-span-6 md:col-span-3">
-          <Label htmlFor={`${uid}-quantita`} className="text-xs mb-1 block">Quantità</Label>
+          <Label htmlFor={`${uid}-quantita`} className="text-xs mb-1 block">{tr("Quantità")}</Label>
           <Input
             id={`${uid}-quantita`}
             type="number"
@@ -1226,12 +1221,12 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
         </div>
 
         <div className="col-span-6 md:col-span-3">
-          <Label htmlFor={`${uid}-vano`} className="text-xs mb-1 block">Vano (facoltativo)</Label>
+          <Label htmlFor={`${uid}-vano`} className="text-xs mb-1 block">{tr("Vano (facoltativo)")}</Label>
           <Input
             id={`${uid}-vano`}
             value={voce.vano_label}
             onChange={(e) => onUpdate({ vano_label: e.target.value })}
-            placeholder="Es. Cucina"
+            placeholder={tr("Es. Cucina")}
           />
         </div>
 
@@ -1239,7 +1234,7 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
         {voce.type === "family" && (
           <>
             <div className="col-span-6 md:col-span-3">
-              <Label htmlFor={`${uid}-larghezza`} className="text-xs mb-1 block">Larghezza di partenza (mm)</Label>
+              <Label htmlFor={`${uid}-larghezza`} className="text-xs mb-1 block">{tr("Larghezza di partenza (mm)")}</Label>
               <Input
                 id={`${uid}-larghezza`}
                 type="number"
@@ -1253,7 +1248,7 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
               />
             </div>
             <div className="col-span-6 md:col-span-3">
-              <Label htmlFor={`${uid}-altezza`} className="text-xs mb-1 block">Altezza di partenza (mm)</Label>
+              <Label htmlFor={`${uid}-altezza`} className="text-xs mb-1 block">{tr("Altezza di partenza (mm)")}</Label>
               <Input
                 id={`${uid}-altezza`}
                 type="number"
@@ -1284,7 +1279,7 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
                   }
                 >
                   <SelectTrigger id={`${uid}-asse-${axis.codice}`}>
-                    <SelectValue placeholder="Facoltativo" />
+                    <SelectValue placeholder={tr("Facoltativo")} />
                   </SelectTrigger>
                   <SelectContent>
                     {axis.values.map((val) => (
@@ -1304,7 +1299,7 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
           {fotoMostrata ? (
             <img
               src={fotoMostrata}
-              alt={`Foto della voce ${index + 1}`}
+              alt={tr("Foto della voce {index}", { index: index + 1 })}
               className="h-12 w-16 rounded object-cover border border-slate-200"
             />
           ) : (
@@ -1327,7 +1322,7 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
             size="sm"
             disabled={uploadingImage}
             onClick={() => imgInputRef.current?.click()}
-            aria-label={`${testoPulsanteFoto} (voce ${index + 1})`}
+            aria-label={tr("{testoPulsanteFoto} (voce {index})", { testoPulsanteFoto: String(testoPulsanteFoto ?? ""), index: index + 1 })}
           >
             {testoPulsanteFoto}
           </Button>
@@ -1338,17 +1333,17 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove,
               size="sm"
               className="text-destructive"
               onClick={() => onUpdate({ immagine_url: null })}
-              aria-label={`Rimuovi la foto della voce ${index + 1}`}
+              aria-label={tr("Rimuovi la foto della voce {index}", { index: index + 1 })}
             >
-              Rimuovi
+              {tr("Rimuovi")}
             </Button>
           )}
           <span className="basis-full text-xs text-muted-foreground sm:ml-auto sm:basis-auto">
             {voce.immagine_url
-              ? "Foto scelta per questa voce"
+              ? tr("Foto scelta per questa voce")
               : fotoDalListino
-                ? "Foto presa dal listino"
-                : "Nessuna foto"}
+                ? tr("Foto presa dal listino")
+                : tr("Nessuna foto")}
           </span>
         </div>
       </div>

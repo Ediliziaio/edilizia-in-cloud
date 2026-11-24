@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, Brain, MessageSquare, History, Network } from "lucide-react";
 import { useAttivitaAi } from "@/hooks/useAttivitaAi";
 import { raggruppaAttivita, statoAttivita } from "@/lib/ai/attivita";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const AssistenteAIPage = lazy(() => import("@/pages/azienda/AssistenteAIPage"));
 const AIMemoryPage = lazy(() => import("@/pages/azienda/AIMemoryPage"));
@@ -43,6 +44,7 @@ function isValidTab(v: string | null): v is TabKey {
 }
 
 export default function AIPersonasHub() {
+  const tr = useT();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Prefetch in idle dei chunk lazy: il Cervello (grafo + starfield + NLP)
@@ -80,29 +82,29 @@ export default function AIPersonasHub() {
   return (
     <div className="space-y-4">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList aria-label="Assistente AI" className="flex h-auto min-h-11 max-w-full flex-wrap justify-start gap-1 rounded-xl border bg-muted/45">
+        <TabsList aria-label={tr("Assistente AI")} className="flex h-auto min-h-11 max-w-full flex-wrap justify-start gap-1 rounded-xl border bg-muted/45">
           <TabsTrigger value="chat" className="gap-2">
             <MessageSquare className="h-4 w-4" />
-            Chat
+            {tr("Chat")}
           </TabsTrigger>
           <TabsTrigger value="memoria" className="gap-2">
             <Brain className="h-4 w-4" />
-            Memoria
+            {tr("Memoria")}
           </TabsTrigger>
           <TabsTrigger value="cervello" className="gap-2">
             <Network className="h-4 w-4" />
-            Mappa<span className="sr-only sm:not-sr-only"> della memoria</span>
+            {tr("Mappa")}<span className="sr-only sm:not-sr-only"> {tr("della memoria")}</span>
           </TabsTrigger>
           <TabsTrigger value="sessioni" className="gap-2">
             <History className="h-4 w-4" />
-            Conversazioni<span className="sr-only sm:not-sr-only"> precedenti</span>
+            {tr("Conversazioni")}<span className="sr-only sm:not-sr-only"> {tr("precedenti")}</span>
           </TabsTrigger>
           <TabsTrigger value="attivita" className="gap-2 sm:ml-auto">
             <Activity className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-            Attività AI
+            {tr("Attività AI")}
             {inCorso > 0 && (
               <span className="rounded-full bg-sky-100 px-1.5 text-[11px] font-semibold tabular-nums text-sky-800 dark:bg-sky-950 dark:text-sky-300"
-                aria-label={`${inCorso} in corso`}>
+                aria-label={tr("{inCorso} in corso", { inCorso: String(inCorso ?? "") })}>
                 {inCorso}
               </span>
             )}
@@ -147,11 +149,12 @@ export default function AIPersonasHub() {
 /** Fallback coerente col loader interno del grafo (sfondo scuro + brain
     pulsante): niente flash bianco di skeleton generici prima del canvas. */
 function CervelloSkeleton() {
+  const t = useT();
   return (
     <div className="flex h-[500px] items-center justify-center rounded-xl border border-slate-800 bg-slate-950">
       <div className="flex flex-col items-center gap-3">
         <Brain className="h-10 w-10 animate-pulse text-orange-400" />
-        <p className="text-sm text-slate-300">Caricamento della mappa…</p>
+        <p className="text-sm text-slate-300">{t("Caricamento della mappa…")}</p>
       </div>
     </div>
   );

@@ -28,12 +28,12 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, Search, Copy, Lock, AlertCircle, Pencil, Undo2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { queryKeys } from "@/lib/queryKeys";
 import { FederatedFieldCatalogue } from "@/components/settings/FederatedFieldCatalogue";
 import { readDefinitionPages } from "@/lib/custom-fields/federatedCatalogue";
 import { fieldObjectType, customFieldKey, customFieldCapabilities, GROUP_OPTIONS, OBJECT_NAME_MAP, isObjectRendered, toSnakeCase } from "@/lib/custom-fields/objects";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 export { GROUP_OPTIONS, OBJECT_NAME_MAP, RENDERED_OBJECT_TYPES, isObjectRendered, toSnakeCase } from "@/lib/custom-fields/objects";
 
 /* ───── types ───── */
@@ -90,7 +90,7 @@ const normalizeOptions = (value: string) => {
 const formatSafeDate = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return format(date, "dd MMM yyyy", { locale: it });
+  return format(date, "dd MMM yyyy", { locale: dateFnsCampo() });
 };
 
 class CustomFieldInUseError extends Error {
@@ -1383,6 +1383,7 @@ const OGGETTI_SENZA_SCHEDA = OGGETTI_SCELTA.filter((g) => !isObjectRendered(g.va
 
 /* ───── component ───── */
 export function CustomFieldsConfig() {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   // I campi li cambia chi ha «Personalizzazione» in modifica: è la stessa regola
   // del database (policy «Permesso personalizzazione»).
@@ -1543,13 +1544,13 @@ export function CustomFieldsConfig() {
   const previewKey = objectType ? `{{ ${objectType}.${toSnakeCase(normalizedName || "nome_campo")} }}` : "";
 
   const validateForm = () => {
-    if (!puoModificare || isLoading || isError) throw new ErroreCampo("Modifica non consentita: controlla i permessi e riprova quando i campi sono caricati.");
-    if (!companyId) throw new ErroreCampo("Azienda non disponibile");
-    if (!normalizedName) throw new ErroreCampo("Inserisci il nome del campo");
-    if (fieldType === "file" && !editTarget) throw new ErroreCampo("Gli allegati si gestiscono nell’area Documenti. Non viene creato un campo File privo di caricamento protetto.");
-    if (normalizedName.length > 100) throw new ErroreCampo("Il nome del campo deve restare sotto i 100 caratteri");
+    if (!puoModificare || isLoading || isError) throw new ErroreCampo(tr("Modifica non consentita: controlla i permessi e riprova quando i campi sono caricati."));
+    if (!companyId) throw new ErroreCampo(tr("Azienda non disponibile"));
+    if (!normalizedName) throw new ErroreCampo(tr("Inserisci il nome del campo"));
+    if (fieldType === "file" && !editTarget) throw new ErroreCampo(tr("Gli allegati si gestiscono nell’area Documenti. Non viene creato un campo File privo di caricamento protetto."));
+    if (normalizedName.length > 100) throw new ErroreCampo(tr("Il nome del campo deve restare sotto i 100 caratteri"));
     if (needsOptions && normalizedOptions.length === 0) {
-      throw new ErroreCampo("Inserisci almeno un'opzione per questo tipo di campo");
+      throw new ErroreCampo(tr("Inserisci almeno un'opzione per questo tipo di campo"));
     }
     const duplicate = customFields.some(
       (field) =>
@@ -1558,11 +1559,11 @@ export function CustomFieldsConfig() {
         (normalizeName(field.name).toLowerCase() === normalizedName.toLowerCase() || toSnakeCase(field.name) === toSnakeCase(normalizedName))
     );
     if (duplicate) {
-      throw new ErroreCampo(`Esiste già un campo «${normalizedName}» su «${OBJECT_NAME_MAP[objectType] ?? objectType}»: scegli un altro nome.`);
+      throw new ErroreCampo(tr("Esiste già un campo «{nome}» su «{oggetto}»: scegli un altro nome.", { nome: normalizedName, oggetto: tr(OBJECT_NAME_MAP[objectType] ?? objectType) }));
     }
-    if (!toSnakeCase(normalizedName)) throw new ErroreCampo("Il nome deve contenere almeno una lettera o un numero.");
+    if (!toSnakeCase(normalizedName)) throw new ErroreCampo(tr("Il nome deve contenere almeno una lettera o un numero."));
     if (!editTarget && BUILTIN_FIELDS.some((field) => field.uniqueKey === `{{ ${objectType}.${toSnakeCase(normalizedName)} }}`)) {
-      throw new ErroreCampo("Questo nome corrisponde a una variabile di sistema. Scegli un nome diverso per non creare ambiguità nei testi.");
+      throw new ErroreCampo(tr("Questo nome corrisponde a una variabile di sistema. Scegli un nome diverso per non creare ambiguità nei testi."));
     }
   };
 
@@ -1593,29 +1594,29 @@ export function CustomFieldsConfig() {
     },
     onSuccess: () => {
       invalidaCampi();
-      toast.success("Campo aggiunto");
+      toast.success(tr("Campo aggiunto"));
       setDialogOpen(false);
       resetForm();
     },
-    onError: (e: unknown) => toast.error(erroreCampo(e, "Non sono riuscito a salvare il campo. Riprova.")),
+    onError: (e: unknown) => toast.error(erroreCampo(e, tr("Non sono riuscito a salvare il campo. Riprova."))),
   });
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      if (!companyId || !editTarget) throw new ErroreCampo("Campo non disponibile");
+      if (!companyId || !editTarget) throw new ErroreCampo(tr("Campo non disponibile"));
       validateForm();
 
       const usage = await getCustomFieldUsageCounts(editTarget.id, editTarget.objectType, companyId);
       const isUsed = usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0;
       if (toSnakeCase(normalizedName) !== toSnakeCase(editTarget.name)) {
-        throw new ErroreCampo("Cambiare questo nome modifica la variabile legacy nei testi. Gli alias storici sono salvati nel database, ma la rinomina resta protetta finché tutti i servizi di invio non sono aggiornati.");
+        throw new ErroreCampo(tr("Cambiare questo nome modifica la variabile legacy nei testi. Gli alias storici sono salvati nel database, ma la rinomina resta protetta finché tutti i servizi di invio non sono aggiornati."));
       }
       const typeChanged = fieldType !== editTarget.fieldType;
       const objectChanged = objectType !== editTarget.objectType;
       const optionsChanged = JSON.stringify(normalizedOptions) !== JSON.stringify(editTarget.options || []);
 
       if (isUsed && (typeChanged || objectChanged || optionsChanged)) {
-        throw new ErroreCampo("Il campo ha già dei valori scritti: puoi cambiare il nome, ma non il tipo, dove compare o le opzioni.");
+        throw new ErroreCampo(tr("Il campo ha già dei valori scritti: puoi cambiare il nome, ma non il tipo, dove compare o le opzioni."));
       }
 
       const { error } = await supabase
@@ -1634,19 +1635,19 @@ export function CustomFieldsConfig() {
     },
     onSuccess: () => {
       invalidaCampi();
-      toast.success("Campo aggiornato");
+      toast.success(tr("Campo aggiornato"));
       setDialogOpen(false);
       resetForm();
     },
-    onError: (e: unknown) => toast.error(erroreCampo(e, "Non sono riuscito ad aggiornare il campo. Controlla di avere il permesso e riprova.")),
+    onError: (e: unknown) => toast.error(erroreCampo(e, tr("Non sono riuscito ad aggiornare il campo. Controlla di avere il permesso e riprova."))),
   });
 
   // Eliminare un campo lo sposta tra gli eliminati (`deleted_at`): sparisce dalle schede, i valori già scritti restano e
   // il campo si può ripristinare. Per questo non c'è nessun blocco «ha dei valori»: non si perde niente.
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!puoModificare || isError || isLoading) throw new ErroreCampo("Modifica non consentita: controlla i permessi e riprova.");
-      if (!companyId) throw new ErroreCampo("Azienda non disponibile");
+      if (!puoModificare || isError || isLoading) throw new ErroreCampo(tr("Modifica non consentita: controlla i permessi e riprova."));
+      if (!companyId) throw new ErroreCampo(tr("Azienda non disponibile"));
       const { error } = await supabase
         .from("marketing_custom_fields")
         .update({ deleted_at: new Date().toISOString() })
@@ -1656,15 +1657,15 @@ export function CustomFieldsConfig() {
     },
     onSuccess: () => {
       invalidaCampi();
-      toast.success("Campo spostato in «Campi eliminati». Lo puoi ripristinare quando vuoi.");
+      toast.success(tr("Campo spostato in «Campi eliminati». Lo puoi ripristinare quando vuoi."));
     },
-    onError: (e: unknown) => toast.error(erroreCampo(e, "Non sono riuscito a eliminare il campo. Controlla di avere il permesso e riprova.")),
+    onError: (e: unknown) => toast.error(erroreCampo(e, tr("Non sono riuscito a eliminare il campo. Controlla di avere il permesso e riprova."))),
   });
 
   const restoreMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!puoModificare || deletedError || deletedLoading) throw new ErroreCampo("Modifica non consentita: controlla i permessi e riprova.");
-      if (!companyId) throw new ErroreCampo("Azienda non disponibile");
+      if (!puoModificare || deletedError || deletedLoading) throw new ErroreCampo(tr("Modifica non consentita: controlla i permessi e riprova."));
+      if (!companyId) throw new ErroreCampo(tr("Azienda non disponibile"));
       const { error } = await supabase
         .from("marketing_custom_fields")
         .update({ deleted_at: null })
@@ -1674,17 +1675,17 @@ export function CustomFieldsConfig() {
     },
     onSuccess: () => {
       invalidaCampi();
-      toast.success("Campo ripristinato");
+      toast.success(tr("Campo ripristinato"));
     },
-    onError: (e: unknown) => toast.error(erroreCampo(e, "Non sono riuscito a ripristinare il campo. Riprova.")),
+    onError: (e: unknown) => toast.error(erroreCampo(e, tr("Non sono riuscito a ripristinare il campo. Riprova."))),
   });
 
   // Eliminazione DEFINITIVA dei campi già tra gli eliminati. Solo se nessuna scheda ha valori scritti: sennò il
   // database rifiuta (i valori puntano al campo).
   const purgeMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!puoModificare || deletedError || deletedLoading) throw new ErroreCampo("Modifica non consentita: controlla i permessi e riprova.");
-      if (!companyId) throw new ErroreCampo("Azienda non disponibile");
+      if (!puoModificare || deletedError || deletedLoading) throw new ErroreCampo(tr("Modifica non consentita: controlla i permessi e riprova."));
+      if (!companyId) throw new ErroreCampo(tr("Azienda non disponibile"));
       const usage = await getCustomFieldUsageCounts(id, purgeTarget?.object_type, companyId);
       if (usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0) {
         throw new CustomFieldInUseError(usage);
@@ -1698,15 +1699,15 @@ export function CustomFieldsConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields_deleted"] });
-      toast.success("Campo eliminato definitivamente");
+      toast.success(tr("Campo eliminato definitivamente"));
     },
     onError: (e: unknown) => {
       if (e instanceof CustomFieldInUseError) {
         const total = e.usage.contacts + e.usage.opportunities + e.usage.entities;
-        toast.error(`Non si può eliminare definitivamente: ha ancora ${total} ${total === 1 ? "valore scritto" : "valori scritti"}. Resta tra i campi eliminati e non compare più nelle schede.`);
+        toast.error(tr(total === 1 ? "Non si può eliminare definitivamente: ha ancora {n} valore scritto. Resta tra i campi eliminati e non compare più nelle schede." : "Non si può eliminare definitivamente: ha ancora {n} valori scritti. Resta tra i campi eliminati e non compare più nelle schede.", { n: total }));
         return;
       }
-      toast.error(erroreCampo(e, "Non sono riuscito a eliminare il campo definitivamente. Riprova."));
+      toast.error(erroreCampo(e, tr("Non sono riuscito a eliminare il campo definitivamente. Riprova.")));
     },
   });
 
@@ -1715,8 +1716,8 @@ export function CustomFieldsConfig() {
   const copyKey = (key: string) => {
     navigator.clipboard
       .writeText(key)
-      .then(() => toast.success("Variabile copiata"))
-      .catch(() => toast.error("Non è stato possibile copiare la variabile"));
+      .then(() => toast.success(tr("Variabile copiata")))
+      .catch(() => toast.error(tr("Non è stato possibile copiare la variabile")));
   };
 
   const mostraCampi = activeTab === "custom" || activeTab === "system";
@@ -1733,25 +1734,25 @@ export function CustomFieldsConfig() {
         <Tabs value={activeTab} onValueChange={(tab) => { if (!busy) { setActiveTab(tab); setCurrentPage(1); } }} className="min-w-0 max-w-full">
           <TabsList className="bg-transparent h-auto p-0 gap-0 overflow-x-auto max-w-full">
             <TabsTrigger value="custom" className="rounded-none border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0 max-md:min-h-11">
-              Campi dell’azienda
+              {tr("Campi dell’azienda")}
             </TabsTrigger>
-            <TabsTrigger value="system" className="px-3 sm:px-4">Variabili di sistema</TabsTrigger>
+            <TabsTrigger value="system" className="px-3 sm:px-4">{tr("Variabili di sistema")}</TabsTrigger>
             <TabsTrigger value="deleted" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0 max-md:min-h-11">
-              Campi eliminati
+              {tr("Campi eliminati")}
               {deletedFields.length > 0 && (
                 <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
                   {deletedFields.length}
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="models" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 pb-2.5 pt-1 shrink-0 max-md:min-h-11">Modelli e schede tecniche</TabsTrigger>
+            <TabsTrigger value="models" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 pb-2.5 pt-1 shrink-0 max-md:min-h-11">{tr("Modelli e schede tecniche")}</TabsTrigger>
           </TabsList>
         </Tabs>
 
         <div className="flex items-center gap-2 pb-1 shrink-0 w-full sm:w-auto">
           {puoModificare && activeTab === "custom" && (
             <Button size="sm" onClick={openCreateDialog} disabled={!companyId || isLoading || isError || busy} className="w-full sm:w-auto max-md:h-11">
-              <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
+              <Plus className="h-4 w-4 mr-1.5" /> {tr("Aggiungi campo")}
             </Button>
           )}
         </div>
@@ -1762,16 +1763,16 @@ export function CustomFieldsConfig() {
       {!puoModificare && (
         <div className="pt-3">
           <AvvisoSolaLettura>
-            Sola lettura: per aggiungere o modificare campi serve il permesso «Modifica» su Personalizzazione.
+            {tr("Sola lettura: per aggiungere o modificare campi serve il permesso «Modifica» su Personalizzazione.")}
           </AvvisoSolaLettura>
         </div>
       )}
 
-      {activeTab === "custom" && <p className="pt-3 text-sm text-muted-foreground">I campi aggiunti dalla tua azienda. Le variabili già disponibili sono nella scheda «Variabili di sistema».</p>}
+      {activeTab === "custom" && <p className="pt-3 text-sm text-muted-foreground">{tr("I campi aggiunti dalla tua azienda. Le variabili già disponibili sono nella scheda «Variabili di sistema».")}</p>}
       {/* ── Cosa c'è in questa tabella, la ricerca e il filtro per oggetto (solo nelle due schede dei campi) ── */}
       {activeTab === "system" && (
         <p className="pt-3 text-sm text-muted-foreground">
-          Le variabili di sistema si usano dentro email, SMS e messaggi: al loro posto compare il dato del contatto (per esempio <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{"{{ contact.first_name }}"}</code> diventa «Mario»).
+          {tr("Le variabili di sistema si usano dentro email, SMS e messaggi: al loro posto compare il dato del contatto (per esempio")} <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{"{{ contact.first_name }}"}</code> {tr("diventa «Mario»).")}
         </p>
       )}
       {mostraCampi && (
@@ -1779,22 +1780,22 @@ export function CustomFieldsConfig() {
         <div className="relative w-full sm:flex-1 sm:max-w-sm">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cerca"
-            aria-label="Cerca campi personalizzati"
+            placeholder={tr("Cerca")}
+            aria-label={tr("Cerca campi personalizzati")}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             className="pl-8 h-9 max-md:h-11"
           />
         </div>
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <span>Oggetto:</span>
+          <span>{tr("Oggetto:")}</span>
           <Select value={groupBy} onValueChange={(group) => { setGroupBy(group); setCurrentPage(1); }}>
-            <SelectTrigger className="h-8 w-[160px] text-sm max-md:h-11" aria-label="Mostra solo un oggetto">
+            <SelectTrigger className="h-8 w-[160px] text-sm max-md:h-11" aria-label={tr("Mostra solo un oggetto")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {GROUP_OPTIONS.map((g) => (
-                <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                <SelectItem key={g.value} value={g.value}>{tr(g.label)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -1805,7 +1806,7 @@ export function CustomFieldsConfig() {
       {/* ── Nessun campo dell'azienda ancora ── */}
       {activeTab === "custom" && !isLoading && !isError && customFields.length === 0 && (
         <p className="mb-3 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
-          Non hai ancora campi tuoi.{puoModificare ? " Aggiungine uno, per esempio «Tipo di caldaia» sul contatto." : ""}
+          {tr("Non hai ancora campi tuoi.")}{puoModificare ? ` ${tr("Aggiungine uno, per esempio «Tipo di caldaia» sul contatto.")}` : ""}
         </p>
       )}
 
@@ -1815,9 +1816,9 @@ export function CustomFieldsConfig() {
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
             {fuoriDalleSchedeCount === 1
-              ? "1 campo è su una scheda che ancora non lo mostra"
-              : `${fuoriDalleSchedeCount} campi sono su schede che ancora non li mostrano`}
-            . La definizione è salvata; compilazione e uso nei testi dipendono dall’integrazione del relativo modulo.
+              ? tr("1 campo è su una scheda che ancora non lo mostra")
+              : tr("{fuoriDalleSchedeCount} campi sono su schede che ancora non li mostrano", { fuoriDalleSchedeCount: String(fuoriDalleSchedeCount ?? "") })}
+            {tr(". La definizione è salvata; compilazione e uso nei testi dipendono dall’integrazione del relativo modulo.")}
           </span>
         </div>
       )}
@@ -1826,35 +1827,35 @@ export function CustomFieldsConfig() {
       {mostraCampi && !(activeTab === "custom" && !isLoading && !isError && customFields.length === 0) && (isError ? (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Campi personalizzati non disponibili</AlertTitle>
+          <AlertTitle>{tr("Campi personalizzati non disponibili")}</AlertTitle>
           <AlertDescription className="space-y-3">
             <p>{userErrorMessage(error, "Non è stato possibile caricare i campi personalizzati dell'azienda.")}</p>
             <Button type="button" variant="outline" size="sm" onClick={() => refetch()} className="max-md:h-11">
-              Riprova
+              {tr("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
       ) : isLoading ? (
-        <p className="text-muted-foreground text-sm py-12 text-center">Caricamento...</p>
+        <p className="text-muted-foreground text-sm py-12 text-center">{tr("Caricamento...")}</p>
       ) : (
         <div className="border rounded-md">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40">
-                <TableHead className="w-10 px-3"><span className="sr-only">Campo di sistema</span></TableHead>
-                <TableHead className="text-xs uppercase tracking-wider font-semibold">Nome del campo</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider font-semibold">Dove compare</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider font-semibold">Si scrive così nei testi</TableHead>
+                <TableHead className="w-10 px-3"><span className="sr-only">{tr("Campo di sistema")}</span></TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold">{tr("Nome del campo")}</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold">{tr("Dove compare")}</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold">{tr("Si scrive così nei testi")}</TableHead>
                 {/* «Creato il» da 1280: a 1024 la tabella sbordava di 76px. */}
-                <TableHead className="text-xs uppercase tracking-wider font-semibold md:max-xl:hidden">Creato il</TableHead>
-                <TableHead className="w-10"><span className="sr-only">Azioni</span></TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold md:max-xl:hidden">{tr("Creato il")}</TableHead>
+                <TableHead className="w-10"><span className="sr-only">{tr("Azioni")}</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {visibleFields.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
-                    Nessun campo trovato.
+                    {tr("Nessun campo trovato.")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -1862,30 +1863,30 @@ export function CustomFieldsConfig() {
                   <TableRow key={f.id} className="group">
                     <TableCell className="max-md:!hidden px-3 md:table-cell">
                       {f.isSystem ? (
-                        <Lock className="h-3.5 w-3.5 text-muted-foreground/50" aria-label="Campo di sistema: non si modifica" />
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground/50" aria-label={tr("Campo di sistema: non si modifica")} />
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell className="col-span-2 font-medium text-sm">
-                      {f.name}
+                      {f.isSystem ? tr(f.name) : f.name}
                       {!f.isSystem && f.fieldType && (
                         <span className="block text-xs font-normal text-muted-foreground">
-                          {FIELD_TYPES.find((t) => t.value === f.fieldType)?.label ?? f.fieldType}
+                          {tr(FIELD_TYPES.find((t) => t.value === f.fieldType)?.label ?? f.fieldType)}
                         </span>
                       )}
-                      {!f.isSystem && <details className="mt-1 text-xs font-normal text-muted-foreground"><summary className="cursor-pointer">Dove si può usare</summary><dl className="mt-2 space-y-1">{Object.entries(customFieldCapabilities(f.objectType ?? "")).map(([key, description]) => <div key={key}><dt className="font-medium">{({editor:"Compilazione",email:"Testi",automation:"Automazioni",pdf:"PDF",ai:"AI"} as Record<string,string>)[key]}</dt><dd>{description}</dd></div>)}</dl></details>}
+                      {!f.isSystem && <details className="mt-1 text-xs font-normal text-muted-foreground"><summary className="cursor-pointer">{tr("Dove si può usare")}</summary><dl className="mt-2 space-y-1">{Object.entries(customFieldCapabilities(f.objectType ?? "")).map(([key, description]) => <div key={key}><dt className="font-medium">{tr(({editor:"Compilazione",email:"Testi",automation:"Automazioni",pdf:"PDF",ai:"AI"} as Record<string,string>)[key] ?? key)}</dt><dd>{tr(description)}</dd></div>)}</dl></details>}
                     </TableCell>
                     <TableCell className="max-md:col-span-2 text-sm text-muted-foreground">
                       <span className="inline-flex flex-wrap items-center gap-1.5">
-                        {f.object}
+                        {tr(f.object)}
                         {f.objectType && !isObjectRendered(f.objectType) && (
                           <Badge
                             variant="outline"
-                            title="La definizione è salvata, ma questa scheda non permette ancora di compilare il valore. L’uso nei testi dipende dal relativo motore."
+                            title={tr("La definizione è salvata, ma questa scheda non permette ancora di compilare il valore. L’uso nei testi dipende dal relativo motore.")}
                             className="border-amber-300 px-1.5 py-0 text-[10px] font-normal text-amber-700 dark:border-amber-900/50 dark:text-amber-300"
                           >
-                            Non compare nelle schede
+                            {tr("Non compare nelle schede")}
                           </Badge>
                         )}
                       </span>
@@ -1896,7 +1897,7 @@ export function CustomFieldsConfig() {
                         <button
                           type="button"
                           onClick={() => copyKey(f.uniqueKey)}
-                          aria-label={`Copia la variabile di ${f.name}`}
+                          aria-label={tr("Copia la variabile di {name}", { name: String(f.name ?? "") })}
                           className="inline-flex shrink-0 items-center justify-center p-2 text-muted-foreground hover:text-foreground max-md:h-11 max-md:w-11"
                         >
                           <Copy className="h-3.5 w-3.5" />
@@ -1916,7 +1917,7 @@ export function CustomFieldsConfig() {
                             className="h-8 w-8 max-md:h-11 max-md:w-11"
                             onClick={() => openEditDialog(f)}
                             disabled={updateMutation.isPending}
-                            aria-label={`Modifica il campo «${f.name}»`}
+                            aria-label={tr("Modifica il campo «{name}»", { name: String(f.name ?? "") })}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -1926,7 +1927,7 @@ export function CustomFieldsConfig() {
                             className="h-8 w-8 text-destructive max-md:h-11 max-md:w-11"
                             onClick={() => { setDeleteTarget(f); setDeleteOpen(true); }}
                             disabled={deleteMutation.isPending}
-                            aria-label={`Elimina il campo «${f.name}»`}
+                            aria-label={tr("Elimina il campo «{name}»", { name: String(f.name ?? "") })}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -1957,12 +1958,12 @@ export function CustomFieldsConfig() {
       {/* ── Scheda «Campi eliminati» ── */}
       {activeTab === "deleted" && (
         <div className="space-y-3 pt-3">
-          {deletedError ? <div role="alert" className="space-y-2 rounded-lg border p-4 text-sm"><p>Impossibile leggere i campi eliminati.</p><Button variant="outline" size="sm" className="max-md:h-11" onClick={() => void refetchDeleted()}>Riprova</Button></div> : deletedLoading ? <p role="status">Caricamento campi eliminati…</p> : deletedFields.length === 0 ? (
+          {deletedError ? <div role="alert" className="space-y-2 rounded-lg border p-4 text-sm"><p>{tr("Impossibile leggere i campi eliminati.")}</p><Button variant="outline" size="sm" className="max-md:h-11" onClick={() => void refetchDeleted()}>{tr("Riprova")}</Button></div> : deletedLoading ? <p role="status">{tr("Caricamento campi eliminati…")}</p> : deletedFields.length === 0 ? (
             <div className="rounded-lg border-2 border-dashed p-10 text-center">
               <Trash2 className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
-              <p className="text-sm font-medium">Nessun campo eliminato</p>
+              <p className="text-sm font-medium">{tr("Nessun campo eliminato")}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                I campi che elimini finiscono qui. Da qui li puoi ripristinare oppure eliminare definitivamente.
+                {tr("I campi che elimini finiscono qui. Da qui li puoi ripristinare oppure eliminare definitivamente.")}
               </p>
             </div>
           ) : (
@@ -1970,11 +1971,11 @@ export function CustomFieldsConfig() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40">
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Nome del campo</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Dove compare</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Tipo</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Eliminato il</TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold">Azioni</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">{tr("Nome del campo")}</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">{tr("Dove compare")}</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">{tr("Tipo")}</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">{tr("Eliminato il")}</TableHead>
+                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold">{tr("Azioni")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1982,10 +1983,10 @@ export function CustomFieldsConfig() {
                     <TableRow key={f.id} className="group">
                       <TableCell className="font-medium text-sm">{f.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {OBJECT_NAME_MAP[f.object_type] ?? f.object_type}
+                        {tr(OBJECT_NAME_MAP[f.object_type] ?? f.object_type)}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {FIELD_TYPES.find((t) => t.value === f.field_type)?.label ?? f.field_type}
+                        {tr(FIELD_TYPES.find((t) => t.value === f.field_type)?.label ?? f.field_type)}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {f.deleted_at ? formatSafeDate(f.deleted_at) : "—"}
@@ -1999,10 +2000,10 @@ export function CustomFieldsConfig() {
                               className="h-8 text-xs gap-1.5 max-md:h-11"
                               onClick={() => restoreMutation.mutate(f.id)}
                               disabled={restoreMutation.isPending}
-                              aria-label={`Ripristina il campo «${f.name}»`}
+                              aria-label={tr("Ripristina il campo «{name}»", { name: String(f.name ?? "") })}
                             >
                               <Undo2 className="h-3 w-3" />
-                              Ripristina
+                              {tr("Ripristina")}
                             </Button>
                             <Button
                               size="sm"
@@ -2010,10 +2011,10 @@ export function CustomFieldsConfig() {
                               className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 max-md:h-11"
                               onClick={() => { setPurgeTarget(f); setPurgeOpen(true); }}
                               disabled={purgeMutation.isPending}
-                              aria-label={`Elimina definitivamente il campo «${f.name}»`}
+                              aria-label={tr("Elimina definitivamente il campo «{name}»", { name: String(f.name ?? "") })}
                             >
                               <ShieldAlert className="h-3 w-3" />
-                              Elimina definitivamente
+                              {tr("Elimina definitivamente")}
                             </Button>
                           </div>
                         )}
@@ -2031,19 +2032,19 @@ export function CustomFieldsConfig() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il campo «{deleteTarget?.name}»?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminare il campo «{name}»?", { name: String(deleteTarget?.name ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Il campo sparisce dalle schede e va in «Campi eliminati», da dove lo puoi ripristinare. I valori già scritti non si perdono.
+              {tr("Il campo sparisce dalle schede e va in «Campi eliminati», da dove lo puoi ripristinare. I valori già scritti non si perdono.")}
               {valoriDelCampo > 0 && ` Ha ${valoriDelCampo} ${valoriDelCampo === 1 ? "valore scritto" : "valori scritti"}.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id); }}
               disabled={deleteMutation.isPending}
             >
-              Elimina
+              {tr("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2053,19 +2054,19 @@ export function CustomFieldsConfig() {
       <AlertDialog open={purgeOpen} onOpenChange={setPurgeOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare definitivamente il campo «{purgeTarget?.name}»?</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminare definitivamente il campo «{name}»?", { name: String(purgeTarget?.name ?? "") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Il campo sparisce per sempre e non si può ripristinare. Se ha ancora dei valori scritti non si elimina: resta tra i campi eliminati.
+              {tr("Il campo sparisce per sempre e non si può ripristinare. Se ha ancora dei valori scritti non si elimina: resta tra i campi eliminati.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{tr("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => { if (purgeTarget) purgeMutation.mutate(purgeTarget.id); }}
               disabled={purgeMutation.isPending}
             >
-              Elimina definitivamente
+              {tr("Elimina definitivamente")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2078,27 +2079,27 @@ export function CustomFieldsConfig() {
       >
         <DialogContent className="max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editTarget ? "Modifica campo" : "Nuovo campo"}</DialogTitle>
+            <DialogTitle>{editTarget ? tr("Modifica campo") : tr("Nuovo campo")}</DialogTitle>
             <DialogDescription>
-              Scegli dove compare il campo, come si chiama e che tipo di dato contiene.
+              {tr("Scegli dove compare il campo, come si chiama e che tipo di dato contiene.")}
             </DialogDescription>
           </DialogHeader>
           <fieldset disabled={busy} className="m-0 min-w-0 space-y-4 border-0 p-0">
             <div className="space-y-1.5">
-              <Label htmlFor="cf-object">Dove compare *</Label>
+              <Label htmlFor="cf-object">{tr("Dove compare *")}</Label>
               <Select value={objectType} onValueChange={setObjectType}>
                 <SelectTrigger id="cf-object" className="max-md:h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectLabel>Compare nelle schede</SelectLabel>
+                    <SelectLabel>{tr("Compare nelle schede")}</SelectLabel>
                     {OGGETTI_CON_SCHEDA.map((g) => (
-                      <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                      <SelectItem key={g.value} value={g.value}>{tr(g.label)}</SelectItem>
                     ))}
                   </SelectGroup>
                   <SelectGroup>
-                    <SelectLabel>Non compare ancora nelle schede</SelectLabel>
+                    <SelectLabel>{tr("Non compare ancora nelle schede")}</SelectLabel>
                     {OGGETTI_SENZA_SCHEDA.map((g) => (
-                      <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                      <SelectItem key={g.value} value={g.value}>{tr(g.label)}</SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
@@ -2108,76 +2109,72 @@ export function CustomFieldsConfig() {
                 <Alert className="mt-2">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-xs">
-                    <strong>Non compare nelle schede.</strong> La definizione si salva, ma il valore non è ancora
-                    compilabile in questa scheda. La disponibilità in testi e automazioni va verificata nel relativo modulo.
+                    <strong>{tr("Non compare nelle schede.")}</strong> {tr("La definizione si salva, ma il valore non è ancora compilabile in questa scheda. La disponibilità in testi e automazioni va verificata nel relativo modulo.")}
                   </AlertDescription>
                 </Alert>
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cf-name">Nome del campo *</Label>
+              <Label htmlFor="cf-name">{tr("Nome del campo *")}</Label>
               <Input
                 id="cf-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="es. Tipo di caldaia"
+                placeholder={tr("es. Tipo di caldaia")}
                 maxLength={100}
                 className="max-md:h-11"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cf-type">Tipo</Label>
+              <Label htmlFor="cf-type">{tr("Tipo")}</Label>
               <Select value={fieldType} onValueChange={setFieldType}>
                 <SelectTrigger id="cf-type" className="max-md:h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {FIELD_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value} disabled={t.value === "file" && fieldType !== "file"}>{t.label}{t.value === "file" ? " — area Documenti" : ""}</SelectItem>
+                    <SelectItem key={t.value} value={t.value} disabled={t.value === "file" && fieldType !== "file"}>{tr(t.label)}{t.value === "file" ? ` — ${tr("area Documenti")}` : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {fieldType === "file" && <p className="text-xs text-muted-foreground">Il riferimento esistente si conserva; il caricamento dei file resta nell’area Documenti.</p>}
+              {fieldType === "file" && <p className="text-xs text-muted-foreground">{tr("Il riferimento esistente si conserva; il caricamento dei file resta nell’area Documenti.")}</p>}
             </div>
             {needsOptions && (
               <div className="space-y-1.5">
-                <Label htmlFor="cf-options">Opzioni</Label>
+                <Label htmlFor="cf-options">{tr("Opzioni")}</Label>
                 <Input
                   id="cf-options"
                   value={optionsInput}
                   onChange={(e) => setOptionsInput(e.target.value)}
-                  placeholder="es. Condensazione, Tradizionale, Ibrida"
+                  placeholder={tr("es. Condensazione, Tradizionale, Ibrida")}
                   maxLength={500}
                   className="max-md:h-11"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Separale con la virgola: Condensazione, Tradizionale, Ibrida. Se ne scrivi due uguali ne resta una.
+                  {tr("Separale con la virgola: Condensazione, Tradizionale, Ibrida. Se ne scrivi due uguali ne resta una.")}
                 </p>
                 {normalizedOptions.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Opzioni valide: {normalizedOptions.join(", ")}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{tr("Opzioni valide: {normalizedOptions}", { normalizedOptions: normalizedOptions.join(", ") })}</p>
                 )}
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Nei testi si scrive: <code className="rounded bg-muted px-1 py-0.5 font-mono">{previewKey}</code>
+              {tr("Nei testi si scrive:")} <code className="rounded bg-muted px-1 py-0.5 font-mono">{previewKey}</code>
             </p>
             {editTarget && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                Se il campo ha già dei valori scritti, il tipo, dove compare e le opzioni non si possono cambiare.
-                Anche un nome che cambia la variabile esistente resta protetto. Per i contatti, la chiave stabile per ID è disponibile nell’elenco dopo il salvataggio.
+                {tr("Se il campo ha già dei valori scritti, il tipo, dove compare e le opzioni non si possono cambiare. Anche un nome che cambia la variabile esistente resta protetto. Per i contatti, la chiave stabile per ID è disponibile nell’elenco dopo il salvataggio.")}
               </p>
             )}
           </fieldset>
           <DialogFooter className="max-sm:gap-2">
-            <Button variant="outline" disabled={busy} onClick={() => chiudiCampo(false)} className="max-md:h-11">Annulla</Button>
+            <Button variant="outline" disabled={busy} onClick={() => chiudiCampo(false)} className="max-md:h-11">{tr("Annulla")}</Button>
             <Button
               onClick={() => editTarget ? updateMutation.mutate() : addMutation.mutate()}
               disabled={!companyId || !normalizedName || (needsOptions && normalizedOptions.length === 0) || addMutation.isPending || updateMutation.isPending}
               className="max-md:h-11"
             >
               {addMutation.isPending || updateMutation.isPending
-                ? "Salvataggio..."
-                : editTarget ? "Salva modifiche" : "Aggiungi"}
+                ? tr("Salvataggio...")
+                : editTarget ? tr("Salva modifiche") : tr("Aggiungi")}
             </Button>
           </DialogFooter>
         </DialogContent>

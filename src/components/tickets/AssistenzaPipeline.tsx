@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { TICKET_FASI, TICKET_STATI, type TicketFase } from "@/types/tickets";
 import { calcolaFermo, CLASSI_FERMO } from "@/lib/assistenzaSla";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Stato in cui finisce un'assistenza trascinata in una fase. */
 const STATO_INGRESSO: Record<TicketFase, string> = {
@@ -59,6 +60,7 @@ function faseDi(status: string): TicketFase | null {
 }
 
 function Contenuto({ t }: { t: TicketPipeline }) {
+  const tr = useT();
   const stato = TICKET_STATI.find((s) => s.value === t.status);
   const fermo = calcolaFermo(t as never);
   const importo = Number(t.importo_finale ?? t.importo_preventivato ?? 0);
@@ -77,13 +79,13 @@ function Contenuto({ t }: { t: TicketPipeline }) {
         </Badge>
         {t.merce_richiesta && (
           <span className="inline-flex items-center gap-1 text-[10px] text-purple-700">
-            <Package className="h-3 w-3" /> merce
+            <Package className="h-3 w-3" /> {tr("merce")}
           </span>
         )}
         {t.a_pagamento && !t.pagato && importo > 0 && (
           <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-700">
             <Euro className="h-3 w-3" />
-            {importo.toLocaleString("it-IT", { maximumFractionDigits: 0 })}
+            {importo.toLocaleString(intlCampo(), { maximumFractionDigits: 0 })}
           </span>
         )}
       </div>
@@ -93,6 +95,7 @@ function Contenuto({ t }: { t: TicketPipeline }) {
 }
 
 function CardTrascinabile({ t, trascinabile }: { t: TicketPipeline; trascinabile: boolean }) {
+  const tr = useT();
   const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: t.id,
@@ -117,7 +120,7 @@ function CardTrascinabile({ t, trascinabile }: { t: TicketPipeline; trascinabile
         {...attributes}
         {...listeners}
         className="flex shrink-0 cursor-grab items-center bg-muted/40 px-1 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground active:cursor-grabbing"
-        aria-label="Trascina per cambiare fase"
+        aria-label={tr("Trascina per cambiare fase")}
       >
         <GripVertical className="h-4 w-4" />
       </div>
@@ -139,6 +142,7 @@ function CardTrascinabile({ t, trascinabile }: { t: TicketPipeline; trascinabile
 function Colonna({
   fase, tickets, trascinabile,
 }: { fase: (typeof TICKET_FASI)[number]; tickets: TicketPipeline[]; trascinabile: boolean }) {
+  const tr = useT();
   const { setNodeRef, isOver } = useDroppable({ id: `fase:${fase.key}` });
   const inRitardo = tickets.filter((t) => {
     const f = calcolaFermo(t as never);
@@ -158,21 +162,19 @@ function Colonna({
     >
       <div className="mb-2 px-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold">{fase.label}</span>
+          <span className="text-sm font-semibold">{tr(fase.label)}</span>
           <Badge variant="secondary" className="text-xs">{tickets.length}</Badge>
         </div>
         <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
-          {inRitardo > 0 && <span className="text-red-600">{inRitardo} in ritardo</span>}
+          {inRitardo > 0 && <span className="text-red-600">{tr("{inRitardo} in ritardo", { inRitardo: String(inRitardo ?? "") })}</span>}
           {soldi > 0 && (
-            <span>
-              {soldi.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })} da incassare
-            </span>
+            <span>{tr("{soldi} da incassare", { soldi: soldi.toLocaleString(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) })}</span>
           )}
         </div>
       </div>
       <div className="flex-1 space-y-2">
         {tickets.length === 0 ? (
-          <p className="py-8 text-center text-xs text-muted-foreground">Niente qui</p>
+          <p className="py-8 text-center text-xs text-muted-foreground">{tr("Niente qui")}</p>
         ) : (
           tickets.map((t) => <CardTrascinabile key={t.id} t={t} trascinabile={trascinabile} />)
         )}

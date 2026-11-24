@@ -30,6 +30,7 @@ import type { TicketPriority } from "@/types/tickets";
 import { queryKeys } from "@/lib/queryKeys";
 import { applyPlaybookToTicket } from "@/lib/ticketPlaybook";
 import { OrdinaMerceDialog } from "@/components/tickets/OrdinaMerceDialog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_FILES = 5;
@@ -60,6 +61,7 @@ interface NuovoTicketFormProps {
 }
 
 export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendingChange }: NuovoTicketFormProps) {
+  const tr = useT();
   const fieldId = useId();
   const pendingRef = useRef(false);
   const createdTicketRef = useRef<string | null>(null);
@@ -108,9 +110,9 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
     const selected = Array.from(e.target.files || []);
     const valid: File[] = [];
     for (const file of selected) {
-      if (pendingFiles.length + valid.length >= MAX_FILES) { toast({ title: "Limite file", description: `Massimo ${MAX_FILES} file.`, variant: "destructive" }); break; }
-      if (!ACCEPTED_TYPES.includes(file.type)) { toast({ title: "Tipo non valido", description: `"${file.name}" non è supportato.`, variant: "destructive" }); continue; }
-      if (file.size > MAX_FILE_SIZE) { toast({ title: "File troppo grande", description: `"${file.name}" supera 10MB.`, variant: "destructive" }); continue; }
+      if (pendingFiles.length + valid.length >= MAX_FILES) { toast({ title: tr("Limite file"), description: tr("Massimo {MAX_FILES} file.", { MAX_FILES: String(MAX_FILES ?? "") }), variant: "destructive" }); break; }
+      if (!ACCEPTED_TYPES.includes(file.type)) { toast({ title: tr("Tipo non valido"), description: tr("\"{name}\" non è supportato.", { name: String(file.name ?? "") }), variant: "destructive" }); continue; }
+      if (file.size > MAX_FILE_SIZE) { toast({ title: tr("File troppo grande"), description: tr("\"{name}\" supera 10MB.", { name: String(file.name ?? "") }), variant: "destructive" }); continue; }
       valid.push(file);
     }
     if (valid.length) setPendingFiles(prev => [...prev, ...valid]);
@@ -174,7 +176,7 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
       if (!user?.id) throw new Error("Utente non autenticato");
       const durataNum = durataOre ? parseFloat(durataOre) : null;
       if (durataOre && (!Number.isFinite(durataNum) || (durataNum ?? 0) <= 0)) {
-        throw new Error("Inserisci una durata intervento valida.");
+        throw new Error(tr("Inserisci una durata intervento valida."));
       }
       let ticketId = createdTicketRef.current;
       if (!ticketId) {
@@ -252,7 +254,7 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
       return ticketId;
     },
     onSuccess: (ticketId) => {
-      toast({ title: "Ticket creato", description: "Creato con successo." });
+      toast({ title: tr("Ticket creato"), description: tr("Creato con successo.") });
       queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicketMessages.byTicket(ticketId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.ticketAttachments.byTicket(ticketId) });
@@ -265,7 +267,7 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
       finish(ticketId);
     },
     onError: (err: Error) => {
-      toast({ title: createdTicketRef.current ? "Ticket creato, completamento non riuscito" : "Errore", description: err.message || "Impossibile creare il ticket.", variant: "destructive" });
+      toast({ title: createdTicketRef.current ? tr("Ticket creato, completamento non riuscito") : tr("Errore"), description: err.message || tr("Impossibile creare il ticket."), variant: "destructive" });
     },
     onSettled: () => {
       pendingRef.current = false;
@@ -276,24 +278,23 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
   const canSubmit = customerId && subject.trim();
   const submitLabel = createMutation.isPending
     ? undefined
-    : createdTicketId && pendingFiles.length > 0 ? "Riprova mancanti"
-    : createdTicketId ? "Completa ticket" : "Crea ticket";
+    : createdTicketId && pendingFiles.length > 0 ? tr("Riprova mancanti")
+    : createdTicketId ? tr("Completa ticket") : tr("Crea ticket");
 
   return (
     <div className="space-y-4" aria-busy={createMutation.isPending}>
       {createdTicketId && createMutation.isError && (
         <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          Il ticket è già stato creato. Riprova per completare messaggio e allegati senza crearne un altro.
-          I contenuti ancora da inviare restano in questo modulo finché non lo chiudi.
+          {tr("Il ticket è già stato creato. Riprova per completare messaggio e allegati senza crearne un altro. I contenuti ancora da inviare restano in questo modulo finché non lo chiudi.")}
         </div>
       )}
       <fieldset disabled={createMutation.isPending || Boolean(createdTicketId)} className="space-y-4">
       {/* Cliente */}
       <div className="space-y-2">
-        <Label htmlFor={`${fieldId}-customerId`}>Cliente *</Label>
+        <Label htmlFor={`${fieldId}-customerId`}>{tr("Cliente *")}</Label>
         <div className="flex gap-2">
           <Select value={customerId} onValueChange={(v) => { setCustomerId(v); setOrderId(""); }}>
-            <SelectTrigger id={`${fieldId}-customerId`} className="flex-1"><SelectValue placeholder="Seleziona cliente..." /></SelectTrigger>
+            <SelectTrigger id={`${fieldId}-customerId`} className="flex-1"><SelectValue placeholder={tr("Seleziona cliente...")} /></SelectTrigger>
             <SelectContent>
               {customers.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
@@ -303,7 +304,7 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
             </SelectContent>
           </Select>
           <Button type="button" variant="outline" className="shrink-0 gap-1.5" onClick={() => setNuovoClienteOpen(true)}>
-            <UserPlus className="h-4 w-4" /><span className="max-sm:hidden">Nuovo cliente</span>
+            <UserPlus className="h-4 w-4" /><span className="max-sm:hidden">{tr("Nuovo cliente")}</span>
           </Button>
         </div>
       </div>
@@ -311,11 +312,11 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
       {/* Ordine collegato */}
       {customerId && (
         <div className="space-y-2">
-          <Label htmlFor={`${fieldId}-orderId`}>Commessa collegata (opzionale)</Label>
+          <Label htmlFor={`${fieldId}-orderId`}>{tr("Commessa collegata (opzionale)")}</Label>
           <Select value={orderId} onValueChange={setOrderId}>
-            <SelectTrigger id={`${fieldId}-orderId`}><SelectValue placeholder="Nessuna commessa" /></SelectTrigger>
+            <SelectTrigger id={`${fieldId}-orderId`}><SelectValue placeholder={tr("Nessuna commessa")} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Nessuna commessa</SelectItem>
+              <SelectItem value="none">{tr("Nessuna commessa")}</SelectItem>
               {orders.map((o) => (
                 <SelectItem key={o.id} value={o.id}>
                   {o.order_code ? `${o.order_code} — ` : ""}{o.description?.substring(0, 60)}
@@ -328,32 +329,32 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
 
       {/* Oggetto */}
       <div className="space-y-2">
-        <Label htmlFor={`${fieldId}-subject`}>Oggetto *</Label>
-        <Input id={`${fieldId}-subject`} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Es. Caldaia che non parte" />
+        <Label htmlFor={`${fieldId}-subject`}>{tr("Oggetto *")}</Label>
+        <Input id={`${fieldId}-subject`} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={tr("Es. Caldaia che non parte")} />
       </div>
 
       {/* Tipo + Priorità affiancati */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label htmlFor={`${fieldId}-tipo`}>Tipo</Label>
+          <Label htmlFor={`${fieldId}-tipo`}>{tr("Tipo")}</Label>
           <Select value={tipo} onValueChange={setTipo}>
             <SelectTrigger id={`${fieldId}-tipo`}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="supporto">Supporto</SelectItem>
-              <SelectItem value="intervento">Intervento tecnico</SelectItem>
-              <SelectItem value="emergenza">Emergenza</SelectItem>
+              <SelectItem value="supporto">{tr("Supporto")}</SelectItem>
+              <SelectItem value="intervento">{tr("Intervento tecnico")}</SelectItem>
+              <SelectItem value="emergenza">{tr("Emergenza")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor={`${fieldId}-priority`}>Priorità</Label>
+          <Label htmlFor={`${fieldId}-priority`}>{tr("Priorità")}</Label>
           <Select value={priority} onValueChange={(v) => setPriority(v as TicketPriority)}>
             <SelectTrigger id={`${fieldId}-priority`}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="bassa">Bassa</SelectItem>
-              <SelectItem value="normale">Normale</SelectItem>
-              <SelectItem value="alta">Alta</SelectItem>
-              <SelectItem value="urgente">Urgente</SelectItem>
+              <SelectItem value="bassa">{tr("Bassa")}</SelectItem>
+              <SelectItem value="normale">{tr("Normale")}</SelectItem>
+              <SelectItem value="alta">{tr("Alta")}</SelectItem>
+              <SelectItem value="urgente">{tr("Urgente")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -363,16 +364,16 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
       <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-3">
         <div className="flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-muted-foreground" />
-          <Label className="text-sm font-semibold">Assegnazione e pianificazione (opzionale)</Label>
+          <Label className="text-sm font-semibold">{tr("Assegnazione e pianificazione (opzionale)")}</Label>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor={`${fieldId}-tecnicoId`} className="text-xs">Assegna a un operaio</Label>
+            <Label htmlFor={`${fieldId}-tecnicoId`} className="text-xs">{tr("Assegna a un operaio")}</Label>
             <Select value={tecnicoId || "__none__"} onValueChange={(v) => setTecnicoId(v === "__none__" ? "" : v)}>
-              <SelectTrigger id={`${fieldId}-tecnicoId`}><SelectValue placeholder="Nessuno" /></SelectTrigger>
+              <SelectTrigger id={`${fieldId}-tecnicoId`}><SelectValue placeholder={tr("Nessuno")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">Nessuno</SelectItem>
+                <SelectItem value="__none__">{tr("Nessuno")}</SelectItem>
                 {tecnici.map((t) => (
                   <SelectItem key={t.id} value={t.id}>{t.first_name} {t.last_name}</SelectItem>
                 ))}
@@ -380,11 +381,11 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`${fieldId}-squadraId`} className="flex items-center gap-1 text-xs"><Users className="h-3 w-3" /> Oppure a una squadra</Label>
+            <Label htmlFor={`${fieldId}-squadraId`} className="flex items-center gap-1 text-xs"><Users className="h-3 w-3" /> {tr("Oppure a una squadra")}</Label>
             <Select value={squadraId || "__none__"} onValueChange={(v) => setSquadraId(v === "__none__" ? "" : v)}>
-              <SelectTrigger id={`${fieldId}-squadraId`}><SelectValue placeholder="Nessuna squadra" /></SelectTrigger>
+              <SelectTrigger id={`${fieldId}-squadraId`}><SelectValue placeholder={tr("Nessuna squadra")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">Nessuna squadra</SelectItem>
+                <SelectItem value="__none__">{tr("Nessuna squadra")}</SelectItem>
                 {squadre.map((s) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
@@ -395,27 +396,27 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor={`${fieldId}-dataInterventoPrevista`} className="text-xs">Data e ora prevista</Label>
+            <Label htmlFor={`${fieldId}-dataInterventoPrevista`} className="text-xs">{tr("Data e ora prevista")}</Label>
             <Input id={`${fieldId}-dataInterventoPrevista`} type="datetime-local" value={dataInterventoPrevista} onChange={(e) => setDataInterventoPrevista(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`${fieldId}-durataOre`} className="text-xs">Durata stimata (ore)</Label>
-            <Input id={`${fieldId}-durataOre`} type="number" min="0.5" step="0.5" value={durataOre} onChange={(e) => setDurataOre(e.target.value)} placeholder="Es. 2" />
+            <Label htmlFor={`${fieldId}-durataOre`} className="text-xs">{tr("Durata stimata (ore)")}</Label>
+            <Input id={`${fieldId}-durataOre`} type="number" min="0.5" step="0.5" value={durataOre} onChange={(e) => setDurataOre(e.target.value)} placeholder={tr("Es. 2")} />
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="nuovo-ticket-indirizzo" className="text-xs">Indirizzo intervento</Label>
-          <CampoIndirizzo id="nuovo-ticket-indirizzo" value={indirizzoIntervento} onChange={setIndirizzoIntervento} placeholder="Via, città…" />
+          <Label htmlFor="nuovo-ticket-indirizzo" className="text-xs">{tr("Indirizzo intervento")}</Label>
+          <CampoIndirizzo id="nuovo-ticket-indirizzo" value={indirizzoIntervento} onChange={setIndirizzoIntervento} placeholder={tr("Via, città…")} />
         </div>
 
         {customerId && impianti.length > 0 && (
           <div className="space-y-1.5">
-            <Label htmlFor={`${fieldId}-impiantoId`} className="text-xs">Impianto collegato</Label>
+            <Label htmlFor={`${fieldId}-impiantoId`} className="text-xs">{tr("Impianto collegato")}</Label>
             <Select value={impiantoId} onValueChange={setImpiantoId}>
-              <SelectTrigger id={`${fieldId}-impiantoId`}><SelectValue placeholder="Nessun impianto" /></SelectTrigger>
+              <SelectTrigger id={`${fieldId}-impiantoId`}><SelectValue placeholder={tr("Nessun impianto")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">Nessun impianto</SelectItem>
+                <SelectItem value="__none__">{tr("Nessun impianto")}</SelectItem>
                 {impianti.map((im) => (
                   <SelectItem key={im.id} value={im.id}>
                     {im.tipo_impianto?.replace("_", " ")}{im.marca ? ` — ${im.marca}` : ""}{im.modello ? ` ${im.modello}` : ""}
@@ -427,8 +428,8 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor={`${fieldId}-noteTecnico`} className="text-xs">Note per chi interviene</Label>
-          <Textarea id={`${fieldId}-noteTecnico`} value={noteTecnico} onChange={(e) => setNoteTecnico(e.target.value)} rows={2} placeholder="Istruzioni, accessi, materiali…" />
+          <Label htmlFor={`${fieldId}-noteTecnico`} className="text-xs">{tr("Note per chi interviene")}</Label>
+          <Textarea id={`${fieldId}-noteTecnico`} value={noteTecnico} onChange={(e) => setNoteTecnico(e.target.value)} rows={2} placeholder={tr("Istruzioni, accessi, materiali…")} />
         </div>
       </div>
 
@@ -436,25 +437,25 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
       <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <Label htmlFor={`${fieldId}-aPagamento`} className="text-sm font-semibold">Intervento a pagamento</Label>
-            <p className="text-xs text-muted-foreground">Se è in garanzia lascialo spento: resta scritto perché non si fattura.</p>
+            <Label htmlFor={`${fieldId}-aPagamento`} className="text-sm font-semibold">{tr("Intervento a pagamento")}</Label>
+            <p className="text-xs text-muted-foreground">{tr("Se è in garanzia lascialo spento: resta scritto perché non si fattura.")}</p>
           </div>
           <Switch id={`${fieldId}-aPagamento`} checked={aPagamento} onCheckedChange={setAPagamento} />
         </div>
         {aPagamento ? (
           <div className="space-y-2">
-            <Label htmlFor={`${fieldId}-importoPreventivato`} className="text-xs">Importo preventivato (€)</Label>
+            <Label htmlFor={`${fieldId}-importoPreventivato`} className="text-xs">{tr("Importo preventivato (€)")}</Label>
             <Input id={`${fieldId}-importoPreventivato`} type="number" min="0" step="0.01" inputMode="decimal" value={importoPreventivato}
                    onChange={(e) => setImportoPreventivato(e.target.value)}
-                   placeholder="Es. 150,00 — lascia vuoto se ancora da quantificare" />
+                   placeholder={tr("Es. 150,00 — lascia vuoto se ancora da quantificare")} />
           </div>
         ) : (
           <div className="space-y-2">
-            <Label htmlFor={`${fieldId}-motivoGratuito`} className="text-xs">Perché non si paga</Label>
+            <Label htmlFor={`${fieldId}-motivoGratuito`} className="text-xs">{tr("Perché non si paga")}</Label>
             <Select value={motivoGratuito} onValueChange={setMotivoGratuito}>
               <SelectTrigger id={`${fieldId}-motivoGratuito`}><SelectValue /></SelectTrigger>
               <SelectContent>
-                {TICKET_MOTIVI_GRATUITO.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                {TICKET_MOTIVI_GRATUITO.map((m) => <SelectItem key={m.value} value={m.value}>{tr(m.label)}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -465,33 +466,33 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
       <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <Label htmlFor={`${fieldId}-serveMerce`} className="text-sm font-semibold">Serve della merce</Label>
-            <p className="text-xs text-muted-foreground">Accendilo se l'intervento aspetta materiale: potrai filtrare i ticket per merce.</p>
+            <Label htmlFor={`${fieldId}-serveMerce`} className="text-sm font-semibold">{tr("Serve della merce")}</Label>
+            <p className="text-xs text-muted-foreground">{tr("Accendilo se l'intervento aspetta materiale: potrai filtrare i ticket per merce.")}</p>
           </div>
           <Switch id={`${fieldId}-serveMerce`} checked={serveMerce} onCheckedChange={setServeMerce} />
         </div>
         {serveMerce && (
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor={`${fieldId}-merceStato`} className="text-xs">A che punto è</Label>
+              <Label htmlFor={`${fieldId}-merceStato`} className="text-xs">{tr("A che punto è")}</Label>
               <Select value={merceStato} onValueChange={(v) => setMerceStato(v as TicketMerceStato)}>
                 <SelectTrigger id={`${fieldId}-merceStato`}><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {TICKET_MERCE_STATI.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                  {TICKET_MERCE_STATI.map((m) => <SelectItem key={m.value} value={m.value}>{tr(m.label)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             {merceStato === "da_ordinare" && (
               <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 p-2 text-xs text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
                 <Package className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Appena creato il ticket ti chiedo fornitore e cosa serve: parte un ordine d'acquisto collegato e tracciato in magazzino.
+                {tr("Appena creato il ticket ti chiedo fornitore e cosa serve: parte un ordine d'acquisto collegato e tracciato in magazzino.")}
               </p>
             )}
             {merceStato === "arrivata_parziale" && (
               <div className="space-y-2">
-                <Label htmlFor={`${fieldId}-merceMancante`} className="text-xs text-red-600">Che cosa manca *</Label>
+                <Label htmlFor={`${fieldId}-merceMancante`} className="text-xs text-red-600">{tr("Che cosa manca *")}</Label>
                 <Textarea id={`${fieldId}-merceMancante`} value={merceMancante} onChange={(e) => setMerceMancante(e.target.value)}
-                          placeholder="Es. mancano 2 maniglie e la guarnizione inferiore" rows={2}
+                          placeholder={tr("Es. mancano 2 maniglie e la guarnizione inferiore")} rows={2}
                           className="border-red-200 focus-visible:ring-red-400" />
               </div>
             )}
@@ -501,16 +502,16 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
 
       {/* Messaggio */}
       <div className="space-y-2">
-        <Label htmlFor={`${fieldId}-message`}>Messaggio iniziale (opzionale)</Label>
-        <Textarea id={`${fieldId}-message`} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Descrivi il problema o la richiesta..." rows={3} />
+        <Label htmlFor={`${fieldId}-message`}>{tr("Messaggio iniziale (opzionale)")}</Label>
+        <Textarea id={`${fieldId}-message`} value={message} onChange={(e) => setMessage(e.target.value)} placeholder={tr("Descrivi il problema o la richiesta...")} rows={3} />
       </div>
 
       {/* Allegati */}
       <div className="space-y-2">
-        <Label htmlFor={`${fieldId}-attachments`}>Allegati (opzionale)</Label>
+        <Label htmlFor={`${fieldId}-attachments`}>{tr("Allegati (opzionale)")}</Label>
         <input id={`${fieldId}-attachments`} ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" accept={ACCEPTED_FORMATS} />
         <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={pendingFiles.length >= MAX_FILES}>
-          <Paperclip className="h-4 w-4 mr-2" /> Allega file
+          <Paperclip className="h-4 w-4 mr-2" /> {tr("Allega file")}
         </Button>
         {pendingFiles.length > 0 && (
           <div className="space-y-1 mt-2">
@@ -518,10 +519,10 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
               <div key={`${f.name}-${i}`} className="flex items-center gap-2 text-sm p-2 rounded border bg-muted/30">
                 <span className="truncate flex-1">{f.name}</span>
                 <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
-                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6 text-destructive" aria-label={`Rimuovi allegato ${f.name}`} onClick={() => setPendingFiles(prev => prev.filter((_, j) => j !== i))}><X className="h-3 w-3" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6 text-destructive" aria-label={tr("Rimuovi allegato {name}", { name: String(f.name ?? "") })} onClick={() => setPendingFiles(prev => prev.filter((_, j) => j !== i))}><X className="h-3 w-3" /></Button>
               </div>
             ))}
-            <p className="text-xs text-muted-foreground">{pendingFiles.length}/{MAX_FILES} file — max 10MB ciascuno</p>
+            <p className="text-xs text-muted-foreground">{tr("{n}/{MAX_FILES} file — max 10MB ciascuno", { n: pendingFiles.length, MAX_FILES: String(MAX_FILES ?? "") })}</p>
           </div>
         )}
       </div>
@@ -537,7 +538,7 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
           createMutation.mutate();
         }}
       >
-        {createMutation.isPending ? (<><Loader2 className="h-4 w-4 animate-spin mr-2" /> Creazione...</>) : submitLabel}
+        {createMutation.isPending ? (<><Loader2 className="h-4 w-4 animate-spin mr-2" /> {tr("Creazione...")}</>) : submitLabel}
       </Button>
 
       <CreateCustomerDialog

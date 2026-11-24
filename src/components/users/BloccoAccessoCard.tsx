@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { ShieldCheck, ShieldOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +10,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   userId: string;
@@ -24,6 +24,7 @@ interface Props {
 
 /** Blocca o ripristina l'accesso di una persona senza cancellare niente: dati e storico restano a suo nome. */
 export function BloccoAccessoCard({ userId, isBlocked, blockedAt, blockReason, puoBloccare, compatto }: Props) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -56,11 +57,11 @@ export function BloccoAccessoCard({ userId, isBlocked, blockedAt, blockReason, p
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
       queryClient.invalidateQueries({ queryKey: ["stati-app-operai"] });
       toast({
-        title: blocca ? "Accesso bloccato" : "Accesso ripristinato",
-        description: blocca ? "Non può più entrare, e non vede più niente anche se era già dentro." : "Può di nuovo accedere.",
+        title: blocca ? t("Accesso bloccato") : t("Accesso ripristinato"),
+        description: blocca ? t("Non può più entrare, e non vede più niente anche se era già dentro.") : t("Può di nuovo accedere."),
       });
     },
-    onError: () => toast({ title: "Errore", description: "Impossibile modificare lo stato dell'accesso.", variant: "destructive" }),
+    onError: () => toast({ title: t("Errore"), description: t("Impossibile modificare lo stato dell'accesso."), variant: "destructive" }),
   });
 
   if (!puoBloccare) return null;
@@ -77,13 +78,13 @@ export function BloccoAccessoCard({ userId, isBlocked, blockedAt, blockReason, p
           : <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />}
         <div className="min-w-0">
           <p className={`text-sm font-medium max-sm:text-xs ${isBlocked ? "text-destructive" : ""}`}>
-            {isBlocked ? "Accesso bloccato" : <>Accesso<span className="max-sm:hidden"> all'app</span> consentito</>}
+            {isBlocked ? t("Accesso bloccato") : <><span className="max-sm:hidden">{t("Accesso all'app consentito")}</span><span className="sm:hidden">{t("Accesso consentito")}</span></>}
           </p>
           {/* Mobile: la spiegazione resta solo nella conferma. */}
           <p className={`text-xs text-muted-foreground ${isBlocked ? "" : "max-sm:hidden"}`}>
             {isBlocked
-              ? [blockedAt && `Dal ${format(new Date(blockedAt), "dd/MM/yyyy HH:mm", { locale: it })}`, blockReason].filter(Boolean).join(" · ") || "Non può entrare."
-              : "Per chi non lavora più qui: blocca l'accesso invece di eliminare, dati e storico restano."}
+              ? [blockedAt && t("Dal {data}", { data: format(new Date(blockedAt), "dd/MM/yyyy HH:mm", { locale: dateFnsCampo() }) }), blockReason].filter(Boolean).join(" · ") || t("Non può entrare.")
+              : t("Per chi non lavora più qui: blocca l'accesso invece di eliminare, dati e storico restano.")}
           </p>
         </div>
       </div>}
@@ -91,30 +92,30 @@ export function BloccoAccessoCard({ userId, isBlocked, blockedAt, blockReason, p
         <AlertDialogTrigger asChild>
           {isBlocked ? (
             <Button variant="outline" size="sm" className="shrink-0" disabled={cambiaAccesso.isPending}>
-              <ShieldCheck className="mr-1.5 h-4 w-4 text-green-600" /> Ripristina accesso
+              <ShieldCheck className="mr-1.5 h-4 w-4 text-green-600" /> {t("Ripristina accesso")}
             </Button>
           ) : (
             <Button variant="outline" size="sm" className="shrink-0 border-destructive/30 text-destructive hover:bg-destructive/10" disabled={cambiaAccesso.isPending}>
-              <ShieldOff className="mr-1.5 h-4 w-4" /> Blocca accesso
+              <ShieldOff className="mr-1.5 h-4 w-4" /> {t("Blocca accesso")}
             </Button>
           )}
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{isBlocked ? "Ripristinare l'accesso?" : "Bloccare l'accesso?"}</AlertDialogTitle>
+            <AlertDialogTitle>{isBlocked ? t("Ripristinare l'accesso?") : t("Bloccare l'accesso?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {isBlocked
-                ? "Potrà di nuovo entrare e ritroverà tutto come prima."
-                : "Non potrà più entrare, e anche se è già dentro non vedrà più niente. Non si cancella nulla: contatti, opportunità, note e storico restano a suo nome, e l'accesso si può ripristinare quando vuoi."}
+                ? t("Potrà di nuovo entrare e ritroverà tutto come prima.")
+                : t("Non potrà più entrare, e anche se è già dentro non vedrà più niente. Non si cancella nulla: contatti, opportunità, note e storico restano a suo nome, e l'accesso si può ripristinare quando vuoi.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => cambiaAccesso.mutate(!isBlocked)}
               className={isBlocked ? "" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}
             >
-              {isBlocked ? "Ripristina accesso" : "Blocca accesso"}
+              {isBlocked ? t("Ripristina accesso") : t("Blocca accesso")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

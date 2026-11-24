@@ -10,15 +10,17 @@ import { Button } from "@/components/ui/button";
 import { CALENDARIO_STANDARD } from "@/types/squadre";
 import { useCalendarLinks, useSalvaCalendarLink } from "@/hooks/useCalendariLavori";
 import { GoogleCalendarPicker } from "./GoogleCalendarPicker";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function CalendariStandardTab({ canManage }: { canManage: boolean }) {
+  const t = useT();
   const { data: links = [], isLoading, isError, refetch } = useCalendarLinks();
   const salva = useSalvaCalendarLink();
 
   if (isLoading) return <Skeleton className="h-24 w-full" />;
   if (isError) return <div role="alert" className="space-y-2 rounded-lg border p-4 text-sm">
-    <p>Impossibile leggere i collegamenti. Nessun calendario è stato modificato.</p>
-    <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button>
+    <p>{t("Impossibile leggere i collegamenti. Nessun calendario è stato modificato.")}</p>
+    <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova")}</Button>
   </div>;
 
   return (
@@ -31,16 +33,16 @@ export function CalendariStandardTab({ canManage }: { canManage: boolean }) {
             <CardContent className="flex flex-col gap-3 p-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2 font-medium">
-                  {std.label}
+                  {t(std.label)}
                   {collegato ? (
                     <Badge className={link?.enabled ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>
-                      {link?.enabled ? "Attivo" : "Collegato, spento"}
+                      {link?.enabled ? t("Attivo") : t("Collegato, spento")}
                     </Badge>
                   ) : (
-                    <Badge className="bg-muted text-muted-foreground">Nessun calendario</Badge>
+                    <Badge className="bg-muted text-muted-foreground">{t("Nessun calendario")}</Badge>
                   )}
                 </div>
-                <p className="text-sm text-muted-foreground">{std.descrizione}</p>
+                <p className="text-sm text-muted-foreground">{t(std.descrizione)}</p>
                 {link?.last_error && <p className="mt-1 text-xs text-red-700">{link.last_error}</p>}
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -58,7 +60,7 @@ export function CalendariStandardTab({ canManage }: { canManage: boolean }) {
                   <Switch
                     checked={!!link?.enabled}
                     disabled={!canManage || salva.isPending}
-                    aria-label="Invio attivo"
+                    aria-label={t("Invio attivo")}
                     onCheckedChange={(on) =>
                       salva.mutate({
                         kind: std.kind,
@@ -70,7 +72,7 @@ export function CalendariStandardTab({ canManage }: { canManage: boolean }) {
                   />
                 )}
               </div>
-              <p className="text-xs text-muted-foreground" role="status">{salva.isPending ? "Salvataggio…" : "Le modifiche si salvano automaticamente."}</p>
+              <p className="text-xs text-muted-foreground" role="status">{salva.isPending ? t("Salvataggio…") : t("Le modifiche si salvano automaticamente.")}</p>
             </CardContent>
           </Card>
         );

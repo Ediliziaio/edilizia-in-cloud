@@ -6,6 +6,7 @@ import { AmbitoImpostazione, SezioneImpostazione } from "@/components/impostazio
 import { useImpostazioniAvvio } from "@/hooks/useImpostazioniAvvio";
 import { useModelliFasi } from "@/hooks/useModelliFasi";
 import { CONTROLLI_AVVIO, CONTROLLI_DI_PARTENZA, type ControlloAvvio } from "@/lib/orders/nuovaCommessa";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const NESSUNO = "__nessuno__";
 
@@ -19,6 +20,7 @@ interface NuovaCommessaConfigProps {
 
 /** «Quando apri una commessa»: le fasi di partenza e cosa controllare. Tutto facoltativo. */
 export default function NuovaCommessaConfig({ puoModificare, evidenziata = false, onVaiAiModelli }: NuovaCommessaConfigProps) {
+  const t = useT();
   const { modelli, isLoading: modelliInCaricamento, disponibile } = useModelliFasi();
   const { modelloFasi, controlli, salva } = useImpostazioniAvvio();
   // Solo i modelli già dell'azienda si possono scegliere: quelli di partenza diventano suoi con «Importa modelli standard»
@@ -36,52 +38,52 @@ export default function NuovaCommessaConfig({ puoModificare, evidenziata = false
   return (
     <SezioneImpostazione
       id="nuova-commessa"
-      titolo="Quando apri una commessa"
-      descrizione="Con quali fasi parte una commessa nuova e cosa ti ricorda il riquadro «Cantiere da organizzare». Sono scelte facoltative."
-      ambito={<AmbitoImpostazione>Commesse nuove</AmbitoImpostazione>}
-      azione={<span>Si salva subito</span>}
+      titolo={t("Quando apri una commessa")}
+      descrizione={t("Con quali fasi parte una commessa nuova e cosa ti ricorda il riquadro «Cantiere da organizzare». Sono scelte facoltative.")}
+      ambito={<AmbitoImpostazione>{t("Commesse nuove")}</AmbitoImpostazione>}
+      azione={<span>{t("Si salva subito")}</span>}
       evidenziata={evidenziata}
     >
       <div className="space-y-2 px-4 py-4">
-        <Label htmlFor="fasi-di-partenza" className="text-sm font-medium">Fasi di partenza</Label>
+        <Label htmlFor="fasi-di-partenza" className="text-sm font-medium">{t("Fasi di partenza")}</Label>
         <Select
           value={modelloFasi ?? NESSUNO}
           onValueChange={(v) => salva.mutate({ modelloFasi: v === NESSUNO ? null : v })}
           disabled={!puoModificare}
         >
-          <SelectTrigger id="fasi-di-partenza" className="max-w-sm" aria-label="Fasi di partenza" aria-describedby="fasi-di-partenza-descrizione">
+          <SelectTrigger id="fasi-di-partenza" className="max-w-sm" aria-label={t("Fasi di partenza")} aria-describedby="fasi-di-partenza-descrizione">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NESSUNO}>Nessuna: le scelgo io, commessa per commessa</SelectItem>
+            <SelectItem value={NESSUNO}>{t("Nessuna: le scelgo io, commessa per commessa")}</SelectItem>
             {propri.map((m) => (
               <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         <p id="fasi-di-partenza-descrizione" className="text-xs text-muted-foreground">
-          Una commessa che nasce senza fasi le riceve da questo modello (si può cambiare o togliere nel modulo di nuova commessa). Le commesse che hai già non cambiano.
+          {t("Una commessa che nasce senza fasi le riceve da questo modello (si può cambiare o togliere nel modulo di nuova commessa). Le commesse che hai già non cambiano.")}
         </p>
         {senzaModelliPropri && (
           <p role="note" className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
             {puoModificare ? (
               <>
-                Non hai ancora modelli tuoi. Importa quelli standard o creane uno nella sezione{" "}
+                {t("Non hai ancora modelli tuoi. Importa quelli standard o creane uno nella sezione")}{" "}
                 {onVaiAiModelli ? (
                   <a
                     href="#modelli"
                     onClick={(evento) => { evento.preventDefault(); onVaiAiModelli(); }}
                     className="font-medium text-primary underline"
                   >
-                    «Modelli di fasi»
+                    {t("«Modelli di fasi»")}
                   </a>
                 ) : (
-                  <strong className="font-medium text-foreground">«Modelli di fasi»</strong>
+                  <strong className="font-medium text-foreground">{t("«Modelli di fasi»")}</strong>
                 )}
-                , poi scegli qui.
+                {t(", poi scegli qui.")}
               </>
             ) : (
-              "Non ci sono ancora modelli dell'azienda: li prepara chi gestisce le impostazioni delle commesse."
+              t("Non ci sono ancora modelli dell'azienda: li prepara chi gestisce le impostazioni delle commesse.")
             )}
           </p>
         )}
@@ -90,7 +92,7 @@ export default function NuovaCommessaConfig({ puoModificare, evidenziata = false
       {/* Il fieldset sta dentro un blocco: il suo «legend» non deve cadere sulla riga di separazione fra i blocchi. */}
       <div className="px-4 py-4">
         <fieldset className="m-0 min-w-0 space-y-2 border-0 p-0" disabled={!puoModificare}>
-          <legend className="mb-2 text-sm font-medium">Cosa ti ricorda «Cantiere da organizzare»</legend>
+          <legend className="mb-2 text-sm font-medium">{t("Cosa ti ricorda «Cantiere da organizzare»")}</legend>
           <div className="grid gap-2 sm:grid-cols-2">
             {CONTROLLI_AVVIO.map((c) => (
               <div key={c.chiave} className="flex items-center gap-3 rounded-lg border p-3">
@@ -105,7 +107,7 @@ export default function NuovaCommessaConfig({ puoModificare, evidenziata = false
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Il riquadro compare nella panoramica di una commessa solo se manca qualcosa di quello che spunti qui. Togli quello che non usi.
+            {t("Il riquadro compare nella panoramica di una commessa solo se manca qualcosa di quello che spunti qui. Togli quello che non usi.")}
           </p>
         </fieldset>
       </div>

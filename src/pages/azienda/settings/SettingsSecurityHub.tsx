@@ -23,6 +23,7 @@ import { confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 import SettingsPrivacy from "@/pages/azienda/settings/SettingsPrivacy";
 import SettingsSecurityDashboard from "@/pages/azienda/settings/SettingsSecurityDashboard";
 import SettingsActivityLog from "@/pages/azienda/settings/SettingsActivityLog";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type SecurityTab = "privacy" | "dashboard" | "attivita" | "regole";
 const VALID_TABS: SecurityTab[] = ["privacy", "dashboard", "attivita", "regole"];
@@ -32,6 +33,7 @@ function isValidTab(tab: string | null): tab is SecurityTab {
 }
 
 export default function SettingsSecurityHub() {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const { role } = useAuth();
   const permissions = usePermissions();
@@ -46,7 +48,7 @@ export default function SettingsSecurityHub() {
     return (
       <div role="status" className="flex items-center gap-2 py-8 text-muted-foreground text-sm">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        Caricamento…
+        {t("Caricamento…")}
       </div>
     );
   }
@@ -73,34 +75,34 @@ export default function SettingsSecurityHub() {
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
       <p className="mb-4 text-sm text-muted-foreground">
-        Le regole qui riguardano l’azienda. Password e verifica in due passaggi sono in{" "}
-        <Link to="/azienda/impostazioni/mio-profilo?tab=sicurezza" className="font-medium text-primary underline underline-offset-4">Sicurezza personale</Link>.
+        {t("Le regole qui riguardano l’azienda. Password e verifica in due passaggi sono in")}{" "}
+        <Link to="/azienda/impostazioni/mio-profilo?tab=sicurezza" className="font-medium text-primary underline underline-offset-4">{t("Sicurezza personale")}</Link>.
       </p>
       <TabsList className="mb-6 w-full sm:w-auto h-auto flex-wrap justify-start gap-1 overflow-x-auto sm:overflow-visible sm:flex-nowrap max-sm:hidden">
         {isAdmin && (
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <Activity className="h-4 w-4" aria-hidden="true" />
-            <span>Accessi</span>
+            <span>{t("Accessi")}</span>
           </TabsTrigger>
         )}
 
         {isAdmin && (
           <TabsTrigger value="attivita" className="flex items-center gap-2">
             <ScrollText className="h-4 w-4" aria-hidden="true" />
-            <span>Registro attività</span>
+            <span>{t("Registro attività")}</span>
           </TabsTrigger>
         )}
 
         {isAdmin && !isMobile && (
           <TabsTrigger value="regole" className="gap-2">
-            <Shield className="h-4 w-4" aria-hidden="true" />Regole aziendali
+            <Shield className="h-4 w-4" aria-hidden="true" />{t("Regole aziendali")}
           </TabsTrigger>
         )}
 
         {canViewPrivacy && (
           <TabsTrigger value="privacy" className="flex items-center gap-2">
             <Shield className="h-4 w-4" aria-hidden="true" />
-            <span>Privacy</span>
+            <span>{t("Privacy")}</span>
           </TabsTrigger>
         )}
       </TabsList>

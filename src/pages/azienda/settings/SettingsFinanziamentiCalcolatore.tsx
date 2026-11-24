@@ -36,8 +36,10 @@ import { CalcolatoreOutput } from "./_finanziamenti/CalcolatoreOutput";
 import { SimulatoreMultiDurata } from "./_finanziamenti/SimulatoreMultiDurata";
 import { erroreComprensibile, formattaEuro, proprietaComandoSpento, useAccessoFinanziamenti } from "./_finanziamenti/comuni";
 import { AccessoNegato, AvvisoSolaLettura } from "./_finanziamenti/pezzi";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function SettingsFinanziamentiCalcolatore() {
+  const tr = useT();
   const { puoVedere, puoModificare } = useAccessoFinanziamenti();
   const { data: tabelle = [], isLoading: isLoadingTabelle, isError: isErrorTabelle, error: erroreTabelle, refetch } = useTabelle();
   const tabelleAttive = useMemo(
@@ -79,7 +81,7 @@ export default function SettingsFinanziamentiCalcolatore() {
         <Button asChild variant="ghost" size="sm">
           <Link to="/azienda/impostazioni/finanziamenti">
             <ArrowLeft className="h-4 w-4 mr-1" aria-hidden="true" />
-            Torna alle tabelle
+            {tr("Torna alle tabelle")}
           </Link>
         </Button>
       </div>
@@ -88,12 +90,12 @@ export default function SettingsFinanziamentiCalcolatore() {
         <CardContent className="py-5 space-y-4">
           <div className="flex items-center gap-2">
             <Calculator className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h2 className="font-semibold">Calcolatore finanziamento</h2>
+            <h2 className="font-semibold">{tr("Calcolatore finanziamento")}</h2>
           </div>
 
           {isLoadingTabelle && (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              Caricamento…
+              {tr("Caricamento…")}
             </p>
           )}
 
@@ -101,11 +103,11 @@ export default function SettingsFinanziamentiCalcolatore() {
             <Alert variant="destructive">
               <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <span>
-                  <strong className="block font-medium">Non riesco a leggere le tabelle.</strong>
-                  {erroreComprensibile(erroreTabelle, "Riprova tra poco.")}
+                  <strong className="block font-medium">{tr("Non riesco a leggere le tabelle.")}</strong>
+                  {erroreComprensibile(erroreTabelle, tr("Riprova tra poco."))}
                 </span>
                 <Button size="sm" variant="outline" onClick={() => void refetch()}>
-                  Riprova
+                  {tr("Riprova")}
                 </Button>
               </AlertDescription>
             </Alert>
@@ -115,21 +117,20 @@ export default function SettingsFinanziamentiCalcolatore() {
             <div className="rounded-md border bg-muted/30 p-6 text-center space-y-3">
               <Banknote className="h-10 w-10 mx-auto text-muted-foreground" aria-hidden="true" />
               <p className="text-sm">
-                Non hai ancora caricato nessuna tabella attiva. Carica almeno
-                una tabella per usare il calcolatore.
+                {tr("Non hai ancora caricato nessuna tabella attiva. Carica almeno una tabella per usare il calcolatore.")}
               </p>
               {puoModificare ? (
                 <Button asChild>
                   <Link to="/azienda/impostazioni/finanziamenti/nuova">
                     <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-                    Carica una tabella
+                    {tr("Carica una tabella")}
                   </Link>
                 </Button>
               ) : (
                 <>
                   <Button disabled {...proprietaComandoSpento(false)}>
                     <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-                    Carica una tabella
+                    {tr("Carica una tabella")}
                   </Button>
                   <div className="text-left">
                     <AvvisoSolaLettura />
@@ -142,10 +143,10 @@ export default function SettingsFinanziamentiCalcolatore() {
           {!isLoadingTabelle && !isErrorTabelle && tabelleAttive.length > 0 && (
             <>
               <div>
-                <Label htmlFor="tab-select">Tabella finanziamento</Label>
+                <Label htmlFor="tab-select">{tr("Tabella finanziamento")}</Label>
                 <Select value={tabellaId} onValueChange={setTabellaId}>
                   <SelectTrigger id="tab-select">
-                    <SelectValue placeholder="Seleziona tabella…" />
+                    <SelectValue placeholder={tr("Seleziona tabella…")} />
                   </SelectTrigger>
                   <SelectContent>
                     {tabelleAttive.map((t) => (
@@ -160,39 +161,34 @@ export default function SettingsFinanziamentiCalcolatore() {
 
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="imp">Importo finanziato (€)</Label>
+                  <Label htmlFor="imp">{tr("Importo finanziato (€)")}</Label>
                   <Input
                     id="imp"
                     type="text"
                     inputMode="decimal"
-                    placeholder="es. 10000"
+                    placeholder={tr("es. 10000")}
                     value={importo}
                     onChange={(e) => setImporto(e.target.value)}
                     disabled={!tabellaId}
                   />
                   {tabellaCorrente?.importo_min != null &&
                     tabellaCorrente?.importo_max != null && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Importi in tabella: da € {formattaEuro(tabellaCorrente.importo_min)} a €{" "}
-                        {formattaEuro(tabellaCorrente.importo_max)}
-                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">{tr("Importi in tabella: da € {importo_min} a € {importo_max}", { importo_min: formattaEuro(tabellaCorrente.importo_min), importo_max: formattaEuro(tabellaCorrente.importo_max) })}</p>
                     )}
                 </div>
                 <div>
-                  <Label htmlFor="rt">Numero rate</Label>
+                  <Label htmlFor="rt">{tr("Numero rate")}</Label>
                   <Select
                     value={rate}
                     onValueChange={setRate}
                     disabled={!tabellaId}
                   >
                     <SelectTrigger id="rt">
-                      <SelectValue placeholder="Seleziona durata…" />
+                      <SelectValue placeholder={tr("Seleziona durata…")} />
                     </SelectTrigger>
                     <SelectContent>
                       {(tabellaCorrente?.durate_disponibili ?? []).map((d) => (
-                        <SelectItem key={d} value={String(d)}>
-                          {d} rate ({d} mesi)
-                        </SelectItem>
+                        <SelectItem key={d} value={String(d)}>{tr("{d} rate ({d2} mesi)", { d: String(d ?? ""), d2: String(d ?? "") })}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -210,11 +206,10 @@ export default function SettingsFinanziamentiCalcolatore() {
         <Card>
           <CardContent className="py-5 space-y-3">
             <h3 className="font-medium">
-              Confronto su tutte le durate disponibili
+              {tr("Confronto su tutte le durate disponibili")}
             </h3>
             <p className="text-xs text-muted-foreground">
-              Stesso importo, durate diverse. Le durate con rata o TAEG migliori
-              sono evidenziate.
+              {tr("Stesso importo, durate diverse. Le durate con rata o TAEG migliori sono evidenziate.")}
             </p>
             <SimulatoreMultiDurata
               importo={

@@ -29,6 +29,7 @@ import {
 } from "@/lib/marketingTags";
 import { leggiUsoTag, tagFuoriElenco, type UsoTag } from "@/lib/impostazioni/usoTag";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type MarketingTag = {
   id: string;
@@ -56,7 +57,7 @@ const NOMI_COLORI: Record<string, string> = {
 };
 const nomeColore = (colore: string) => NOMI_COLORI[colore.toLowerCase()] ?? colore;
 /** 21880 → «21.880». */
-const num = (n: number) => n.toLocaleString("it-IT");
+const num = (n: number) => n.toLocaleString(intlCampo());
 
 class TagInUseError extends Error {
   usage: TagUsageCounts;
@@ -100,6 +101,7 @@ async function getTagUsageCounts(companyId: string, tagName: string): Promise<Ta
 }
 
 export function TagsConfig() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
@@ -179,10 +181,10 @@ export function TagsConfig() {
 
   const addMutation = useMutation({
     mutationFn: async ({ name, color }: { name: string; color: string }) => {
-      if (!canEdit || isLoading || isError) throw new Error("Modifica dei tag non disponibile");
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!canEdit || isLoading || isError) throw new Error(t("Modifica dei tag non disponibile"));
+      if (!companyId) throw new Error(t("Azienda non disponibile"));
       const normalizedName = normalizeTagName(name);
-      if (!normalizedName) throw new Error("Inserisci un nome tag valido");
+      if (!normalizedName) throw new Error(t("Inserisci un nome tag valido"));
       if (tags.some((tag) => normalizeTagName(tag.name) === normalizedName)) {
         throw new Error("DUPLICATE_TAG");
       }
@@ -197,15 +199,15 @@ export function TagsConfig() {
       invalidateTagQueries();
       setNewTag("");
       setNewColor(DEFAULT_TAG_COLOR);
-      toast.success("Tag aggiunto");
+      toast.success(t("Tag aggiunto"));
     },
     onError: (e: unknown) => {
       const message = getTagErrorMessage(e);
       const code = e && typeof e === "object" && "code" in e ? String(e.code) : "";
       if (message.includes("DUPLICATE_TAG") || message.includes("duplicate") || code === "23505") {
-        toast.error("Tag già esistente");
+        toast.error(t("Tag già esistente"));
       } else {
-        toast.error("Non sono riuscito ad aggiungere il tag", { description: userErrorMessage(e, "Riprova tra poco.") });
+        toast.error(t("Non sono riuscito ad aggiungere il tag"), { description: userErrorMessage(e, t("Riprova tra poco.")) });
       }
     },
   });
@@ -214,8 +216,8 @@ export function TagsConfig() {
   // nessun contatto né nessuna opportunità (prima «Ripara collegamenti» riscriveva anche quelli, fino a mille alla volta).
   const addMissingMutation = useMutation({
     mutationFn: async (names: string[]) => {
-      if (!canEdit || isLoading || isError) throw new Error("Modifica dei tag non disponibile");
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!canEdit || isLoading || isError) throw new Error(t("Modifica dei tag non disponibile"));
+      if (!companyId) throw new Error(t("Azienda non disponibile"));
       const known = new Set(tags.map((tag) => normalizeTagName(tag.name)));
       const toAdd = normalizeTagList(names).filter((name) => !known.has(name));
       if (toAdd.length === 0) return 0;
@@ -231,21 +233,21 @@ export function TagsConfig() {
     onSuccess: (added) => {
       invalidateTagQueries();
       setAddMissingOpen(false);
-      toast.success(added === 1 ? "Tag aggiunto all'elenco" : `${added} tag aggiunti all'elenco`);
+      toast.success(added === 1 ? t("Tag aggiunto all'elenco") : t("{added} tag aggiunti all'elenco", { added: String(added ?? "") }));
     },
     onError: (e: unknown) => {
-      toast.error("Non sono riuscito ad aggiungere i tag", {
-        description: userErrorMessage(e, "Controlla i permessi e riprova."),
+      toast.error(t("Non sono riuscito ad aggiungere i tag"), {
+        description: userErrorMessage(e, t("Controlla i permessi e riprova.")),
       });
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, currentName, nextName, color }: { id: string; currentName: string; nextName: string; color: string }) => {
-      if (!canEdit || isLoading || isError) throw new Error("Modifica dei tag non disponibile");
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!canEdit || isLoading || isError) throw new Error(t("Modifica dei tag non disponibile"));
+      if (!companyId) throw new Error(t("Azienda non disponibile"));
       const normalizedName = normalizeTagName(nextName);
-      if (!normalizedName) throw new Error("Inserisci un nome tag valido");
+      if (!normalizedName) throw new Error(t("Inserisci un nome tag valido"));
       if (tags.some((tag) => tag.id !== id && normalizeTagName(tag.name) === normalizedName)) {
         throw new Error("DUPLICATE_TAG");
       }
@@ -268,31 +270,31 @@ export function TagsConfig() {
       invalidateTagQueries();
       setEditTag(null);
       setEditName("");
-      toast.success("Tag aggiornato");
+      toast.success(t("Tag aggiornato"));
     },
     onError: (e: unknown) => {
       if (e instanceof TagInUseError) {
-        toast.error("Il nome di un tag già usato non si può cambiare. Puoi cambiare solo il colore.");
+        toast.error(t("Il nome di un tag già usato non si può cambiare. Puoi cambiare solo il colore."));
         return;
       }
       if (e instanceof UsoNonVerificabileError) {
-        toast.error("Non riesco a controllare se il tag è usato, quindi non cambio il nome. Cambia solo il colore.");
+        toast.error(t("Non riesco a controllare se il tag è usato, quindi non cambio il nome. Cambia solo il colore."));
         return;
       }
       const message = getTagErrorMessage(e);
       const code = e && typeof e === "object" && "code" in e ? String(e.code) : "";
       if (message.includes("DUPLICATE_TAG") || message.includes("duplicate") || code === "23505") {
-        toast.error("Tag già esistente");
+        toast.error(t("Tag già esistente"));
       } else {
-        toast.error("Non sono riuscito ad aggiornare il tag", { description: userErrorMessage(e, "Riprova tra poco.") });
+        toast.error(t("Non sono riuscito ad aggiornare il tag"), { description: userErrorMessage(e, t("Riprova tra poco.")) });
       }
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
-      if (!canEdit || isLoading || isError) throw new Error("Modifica dei tag non disponibile");
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!canEdit || isLoading || isError) throw new Error(t("Modifica dei tag non disponibile"));
+      if (!companyId) throw new Error(t("Azienda non disponibile"));
 
       // Letto adesso e per tutta l'azienda (oltre le mille righe di una risposta): è la guardia che impedisce di
       // eliminare un tag che contatti o opportunità hanno ancora.
@@ -307,20 +309,20 @@ export function TagsConfig() {
     onSuccess: () => {
       invalidateTagQueries();
       setDeleteId(null);
-      toast.success("Tag eliminato");
+      toast.success(t("Tag eliminato"));
     },
     onError: (e: unknown) => {
       if (e instanceof TagInUseError) {
         const total = e.usage.contatti + e.usage.opportunita;
-        toast.error(`Questo tag è ancora su ${num(total)} ${total === 1 ? "contatto o opportunità" : "tra contatti e opportunità"}: toglilo da lì e riprova.`);
+        toast.error(t(total === 1 ? "Questo tag è ancora su {n} contatto o opportunità: toglilo da lì e riprova." : "Questo tag è ancora su {n} tra contatti e opportunità: toglilo da lì e riprova.", { n: num(total) }));
         return;
       }
       if (e instanceof UsoNonVerificabileError) {
-        toast.error("Non riesco a controllare se il tag è usato, quindi non lo elimino.");
+        toast.error(t("Non riesco a controllare se il tag è usato, quindi non lo elimino."));
         return;
       }
 
-      toast.error("Non sono riuscito a eliminare il tag", { description: userErrorMessage(e, "Riprova tra poco.") });
+      toast.error(t("Non sono riuscito a eliminare il tag"), { description: userErrorMessage(e, t("Riprova tra poco.")) });
     },
   });
 
@@ -348,15 +350,15 @@ export function TagsConfig() {
     <div className="space-y-6">
       {!canEdit && (
         <p role="status" className="text-sm text-muted-foreground">
-          Stai solo consultando: per cambiare i tag serve il permesso «Personalizzazione» in modifica (o essere amministratore).
+          {t("Stai solo consultando: per cambiare i tag serve il permesso «Personalizzazione» in modifica (o essere amministratore).")}
         </p>
       )}
 
       {!companyId && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Azienda non selezionata</AlertTitle>
-          <AlertDescription>Seleziona un'azienda per gestire i tag.</AlertDescription>
+          <AlertTitle>{t("Azienda non selezionata")}</AlertTitle>
+          <AlertDescription>{t("Seleziona un'azienda per gestire i tag.")}</AlertDescription>
         </Alert>
       )}
 
@@ -368,17 +370,17 @@ export function TagsConfig() {
               <Skeleton className="h-5 w-48" />
             ) : (
               <p className="text-sm text-muted-foreground" aria-live="polite">
-                <span className="font-medium text-foreground">{isError ? "–" : tags.length}</span> tag
+                <span className="font-medium text-foreground">{isError ? "–" : tags.length}</span> {t("tag")}
                 {usageKnown ? (
-                  <> · <span className="font-medium text-foreground">{nonUsati}</span> non usati</>
+                  <> · <span className="font-medium text-foreground">{nonUsati}</span> {t("non usati")}</>
                 ) : (
-                  <> · non riesco a contare quanti sono usati</>
+                  <> {t("· non riesco a contare quanti sono usati")}</>
                 )}
               </p>
             )}
             {usageKnown && fuoriElenco.length > 0 && (
               <p className="text-sm text-amber-700 dark:text-amber-400">
-                Altri {fuoriElenco.length}{lettura?.elencoContattiIncompleto ? " (o più)" : ""} tag sono sui contatti o sulle opportunità ma non in questo elenco.
+                {t(lettura?.elencoContattiIncompleto ? "Altri {n} (o più) tag sono sui contatti o sulle opportunità ma non in questo elenco." : "Altri {n} tag sono sui contatti o sulle opportunità ma non in questo elenco.", { n: fuoriElenco.length })}
               </p>
             )}
           </div>
@@ -391,7 +393,7 @@ export function TagsConfig() {
               size="sm" className="h-11 gap-2 self-start sm:h-9"
             >
               <RefreshCw className={cn("h-4 w-4", addMissingMutation.isPending && "animate-spin")} />
-              {addMissingMutation.isPending ? "Aggiungo…" : "Aggiungi i tag mancanti"}
+              {addMissingMutation.isPending ? t("Aggiungo…") : t("Aggiungi i tag mancanti")}
             </Button>
           )}
         </div>
@@ -401,10 +403,10 @@ export function TagsConfig() {
         <CardContent className="pt-6">
           <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
             <div className="space-y-2">
-              <Label htmlFor="new-tag">Nuovo tag</Label>
+              <Label htmlFor="new-tag">{t("Nuovo tag")}</Label>
               <Input
                 id="new-tag"
-                placeholder="Es. cliente caldo"
+                placeholder={t("Es. cliente caldo")}
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -413,16 +415,16 @@ export function TagsConfig() {
                 disabled={!companyId || isLoading || isError || addMutation.isPending}
               />
               <p id="new-tag-aiuto" className="text-xs text-muted-foreground">
-                Maiuscole e spazi vengono uniformati: «Cliente caldo» e «cliente  caldo» sono lo stesso tag.
+                {t("Maiuscole e spazi vengono uniformati: «Cliente caldo» e «cliente  caldo» sono lo stesso tag.")}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Colore del nuovo tag">
+            <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("Colore del nuovo tag")}>
               {TAG_COLORS.map((color) => (
                 <button
                   key={color}
                   type="button"
                   disabled={isLoading || isError || addMutation.isPending}
-                  aria-label={`Colore ${nomeColore(color)}`}
+                  aria-label={t("Colore {color}", { color: t(nomeColore(color)) })}
                   aria-pressed={newColor === color}
                   onClick={() => setNewColor(color)}
                   className={cn(
@@ -434,7 +436,7 @@ export function TagsConfig() {
               ))}
               <Button size="sm" className="h-11 sm:h-9" onClick={handleAdd} disabled={!companyId || !normalizedNewTag || isLoading || isError || addMutation.isPending}>
                 <Plus className="h-4 w-4 mr-1" />
-                {addMutation.isPending ? "Aggiungo…" : "Aggiungi"}
+                {addMutation.isPending ? t("Aggiungo…") : t("Aggiungi")}
               </Button>
             </div>
           </div>
@@ -447,15 +449,15 @@ export function TagsConfig() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cerca tag…"
-            aria-label="Cerca tag"
+            placeholder={t("Cerca tag…")}
+            aria-label={t("Cerca tag")}
             className="pl-9"
           />
         </div>
         {isUsageError && (
           <Button type="button" variant="outline" size="sm" onClick={() => refetchUsage()} className="gap-2">
             <RefreshCw className="h-4 w-4" />
-            Ricalcola utilizzi
+            {t("Ricalcola utilizzi")}
           </Button>
         )}
       </div>
@@ -463,9 +465,9 @@ export function TagsConfig() {
       {isUsageError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Utilizzi non aggiornati</AlertTitle>
+          <AlertTitle>{t("Utilizzi non aggiornati")}</AlertTitle>
           <AlertDescription>
-            {userErrorMessage(usageError, "Non è stato possibile contare dove sono usati i tag.")}
+            {userErrorMessage(usageError, t("Non è stato possibile contare dove sono usati i tag."))}
           </AlertDescription>
         </Alert>
       )}
@@ -473,11 +475,11 @@ export function TagsConfig() {
       {isError ? (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Tag non disponibili</AlertTitle>
+          <AlertTitle>{t("Tag non disponibili")}</AlertTitle>
           <AlertDescription className="space-y-3">
-            <p>{userErrorMessage(error, "Non è stato possibile caricare i tag dell'azienda.")}</p>
+            <p>{userErrorMessage(error, t("Non è stato possibile caricare i tag dell'azienda."))}</p>
             <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
-              Riprova
+              {t("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -490,24 +492,24 @@ export function TagsConfig() {
       ) : tags.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           {fuoriElenco.length > 0
-            ? "L'elenco è vuoto, ma i tuoi contatti hanno già dei tag (sotto)."
-            : "Nessun tag creato. Aggiungi il primo tag qui sopra."}
+            ? t("L'elenco è vuoto, ma i tuoi contatti hanno già dei tag (sotto).")
+            : t("Nessun tag creato. Aggiungi il primo tag qui sopra.")}
         </p>
       ) : (
         <div className="rounded-lg border">
           <Table className="block md:table">
             <TableHeader className="hidden md:table-header-group">
               <TableRow>
-                <TableHead>Tag</TableHead>
-                <TableHead className="w-[180px]">Su quanti</TableHead>
-                <TableHead className="w-[120px] text-right">Azioni</TableHead>
+                <TableHead>{t("Tag")}</TableHead>
+                <TableHead className="w-[180px]">{t("Su quanti")}</TableHead>
+                <TableHead className="w-[120px] text-right">{t("Azioni")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="block md:table-row-group">
               {filteredTags.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={3} className="h-24 text-center text-sm text-muted-foreground">
-                    Nessun tag corrisponde alla ricerca.
+                    {t("Nessun tag corrisponde alla ricerca.")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -523,22 +525,22 @@ export function TagsConfig() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {isUsageError ? <span className="text-xs text-muted-foreground">Utilizzi non disponibili</span> : isUsageLoading ? (
-                          <span className="text-sm text-muted-foreground">Calcolo…</span>
+                        {isUsageError ? <span className="text-xs text-muted-foreground">{t("Utilizzi non disponibili")}</span> : isUsageLoading ? (
+                          <span className="text-sm text-muted-foreground">{t("Calcolo…")}</span>
                         ) : (
                           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1" title="Contatti"><Users className="h-3 w-3" aria-hidden="true" /> <span className="sr-only">Contatti: </span>{num(usage?.contatti ?? 0)}</span>
-                            <span className="inline-flex items-center gap-1" title="Opportunità"><BriefcaseBusiness className="h-3 w-3" aria-hidden="true" /> <span className="sr-only">Opportunità: </span>{num(usage?.opportunita ?? 0)}</span>
-                            {totalUsage > 0 && <Badge variant="outline">{num(totalUsage)} tot.</Badge>}
+                            <span className="inline-flex items-center gap-1" title={t("Contatti")}><Users className="h-3 w-3" aria-hidden="true" /> <span className="sr-only">{t("Contatti:")} </span>{num(usage?.contatti ?? 0)}</span>
+                            <span className="inline-flex items-center gap-1" title={t("Opportunità")}><BriefcaseBusiness className="h-3 w-3" aria-hidden="true" /> <span className="sr-only">{t("Opportunità:")} </span>{num(usage?.opportunita ?? 0)}</span>
+                            {totalUsage > 0 && <Badge variant="outline">{t("{totalUsage} tot.", { totalUsage: String(num(totalUsage) ?? "") })}</Badge>}
                           </div>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
                         {canEdit && <>
-                        <Button type="button" variant="ghost" size="icon" className="h-11 w-11 sm:h-10 sm:w-10" onClick={() => openEdit(tag)} aria-label={`Modifica tag ${tag.name}`}>
+                        <Button type="button" variant="ghost" size="icon" className="h-11 w-11 sm:h-10 sm:w-10" onClick={() => openEdit(tag)} aria-label={t("Modifica tag {name}", { name: String(tag.name ?? "") })}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button type="button" variant="ghost" size="icon" className="h-11 w-11 sm:h-10 sm:w-10" disabled={!usageKnown} onClick={() => setDeleteId(tag.id)} aria-label={`Elimina tag ${tag.name}`}>
+                        <Button type="button" variant="ghost" size="icon" className="h-11 w-11 sm:h-10 sm:w-10" disabled={!usageKnown} onClick={() => setDeleteId(tag.id)} aria-label={t("Elimina tag {name}", { name: String(tag.name ?? "") })}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                         </>}
@@ -556,9 +558,9 @@ export function TagsConfig() {
       {usageKnown && fuoriElencoFiltrati.length > 0 && (
         <section aria-labelledby="tag-fuori-elenco" className="space-y-2">
           <div>
-            <h2 id="tag-fuori-elenco" className="text-base font-semibold">Tag usati ma non in elenco</h2>
+            <h2 id="tag-fuori-elenco" className="text-base font-semibold">{t("Tag usati ma non in elenco")}</h2>
             <p className="text-sm text-muted-foreground">
-              Arrivano da importazioni, automazioni e moduli. Aggiungili all'elenco per sceglierli dai selettori e dare loro un colore.
+              {t("Arrivano da importazioni, automazioni e moduli. Aggiungili all'elenco per sceglierli dai selettori e dare loro un colore.")}
             </p>
           </div>
           <ul className="divide-y rounded-lg border">
@@ -566,12 +568,12 @@ export function TagsConfig() {
               <li key={tag.nome} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <Badge variant="outline" className="max-w-full break-words whitespace-normal px-3 py-1 text-sm">{tag.nome}</Badge>
-                  <span className="text-xs text-muted-foreground">Non in elenco</span>
+                  <span className="text-xs text-muted-foreground">{t("Non in elenco")}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex gap-2 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1" title="Contatti"><Users className="h-3 w-3" aria-hidden="true" /> <span className="sr-only">Contatti: </span>{num(tag.contatti)}</span>
-                    <span className="inline-flex items-center gap-1" title="Opportunità"><BriefcaseBusiness className="h-3 w-3" aria-hidden="true" /> <span className="sr-only">Opportunità: </span>{num(tag.opportunita)}</span>
+                    <span className="inline-flex items-center gap-1" title={t("Contatti")}><Users className="h-3 w-3" aria-hidden="true" /> <span className="sr-only">{t("Contatti:")} </span>{num(tag.contatti)}</span>
+                    <span className="inline-flex items-center gap-1" title={t("Opportunità")}><BriefcaseBusiness className="h-3 w-3" aria-hidden="true" /> <span className="sr-only">{t("Opportunità:")} </span>{num(tag.opportunita)}</span>
                   </div>
                   {canEdit && (
                     <Button
@@ -581,9 +583,9 @@ export function TagsConfig() {
                       className="h-11 sm:h-9"
                       disabled={addMissingMutation.isPending}
                       onClick={() => addMissingMutation.mutate([tag.nome])}
-                      aria-label={`Aggiungi all'elenco il tag ${tag.nome}`}
+                      aria-label={t("Aggiungi all'elenco il tag {nome}", { nome: String(tag.nome ?? "") })}
                     >
-                      Aggiungi all'elenco
+                      {t("Aggiungi all'elenco")}
                     </Button>
                   )}
                 </div>
@@ -591,9 +593,7 @@ export function TagsConfig() {
             ))}
           </ul>
           {!mostraTuttiFuori && fuoriElencoFiltrati.length > FUORI_ELENCO_VISIBILI && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => setMostraTuttiFuori(true)}>
-              Mostra tutti ({fuoriElencoFiltrati.length})
-            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setMostraTuttiFuori(true)}>{t("Mostra tutti ({n})", { n: fuoriElencoFiltrati.length })}</Button>
           )}
         </section>
       )}
@@ -601,14 +601,14 @@ export function TagsConfig() {
       <Dialog open={!!editTag} onOpenChange={(open) => { if (!open && !updateMutation.isPending && confermaUscita()) setEditTag(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Modifica tag</DialogTitle>
+            <DialogTitle>{t("Modifica tag")}</DialogTitle>
             <DialogDescription>
-              Il colore lo puoi cambiare quando vuoi. Il nome solo se il tag non è su nessun contatto o opportunità.
+              {t("Il colore lo puoi cambiare quando vuoi. Il nome solo se il tag non è su nessun contatto o opportunità.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-tag-name">Nome tag</Label>
+              <Label htmlFor="edit-tag-name">{t("Nome tag")}</Label>
               <Input
                 id="edit-tag-name"
                 value={editName}
@@ -619,18 +619,18 @@ export function TagsConfig() {
               />
               {editTag && editUsage > 0 && (
                 <p id="edit-tag-bloccato" className="text-xs text-amber-700 dark:text-amber-400">
-                  Questo tag è su {num(editUsage)} {editUsage === 1 ? "contatto o opportunità" : "tra contatti e opportunità"}: per rinominarlo toglilo prima da lì.
+                  {t(editUsage === 1 ? "Questo tag è su {n} contatto o opportunità: per rinominarlo toglilo prima da lì." : "Questo tag è su {n} tra contatti e opportunità: per rinominarlo toglilo prima da lì.", { n: num(editUsage) })}
                 </p>
               )}
             </div>
             <div className="space-y-2">
-              <Label id="edit-tag-colore">Colore</Label>
+              <Label id="edit-tag-colore">{t("Colore")}</Label>
               <div className="flex flex-wrap gap-2" role="group" aria-labelledby="edit-tag-colore">
                 {TAG_COLORS.map((color) => (
                   <button
                     key={color}
                     type="button"
-                    aria-label={`Colore ${nomeColore(color)}`}
+                    aria-label={t("Colore {color}", { color: t(nomeColore(color)) })}
                     aria-pressed={editColor === color}
                     onClick={() => setEditColor(color)}
                     className={cn(
@@ -645,7 +645,7 @@ export function TagsConfig() {
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={updateMutation.isPending} onClick={() => { if (confermaUscita()) setEditTag(null); }}>Annulla</Button>
+            <Button type="button" variant="outline" disabled={updateMutation.isPending} onClick={() => { if (confermaUscita()) setEditTag(null); }}>{t("Annulla")}</Button>
             <Button
               type="button"
               disabled={!canEdit || !editTag || !normalizeTagName(editName) || updateMutation.isPending}
@@ -659,7 +659,7 @@ export function TagsConfig() {
                 });
               }}
             >
-              Salva modifiche
+              {t("Salva modifiche")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -670,18 +670,16 @@ export function TagsConfig() {
       }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare il tag?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Eliminare il tag?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Si può eliminare solo un tag che non è su nessun contatto o opportunità.
+              {t("Si può eliminare solo un tag che non è su nessun contatto o opportunità.")}
               {deleteTag && (
-                <span className="mt-2 block">
-                  Ora: {num(deleteUsage?.contatti ?? 0)} contatti, {num(deleteUsage?.opportunita ?? 0)} opportunità.
-                </span>
+                <span className="mt-2 block">{t("Ora: {valore} contatti, {valore2} opportunità.", { valore: String(num(deleteUsage?.contatti ?? 0) ?? ""), valore2: String(num(deleteUsage?.opportunita ?? 0) ?? "") })}</span>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault();
@@ -690,7 +688,7 @@ export function TagsConfig() {
               }}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? "Elimino…" : "Elimina"}
+              {deleteMutation.isPending ? t("Elimino…") : t("Elimina")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -698,15 +696,13 @@ export function TagsConfig() {
       <AlertDialog open={addMissingOpen} onOpenChange={setAddMissingOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Aggiungere i tag mancanti?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Aggiungere i tag mancanti?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Alcuni contatti e opportunità hanno tag che non sono in questo elenco (arrivano da importazioni e
-              automazioni). Li aggiungo all'elenco; maiuscole e spazi vengono uniformati. Non cancello nessun tag e non
-              cambio i contatti. Questa operazione modifica i dati dell'azienda.
+              {t("Alcuni contatti e opportunità hanno tag che non sono in questo elenco (arrivano da importazioni e automazioni). Li aggiungo all'elenco; maiuscole e spazi vengono uniformati. Non cancello nessun tag e non cambio i contatti. Questa operazione modifica i dati dell'azienda.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={!canEdit || isError || addMissingMutation.isPending}
               onClick={(event) => {
@@ -714,7 +710,7 @@ export function TagsConfig() {
                 addMissingMutation.mutate(fuoriElenco.map((tag) => tag.nome));
               }}
             >
-              Sì, aggiungili
+              {t("Sì, aggiungili")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

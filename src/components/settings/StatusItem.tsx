@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { IconPicker } from "./IconPicker";
 import { ColorPicker } from "./ColorPicker";
 import type { OrderStatus } from "@/components/orders/OrderProgressTracker";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface StatusItemProps {
   status: OrderStatus;
@@ -27,6 +28,7 @@ interface StatusItemProps {
 }
 
 export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = false, usedBy, deletionBlocked, onMove, isFirst, isLast, mostraIcona = true, maxNameLength = 50 }: StatusItemProps) {
+  const t = useT();
   const {
     attributes,
     listeners,
@@ -59,7 +61,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = f
       <button
         type="button"
         disabled={disabled}
-        aria-label="Trascina per riordinare"
+        aria-label={t("Trascina per riordinare")}
         className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
         {...attributes}
         {...listeners}
@@ -81,16 +83,16 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = f
         value={status.name}
         onChange={(e) => onUpdate(status.id, { name: e.target.value })}
         className="min-w-[8rem] flex-1 basis-32 sm:basis-40"
-        placeholder="Nome stato"
-        aria-label={`Nome dello stato ${(status.position ?? 0) + 1}`}
+        placeholder={t("Nome stato")}
+        aria-label={t("Nome dello stato {n}", { n: (status.position ?? 0) + 1 })}
         maxLength={maxNameLength}
       />
 
-      {usedBy != null && <Badge variant="secondary" className="text-[11px] font-normal">{usedBy} {usedBy === 1 ? "commessa" : "commesse"}</Badge>}
+      {usedBy != null && <Badge variant="secondary" className="text-[11px] font-normal">{usedBy} {usedBy === 1 ? t("commessa") : t("commesse")}</Badge>}
 
       {onMove && <div className="flex items-center gap-0.5">
-        <Button size="icon" variant="ghost" className="h-8 w-8" disabled={disabled || isFirst} onClick={() => onMove(status.id, -1)} aria-label={`Sposta su ${status.name}`}><ArrowUp className="h-3.5 w-3.5" /></Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8" disabled={disabled || isLast} onClick={() => onMove(status.id, 1)} aria-label={`Sposta giù ${status.name}`}><ArrowDown className="h-3.5 w-3.5" /></Button>
+        <Button size="icon" variant="ghost" className="h-8 w-8" disabled={disabled || isFirst} onClick={() => onMove(status.id, -1)} aria-label={t("Sposta su {name}", { name: String(status.name ?? "") })}><ArrowUp className="h-3.5 w-3.5" /></Button>
+        <Button size="icon" variant="ghost" className="h-8 w-8" disabled={disabled || isLast} onClick={() => onMove(status.id, 1)} aria-label={t("Sposta giù {name}", { name: String(status.name ?? "") })}><ArrowDown className="h-3.5 w-3.5" /></Button>
       </div>}
 
       {isSupportPhase && (
@@ -102,11 +104,11 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = f
                 className="gap-1 border-amber-400 bg-amber-100/80 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
               >
                 <LifeBuoy className="h-3 w-3" />
-                Stato Assistenza
+                {t("Stato Assistenza")}
               </Badge>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs">
-              Quando apri un ticket di assistenza per una commessa, la commessa passa da sola a questo stato. Puoi rinominarlo, non eliminarlo.
+              {t("Quando apri un ticket di assistenza per una commessa, la commessa passa da sola a questo stato. Puoi rinominarlo, non eliminarlo.")}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -135,7 +137,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = f
                 size="icon"
                 onClick={() => deleteEnabled && onDelete(status.id)}
                 disabled={!deleteEnabled}
-              aria-label={isSupportPhase ? "Lo stato Assistenza non si può eliminare" : `Elimina lo stato ${status.name}`}
+              aria-label={isSupportPhase ? t("Lo stato Assistenza non si può eliminare") : t("Elimina lo stato {name}", { name: String(status.name ?? "") })}
                 className={cn(
                   "h-8 w-8 text-muted-foreground hover:text-destructive sm:h-10 sm:w-10",
                   !deleteEnabled && "opacity-50 cursor-not-allowed"
@@ -148,8 +150,8 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = f
           {!deleteEnabled && (
             <TooltipContent side="top">
               {isSupportPhase
-                ? "Lo stato Assistenza è obbligatorio e non si può eliminare"
-                : deletionBlocked || "Servono almeno 2 stati"}
+                ? t("Lo stato Assistenza è obbligatorio e non si può eliminare")
+                : deletionBlocked || t("Servono almeno 2 stati")}
             </TooltipContent>
           )}
         </Tooltip>

@@ -16,9 +16,10 @@ import {
 import {
   formatContatore, formatData, giornoItaliano, statoSegnalazione, tipoSegnalazioneLabel, type ContatoreUnita,
 } from "@/types/mezzi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const ora = (iso: string) =>
-  new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }).format(new Date(iso));
+  new Intl.DateTimeFormat(intlCampo(), { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }).format(new Date(iso));
 
 interface Props {
   mezzoId: string;
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export function MezzoSegnalazioniSection({ mezzoId, unita, puoModificare }: Props) {
+  const t = useT();
   const { data: segnalazioni = [], isLoading, error, refetch } = useMezzoSegnalazioni(mezzoId);
   const { data: foto = [] } = useMezzoFoto(mezzoId);
   const aggiorna = useAggiornaSegnalazione();
@@ -57,26 +59,22 @@ export function MezzoSegnalazioniSection({ mezzoId, unita, puoModificare }: Prop
   return (
     <div className="space-y-3 max-sm:space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground max-sm:hidden">Quello che manda dal telefono chi ha il mezzo.</p>
-        <div className="flex rounded-lg border p-0.5 text-sm max-sm:w-full max-sm:text-xs" role="tablist" aria-label="Tipo di segnalazioni">
+        <p className="text-sm text-muted-foreground max-sm:hidden">{t("Quello che manda dal telefono chi ha il mezzo.")}</p>
+        <div className="flex rounded-lg border p-0.5 text-sm max-sm:w-full max-sm:text-xs" role="tablist" aria-label={t("Tipo di segnalazioni")}>
           <button
             type="button"
             role="tab"
             aria-selected={!soloKm}
             onClick={() => setSoloKm(false)}
             className={`tap-compact rounded-md px-3 py-1 max-sm:flex-1 ${!soloKm ? "bg-slate-900 text-white" : "text-muted-foreground"}`}
-          >
-            Guasti e danni ({problemi.length})
-          </button>
+          >{t("Guasti e danni ({n})", { n: problemi.length })}</button>
           <button
             type="button"
             role="tab"
             aria-selected={soloKm}
             onClick={() => setSoloKm(true)}
             className={`tap-compact rounded-md px-3 py-1 max-sm:flex-1 ${soloKm ? "bg-slate-900 text-white" : "text-muted-foreground"}`}
-          >
-            Km ({letture.length})
-          </button>
+          >{t("Km ({n})", { n: letture.length })}</button>
         </div>
       </div>
 
@@ -84,13 +82,13 @@ export function MezzoSegnalazioniSection({ mezzoId, unita, puoModificare }: Prop
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          Non riesco a caricare le segnalazioni.{" "}
-          <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
+          {t("Non riesco a caricare le segnalazioni.")}{" "}
+          <button type="button" className="font-semibold underline" onClick={() => refetch()}>{t("Riprova")}</button>
         </div>
       ) : visibili.length === 0 ? (
         <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground max-sm:py-4">
           {soloKm ? <Gauge className="mx-auto mb-2 h-8 w-8 opacity-40 max-sm:hidden" /> : <Wrench className="mx-auto mb-2 h-8 w-8 opacity-40 max-sm:hidden" />}
-          {soloKm ? "Nessun aggiornamento dei km dal campo." : "Nessun guasto o danno segnalato."}
+          {soloKm ? t("Nessun aggiornamento dei km dal campo.") : t("Nessun guasto o danno segnalato.")}
         </div>
       ) : (
         <ul className="space-y-2">
@@ -105,10 +103,10 @@ export function MezzoSegnalazioniSection({ mezzoId, unita, puoModificare }: Prop
                   ) : (
                     <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
                   )}
-                  <span className="text-sm font-medium">{tipoSegnalazioneLabel(s.tipo)}</span>
-                  {s.tipo !== "km" && <Badge variant="outline" className={`text-[11px] ${st.cls}`}>{st.label}</Badge>}
+                  <span className="text-sm font-medium">{t(tipoSegnalazioneLabel(s.tipo))}</span>
+                  {s.tipo !== "km" && <Badge variant="outline" className={`text-[11px] ${st.cls}`}>{t(st.label)}</Badge>}
                   <span className="text-xs text-muted-foreground">
-                    {formatData(giornoItaliano(s.created_at))} alle {ora(s.created_at)}{s.chi ? ` · ${s.chi}` : ""}
+                    {formatData(giornoItaliano(s.created_at))} {t("alle")} {ora(s.created_at)}{s.chi ? ` · ${s.chi}` : ""}
                   </span>
                 </div>
                 {s.descrizione && <p className="mt-1 whitespace-pre-line text-sm">{s.descrizione}</p>}
@@ -120,7 +118,7 @@ export function MezzoSegnalazioniSection({ mezzoId, unita, puoModificare }: Prop
                     {sueFoto.map((f) =>
                       f.url ? (
                         <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                          <img src={f.url} alt="Foto della segnalazione" loading="lazy" className="h-20 w-24 rounded-lg border object-cover" />
+                          <img src={f.url} alt={t("Foto della segnalazione")} loading="lazy" className="h-20 w-24 rounded-lg border object-cover" />
                         </a>
                       ) : null,
                     )}
@@ -129,14 +127,14 @@ export function MezzoSegnalazioniSection({ mezzoId, unita, puoModificare }: Prop
                 {s.stato === "chiusa" && s.tipo !== "km" && (
                   <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
-                    Chiusa{s.chiusa_at ? ` il ${formatData(giornoItaliano(s.chiusa_at))}` : ""}{s.nota_chiusura ? `: ${s.nota_chiusura}` : ""}
+                    {t("Chiusa")}{s.chiusa_at ? t(" il {valore}", { valore: formatData(giornoItaliano(s.chiusa_at)) }) : ""}{s.nota_chiusura ? `: ${s.nota_chiusura}` : ""}
                   </p>
                 )}
                 {puoModificare && s.tipo !== "km" && s.stato !== "chiusa" && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {s.stato === "aperta" && (
                       <Button size="sm" variant="outline" onClick={() => aggiorna.mutate({ id: s.id, stato: "in_lavorazione" })}>
-                        Prendo in carico
+                        {t("Prendo in carico")}
                       </Button>
                     )}
                     <Button
@@ -146,7 +144,7 @@ export function MezzoSegnalazioniSection({ mezzoId, unita, puoModificare }: Prop
                         setDaChiudere(s);
                       }}
                     >
-                      Risolto, chiudi
+                      {t("Risolto, chiudi")}
                     </Button>
                   </div>
                 )}
@@ -159,23 +157,23 @@ export function MezzoSegnalazioniSection({ mezzoId, unita, puoModificare }: Prop
       <Dialog open={!!daChiudere} onOpenChange={(o) => !o && setDaChiudere(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Chiudi la segnalazione</DialogTitle>
+            <DialogTitle>{t("Chiudi la segnalazione")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-1.5">
-            <Label htmlFor="nota-chiusura">Com'è stato risolto (facoltativo)</Label>
+            <Label htmlFor="nota-chiusura">{t("Com'è stato risolto (facoltativo)")}</Label>
             <Textarea
               id="nota-chiusura"
               rows={3}
               value={nota}
               onChange={(e) => setNota(e.target.value)}
-              placeholder="es. sostituito il sensore in officina"
+              placeholder={t("es. sostituito il sensore in officina")}
             />
-            <p className="text-xs text-muted-foreground max-sm:hidden">Se c'è stato un intervento in officina, segnalo anche in «Tagliandi e interventi» con il costo.</p>
+            <p className="text-xs text-muted-foreground max-sm:hidden">{t("Se c'è stato un intervento in officina, segnalo anche in «Tagliandi e interventi» con il costo.")}</p>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" className="max-sm:hidden" onClick={() => setDaChiudere(null)}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setDaChiudere(null)}>{t("Annulla")}</Button>
             <Button onClick={chiudi} disabled={aggiorna.isPending}>
-              {aggiorna.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Chiudi
+              {aggiorna.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t("Chiudi")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -33,8 +33,10 @@ import {
 import { FolderTree, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function SettingsCatalog() {
+  const t = useT();
   const [showCategorieDialog, setShowCategorieDialog] = useState(false);
   const [parametri, setParametri] = useSearchParams();
   const { role, effectiveCompany } = useAuth();
@@ -61,10 +63,9 @@ export default function SettingsCatalog() {
         >
           <ShieldAlert className="h-12 w-12 text-amber-500" aria-hidden="true" />
           <div>
-            <p className="font-medium">Accesso riservato</p>
+            <p className="font-medium">{t("Accesso riservato")}</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Il listino lo vede chi ha il permesso «Listino &amp; Prezzi».
-              Chiedilo al titolare.
+              {t("Il listino lo vede chi ha il permesso «Listino & Prezzi». Chiedilo al titolare.")}
             </p>
           </div>
         </CardContent>
@@ -74,15 +75,15 @@ export default function SettingsCatalog() {
 
   return (
     <div className="space-y-3">
-      <ErrorBoundary title="Errore nel listino">
+      <ErrorBoundary title={t("Errore nel listino")}>
         <Tabs value={tab} onValueChange={value => setParametri(prima => { const dopo = new URLSearchParams(prima); dopo.set("tab", value); return dopo; }, { replace: true })}>
-          <TabsList><TabsTrigger value="prodotti">Prodotti e varianti</TabsTrigger><TabsTrigger value="materiali">Materiali e servizi{materiali.data ? ` (${materiali.data.length})` : ""}</TabsTrigger></TabsList>
+          <TabsList><TabsTrigger value="prodotti">{t("Prodotti e varianti")}</TabsTrigger><TabsTrigger value="materiali">{t("Materiali e servizi")}{materiali.data ? ` (${materiali.data.length})` : ""}</TabsTrigger></TabsList>
           <TabsContent value="prodotti"><FamilyCatalog
             onGestisciTipologie={gestoreTipologie ? () => setShowCategorieDialog(true) : undefined}
             guida={<ListinoGuide />}
           /></TabsContent>
           <TabsContent value="materiali">
-            {materiali.isLoading ? <p className="py-8 text-sm">Caricamento materiali…</p> : materiali.isError ? <div role="alert" className="space-y-3 py-6"><p>Non è stato possibile caricare i materiali.</p><Button variant="outline" onClick={() => void materiali.refetch()}>Riprova</Button></div>
+            {materiali.isLoading ? <p className="py-8 text-sm">{t("Caricamento materiali…")}</p> : materiali.isError ? <div role="alert" className="space-y-3 py-6"><p>{t("Non è stato possibile caricare i materiali.")}</p><Button variant="outline" onClick={() => void materiali.refetch()}>{t("Riprova")}</Button></div>
               : <MaterialiListino key={effectiveCompany?.id} righe={materiali.data ?? []} puoModificare={!!isAdmin} />}
           </TabsContent>
         </Tabs>
@@ -96,10 +97,9 @@ export default function SettingsCatalog() {
                 <FolderTree className="h-4.5 w-4.5 text-white" aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <DialogTitle>Tipologie del listino</DialogTitle>
+                <DialogTitle>{t("Tipologie del listino")}</DialogTitle>
                 <DialogDescription>
-                  Ogni tipologia (serramenti, tapparelle, inverter…) appartiene a un'area, e l'area decide in
-                  quale preventivatore compaiono i suoi prodotti.
+                  {t("Ogni tipologia (serramenti, tapparelle, inverter…) appartiene a un'area, e l'area decide in quale preventivatore compaiono i suoi prodotti.")}
                 </DialogDescription>
               </div>
             </div>

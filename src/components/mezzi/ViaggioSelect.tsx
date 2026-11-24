@@ -14,6 +14,7 @@ import {
   CommandItem,
   CommandGroup,
 } from "@/components/ui/command";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Uses the same focus/layer stack as Dialog, including on Escape. The installed
  * Select package has a different Radix stack and must not trap this modal. */
@@ -34,6 +35,7 @@ export function ViaggioSelect({
   onValueChange: (value: string) => void;
   options: readonly { value: string; label: string }[];
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
   return (
@@ -56,7 +58,7 @@ export function ViaggioSelect({
           }}
         >
           <span className="min-w-0 truncate">
-            {selected?.label ?? "Seleziona…"}
+            {selected?.label ?? t("Seleziona…")}
           </span>
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
         </Button>
@@ -66,7 +68,7 @@ export function ViaggioSelect({
         className="w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-2rem)] rounded-2xl p-1 shadow-xl motion-reduce:animate-none"
       >
         <Command
-          label={`Cerca ${label}`}
+          label={t("Cerca {label}", { label: String(label ?? "") })}
           filter={(_value, search, keywords) => {
             const normalizza = (v: string) =>
               v
@@ -85,11 +87,11 @@ export function ViaggioSelect({
           loop
         >
           <CommandInput
-            aria-label={`Cerca ${label}`}
-            placeholder="Cerca tra le opzioni…"
+            aria-label={t("Cerca {label}", { label: String(label ?? "") })}
+            placeholder={t("Cerca tra le opzioni…")}
           />
           <CommandList label={label} className="max-h-60">
-            <CommandEmpty>{emptyMessage}</CommandEmpty>
+            <CommandEmpty>{t(emptyMessage)}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (
                 <CommandItem

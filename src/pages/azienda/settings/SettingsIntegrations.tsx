@@ -79,6 +79,7 @@ import IntegrationsGrid, {
   type PopupAperto,
 } from "@/components/integrations/IntegrationsGrid";
 import type { Integration, MetaWizardStep } from "@/types/integrations";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TOKEN_STALE_DAYS = 60;
 
@@ -87,17 +88,12 @@ const NESSUNA_CASELLA: Array<{ id: string; email_address: string; provider: stri
 const NESSUN_CONTO: BankConnection[] = [];
 const NESSUN_NUMERO_WHATSAPP: NumeroPerStato[] = [];
 
-/** «1 casella da ricollegare», «3 caselle da ricollegare». */
-function quante(n: number, una: string, tante: string): string {
-  return `${n} ${n === 1 ? una : tante}`;
-}
-
 /** «Anna», «Anna e Luca», «Anna, Luca e altri 2». */
-function elencoNomi(nomi: string[]): string {
+function elencoNomi(nomi: string[], t: (testo: string, valori?: Record<string, string | number>) => string): string {
   const unici = [...new Set(nomi)];
-  if (unici.length <= 2) return unici.join(" e ");
-  if (unici.length === 3) return `${unici[0]}, ${unici[1]} e ${unici[2]}`;
-  return `${unici[0]}, ${unici[1]} e altri ${unici.length - 2}`;
+  if (unici.length <= 2) return unici.join(` ${t("e")} `);
+  if (unici.length === 3) return t("{a}, {b} e {c}", { a: unici[0], b: unici[1], c: unici[2] });
+  return t("{a}, {b} e altri {n}", { a: unici[0], b: unici[1], n: unici.length - 2 });
 }
 
 // ── Popup wrappers ─────────────────────────────────────────────────────────
@@ -138,6 +134,7 @@ function makeMetaWizardWrapper(
 }
 
 export default function SettingsIntegrations() {
+  const t = useT();
   const { effectiveCompany, user, role } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
 
@@ -330,7 +327,7 @@ export default function SettingsIntegrations() {
     // WhatsApp: qualunque numero attivo dell'azienda, non solo quello dei cantieri. Se la lettura non riesce non si
     // dice «Non collegato» (sarebbe falso): si dice che lo stato non si può verificare, come per Claude e ChatGPT.
     result["whatsapp"] = numeriWhatsAppInErrore
-      ? { status: "warning", detail: "Stato non verificabile · riprova" }
+      ? { status: "warning", detail: t("Stato non verificabile · riprova") }
       : statoWhatsAppDaiNumeri(numeriWhatsApp);
 
     // Meta
@@ -378,10 +375,10 @@ export default function SettingsIntegrations() {
       // Nel dettaglio le caselle da ricollegare; il dominio lo dicono lo
       // stato della scheda e il riquadro «Da sistemare» («3 da sistemare» su
       // 3 caselle sembrava dire che erano guaste tutte).
-      const nota = guaste > 0 ? ` · ${guaste} da ricollegare` : domini.daSistemare.length > 0 ? " · dominio da sistemare" : "";
+      const nota = guaste > 0 ? ` · ${t("{n} da ricollegare", { n: guaste })}` : domini.daSistemare.length > 0 ? ` · ${t("dominio da sistemare")}` : "";
       result["email"] = {
         status: problemi > 0 ? (attive > 0 ? "warning" : "error") : attive > 0 ? "connected" : "disconnected",
-        detail: n > 0 ? `${quante(n, "casella", "caselle")}${nota}` : null,
+        detail: n > 0 ? `${t(n === 1 ? "{n} casella" : "{n} caselle", { n })}${nota}` : null,
       };
     } else {
       const firstEmail = emailConnections.find((c) => isAttiva(c.status));
@@ -399,7 +396,7 @@ export default function SettingsIntegrations() {
       const guasti = calendariTeam.righe.filter((r) => calendarioDaRicollegare(r.status)).length;
       result["calendari"] = {
         status: guasti > 0 ? (attivi > 0 ? "warning" : "error") : attivi > 0 ? "connected" : "disconnected",
-        detail: n > 0 ? `${quante(attivi, "attivo", "attivi")}${guasti > 0 ? ` · ${guasti} da ricollegare` : ""}` : null,
+        detail: n > 0 ? `${t(attivi === 1 ? "{n} attivo" : "{n} attivi", { n: attivi })}${guasti > 0 ? ` · ${t("{n} da ricollegare", { n: guasti })}` : ""}` : null,
       };
     } else {
       const attivo = mieiCalendari.find((x) => x.status === "connected");
@@ -414,14 +411,14 @@ export default function SettingsIntegrations() {
     // entro 7 giorni; «in sospeso» se il consenso non è mai stato dato.
     if (contiBanca.length > 0) {
       const nConti = contiBanca.reduce((tot, c) => tot + (c.accounts_count ?? 0), 0);
-      const banche = [...new Set(contiBanca.map((c) => c.institution_name ?? "Banca"))].join(", ");
+      const banche = [...new Set(contiBanca.map((c) => c.institution_name ?? t("Banca")))].join(", ");
       result["banca"] = {
         status: contiBanca.some(contoDaRicollegare)
           ? "warning"
           : contiBanca.some((c) => c.status === "linked")
             ? "connected"
             : "pending",
-        detail: nConti > 0 ? `${banche} · ${quante(nConti, "conto", "conti")}` : banche,
+        detail: nConti > 0 ? `${banche} · ${t(nConti === 1 ? "{n} conto" : "{n} conti", { n: nConti })}` : banche,
       };
     } else {
       result["banca"] = { status: "disconnected", detail: null };
@@ -429,17 +426,17 @@ export default function SettingsIntegrations() {
 
     // Pagamenti con carta: collegato ma con la verifica Stripe a metà = da sistemare.
     result["stripe"] = incassiCarta?.charges_enabled
-      ? { status: "connected", detail: "Incassi attivi" }
+      ? { status: "connected", detail: t("Incassi attivi") }
       : incassiCarta?.connected
-        ? { status: "warning", detail: "Configurazione da completare" }
+        ? { status: "warning", detail: t("Configurazione da completare") }
         : { status: "disconnected", detail: null };
 
     // A saved credential is configuration, not evidence of a working client.
     for (const client of ["claude", "chatgpt"] as const) {
       result[client] = aiGrantsError || (client === "claude" && aiKeysError)
-        ? { status: "warning", detail: "Stato non verificabile · riprova" }
+        ? { status: "warning", detail: t("Stato non verificabile · riprova") }
         : aiGrantsLoading || (client === "claude" && aiKeysLoading)
-          ? { status: "warning", detail: "Verifica collegamenti…" }
+          ? { status: "warning", detail: t("Verifica collegamenti…") }
           : statoCollegamentoAi(client, aiGrants, aiKeys);
     }
 
@@ -460,6 +457,7 @@ export default function SettingsIntegrations() {
     contiBanca,
     incassiCarta,
     aiKeys, aiGrants, aiKeysError, aiGrantsError, aiKeysLoading, aiGrantsLoading,
+    t,
   ]);
 
   // ── Stale token warnings (>60gg) ──────────────────────────────────────────
@@ -511,18 +509,18 @@ export default function SettingsIntegrations() {
       voci.push({
         id: "meta",
         Logo: MetaAssetLogo,
-        titolo: "Facebook e Instagram",
-        messaggio: "Meta ha chiuso il collegamento: lead e messaggi non arrivano finché non lo ricolleghi.",
-        azione: "Ricollega",
+        titolo: t("Facebook e Instagram"),
+        messaggio: t("Meta ha chiuso il collegamento: lead e messaggi non arrivano finché non lo ricolleghi."),
+        azione: t("Ricollega"),
         onAzione: () => setMetaWizardStep("oauth"),
       });
     } else if (statuses.meta?.status === "error") {
       voci.push({
         id: "meta",
         Logo: MetaAssetLogo,
-        titolo: "Facebook e Instagram",
-        messaggio: "Il collegamento non funziona più: lead e messaggi non arrivano. Controlla i permessi o ricollegalo.",
-        azione: "Risolvi",
+        titolo: t("Facebook e Instagram"),
+        messaggio: t("Il collegamento non funziona più: lead e messaggi non arrivano. Controlla i permessi o ricollegalo."),
+        azione: t("Risolvi"),
         onAzione: () => setMetaTroubleshootOpen(true),
       });
     }
@@ -533,16 +531,16 @@ export default function SettingsIntegrations() {
         voci.push({
           id: `banca-${c.id}`,
           Logo: BancaLogo,
-          titolo: c.institution_name ?? "Conto bancario",
+          titolo: c.institution_name ?? t("Conto bancario"),
           messaggio:
             c.status === "expired"
-              ? "Il consenso della banca è scaduto: i movimenti non arrivano più."
+              ? t("Il consenso della banca è scaduto: i movimenti non arrivano più.")
               : c.status === "error"
-                ? "La banca segnala un errore: i movimenti potrebbero non arrivare."
+                ? t("La banca segnala un errore: i movimenti potrebbero non arrivare.")
                 : giorni <= 0
-                  ? "Il consenso della banca scade oggi: ricollega il conto, così i movimenti non si fermano."
-                  : `Il consenso della banca scade fra ${quante(giorni, "giorno", "giorni")}: ricollega il conto prima.`,
-          azione: "Ricollega",
+                  ? t("Il consenso della banca scade oggi: ricollega il conto, così i movimenti non si fermano.")
+                  : t(giorni === 1 ? "Il consenso della banca scade fra {n} giorno: ricollega il conto prima." : "Il consenso della banca scade fra {n} giorni: ricollega il conto prima.", { n: giorni }),
+          azione: t("Ricollega"),
           onAzione: apri("banca"),
         });
       }
@@ -556,11 +554,11 @@ export default function SettingsIntegrations() {
       voci.push({
         id: "caselle",
         Logo: EmailLogo,
-        titolo: "Caselle email",
-        messaggio: `${quante(caselleGuaste.length, "casella da ricollegare", "caselle da ricollegare")} (${elencoNomi(
-          caselleGuaste.map(nomeTitolareCasella),
-        )}): finché non ${caselleGuaste.length === 1 ? "si ricollega" : "si ricollegano"}, la posta non arriva nel gestionale.`,
-        azione: "Vedi",
+        titolo: t("Caselle email"),
+        messaggio: caselleGuaste.length === 1
+          ? t("{n} casella da ricollegare ({nomi}): finché non si ricollega, la posta non arriva nel gestionale.", { n: 1, nomi: elencoNomi(caselleGuaste.map(nomeTitolareCasella), t) })
+          : t("{n} caselle da ricollegare ({nomi}): finché non si ricollegano, la posta non arriva nel gestionale.", { n: caselleGuaste.length, nomi: elencoNomi(caselleGuaste.map(nomeTitolareCasella), t) }),
+        azione: t("Vedi"),
         onAzione: apri("email", "caselle"),
       });
     }
@@ -569,9 +567,9 @@ export default function SettingsIntegrations() {
       voci.push({
         id: "mie-caselle",
         Logo: EmailLogo,
-        titolo: mieGuaste.length === 1 ? "La tua casella email" : "Le tue caselle email",
-        messaggio: `${mieGuaste.map((c) => c.email_address).join(", ")}: il collegamento si è interrotto, la posta non arriva nel gestionale.`,
-        azione: "Ricollega",
+        titolo: mieGuaste.length === 1 ? t("La tua casella email") : t("Le tue caselle email"),
+        messaggio: t("{caselle}: il collegamento si è interrotto, la posta non arriva nel gestionale.", { caselle: mieGuaste.map((c) => c.email_address).join(", ") }),
+        azione: t("Ricollega"),
         onAzione: profilo("email"),
       });
     }
@@ -584,11 +582,11 @@ export default function SettingsIntegrations() {
       voci.push({
         id: "calendari",
         Logo: CalendariLogo,
-        titolo: "Calendari",
-        messaggio: `${quante(calendariGuasti.length, "calendario da ricollegare", "calendari da ricollegare")} (${elencoNomi(
-          calendariGuasti.map((r) => r.nome),
-        )}): finché non ${calendariGuasti.length === 1 ? "si ricollega" : "si ricollegano"}, gli appuntamenti non arrivano.`,
-        azione: "Vedi",
+        titolo: t("Calendari"),
+        messaggio: calendariGuasti.length === 1
+          ? t("{n} calendario da ricollegare ({nomi}): finché non si ricollega, gli appuntamenti non arrivano.", { n: 1, nomi: elencoNomi(calendariGuasti.map((r) => r.nome), t) })
+          : t("{n} calendari da ricollegare ({nomi}): finché non si ricollegano, gli appuntamenti non arrivano.", { n: calendariGuasti.length, nomi: elencoNomi(calendariGuasti.map((r) => r.nome), t) }),
+        azione: t("Vedi"),
         onAzione: apri("calendari"),
       });
     }
@@ -597,9 +595,9 @@ export default function SettingsIntegrations() {
       voci.push({
         id: "miei-calendari",
         Logo: CalendariLogo,
-        titolo: "Il tuo calendario",
-        messaggio: `${mieiGuasti.map((x) => x.nome).join(" e ")}: l'accesso si è interrotto, gli appuntamenti non arrivano.`,
-        azione: "Ricollega",
+        titolo: t("Il tuo calendario"),
+        messaggio: t("{calendari}: l'accesso si è interrotto, gli appuntamenti non arrivano.", { calendari: mieiGuasti.map((x) => x.nome).join(` ${t("e")} `) }),
+        azione: t("Ricollega"),
         onAzione: profilo("calendari"),
       });
     }
@@ -609,9 +607,11 @@ export default function SettingsIntegrations() {
       voci.push({
         id: "domini",
         Logo: EmailLogo,
-        titolo: uno ? `Dominio casella ${domini.daSistemare[0].dominio}` : "Domini delle caselle collegate",
-        messaggio: `${uno ? "Mancano" : `${domini.daSistemare.length} domini: mancano`} record DNS (SPF, DKIM o DMARC), le email rischiano di finire in spam.`,
-        azione: "Vedi i record",
+        titolo: uno ? t("Dominio casella {dominio}", { dominio: domini.daSistemare[0].dominio }) : t("Domini delle caselle collegate"),
+        messaggio: uno
+          ? t("Mancano record DNS (SPF, DKIM o DMARC), le email rischiano di finire in spam.")
+          : t("{n} domini: mancano record DNS (SPF, DKIM o DMARC), le email rischiano di finire in spam.", { n: domini.daSistemare.length }),
+        azione: t("Vedi i record"),
         onAzione: apri("email", "dominio"),
       });
     }
@@ -624,9 +624,9 @@ export default function SettingsIntegrations() {
         titolo: "Google Ads",
         messaggio:
           gads === "error"
-            ? "Il collegamento non funziona più: ricollegalo."
-            : "Il collegamento segnala un problema: le conversioni potrebbero non arrivare a Google.",
-        azione: "Apri",
+            ? t("Il collegamento non funziona più: ricollegalo.")
+            : t("Il collegamento segnala un problema: le conversioni potrebbero non arrivare a Google."),
+        azione: t("Apri"),
         onAzione: apri("google-ads"),
       });
     }
@@ -635,9 +635,9 @@ export default function SettingsIntegrations() {
       voci.push({
         id: "stripe",
         Logo: CartaLogo,
-        titolo: "Pagamenti con carta",
-        messaggio: "La verifica su Stripe non è finita: gli incassi con carta non sono ancora attivi.",
-        azione: "Completa",
+        titolo: t("Pagamenti con carta"),
+        messaggio: t("La verifica su Stripe non è finita: gli incassi con carta non sono ancora attivi."),
+        azione: t("Completa"),
         onAzione: apri("stripe"),
       });
     }
@@ -647,11 +647,11 @@ export default function SettingsIntegrations() {
       voci.push({
         id: "token-calendario",
         Logo: CalendariLogo,
-        titolo: uno ? `Il tuo ${staleTokenWarnings[0].nome}` : "I tuoi calendari",
+        titolo: uno ? t("Il tuo {nome}", { nome: staleTokenWarnings[0].nome }) : t("I tuoi calendari"),
         messaggio: uno
-          ? `L'accesso non si rinnova da ${staleTokenWarnings[0].giorni} giorni: se gli appuntamenti non arrivano, ricollegalo.`
-          : `${staleTokenWarnings.map((w) => w.nome).join(" e ")}: l'accesso non si rinnova da più di ${TOKEN_STALE_DAYS} giorni. Se gli appuntamenti non arrivano, ricollegali.`,
-        azione: "Apri profilo",
+          ? t("L'accesso non si rinnova da {giorni} giorni: se gli appuntamenti non arrivano, ricollegalo.", { giorni: staleTokenWarnings[0].giorni })
+          : t("{calendari}: l'accesso non si rinnova da più di {giorni} giorni. Se gli appuntamenti non arrivano, ricollegali.", { calendari: staleTokenWarnings.map((w) => w.nome).join(` ${t("e")} `), giorni: TOKEN_STALE_DAYS }),
+        azione: t("Apri profilo"),
         onAzione: profilo("calendari"),
       });
     }
@@ -671,6 +671,7 @@ export default function SettingsIntegrations() {
     domini.daSistemare,
     staleTokenWarnings,
     navigate,
+    t,
   ]);
 
   // ── Popup + wizard registry ───────────────────────────────────────────────
@@ -714,9 +715,9 @@ export default function SettingsIntegrations() {
       {isErrorIntegrations ? (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle className="text-sm">Errore di caricamento</AlertTitle>
+          <AlertTitle className="text-sm">{t("Errore di caricamento")}</AlertTitle>
           <AlertDescription className="text-xs">
-            Errore nel caricamento delle integrazioni. Riprova.
+            {t("Errore nel caricamento delle integrazioni. Riprova.")}
           </AlertDescription>
         </Alert>
       ) : isLoadingIntegrations ? (
@@ -734,10 +735,9 @@ export default function SettingsIntegrations() {
       {!canManageIntegrations && (
         <Alert>
           <ShieldCheck className="h-4 w-4" />
-          <AlertTitle className="text-sm">Stai solo consultando</AlertTitle>
+          <AlertTitle className="text-sm">{t("Stai solo consultando")}</AlertTitle>
           <AlertDescription className="text-xs">
-            Vedi se ogni integrazione è collegata o ha un problema. Per collegarla, ricollegarla o scollegarla serve il
-            permesso «Integrazioni &amp; Canali» in modifica (o essere amministratore).
+            {t("Vedi se ogni integrazione è collegata o ha un problema. Per collegarla, ricollegarla o scollegarla serve il permesso «Integrazioni & Canali» in modifica (o essere amministratore).")}
           </AlertDescription>
         </Alert>
       )}

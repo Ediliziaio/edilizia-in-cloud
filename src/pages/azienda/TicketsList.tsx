@@ -83,6 +83,7 @@ import type { TicketListItem } from "@/types/tickets";
 import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
 import { type StaffUser, useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { toast } from "sonner";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPO_LABEL: Record<string, string> = {
   supporto: "Supporto",
@@ -114,6 +115,7 @@ const TICKET_STATUS_OPTIONS = TICKET_STATI.map(({ value, label }) => ({ value, l
 /** Le voci di stato raggruppate per fase: con 15 stati una lista piatta
  *  diventa illeggibile. */
 function StatoOptionsRaggruppate() {
+  const t = useT();
   return (
     <>
       {TICKET_FASI.map((fase) => {
@@ -122,10 +124,10 @@ function StatoOptionsRaggruppate() {
         return (
           <SelectGroup key={fase.key}>
             <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              {fase.label}
+              {t(fase.label)}
             </SelectLabel>
             {stati.map((s) => (
-              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              <SelectItem key={s.value} value={s.value}>{t(s.label)}</SelectItem>
             ))}
           </SelectGroup>
         );
@@ -166,7 +168,7 @@ function formatScadenza(iso: string | null | undefined): string {
   // v8.6.75 (SCADENZA-BADGE-FIX-v2) — Formato numerico compatto dd/mm/yy
   // (es. "22/04/26") invece di "22 apr 26" che con tab stretta wrappava in
   // 3 righe. dd/mm/yy = 8 caratteri totali, sicuramente single-line nel pill.
-  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  return d.toLocaleDateString(intlCampo(), { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
 function compareSortValues(a: string | number, b: string | number): number {
@@ -178,6 +180,7 @@ function compareSortValues(a: string | number, b: string | number): number {
 // grandi (Assistenza | Manutenzioni). Qui restano i soli ticket. `incorporata`:
 // la testata grande la dà AssistenzaPage, così non la ripetiamo.
 const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; actionsSlot?: HTMLElement | null }>(({ incorporata = false, actionsSlot = null }, ref) => {
+  const tr = useT();
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
@@ -407,9 +410,9 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
     },
     onSuccess: async (_data, variables) => {
       await invalidateTickets();
-      toast.success(variables.ids.length === 1 ? "Ticket aggiornato" : `${variables.ids.length} ticket aggiornati`);
+      toast.success(variables.ids.length === 1 ? tr("Ticket aggiornato") : tr("{n} ticket aggiornati", { n: variables.ids.length }));
     },
-    onError: (error: Error) => toast.error(error.message || "Aggiornamento non riuscito"),
+    onError: (error: Error) => toast.error(error.message || tr("Aggiornamento non riuscito")),
   });
 
   const toggleTicketSelection = (ticketId: string) => {
@@ -467,7 +470,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       updates.assigned_to = bulkAssignee === UNASSIGNED_VALUE ? null : bulkAssignee;
     }
     if (ids.length === 0 || Object.keys(updates).length === 0) {
-      toast.info("Seleziona almeno una modifica da applicare");
+      toast.info(tr("Seleziona almeno una modifica da applicare"));
       return;
     }
     updateTicketsMutation.mutate(
@@ -542,8 +545,8 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Assistenza</h1>
-          <p className="text-muted-foreground">Caricamento ticket, interventi e richieste clienti...</p>
+          <h1 className="text-2xl font-bold">{tr("Assistenza")}</h1>
+          <p className="text-muted-foreground">{tr("Caricamento ticket, interventi e richieste clienti...")}</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
@@ -558,15 +561,15 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Assistenza</h1>
-          <p className="text-muted-foreground">Gestisci ticket di supporto e interventi sul campo</p>
+          <h1 className="text-2xl font-bold">{tr("Assistenza")}</h1>
+          <p className="text-muted-foreground">{tr("Gestisci ticket di supporto e interventi sul campo")}</p>
         </div>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
-            Errore nel caricamento dei ticket.
+            {tr("Errore nel caricamento dei ticket.")}
             <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4 mr-2" /> Riprova
+              <RefreshCw className="h-4 w-4 mr-2" /> {tr("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -589,7 +592,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       {selectedTicketIds.size > 0 && (
         <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2 max-sm:hidden">
           <CheckSquare className="h-4 w-4" />
-          {selectedTicketIds.size} selezionati
+          {selectedTicketIds.size} {tr("selezionati")}
         </Button>
       )}
       {/* Mobile no: niente esportazioni da telefono. */}
@@ -625,10 +628,10 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       <Button
         onClick={() => setNuovoOpen(true)}
         className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0"
-        aria-label="Nuovo Ticket"
+        aria-label={tr("Nuovo Ticket")}
       >
         <Plus className="mr-2 h-4 w-4 max-sm:mr-0" />
-        <span className="hidden sm:inline">Nuovo Ticket</span>
+        <span className="hidden sm:inline">{tr("Nuovo Ticket")}</span>
       </Button>
     </>
   );
@@ -648,9 +651,9 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
                   <LifeBuoy className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-2xl font-bold tracking-tight">Assistenza</h1>
+                  <h1 className="text-2xl font-bold tracking-tight">{tr("Assistenza")}</h1>
                   <p className="text-sm text-muted-foreground">
-                    Ticket clienti, interventi collegati alle commesse, responsabilita e costi da tenere sotto controllo.
+                    {tr("Ticket clienti, interventi collegati alle commesse, responsabilita e costi da tenere sotto controllo.")}
                   </p>
                 </div>
               </div>
@@ -672,10 +675,10 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       {/* Mobile: il tipo sta nel pannello dei filtri (una riga di pillole in meno). */}
       <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-sm:hidden">
         {[
-          { value: "all",           label: "Tutti",        icon: ClipboardList },
-          { value: "supporto",      label: "Supporto",     icon: LifeBuoy },
-          { value: "intervento",    label: "Interventi",   icon: Wrench },
-          { value: "emergenza",     label: "Emergenze",    icon: AlertTriangle },
+          { value: "all",           label: tr("Tutti"),        icon: ClipboardList },
+          { value: "supporto",      label: tr("Supporto"),     icon: LifeBuoy },
+          { value: "intervento",    label: tr("Interventi"),   icon: Wrench },
+          { value: "emergenza",     label: tr("Emergenze"),    icon: AlertTriangle },
         ].map(tab => {
           const Icon = tab.icon;
           const active = tipoFilter === tab.value;
@@ -721,12 +724,12 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       </div>
 
       {/* Stesso riepilogo su desktop e telefono, con i filtri originali. */}
-      <OperationalSummary label="Riepilogo assistenza" title="Gli interventi da seguire" icon={LifeBuoy} note="Indicatori dell’assistenza nel perimetro caricato.">
+      <OperationalSummary label={tr("Riepilogo assistenza")} title={tr("Gli interventi da seguire")} icon={LifeBuoy} note={tr("Indicatori dell’assistenza nel perimetro caricato.")}>
         {([
-          { key: "aperti", label: "Da lavorare", n: metrics.aperti, tono: "red", attivo: statusFilter === "aperto", onClick: () => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto") },
-          { key: "urgenti", label: "Urgenti", n: metrics.urgenti, tono: "amber", attivo: priorityFilter === "urgente" || priorityFilter === "alta", onClick: () => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente") },
-          { key: "scadenza", label: "In scadenza", n: metrics.inScadenza, tono: "amber", attivo: scadenzaFilter === "scaduto_oggi" || scadenzaFilter === "settimana", onClick: () => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi") },
-          { key: "nonassegnati", label: "Senza tecnico", n: metrics.nonAssegnati, tono: "blue", attivo: assegnatoFilter === "unassigned", onClick: () => setAssegnatoFilter(assegnatoFilter === "unassigned" ? "tutti" : "unassigned") },
+          { key: "aperti", label: tr("Da lavorare"), n: metrics.aperti, tono: "red", attivo: statusFilter === "aperto", onClick: () => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto") },
+          { key: "urgenti", label: tr("Urgenti"), n: metrics.urgenti, tono: "amber", attivo: priorityFilter === "urgente" || priorityFilter === "alta", onClick: () => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente") },
+          { key: "scadenza", label: tr("In scadenza"), n: metrics.inScadenza, tono: "amber", attivo: scadenzaFilter === "scaduto_oggi" || scadenzaFilter === "settimana", onClick: () => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi") },
+          { key: "nonassegnati", label: tr("Senza tecnico"), n: metrics.nonAssegnati, tono: "blue", attivo: assegnatoFilter === "unassigned", onClick: () => setAssegnatoFilter(assegnatoFilter === "unassigned" ? "tutti" : "unassigned") },
         ] as { key: string; label: string; n: number; tono: StatTileTone; attivo: boolean; onClick: () => void }[]).map((t) => (
           <OperationalSummaryMetric
             key={t.key}
@@ -742,14 +745,14 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       {selectedTicketIds.size > 0 && (
         <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50/80 p-3 text-sm text-blue-950 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge className="bg-blue-600">{selectedTicketIds.size} selezionati</Badge>
-            <span>{selectedOpen} ancora aperti</span>
+            <Badge className="bg-blue-600">{tr("{size} selezionati", { size: String(selectedTicketIds.size ?? "") })}</Badge>
+            <span>{tr("{selectedOpen} ancora aperti", { selectedOpen: String(selectedOpen ?? "") })}</span>
             <span className="hidden sm:inline">·</span>
-            <span>{selectedHasOrder} collegati a commesse</span>
+            <span>{tr("{selectedHasOrder} collegati a commesse", { selectedHasOrder: String(selectedHasOrder ?? "") })}</span>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={clearSelection}>Annulla selezione</Button>
-            <Button size="sm" onClick={() => setBulkOpen(true)}>Azioni massive</Button>
+            <Button variant="outline" size="sm" onClick={clearSelection}>{tr("Annulla selezione")}</Button>
+            <Button size="sm" onClick={() => setBulkOpen(true)}>{tr("Azioni massive")}</Button>
           </div>
         </div>
       )}
@@ -765,7 +768,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
           <div className="relative flex-1 min-w-0 lg:min-w-[220px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder={isMobile ? "Cerca" : "Cerca per cliente, oggetto o email…"}
+              placeholder={isMobile ? tr("Cerca") : tr("Cerca per cliente, oggetto o email…")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 max-sm:h-9 max-sm:bg-white sm:h-9 sm:bg-white"
@@ -777,7 +780,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             size="icon"
             className="tap-compact relative h-9 w-9 shrink-0 bg-white lg:hidden"
             onClick={() => setFiltriMobileAperti(true)}
-            aria-label="Filtri"
+            aria-label={tr("Filtri")}
           >
             <SlidersHorizontal className="h-4 w-4" />
             {nFiltriMobile > 0 && (
@@ -789,9 +792,9 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
         </div>
         <div className="flex flex-wrap items-center gap-2 max-lg:hidden lg:contents">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger aria-label="Filtra assistenze per stato" className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Stato" /></SelectTrigger>
+            <SelectTrigger aria-label={tr("Filtra assistenze per stato")} className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder={tr("Stato")} /></SelectTrigger>
             <SelectContent className="max-h-[380px]">
-              <SelectItem value="all">Tutti gli stati ({statusCounts.all})</SelectItem>
+              <SelectItem value="all">{tr("Tutti gli stati ({all})", { all: String(statusCounts.all ?? "") })}</SelectItem>
               {TICKET_FASI.map((fase) => {
                 // Si mostrano solo gli stati che hanno almeno un'assistenza:
                 // una tendina con quindici voci quasi tutte a zero è rumore.
@@ -800,11 +803,11 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
                 return (
                   <SelectGroup key={fase.key}>
                     <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {fase.label}
+                      {tr(fase.label)}
                     </SelectLabel>
                     {stati.map((st) => (
                       <SelectItem key={st.value} value={st.value}>
-                        {st.label} ({statusCounts[st.value]})
+                        {tr(st.label)} ({statusCounts[st.value]})
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -813,23 +816,23 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             </SelectContent>
           </Select>
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger aria-label="Filtra assistenze per priorità" className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Priorità" /></SelectTrigger>
+            <SelectTrigger aria-label={tr("Filtra assistenze per priorità")} className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder={tr("Priorità")} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutte le priorità</SelectItem>
-              <SelectItem value="urgente">🔴 Urgente</SelectItem>
-              <SelectItem value="alta">🟠 Alta</SelectItem>
-              <SelectItem value="normale">🟡 Normale</SelectItem>
-              <SelectItem value="bassa">⚪️ Bassa</SelectItem>
+              <SelectItem value="all">{tr("Tutte le priorità")}</SelectItem>
+              <SelectItem value="urgente">{tr("🔴 Urgente")}</SelectItem>
+              <SelectItem value="alta">{tr("🟠 Alta")}</SelectItem>
+              <SelectItem value="normale">{tr("🟡 Normale")}</SelectItem>
+              <SelectItem value="bassa">{tr("⚪️ Bassa")}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={assegnatoFilter} onValueChange={setAssegnatoFilter}>
-            <SelectTrigger aria-label="Filtra assistenze per assegnatario" className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Assegnato a" /></SelectTrigger>
+            <SelectTrigger aria-label={tr("Filtra assistenze per assegnatario")} className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder={tr("Assegnato a")} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="tutti">Tutti (assegnato o no)</SelectItem>
-              <SelectItem value="unassigned">Non assegnato</SelectItem>
+              <SelectItem value="tutti">{tr("Tutti (assegnato o no)")}</SelectItem>
+              <SelectItem value="unassigned">{tr("Non assegnato")}</SelectItem>
               {staffList.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {[s.first_name, s.last_name].filter(Boolean).join(" ") || "Senza nome"}
+                  {[s.first_name, s.last_name].filter(Boolean).join(" ") || tr("Senza nome")}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -840,7 +843,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-9 gap-1.5">
                 <Filter className="h-4 w-4" />
-                Altri filtri
+                {tr("Altri filtri")}
                 {nAltriFiltri > 0 && (
                   <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-4 text-primary-foreground">{nAltriFiltri}</span>
                 )}
@@ -848,48 +851,48 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             </PopoverTrigger>
             <PopoverContent align="start" className="w-64 space-y-2 p-3">
               <Select value={scadenzaFilter} onValueChange={setScadenzaFilter}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Scadenza" /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder={tr("Scadenza")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tutte">Tutte le scadenze</SelectItem>
-                  <SelectItem value="scaduto_oggi">Scaduti / Oggi</SelectItem>
-                  <SelectItem value="settimana">Entro 7 giorni</SelectItem>
-                  <SelectItem value="futuro">Oltre 7 giorni</SelectItem>
-                  <SelectItem value="senza">Senza scadenza</SelectItem>
+                  <SelectItem value="tutte">{tr("Tutte le scadenze")}</SelectItem>
+                  <SelectItem value="scaduto_oggi">{tr("Scaduti / Oggi")}</SelectItem>
+                  <SelectItem value="settimana">{tr("Entro 7 giorni")}</SelectItem>
+                  <SelectItem value="futuro">{tr("Oltre 7 giorni")}</SelectItem>
+                  <SelectItem value="senza">{tr("Senza scadenza")}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={fonteFilter} onValueChange={setFonteFilter}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Fonte" /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder={tr("Fonte")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tutti">Tutte le fonti</SelectItem>
-                  <SelectItem value="ufficio">Da ufficio</SelectItem>
-                  <SelectItem value="campo">📍 Da campo</SelectItem>
-                  <SelectItem value="cliente">Da cliente</SelectItem>
+                  <SelectItem value="tutti">{tr("Tutte le fonti")}</SelectItem>
+                  <SelectItem value="ufficio">{tr("Da ufficio")}</SelectItem>
+                  <SelectItem value="campo">{tr("📍 Da campo")}</SelectItem>
+                  <SelectItem value="cliente">{tr("Da cliente")}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={pagamentoFilter} onValueChange={(v) => setPagamentoFilter(v as typeof pagamentoFilter)}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Pagamento" /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder={tr("Pagamento")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tutti">A pagamento e gratis</SelectItem>
-                  <SelectItem value="pagamento">Solo a pagamento</SelectItem>
-                  <SelectItem value="gratis">Solo gratuite</SelectItem>
+                  <SelectItem value="tutti">{tr("A pagamento e gratis")}</SelectItem>
+                  <SelectItem value="pagamento">{tr("Solo a pagamento")}</SelectItem>
+                  <SelectItem value="gratis">{tr("Solo gratuite")}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={merceFilter} onValueChange={(v) => setMerceFilter(v as typeof merceFilter)}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Merce" /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder={tr("Merce")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tutte">Merce: tutte</SelectItem>
-                  <SelectItem value="in_arrivo">Merce da arrivare</SelectItem>
-                  <SelectItem value="incompleta">Bolla incompleta</SelectItem>
-                  <SelectItem value="arrivata">Merce arrivata</SelectItem>
+                  <SelectItem value="tutte">{tr("Merce: tutte")}</SelectItem>
+                  <SelectItem value="in_arrivo">{tr("Merce da arrivare")}</SelectItem>
+                  <SelectItem value="incompleta">{tr("Bolla incompleta")}</SelectItem>
+                  <SelectItem value="arrivata">{tr("Merce arrivata")}</SelectItem>
                 </SelectContent>
               </Select>
               {/* Interruttori: prima erano due delle nove caselle blu. */}
               <label className="flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
-                <span>Solo ferme troppo {metrics.ferme > 0 && <span className="font-semibold text-red-600">({metrics.ferme})</span>}</span>
+                <span>{tr("Solo ferme troppo")} {metrics.ferme > 0 && <span className="font-semibold text-red-600">({metrics.ferme})</span>}</span>
                 <Checkbox checked={soloFerme} onCheckedChange={() => setSoloFerme((v) => !v)} />
               </label>
               <label className="flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
-                <span>Solo chi richiama {metricheMerce.solleciti > 0 && <span className="font-semibold text-amber-600">({metricheMerce.solleciti})</span>}</span>
+                <span>{tr("Solo chi richiama")} {metricheMerce.solleciti > 0 && <span className="font-semibold text-amber-600">({metricheMerce.solleciti})</span>}</span>
                 <Checkbox checked={soloRichiami} onCheckedChange={() => setSoloRichiami((v) => !v)} />
               </label>
             </PopoverContent>
@@ -901,10 +904,10 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             onValueChange={(v) => v && cambiaVista(v as "tabella" | "pipeline")}
             className="ml-auto hidden rounded-md border lg:flex"
           >
-            <ToggleGroupItem value="tabella" aria-label="Vista elenco" className="px-3">
+            <ToggleGroupItem value="tabella" aria-label={tr("Vista elenco")} className="px-3">
               <LayoutList className="h-4 w-4" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="pipeline" aria-label="Vista pipeline" className="px-3">
+            <ToggleGroupItem value="pipeline" aria-label={tr("Vista pipeline")} className="px-3">
               <Columns3 className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
@@ -915,10 +918,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
         <Alert className="border-amber-200 bg-amber-50 text-amber-900">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              Vista limitata ai primi {tickets.length.toLocaleString("it-IT")} ticket su {totalTickets.toLocaleString("it-IT")}.
-              Usa filtri e ricerca per lavorare con precisione su archivi molto grandi.
-            </span>
+            <span>{tr("Vista limitata ai primi {n} ticket su {totalTickets}. Usa filtri e ricerca per lavorare con precisione su archivi molto grandi.", { n: tickets.length.toLocaleString(intlCampo()), totalTickets: totalTickets.toLocaleString(intlCampo()) })}</span>
             <Button
               variant="outline"
               size="sm"
@@ -926,7 +926,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
               disabled={isFetching}
               onClick={() => setFetchLimit((n) => n + TICKETS_FETCH_LIMIT)}
             >
-              {isFetching ? "Caricamento…" : "Carica altri"}
+              {isFetching ? tr("Caricamento…") : tr("Carica altri")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -938,7 +938,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
           <AssistenzaPipeline tickets={sortedTickets as never} onStatusChange={updateTicketStatus} />
           {sortedTickets.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              Nessuna assistenza con questi filtri.
+              {tr("Nessuna assistenza con questi filtri.")}
             </p>
           )}
         </div>
@@ -950,11 +950,11 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium">Nessun ticket trovato</h3>
+            <h3 className="text-lg font-medium">{tr("Nessun ticket trovato")}</h3>
             <p className="text-muted-foreground text-center mt-2">
               {searchQuery || statusFilter !== "all" || priorityFilter !== "all" || tipoFilter !== "all" || scadenzaFilter !== "tutte" || assegnatoFilter !== "tutti"
-                ? "Prova a modificare i filtri di ricerca"
-                : "Non ci sono ancora ticket di assistenza"}
+                ? tr("Prova a modificare i filtri di ricerca")
+                : tr("Non ci sono ancora ticket di assistenza")}
             </p>
           </CardContent>
         </Card>
@@ -982,17 +982,17 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
-                    <Checkbox checked={selectedAllVisible} onCheckedChange={toggleAllVisible} aria-label="Seleziona ticket visibili" />
+                    <Checkbox checked={selectedAllVisible} onCheckedChange={toggleAllVisible} aria-label={tr("Seleziona ticket visibili")} />
                   </TableHead>
-                  <SortableTableHead className="w-24" active={sort.key === "tipo"} direction={sort.direction} onClick={() => handleSort("tipo")}>Tipo</SortableTableHead>
-                  <SortableTableHead active={sort.key === "cliente"} direction={sort.direction} onClick={() => handleSort("cliente")}>Cliente</SortableTableHead>
-                  <TableHead>Oggetto</TableHead>
-                  <SortableTableHead active={sort.key === "priority"} direction={sort.direction} onClick={() => handleSort("priority")}>Priorità</SortableTableHead>
-                  <SortableTableHead active={sort.key === "scadenza"} direction={sort.direction} onClick={() => handleSort("scadenza")}>Scadenza</SortableTableHead>
-                  <SortableTableHead active={sort.key === "status"} direction={sort.direction} onClick={() => handleSort("status")}>Stato</SortableTableHead>
-                  <SortableTableHead active={sort.key === "assigned"} direction={sort.direction} onClick={() => handleSort("assigned")}>Assegnato</SortableTableHead>
-                  <SortableTableHead active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Ordine</SortableTableHead>
-                  <SortableTableHead active={sort.key === "updated"} direction={sort.direction} onClick={() => handleSort("updated")}>Aggiornato</SortableTableHead>
+                  <SortableTableHead className="w-24" active={sort.key === "tipo"} direction={sort.direction} onClick={() => handleSort("tipo")}>{tr("Tipo")}</SortableTableHead>
+                  <SortableTableHead active={sort.key === "cliente"} direction={sort.direction} onClick={() => handleSort("cliente")}>{tr("Cliente")}</SortableTableHead>
+                  <TableHead>{tr("Oggetto")}</TableHead>
+                  <SortableTableHead active={sort.key === "priority"} direction={sort.direction} onClick={() => handleSort("priority")}>{tr("Priorità")}</SortableTableHead>
+                  <SortableTableHead active={sort.key === "scadenza"} direction={sort.direction} onClick={() => handleSort("scadenza")}>{tr("Scadenza")}</SortableTableHead>
+                  <SortableTableHead active={sort.key === "status"} direction={sort.direction} onClick={() => handleSort("status")}>{tr("Stato")}</SortableTableHead>
+                  <SortableTableHead active={sort.key === "assigned"} direction={sort.direction} onClick={() => handleSort("assigned")}>{tr("Assegnato")}</SortableTableHead>
+                  <SortableTableHead active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>{tr("Ordine")}</SortableTableHead>
+                  <SortableTableHead active={sort.key === "updated"} direction={sort.direction} onClick={() => handleSort("updated")}>{tr("Aggiornato")}</SortableTableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1023,66 +1023,66 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       <Sheet open={filtriMobileAperti} onOpenChange={setFiltriMobileAperti}>
         <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl px-4 pb-6">
           <SheetHeader className="text-left">
-            <SheetTitle>Filtri</SheetTitle>
+            <SheetTitle>{tr("Filtri")}</SheetTitle>
           </SheetHeader>
           <div className="mt-3 space-y-4">
             <PilloleFiltro
-              titolo="Tipo"
+              titolo={tr("Tipo")}
               valore={tipoFilter}
               onScegli={setTipoFilter}
               scelte={[
-                { value: "all", label: "Tutti" },
-                { value: "supporto", label: "Supporto" },
-                { value: "intervento", label: "Interventi" },
-                { value: "emergenza", label: "Emergenze" },
+                { value: "all", label: tr("Tutti") },
+                { value: "supporto", label: tr("Supporto") },
+                { value: "intervento", label: tr("Interventi") },
+                { value: "emergenza", label: tr("Emergenze") },
               ]}
             />
             <PilloleFiltro
-              titolo="Priorità"
+              titolo={tr("Priorità")}
               valore={priorityFilter}
               onScegli={setPriorityFilter}
               scelte={[
-                { value: "all", label: "Tutte" },
-                { value: "urgente", label: "Urgente" },
-                { value: "alta", label: "Alta" },
-                { value: "normale", label: "Normale" },
-                { value: "bassa", label: "Bassa" },
+                { value: "all", label: tr("Tutte") },
+                { value: "urgente", label: tr("Urgente") },
+                { value: "alta", label: tr("Alta") },
+                { value: "normale", label: tr("Normale") },
+                { value: "bassa", label: tr("Bassa") },
               ]}
             />
             <PilloleFiltro
-              titolo="Scadenza"
+              titolo={tr("Scadenza")}
               valore={scadenzaFilter}
               onScegli={setScadenzaFilter}
               scelte={[
-                { value: "tutte", label: "Tutte" },
-                { value: "scaduto_oggi", label: "Scaduti / oggi" },
-                { value: "settimana", label: "Entro 7 giorni" },
-                { value: "senza", label: "Senza scadenza" },
+                { value: "tutte", label: tr("Tutte") },
+                { value: "scaduto_oggi", label: tr("Scaduti / oggi") },
+                { value: "settimana", label: tr("Entro 7 giorni") },
+                { value: "senza", label: tr("Senza scadenza") },
               ]}
             />
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Stato</p>
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{tr("Stato")}</p>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent className="max-h-[320px]">
-                    <SelectItem value="all">Tutti ({statusCounts.all})</SelectItem>
+                    <SelectItem value="all">{tr("Tutti ({all})", { all: String(statusCounts.all ?? "") })}</SelectItem>
                     {TICKET_STATI.filter((st) => (statusCounts[st.value] ?? 0) > 0).map((st) => (
-                      <SelectItem key={st.value} value={st.value}>{st.label} ({statusCounts[st.value]})</SelectItem>
+                      <SelectItem key={st.value} value={st.value}>{tr(st.label)} ({statusCounts[st.value]})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Assegnato a</p>
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{tr("Assegnato a")}</p>
                 <Select value={assegnatoFilter} onValueChange={setAssegnatoFilter}>
                   <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="tutti">Tutti</SelectItem>
-                    <SelectItem value="unassigned">Non assegnato</SelectItem>
+                    <SelectItem value="tutti">{tr("Tutti")}</SelectItem>
+                    <SelectItem value="unassigned">{tr("Non assegnato")}</SelectItem>
                     {staffList.map((st) => (
                       <SelectItem key={st.id} value={st.id}>
-                        {[st.first_name, st.last_name].filter(Boolean).join(" ") || "Senza nome"}
+                        {[st.first_name, st.last_name].filter(Boolean).join(" ") || tr("Senza nome")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1103,12 +1103,10 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
                   setAssegnatoFilter("tutti");
                 }}
               >
-                Azzera
+                {tr("Azzera")}
               </Button>
             )}
-            <Button className="h-11 flex-1" onClick={() => setFiltriMobileAperti(false)}>
-              Mostra {sortedTickets.length}
-            </Button>
+            <Button className="h-11 flex-1" onClick={() => setFiltriMobileAperti(false)}>{tr("Mostra {n}", { n: sortedTickets.length })}</Button>
           </div>
         </SheetContent>
       </Sheet>
@@ -1165,6 +1163,7 @@ function SortableTableHead({
 }
 
 function TipoChip({ tipo }: { tipo: string | null | undefined }) {
+  const t = useT();
   const key = (tipo ?? "supporto") as keyof typeof TIPO_LABEL;
   const Icon = TIPO_ICON[key] ?? LifeBuoy;
   const palette = TIPO_COLORS[key] ?? TIPO_COLORS.supporto;
@@ -1175,12 +1174,13 @@ function TipoChip({ tipo }: { tipo: string | null | undefined }) {
       style={{ backgroundColor: palette.bg, color: palette.text, borderColor: palette.border }}
     >
       <Icon className="h-3 w-3" />
-      {TIPO_LABEL[key] ?? tipo}
+      {TIPO_LABEL[key] ? t(TIPO_LABEL[key]) : tipo}
     </Badge>
   );
 }
 
 function ScadenzaCell({ iso, chiuso = false }: { iso: string | null | undefined; chiuso?: boolean }) {
+  const t = useT();
   const bucket = bucketScadenza(iso);
   if (bucket === "nessuna") return <span className="text-muted-foreground text-sm">—</span>;
   // Un intervento chiuso non è «scaduto»: la data resta, senza il rosso dell'allarme.
@@ -1210,9 +1210,9 @@ function ScadenzaCell({ iso, chiuso = false }: { iso: string | null | undefined;
     <Badge
       variant="outline"
       className={cn("text-[11px] font-medium inline-flex items-center gap-1 whitespace-nowrap", styles[bucket])}
-      title={iso ? new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" }) : undefined}
+      title={iso ? new Date(iso).toLocaleDateString(intlCampo(), { day: "2-digit", month: "long", year: "numeric" }) : undefined}
     >
-      {labelPrefix[bucket] ? <span>{labelPrefix[bucket]}</span> : null}
+      {labelPrefix[bucket] ? <span>{t(labelPrefix[bucket])}</span> : null}
       <span className="tabular-nums">{formatScadenza(iso)}</span>
     </Badge>
   );
@@ -1223,6 +1223,7 @@ function ScadenzaCell({ iso, chiuso = false }: { iso: string | null | undefined;
  * la bolla incompleta (in rosso, con cosa manca) e i solleciti del cliente.
  */
 function BadgeMerceRichiami({ ticket }: { ticket: Record<string, unknown> }) {
+  const t = useT();
   const merceStato = (ticket.merce_stato as string | null) ?? null;
   const mancante = (ticket.merce_mancante as string | null) ?? null;
   const richiami = (ticket.richiami_count as number | null) ?? 0;
@@ -1239,9 +1240,9 @@ function BadgeMerceRichiami({ ticket }: { ticket: Record<string, unknown> }) {
       {merceStato === "arrivata_parziale" && (
         <Badge
           className="bg-red-100 text-red-800 border border-red-200 text-[10px] px-1.5 py-0"
-          title={mancante ? `Manca: ${mancante}` : "Merce arrivata incompleta"}
+          title={mancante ? t("Manca: {mancante}", { mancante: String(mancante ?? "") }) : t("Merce arrivata incompleta")}
         >
-          Bolla incompleta
+          {t("Bolla incompleta")}
         </Badge>
       )}
       {merceStato === "da_ordinare" && (
@@ -1251,7 +1252,7 @@ function BadgeMerceRichiami({ ticket }: { ticket: Record<string, unknown> }) {
       )}
       {merceStato === "ordinata" && (
         <Badge className="bg-purple-100 text-purple-800 border border-purple-200 text-[10px] px-1.5 py-0">
-          Merce in arrivo
+          {t("Merce in arrivo")}
         </Badge>
       )}
       {entro && (
@@ -1262,10 +1263,8 @@ function BadgeMerceRichiami({ ticket }: { ticket: Record<string, unknown> }) {
       {richiami > 0 && (
         <Badge
           className={`text-[10px] px-1.5 py-0 border ${richiami >= 3 ? "bg-amber-100 text-amber-900 border-amber-300" : "bg-muted text-muted-foreground border-transparent"}`}
-          title="Volte che il cliente ha sollecitato"
-        >
-          {richiami}× richiamo
-        </Badge>
+          title={t("Volte che il cliente ha sollecitato")}
+        >{t("{richiami}× richiamo", { richiami: String(richiami ?? "") })}</Badge>
       )}
     </div>
   );
@@ -1283,6 +1282,7 @@ function MobileTicketRow({
   ticket: TicketListItem;
   unreadCount: number | undefined;
 }) {
+  const t = useT();
   const statusColor = getTicketStatusColor(ticket.status);
   const priorityColor = getTicketPriorityColor(ticket.priority);
   // Sul telefono la scadenza di un intervento chiuso non serve: era un «Scaduto» rosso su un lavoro finito.
@@ -1297,7 +1297,7 @@ function MobileTicketRow({
       <span
         className="h-2 w-2 shrink-0 rounded-full"
         style={{ backgroundColor: priorityColor.text }}
-        title={getTicketPriorityLabel(ticket.priority)}
+        title={t(getTicketPriorityLabel(ticket.priority))}
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
@@ -1322,7 +1322,7 @@ function MobileTicketRow({
         </div>
       </div>
       <span className="max-w-[4.5rem] shrink-0 text-right text-[11px] font-medium leading-tight" style={{ color: statusColor.text }}>
-        {getTicketStatusLabel(ticket.status)}
+        {t(getTicketStatusLabel(ticket.status))}
       </span>
     </Link>
   );
@@ -1347,6 +1347,7 @@ function DesktopTicketRow({
   staffList: StaffUser[];
   isUpdating: boolean;
 }) {
+  const t = useT();
   const priorityColor = getTicketPriorityColor(ticket.priority);
   const scadenza = ticket.data_intervento_prevista;
   const isUrgent = ticket.priority === "urgente";
@@ -1356,14 +1357,14 @@ function DesktopTicketRow({
   return (
     <TableRow onClick={() => navigate(`/azienda/assistenza/${ticket.id}`)} className={cn("cursor-pointer", isUrgent && "bg-red-50/50 dark:bg-red-950/10", isOverdue && !isUrgent && "bg-orange-50/50 dark:bg-orange-950/10")}>
       <TableCell onClick={(event) => event.stopPropagation()}>
-        <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`Seleziona ${ticket.subject}`} />
+        <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={t("Seleziona {subject}", { subject: String(ticket.subject ?? "") })} />
       </TableCell>
       <TableCell><TipoChip tipo={ticket.tipo} /></TableCell>
       <TableCell>{[ticket.customer?.first_name, ticket.customer?.last_name].filter(Boolean).join(" ") || "—"}</TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
           <span className="max-w-80 truncate font-medium" title={ticket.subject}>{ticket.subject}</span>
-          {ticket.fonte === "campo" && <span className="text-xs text-amber-600">Campo</span>}
+          {ticket.fonte === "campo" && <span className="text-xs text-amber-600">{t("Campo")}</span>}
           {unreadCount !== undefined && unreadCount > 0 && (
             <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
               {unreadCount}
@@ -1376,7 +1377,7 @@ function DesktopTicketRow({
           variant="outline"
           style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}
         >
-          {getTicketPriorityLabel(ticket.priority)}
+          {t(getTicketPriorityLabel(ticket.priority))}
         </Badge>
       </TableCell>
       <TableCell><ScadenzaCell iso={scadenza} chiuso={TICKET_STATI_CHIUSI.includes(ticket.status as never)} /></TableCell>
@@ -1414,7 +1415,7 @@ function DesktopTicketRow({
             );
           }
           return (
-            <span className={`text-xs ${CLASSI_FERMO[fermo.livello]}`} title={`Soglia ${fermo.soglia} giorni per priorità ${ticket.priority ?? "normale"}`}>
+            <span className={`text-xs ${CLASSI_FERMO[fermo.livello]}`} title={t("Soglia {soglia} giorni per priorità {priorita}", { soglia: fermo.soglia, priorita: t(getTicketPriorityLabel(ticket.priority ?? "normale")) })}>
               {fermo.etichetta}
             </span>
           );
@@ -1422,7 +1423,7 @@ function DesktopTicketRow({
       </TableCell>
       <TableCell onClick={(event) => event.stopPropagation()}>
         <Button variant="ghost" size="icon" asChild>
-          <Link to={`/azienda/assistenza/${ticket.id}`} aria-label={`Apri assistenza: ${ticket.subject}`}>
+          <Link to={`/azienda/assistenza/${ticket.id}`} aria-label={t("Apri assistenza: {subject}", { subject: String(ticket.subject ?? "") })}>
             <ChevronRight className="h-4 w-4" />
           </Link>
         </Button>
@@ -1459,16 +1460,17 @@ function TicketAssigneeSelect({
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
+  const t = useT();
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger className="h-8 w-[170px] px-2 text-xs">
-        <SelectValue placeholder="Assegna" />
+        <SelectValue placeholder={t("Assegna")} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={UNASSIGNED_VALUE}>Non assegnato</SelectItem>
+        <SelectItem value={UNASSIGNED_VALUE}>{t("Non assegnato")}</SelectItem>
         {staffList.map((staff) => (
           <SelectItem key={staff.id} value={staff.id}>
-            {[staff.first_name, staff.last_name].filter(Boolean).join(" ") || "Senza nome"}
+            {[staff.first_name, staff.last_name].filter(Boolean).join(" ") || t("Senza nome")}
           </SelectItem>
         ))}
       </SelectContent>
@@ -1501,6 +1503,7 @@ function TicketBulkActionsSheet({
   onClear: () => void;
   isPending: boolean;
 }) {
+  const t = useT();
   const selectedOpen = selectedTickets.filter((ticket) => !TICKET_STATI_CHIUSI.includes(ticket.status as never)).length;
   const selectedResolved = selectedTickets.length - selectedOpen;
   const linkedOrders = selectedTickets.filter((ticket) => ticket.order_id).length;
@@ -1510,50 +1513,50 @@ function TicketBulkActionsSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>Azioni assistenza</SheetTitle>
+          <SheetTitle>{t("Azioni assistenza")}</SheetTitle>
           <SheetDescription>
-            Cambia stato e responsabile dei ticket selezionati senza entrare uno per uno.
+            {t("Cambia stato e responsabile dei ticket selezionati senza entrare uno per uno.")}
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-5">
           <div className="grid grid-cols-2 gap-3">
-            <BulkStat icon={<CheckSquare className="h-4 w-4" />} label="Selezionati" value={selectedTickets.length} />
-            <BulkStat icon={<AlertCircle className="h-4 w-4" />} label="Aperti" value={selectedOpen} />
-            <BulkStat icon={<BriefcaseBusiness className="h-4 w-4" />} label="Commesse" value={linkedOrders} />
-            <BulkStat icon={<Euro className="h-4 w-4" />} label="Priorita alta" value={priorityCount} />
+            <BulkStat icon={<CheckSquare className="h-4 w-4" />} label={t("Selezionati")} value={selectedTickets.length} />
+            <BulkStat icon={<AlertCircle className="h-4 w-4" />} label={t("Aperti")} value={selectedOpen} />
+            <BulkStat icon={<BriefcaseBusiness className="h-4 w-4" />} label={t("Commesse")} value={linkedOrders} />
+            <BulkStat icon={<Euro className="h-4 w-4" />} label={t("Priorita alta")} value={priorityCount} />
           </div>
 
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              I costi assistenza si consolidano su commessa tramite rapportini, anomalie e consuntivi. Qui gestisci il flusso operativo: stato, responsabilita e chiusura.
+              {t("I costi assistenza si consolidano su commessa tramite rapportini, anomalie e consuntivi. Qui gestisci il flusso operativo: stato, responsabilita e chiusura.")}
             </AlertDescription>
           </Alert>
 
           <Separator />
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Nuovo stato</label>
+            <label className="text-sm font-medium">{t("Nuovo stato")}</label>
             <Select value={bulkStatus} onValueChange={onBulkStatusChange}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent className="max-h-[380px]">
-                <SelectItem value={KEEP_VALUE}>Non cambiare stato</SelectItem>
+                <SelectItem value={KEEP_VALUE}>{t("Non cambiare stato")}</SelectItem>
                 <StatoOptionsRaggruppate />
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Responsabile</label>
+            <label className="text-sm font-medium">{t("Responsabile")}</label>
             <Select value={bulkAssignee} onValueChange={onBulkAssigneeChange}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={KEEP_VALUE}>Non cambiare responsabile</SelectItem>
-                <SelectItem value={UNASSIGNED_VALUE}>Rimuovi assegnazione</SelectItem>
+                <SelectItem value={KEEP_VALUE}>{t("Non cambiare responsabile")}</SelectItem>
+                <SelectItem value={UNASSIGNED_VALUE}>{t("Rimuovi assegnazione")}</SelectItem>
                 {staffList.map((staff) => (
                   <SelectItem key={staff.id} value={staff.id}>
-                    {[staff.first_name, staff.last_name].filter(Boolean).join(" ") || "Senza nome"}
+                    {[staff.first_name, staff.last_name].filter(Boolean).join(" ") || t("Senza nome")}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1561,18 +1564,16 @@ function TicketBulkActionsSheet({
           </div>
 
           <div className="rounded-lg border bg-muted/40 p-3 text-sm">
-            <div className="font-medium">Riepilogo impatto</div>
-            <p className="mt-1 text-muted-foreground">
-              {selectedResolved} gia risolti/chiusi, {linkedOrders} con commessa collegata. La chiusura imposta anche la data effettiva intervento.
-            </p>
+            <div className="font-medium">{t("Riepilogo impatto")}</div>
+            <p className="mt-1 text-muted-foreground">{t("{selectedResolved} gia risolti/chiusi, {linkedOrders} con commessa collegata. La chiusura imposta anche la data effettiva intervento.", { selectedResolved: String(selectedResolved ?? ""), linkedOrders: String(linkedOrders ?? "") })}</p>
           </div>
         </div>
 
         <SheetFooter className="mt-6 gap-2 sm:flex-col">
           <Button onClick={onApply} disabled={isPending || selectedTickets.length === 0}>
-            {isPending ? "Aggiornamento..." : "Applica modifiche"}
+            {isPending ? t("Aggiornamento...") : t("Applica modifiche")}
           </Button>
-          <Button variant="outline" onClick={onClear} disabled={isPending}>Svuota selezione</Button>
+          <Button variant="outline" onClick={onClear} disabled={isPending}>{t("Svuota selezione")}</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

@@ -41,6 +41,7 @@ import {
   RefreshCw,
   ExternalLink,
 } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type AppleCalendar = {
   url: string;
@@ -68,6 +69,7 @@ function withConnectionTimeout<T>(promise: PromiseLike<T>, label: string): Promi
 }
 
 export default function AppleCalendarConnectionTab() {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
@@ -81,7 +83,7 @@ export default function AppleCalendarConnectionTab() {
 
   const getAccessToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error("Sessione scaduta: accedi di nuovo.");
+    if (!session?.access_token) throw new Error(t("Sessione scaduta: accedi di nuovo."));
     return session.access_token;
   };
 
@@ -144,11 +146,11 @@ export default function AppleCalendarConnectionTab() {
   // Connect
   const handleConnect = async () => {
     if (!appleId || !appPassword) {
-      toast.error("Inserisci Apple ID e App-Specific Password");
+      toast.error(t("Inserisci Apple ID e App-Specific Password"));
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(appleId.trim())) {
-      toast.error("Inserisci un Apple ID email valido");
+      toast.error(t("Inserisci un Apple ID email valido"));
       return;
     }
     setConnecting(true);
@@ -159,17 +161,17 @@ export default function AppleCalendarConnectionTab() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.error || res.data?.error) {
-        toast.error(res.data?.error || "Connessione fallita");
+        toast.error(res.data?.error || t("Connessione fallita"));
         return;
       }
-      toast.success("Apple Calendar collegato con successo!");
+      toast.success(t("Apple Calendar collegato con successo!"));
       setAppleId("");
       setAppPassword("");
       queryClient.invalidateQueries({ queryKey: ["apple-calendar-connection"] });
       queryClient.invalidateQueries({ queryKey: ["apple-calendar-settings"] });
       queryClient.invalidateQueries({ queryKey: ["apple-calendars-list"] });
     } catch (e: any) {
-      toast.error(e.message || "Errore di connessione");
+      toast.error(e.message || t("Errore di connessione"));
     } finally {
       setConnecting(false);
     }
@@ -186,7 +188,7 @@ export default function AppleCalendarConnectionTab() {
       if (res.error) throw new Error(res.error.message);
     },
     onSuccess: () => {
-      toast.success("Apple Calendar disconnesso");
+      toast.success(t("Apple Calendar disconnesso"));
       queryClient.invalidateQueries({ queryKey: ["apple-calendar-connection"] });
       queryClient.invalidateQueries({ queryKey: ["apple-calendar-settings"] });
       queryClient.invalidateQueries({ queryKey: ["apple-calendars-list"] });
@@ -206,7 +208,7 @@ export default function AppleCalendarConnectionTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Impostazioni salvate");
+      toast.success(t("Impostazioni salvate"));
       queryClient.invalidateQueries({ queryKey: ["apple-calendar-settings"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -223,15 +225,15 @@ export default function AppleCalendarConnectionTab() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.error || res.data?.error) {
-        toast.error(res.data?.error || "Errore durante la sincronizzazione");
+        toast.error(res.data?.error || t("Errore durante la sincronizzazione"));
         return;
       }
-      toast.success("Sincronizzazione completata", {
+      toast.success(t("Sincronizzazione completata"), {
         description: `${res.data?.pulled ?? 0} eventi importati`,
       });
       queryClient.invalidateQueries({ queryKey: ["apple-busy-slots"] });
     } catch (e: any) {
-      toast.error(e.message || "Errore sincronizzazione");
+      toast.error(e.message || t("Errore sincronizzazione"));
     } finally {
       setSyncing(false);
     }
@@ -241,8 +243,8 @@ export default function AppleCalendarConnectionTab() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Apple Calendar (iCloud)</CardTitle>
-          <CardDescription>Controllo lo stato del collegamento Apple Calendar...</CardDescription>
+          <CardTitle>{t("Apple Calendar (iCloud)")}</CardTitle>
+          <CardDescription>{t("Controllo lo stato del collegamento Apple Calendar...")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Skeleton className="h-12 w-full" />
@@ -256,17 +258,17 @@ export default function AppleCalendarConnectionTab() {
     return (
       <Card className="border-destructive/30">
         <CardHeader>
-          <CardTitle>Apple Calendar (iCloud)</CardTitle>
-          <CardDescription>Non riesco a controllare Apple Calendar in questo momento.</CardDescription>
+          <CardTitle>{t("Apple Calendar (iCloud)")}</CardTitle>
+          <CardDescription>{t("Non riesco a controllare Apple Calendar in questo momento.")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2 rounded-lg bg-destructive/5 p-3 text-sm text-destructive">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{connectionLoadError instanceof Error ? connectionLoadError.message : "Controllo collegamento non riuscito."}</span>
+            <span>{connectionLoadError instanceof Error ? connectionLoadError.message : t("Controllo collegamento non riuscito.")}</span>
           </div>
           <Button variant="outline" onClick={() => refetchConnection()} disabled={connectionFetching}>
             {connectionFetching ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Riprova
+            {t("Riprova")}
           </Button>
         </CardContent>
       </Card>
@@ -278,17 +280,17 @@ export default function AppleCalendarConnectionTab() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Apple Calendar (iCloud)</CardTitle>
+          <CardTitle>{t("Apple Calendar (iCloud)")}</CardTitle>
           <CardDescription>
-            Collega Apple Calendar tramite CalDAV per sincronizzare gli appuntamenti e bloccare gli slot occupati.
+            {t("Collega Apple Calendar tramite CalDAV per sincronizzare gli appuntamenti e bloccare gli slot occupati.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="rounded-lg border bg-muted/30 p-4 text-sm space-y-2">
-            <p className="font-medium">Come ottenere una App-Specific Password:</p>
+            <p className="font-medium">{t("Come ottenere una App-Specific Password:")}</p>
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
               <li>
-                Vai su{" "}
+                {t("Vai su")}{" "}
                 <a
                   href="https://appleid.apple.com/account/manage"
                   target="_blank"
@@ -298,15 +300,15 @@ export default function AppleCalendarConnectionTab() {
                   appleid.apple.com <ExternalLink className="h-3 w-3" />
                 </a>
               </li>
-              <li>Accedi e vai su "Sicurezza dell'account"</li>
-              <li>Clicca "Genera password" sotto "Password specifiche per app"</li>
-              <li>Dai un nome (es. "Edilizia in Cloud") e copia la password generata</li>
+              <li>{t("Accedi e vai su \"Sicurezza dell'account\"")}</li>
+              <li>{t("Clicca \"Genera password\" sotto \"Password specifiche per app\"")}</li>
+              <li>{t("Dai un nome (es. \"Edilizia in Cloud\") e copia la password generata")}</li>
             </ol>
           </div>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="apple-id">Apple ID (email)</Label>
+              <Label htmlFor="apple-id">{t("Apple ID (email)")}</Label>
               <Input
                 id="apple-id"
                 type="email"
@@ -317,7 +319,7 @@ export default function AppleCalendarConnectionTab() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="app-password">App-Specific Password</Label>
+              <Label htmlFor="app-password">{t("App-Specific Password")}</Label>
               <Input
                 id="app-password"
                 type="password"
@@ -335,12 +337,12 @@ export default function AppleCalendarConnectionTab() {
               {connecting ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Connessione in corso...
+                  {t("Connessione in corso...")}
                 </>
               ) : (
                 <>
                   <CalendarDays className="h-4 w-4 mr-2" />
-                  Connetti Apple Calendar
+                  {t("Connetti Apple Calendar")}
                 </>
               )}
             </Button>
@@ -356,15 +358,15 @@ export default function AppleCalendarConnectionTab() {
     connection?.status === "connected" ? (
       <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white gap-1">
         <CheckCircle2 className="h-3 w-3" />
-        Connesso
+        {t("Connesso")}
       </Badge>
     ) : connection?.status === "auth_failed" ? (
       <Badge variant="destructive" className="gap-1">
         <AlertTriangle className="h-3 w-3" />
-        Errore autenticazione
+        {t("Errore autenticazione")}
       </Badge>
     ) : (
-      <Badge variant="secondary" className="gap-1">Disconnesso</Badge>
+      <Badge variant="secondary" className="gap-1">{t("Disconnesso")}</Badge>
     );
 
   return (
@@ -372,8 +374,8 @@ export default function AppleCalendarConnectionTab() {
       {/* Connected account card */}
       <Card>
         <CardHeader>
-          <CardTitle>Apple Calendar (iCloud)</CardTitle>
-          <CardDescription>Il tuo account Apple Calendar è collegato via CalDAV.</CardDescription>
+          <CardTitle>{t("Apple Calendar (iCloud)")}</CardTitle>
+          <CardDescription>{t("Il tuo account Apple Calendar è collegato via CalDAV.")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
@@ -383,16 +385,14 @@ export default function AppleCalendarConnectionTab() {
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-sm">Apple Calendar</span>
+                  <span className="font-medium text-sm">{t("Apple Calendar")}</span>
                   {statusBadge}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {connection?.apple_id_email || "Account collegato"}
+                  {connection?.apple_id_email || t("Account collegato")}
                 </p>
                 {connection?.last_sync_at && (
-                  <p className="text-xs text-muted-foreground">
-                    Ultima sync: {new Date(connection.last_sync_at).toLocaleString("it-IT")}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t("Ultima sync: {valore}", { valore: new Date(connection.last_sync_at).toLocaleString(intlCampo()) })}</p>
                 )}
               </div>
             </div>
@@ -405,7 +405,7 @@ export default function AppleCalendarConnectionTab() {
                 className="gap-1.5"
               >
                 <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-                <span className="hidden sm:inline">Sincronizza</span>
+                <span className="hidden sm:inline">{t("Sincronizza")}</span>
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -420,18 +420,18 @@ export default function AppleCalendarConnectionTab() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Disconnetti Apple Calendar?</AlertDialogTitle>
+                    <AlertDialogTitle>{t("Disconnetti Apple Calendar?")}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Questa azione rimuoverà tutte le sincronizzazioni e gli slot occupati di Apple Calendar dal CRM. Gli appuntamenti originali in Apple Calendar non verranno eliminati.
+                      {t("Questa azione rimuoverà tutte le sincronizzazioni e gli slot occupati di Apple Calendar dal CRM. Gli appuntamenti originali in Apple Calendar non verranno eliminati.")}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={() => disconnectMut.mutate()}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                      Disconnetti
+                      {t("Disconnetti")}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -451,15 +451,15 @@ export default function AppleCalendarConnectionTab() {
       {/* Calendar configuration */}
       <Card>
         <CardHeader>
-          <CardTitle>Configurazione del calendario</CardTitle>
-          <CardDescription>Seleziona il calendario principale su cui sincronizzare gli appuntamenti CRM</CardDescription>
+          <CardTitle>{t("Configurazione del calendario")}</CardTitle>
+          <CardDescription>{t("Seleziona il calendario principale su cui sincronizzare gli appuntamenti CRM")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between py-2">
             <div className="flex-1">
-              <p className="font-medium text-sm">Calendario principale</p>
+              <p className="font-medium text-sm">{t("Calendario principale")}</p>
               <p className="text-sm text-muted-foreground">
-                {primaryCal ? primaryCal.name : "Nessun calendario selezionato"}
+                {primaryCal ? primaryCal.name : t("Nessun calendario selezionato")}
               </p>
             </div>
             {editingPrimary ? (
@@ -479,7 +479,7 @@ export default function AppleCalendarConnectionTab() {
                     }}
                   >
                     <SelectTrigger className="w-[220px]">
-                      <SelectValue placeholder="Seleziona calendario" />
+                      <SelectValue placeholder={t("Seleziona calendario")} />
                     </SelectTrigger>
                     <SelectContent>
                       {appleCalendars.map((c) => (
@@ -491,12 +491,12 @@ export default function AppleCalendarConnectionTab() {
                   </Select>
                 )}
                 <Button variant="ghost" size="sm" onClick={() => setEditingPrimary(false)}>
-                  Annulla
+                  {t("Annulla")}
                 </Button>
               </div>
             ) : (
               <Button variant="outline" size="sm" onClick={() => setEditingPrimary(true)}>
-                {primaryCal ? "Modifica" : "Seleziona"}
+                {primaryCal ? t("Modifica") : t("Seleziona")}
               </Button>
             )}
           </div>

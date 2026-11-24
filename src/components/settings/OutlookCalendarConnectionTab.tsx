@@ -21,6 +21,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CheckCircle2, AlertTriangle, RefreshCw, Trash2, CalendarDays } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type OutlookConnection = {
   id: string;
@@ -47,6 +48,7 @@ const POPUP_POLL_INTERVAL_MS = 800;
 const POPUP_MAX_WAIT_MS = 5 * 60_000;
 
 export default function OutlookCalendarConnectionTab() {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const userId = user?.id;
   const companyId = effectiveCompany?.id;
@@ -60,9 +62,9 @@ export default function OutlookCalendarConnectionTab() {
 
   const getAccessToken = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error("Sessione scaduta");
+    if (!session?.access_token) throw new Error(t("Sessione scaduta"));
     return session.access_token;
-  }, []);
+  }, [t]);
 
   const { data: connection, refetch: refetchConnection } = useQuery({
     queryKey: ["outlook-calendar-connection", companyId, userId],
@@ -123,19 +125,19 @@ export default function OutlookCalendarConnectionTab() {
       const data = ev.data;
       if (!data || data.source !== "outlook-calendar-oauth") return;
       if (data.status === "ok") {
-        toast.success("Outlook Calendar collegato");
+        toast.success(t("Outlook Calendar collegato"));
         queryClient.invalidateQueries({ queryKey: ["outlook-calendar-connection"] });
         // Prima sync subito: senza, dopo il collegamento il calendario restava
         // vuoto finche' qualcuno non premeva "Sincronizza".
         setAutoSyncDopoCollegamento(true);
       } else {
-        toast.error(`Errore OAuth: ${data.message ?? "sconosciuto"}`);
+        toast.error(t("Errore OAuth: {message}", { message: data.message ?? t("sconosciuto") }));
       }
       cleanupPopup();
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [cleanupPopup, queryClient]);
+  }, [cleanupPopup, queryClient, t]);
 
   const handleConnect = useCallback(async () => {
     if (!userId) return;
@@ -149,13 +151,13 @@ export default function OutlookCalendarConnectionTab() {
         body: JSON.stringify({ companyId }),
       });
       const json = await res.json();
-      if (!res.ok || !json.url) throw new Error(json.error ?? "Impossibile avviare OAuth");
+      if (!res.ok || !json.url) throw new Error(json.error ?? t("Impossibile avviare OAuth"));
 
       const w = 520, h = 640;
       const left = window.screenX + (window.outerWidth - w) / 2;
       const top = window.screenY + (window.outerHeight - h) / 2;
       popupRef.current = window.open(json.url, "outlook_oauth", `width=${w},height=${h},left=${left},top=${top}`);
-      if (!popupRef.current) throw new Error("Popup bloccato dal browser");
+      if (!popupRef.current) throw new Error(t("Popup bloccato dal browser"));
 
       pollRef.current = window.setInterval(() => {
         if (popupRef.current?.closed) { cleanupPopup(); refetchConnection(); }
@@ -165,7 +167,7 @@ export default function OutlookCalendarConnectionTab() {
       toast.error((e as Error).message);
       setConnecting(false);
     }
-  }, [userId, companyId, getAccessToken, cleanupPopup, refetchConnection]);
+  }, [userId, companyId, getAccessToken, cleanupPopup, refetchConnection, t]);
 
   const [autoSyncDopoCollegamento, setAutoSyncDopoCollegamento] = useState(false);
 
@@ -180,12 +182,12 @@ export default function OutlookCalendarConnectionTab() {
       return data;
     },
     onSuccess: (data) => {
-      toast.success(`Sincronizzazione completata: ${data?.synced ?? 0} eventi`);
+      toast.success(t("Sincronizzazione completata: {n} eventi", { n: data?.synced ?? 0 }));
       queryClient.invalidateQueries({ queryKey: ["outlook-calendar-connection"] });
       setSyncing(false);
     },
     onError: (e: Error) => {
-      toast.error(`Errore sync: ${e.message}`);
+      toast.error(t("Errore sync: {message}", { message: String(e.message ?? "") }));
       setSyncing(false);
     },
   });
@@ -200,7 +202,7 @@ export default function OutlookCalendarConnectionTab() {
   // ── Toggle calendar in synced list ────────────────────────────────────────
   const toggleSyncedMutation = useMutation({
     mutationFn: async (calendarId: string) => {
-      if (!connection?.id) throw new Error("Nessuna connection");
+      if (!connection?.id) throw new Error(t("Nessuna connection"));
       const newIds = new Set(syncedIds);
       if (newIds.has(calendarId)) newIds.delete(calendarId);
       else newIds.add(calendarId);
@@ -227,11 +229,11 @@ export default function OutlookCalendarConnectionTab() {
         body: JSON.stringify({ companyId }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore disconnessione");
+      if (!res.ok) throw new Error(json.error ?? t("Errore disconnessione"));
       return json;
     },
     onSuccess: () => {
-      toast.success("Outlook Calendar scollegato");
+      toast.success(t("Outlook Calendar scollegato"));
       queryClient.invalidateQueries({ queryKey: ["outlook-calendar-connection"] });
       setDisconnectOpen(false);
     },
@@ -240,7 +242,7 @@ export default function OutlookCalendarConnectionTab() {
 
   const lastSyncText = useMemo(() => {
     if (!connection?.last_sync_at) return null;
-    return new Date(connection.last_sync_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+    return new Date(connection.last_sync_at).toLocaleString(intlCampo(), { dateStyle: "short", timeStyle: "short" });
   }, [connection?.last_sync_at]);
 
   if (!userId || !companyId) return null;
@@ -255,18 +257,18 @@ export default function OutlookCalendarConnectionTab() {
                 <CalendarDays className="h-5 w-5 text-[#0078D4]" />
               </div>
               <div>
-                <CardTitle className="text-base">Outlook Calendar (Microsoft 365)</CardTitle>
+                <CardTitle className="text-base">{t("Outlook Calendar (Microsoft 365)")}</CardTitle>
                 <CardDescription>
-                  Sincronizza appuntamenti Outlook con il tuo calendario commerciale EiC
+                  {t("Sincronizza appuntamenti Outlook con il tuo calendario commerciale EiC")}
                 </CardDescription>
               </div>
             </div>
             {isConnected ? (
               <Badge className="bg-emerald-600 hover:bg-emerald-600">
-                <CheckCircle2 className="mr-1 h-3 w-3" /> Collegato
+                <CheckCircle2 className="mr-1 h-3 w-3" /> {t("Collegato")}
               </Badge>
             ) : (
-              <Badge variant="outline">Non collegato</Badge>
+              <Badge variant="outline">{t("Non collegato")}</Badge>
             )}
           </div>
         </CardHeader>
@@ -275,11 +277,10 @@ export default function OutlookCalendarConnectionTab() {
           {!isConnected && (
             <>
               <p className="text-sm text-muted-foreground">
-                Collega l'account Microsoft 365 per importare appuntamenti, disponibilità e
-                programmare lo stesso evento su entrambe le piattaforme.
+                {t("Collega l'account Microsoft 365 per importare appuntamenti, disponibilità e programmare lo stesso evento su entrambe le piattaforme.")}
               </p>
               <Button onClick={handleConnect} disabled={connecting} className="w-full bg-[#0078D4] hover:bg-[#005a9e]">
-                {connecting ? "Connessione in corso..." : "Collega Outlook Calendar"}
+                {connecting ? t("Connessione in corso...") : t("Collega Outlook Calendar")}
               </Button>
             </>
           )}
@@ -287,13 +288,13 @@ export default function OutlookCalendarConnectionTab() {
           {isConnected && (
             <div className="space-y-4">
               <div className="rounded-lg bg-blue-50 p-3 text-sm">
-                <p className="font-medium text-blue-900">Account Microsoft</p>
+                <p className="font-medium text-blue-900">{t("Account Microsoft")}</p>
                 <p className="text-blue-700 text-xs mt-1">{connection?.microsoft_account_email}</p>
               </div>
 
               {calendars.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">Calendari da sincronizzare</p>
+                  <p className="text-sm font-medium">{t("Calendari da sincronizzare")}</p>
                   <div className="space-y-2 rounded-lg border p-3">
                     {calendars.map((cal) => (
                       <label
@@ -312,9 +313,9 @@ export default function OutlookCalendarConnectionTab() {
                               style={{ backgroundColor: cal.color.startsWith("#") ? cal.color : undefined }}
                             />
                           )}
-                          <span className="text-sm truncate">{cal.name ?? "Senza nome"}</span>
+                          <span className="text-sm truncate">{cal.name ?? t("Senza nome")}</span>
                           {cal.is_default_calendar && (
-                            <Badge variant="secondary" className="text-xs">Principale</Badge>
+                            <Badge variant="secondary" className="text-xs">{t("Principale")}</Badge>
                           )}
                         </div>
                       </label>
@@ -325,7 +326,7 @@ export default function OutlookCalendarConnectionTab() {
 
               {lastSyncText && (
                 <p className="text-xs text-muted-foreground">
-                  Ultima sincronizzazione: {lastSyncText} · {connection?.last_sync_event_count ?? 0} eventi
+                  {t("Ultima sincronizzazione: {quando} · {n} eventi", { quando: String(lastSyncText ?? ""), n: connection?.last_sync_event_count ?? 0 })}
                 </p>
               )}
               {connection?.last_error && (
@@ -343,7 +344,7 @@ export default function OutlookCalendarConnectionTab() {
                   className="flex-1"
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
-                  Sincronizza ora
+                  {t("Sincronizza ora")}
                 </Button>
                 <Button variant="outline" onClick={() => setDisconnectOpen(true)}>
                   <Trash2 className="h-4 w-4" />
@@ -357,19 +358,18 @@ export default function OutlookCalendarConnectionTab() {
       <AlertDialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Scollegare Outlook Calendar?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Scollegare Outlook Calendar?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Gli eventi già importati restano in EiC ma non riceverai più aggiornamenti da Outlook.
-              Puoi ricollegare in qualsiasi momento.
+              {t("Gli eventi già importati restano in EiC ma non riceverai più aggiornamenti da Outlook. Puoi ricollegare in qualsiasi momento.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={disconnectMutation.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={disconnectMutation.isPending}>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => disconnectMutation.mutate()}
               disabled={disconnectMutation.isPending}
             >
-              Scollega
+              {t("Scollega")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

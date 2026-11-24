@@ -55,9 +55,10 @@ import {
   Clock,
   TrendingUp,
 } from "lucide-react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 const formatMoney = (value: number) =>
-  new Intl.NumberFormat("it-IT", {
+  new Intl.NumberFormat(intlCampo(), {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0,
@@ -65,6 +66,7 @@ const formatMoney = (value: number) =>
   }).format(value || 0);
 
 export function SupplierReportsPanel() {
+  const t = useT();
   const { suppliers, isLoading, isError, refetch } = useOperationalSuppliers();
 
   const report = useMemo(() => {
@@ -118,7 +120,7 @@ export function SupplierReportsPanel() {
   if (isLoading) {
     return (
       <div className="rounded-lg border p-6 text-sm text-muted-foreground">
-        Caricamento report fornitori...
+        {t("Caricamento report fornitori...")}
       </div>
     );
   }
@@ -126,12 +128,11 @@ export function SupplierReportsPanel() {
   if (isError) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>Report fornitori non disponibile</AlertTitle>
+        <AlertTitle>{t("Report fornitori non disponibile")}</AlertTitle>
         <AlertDescription className="flex flex-wrap items-center gap-3">
-          Non è stato possibile leggere acquisti e scadenze. Nessun totale viene
-          mostrato come zero.
+          {t("Non è stato possibile leggere acquisti e scadenze. Nessun totale viene mostrato come zero.")}
           <Button size="sm" variant="outline" onClick={() => refetch()}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </AlertDescription>
       </Alert>
@@ -143,25 +144,25 @@ export function SupplierReportsPanel() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Acquisti OdA</CardDescription>
+            <CardDescription>{t("Acquisti OdA")}</CardDescription>
             <CardTitle>{formatMoney(report.totalOda)}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Scadenze aperte</CardDescription>
+            <CardDescription>{t("Scadenze aperte")}</CardDescription>
             <CardTitle>{formatMoney(report.openPayments)}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Ordini acquisto</CardDescription>
+            <CardDescription>{t("Ordini acquisto")}</CardDescription>
             <CardTitle>{report.totalOrders}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Valore medio OdA</CardDescription>
+            <CardDescription>{t("Valore medio OdA")}</CardDescription>
             <CardTitle>{formatMoney(report.avgOrder)}</CardTitle>
           </CardHeader>
         </Card>
@@ -176,17 +177,16 @@ export function SupplierReportsPanel() {
               className="flex items-center gap-2 text-base"
             >
               <TrendingUp className="h-4 w-4" />
-              Chi compriamo di più
+              {t("Chi compriamo di più")}
             </CardTitle>
             <CardDescription>
-              I fornitori con più ordini d'acquisto: utile per trattare i
-              prezzi.
+              {t("I fornitori con più ordini d'acquisto: utile per trattare i prezzi.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {report.topBySpend.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Nessun ordine di acquisto collegato ai fornitori.
+                {t("Nessun ordine di acquisto collegato ai fornitori.")}
               </p>
             ) : (
               report.topBySpend.map((supplier, index) => (
@@ -200,8 +200,8 @@ export function SupplierReportsPanel() {
                   <div className="min-w-0">
                     <p className="font-medium truncate">{supplier.name}</p>
                     <p className="break-words text-xs text-muted-foreground">
-                      {categorieFornitore(supplier).join(" · ") || "Senza categoria"} ·{" "}
-                      {supplier.oda_count ?? 0} OdA
+                      {categorieFornitore(supplier).join(" · ") || t("Senza categoria")} ·{" "}
+                      {supplier.oda_count ?? 0} {t("OdA")}
                     </p>
                   </div>
                   <p className="col-start-2 text-sm font-semibold sm:col-auto sm:text-base">
@@ -216,16 +216,16 @@ export function SupplierReportsPanel() {
         <Card className="min-w-0">
           <CardHeader>
             <CardTitle aria-level={2} className="text-base">
-              Scadenze aperte
+              {t("Scadenze aperte")}
             </CardTitle>
             <CardDescription>
-              Fornitori con pagamenti ancora da chiudere.
+              {t("Fornitori con pagamenti ancora da chiudere.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {report.withOpenPayments.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Nessuna scadenza fornitore aperta.
+                {t("Nessuna scadenza fornitore aperta.")}
               </p>
             ) : (
               report.withOpenPayments.map((supplier) => (
@@ -236,7 +236,7 @@ export function SupplierReportsPanel() {
                   <div className="min-w-0">
                     <p className="break-words font-medium">{supplier.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {supplier.scadenze_aperte ?? 0} scadenze
+                      {supplier.scadenze_aperte ?? 0} {t("scadenze")}
                     </p>
                   </div>
                   <p className="shrink-0 text-sm font-semibold sm:text-base">
@@ -252,19 +252,17 @@ export function SupplierReportsPanel() {
       <Card>
         <CardHeader>
           <CardTitle aria-level={2} className="text-base">
-            Categorie fornitore
+            {t("Categorie fornitore")}
           </CardTitle>
           <CardDescription>
-            Distribuzione per categoria, con valore OdA aggregato.
+            {t("Distribuzione per categoria, con valore OdA aggregato.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {report.byCategory.map((category) => (
             <div key={category.category} className="rounded-md border p-3">
-              <p className="font-medium">{category.category}</p>
-              <p className="text-xs text-muted-foreground">
-                {category.count} fornitori
-              </p>
+              <p className="font-medium">{category.category === "Senza categoria" ? t("Senza categoria") : category.category}</p>
+              <p className="text-xs text-muted-foreground">{t("{n} fornitori", { n: String(category.count ?? "") })}</p>
               <p className="mt-2 text-lg font-semibold">
                 {formatMoney(category.spend)}
               </p>
@@ -291,6 +289,7 @@ function etichettaAzioneFornitore(azione: string): string {
 }
 
 function SupplierAuditPanel({ companyId }: { companyId?: string }) {
+  const t = useT();
   const {
     data: logs = [],
     isLoading,
@@ -322,7 +321,7 @@ function SupplierAuditPanel({ companyId }: { companyId?: string }) {
   if (isLoading) {
     return (
       <div className="rounded-lg border p-6 text-sm text-muted-foreground">
-        Caricamento registro…
+        {t("Caricamento registro…")}
       </div>
     );
   }
@@ -331,11 +330,11 @@ function SupplierAuditPanel({ companyId }: { companyId?: string }) {
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Registro non disponibile</AlertTitle>
+        <AlertTitle>{t("Registro non disponibile")}</AlertTitle>
         <AlertDescription className="flex flex-wrap items-center gap-3">
-          Non sono riuscito a leggere le modifiche ai fornitori.
+          {t("Non sono riuscito a leggere le modifiche ai fornitori.")}
           <Button size="sm" variant="outline" onClick={() => void refetch()}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </AlertDescription>
       </Alert>
@@ -347,17 +346,16 @@ function SupplierAuditPanel({ companyId }: { companyId?: string }) {
       <CardHeader>
         <CardTitle aria-level={2} className="flex items-center gap-2 text-base">
           <History className="h-4 w-4 text-primary" />
-          Cosa è cambiato
+          {t("Cosa è cambiato")}
         </CardTitle>
         <CardDescription>
-          Creazioni, modifiche, eliminazioni e unioni dei fornitori, con la
-          data.
+          {t("Creazioni, modifiche, eliminazioni e unioni dei fornitori, con la data.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         {logs.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-            Nessuna attività fornitore registrata.
+            {t("Nessuna attività fornitore registrata.")}
           </div>
         ) : (
           logs.map((log) => {
@@ -377,7 +375,7 @@ function SupplierAuditPanel({ companyId }: { companyId?: string }) {
                 className="grid gap-2 rounded-md border p-3 md:grid-cols-[160px_1fr] md:items-center"
               >
                 <div>
-                  <Badge variant="outline">{azione}</Badge>
+                  <Badge variant="outline">{t(azione)}</Badge>
                   <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" />
                     {format(new Date(log.created_at), "dd/MM/yyyy HH:mm")}
@@ -386,15 +384,10 @@ function SupplierAuditPanel({ companyId }: { companyId?: string }) {
                 <div className="min-w-0">
                   <p className="font-medium truncate">{supplierName}</p>
                   {azione === "unito" && (
-                    <p className="text-xs text-muted-foreground">
-                      Il doppione «{String(details.source_name ?? "senza nome")}
-                      » è passato a questo fornitore.
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t("Il doppione «{valore}» è passato a questo fornitore.", { valore: String(details.source_name ?? "senza nome") })}</p>
                   )}
                   {log.actor_name && (
-                    <p className="text-xs text-muted-foreground">
-                      da {log.actor_name}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t("da {nome}", { nome: String(log.actor_name ?? "") })}</p>
                   )}
                 </div>
               </div>
@@ -418,6 +411,7 @@ function SupplierAuditPanel({ companyId }: { companyId?: string }) {
  * ordinata per nome con tutti i campi principali.
  */
 export default function SettingsSuppliers() {
+  const t = useT();
   const { role, effectiveCompany } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -461,7 +455,7 @@ export default function SettingsSuppliers() {
   const crea = useMutation({
     mutationFn: async (dati: SupplierFormData) => {
       if (!puoModificare || !effectiveCompany?.id)
-        throw new Error("Non puoi aggiungere fornitori.");
+        throw new Error(t("Non puoi aggiungere fornitori."));
       const { data: created, error } = await supabase
         .from("suppliers")
         .insert({ ...payloadFornitore(dati), company_id: effectiveCompany.id })
@@ -473,15 +467,15 @@ export default function SettingsSuppliers() {
     onSuccess: async (id) => {
       await invalidaFornitori(queryClient);
       setNuovoAperto(false);
-      toast({ title: "Fornitore creato" });
+      toast({ title: t("Fornitore creato") });
       vaiFornitore(id);
     },
     onError: (error) =>
       toast({
-        title: "Fornitore non creato",
+        title: t("Fornitore non creato"),
         description: userErrorMessage(
           error,
-          "Non sono riuscito a salvare il fornitore. Riprova.",
+          t("Non sono riuscito a salvare il fornitore. Riprova."),
         ),
         variant: "destructive",
       }),
@@ -603,7 +597,7 @@ export default function SettingsSuppliers() {
   const exportCSV = useCallback(() => {
     const rows = buildExportRows();
     if (rows.length === 0) {
-      toast({ title: "Nessun fornitore", variant: "destructive" });
+      toast({ title: t("Nessun fornitore"), variant: "destructive" });
       return;
     }
     exportToCSV(
@@ -611,13 +605,13 @@ export default function SettingsSuppliers() {
       exportColumns,
       `fornitori-${format(new Date(), "yyyy-MM-dd")}.csv`,
     );
-    toast({ title: `CSV esportato — ${rows.length} fornitori` });
+    toast({ title: t("CSV esportato — {n} fornitori", { n: rows.length }) });
   }, [buildExportRows, exportColumns, toast]);
 
   const exportXLSX = useCallback(async () => {
     const rows = buildExportRows();
     if (rows.length === 0) {
-      toast({ title: "Nessun fornitore", variant: "destructive" });
+      toast({ title: t("Nessun fornitore"), variant: "destructive" });
       return;
     }
     await exportToXLSX(
@@ -625,13 +619,13 @@ export default function SettingsSuppliers() {
       exportColumns,
       `fornitori-${format(new Date(), "yyyy-MM-dd")}.xlsx`,
     );
-    toast({ title: `Excel esportato — ${rows.length} fornitori` });
+    toast({ title: t("Excel esportato — {n} fornitori", { n: rows.length }) });
   }, [buildExportRows, exportColumns, toast]);
 
   const exportPDF = useCallback(async () => {
     const rows = buildExportRows();
     if (rows.length === 0) {
-      toast({ title: "Nessun fornitore", variant: "destructive" });
+      toast({ title: t("Nessun fornitore"), variant: "destructive" });
       return;
     }
     try {
@@ -707,11 +701,11 @@ export default function SettingsSuppliers() {
       });
 
       doc.save(`fornitori-${format(new Date(), "yyyy-MM-dd")}.pdf`);
-      toast({ title: `PDF esportato — ${rows.length} fornitori` });
+      toast({ title: t("PDF esportato — {n} fornitori", { n: rows.length }) });
     } catch (e) {
       toast({
-        title: "Errore export PDF",
-        description: e instanceof Error ? e.message : "Generazione PDF fallita",
+        title: t("Errore export PDF"),
+        description: e instanceof Error ? e.message : t("Generazione PDF fallita"),
         variant: "destructive",
       });
     }
@@ -725,18 +719,16 @@ export default function SettingsSuppliers() {
         <Button
           variant="outline"
           size="sm"
-          aria-label="Esporta fornitori"
+          aria-label={t("Esporta fornitori")}
           disabled={suppliersExportIsLoading || suppliersExportIsError}
         >
           <Download className="h-4 w-4 mr-1.5" />
-          <span className="hidden sm:inline">Esporta</span>
+          <span className="hidden sm:inline">{t("Esporta")}</span>
           <ChevronDown className="hidden h-3.5 w-3.5 ml-1 sm:block" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="text-[11px]">
-          Tutti i fornitori ({suppliers.length})
-        </DropdownMenuLabel>
+        <DropdownMenuLabel className="text-[11px]">{t("Tutti i fornitori ({n})", { n: suppliers.length })}</DropdownMenuLabel>
         <DropdownMenuItem onClick={exportCSV}>
           <FileText className="h-4 w-4 mr-2" /> CSV
         </DropdownMenuItem>
@@ -754,25 +746,25 @@ export default function SettingsSuppliers() {
     // flex+gap invece di space-y: la testata nascosta da 768 lasciava lo
     // spazio sopra i numeri (lo stesso 24px tra i blocchi sul telefono).
     <div className="flex flex-col gap-6">
-      {!puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Fornitori" />}
+      {!puoModificare && <AvvisoSolaLetturaImpostazioni permesso={t("Fornitori")} />}
       {/* Fornitori che in rubrica non ci sono ma hanno fatture ricevute: si creano da qui, scegliendoli. */}
       {tab === "anagrafica" && puoModificare && effectiveCompany?.id && <FornitoriDalleFatture companyId={effectiveCompany.id} />}
       {/* KPI quick */}
       {suppliersExportIsError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Statistiche fornitori non disponibili</AlertTitle>
+          <AlertTitle>{t("Statistiche fornitori non disponibili")}</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center gap-3 text-xs">
             {userErrorMessage(
               suppliersExportError,
-              "Non è stato possibile caricare i numeri e i dati da esportare.",
+              t("Non è stato possibile caricare i numeri e i dati da esportare."),
             )}
             <Button
               size="sm"
               variant="outline"
               onClick={() => void refetchExport()}
             >
-              Riprova
+              {t("Riprova")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -784,7 +776,7 @@ export default function SettingsSuppliers() {
             <div className="rounded-lg border-l-4 border-l-primary bg-card p-3">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Totale
+                  {t("Totale")}
                 </p>
                 <Truck className="h-4 w-4 text-primary" />
               </div>
@@ -793,7 +785,7 @@ export default function SettingsSuppliers() {
             <div className="rounded-lg border-l-4 border-l-emerald-500 bg-card p-3">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Attivi
+                  {t("Attivi")}
                 </p>
                 <Users className="h-4 w-4 text-emerald-500" />
               </div>
@@ -802,7 +794,7 @@ export default function SettingsSuppliers() {
             <div className="hidden rounded-lg border-l-4 border-l-blue-500 bg-card p-3 sm:block">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Italiani
+                  {t("Italiani")}
                 </p>
                 <Badge variant="outline" className="h-4 text-[9px] px-1">
                   IT
@@ -813,7 +805,7 @@ export default function SettingsSuppliers() {
             <div className="hidden rounded-lg border-l-4 border-l-amber-500 bg-card p-3 sm:block">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Esteri
+                  {t("Esteri")}
                 </p>
                 <Euro className="h-4 w-4 text-amber-500" />
               </div>
@@ -830,7 +822,7 @@ export default function SettingsSuppliers() {
             onClick={() => setNuovoAperto(true)}
           >
             <Plus className="mr-1 h-4 w-4" />
-            Nuovo fornitore
+            {t("Nuovo fornitore")}
           </Button>
         </div>
       )}
@@ -838,15 +830,15 @@ export default function SettingsSuppliers() {
         {/* Un solo comando di export, accanto alle schede anche sul telefono. */}
         <div className="flex min-w-0 items-start justify-between gap-2 md:items-center md:gap-3">
           <TabsList className="grid h-auto min-w-0 flex-1 grid-cols-2 sm:grid-cols-4 md:flex md:flex-none [&>button]:whitespace-normal">
-            <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
-            <TabsTrigger value="operativo">Ordini e pagamenti</TabsTrigger>
+            <TabsTrigger value="anagrafica">{t("Anagrafica")}</TabsTrigger>
+            <TabsTrigger value="operativo">{t("Ordini e pagamenti")}</TabsTrigger>
             <TabsTrigger value="report">
               <BarChart3 className="mr-1.5 hidden h-4 w-4 sm:block" />
-              Acquisti
+              {t("Acquisti")}
             </TabsTrigger>
             <TabsTrigger value="audit">
               <History className="mr-1.5 hidden h-4 w-4 sm:block" />
-              Cosa è cambiato
+              {t("Cosa è cambiato")}
             </TabsTrigger>
           </TabsList>
           <div className="shrink-0">{menuEsporta}</div>

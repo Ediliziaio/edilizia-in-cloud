@@ -103,6 +103,7 @@ import {
   moduliDaMostrare,
   salvaModuliSpuntati,
 } from "@/lib/formazione/avanzamentoCorsi";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type PortalCourseStatus = "bozza" | "pubblicato" | "revisione";
 type PortalArea = "sicurezza" | "procedure" | "commerciale" | "onboarding" | "tecnica";
@@ -1068,6 +1069,7 @@ export interface PortalePageProps {
 }
 
 export default function PortalePage({ portalContext = "azienda", mode = "full" }: PortalePageProps = {}) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const isMobile = useIsMobile();
@@ -1160,8 +1162,8 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
         if (!mountedRef.current) return;
         setSyncStatus("locale");
         if (!isPortalLearningUnavailable(error)) {
-          toast.error("Salvataggio remoto non riuscito", {
-            description: "La modifica resta salvata localmente. Riprova quando la sincronizzazione è disponibile.",
+          toast.error(t("Salvataggio remoto non riuscito"), {
+            description: t("La modifica resta salvata localmente. Riprova quando la sincronizzazione è disponibile."),
           });
         }
       })
@@ -1280,8 +1282,8 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
             if (!active) return;
             setSyncStatus("locale");
             if (!isPortalLearningUnavailable(error)) {
-              toast.warning("Corsi pronti in locale", {
-                description: "Il seed iniziale remoto non e riuscito. Puoi continuare e riproveremo al prossimo salvataggio.",
+              toast.warning(t("Corsi pronti in locale"), {
+                description: t("Il seed iniziale remoto non e riuscito. Puoi continuare e riproveremo al prossimo salvataggio."),
               });
             }
           });
@@ -1291,8 +1293,8 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
         setRemoteEnabled(false);
         setSyncStatus("locale");
         if (!isPortalLearningUnavailable(error)) {
-          toast.error("Portale in modalità locale", {
-            description: "Non riesco a sincronizzare i corsi ora, ma puoi continuare a lavorare.",
+          toast.error(t("Portale in modalità locale"), {
+            description: t("Non riesco a sincronizzare i corsi ora, ma puoi continuare a lavorare."),
           });
         }
       });
@@ -1439,7 +1441,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     setSelectedCourseId(newCourse.id);
     if (showBuilder) setActiveTab("builder");
     persistCourse(newCourse);
-    toast.success("Bozza creata — dai un titolo e aggiungi i contenuti.");
+    toast.success(t("Bozza creata — dai un titolo e aggiungi i contenuti."));
   };
 
   // Patch dei metadati del corso selezionato. persistCourse è già debounced
@@ -1466,7 +1468,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
   const saveCourseSettings = () => {
     if (!selectedCourse) return;
     if (!courseDraft.title.trim()) {
-      toast.error("Il titolo non può essere vuoto.");
+      toast.error(t("Il titolo non può essere vuoto."));
       return;
     }
     updateCourseMeta({
@@ -1476,7 +1478,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
       audience: courseDraft.audience,
     });
     setCourseDialogOpen(false);
-    toast.success("Impostazioni corso salvate.");
+    toast.success(t("Impostazioni corso salvate."));
   };
 
   const createFromTemplate = (template: PortalTemplate) => {
@@ -1485,7 +1487,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     setSelectedCourseId(newCourse.id);
     if (showBuilder) setActiveTab("builder");
     persistCourse(newCourse);
-    toast.success("Template corso creato come bozza.");
+    toast.success(t("Template corso creato come bozza."));
   };
 
   // Aggiunta modulo a 1 clic: crea un modulo con titolo default e lo accoda —
@@ -1504,7 +1506,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     const nextCourse = { ...selectedCourse, modules: [...selectedCourse.modules, module], updatedAt: "Aggiornato ora" };
     setCourses((prev) => prev.map((course) => (course.id === selectedCourse.id ? nextCourse : course)));
     persistCourse(nextCourse);
-    toast.success("Modulo aggiunto — dagli titolo e contenuti qui sotto.");
+    toast.success(t("Modulo aggiunto — dagli titolo e contenuti qui sotto."));
   };
 
   // Patch inline di un modulo (titolo/descrizione). persistCourse è debounced.
@@ -1522,11 +1524,11 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
   const addAsset = async () => {
     if (!selectedCourse || assetUploading) return;
     if (!assetDraft.title.trim()) {
-      toast.error("Inserisci il nome del contenuto.");
+      toast.error(t("Inserisci il nome del contenuto."));
       return;
     }
     if (!assetDraft.file && !assetDraft.source.trim() && !assetDraft.content.trim()) {
-      toast.error("Aggiungi un file, un link o un testo.");
+      toast.error(t("Aggiungi un file, un link o un testo."));
       return;
     }
     if (assetDraft.file) {
@@ -1548,7 +1550,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
             "Upload materiale oltre 60 secondi.",
           );
         } catch (error) {
-          toast.warning("Upload remoto non disponibile", {
+          toast.warning(t("Upload remoto non disponibile"), {
             description: String(
               (error as { message?: string })?.message ??
                 "Il materiale viene salvato come riferimento locale e potrai ricaricarlo quando lo storage e attivo.",
@@ -1557,8 +1559,8 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
         }
       }
       if (assetDraft.file && !companyId) {
-        toast.info("File agganciato come bozza locale.", {
-          description: "Quando la sincronizzazione aziendale e disponibile verra caricato nello storage.",
+        toast.info(t("File agganciato come bozza locale."), {
+          description: t("Quando la sincronizzazione aziendale e disponibile verra caricato nello storage."),
         });
       }
 
@@ -1601,7 +1603,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
         file: null,
         downloadable: true,
       });
-      toast.success("Materiale aggiunto al corso.");
+      toast.success(t("Materiale aggiunto al corso."));
     } finally {
       setAssetUploading(false);
     }
@@ -1613,7 +1615,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     // guard la UI mostrava il nuovo stato/pubblico ma persistCourse lo scartava
     // in silenzio → modifica "fantasma" che spariva al reload.
     if (selectedCourse.sourceType === "platform") {
-      toast.info("Corso fornito dalla piattaforma: è in sola lettura.");
+      toast.info(t("Corso fornito dalla piattaforma: è in sola lettura."));
       return;
     }
     const nextCourse = { ...selectedCourse, ...patch, updatedAt: "Aggiornato ora" };
@@ -1624,14 +1626,14 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
   const changeCourseStatus = (status: PortalCourseStatus) => {
     if (!selectedCourse) return false;
     if (selectedCourse.sourceType === "platform") {
-      toast.info("Corso fornito dalla piattaforma: è in sola lettura.");
+      toast.info(t("Corso fornito dalla piattaforma: è in sola lettura."));
       return false;
     }
     if (status === "pubblicato") {
       const publishQuality = getCourseQuality(selectedCourse);
       if (publishQuality.score < 80) {
-        toast.error("Corso non pronto per la pubblicazione.", {
-          description: "Completa moduli, materiali e accessi prima di renderlo visibile agli utenti.",
+        toast.error(t("Corso non pronto per la pubblicazione."), {
+          description: t("Completa moduli, materiali e accessi prima di renderlo visibile agli utenti."),
         });
         if (showBuilder) setActiveTab("builder");
         return false;
@@ -1670,13 +1672,13 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     setCourses((prev) => [copy, ...prev]);
     setSelectedCourseId(copy.id);
     persistCourse(copy);
-    toast.success("Corso duplicato come bozza.");
+    toast.success(t("Corso duplicato come bozza."));
   };
 
   const removeAsset = (assetId: string) => {
     if (!selectedCourse) return;
     const asset = selectedCourse.assets.find((item) => item.id === assetId);
-    if (asset && !window.confirm(`Rimuovere il materiale "${asset.title}" dal corso?`)) return;
+    if (asset && !window.confirm(t("Rimuovere il materiale \"{title}\" dal corso?", { title: String(asset.title ?? "") }))) return;
     const nextCourse = {
       ...selectedCourse,
       assets: selectedCourse.assets.filter((asset) => asset.id !== assetId),
@@ -1684,17 +1686,17 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     };
     setCourses((prev) => prev.map((course) => (course.id === selectedCourse.id ? nextCourse : course)));
     persistCourse(nextCourse);
-    toast.success("Materiale rimosso dal corso.");
+    toast.success(t("Materiale rimosso dal corso."));
   };
 
   const removeModule = (moduleId: string) => {
     if (!selectedCourse) return;
     if (selectedCourse.modules.length <= 1) {
-      toast.error("Mantieni almeno un modulo nel corso.");
+      toast.error(t("Mantieni almeno un modulo nel corso."));
       return;
     }
     const module = selectedCourse.modules.find((item) => item.id === moduleId);
-    if (module && !window.confirm(`Rimuovere il modulo "${module.title}"? I materiali collegati resteranno nel corso.`)) {
+    if (module && !window.confirm(t("Rimuovere il modulo \"{title}\"? I materiali collegati resteranno nel corso.", { title: String(module.title ?? "") }))) {
       return;
     }
     const nextCourse = {
@@ -1707,8 +1709,8 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     };
     setCourses((prev) => prev.map((course) => (course.id === selectedCourse.id ? nextCourse : course)));
     persistCourse(nextCourse);
-    toast.success("Modulo rimosso.", {
-      description: "Gli eventuali materiali collegati sono stati spostati tra i contenuti generali.",
+    toast.success(t("Modulo rimosso."), {
+      description: t("Gli eventuali materiali collegati sono stati spostati tra i contenuti generali."),
     });
   };
 
@@ -1723,7 +1725,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     const nextCourse = { ...selectedCourse, modules, updatedAt: "Aggiornato ora" };
     setCourses((prev) => prev.map((course) => (course.id === selectedCourse.id ? nextCourse : course)));
     persistCourse(nextCourse);
-    toast.success("Ordine moduli aggiornato.");
+    toast.success(t("Ordine moduli aggiornato."));
   };
 
   const openAssetAction = async (asset: PortalAsset) => {
@@ -1735,7 +1737,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
       return;
     }
     if (!target) {
-      toast.error("Questo materiale non ha ancora un file o link collegato.");
+      toast.error(t("Questo materiale non ha ancora un file o link collegato."));
       return;
     }
     if (target.startsWith("http")) {
@@ -1743,8 +1745,8 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
       return;
     }
     if (target.startsWith("locale/")) {
-      toast.info("Materiale in bozza locale", {
-        description: "Il file sara apribile dopo upload nello storage del Portale.",
+      toast.info(t("Materiale in bozza locale"), {
+        description: t("Il file sara apribile dopo upload nello storage del Portale."),
       });
       return;
     }
@@ -1756,7 +1758,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
       );
       window.open(signedUrl, "_blank", "noopener,noreferrer");
     } catch (error) {
-      toast.error("Impossibile aprire il materiale", {
+      toast.error(t("Impossibile aprire il materiale"), {
         description: String((error as { message?: string })?.message ?? "Riprova piu tardi."),
       });
     }
@@ -1766,7 +1768,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     if (!selectedCourse) return;
     const nextStatus: PortalCourseStatus = selectedCourse.status === "pubblicato" ? "revisione" : "pubblicato";
     if (changeCourseStatus(nextStatus)) {
-      toast.success(nextStatus === "pubblicato" ? "Corso pubblicato nel Portale." : "Corso riportato in revisione.");
+      toast.success(nextStatus === "pubblicato" ? t("Corso pubblicato nel Portale.") : t("Corso riportato in revisione."));
     }
   };
 
@@ -1780,7 +1782,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
         : null;
     return (
       <AvvisoSoloDaComputer
-        titolo="I corsi si creano da computer o tablet"
+        titolo={t("I corsi si creano da computer o tablet")}
         azione={doveGuardarli ? { etichetta: "Vedi i corsi", to: doveGuardarli } : undefined}
       />
     );
@@ -1807,8 +1809,8 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Il titolo segue la voce di menu: in «Crea corsi» diceva «Portale». */}
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-950">{mode === "builder" ? "Crea corsi" : "Portale"}</h1>
-                    <Badge className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50">Beta operativa</Badge>
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-950">{mode === "builder" ? t("Crea corsi") : t("Portale")}</h1>
+                    <Badge className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50">{t("Beta operativa")}</Badge>
                     {/* Lo stato si vede solo quando c'è qualcosa da sapere (caricamento,
                         salvataggio locale…): da sincronizzato mostrava «Sync Supabase»,
                         il nome del nostro fornitore, che al cliente non dice nulla. */}
@@ -1837,7 +1839,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
               {showBuilder && (
                 <Button className="h-11 gap-2 bg-blue-600 hover:bg-blue-700" onClick={createCourseQuick}>
                   <Plus className="h-4 w-4" />
-                  Nuovo corso
+                  {t("Nuovo corso")}
                 </Button>
               )}
 
@@ -1847,38 +1849,38 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
               <Dialog open={courseDialogOpen} onOpenChange={setCourseDialogOpen}>
                 <DialogContent className="max-w-xl">
                   <DialogHeader>
-                    <DialogTitle>Impostazioni corso</DialogTitle>
+                    <DialogTitle>{t("Impostazioni corso")}</DialogTitle>
                     <DialogDescription>
-                      Modifica titolo, descrizione, area e pubblico del corso selezionato.
+                      {t("Modifica titolo, descrizione, area e pubblico del corso selezionato.")}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-slate-700" htmlFor="course-title">
-                        Titolo corso
+                        {t("Titolo corso")}
                       </label>
                       <Input
                         id="course-title"
                         value={courseDraft.title}
                         onChange={(event) => setCourseDraft((prev) => ({ ...prev, title: event.target.value }))}
-                        placeholder="Es. Procedura posa serramenti"
+                        placeholder={t("Es. Procedura posa serramenti")}
                       />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-slate-700" htmlFor="course-description">
-                        Descrizione
+                        {t("Descrizione")}
                       </label>
                       <Textarea
                         id="course-description"
                         value={courseDraft.description}
                         onChange={(event) => setCourseDraft((prev) => ({ ...prev, description: event.target.value }))}
-                        placeholder="Cosa deve imparare il team e quando usare questo percorso."
+                        placeholder={t("Cosa deve imparare il team e quando usare questo percorso.")}
                         rows={4}
                       />
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700" htmlFor="course-area">Area</label>
+                        <label className="text-sm font-medium text-slate-700" htmlFor="course-area">{t("Area")}</label>
                         <Select
                           value={courseDraft.area}
                           onValueChange={(value) => setCourseDraft((prev) => ({ ...prev, area: value as PortalArea }))}
@@ -1901,7 +1903,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                           conforme allo schema DB. */}
                       {!isAdminContext && (
                         <div className="space-y-2">
-                          <label className="text-sm font-medium text-slate-700" htmlFor="course-access">Accesso</label>
+                          <label className="text-sm font-medium text-slate-700" htmlFor="course-access">{t("Accesso")}</label>
                           <Select
                             value={courseDraft.audience}
                             onValueChange={(value) =>
@@ -1925,10 +1927,10 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setCourseDialogOpen(false)}>
-                      Annulla
+                      {t("Annulla")}
                     </Button>
                     <Button onClick={saveCourseSettings} className="bg-blue-600 hover:bg-blue-700">
-                      Salva
+                      {t("Salva")}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -1941,38 +1943,38 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                     variant="outline"
                     className="h-11 gap-2 border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
                     disabled={isCourseReadOnly}
-                    title={isCourseReadOnly ? "Corso piattaforma · sola lettura" : undefined}
+                    title={isCourseReadOnly ? t("Corso piattaforma · sola lettura") : undefined}
                   >
                     <UploadCloud className="h-4 w-4" />
-                    Carica materiale
+                    {t("Carica materiale")}
                   </Button>
                 </DialogTrigger>
                 )}
                 <DialogContent className="max-w-lg">
                   <DialogHeader>
-                    <DialogTitle>Aggiungi materiale</DialogTitle>
+                    <DialogTitle>{t("Aggiungi materiale")}</DialogTitle>
                     <DialogDescription>
-                      Inserisci video, PDF, link, quiz o procedura nel corso selezionato.
+                      {t("Inserisci video, PDF, link, quiz o procedura nel corso selezionato.")}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                      Corso selezionato: <span className="font-semibold text-slate-900">{selectedCourse?.title}</span>
+                      {t("Corso selezionato:")} <span className="font-semibold text-slate-900">{selectedCourse?.title}</span>
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-slate-700" htmlFor="asset-title">
-                        Nome contenuto
+                        {t("Nome contenuto")}
                       </label>
                       <Input
                         id="asset-title"
                         value={assetDraft.title}
                         onChange={(event) => setAssetDraft((prev) => ({ ...prev, title: event.target.value }))}
-                        placeholder="Es. Video sopralluogo consultivo"
+                        placeholder={t("Es. Video sopralluogo consultivo")}
                       />
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700" htmlFor="asset-type">Tipo</label>
+                        <label className="text-sm font-medium text-slate-700" htmlFor="asset-type">{t("Tipo")}</label>
                         <Select
                           value={assetDraft.type}
                           onValueChange={(value) =>
@@ -1997,18 +1999,18 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-700" htmlFor="asset-duration">
-                          Durata / dettaglio
+                          {t("Durata / dettaglio")}
                         </label>
                         <Input
                           id="asset-duration"
                           value={assetDraft.duration}
                           onChange={(event) => setAssetDraft((prev) => ({ ...prev, duration: event.target.value }))}
-                          placeholder="Es. 12 min"
+                          placeholder={t("Es. 12 min")}
                         />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-slate-700" htmlFor="asset-module">Modulo collegato</label>
+                      <label className="text-sm font-medium text-slate-700" htmlFor="asset-module">{t("Modulo collegato")}</label>
                       <Select
                         value={assetDraft.moduleId}
                         onValueChange={(value) => setAssetDraft((prev) => ({ ...prev, moduleId: value }))}
@@ -2017,7 +2019,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="generale">Materiale generale del corso</SelectItem>
+                          <SelectItem value="generale">{t("Materiale generale del corso")}</SelectItem>
                           {selectedCourse?.modules.map((module) => (
                             <SelectItem key={module.id} value={module.id}>
                               {module.title}
@@ -2028,7 +2030,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-slate-700" htmlFor="asset-file">
-                        Carica file
+                        {t("Carica file")}
                       </label>
                       <Input
                         id="asset-file"
@@ -2058,33 +2060,33 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                       />
                       {assetDraft.file && (
                         <p className="text-xs text-slate-500">
-                          {assetDraft.file.name} · {formatFileSize(assetDraft.file.size)} · {assetDraft.file.type || "file"}
+                          {assetDraft.file.name} · {formatFileSize(assetDraft.file.size)} · {assetDraft.file.type || t("file")}
                         </p>
                       )}
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-slate-700" htmlFor="asset-source">
-                        Link o riferimento alternativo
+                        {t("Link o riferimento alternativo")}
                       </label>
                       <Input
                         id="asset-source"
                         value={assetDraft.source}
                         onChange={(event) => setAssetDraft((prev) => ({ ...prev, source: event.target.value }))}
-                        placeholder="Es. https://video-corso.it oppure cartella/nota interna"
+                        placeholder={t("Es. https://video-corso.it oppure cartella/nota interna")}
                       />
                       <p className="text-xs text-slate-500">
-                        Se carichi un file viene salvato nel bucket privato; se inserisci un URL viene aperto come link.
+                        {t("Se carichi un file viene salvato nel bucket privato; se inserisci un URL viene aperto come link.")}
                       </p>
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-slate-700" htmlFor="asset-content">
-                        Testo, istruzioni o procedura
+                        {t("Testo, istruzioni o procedura")}
                       </label>
                       <Textarea
                         id="asset-content"
                         value={assetDraft.content}
                         onChange={(event) => setAssetDraft((prev) => ({ ...prev, content: event.target.value }))}
-                        placeholder="Scrivi qui una lezione testuale, una checklist, una procedura o le domande del quiz."
+                        placeholder={t("Scrivi qui una lezione testuale, una checklist, una procedura o le domande del quiz.")}
                         rows={4}
                       />
                     </div>
@@ -2096,19 +2098,19 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                         }
                       />
                       <span>
-                        <span className="block text-sm font-semibold text-slate-900">Scaricabile dall'utente</span>
+                        <span className="block text-sm font-semibold text-slate-900">{t("Scaricabile dall'utente")}</span>
                         <span className="mt-0.5 block text-xs leading-5 text-slate-500">
-                          Disattiva per video o contenuti che devono restare solo in consultazione.
+                          {t("Disattiva per video o contenuti che devono restare solo in consultazione.")}
                         </span>
                       </span>
                     </label>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setAssetDialogOpen(false)} disabled={assetUploading}>
-                      Annulla
+                      {t("Annulla")}
                     </Button>
                     <Button onClick={addAsset} className="bg-blue-600 hover:bg-blue-700" disabled={assetUploading}>
-                      {assetUploading ? "Caricamento..." : "Aggiungi"}
+                      {assetUploading ? t("Caricamento...") : t("Aggiungi")}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -2120,21 +2122,21 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                   className="h-11 gap-2 text-slate-700 hover:bg-white"
                   onClick={() => {
                     setActiveTab("preview");
-                    toast.success("Anteprima utente aperta.");
+                    toast.success(t("Anteprima utente aperta."));
                   }}
                 >
                   <PanelRight className="h-4 w-4" />
-                  Apri pagina utente
+                  {t("Apri pagina utente")}
                 </Button>
               )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Corsi pubblicati" value={String(stats.published)} icon={BookMarked} tone="blue" />
-            <StatCard label="Iscrizioni team" value={usaIscrizioniReali ? totaliIscrizioni ? String(totaliIscrizioni.enrolled) : "—" : String(stats.totalEnrolled)} icon={Users} tone="orange" />
-            <StatCard label="Completamento" value={usaIscrizioniReali ? totaliIscrizioni ? `${totaliIscrizioni.completion}%` : "—" : `${stats.avgCompletion}%`} icon={CheckCircle2} tone="green" />
-            <StatCard label="Materiali" value={String(stats.assets)} icon={FileArchive} tone="slate" />
+            <StatCard label={t("Corsi pubblicati")} value={String(stats.published)} icon={BookMarked} tone="blue" />
+            <StatCard label={t("Iscrizioni team")} value={usaIscrizioniReali ? totaliIscrizioni ? String(totaliIscrizioni.enrolled) : "—" : String(stats.totalEnrolled)} icon={Users} tone="orange" />
+            <StatCard label={t("Completamento")} value={usaIscrizioniReali ? totaliIscrizioni ? `${totaliIscrizioni.completion}%` : "—" : `${stats.avgCompletion}%`} icon={CheckCircle2} tone="green" />
+            <StatCard label={t("Materiali")} value={String(stats.assets)} icon={FileArchive} tone="slate" />
           </div>
         </div>
       </section>
@@ -2142,8 +2144,8 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
 
       {usaIscrizioniReali && iscrizioniQuery.isError && (
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          Iscrizioni e avanzamento non disponibili. I valori dei corsi non sostituiscono i dati delle persone.
-          <Button variant="outline" size="sm" className="ml-2" onClick={() => void iscrizioniQuery.refetch()}>Riprova dati formazione</Button>
+          {t("Iscrizioni e avanzamento non disponibili. I valori dei corsi non sostituiscono i dati delle persone.")}
+          <Button variant="outline" size="sm" className="ml-2" onClick={() => void iscrizioniQuery.refetch()}>{t("Riprova dati formazione")}</Button>
         </div>
       )}
 
@@ -2152,12 +2154,12 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
         <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           <TabsTrigger value="corsi" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
             <Library className="h-4 w-4" />
-            Corsi
+            {t("Corsi")}
           </TabsTrigger>
           {showBuilder && (
             <TabsTrigger value="builder" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
               <LayoutTemplate className="h-4 w-4" />
-              Builder
+              {t("Builder")}
             </TabsTrigger>
           )}
           {/* "Crea corsi" (authoring + distribuzione): procedure/manuali, Accessi
@@ -2167,26 +2169,26 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
             <>
               <TabsTrigger value="procedure" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
                 <ClipboardCheck className="h-4 w-4" />
-                Procedure
+                {t("Procedure")}
               </TabsTrigger>
               <TabsTrigger value="accessi" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
                 <LockKeyhole className="h-4 w-4" />
-                Accessi
+                {t("Accessi")}
               </TabsTrigger>
               <TabsTrigger value="persone" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
                 <Users className="h-4 w-4" />
-                Persone
+                {t("Persone")}
               </TabsTrigger>
               <TabsTrigger value="riepilogo" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
                 <BarChart3 className="h-4 w-4" />
-                Riepilogo
+                {t("Riepilogo")}
               </TabsTrigger>
             </>
           )}
           {showPreview && (
             <TabsTrigger value="preview" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
               <UserRoundCheck className="h-4 w-4" />
-              Pagina utente
+              {t("Pagina utente")}
             </TabsTrigger>
           )}
         </TabsList>
@@ -2214,18 +2216,18 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     className="h-11 rounded-xl border-slate-200 pl-9 text-sm"
-                    aria-label="Cerca corso, manuale o procedura"
-                    placeholder="Cerca corso, manuale o procedura"
+                    aria-label={t("Cerca corso, manuale o procedura")}
+                    placeholder={t("Cerca corso, manuale o procedura")}
                   />
                 </div>
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-slate-500" />
                   <Select value={areaFilter} onValueChange={(value) => setAreaFilter(value as PortalArea | "tutte")}>
-                    <SelectTrigger aria-label="Filtra corsi per area" className="h-11 w-full rounded-xl border-slate-200 lg:w-[180px]">
+                    <SelectTrigger aria-label={t("Filtra corsi per area")} className="h-11 w-full rounded-xl border-slate-200 lg:w-[180px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="tutte">Tutte le aree</SelectItem>
+                      <SelectItem value="tutte">{t("Tutte le aree")}</SelectItem>
                       {Object.entries(areaLabels).map(([value, label]) => (
                         <SelectItem key={value} value={value}>
                           {label}
@@ -2251,8 +2253,8 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
               {filteredCourses.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
                   <Search className="mx-auto h-8 w-8 text-slate-400" />
-                  <h3 className="mt-3 text-base font-semibold text-slate-900">Nessun corso trovato</h3>
-                  <p className="mt-1 text-sm text-slate-500">Modifica ricerca o filtro per vedere altri contenuti.</p>
+                  <h3 className="mt-3 text-base font-semibold text-slate-900">{t("Nessun corso trovato")}</h3>
+                  <p className="mt-1 text-sm text-slate-500">{t("Modifica ricerca o filtro per vedere altri contenuti.")}</p>
                 </div>
               )}
             </section>
@@ -2339,9 +2341,9 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
       <Dialog open={accessDialogOpen} onOpenChange={setAccessDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Gestisci accessi corso</DialogTitle>
+            <DialogTitle>{t("Gestisci accessi corso")}</DialogTitle>
             <DialogDescription>
-              Decidi chi vede il percorso nel portale e in quale stato pubblicarlo.
+              {t("Decidi chi vede il percorso nel portale e in quale stato pubblicarlo.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -2350,7 +2352,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
               <p className="text-xs text-slate-500">{selectedCourse?.description}</p>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700" htmlFor="course-audience">Pubblico</label>
+              <label className="text-sm font-medium text-slate-700" htmlFor="course-audience">{t("Pubblico")}</label>
               <Select
                 value={selectedCourse?.audience ?? "tutti"}
                 onValueChange={(value) => updateSelectedCourse({ audience: value as PortalAudience })}
@@ -2374,7 +2376,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                   type="button"
                   onClick={() => {
                     if (changeCourseStatus(status)) {
-                      toast.success(status === "pubblicato" ? "Corso pubblicato nel Portale." : "Stato corso aggiornato.");
+                      toast.success(status === "pubblicato" ? t("Corso pubblicato nel Portale.") : t("Stato corso aggiornato."));
                     }
                   }}
                   className={cn(
@@ -2384,7 +2386,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                 >
                   <span className="font-semibold capitalize">{status}</span>
                   <span className="mt-1 block text-xs text-slate-500">
-                    {status === "pubblicato" ? "Visibile" : status === "revisione" ? "Controllo" : "Privato"}
+                    {status === "pubblicato" ? t("Visibile") : status === "revisione" ? t("Controllo") : t("Privato")}
                   </span>
                 </button>
               ))}
@@ -2392,7 +2394,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
           </div>
           <DialogFooter>
             <Button onClick={() => setAccessDialogOpen(false)} className="bg-blue-600 hover:bg-blue-700">
-              Salva accessi
+              {t("Salva accessi")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2401,9 +2403,9 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
       <Dialog open={Boolean(assetPreview)} onOpenChange={(open) => !open && setAssetPreview(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{assetPreview?.title ?? "Materiale corso"}</DialogTitle>
+            <DialogTitle>{assetPreview?.title ?? t("Materiale corso")}</DialogTitle>
             <DialogDescription>
-              {assetPreview ? `${assetTypeLabels[assetPreview.type]} · ${assetPreview.duration}` : "Contenuto del corso"}
+              {assetPreview ? `${assetTypeLabels[assetPreview.type]} · ${assetPreview.duration}` : t("Contenuto del corso")}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -2413,7 +2415,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
           </div>
           <DialogFooter>
             <Button onClick={() => setAssetPreview(null)} className="bg-blue-600 hover:bg-blue-700">
-              Chiudi
+              {t("Chiudi")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2468,17 +2470,18 @@ function PortalCommandCenter({
   onOpenModule: () => void;
   onOpenAsset: () => void;
 }) {
+  const t = useT();
   const [isExpanded, setIsExpanded] = useState(true);
   const nextActions = [
     {
-      title: course && course.modules.length < 2 ? "Aggiungi almeno un secondo modulo" : "Controlla ordine moduli",
-      description: "Percorsi brevi, ordinati e progressivi vengono completati di più.",
+      title: course && course.modules.length < 2 ? t("Aggiungi almeno un secondo modulo") : t("Controlla ordine moduli"),
+      description: t("Percorsi brevi, ordinati e progressivi vengono completati di più."),
       action: onOpenModule,
       icon: ListChecks,
     },
     {
-      title: course && course.assets.length === 0 ? "Collega un materiale pratico" : "Aggiorna libreria contenuti",
-      description: "PDF, video, procedure e quiz rendono il portale realmente operativo.",
+      title: course && course.assets.length === 0 ? t("Collega un materiale pratico") : t("Aggiorna libreria contenuti"),
+      description: t("PDF, video, procedure e quiz rendono il portale realmente operativo."),
       action: onOpenAsset,
       icon: UploadCloud,
     },
@@ -2499,14 +2502,12 @@ function PortalCommandCenter({
               <Rocket className="h-4 w-4" />
             </span>
             <span className="min-w-0">
-              <span className="block font-bold text-slate-950">Centro operativo Portale</span>
-              <span className="mt-0.5 block text-sm text-slate-500">
-                Qualità {quality.score}% · {stats.inReview} in revisione · {templates.length} template pronti
-              </span>
+              <span className="block font-bold text-slate-950">{t("Centro operativo Portale")}</span>
+              <span className="mt-0.5 block text-sm text-slate-500">{t("Qualità {score}% · {inReview} in revisione · {n} template pronti", { score: String(quality.score ?? ""), inReview: String(stats.inReview ?? ""), n: templates.length })}</span>
             </span>
           </span>
           <span className="inline-flex h-8 items-center gap-2 rounded-full bg-blue-50 px-3 text-sm font-semibold text-blue-700">
-            Mostra
+            {t("Mostra")}
             <ChevronDown className="h-4 w-4" />
           </span>
         </button>
@@ -2522,16 +2523,14 @@ function PortalCommandCenter({
               <div>
                 <div className="flex items-center gap-2">
                   <Rocket className="h-5 w-5 text-blue-600" />
-                  <h2 className="text-lg font-bold text-slate-950">Centro operativo Portale</h2>
+                  <h2 className="text-lg font-bold text-slate-950">{t("Centro operativo Portale")}</h2>
                 </div>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Parti da template, completa la qualità del corso e pubblica solo quando il percorso è chiaro.
+                  {t("Parti da template, completa la qualità del corso e pubblica solo quando il percorso è chiaro.")}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <Badge variant="outline" className="w-fit border-orange-200 bg-orange-50 text-orange-700">
-                  {stats.inReview} in revisione
-                </Badge>
+                <Badge variant="outline" className="w-fit border-orange-200 bg-orange-50 text-orange-700">{t("{inReview} in revisione", { inReview: String(stats.inReview ?? "") })}</Badge>
                 <button
                   type="button"
                   aria-expanded={isExpanded}
@@ -2539,7 +2538,7 @@ function PortalCommandCenter({
                   onClick={() => setIsExpanded(false)}
                   className="inline-flex h-8 items-center gap-1 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 >
-                  Nascondi
+                  {t("Nascondi")}
                   <ChevronUp className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -2559,7 +2558,7 @@ function PortalCommandCenter({
                   <h3 className="mt-3 text-sm font-bold text-slate-950">{template.title}</h3>
                   <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-500">{template.description}</p>
                   <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-blue-700">
-                    Usa template
+                    {t("Usa template")}
                     <ChevronRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
                   </span>
                 </button>
@@ -2571,7 +2570,7 @@ function PortalCommandCenter({
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Qualità corso</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("Qualità corso")}</p>
                   <h3 className="mt-1 text-2xl font-bold text-slate-950">{quality.score}%</h3>
                 </div>
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
@@ -2588,7 +2587,7 @@ function PortalCommandCenter({
                       <AlertCircle className="h-4 w-4 text-orange-500" />
                     )}
                     <span className={cn(check.done ? "text-slate-700" : "font-medium text-slate-900")}>
-                      {check.label}
+                      {t(check.label)}
                     </span>
                   </div>
                 ))}
@@ -2598,7 +2597,7 @@ function PortalCommandCenter({
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center gap-2">
                 <Flag className="h-5 w-5 text-orange-500" />
-                <h3 className="font-bold text-slate-950">Prossime azioni</h3>
+                <h3 className="font-bold text-slate-950">{t("Prossime azioni")}</h3>
               </div>
               <div className="space-y-3">
                 {nextActions.map((item) => {
@@ -2630,6 +2629,7 @@ function PortalCommandCenter({
 }
 
 function CourseCard({ course, active, onSelect, metriche }: { course: PortalCourse; active: boolean; onSelect: () => void; metriche?: StatisticheIscrizioniCorso | null }) {
+  const t = useT();
   const enrolled = metriche === undefined ? course.enrolled : metriche?.enrolled;
   const completion = metriche === undefined ? course.completion : metriche?.completion;
   return (
@@ -2646,7 +2646,7 @@ function CourseCard({ course, active, onSelect, metriche }: { course: PortalCour
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="border-blue-100 bg-blue-50 text-blue-700">
-              {areaLabels[course.area]}
+              {t(areaLabels[course.area])}
             </Badge>
             <Badge variant="outline" className={statusClasses[course.status]}>
               {course.status}
@@ -2655,9 +2655,9 @@ function CourseCard({ course, active, onSelect, metriche }: { course: PortalCour
               <Badge
                 variant="outline"
                 className="border-orange-200 bg-orange-50 text-orange-700"
-                title="Corso reso disponibile dalla piattaforma EdiliziaInCloud — sola lettura"
+                title={t("Corso reso disponibile dalla piattaforma EdiliziaInCloud — sola lettura")}
               >
-                ⚡ Piattaforma
+                {t("⚡ Piattaforma")}
               </Badge>
             )}
           </div>
@@ -2670,15 +2670,15 @@ function CourseCard({ course, active, onSelect, metriche }: { course: PortalCour
       <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-slate-500">
         <div>
           <p className="font-semibold text-slate-900">{course.modules.length}</p>
-          <p>moduli</p>
+          <p>{t("moduli")}</p>
         </div>
         <div>
           <p className="font-semibold text-slate-900">{enrolled ?? "—"}</p>
-          <p>iscritti</p>
+          <p>{t("iscritti")}</p>
         </div>
         <div>
           <p className="font-semibold text-slate-900">{completion == null ? "—" : `${completion}%`}</p>
-          <p>completato</p>
+          <p>{t("completato")}</p>
         </div>
       </div>
       {completion != null && <Progress value={completion} className="mt-4 h-2" />}
@@ -2707,13 +2707,14 @@ function CourseDetailPanel({
    */
   hideAudienceUi?: boolean;
 }) {
+  const t = useT();
   const completion = metriche === undefined ? course?.completion : metriche?.completion;
   const isPlatform = course?.sourceType === "platform";
   if (!course) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
         <GraduationCap className="mx-auto h-8 w-8 text-slate-400" />
-        <p className="mt-3 text-sm text-slate-500">Seleziona un corso per vedere dettagli e moduli.</p>
+        <p className="mt-3 text-sm text-slate-500">{t("Seleziona un corso per vedere dettagli e moduli.")}</p>
       </div>
     );
   }
@@ -2731,9 +2732,9 @@ function CourseDetailPanel({
                 <Badge
                   variant="outline"
                   className="border-orange-200 bg-orange-50 text-orange-700"
-                  title="Corso fornito dalla piattaforma EdiliziaInCloud — sola lettura"
+                  title={t("Corso fornito dalla piattaforma EdiliziaInCloud — sola lettura")}
                 >
-                  ⚡ Piattaforma · sola lettura
+                  {t("⚡ Piattaforma · sola lettura")}
                 </Badge>
               )}
             </div>
@@ -2746,19 +2747,19 @@ function CourseDetailPanel({
         </div>
 
         <div className={cn("mt-5 grid gap-3", hideAudienceUi ? "grid-cols-3" : "grid-cols-2")}>
-          <InfoTile label="Area" value={areaLabels[course.area]} icon={Building2} />
+          <InfoTile label={t("Area")} value={areaLabels[course.area]} icon={Building2} />
           {/* Tile "Accesso" mostra audience azienda-edile (operai/capicantiere)
               → nascosto in admin context dove non ha senso. */}
           {!hideAudienceUi && (
-            <InfoTile label="Accesso" value={audienceLabels[course.audience]} icon={LockKeyhole} />
+            <InfoTile label={t("Accesso")} value={audienceLabels[course.audience]} icon={LockKeyhole} />
           )}
-          <InfoTile label="Owner" value={course.owner} icon={BriefcaseBusiness} />
-          <InfoTile label="Update" value={course.updatedAt} icon={Clock3} />
+          <InfoTile label={t("Owner")} value={course.owner} icon={BriefcaseBusiness} />
+          <InfoTile label={t("Update")} value={course.updatedAt} icon={Clock3} />
         </div>
 
         <div className="mt-5 space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-slate-700">Completamento medio</span>
+            <span className="font-medium text-slate-700">{t("Completamento medio")}</span>
             <span className="font-bold text-slate-950">{completion == null ? "—" : `${completion}%`}</span>
           </div>
           {completion != null && <Progress value={completion} className="h-2" />}
@@ -2769,20 +2770,20 @@ function CourseDetailPanel({
             onClick={onPublish}
             disabled={isPlatform}
             className="gap-2 bg-blue-600 hover:bg-blue-700"
-            title={isPlatform ? "Modifiche bloccate: il corso appartiene alla piattaforma" : undefined}
+            title={isPlatform ? t("Modifiche bloccate: il corso appartiene alla piattaforma") : undefined}
           >
             <CheckCircle2 className="h-4 w-4" />
-            {course.status === "pubblicato" ? "Revisione" : "Pubblica"}
+            {course.status === "pubblicato" ? t("Revisione") : t("Pubblica")}
           </Button>
           {!hideAudienceUi && (
             <Button variant="outline" onClick={onOpenAccess} disabled={isPlatform} className="gap-2">
               <Settings2 className="h-4 w-4" />
-              Accessi
+              {t("Accessi")}
             </Button>
           )}
           <Button variant="outline" onClick={onDuplicate} className="gap-2">
             <Copy className="h-4 w-4" />
-            Duplica
+            {t("Duplica")}
           </Button>
         </div>
       </div>
@@ -2790,10 +2791,10 @@ function CourseDetailPanel({
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-slate-950">Moduli corso</h3>
-            <p className="text-sm text-slate-500">Ordine consigliato per il team.</p>
+            <h3 className="font-bold text-slate-950">{t("Moduli corso")}</h3>
+            <p className="text-sm text-slate-500">{t("Ordine consigliato per il team.")}</p>
           </div>
-          <Badge variant="outline">{course.modules.length} moduli</Badge>
+          <Badge variant="outline">{t("{n} moduli", { n: course.modules.length })}</Badge>
         </div>
         <div className="space-y-3">
           {course.modules.map((module, index) => (
@@ -2867,6 +2868,7 @@ function CourseBuilder({
   onCreateCourse?: () => void;
   onUpdateModule?: (moduleId: string, patch: Partial<PortalModule>) => void;
 }) {
+  const t = useT();
   // Empty-state chiaro: prima mostrava il vuoto (return null) se nessun corso
   // era selezionato — l'utente non capiva cosa fare.
   if (!course) {
@@ -2875,14 +2877,14 @@ function CourseBuilder({
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm">
           <GraduationCap className="h-7 w-7" />
         </div>
-        <h2 className="text-lg font-bold text-slate-950">Nessun corso selezionato</h2>
+        <h2 className="text-lg font-bold text-slate-950">{t("Nessun corso selezionato")}</h2>
         <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
-          Crea un nuovo corso e inizia subito a strutturarlo, oppure scegline uno dalla scheda «Corsi».
+          {t("Crea un nuovo corso e inizia subito a strutturarlo, oppure scegline uno dalla scheda «Corsi».")}
         </p>
         {onCreateCourse && (
           <Button onClick={onCreateCourse} className="mt-4 gap-2 bg-blue-600 hover:bg-blue-700">
             <Plus className="h-4 w-4" />
-            Crea corso
+            {t("Crea corso")}
           </Button>
         )}
       </section>
@@ -2907,20 +2909,20 @@ function CourseBuilder({
               <input
                 value={course.title}
                 onChange={(event) => onUpdateTitle?.(event.target.value)}
-                placeholder="Titolo del corso"
-                aria-label="Titolo corso"
+                placeholder={t("Titolo del corso")}
+                aria-label={t("Titolo corso")}
                 className="-ml-1 w-full max-w-md rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xl font-bold text-slate-950 outline-none transition hover:border-slate-200 focus:border-blue-300 focus:bg-white"
               />
             )}
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="text-sm text-slate-500">Struttura moduli, materiali e checklist, poi pubblica.</p>
+              <p className="text-sm text-slate-500">{t("Struttura moduli, materiali e checklist, poi pubblica.")}</p>
               {!isPlatform && onOpenSettings && (
                 <button
                   type="button"
                   onClick={onOpenSettings}
                   className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-blue-700 transition hover:bg-blue-50"
                 >
-                  <Settings2 className="h-3.5 w-3.5" /> Impostazioni
+                  <Settings2 className="h-3.5 w-3.5" /> {t("Impostazioni")}
                 </button>
               )}
             </div>
@@ -2930,44 +2932,43 @@ function CourseBuilder({
               variant="outline"
               onClick={onAddModule}
               disabled={isPlatform}
-              title={isPlatform ? "Corso piattaforma · sola lettura" : undefined}
+              title={isPlatform ? t("Corso piattaforma · sola lettura") : undefined}
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              Modulo
+              {t("Modulo")}
             </Button>
             <Button
               variant="outline"
               onClick={onAddAsset}
               disabled={isPlatform}
-              title={isPlatform ? "Corso piattaforma · sola lettura" : undefined}
+              title={isPlatform ? t("Corso piattaforma · sola lettura") : undefined}
               className="gap-2"
             >
               <UploadCloud className="h-4 w-4" />
-              Materiale
+              {t("Materiale")}
             </Button>
             <Button
               onClick={onPublish}
               disabled={isPlatform}
-              title={isPlatform ? "Corso piattaforma · sola lettura" : undefined}
+              title={isPlatform ? t("Corso piattaforma · sola lettura") : undefined}
               className="gap-2 bg-blue-600 hover:bg-blue-700"
             >
               <CheckCircle2 className="h-4 w-4" />
-              Pubblica
+              {t("Pubblica")}
             </Button>
           </div>
         </div>
         {isPlatform && (
           <div className="rounded-xl border border-orange-200 bg-orange-50/70 p-3 text-sm text-orange-900">
-            <span className="font-semibold">⚡ Corso fornito dalla piattaforma EdiliziaInCloud.</span>{" "}
-            Il contenuto è gestito centralmente, non è modificabile dalla tua azienda.
-            Puoi però iscrivere il tuo team e tracciarne il completamento.
+            <span className="font-semibold">{t("⚡ Corso fornito dalla piattaforma EdiliziaInCloud.")}</span>{" "}
+            {t("Il contenuto è gestito centralmente, non è modificabile dalla tua azienda. Puoi però iscrivere il tuo team e tracciarne il completamento.")}
           </div>
         )}
 
         <div className="grid gap-2 sm:grid-cols-4">
-          <BuilderStep icon={ListChecks} label={`${course.modules.length} moduli`} />
-          <BuilderStep icon={FileArchive} label={`${course.assets.length} materiali`} />
+          <BuilderStep icon={ListChecks} label={t("{n} moduli", { n: course.modules.length })} />
+          <BuilderStep icon={FileArchive} label={t("{n} materiali", { n: course.assets.length })} />
           <BuilderStep icon={Video} label={`${assetsByType.video ?? 0} video`} />
           <BuilderStep icon={FileText} label={`${(assetsByType.pdf ?? 0) + (assetsByType.documento ?? 0)} documenti`} />
         </div>
@@ -2983,7 +2984,7 @@ function CourseBuilder({
                   <PlayCircle className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Modulo {index + 1}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("Modulo {index}", { index: index + 1 })}</p>
                   {isPlatform ? (
                     <>
                       <h3 className="mt-1 text-lg font-bold text-slate-950">{module.title}</h3>
@@ -2994,37 +2995,37 @@ function CourseBuilder({
                       <input
                         value={module.title}
                         onChange={(event) => onUpdateModule?.(module.id, { title: event.target.value })}
-                        placeholder="Titolo del modulo"
-                        aria-label={`Titolo modulo ${index + 1}`}
+                        placeholder={t("Titolo del modulo")}
+                        aria-label={t("Titolo modulo {index}", { index: index + 1 })}
                         className="mt-1 -ml-1 w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-lg font-bold text-slate-950 outline-none transition hover:border-slate-200 focus:border-blue-300 focus:bg-white"
                       />
                       <input
                         value={module.description}
                         onChange={(event) => onUpdateModule?.(module.id, { description: event.target.value })}
-                        placeholder="Descrizione breve del modulo"
-                        aria-label={`Descrizione modulo ${index + 1}`}
+                        placeholder={t("Descrizione breve del modulo")}
+                        aria-label={t("Descrizione modulo {index}", { index: index + 1 })}
                         className="mt-1 -ml-1 w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-sm text-slate-600 outline-none transition hover:border-slate-200 focus:border-blue-300 focus:bg-white"
                       />
                     </>
                   )}
                   <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                    <BuilderStep icon={Video} label={`${module.lessons} lezioni`} />
+                    <BuilderStep icon={Video} label={t("{lessons} lezioni", { lessons: String(module.lessons ?? "") })} />
                     <BuilderStep icon={Clock3} label={module.duration} />
-                    <BuilderStep icon={FileArchive} label={`${moduleAssets.length} materiali`} />
+                    <BuilderStep icon={FileArchive} label={t("{n} materiali", { n: moduleAssets.length })} />
                   </div>
                   <div className="mt-4 rounded-xl border border-white bg-white p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contenuti modulo</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("Contenuti modulo")}</p>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-7 px-2 text-xs text-blue-700"
                         onClick={onAddAsset}
                         disabled={isPlatform}
-                        title={isPlatform ? "Corso piattaforma · sola lettura" : undefined}
+                        title={isPlatform ? t("Corso piattaforma · sola lettura") : undefined}
                       >
                         <Plus className="mr-1 h-3.5 w-3.5" />
-                        Aggiungi
+                        {t("Aggiungi")}
                       </Button>
                     </div>
                     {moduleAssets.length > 0 ? (
@@ -3052,18 +3053,16 @@ function CourseBuilder({
                         })}
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-500">Nessun contenuto collegato: aggiungi video, PDF, testo o quiz.</p>
+                      <p className="text-xs text-slate-500">{t("Nessun contenuto collegato: aggiungi video, PDF, testo o quiz.")}</p>
                     )}
                   </div>
                   <div className="mt-4 rounded-xl border border-blue-100 bg-white p-3">
                     <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Sequenza lezione</p>
-                        <p className="text-xs text-slate-500">Blocchi consigliati per una lezione chiara e tracciabile.</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">{t("Sequenza lezione")}</p>
+                        <p className="text-xs text-slate-500">{t("Blocchi consigliati per una lezione chiara e tracciabile.")}</p>
                       </div>
-                      <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">
-                        {moduleLessonBlocks.filter((block) => block.status === "pronto").length}/{moduleLessonBlocks.length} pronti
-                      </Badge>
+                      <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">{t("{n}/{n2} pronti", { n: moduleLessonBlocks.filter((block) => block.status === "pronto").length, n2: moduleLessonBlocks.length })}</Badge>
                     </div>
                     <LessonBlockStrip
                       blocks={moduleLessonBlocks}
@@ -3074,8 +3073,8 @@ function CourseBuilder({
                           return;
                         }
 
-                        toast.info("Blocco consigliato", {
-                          description: "Aggiungi il contenuto dal builder per renderlo disponibile nella pagina utente.",
+                        toast.info(t("Blocco consigliato"), {
+                          description: t("Aggiungi il contenuto dal builder per renderlo disponibile nella pagina utente."),
                         });
                       }}
                     />
@@ -3088,7 +3087,7 @@ function CourseBuilder({
                     className="h-8 w-8"
                     disabled={index === 0 || isPlatform}
                     onClick={() => onMoveModule(module.id, "up")}
-                    aria-label="Sposta modulo su"
+                    aria-label={t("Sposta modulo su")}
                   >
                     <ArrowUp className="h-4 w-4" />
                   </Button>
@@ -3098,7 +3097,7 @@ function CourseBuilder({
                     className="h-8 w-8"
                     disabled={index === course.modules.length - 1 || isPlatform}
                     onClick={() => onMoveModule(module.id, "down")}
-                    aria-label="Sposta modulo giu"
+                    aria-label={t("Sposta modulo giu")}
                   >
                     <ArrowDown className="h-4 w-4" />
                   </Button>
@@ -3108,7 +3107,7 @@ function CourseBuilder({
                     className="h-8 w-8 text-slate-500 hover:text-red-600"
                     onClick={() => onRemoveModule(module.id)}
                     disabled={isPlatform}
-                    aria-label="Rimuovi modulo"
+                    aria-label={t("Rimuovi modulo")}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -3122,16 +3121,16 @@ function CourseBuilder({
 
       <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div>
-          <h3 className="font-bold text-slate-950">Libreria materiale</h3>
-          <p className="text-sm text-slate-500">Contenuti collegati al corso selezionato.</p>
+          <h3 className="font-bold text-slate-950">{t("Libreria materiale")}</h3>
+          <p className="text-sm text-slate-500">{t("Contenuti collegati al corso selezionato.")}</p>
         </div>
         <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
           <div className="flex items-center gap-2">
             <WandSparkles className="h-5 w-5 text-blue-700" />
-            <h4 className="font-bold text-slate-950">Blueprint lezione ideale</h4>
+            <h4 className="font-bold text-slate-950">{t("Blueprint lezione ideale")}</h4>
           </div>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Ogni modulo dovrebbe alternare video, testo operativo, allegato, verifica e presa visione quando serve.
+            {t("Ogni modulo dovrebbe alternare video, testo operativo, allegato, verifica e presa visione quando serve.")}
           </p>
           <div className="mt-3 grid gap-2">
             {(["video", "testo", "download", "quiz", "presa_visione"] as PortalLessonBlockType[]).map((blockType) => {
@@ -3139,7 +3138,7 @@ function CourseBuilder({
               return (
                 <div key={blockType} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm text-slate-700">
                   <Icon className="h-4 w-4 text-blue-600" />
-                  <span className="font-medium">{lessonBlockLabels[blockType]}</span>
+                  <span className="font-medium">{t(lessonBlockLabels[blockType])}</span>
                 </div>
               );
             })}
@@ -3147,9 +3146,7 @@ function CourseBuilder({
         </div>
         <div className="space-y-3">
           {unlinkedAssetCount > 0 && (
-            <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
-              {unlinkedAssetCount} materiale/i generali non collegati a un modulo. Collegarli rende piu chiara la vista utente.
-            </div>
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">{t("{unlinkedAssetCount} materiale/i generali non collegati a un modulo. Collegarli rende piu chiara la vista utente.", { unlinkedAssetCount: String(unlinkedAssetCount ?? "") })}</div>
           )}
           {course.assets.map((asset) => {
             const Icon = assetIcon[asset.type];
@@ -3162,7 +3159,7 @@ function CourseBuilder({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-slate-900">{asset.title}</p>
-                    <p className="text-xs text-slate-500">{assetTypeLabels[asset.type]} · {asset.duration}</p>
+                    <p className="text-xs text-slate-500">{t(assetTypeLabels[asset.type])} · {asset.duration}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Badge variant="outline" className="bg-slate-50 text-xs">
                         {getAssetModuleTitle(course, asset)}
@@ -3176,7 +3173,7 @@ function CourseBuilder({
                             : "border-emerald-200 bg-emerald-50 text-emerald-700",
                         )}
                       >
-                        {asset.downloadable === false ? "Solo visione" : "Scaricabile"}
+                        {asset.downloadable === false ? t("Solo visione") : t("Scaricabile")}
                       </Badge>
                       {asset.mimeType && (
                         <Badge variant="outline" className="bg-white text-xs text-slate-600">
@@ -3191,7 +3188,7 @@ function CourseBuilder({
                     className="h-8 w-8 shrink-0 text-slate-500 hover:text-red-600"
                     onClick={() => onRemoveAsset(asset.id)}
                     disabled={isPlatform}
-                    aria-label="Rimuovi materiale"
+                    aria-label={t("Rimuovi materiale")}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -3212,7 +3209,7 @@ function CourseBuilder({
                     ) : (
                       <Download className="h-3.5 w-3.5" />
                     )}
-                    {isOpenable ? getAssetActionLabel(asset) : "Da collegare"}
+                    {isOpenable ? getAssetActionLabel(asset) : t("Da collegare")}
                   </Button>
                 </div>
               </div>
@@ -3220,7 +3217,7 @@ function CourseBuilder({
           })}
           {course.assets.length === 0 && (
             <div className="rounded-xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">
-              Nessun materiale ancora caricato.
+              {t("Nessun materiale ancora caricato.")}
             </div>
           )}
         </div>
@@ -3249,10 +3246,11 @@ function LessonBlockStrip({
   activeBlockId?: string;
   onOpenBlock?: (block: PortalLessonBlock) => void;
 }) {
+  const t = useT();
   if (blocks.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
-        Nessun blocco lezione disponibile.
+        {t("Nessun blocco lezione disponibile.")}
       </div>
     );
   }
@@ -3306,8 +3304,8 @@ function LessonBlockStrip({
                   {block.status === "pronto"
                     ? lessonBlockLabels[block.type]
                     : block.status === "manca_risorsa"
-                      ? "Da collegare"
-                      : "Suggerito"}
+                      ? t("Da collegare")
+                      : t("Suggerito")}
                 </Badge>
               </span>
               <span className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{block.description}</span>
@@ -3352,6 +3350,7 @@ function KnowledgeBasePanel({
   onAddAsset: () => void;
   onCreateFromTemplate: (template: PortalTemplate) => void;
 }) {
+  const t = useT();
   const categoryCounts = allItems.reduce<Record<PortalKnowledgeFilter, number>>(
     (acc, item) => {
       acc.tutti += 1;
@@ -3370,43 +3369,39 @@ function KnowledgeBasePanel({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-                Manuali aziendali
+                {t("Manuali aziendali")}
               </Badge>
-              <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                {stats.acknowledgements} prese visione
-              </Badge>
+              <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">{t("{acknowledgements} prese visione", { acknowledgements: String(stats.acknowledgements ?? "") })}</Badge>
             </div>
             <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-950">
-              Procedure, manuali e regolamenti
+              {t("Procedure, manuali e regolamenti")}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              Organizza il know-how aziendale come una libreria operativa: SOP, manuali, policy, quiz e documenti con
-              responsabile, corso collegato e stato risorsa.
+              {t("Organizza il know-how aziendale come una libreria operativa: SOP, manuali, policy, quiz e documenti con responsabile, corso collegato e stato risorsa.")}
             </p>
             <div className="mt-5 grid gap-2 sm:grid-cols-4">
-              <KnowledgeMetric label="Documenti" value={stats.total} icon={FileArchive} tone="blue" />
-              <KnowledgeMetric label="Procedure" value={stats.procedures} icon={ClipboardCheck} tone="emerald" />
-              <KnowledgeMetric label="Manuali" value={stats.manuals} icon={BookOpenCheck} tone="slate" />
-              <KnowledgeMetric label="Da collegare" value={stats.missingResources} icon={AlertCircle} tone="orange" />
+              <KnowledgeMetric label={t("Documenti")} value={stats.total} icon={FileArchive} tone="blue" />
+              <KnowledgeMetric label={t("Procedure")} value={stats.procedures} icon={ClipboardCheck} tone="emerald" />
+              <KnowledgeMetric label={t("Manuali")} value={stats.manuals} icon={BookOpenCheck} tone="slate" />
+              <KnowledgeMetric label={t("Da collegare")} value={stats.missingResources} icon={AlertCircle} tone="orange" />
             </div>
           </div>
 
           <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-sm">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-blue-600" />
-              <h3 className="font-bold text-slate-950">Governance consigliata</h3>
+              <h3 className="font-bold text-slate-950">{t("Governance consigliata")}</h3>
             </div>
             <div className="mt-4 space-y-3 text-sm text-slate-600">
               <p className="rounded-2xl bg-slate-50 p-3">
-                Ogni procedura dovrebbe avere versione, responsabile, data revisione e presa visione per i ruoli
-                interessati.
+                {t("Ogni procedura dovrebbe avere versione, responsabile, data revisione e presa visione per i ruoli interessati.")}
               </p>
               <p className="rounded-2xl bg-orange-50 p-3 text-orange-900">
-                I documenti senza file, link o testo restano visibili nel builder ma non sono ancora fruibili dall'utente.
+                {t("I documenti senza file, link o testo restano visibili nel builder ma non sono ancora fruibili dall'utente.")}
               </p>
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="font-semibold text-emerald-950">Copertura qualità</span>
+                  <span className="font-semibold text-emerald-950">{t("Copertura qualità")}</span>
                   <span className="text-lg font-bold text-emerald-700">{stats.compliant}%</span>
                 </div>
                 <Progress value={stats.compliant} className="mt-2 h-2" />
@@ -3425,12 +3420,12 @@ function KnowledgeBasePanel({
                 value={search}
                 onChange={(event) => onSearchChange(event.target.value)}
                 className="h-11 rounded-2xl border-slate-200 pl-9 text-sm"
-                placeholder="Cerca SOP, manuale, regolamento, quiz o corso collegato"
+                placeholder={t("Cerca SOP, manuale, regolamento, quiz o corso collegato")}
               />
             </div>
             <Button className="h-11 gap-2 bg-blue-600 hover:bg-blue-700" onClick={onAddAsset}>
               <UploadCloud className="h-4 w-4" />
-              Carica documento
+              {t("Carica documento")}
             </Button>
           </div>
 
@@ -3447,7 +3442,7 @@ function KnowledgeBasePanel({
                     : "border-slate-200 bg-white text-slate-600",
                 )}
               >
-                {knowledgeCategoryLabels[category]}
+                {t(knowledgeCategoryLabels[category])}
                 <span className="ml-1 text-slate-400">{categoryCounts[category]}</span>
               </button>
             ))}
@@ -3455,11 +3450,11 @@ function KnowledgeBasePanel({
 
           <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
             <div className="hidden grid-cols-[1.05fr_0.7fr_0.58fr_0.62fr_0.5fr] gap-4 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 xl:grid">
-              <span>Documento</span>
-              <span>Corso / modulo</span>
-              <span>Categoria</span>
-              <span>Governance</span>
-              <span>Stato</span>
+              <span>{t("Documento")}</span>
+              <span>{t("Corso / modulo")}</span>
+              <span>{t("Categoria")}</span>
+              <span>{t("Governance")}</span>
+              <span>{t("Stato")}</span>
             </div>
             <div className="divide-y divide-slate-100">
               {items.map((item) => {
@@ -3474,7 +3469,7 @@ function KnowledgeBasePanel({
                         return;
                       }
                       onAddAsset();
-                      toast.info("Collega un file, un link o un testo per rendere apribile questo documento.");
+                      toast.info(t("Collega un file, un link o un testo per rendere apribile questo documento."));
                     }}
                     className="grid w-full gap-3 px-4 py-4 text-left transition hover:bg-blue-50/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 xl:grid-cols-[1.05fr_0.7fr_0.58fr_0.62fr_0.5fr] xl:items-center xl:gap-4"
                   >
@@ -3485,7 +3480,7 @@ function KnowledgeBasePanel({
                       <span className="min-w-0">
                         <span className="block truncate font-semibold text-slate-950">{item.title}</span>
                         <span className="mt-1 block truncate text-xs text-slate-500">
-                          {assetTypeLabels[item.asset.type]} · {item.asset.duration}
+                          {t(assetTypeLabels[item.asset.type])} · {item.asset.duration}
                         </span>
                       </span>
                     </span>
@@ -3497,11 +3492,11 @@ function KnowledgeBasePanel({
 
                     <span className="flex flex-wrap gap-2">
                       <Badge variant="outline" className="w-fit bg-white capitalize">
-                        {knowledgeCategoryLabels[item.category]}
+                        {t(knowledgeCategoryLabels[item.category])}
                       </Badge>
                       {item.requiresAcknowledgement && (
                         <Badge variant="outline" className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700">
-                          Presa visione
+                          {t("Presa visione")}
                         </Badge>
                       )}
                     </span>
@@ -3526,7 +3521,7 @@ function KnowledgeBasePanel({
                             : "border-orange-200 bg-orange-50 text-orange-700",
                         )}
                       >
-                        {item.hasResource ? "Apribile" : "Da collegare"}
+                        {item.hasResource ? t("Apribile") : t("Da collegare")}
                       </Badge>
                       <ChevronRight className="h-4 w-4 text-slate-300" />
                     </span>
@@ -3539,9 +3534,9 @@ function KnowledgeBasePanel({
           {items.length === 0 && (
             <div className="mt-5 rounded-2xl border border-dashed border-slate-300 p-8 text-center">
               <ClipboardCheck className="mx-auto h-9 w-9 text-slate-400" />
-              <h3 className="mt-3 font-bold text-slate-950">Nessun documento trovato</h3>
+              <h3 className="mt-3 font-bold text-slate-950">{t("Nessun documento trovato")}</h3>
               <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">
-                Modifica filtri o carica una procedura, un manuale, un regolamento o un quiz nel corso selezionato.
+                {t("Modifica filtri o carica una procedura, un manuale, un regolamento o un quiz nel corso selezionato.")}
               </p>
             </div>
           )}
@@ -3552,11 +3547,9 @@ function KnowledgeBasePanel({
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <CalendarClock className="h-5 w-5 text-orange-600" />
-                <h3 className="font-bold text-slate-950">Coda operativa</h3>
+                <h3 className="font-bold text-slate-950">{t("Coda operativa")}</h3>
               </div>
-              <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
-                {stats.inReview + stats.missingResources} aperti
-              </Badge>
+              <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">{t("{inReview} aperti", { inReview: stats.inReview + stats.missingResources })}</Badge>
             </div>
             <div className="mt-4 space-y-3">
               {urgentItems.map((item) => (
@@ -3568,13 +3561,13 @@ function KnowledgeBasePanel({
                 >
                   <span className="block truncate text-sm font-semibold text-slate-950">{item.title}</span>
                   <span className="mt-1 block text-xs text-slate-500">
-                    {item.governanceStatus === "incompleto" ? "Da collegare" : "In revisione"} · {item.course.title}
+                    {item.governanceStatus === "incompleto" ? t("Da collegare") : t("In revisione")} · {item.course.title}
                   </span>
                 </button>
               ))}
               {urgentItems.length === 0 && (
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-900">
-                  Nessuna criticità documentale evidente.
+                  {t("Nessuna criticità documentale evidente.")}
                 </div>
               )}
             </div>
@@ -3583,10 +3576,10 @@ function KnowledgeBasePanel({
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2">
               <WandSparkles className="h-5 w-5 text-blue-600" />
-              <h3 className="font-bold text-slate-950">Template rapidi</h3>
+              <h3 className="font-bold text-slate-950">{t("Template rapidi")}</h3>
             </div>
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              Parti da strutture pensate per processi aziendali, manuali interni e regolamenti.
+              {t("Parti da strutture pensate per processi aziendali, manuali interni e regolamenti.")}
             </p>
             <div className="mt-4 space-y-3">
               {templates.map((template) => (
@@ -3606,25 +3599,22 @@ function KnowledgeBasePanel({
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2">
               <Target className="h-5 w-5 text-emerald-600" />
-              <h3 className="font-bold text-slate-950">Qualità documentale</h3>
+              <h3 className="font-bold text-slate-950">{t("Qualità documentale")}</h3>
             </div>
             <div className="mt-4 space-y-3">
-              <QualityLine done={stats.total > 0} label="Libreria non vuota" />
-              <QualityLine done={stats.procedures > 0} label="Procedure operative presenti" />
-              <QualityLine done={stats.acknowledgements > 0} label="Presa visione tracciabile" />
-              <QualityLine done={stats.missingResources === 0} label="Tutti i documenti apribili" />
+              <QualityLine done={stats.total > 0} label={t("Libreria non vuota")} />
+              <QualityLine done={stats.procedures > 0} label={t("Procedure operative presenti")} />
+              <QualityLine done={stats.acknowledgements > 0} label={t("Presa visione tracciabile")} />
+              <QualityLine done={stats.missingResources === 0} label={t("Tutti i documenti apribili")} />
             </div>
           </section>
 
           <section className="rounded-3xl border border-blue-100 bg-blue-50 p-5 shadow-sm">
             <div className="flex items-center gap-2">
               <UserRoundCheck className="h-5 w-5 text-blue-700" />
-              <h3 className="font-bold text-blue-950">Prese visione</h3>
+              <h3 className="font-bold text-blue-950">{t("Prese visione")}</h3>
             </div>
-            <p className="mt-2 text-sm leading-6 text-blue-900">
-              {acknowledgementItems.length} documenti richiedono conferma lettura. Nella fase successiva possono
-              generare reminder, storico e attestato interno.
-            </p>
+            <p className="mt-2 text-sm leading-6 text-blue-900">{t("{n} documenti richiedono conferma lettura. Nella fase successiva possono generare reminder, storico e attestato interno.", { n: acknowledgementItems.length })}</p>
           </section>
         </aside>
       </div>
@@ -3681,6 +3671,7 @@ function AccessPanel({
   onAudienceChange: (audience: PortalAudience) => void;
   onOpenAccess: () => void;
 }) {
+  const t = useT();
   // Conteggi reali dal personale (hr_profili). Hook prima di ogni early-return.
   const { data: counts } = useQuery({
     queryKey: ["portal-audience-counts", companyId],
@@ -3692,11 +3683,11 @@ function AccessPanel({
   if (!course) return null;
 
   const groups: Array<{ key: PortalAudience; label: string; people: number | null; note: string }> = [
-    { key: "tutti", label: "Tutta azienda", people: counts?.total ?? null, note: "Dipendenti attivi in anagrafica" },
-    { key: "operai", label: "Operai", people: counts?.operai ?? null, note: "Accesso mobile cantiere" },
-    { key: "ufficio", label: "Ufficio", people: counts?.ufficio ?? null, note: "Amministrazione e back office" },
-    { key: "commerciali", label: "Commerciali", people: counts?.commerciali ?? null, note: "Vendita e sopralluoghi" },
-    { key: "capicantiere", label: "Capicantiere", people: counts?.capicantiere ?? null, note: "Responsabili operativi" },
+    { key: "tutti", label: t("Tutta azienda"), people: counts?.total ?? null, note: t("Dipendenti attivi in anagrafica") },
+    { key: "operai", label: t("Operai"), people: counts?.operai ?? null, note: t("Accesso mobile cantiere") },
+    { key: "ufficio", label: t("Ufficio"), people: counts?.ufficio ?? null, note: t("Amministrazione e back office") },
+    { key: "commerciali", label: t("Commerciali"), people: counts?.commerciali ?? null, note: t("Vendita e sopralluoghi") },
+    { key: "capicantiere", label: t("Capicantiere"), people: counts?.capicantiere ?? null, note: t("Responsabili operativi") },
   ];
 
   return (
@@ -3704,12 +3695,12 @@ function AccessPanel({
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-slate-950">Accessi Portale</h2>
-            <p className="text-sm text-slate-500">Controlla visibilità, ruoli e pubblico del corso.</p>
+            <h2 className="text-xl font-bold text-slate-950">{t("Accessi Portale")}</h2>
+            <p className="text-sm text-slate-500">{t("Controlla visibilità, ruoli e pubblico del corso.")}</p>
           </div>
           <Button onClick={onOpenAccess} className="gap-2 bg-blue-600 hover:bg-blue-700">
             <LockKeyhole className="h-4 w-4" />
-            Modifica regole
+            {t("Modifica regole")}
           </Button>
         </div>
 
@@ -3732,9 +3723,9 @@ function AccessPanel({
                   </div>
                   {active && <CheckCircle2 className="h-5 w-5 text-blue-600" />}
                 </div>
-                <h3 className="mt-3 font-bold text-slate-950">{group.label}</h3>
+                <h3 className="mt-3 font-bold text-slate-950">{t(group.label)}</h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  {group.people == null ? "—" : group.people} {group.people === 1 ? "persona" : "persone"} · {group.note}
+                  {group.people == null ? "—" : group.people === 1 ? t("1 persona") : t("{n} persone", { n: group.people })} · {group.note}
                 </p>
               </button>
             );
@@ -3746,11 +3737,11 @@ function AccessPanel({
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
           <ShieldCheck className="h-5 w-5" />
         </div>
-        <h3 className="mt-4 text-lg font-bold text-slate-950">Regole consigliate</h3>
+        <h3 className="mt-4 text-lg font-bold text-slate-950">{t("Regole consigliate")}</h3>
         <div className="mt-4 space-y-3 text-sm text-slate-600">
-          <p className="rounded-xl bg-slate-50 p-3">Onboarding: automatico a ogni nuovo utente.</p>
-          <p className="rounded-xl bg-slate-50 p-3">Sicurezza: obbligatorio prima dell'accesso al cantiere.</p>
-          <p className="rounded-xl bg-slate-50 p-3">Commerciale: visibile solo a venditori e titolari.</p>
+          <p className="rounded-xl bg-slate-50 p-3">{t("Onboarding: automatico a ogni nuovo utente.")}</p>
+          <p className="rounded-xl bg-slate-50 p-3">{t("Sicurezza: obbligatorio prima dell'accesso al cantiere.")}</p>
+          <p className="rounded-xl bg-slate-50 p-3">{t("Commerciale: visibile solo a venditori e titolari.")}</p>
         </div>
       </section>
     </div>
@@ -3758,6 +3749,7 @@ function AccessPanel({
 }
 
 function PortalRiepilogoPanel({ courses, companyId }: { courses: PortalCourse[]; companyId: string | null }) {
+  const t = useT();
   const { data: enrollments = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["portal-all-enrollments", companyId],
     queryFn: () => listAllPortalCourseEnrollments(companyId as string),
@@ -3765,8 +3757,8 @@ function PortalRiepilogoPanel({ courses, companyId }: { courses: PortalCourse[];
     staleTime: 30_000,
   });
 
-  if (isLoading) return <p role="status" className="p-4 text-sm text-slate-500">Caricamento dati formazione…</p>;
-  if (isError) return <div role="alert" className="rounded-xl border border-red-200 p-4 text-sm text-red-800">Riepilogo formazione non disponibile. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova riepilogo</Button></div>;
+  if (isLoading) return <p role="status" className="p-4 text-sm text-slate-500">{t("Caricamento dati formazione…")}</p>;
+  if (isError) return <div role="alert" className="rounded-xl border border-red-200 p-4 text-sm text-red-800">{t("Riepilogo formazione non disponibile.")} <Button variant="outline" size="sm" onClick={() => void refetch()}>{t("Riprova riepilogo")}</Button></div>;
 
   const published = courses.filter((c) => c.status === "pubblicato");
 
@@ -3803,40 +3795,40 @@ function PortalRiepilogoPanel({ courses, companyId }: { courses: PortalCourse[];
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-2xl font-bold leading-none text-slate-950">{totals.corsi}</p>
-          <p className="mt-1 text-xs text-slate-500">Corsi pubblicati</p>
+          <p className="mt-1 text-xs text-slate-500">{t("Corsi pubblicati")}</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-2xl font-bold leading-none text-slate-950">{totals.iscrizioni}</p>
-          <p className="mt-1 text-xs text-slate-500">Iscrizioni totali</p>
+          <p className="mt-1 text-xs text-slate-500">{t("Iscrizioni totali")}</p>
         </div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
           <p className="text-2xl font-bold leading-none text-emerald-700">{totals.completamenti}</p>
-          <p className="mt-1 text-xs text-emerald-700/80">Completamenti</p>
+          <p className="mt-1 text-xs text-emerald-700/80">{t("Completamenti")}</p>
         </div>
         <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
           <p className="text-2xl font-bold leading-none text-blue-700">{totals.medio}%</p>
-          <p className="mt-1 text-xs text-blue-700/80">Avanzamento medio</p>
+          <p className="mt-1 text-xs text-blue-700/80">{t("Avanzamento medio")}</p>
         </div>
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-bold text-slate-950">Riepilogo per corso</h2>
+        <h2 className="text-xl font-bold text-slate-950">{t("Riepilogo per corso")}</h2>
         <p className="text-sm text-slate-500">
-          Completamento reale di tutti i corsi pubblicati (obbligatori in cima, meno avanzati prima).
+          {t("Completamento reale di tutti i corsi pubblicati (obbligatori in cima, meno avanzati prima).")}
         </p>
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
           <div className="hidden grid-cols-[1.4fr_0.7fr_0.7fr_1fr] gap-4 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 md:grid">
-            <span>Corso</span>
-            <span>Iscritti</span>
-            <span>Completati</span>
-            <span>Avanzamento</span>
+            <span>{t("Corso")}</span>
+            <span>{t("Iscritti")}</span>
+            <span>{t("Completati")}</span>
+            <span>{t("Avanzamento")}</span>
           </div>
           <div className="divide-y divide-slate-100">
             {isLoading ? (
-              <div className="px-4 py-10 text-center text-sm text-slate-500">Caricamento dati…</div>
+              <div className="px-4 py-10 text-center text-sm text-slate-500">{t("Caricamento dati…")}</div>
             ) : rows.length === 0 ? (
-              <div className="px-4 py-10 text-center text-sm text-slate-500">Nessun corso pubblicato.</div>
+              <div className="px-4 py-10 text-center text-sm text-slate-500">{t("Nessun corso pubblicato.")}</div>
             ) : (
               rows.map(({ course, iscritti, completati, medio, mandatory }) => (
                 <div
@@ -3847,21 +3839,21 @@ function PortalRiepilogoPanel({ courses, companyId }: { courses: PortalCourse[];
                     <p className="truncate font-semibold text-slate-950">{course.title}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <Badge variant="outline" className="bg-white">
-                        {areaLabels[course.area]}
+                        {t(areaLabels[course.area])}
                       </Badge>
                       {mandatory && (
                         <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
-                          Obbligatorio
+                          {t("Obbligatorio")}
                         </Badge>
                       )}
                     </div>
                   </div>
                   <span className="text-sm text-slate-700">
-                    <span className="mr-1 font-medium md:hidden">Iscritti:</span>
+                    <span className="mr-1 font-medium md:hidden">{t("Iscritti:")}</span>
                     {iscritti}
                   </span>
                   <span className="text-sm text-slate-700">
-                    <span className="mr-1 font-medium md:hidden">Completati:</span>
+                    <span className="mr-1 font-medium md:hidden">{t("Completati:")}</span>
                     {completati}
                   </span>
                   <div>
@@ -3931,6 +3923,7 @@ function PeopleProgressPanel({
   userId: string | null;
   metriche?: Map<string, StatisticheIscrizioniCorso> | null;
 }) {
+  const t = useT();
   // Avanzamento reale dalle iscrizioni. Hook prima di ogni early-return.
   const { data: people = [], isLoading } = useQuery({
     queryKey: ["portal-course-progress", companyId, course?.id ?? null],
@@ -3962,7 +3955,7 @@ function PeopleProgressPanel({
   // Crea un promemoria REALE (Silvio) assegnato all'admin per ricontrollare il corso.
   const scheduleReminder = async () => {
     if (!companyId || !userId) {
-      toast.error("Sessione non valida: impossibile creare il promemoria.");
+      toast.error(t("Sessione non valida: impossibile creare il promemoria."));
       return;
     }
     const behind = people.filter((p) => p.status !== "completato").length;
@@ -3982,11 +3975,11 @@ function PeopleProgressPanel({
       p_remind_on: remindOn,
     } as never);
     if (error) {
-      toast.error("Impossibile creare il promemoria.");
+      toast.error(t("Impossibile creare il promemoria."));
       return;
     }
     qc.invalidateQueries({ queryKey: ["silvio-reminders-count"] });
-    toast.success(`Promemoria creato per il ${new Date(remindOn).toLocaleDateString("it-IT")}.`);
+    toast.success(t("Promemoria creato per il {valore}.", { valore: new Date(remindOn).toLocaleDateString(intlCampo()) }));
   };
 
   const enrolledIds = new Set(people.map((p) => p.userId));
@@ -4002,7 +3995,7 @@ function PeopleProgressPanel({
       setAssignSel(new Set());
       setAssignDue("");
     } catch {
-      toast.error("Assegnazione non riuscita.");
+      toast.error(t("Assegnazione non riuscita."));
     } finally {
       setAssigning(false);
     }
@@ -4032,19 +4025,19 @@ function PeopleProgressPanel({
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-slate-950">Avanzamento persone</h2>
+            <h2 className="text-xl font-bold text-slate-950">{t("Avanzamento persone")}</h2>
             <p className="text-sm text-slate-500">
-              Chi ha completato, chi è in ritardo e chi deve ancora finire il corso selezionato.
+              {t("Chi ha completato, chi è in ritardo e chi deve ancora finire il corso selezionato.")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button className="gap-2" onClick={() => setAssignOpen(true)}>
               <Users className="h-4 w-4" />
-              Assegna corso
+              {t("Assegna corso")}
             </Button>
             <Button variant="outline" className="gap-2" onClick={scheduleReminder}>
               <CalendarClock className="h-4 w-4" />
-              Programma reminder
+              {t("Programma reminder")}
             </Button>
           </div>
         </div>
@@ -4058,15 +4051,14 @@ function PeopleProgressPanel({
         >
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>Assegna «{course.title}»</DialogTitle>
+              <DialogTitle>{t("Assegna «{title}»", { title: String(course.title ?? "") })}</DialogTitle>
               <DialogDescription>
-                Le persone selezionate troveranno il corso in «Assegnati a te» nella loro Formazione.
-                Chi ha già un avanzamento NON viene azzerato.
+                {t("Le persone selezionate troveranno il corso in «Assegnati a te» nella loro Formazione. Chi ha già un avanzamento NON viene azzerato.")}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <div>
-                <p className="mb-1 text-sm font-medium text-slate-700">Scadenza (opzionale)</p>
+                <p className="mb-1 text-sm font-medium text-slate-700">{t("Scadenza (opzionale)")}</p>
                 <Input
                   type="date"
                   value={assignDue}
@@ -4076,7 +4068,7 @@ function PeopleProgressPanel({
               </div>
               <div className="max-h-[44vh] space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
                 {companyUsers.length === 0 ? (
-                  <p className="px-2 py-6 text-center text-sm text-slate-500">Nessun utente azienda trovato.</p>
+                  <p className="px-2 py-6 text-center text-sm text-slate-500">{t("Nessun utente azienda trovato.")}</p>
                 ) : (
                   companyUsers.map((u) => {
                     const name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim() || u.email || "Utente";
@@ -4104,7 +4096,7 @@ function PeopleProgressPanel({
                         </span>
                         {already && (
                           <Badge variant="outline" className="shrink-0 border-slate-200 text-slate-500">
-                            già iscritto
+                            {t("già iscritto")}
                           </Badge>
                         )}
                       </label>
@@ -4115,10 +4107,10 @@ function PeopleProgressPanel({
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setAssignOpen(false)} disabled={assigning}>
-                Annulla
+                {t("Annulla")}
               </Button>
               <Button onClick={handleAssignCourse} disabled={assigning || assignSel.size === 0}>
-                {assigning ? "Assegnazione…" : `Assegna (${assignSel.size})`}
+                {assigning ? t("Assegnazione…") : t("Assegna ({size})", { size: String(assignSel.size ?? "") })}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -4128,40 +4120,39 @@ function PeopleProgressPanel({
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <p className="text-2xl font-bold leading-none text-slate-950">{kpi.iscritti}</p>
-              <p className="mt-1 text-xs text-slate-500">Iscritti</p>
+              <p className="mt-1 text-xs text-slate-500">{t("Iscritti")}</p>
             </div>
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
               <p className="text-2xl font-bold leading-none text-emerald-700">{kpi.completati}</p>
-              <p className="mt-1 text-xs text-emerald-700/80">Completati</p>
+              <p className="mt-1 text-xs text-emerald-700/80">{t("Completati")}</p>
             </div>
             <div className="rounded-xl border border-red-200 bg-red-50 p-3">
               <p className="text-2xl font-bold leading-none text-red-700">{kpi.inRitardo}</p>
-              <p className="mt-1 text-xs text-red-700/80">In ritardo</p>
+              <p className="mt-1 text-xs text-red-700/80">{t("In ritardo")}</p>
             </div>
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
               <p className="text-2xl font-bold leading-none text-blue-700">{kpi.medio}%</p>
-              <p className="mt-1 text-xs text-blue-700/80">Avanzamento medio</p>
+              <p className="mt-1 text-xs text-blue-700/80">{t("Avanzamento medio")}</p>
             </div>
           </div>
         )}
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
           <div className="hidden grid-cols-[1.1fr_0.8fr_1fr_0.8fr] gap-4 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 md:grid">
-            <span>Persona</span>
-            <span>Gruppo</span>
-            <span>Avanzamento</span>
-            <span>Stato</span>
+            <span>{t("Persona")}</span>
+            <span>{t("Gruppo")}</span>
+            <span>{t("Avanzamento")}</span>
+            <span>{t("Stato")}</span>
           </div>
           <div className="divide-y divide-slate-100">
             {isLoading ? (
-              <div className="px-4 py-10 text-center text-sm text-slate-500">Caricamento iscrizioni…</div>
+              <div className="px-4 py-10 text-center text-sm text-slate-500">{t("Caricamento iscrizioni…")}</div>
             ) : people.length === 0 ? (
               <div className="px-4 py-10 text-center">
-                <p className="text-sm font-semibold text-slate-700">Nessuna iscrizione a questo corso</p>
+                <p className="text-sm font-semibold text-slate-700">{t("Nessuna iscrizione a questo corso")}</p>
                 <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
-                  L'avanzamento delle persone compare qui quando il corso viene assegnato o quando i
-                  dipendenti lo aprono dal portale. Definisci il pubblico dalla scheda{" "}
-                  <span className="font-medium">Accessi</span>.
+                  {t("L'avanzamento delle persone compare qui quando il corso viene assegnato o quando i dipendenti lo aprono dal portale. Definisci il pubblico dalla scheda")}{" "}
+                  <span className="font-medium">{t("Accessi")}</span>.
                 </p>
               </div>
             ) : (
@@ -4212,8 +4203,8 @@ function PeopleProgressPanel({
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
             <BookOpenCheck className="h-5 w-5" />
           </div>
-          <h3 className="mt-4 text-lg font-bold text-slate-950">Percorsi obbligatori</h3>
-          <p className="mt-1 text-sm text-slate-500">Corsi da tenere sotto controllo per sicurezza e procedure.</p>
+          <h3 className="mt-4 text-lg font-bold text-slate-950">{t("Percorsi obbligatori")}</h3>
+          <p className="mt-1 text-sm text-slate-500">{t("Corsi da tenere sotto controllo per sicurezza e procedure.")}</p>
           <div className="mt-4 space-y-3">
             {mandatoryCourses.map((item) => (
               <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -4230,11 +4221,10 @@ function PeopleProgressPanel({
         <div className="rounded-2xl border border-orange-200 bg-orange-50 p-5">
           <div className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-orange-600" />
-            <h3 className="font-bold text-orange-950">Automazioni consigliate</h3>
+            <h3 className="font-bold text-orange-950">{t("Automazioni consigliate")}</h3>
           </div>
           <p className="mt-2 text-sm leading-6 text-orange-900">
-            Collega scadenze, attestati, notifiche automatiche e tracciamento per singolo dipendente quando il portale
-            passa da beta a rollout aziendale.
+            {t("Collega scadenze, attestati, notifiche automatiche e tracciamento per singolo dipendente quando il portale passa da beta a rollout aziendale.")}
           </p>
         </div>
       </aside>
@@ -4273,6 +4263,7 @@ function PortalPreview({
   /** Il nome del portale: «<azienda> Academy». Era scritto fisso «Demo Azienda Academy». */
   nomeAcademy?: string;
 }) {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const learnerCourses = useMemo(() => {
     const visibleCourses = courses.filter((item) => item.status === "pubblicato");
@@ -4496,7 +4487,7 @@ function PortalPreview({
       moduleId: moduleId || null,
       mode: "overview",
     });
-    toast.success(`Corso aperto: ${selectedCourse.title}`);
+    toast.success(t("Corso aperto: {title}", { title: String(selectedCourse.title ?? "") }));
     scheduleCourseScrollToTop();
   };
 
@@ -4514,7 +4505,7 @@ function PortalPreview({
     const targetModuleId = moduleId || activeModule?.id || activeLearnerCourse?.modules[0]?.id || "";
 
     if (!targetModuleId) {
-      toast.info("Aggiungi almeno un modulo per aprire la pagina lezione.");
+      toast.info(t("Aggiungi almeno un modulo per aprire la pagina lezione."));
       setCourseExperienceView("overview");
       updateLearnerUrl({
         view: "course",
@@ -4576,7 +4567,7 @@ function PortalPreview({
       return;
     }
 
-    toast.info("Blocco consigliato: aggiungilo dal builder per renderlo disponibile agli utenti.");
+    toast.info(t("Blocco consigliato: aggiungilo dal builder per renderlo disponibile agli utenti."));
   };
 
   const signAcknowledgement = (item: PortalAcknowledgementItem) => {
@@ -4599,7 +4590,7 @@ function PortalPreview({
       moduleTitle: item.moduleTitle,
       signedAt,
     });
-    toast.success(`Presa visione registrata: ${item.title}`);
+    toast.success(t("Presa visione registrata: {title}", { title: String(item.title ?? "") }));
   };
 
   useEffect(() => {
@@ -4739,10 +4730,10 @@ function PortalPreview({
     });
     toast.success(
       willCompleteCourse
-        ? "Corso completato."
+        ? t("Corso completato.")
         : nextModule
-          ? "Lezione completata. Puoi passare al modulo successivo."
-          : "Lezione completata. Restano moduli precedenti da chiudere.",
+          ? t("Lezione completata. Puoi passare al modulo successivo.")
+          : t("Lezione completata. Restano moduli precedenti da chiudere."),
     );
   };
 
@@ -4778,10 +4769,9 @@ function PortalPreview({
     return (
       <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
         <GraduationCap className="mx-auto h-10 w-10 text-slate-400" />
-        <h3 className="mt-4 text-lg font-bold text-slate-950">Nessun corso disponibile nella pagina utente</h3>
+        <h3 className="mt-4 text-lg font-bold text-slate-950">{t("Nessun corso disponibile nella pagina utente")}</h3>
         <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-          Crea un corso o pubblicane almeno uno per vedere la libreria che useranno dipendenti, collaboratori e team di
-          cantiere.
+          {t("Crea un corso o pubblicane almeno uno per vedere la libreria che useranno dipendenti, collaboratori e team di cantiere.")}
         </p>
       </section>
     );
@@ -4801,10 +4791,10 @@ function PortalPreview({
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <p className="truncate text-sm font-bold text-slate-950 max-sm:text-base">{nomeAcademy}</p>
                   <Badge variant="outline" className="hidden border-blue-200 bg-blue-50 text-[11px] text-blue-700 sm:inline-flex">
-                    Anteprima admin
+                    {t("Anteprima admin")}
                   </Badge>
                 </div>
-                <p className="truncate text-xs text-slate-500 max-sm:hidden">Area utente finale · corsi, materiali, quiz e attestati</p>
+                <p className="truncate text-xs text-slate-500 max-sm:hidden">{t("Area utente finale · corsi, materiali, quiz e attestati")}</p>
               </div>
             </div>
             <div className="relative min-w-0 flex-1 lg:max-w-2xl">
@@ -4813,7 +4803,7 @@ function PortalPreview({
                 value={learnerSearch}
                 onChange={(event) => setLearnerSearch(event.target.value)}
                 className="h-10 rounded-2xl border-slate-200 pl-9 text-sm"
-                placeholder="Cerca corsi e procedure"
+                placeholder={t("Cerca corsi e procedure")}
               />
             </div>
           </div>
@@ -4844,34 +4834,32 @@ function PortalPreview({
             <span className="text-[11px] tabular-nums text-blue-100">{previewCourseCompletion}%</span>
           </span>
         </span>
-        <span className="shrink-0 text-xs font-semibold">{azioneCorso(previewCourseCompletion)}</span>
+        <span className="shrink-0 text-xs font-semibold">{t(azioneCorso(previewCourseCompletion))}</span>
       </button>
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm max-sm:hidden">
         <div className="grid gap-5 bg-gradient-to-br from-blue-950 via-blue-900 to-slate-900 p-5 text-white lg:grid-cols-[minmax(0,1.1fr)_360px] lg:p-6">
           <div className="flex min-w-0 flex-col justify-between gap-5">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge className="border-emerald-300/30 bg-emerald-400/15 text-emerald-100 hover:bg-emerald-400/15">
-                  {learnerCourses.length} corsi sbloccati
-                </Badge>
+                <Badge className="border-emerald-300/30 bg-emerald-400/15 text-emerald-100 hover:bg-emerald-400/15">{t("{n} corsi sbloccati", { n: learnerCourses.length })}</Badge>
               </div>
               <h2 className="mt-4 max-w-3xl text-2xl font-bold tracking-tight sm:text-3xl">
-                La tua formazione
+                {t("La tua formazione")}
               </h2>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-blue-100">
-                Riprendi le lezioni, consulta procedure e materiali, completa i moduli e tieni sotto controllo gli attestati.
+                {t("Riprendi le lezioni, consulta procedure e materiali, completa i moduli e tieni sotto controllo gli attestati.")}
               </p>
             </div>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-3">
-              <LearnerMetric label="Moduli" value={String(unlockedModules)} icon={ListChecks} />
-              <LearnerMetric label="Materiali" value={String(unlockedAssets)} icon={FileArchive} />
-              <LearnerMetric label="Completati" value={String(completedCourses)} icon={CheckCircle2} />
+              <LearnerMetric label={t("Moduli")} value={String(unlockedModules)} icon={ListChecks} />
+              <LearnerMetric label={t("Materiali")} value={String(unlockedAssets)} icon={FileArchive} />
+              <LearnerMetric label={t("Completati")} value={String(completedCourses)} icon={CheckCircle2} />
             </div>
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur">
             <p className="text-xs font-semibold uppercase tracking-wide text-blue-100">
-              {previewCourseCompletion > 0 && previewCourseCompletion < 100 ? "Continua da dove eri rimasto" : "Il tuo corso"}
+              {previewCourseCompletion > 0 && previewCourseCompletion < 100 ? t("Continua da dove eri rimasto") : t("Il tuo corso")}
             </p>
             <h3 className="mt-2 line-clamp-2 text-xl font-bold">{activeLearnerCourse.title}</h3>
             <p className="mt-2 line-clamp-3 text-sm leading-6 text-blue-100">{activeLearnerCourse.description}</p>
@@ -4888,7 +4876,7 @@ function PortalPreview({
               }
             >
               <PlayCircle className="mr-2 h-4 w-4" />
-              {azioneCorso(previewCourseCompletion)} corso
+              {previewCourseCompletion >= 100 ? t("Rivedi corso") : previewCourseCompletion > 0 ? t("Riprendi corso") : t("Inizia corso")}
             </Button>
           </div>
         </div>
@@ -4897,19 +4885,19 @@ function PortalPreview({
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between max-sm:gap-2">
           <div className="max-sm:hidden">
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Libreria personale</p>
-            <h3 className="mt-1 text-xl font-bold text-slate-950">I tuoi corsi sbloccati</h3>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">{t("Libreria personale")}</p>
+            <h3 className="mt-1 text-xl font-bold text-slate-950">{t("I tuoi corsi sbloccati")}</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Anteprima amministratore: può includere corsi in bozza oltre a quelli pubblicati. Non rappresenta i permessi di un utente finale.
+              {t("Anteprima amministratore: può includere corsi in bozza oltre a quelli pubblicati. Non rappresenta i permessi di un utente finale.")}
             </p>
           </div>
           {/* Mobile: i quattro filtri su una riga sola, che scorre se serve. */}
           <div className="flex flex-wrap gap-2 max-sm:-mx-3 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-3 max-sm:scrollbar-none">
             {[
-              { value: "tutti" as const, label: "Tutti" },
-              { value: "in_corso" as const, label: "In corso" },
-              { value: "da_iniziare" as const, label: "Da iniziare" },
-              { value: "completati" as const, label: "Completati" },
+              { value: "tutti" as const, label: t("Tutti") },
+              { value: "in_corso" as const, label: t("In corso") },
+              { value: "da_iniziare" as const, label: t("Da iniziare") },
+              { value: "completati" as const, label: t("Completati") },
             ].map((filter) => (
               <button
                 key={filter.value}
@@ -4925,7 +4913,7 @@ function PortalPreview({
                     : "border-slate-200 bg-white text-slate-500",
                 )}
               >
-                {filter.label}
+                {t(filter.label)}
               </button>
             ))}
           </div>
@@ -4946,8 +4934,8 @@ function PortalPreview({
         {filteredLearnerCourses.length === 0 && (
           <div className="mt-5 rounded-2xl border border-dashed border-slate-300 p-8 text-center max-sm:mt-2 max-sm:p-4">
             <Search className="mx-auto h-8 w-8 text-slate-400 max-sm:hidden" />
-            <h4 className="mt-3 font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm max-sm:font-medium">Nessun corso trovato</h4>
-            <p className="mt-1 text-sm text-slate-500 max-sm:hidden">Cambia ricerca o filtro per vedere altri corsi sbloccati.</p>
+            <h4 className="mt-3 font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm max-sm:font-medium">{t("Nessun corso trovato")}</h4>
+            <p className="mt-1 text-sm text-slate-500 max-sm:hidden">{t("Cambia ricerca o filtro per vedere altri corsi sbloccati.")}</p>
           </div>
         )}
       </section>
@@ -4969,7 +4957,7 @@ function PortalPreview({
             >
         <section
           id="portal-course-detail"
-          aria-label={`Pagina corso ${activeLearnerCourse.title}`}
+          aria-label={t("Pagina corso {title}", { title: String(activeLearnerCourse.title ?? "") })}
           className="fixed inset-0 z-[9999] isolate min-h-dvh overflow-y-auto overscroll-contain bg-slate-50"
         >
           <div className="sticky top-0 z-30 border-b border-slate-200 bg-white shadow-sm">
@@ -4977,7 +4965,7 @@ function PortalPreview({
               <div className="flex min-w-0 items-center gap-3 max-sm:gap-2">
                 <Button
                   id="portal-course-back"
-                  aria-label={courseExperienceView === "lesson" ? "Torna al corso" : "Torna alla piattaforma"}
+                  aria-label={courseExperienceView === "lesson" ? t("Torna al corso") : t("Torna alla piattaforma")}
                   variant="outline"
                   className="h-11 shrink-0 gap-2 rounded-2xl border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 tap-compact max-sm:h-9 max-sm:w-9 max-sm:rounded-xl max-sm:px-0"
                   onClick={() => {
@@ -4999,7 +4987,7 @@ function PortalPreview({
                 >
                   <ArrowLeft className="h-4 w-4" />
                   <span className="hidden truncate sm:inline">
-                    {courseExperienceView === "lesson" ? "Torna al corso" : "Torna alla piattaforma"}
+                    {courseExperienceView === "lesson" ? t("Torna al corso") : t("Torna alla piattaforma")}
                   </span>
                 </Button>
                 <div className="min-w-0">
@@ -5031,7 +5019,7 @@ function PortalPreview({
                     }}
                   >
                     <BookOpenCheck className="h-4 w-4" />
-                    Panoramica
+                    {t("Panoramica")}
                   </Button>
                   <Button
                     variant="outline"
@@ -5044,7 +5032,7 @@ function PortalPreview({
                     onClick={() => openLearnerLesson()}
                   >
                     <PlayCircle className="h-4 w-4" />
-                    Lezione
+                    {t("Lezione")}
                   </Button>
                   <Button
                     variant="outline"
@@ -5053,18 +5041,18 @@ function PortalPreview({
                   >
                     <Download className="h-4 w-4 max-sm:hidden" />
                     <FileArchive className="h-4 w-4 sm:hidden" />
-                    Materiali
+                    {t("Materiali")}
                   </Button>
                 </div>
 
                 <div className="hidden gap-2 2xl:grid 2xl:grid-cols-3 2xl:w-[520px]">
                   <LearnerDetailPill
                     icon={BookOpenCheck}
-                    label="Modulo"
+                    label={t("Modulo")}
                     value={`${hasLearnerModules ? readableModuleNumber : 0}/${activeLearnerCourse.modules.length}`}
                   />
-                  <LearnerDetailPill icon={Video} label="Lezione" value={activeModule?.duration ?? "Da definire"} />
-                  <LearnerDetailPill icon={FileArchive} label="Materiali" value={String(moduleAssets.length)} />
+                  <LearnerDetailPill icon={Video} label={t("Lezione")} value={activeModule?.duration ?? "Da definire"} />
+                  <LearnerDetailPill icon={FileArchive} label={t("Materiali")} value={String(moduleAssets.length)} />
                 </div>
               </div>
             </div>
@@ -5081,12 +5069,12 @@ function PortalPreview({
                 <div className="min-w-0 space-y-4 max-sm:hidden">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-                      {areaLabels[activeLearnerCourse.area]}
+                      {t(areaLabels[activeLearnerCourse.area])}
                     </Badge>
                     <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                      Sbloccato
+                      {t("Sbloccato")}
                     </Badge>
-                    <Badge variant="outline">{audienceLabels[activeLearnerCourse.audience]}</Badge>
+                    <Badge variant="outline">{t(audienceLabels[activeLearnerCourse.audience])}</Badge>
                   </div>
                   <div>
                     <h2 className="max-w-4xl text-2xl font-bold tracking-tight text-slate-950 lg:text-4xl">
@@ -5101,15 +5089,15 @@ function PortalPreview({
                 <div className="rounded-3xl border border-blue-100 bg-white/90 p-4 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:p-3 max-sm:shadow-none">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 max-sm:hidden">Avanzamento</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 max-sm:hidden">{t("Avanzamento")}</p>
                       <div className="mt-1 flex items-end gap-2 max-sm:mt-0">
                         <span className="text-4xl font-bold text-slate-950 max-sm:text-2xl">{previewCourseCompletion}%</span>
                         <span className="pb-1 text-xs font-semibold text-slate-500">
                           {remainingModules === 0
-                            ? "Corso completato"
+                            ? t("Corso completato")
                             : remainingModules === 1
-                              ? "1 modulo da completare"
-                              : `${remainingModules} moduli da completare`}
+                              ? t("1 modulo da completare")
+                              : t("{remainingModules} moduli da completare", { remainingModules: String(remainingModules ?? "") })}
                         </span>
                       </div>
                     </div>
@@ -5124,7 +5112,7 @@ function PortalPreview({
                     disabled={!hasLearnerModules}
                   >
                     <PlayCircle className="h-4 w-4" />
-                    {hasLearnerModules ? "Avvia lezione" : "Aggiungi moduli"}
+                    {hasLearnerModules ? t("Avvia lezione") : t("Aggiungi moduli")}
                   </Button>
                 </div>
               </div>
@@ -5156,8 +5144,8 @@ function PortalPreview({
                 <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
-                      <h4 className="text-lg font-bold text-slate-950">Programma corso</h4>
-                      <p className="text-sm text-slate-500">Scegli un modulo e guarda i contenuti sotto.</p>
+                      <h4 className="text-lg font-bold text-slate-950">{t("Programma corso")}</h4>
+                      <p className="text-sm text-slate-500">{t("Scegli un modulo e guarda i contenuti sotto.")}</p>
                     </div>
                     <Badge variant="outline">{activeLearnerCourse.modules.length}</Badge>
                   </div>
@@ -5197,7 +5185,7 @@ function PortalPreview({
                                 <Progress value={previewRate} className="h-1.5 flex-1" />
                                 <span className="w-8 text-right text-[11px] font-bold text-slate-500">{previewRate}%</span>
                                 <span className="shrink-0 text-[11px] font-medium text-slate-400">
-                                  {moduleLessons.length} {moduleLessons.length === 1 ? "lezione" : "lezioni"}
+                                  {moduleLessons.length === 1 ? t("1 lezione") : t("{n} lezioni", { n: moduleLessons.length })}
                                 </span>
                               </div>
                             </div>
@@ -5230,7 +5218,7 @@ function PortalPreview({
                                           {lessonIndex + 1}. {lesson.title}
                                         </span>
                                         <span className="block truncate text-[11px] text-slate-500">
-                                          {assetTypeLabels[lesson.type]} · {lesson.duration}
+                                          {t(assetTypeLabels[lesson.type])} · {lesson.duration}
                                         </span>
                                       </span>
                                     </button>
@@ -5244,7 +5232,7 @@ function PortalPreview({
                     })}
                     {activeLearnerCourse.modules.length === 0 && (
                       <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">
-                        Nessun modulo pubblicato. La vista lezione resta bloccata finche non viene aggiunto contenuto.
+                        {t("Nessun modulo pubblicato. La vista lezione resta bloccata finche non viene aggiunto contenuto.")}
                       </div>
                     )}
                   </div>
@@ -5253,21 +5241,21 @@ function PortalPreview({
                 <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <h4 className="font-bold text-slate-950">Il tuo percorso</h4>
-                      <p className="text-sm text-slate-500">Avanzamento e risorse totali</p>
+                      <h4 className="font-bold text-slate-950">{t("Il tuo percorso")}</h4>
+                      <p className="text-sm text-slate-500">{t("Avanzamento e risorse totali")}</p>
                     </div>
                     <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                      In corso
+                      {t("In corso")}
                     </Badge>
                   </div>
                   <div className="mt-4 flex items-end gap-3">
                     <span className="text-4xl font-bold text-slate-950">{previewCourseCompletion}%</span>
-                    <span className="pb-1 text-sm text-slate-500">completato</span>
+                    <span className="pb-1 text-sm text-slate-500">{t("completato")}</span>
                   </div>
                   <Progress value={previewCourseCompletion} className="mt-4 h-2" />
                   <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                    <InfoTile label="Moduli" value={String(activeLearnerCourse.modules.length)} icon={ListChecks} />
-                    <InfoTile label="Materiali" value={String(courseAssets.length)} icon={FileArchive} />
+                    <InfoTile label={t("Moduli")} value={String(activeLearnerCourse.modules.length)} icon={ListChecks} />
+                    <InfoTile label={t("Materiali")} value={String(courseAssets.length)} icon={FileArchive} />
                   </div>
                 </div>
               </aside>
@@ -5289,11 +5277,11 @@ function PortalPreview({
                 <div id="portal-preview-materials" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5 max-sm:rounded-xl max-sm:p-3">
                   <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between max-sm:mb-2">
                     <div>
-                      <h4 className="text-lg font-bold text-slate-950 max-sm:text-sm">Materiali, quiz e allegati</h4>
+                      <h4 className="text-lg font-bold text-slate-950 max-sm:text-sm">{t("Materiali, quiz e allegati")}</h4>
                       <p className="text-sm text-slate-500 max-sm:hidden">
                         {hasGeneralCourseAssets
-                          ? "Risorse del modulo piu materiali generali del corso."
-                          : "Risorse, PDF, video, procedure e quiz collegati al modulo."}
+                          ? t("Risorse del modulo piu materiali generali del corso.")
+                          : t("Risorse, PDF, video, procedure e quiz collegati al modulo.")}
                       </p>
                     </div>
                     <Download className="h-5 w-5 text-blue-600 max-sm:hidden" />
@@ -5314,7 +5302,7 @@ function PortalPreview({
                     ))}
                     {moduleAssets.length === 0 && (
                       <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 lg:col-span-2">
-                        Nessun materiale per questo modulo.
+                        {t("Nessun materiale per questo modulo.")}
                       </div>
                     )}
                   </div>
@@ -5335,26 +5323,26 @@ function PortalPreview({
                     Note, chiarimenti e attestati attendono un flusso effettivo. */}
                 <div className="grid gap-4 lg:grid-cols-3 max-sm:hidden">
                   <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <h4 className="font-bold text-slate-950">Azioni studente</h4>
-                    <p className="mt-1 text-sm text-slate-500">Note e richieste di chiarimento non sono ancora disponibili. Le conferme richieste sono nel registro presa visione.</p>
+                    <h4 className="font-bold text-slate-950">{t("Azioni studente")}</h4>
+                    <p className="mt-1 text-sm text-slate-500">{t("Note e richieste di chiarimento non sono ancora disponibili. Le conferme richieste sono nel registro presa visione.")}</p>
                     <div className="mt-4 space-y-2">
                       <Button
                         variant="outline"
                         className="h-10 w-full justify-start gap-2 border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                         disabled
-                        title="Le note del corso non sono ancora disponibili"
+                        title={t("Le note del corso non sono ancora disponibili")}
                       >
                         <FileText className="h-4 w-4" />
-                        Aggiungi nota
+                        {t("Aggiungi nota")}
                       </Button>
                       <Button
                         variant="outline"
                         className="h-10 w-full justify-start gap-2 border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                         disabled
-                        title="Le richieste di chiarimento non sono ancora disponibili"
+                        title={t("Le richieste di chiarimento non sono ancora disponibili")}
                       >
                         <UserRoundCheck className="h-4 w-4" />
-                        Chiedi chiarimento
+                        {t("Chiedi chiarimento")}
                       </Button>
                       <Button
                         variant="outline"
@@ -5362,15 +5350,15 @@ function PortalPreview({
                         onClick={() => scrollToPreviewSection("portal-preview-acknowledgement")}
                       >
                         <ShieldCheck className="h-4 w-4" />
-                        Registro presa visione
+                        {t("Registro presa visione")}
                       </Button>
                     </div>
                   </div>
 
                   <div className="rounded-3xl border border-orange-200 bg-orange-50 p-4 shadow-sm">
-                    <h4 className="font-bold text-orange-950">Prossimo passo</h4>
+                    <h4 className="font-bold text-orange-950">{t("Prossimo passo")}</h4>
                     <p className="mt-2 text-sm leading-6 text-orange-900">
-                      {nextModule ? `Continua con: ${nextModule.title}.` : "Rivedi i materiali del corso e verifica le conferme richieste."}
+                      {nextModule ? t("Continua con: {title}.", { title: String(nextModule.title ?? "") }) : t("Rivedi i materiali del corso e verifica le conferme richieste.")}
                     </p>
                     {nextModule && (
                       <Button
@@ -5380,7 +5368,7 @@ function PortalPreview({
                           openLearnerLesson(nextModule.id);
                         }}
                       >
-                        Apri modulo
+                        {t("Apri modulo")}
                         <ChevronRight className="ml-2 h-4 w-4" />
                       </Button>
                     )}
@@ -5389,10 +5377,10 @@ function PortalPreview({
                   <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="h-5 w-5 text-emerald-700" />
-                      <h4 className="font-bold text-emerald-950">Attestato</h4>
+                      <h4 className="font-bold text-emerald-950">{t("Attestato")}</h4>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-emerald-900">
-                      La generazione dell’attestato interno non è ancora disponibile.
+                      {t("La generazione dell’attestato interno non è ancora disponibile.")}
                     </p>
                     <Button
                       variant="outline"
@@ -5400,7 +5388,7 @@ function PortalPreview({
                       disabled
                     >
                       <FileText className="mr-2 h-4 w-4" />
-                      Vedi attestato
+                      {t("Vedi attestato")}
                     </Button>
                   </div>
                 </div>
@@ -5472,6 +5460,7 @@ function LearnerCourseOverview({
   getModuleCompletion: (module: PortalModule) => number;
   onOpenAsset: (asset: PortalAsset) => void;
 }) {
+  const t = useT();
   const hasModules = course.modules.length > 0;
   // Durata totale reale (somma dei minuti dei moduli). Sostituisce il conteggio
   // "lezioni" che era un numero seed slegato dal contenuto effettivo.
@@ -5494,27 +5483,25 @@ function LearnerCourseOverview({
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6 max-sm:hidden">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h3 className="text-2xl font-bold text-slate-950">Il corso in sintesi</h3>
+              <h3 className="text-2xl font-bold text-slate-950">{t("Il corso in sintesi")}</h3>
             </div>
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <InfoTile label="Moduli" value={String(course.modules.length)} icon={ListChecks} />
-            <InfoTile label="Durata" value={totalDurationLabel} icon={CalendarClock} />
-            <InfoTile label="Completati" value={String(completedModules)} icon={CheckCircle2} />
-            <InfoTile label="Materiali" value={String(materialAssets.length)} icon={FileArchive} />
+            <InfoTile label={t("Moduli")} value={String(course.modules.length)} icon={ListChecks} />
+            <InfoTile label={t("Durata")} value={totalDurationLabel} icon={CalendarClock} />
+            <InfoTile label={t("Completati")} value={String(completedModules)} icon={CheckCircle2} />
+            <InfoTile label={t("Materiali")} value={String(materialAssets.length)} icon={FileArchive} />
           </div>
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between max-sm:mb-2 max-sm:flex-row max-sm:items-center max-sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 max-sm:hidden">Programma</p>
-              <h3 className="mt-1 text-xl font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm max-sm:font-semibold">Moduli del corso</h3>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 max-sm:hidden">{t("Programma")}</p>
+              <h3 className="mt-1 text-xl font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm max-sm:font-semibold">{t("Moduli del corso")}</h3>
             </div>
-            <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">
-              {remainingModules} da completare
-            </Badge>
+            <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">{t("{remainingModules} da completare", { remainingModules: String(remainingModules ?? "") })}</Badge>
           </div>
 
           <div className="space-y-3 max-sm:space-y-2">
@@ -5568,7 +5555,7 @@ function LearnerCourseOverview({
                                   : "border-slate-200 bg-slate-50 text-slate-600",
                             )}
                           >
-                            {moduleCompletion >= 100 ? "Completato" : moduleCompletion > 0 ? "In corso" : "Da iniziare"}
+                            {moduleCompletion >= 100 ? t("Completato") : moduleCompletion > 0 ? t("In corso") : t("Da iniziare")}
                           </Badge>
                         </div>
                         <ChevronDown
@@ -5580,7 +5567,7 @@ function LearnerCourseOverview({
                       </div>
                       <div className="mt-2 flex items-center justify-between gap-3 max-sm:mt-1">
                         <p className="truncate text-xs font-medium text-slate-500">
-                          {module.duration} · {moduleLessons.length} {moduleLessons.length === 1 ? "lezione" : "lezioni"}
+                          {module.duration} · {moduleLessons.length === 1 ? t("1 lezione") : t("{n} lezioni", { n: moduleLessons.length })}
                           <span className="sm:hidden"> · {moduleCompletion}%</span>
                         </p>
                         <button
@@ -5591,7 +5578,7 @@ function LearnerCourseOverview({
                           }}
                           className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-blue-600 pl-4 pr-3 text-sm font-semibold text-white transition hover:bg-blue-700 sm:h-9 tap-compact max-sm:pl-3 max-sm:pr-2 max-sm:text-xs"
                         >
-                          {moduleCompletion >= 100 ? "Rivedi" : moduleCompletion > 0 ? "Riprendi" : "Apri"}
+                          {moduleCompletion >= 100 ? t("Rivedi") : moduleCompletion > 0 ? t("Riprendi") : t("Apri")}
                           <ChevronRight className="h-4 w-4" />
                         </button>
                       </div>
@@ -5624,7 +5611,7 @@ function LearnerCourseOverview({
                                       {lessonIndex + 1}. {lesson.title}
                                     </span>
                                     <span className="block text-xs text-slate-500">
-                                      {assetTypeLabels[lesson.type]} · {lesson.duration}
+                                      {t(assetTypeLabels[lesson.type])} · {lesson.duration}
                                     </span>
                                   </span>
                                   <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
@@ -5635,7 +5622,7 @@ function LearnerCourseOverview({
                         </ul>
                       ) : (
                         <p className="rounded-2xl border border-dashed border-slate-200 px-3 py-3 text-center text-sm text-slate-500">
-                          Contenuti in preparazione per questo modulo.
+                          {t("Contenuti in preparazione per questo modulo.")}
                         </p>
                       )}
                     </div>
@@ -5646,9 +5633,9 @@ function LearnerCourseOverview({
             {course.modules.length === 0 && (
               <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center">
                 <BookOpenCheck className="mx-auto h-8 w-8 text-slate-400" />
-                <h4 className="mt-3 font-bold text-slate-950">Nessun modulo nel corso</h4>
+                <h4 className="mt-3 font-bold text-slate-950">{t("Nessun modulo nel corso")}</h4>
                 <p className="mt-1 text-sm text-slate-500 max-sm:hidden">
-                  Aggiungi almeno un modulo dal builder per rendere questa pagina realmente fruibile dall'utente.
+                  {t("Aggiungi almeno un modulo dal builder per rendere questa pagina realmente fruibile dall'utente.")}
                 </p>
               </div>
             )}
@@ -5658,9 +5645,9 @@ function LearnerCourseOverview({
         {generalAssets.length > 0 && (
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
           <div className="mb-4 max-sm:mb-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 max-sm:hidden">Risorse</p>
-            <h3 className="mt-1 text-xl font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm max-sm:font-semibold">Materiali generali</h3>
-            <p className="mt-0.5 text-sm text-slate-500 max-sm:hidden">Non collegati a un modulo specifico.</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 max-sm:hidden">{t("Risorse")}</p>
+            <h3 className="mt-1 text-xl font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm max-sm:font-semibold">{t("Materiali generali")}</h3>
+            <p className="mt-0.5 text-sm text-slate-500 max-sm:hidden">{t("Non collegati a un modulo specifico.")}</p>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             {generalAssets.map((asset) => (
@@ -5682,12 +5669,12 @@ function LearnerCourseOverview({
         <section className="rounded-3xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
           <div className="flex items-center gap-2">
             <Flag className="h-5 w-5 text-orange-600" />
-            <h3 className="font-bold text-orange-950">Prossimo passo</h3>
+            <h3 className="font-bold text-orange-950">{t("Prossimo passo")}</h3>
           </div>
           <p className="mt-2 text-sm leading-6 text-orange-900">
             {firstOpenModule
-              ? `Apri "${firstOpenModule.title}" e completa i contenuti del modulo.`
-              : "Aggiungi moduli per rendere il corso operativo."}
+              ? t("Apri \"{title}\" e completa i contenuti del modulo.", { title: String(firstOpenModule.title ?? "") })
+              : t("Aggiungi moduli per rendere il corso operativo.")}
           </p>
           <Button
             variant="outline"
@@ -5695,7 +5682,7 @@ function LearnerCourseOverview({
             onClick={() => onOpenLesson(firstOpenModule?.id ?? course.modules[0]?.id ?? "")}
             disabled={!hasModules}
           >
-            {hasModules ? "Vai alla lezione" : "Aggiungi modulo"}
+            {hasModules ? t("Vai alla lezione") : t("Aggiungi modulo")}
             <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
         </section>
@@ -5722,6 +5709,7 @@ function LearnerLessonPlayer({
   onNextModule: () => void;
   onOpenAsset: (asset: PortalAsset) => void;
 }) {
+  const t = useT();
   const SelectedIcon = asset ? assetIcon[asset.type] : PlayCircle;
   const isVideo = asset?.type === "video";
   const isDocument = asset && ["pdf", "documento", "procedura", "testo", "quiz"].includes(asset.type);
@@ -5765,7 +5753,7 @@ function LearnerLessonPlayer({
           <div className="relative flex h-full flex-col justify-between p-4 sm:p-6 max-sm:p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Badge className="border-white/20 bg-white/15 text-white hover:bg-white/15">
-                {asset ? assetTypeLabels[asset.type] : "Lezione"}
+                {asset ? assetTypeLabels[asset.type] : t("Lezione")}
               </Badge>
               <span className="rounded-full bg-black/30 px-3 py-1 text-xs font-semibold text-white/85">
                 {durationLabel}
@@ -5780,7 +5768,7 @@ function LearnerLessonPlayer({
 
             <div className="max-w-3xl">
               <p className="text-xs font-semibold uppercase tracking-wide text-blue-100 max-sm:hidden">
-                {isVideo ? "Anteprima video" : "Anteprima contenuto"}
+                {isVideo ? t("Anteprima video") : t("Anteprima contenuto")}
               </p>
               <h4 className="mt-1 line-clamp-2 text-2xl font-bold sm:text-3xl max-sm:mt-0 max-sm:line-clamp-1 max-sm:text-base">{previewTitle}</h4>
               <div className="mt-4 flex items-center gap-3 text-xs text-white/80 max-sm:mt-1.5">
@@ -5797,10 +5785,10 @@ function LearnerLessonPlayer({
       <div className="border-t border-slate-200 bg-white p-4 lg:p-5 max-sm:p-3">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start max-sm:gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 max-sm:hidden">Lezione corrente</p>
-            <h4 className="mt-1 text-xl font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm">{module?.title ?? "Modulo introduttivo"}</h4>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 max-sm:hidden">{t("Lezione corrente")}</p>
+            <h4 className="mt-1 text-xl font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm">{module?.title ?? t("Modulo introduttivo")}</h4>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600 max-sm:hidden">
-              {module?.description ?? "Apri un modulo per vedere contenuti, materiali e avanzamento."}
+              {module?.description ?? t("Apri un modulo per vedere contenuti, materiali e avanzamento.")}
             </p>
 
             <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 max-sm:mt-2 max-sm:rounded-xl">
@@ -5821,8 +5809,8 @@ function LearnerLessonPlayer({
                   onClick={() => onOpenAsset(asset)}
                 >
                   {asset.type === "link" ? <ExternalLink className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  <span className="max-sm:hidden">Apri contenuto completo</span>
-                  <span className="sm:hidden">Apri tutto</span>
+                  <span className="max-sm:hidden">{t("Apri contenuto completo")}</span>
+                  <span className="sm:hidden">{t("Apri tutto")}</span>
                 </Button>
               )}
             </div>
@@ -5836,13 +5824,13 @@ function LearnerLessonPlayer({
               disabled={isCompleted}
             >
               <CheckCircle2 className="mr-2 h-4 w-4" />
-              <span className="max-sm:hidden">{isCompleted ? "Lezione completata" : "Completa lezione"}</span>
-              <span className="sm:hidden">{isCompleted ? "Completata" : "Completa"}</span>
+              <span className="max-sm:hidden">{isCompleted ? t("Lezione completata") : t("Completa lezione")}</span>
+              <span className="sm:hidden">{isCompleted ? t("Completata") : t("Completa")}</span>
             </Button>
             {nextModule && (
               <Button variant="outline" className="h-11 max-sm:h-10 max-sm:flex-1" onClick={onNextModule}>
-                <span className="max-sm:hidden">Prossimo modulo</span>
-                <span className="sm:hidden">Prossimo</span>
+                <span className="max-sm:hidden">{t("Prossimo modulo")}</span>
+                <span className="sm:hidden">{t("Prossimo")}</span>
                 <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             )}
@@ -5866,6 +5854,7 @@ function LearnerAcknowledgementPanel({
   onSign: (item: PortalAcknowledgementItem) => void;
   onOpenAsset: (asset: PortalAsset) => void;
 }) {
+  const t = useT();
   if (items.length === 0) {
     return (
       <section
@@ -5877,9 +5866,9 @@ function LearnerAcknowledgementPanel({
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
-            <h4 className="font-bold text-slate-950">Presa visione non richiesta</h4>
+            <h4 className="font-bold text-slate-950">{t("Presa visione non richiesta")}</h4>
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              Per questo modulo non ci sono documenti obbligatori o quiz da firmare.
+              {t("Per questo modulo non ci sono documenti obbligatori o quiz da firmare.")}
             </p>
           </div>
         </div>
@@ -5898,19 +5887,17 @@ function LearnerAcknowledgementPanel({
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 max-sm:hidden">Registro presa visione</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 max-sm:hidden">{t("Registro presa visione")}</p>
             <h4 className="mt-1 text-lg font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm">
-              <span className="max-sm:hidden">Conferme richieste per questo modulo</span>
-              <span className="sm:hidden">Presa visione</span>
+              <span className="max-sm:hidden">{t("Conferme richieste per questo modulo")}</span>
+              <span className="sm:hidden">{t("Presa visione")}</span>
             </h4>
             <p className="mt-1 text-sm leading-6 text-slate-600 max-sm:hidden">
-              L'utente vede cosa deve confermare, quale documento riguarda e lo stato della firma.
+              {t("L'utente vede cosa deve confermare, quale documento riguarda e lo stato della firma.")}
             </p>
           </div>
         </div>
-        <Badge variant="outline" className="w-fit border-emerald-200 bg-white text-emerald-700">
-          {signedCount}/{items.length} firmate
-        </Badge>
+        <Badge variant="outline" className="w-fit border-emerald-200 bg-white text-emerald-700">{t("{signedCount}/{n} firmate", { signedCount: String(signedCount ?? ""), n: items.length })}</Badge>
       </div>
 
       <div className="mt-4 grid gap-3 max-sm:mt-2 max-sm:gap-2">
@@ -5931,13 +5918,13 @@ function LearnerAcknowledgementPanel({
                           : "border-orange-200 bg-orange-50 text-orange-700",
                       )}
                     >
-                      {signedAt ? "Firmata" : "Da firmare"}
+                      {signedAt ? t("Firmata") : t("Da firmare")}
                     </Badge>
                   </div>
                   <p className="mt-1 text-sm leading-6 text-slate-600 max-sm:hidden">{item.description}</p>
                   <p className="mt-1 text-xs text-slate-500 max-sm:hidden">
                     {item.courseTitle} · {item.moduleTitle}
-                    {signedAt ? ` · registrata ${signedAt}` : ""}
+                    {signedAt ? ` · ${t("registrata {signedAt}", { signedAt: String(signedAt ?? "") })}` : ""}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2 max-sm:flex-nowrap">
@@ -5948,7 +5935,7 @@ function LearnerAcknowledgementPanel({
                       onClick={() => onOpenAsset(item.asset as PortalAsset)}
                     >
                       <Eye className="h-4 w-4" />
-                      Apri
+                      {t("Apri")}
                     </Button>
                   )}
                   <Button
@@ -5961,8 +5948,8 @@ function LearnerAcknowledgementPanel({
                     onClick={() => onSign(item)}
                   >
                     <CheckCircle2 className="h-4 w-4" />
-                    <span className="max-sm:hidden">{signedAt ? "Aggiorna firma" : "Firma presa visione"}</span>
-                    <span className="sm:hidden">{signedAt ? "Firmata" : "Firma"}</span>
+                    <span className="max-sm:hidden">{signedAt ? t("Aggiorna firma") : t("Firma presa visione")}</span>
+                    <span className="sm:hidden">{signedAt ? t("Firmata") : t("Firma")}</span>
                   </Button>
                 </div>
               </div>
@@ -5985,13 +5972,14 @@ function LearnerCourseCard({
   active: boolean;
   onOpen: () => void;
 }) {
+  const t = useT();
   const firstModule = course.modules[0];
   const learnerStatus = getLearnerCourseStatus(course, completion);
   const statusCopy = {
-    in_corso: { label: "Riprendi", className: "bg-blue-50 text-blue-700" },
-    da_iniziare: { label: "Inizia", className: "bg-orange-50 text-orange-700" },
-    completati: { label: "Completato", className: "bg-emerald-50 text-emerald-700" },
-    tutti: { label: "Apri", className: "bg-slate-50 text-slate-700" },
+    in_corso: { label: t("Riprendi"), className: "bg-blue-50 text-blue-700" },
+    da_iniziare: { label: t("Inizia"), className: "bg-orange-50 text-orange-700" },
+    completati: { label: t("Completato"), className: "bg-emerald-50 text-emerald-700" },
+    tutti: { label: t("Apri"), className: "bg-slate-50 text-slate-700" },
   }[learnerStatus];
 
   return (
@@ -6012,24 +6000,22 @@ function LearnerCourseCard({
       </span>
       <span className="min-w-0 flex-1 sm:hidden">
         <span className="block truncate text-sm font-medium text-slate-950">{course.title}</span>
-        <span className="block truncate text-xs text-slate-500">
-          {areaLabels[course.area]} · {course.modules.length} moduli · {completion}%
-        </span>
+        <span className="block truncate text-xs text-slate-500">{t("{valore} · {n} moduli · {completion}%", { valore: String(areaLabels[course.area] ?? ""), n: course.modules.length, completion: String(completion ?? "") })}</span>
       </span>
       <span className={cn("inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold sm:hidden", statusCopy.className)}>
-        {statusCopy.label}
+        {t(statusCopy.label)}
         <ChevronRight className="h-3 w-3" />
       </span>
       <div className="relative aspect-[16/8] bg-gradient-to-br from-blue-700 via-blue-600 to-orange-400 p-4 text-white max-sm:hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_10%,rgba(255,255,255,0.28),transparent_28%)]" />
         <div className="relative flex h-full flex-col justify-between">
           <div className="flex items-center justify-between gap-2">
-            <Badge className="bg-white/15 text-white hover:bg-white/15">{areaLabels[course.area]}</Badge>
-            <span className="rounded-full bg-white/15 px-2 py-1 text-xs font-semibold">Sbloccato</span>
+            <Badge className="bg-white/15 text-white hover:bg-white/15">{t(areaLabels[course.area])}</Badge>
+            <span className="rounded-full bg-white/15 px-2 py-1 text-xs font-semibold">{t("Sbloccato")}</span>
           </div>
           <div>
             <h4 className="line-clamp-2 text-lg font-bold">{course.title}</h4>
-            <p className="mt-1 line-clamp-1 text-xs text-blue-50">{firstModule?.title ?? "Modulo introduttivo"}</p>
+            <p className="mt-1 line-clamp-1 text-xs text-blue-50">{firstModule?.title ?? t("Modulo introduttivo")}</p>
           </div>
         </div>
       </div>
@@ -6041,12 +6027,12 @@ function LearnerCourseCard({
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-            <span>{course.modules.length} moduli</span>
+            <span>{t("{n} moduli", { n: course.modules.length })}</span>
             <span>·</span>
-            <span>{course.assets.length} materiali</span>
+            <span>{t("{n} materiali", { n: course.assets.length })}</span>
           </div>
           <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold", statusCopy.className)}>
-            {statusCopy.label}
+            {t(statusCopy.label)}
             <ChevronRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
           </span>
         </div>
@@ -6068,6 +6054,7 @@ function LearnerAssetRow({
   onSelect?: () => void;
   onOpen: () => void;
 }) {
+  const t = useT();
   const Icon = assetIcon[asset.type];
   const isOpenable = hasAssetResource(asset);
   const isSelectable = Boolean(onSelect);
@@ -6103,11 +6090,11 @@ function LearnerAssetRow({
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate text-sm font-bold text-slate-950 max-sm:font-semibold">{asset.title}</p>
             <Badge variant="outline" className="h-6 border-slate-200 bg-slate-50 text-[11px] text-slate-600 max-sm:hidden">
-              {assetTypeLabels[asset.type]}
+              {t(assetTypeLabels[asset.type])}
             </Badge>
           </div>
           <p className="mt-1 text-xs text-slate-500 max-sm:mt-0 max-sm:truncate">
-            <span className="sm:hidden">{assetTypeLabels[asset.type]} · </span>
+            <span className="sm:hidden">{t(assetTypeLabels[asset.type])} · </span>
             <span className="max-sm:hidden">{getAssetModuleTitle(course, asset)} · </span>
             {asset.duration}
           </p>
@@ -6136,9 +6123,9 @@ function LearnerAssetRow({
             </>
           )}
           {/* Mobile: il file si apre nel visore del telefono, non si «scarica». */}
-          <span className="max-sm:hidden">{isOpenable ? getAssetActionLabel(asset) : "Da collegare"}</span>
+          <span className="max-sm:hidden">{isOpenable ? getAssetActionLabel(asset) : t("Da collegare")}</span>
           <span className="sm:hidden">
-            {isOpenable ? (getAssetActionLabel(asset) === "Scarica" ? "Apri" : getAssetActionLabel(asset)) : "Da collegare"}
+            {isOpenable ? (getAssetActionLabel(asset) === "Scarica" ? t("Apri") : getAssetActionLabel(asset)) : t("Da collegare")}
           </span>
         </Button>
       </div>

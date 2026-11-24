@@ -20,6 +20,7 @@ import {
   copyTextToClipboard,
   normalizeEmbedDimension,
 } from "@/lib/formBuilder";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type PipelineStageOption = {
   id: string;
@@ -73,6 +74,7 @@ function stringSetting(source: Record<string, unknown>, key: string, fallback = 
 }
 
 export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSettingsChange, disabled = false }: Props) {
+  const t = useT();
   // Ogni etichetta è collegata al suo campo (prima nessuna lo era: da tastiera e con il lettore di schermo non si capiva cosa fosse cosa).
   const base = useId();
   const idDi = (nome: string) => `${base}-${nome}`;
@@ -159,9 +161,9 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
   const copyText = async (text: string, label: string) => {
     try {
       await copyTextToClipboard(text);
-      toast.success(`${label} copiato!`);
+      toast.success(t("{label} copiato!", { label: String(label ?? "") }));
     } catch {
-      toast.error("Copia non riuscita", { description: "Seleziona il testo e copialo manualmente." });
+      toast.error(t("Copia non riuscita"), { description: t("Seleziona il testo e copialo manualmente.") });
     }
   };
 
@@ -189,19 +191,19 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
     // Si apre su «Dopo l'invio»: è la scelta che decide cosa succede al contatto (a chi va, in quale pipeline e fase, con quali tag).
     <Tabs defaultValue="impostazioni" className="h-full">
       <TabsList className="w-full grid grid-cols-3 h-8 max-md:h-11">
-        <TabsTrigger value="impostazioni" className="text-xs">Dopo l'invio</TabsTrigger>
-        <TabsTrigger value="aspetto" className="text-xs">Aspetto</TabsTrigger>
-        <TabsTrigger value="condivisione" className="text-xs">Condivisione</TabsTrigger>
+        <TabsTrigger value="impostazioni" className="text-xs">{t("Dopo l'invio")}</TabsTrigger>
+        <TabsTrigger value="aspetto" className="text-xs">{t("Aspetto")}</TabsTrigger>
+        <TabsTrigger value="condivisione" className="text-xs">{t("Condivisione")}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="impostazioni" className="space-y-3 mt-3">
         <div>
-          <p className="text-xs font-semibold">Cosa succede dopo l'invio</p>
-          <p className="text-[11px] text-muted-foreground">Il modulo crea o aggiorna il contatto e, se scegli una pipeline, apre anche l'opportunità.</p>
+          <p className="text-xs font-semibold">{t("Cosa succede dopo l'invio")}</p>
+          <p className="text-[11px] text-muted-foreground">{t("Il modulo crea o aggiorna il contatto e, se scegli una pipeline, apre anche l'opportunità.")}</p>
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor={idDi("assegna")} className="text-xs">Assegna il contatto a</Label>
+          <Label htmlFor={idDi("assegna")} className="text-xs">{t("Assegna il contatto a")}</Label>
           <Select
             value={stringSetting(settings, "assignedUserId", "__none__")}
             onValueChange={(value) => updateSettings(
@@ -211,10 +213,10 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
             disabled={disabled}
           >
             <SelectTrigger id={idDi("assegna")} className="h-8 text-sm max-md:h-11">
-              <SelectValue placeholder="Nessuno" />
+              <SelectValue placeholder={t("Nessuno")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Nessuno</SelectItem>
+              <SelectItem value="__none__">{t("Nessuno")}</SelectItem>
               {users.map((user) => (
                 <SelectItem key={user.id} value={user.id}>{displayUser(user)}</SelectItem>
               ))}
@@ -223,7 +225,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor={idDi("call-center")} className="text-xs">Call center che richiama</Label>
+          <Label htmlFor={idDi("call-center")} className="text-xs">{t("Call center che richiama")}</Label>
           <Select
             value={stringSetting(settings, "callCenterId", "__none__")}
             onValueChange={(value) => updateSettings(
@@ -233,20 +235,20 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
             disabled={disabled}
           >
             <SelectTrigger id={idDi("call-center")} className="h-8 text-sm max-md:h-11">
-              <SelectValue placeholder="Nessuno" />
+              <SelectValue placeholder={t("Nessuno")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Nessuno</SelectItem>
+              <SelectItem value="__none__">{t("Nessuno")}</SelectItem>
               {operatoriCallCenter.map((operatore) => (
                 <SelectItem key={operatore.id} value={operatore.id}>{operatore.name || operatore.id}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <p className="text-[11px] text-muted-foreground">Finisce sull'opportunità come «Call center», come per i lead da Facebook.</p>
+          <p className="text-[11px] text-muted-foreground">{t("Finisce sull'opportunità come «Call center», come per i lead da Facebook.")}</p>
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor={idDi("tag")} className="text-xs">Tag da aggiungere ai contatti</Label>
+          <Label htmlFor={idDi("tag")} className="text-xs">{t("Tag da aggiungere ai contatti")}</Label>
           <Select
             onValueChange={(value) => {
               const tag = tags.find((item) => item.id === value);
@@ -256,7 +258,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
             disabled={disabled || availableTags.length === 0}
           >
             <SelectTrigger id={idDi("tag")} className="h-8 text-sm max-md:h-11">
-              <SelectValue placeholder={availableTags.length === 0 ? "Nessun tag disponibile" : "Aggiungi un tag"} />
+              <SelectValue placeholder={availableTags.length === 0 ? t("Nessun tag disponibile") : t("Aggiungi un tag")} />
             </SelectTrigger>
             <SelectContent>
               {availableTags.map((tag) => (
@@ -274,7 +276,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
                     onClick={() => removeDefaultTag(tagName)}
                     disabled={disabled}
                     className="rounded-sm p-1 opacity-70 hover:opacity-100 disabled:pointer-events-none disabled:opacity-40 max-md:p-2"
-                    aria-label={`Rimuovi tag ${tagName}`}
+                    aria-label={t("Rimuovi tag {tagName}", { tagName: String(tagName ?? "") })}
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -285,7 +287,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor={idDi("pipeline")} className="text-xs">Crea anche un'opportunità in…</Label>
+          <Label htmlFor={idDi("pipeline")} className="text-xs">{t("Crea anche un'opportunità in…")}</Label>
           <Select
             value={selectedPipelineId || "__none__"}
             onValueChange={(value) => updateSettings(
@@ -295,10 +297,10 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
             disabled={disabled}
           >
             <SelectTrigger id={idDi("pipeline")} className="h-8 text-sm max-md:h-11">
-              <SelectValue placeholder="Non creare opportunità" />
+              <SelectValue placeholder={t("Non creare opportunità")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Non creare opportunità</SelectItem>
+              <SelectItem value="__none__">{t("Non creare opportunità")}</SelectItem>
               {pipelines.map((pipeline) => (
                 <SelectItem key={pipeline.id} value={pipeline.id}>{pipeline.name}</SelectItem>
               ))}
@@ -308,7 +310,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
 
         {selectedPipeline && (
           <div className="space-y-1">
-            <Label htmlFor={idDi("fase")} className="text-xs">Parte dalla fase</Label>
+            <Label htmlFor={idDi("fase")} className="text-xs">{t("Parte dalla fase")}</Label>
             <Select
               value={selectedStageId || "__auto__"}
               onValueChange={(value) => updateSettings(
@@ -318,10 +320,10 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
               disabled={disabled}
             >
               <SelectTrigger id={idDi("fase")} className="h-8 text-sm max-md:h-11">
-                <SelectValue placeholder="La prima della pipeline" />
+                <SelectValue placeholder={t("La prima della pipeline")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__auto__">La prima della pipeline</SelectItem>
+                <SelectItem value="__auto__">{t("La prima della pipeline")}</SelectItem>
                 {(selectedPipeline.marketing_pipeline_stages || []).map((stage) => (
                   <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
                 ))}
@@ -332,11 +334,11 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
 
         {selectedPipeline && (
           <div className="space-y-1">
-            <Label htmlFor={idDi("fonte")} className="text-xs">Fonte da scrivere sull'opportunità</Label>
+            <Label htmlFor={idDi("fonte")} className="text-xs">{t("Fonte da scrivere sull'opportunità")}</Label>
             <Input
               id={idDi("fonte")}
               className="h-8 text-sm max-md:h-11"
-              placeholder="es. Google nuovo"
+              placeholder={t("es. Google nuovo")}
               value={stringSetting(settings, "fonteOpportunita")}
               onChange={(e) => {
                 const v = e.target.value.trim();
@@ -345,15 +347,14 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
               disabled={disabled}
             />
             <p className="text-[11px] text-muted-foreground">
-              È quello che si legge alla voce «Fonte» sulla scheda. Lasciandolo vuoto resta un codice tecnico che
-              distingue un modulo dall'altro ma non dice niente a chi guarda.
+              {t("È quello che si legge alla voce «Fonte» sulla scheda. Lasciandolo vuoto resta un codice tecnico che distingue un modulo dall'altro ma non dice niente a chi guarda.")}
             </p>
           </div>
         )}
 
         <div className="border-t pt-3 space-y-3">
           <div className="space-y-1">
-            <Label htmlFor={idDi("titolo-conferma")} className="text-xs">Titolo di conferma</Label>
+            <Label htmlFor={idDi("titolo-conferma")} className="text-xs">{t("Titolo di conferma")}</Label>
             <Input
               id={idDi("titolo-conferma")}
               value={stringSetting(theme, "success_title")}
@@ -364,18 +365,18 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor={idDi("messaggio-conferma")} className="text-xs">Messaggio di conferma</Label>
+            <Label htmlFor={idDi("messaggio-conferma")} className="text-xs">{t("Messaggio di conferma")}</Label>
             <Input
               id={idDi("messaggio-conferma")}
               value={stringSetting(settings, "success_message")}
               onChange={(e) => onSettingsChange({ ...settings, success_message: e.target.value })}
               className="h-8 text-sm max-md:h-11"
-              placeholder="Grazie! La tua richiesta è stata inviata."
+              placeholder={t("Grazie! La tua richiesta è stata inviata.")}
               disabled={disabled}
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor={idDi("vai-a")} className="text-xs">Dopo l'invio vai a (facoltativo)</Label>
+            <Label htmlFor={idDi("vai-a")} className="text-xs">{t("Dopo l'invio vai a (facoltativo)")}</Label>
             <Input
               id={idDi("vai-a")}
               value={stringSetting(settings, "redirectUrl")}
@@ -386,7 +387,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor={idDi("email-notifica")} className="text-xs">Email notifica</Label>
+            <Label htmlFor={idDi("email-notifica")} className="text-xs">{t("Email notifica")}</Label>
             <Input
               id={idDi("email-notifica")}
               value={stringSetting(settings, "notification_email")}
@@ -397,8 +398,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
             />
             {/* Oggi questo campo non fa partire nessuna email (form-submit non lo legge): lo dice, finché non si decide cosa farne. */}
             <p className="text-[11px] text-muted-foreground">
-              Oggi questo indirizzo non fa partire nessuna email: gli avvisi di nuova richiesta partono dall'automazione
-              «Notifica lead» collegata al modulo.
+              {t("Oggi questo indirizzo non fa partire nessuna email: gli avvisi di nuova richiesta partono dall'automazione «Notifica lead» collegata al modulo.")}
             </p>
           </div>
         </div>
@@ -406,7 +406,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
 
       <TabsContent value="aspetto" className="space-y-3 mt-3">
         <div className="space-y-1">
-          <Label htmlFor={idDi("colore-pulsanti")} className="text-xs">Colore dei pulsanti</Label>
+          <Label htmlFor={idDi("colore-pulsanti")} className="text-xs">{t("Colore dei pulsanti")}</Label>
           <Input
             id={idDi("colore-pulsanti")}
             type="color"
@@ -417,7 +417,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor={idDi("colore-sfondo")} className="text-xs">Colore dello sfondo</Label>
+          <Label htmlFor={idDi("colore-sfondo")} className="text-xs">{t("Colore dello sfondo")}</Label>
           <Input
             id={idDi("colore-sfondo")}
             type="color"
@@ -428,7 +428,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor={idDi("colore-testo")} className="text-xs">Colore del testo</Label>
+          <Label htmlFor={idDi("colore-testo")} className="text-xs">{t("Colore del testo")}</Label>
           <Input
             id={idDi("colore-testo")}
             type="color"
@@ -439,7 +439,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor={idDi("font")} className="text-xs">Font</Label>
+          <Label htmlFor={idDi("font")} className="text-xs">{t("Font")}</Label>
           <Select
             value={stringSetting(theme, "font_family", "system-ui, sans-serif")}
             onValueChange={(v) => onThemeChange({ ...theme, font_family: v })}
@@ -447,20 +447,20 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
           >
             <SelectTrigger id={idDi("font")} className="h-8 text-sm max-md:h-11"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="system-ui, sans-serif">Sistema (default)</SelectItem>
-              <SelectItem value="Arial, sans-serif">Arial</SelectItem>
-              <SelectItem value="Helvetica, Arial, sans-serif">Helvetica</SelectItem>
-              <SelectItem value="Verdana, sans-serif">Verdana</SelectItem>
-              <SelectItem value="Tahoma, sans-serif">Tahoma</SelectItem>
-              <SelectItem value="'Trebuchet MS', sans-serif">Trebuchet MS</SelectItem>
-              <SelectItem value="Georgia, serif">Georgia</SelectItem>
-              <SelectItem value="'Times New Roman', serif">Times New Roman</SelectItem>
+              <SelectItem value="system-ui, sans-serif">{t("Sistema (default)")}</SelectItem>
+              <SelectItem value="Arial, sans-serif">{t("Arial")}</SelectItem>
+              <SelectItem value="Helvetica, Arial, sans-serif">{t("Helvetica")}</SelectItem>
+              <SelectItem value="Verdana, sans-serif">{t("Verdana")}</SelectItem>
+              <SelectItem value="Tahoma, sans-serif">{t("Tahoma")}</SelectItem>
+              <SelectItem value="'Trebuchet MS', sans-serif">{t("Trebuchet MS")}</SelectItem>
+              <SelectItem value="Georgia, serif">{t("Georgia")}</SelectItem>
+              <SelectItem value="'Times New Roman', serif">{t("Times New Roman")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <Label htmlFor={idDi("larghezza")} className="text-xs">Larghezza (px)</Label>
+            <Label htmlFor={idDi("larghezza")} className="text-xs">{t("Larghezza (px)")}</Label>
             <Input
               id={idDi("larghezza")}
               type="number"
@@ -473,7 +473,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor={idDi("arrotondamento")} className="text-xs">Arrotondamento (px)</Label>
+            <Label htmlFor={idDi("arrotondamento")} className="text-xs">{t("Arrotondamento (px)")}</Label>
             <Input
               id={idDi("arrotondamento")}
               type="number"
@@ -487,7 +487,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
           </div>
         </div>
         <div className="space-y-1">
-          <Label htmlFor={idDi("testo-pulsante")} className="text-xs">Testo del pulsante</Label>
+          <Label htmlFor={idDi("testo-pulsante")} className="text-xs">{t("Testo del pulsante")}</Label>
           <Input
             id={idDi("testo-pulsante")}
             value={stringSetting(settings, "submit_label", "Invia")}
@@ -500,7 +500,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
 
       <TabsContent value="condivisione" className="space-y-3 mt-3">
         <div className="space-y-1">
-          <Label htmlFor={idDi("link")} className="text-xs">Link del modulo</Label>
+          <Label htmlFor={idDi("link")} className="text-xs">{t("Link del modulo")}</Label>
           <div className="flex gap-1">
             <Input id={idDi("link")} value={publicUrl} readOnly className="h-8 text-xs font-mono max-md:h-11" />
             <Button
@@ -509,11 +509,11 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
               className="h-8 w-8 shrink-0 max-md:h-11 max-md:w-11"
               onClick={() => window.open(publicUrl, "_blank", "noopener,noreferrer")}
               disabled={!publicUrl}
-              aria-label="Apri il modulo in una nuova scheda"
+              aria-label={t("Apri il modulo in una nuova scheda")}
             >
               <ExternalLink className="h-3 w-3" />
             </Button>
-            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0 max-md:h-11 max-md:w-11" onClick={() => copyText(publicUrl, "Link")} disabled={!publicUrl} aria-label="Copia il link del modulo">
+            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0 max-md:h-11 max-md:w-11" onClick={() => copyText(publicUrl, t("Link"))} disabled={!publicUrl} aria-label={t("Copia il link del modulo")}>
               <Copy className="h-3 w-3" />
             </Button>
           </div>
@@ -521,7 +521,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
 
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <Label htmlFor={idDi("altezza")} className="text-xs">Altezza minima (px)</Label>
+            <Label htmlFor={idDi("altezza")} className="text-xs">{t("Altezza minima (px)")}</Label>
             <Input
               id={idDi("altezza")}
               type="number"
@@ -535,7 +535,7 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor={idDi("larghezza-max")} className="text-xs">Larghezza massima (px)</Label>
+            <Label htmlFor={idDi("larghezza-max")} className="text-xs">{t("Larghezza massima (px)")}</Label>
             <Input
               id={idDi("larghezza-max")}
               type="number"
@@ -552,19 +552,19 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
 
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-2">
-            <Label htmlFor={idDi("codice-adattivo")} className="text-xs">Codice per il tuo sito (si adatta da solo)</Label>
-            <Button variant="outline" size="icon" className="h-7 w-7 shrink-0 max-md:h-11 max-md:w-11" onClick={() => copyText(jsSnippet, "Codice")} disabled={!publicUrl} aria-label="Copia il codice che si adatta da solo">
+            <Label htmlFor={idDi("codice-adattivo")} className="text-xs">{t("Codice per il tuo sito (si adatta da solo)")}</Label>
+            <Button variant="outline" size="icon" className="h-7 w-7 shrink-0 max-md:h-11 max-md:w-11" onClick={() => copyText(jsSnippet, t("Codice"))} disabled={!publicUrl} aria-label={t("Copia il codice che si adatta da solo")}>
               <Copy className="h-3 w-3" />
             </Button>
           </div>
           <Textarea id={idDi("codice-adattivo")} value={jsSnippet} readOnly rows={6} className="resize-none text-[11px] font-mono leading-4" />
-          <p className="text-[11px] text-muted-foreground">Cresce e si accorcia da solo dopo errori e messaggio di conferma.</p>
+          <p className="text-[11px] text-muted-foreground">{t("Cresce e si accorcia da solo dopo errori e messaggio di conferma.")}</p>
         </div>
 
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-2">
-            <Label htmlFor={idDi("codice-semplice")} className="text-xs">Codice semplice (altezza fissa)</Label>
-            <Button variant="outline" size="icon" className="h-7 w-7 shrink-0 max-md:h-11 max-md:w-11" onClick={() => copyText(iframeSnippet, "Codice")} disabled={!publicUrl} aria-label="Copia il codice semplice">
+            <Label htmlFor={idDi("codice-semplice")} className="text-xs">{t("Codice semplice (altezza fissa)")}</Label>
+            <Button variant="outline" size="icon" className="h-7 w-7 shrink-0 max-md:h-11 max-md:w-11" onClick={() => copyText(iframeSnippet, t("Codice"))} disabled={!publicUrl} aria-label={t("Copia il codice semplice")}>
               <Copy className="h-3 w-3" />
             </Button>
           </div>

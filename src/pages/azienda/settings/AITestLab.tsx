@@ -27,6 +27,7 @@ import { ProviderIcon } from '@/components/ai/ProviderIcon';
 import { formatCost, formatLatency } from '@/lib/ai/openrouter-models';
 import { DEMO_COMPANY_ID, DEMO_USER_EMAIL } from '@/lib/ai/models.config';
 import { cn } from '@/lib/utils';
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface KPIRow {
   feature: string;
@@ -58,6 +59,7 @@ const PERIOD_OPTIONS = [
 ];
 
 export default function AITestLab() {
+  const tTesto = useT();
   const { user, effectiveCompany } = useAuth();
   const navigate = useNavigate();
 
@@ -153,10 +155,10 @@ export default function AITestLab() {
           { onConflict: 'company_id,task_key' },
         );
       if (error) throw error;
-      toast.success(`${modelId} impostato come default per ${feature}`);
+      toast.success(tTesto("{modelId} impostato come default per {feature}", { modelId: String(modelId ?? ""), feature: String(feature ?? "") }));
       defaultsQuery.refetch();
     } catch (e) {
-      toast.error(`Errore: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(tTesto("Errore: {messaggio}", { messaggio: e instanceof Error ? e.message : String(e) }));
     }
   };
 
@@ -182,11 +184,11 @@ export default function AITestLab() {
           </div>
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold leading-tight flex items-center gap-2">
-              AI Test Lab
+              {tTesto("AI Test Lab")}
               <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-700 bg-orange-50">DEMO</Badge>
             </h1>
             <p className="text-sm text-muted-foreground">
-              Confronta costo / latenza / qualità dei modelli OpenRouter su agenti Silvio. Solo Demo Azienda.
+              {tTesto("Confronta costo / latenza / qualità dei modelli OpenRouter su agenti Silvio. Solo Demo Azienda.")}
             </p>
           </div>
         </div>
@@ -194,7 +196,7 @@ export default function AITestLab() {
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {PERIOD_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              {PERIOD_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{tTesto(o.label)}</SelectItem>)}
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" onClick={() => kpiQuery.refetch()} disabled={kpiQuery.isFetching}>
@@ -207,25 +209,25 @@ export default function AITestLab() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card>
           <CardContent className="p-4">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Chiamate AI</p>
-            <p className="text-2xl font-bold mt-1">{totals.calls.toLocaleString('it-IT')}</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{tTesto("Chiamate AI")}</p>
+            <p className="text-2xl font-bold mt-1">{totals.calls.toLocaleString(intlCampo())}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Costo totale</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{tTesto("Costo totale")}</p>
             <p className="text-2xl font-bold mt-1 text-orange-600">${totals.cost.toFixed(4)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Modelli testati</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{tTesto("Modelli testati")}</p>
             <p className="text-2xl font-bold mt-1">{totals.uniqueModels}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Errori</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{tTesto("Errori")}</p>
             <p className={cn('text-2xl font-bold mt-1', totals.errors > 0 ? 'text-red-600' : 'text-emerald-600')}>
               {totals.errors}
             </p>
@@ -235,7 +237,7 @@ export default function AITestLab() {
 
       {/* Feature filter */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-muted-foreground font-medium">Filtra per feature:</span>
+        <span className="text-xs text-muted-foreground font-medium">{tTesto("Filtra per feature:")}</span>
         {features.map((f) => (
           <button
             key={f}
@@ -248,7 +250,7 @@ export default function AITestLab() {
                 : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
             )}
           >
-            {f === 'all' ? '📊 Tutte' : f}
+            {f === 'all' ? tTesto("📊 Tutte") : f}
           </button>
         ))}
       </div>
@@ -256,9 +258,9 @@ export default function AITestLab() {
       {/* KPI table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Confronto modelli</CardTitle>
+          <CardTitle className="text-base">{tTesto("Confronto modelli")}</CardTitle>
           <p className="text-xs text-muted-foreground">
-            ⏱ tempi · 💰 costi · ⭐ rating · ⚠️ errori. Click "Imposta default" per usare quel modello su task background.
+            {tTesto("⏱ tempi · 💰 costi · ⭐ rating · ⚠️ errori. Click \"Imposta default\" per usare quel modello su task background.")}
           </p>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
@@ -268,23 +270,23 @@ export default function AITestLab() {
             </div>
           ) : filteredRows.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
-              Nessun dato in questo periodo. Invia messaggi a Silvio cambiando modello per popolare la dashboard.
+              {tTesto("Nessun dato in questo periodo. Invia messaggi a Silvio cambiando modello per popolare la dashboard.")}
             </p>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-y border-slate-200">
                 <tr className="text-[11px] uppercase tracking-wide text-slate-500">
-                  <th className="text-left px-3 py-2 font-semibold">Feature</th>
-                  <th className="text-left px-3 py-2 font-semibold">Modello</th>
-                  <th className="text-right px-3 py-2 font-semibold"># Chiamate</th>
-                  <th className="text-right px-3 py-2 font-semibold">Costo medio</th>
-                  <th className="text-right px-3 py-2 font-semibold">Costo tot.</th>
+                  <th className="text-left px-3 py-2 font-semibold">{tTesto("Feature")}</th>
+                  <th className="text-left px-3 py-2 font-semibold">{tTesto("Modello")}</th>
+                  <th className="text-right px-3 py-2 font-semibold">{tTesto("# Chiamate")}</th>
+                  <th className="text-right px-3 py-2 font-semibold">{tTesto("Costo medio")}</th>
+                  <th className="text-right px-3 py-2 font-semibold">{tTesto("Costo tot.")}</th>
                   <th className="text-right px-3 py-2 font-semibold">P50</th>
                   <th className="text-right px-3 py-2 font-semibold">P95</th>
-                  <th className="text-right px-3 py-2 font-semibold">Token in/out</th>
+                  <th className="text-right px-3 py-2 font-semibold">{tTesto("Token in/out")}</th>
                   <th className="text-right px-3 py-2 font-semibold">⭐</th>
-                  <th className="text-right px-3 py-2 font-semibold">Err</th>
-                  <th className="text-right px-3 py-2 font-semibold">Azioni</th>
+                  <th className="text-right px-3 py-2 font-semibold">{tTesto("Err")}</th>
+                  <th className="text-right px-3 py-2 font-semibold">{tTesto("Azioni")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -300,10 +302,10 @@ export default function AITestLab() {
                         <div className="flex items-center gap-1.5">
                           <ProviderIcon provider={r.provider} className="h-3.5 w-3.5" />
                           <span className="font-medium">{r.model_id.split('/').slice(1).join('/')}</span>
-                          {isDef && <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 text-[9px] h-4 px-1">DEFAULT</Badge>}
+                          {isDef && <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 text-[9px] h-4 px-1">{tTesto("DEFAULT")}</Badge>}
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-right font-mono text-[12px]">{Number(r.total_calls).toLocaleString('it-IT')}</td>
+                      <td className="px-3 py-2 text-right font-mono text-[12px]">{Number(r.total_calls).toLocaleString(intlCampo())}</td>
                       <td className="px-3 py-2 text-right font-mono text-[11px] text-slate-600">{formatCost(Number(r.avg_cost_usd))}</td>
                       <td className="px-3 py-2 text-right font-mono text-[11px] text-orange-700 font-semibold">{formatCost(Number(r.total_cost_usd))}</td>
                       <td className="px-3 py-2 text-right font-mono text-[11px] text-slate-600">{formatLatency(Number(r.p50_latency_ms))}</td>
@@ -326,7 +328,7 @@ export default function AITestLab() {
                       <td className="px-3 py-2 text-right">
                         {!isDef && (
                           <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setDefault(r.feature, r.model_id)}>
-                            <Trophy className="h-3 w-3 mr-1" />Imposta default
+                            <Trophy className="h-3 w-3 mr-1" />{tTesto("Imposta default")}
                           </Button>
                         )}
                       </td>
@@ -345,10 +347,10 @@ export default function AITestLab() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Trophy className="h-4 w-4 text-emerald-600" />
-              Default impostati ({(defaultsQuery.data ?? []).length})
+              {tTesto("Default impostati ({n})", { n: (defaultsQuery.data ?? []).length })}
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              Quando un cron/trigger background invoca aiRouterComplete senza forceModel, usa questi.
+              {tTesto("Quando un cron/trigger background invoca aiRouterComplete senza forceModel, usa questi.")}
             </p>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -359,7 +361,7 @@ export default function AITestLab() {
                   <p className="text-[11px] text-emerald-700 font-mono">{d.model_id}</p>
                 </div>
                 <span className="text-[10px] text-emerald-600">
-                  {new Date(d.set_at).toLocaleString('it-IT')}
+                  {new Date(d.set_at).toLocaleString(intlCampo())}
                 </span>
               </div>
             ))}
@@ -372,9 +374,9 @@ export default function AITestLab() {
         <CardContent className="p-4 flex items-start gap-3">
           <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
           <div>
-            <p className="text-sm font-medium text-amber-900">Quota di sicurezza attiva</p>
+            <p className="text-sm font-medium text-amber-900">{tTesto("Quota di sicurezza attiva")}</p>
             <p className="text-xs text-amber-800 mt-0.5">
-              Limite default: 200 chiamate/24h + cap mensile $50. Modificabile in tabella <code className="bg-white px-1 rounded text-[10px]">ai_test_quota</code>.
+              {tTesto("Limite default: 200 chiamate/24h + cap mensile $50. Modificabile in tabella")} <code className="bg-white px-1 rounded text-[10px]">ai_test_quota</code>.
             </p>
           </div>
         </CardContent>

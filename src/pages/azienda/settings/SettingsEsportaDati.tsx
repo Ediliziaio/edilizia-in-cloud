@@ -36,8 +36,10 @@ import {
   NON_INCLUSI_TESTO,
   type EsitoTabella,
 } from "@/lib/export/esportaDatiAzienda";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function SettingsEsportaDati() {
+  const tr = useT();
   const { effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
   // L'archivio contiene contatti e anagrafiche dei clienti: oltre alla voce
@@ -52,10 +54,9 @@ export default function SettingsEsportaDati() {
     return (
       <Alert>
         <Smartphone className="h-4 w-4" aria-hidden="true" />
-        <AlertTitle>Da computer</AlertTitle>
+        <AlertTitle>{tr("Da computer")}</AlertTitle>
         <AlertDescription>
-          L'esportazione dei dati aziendali produce un archivio che può pesare
-          parecchio: si fa da computer, non da telefono.
+          {tr("L'esportazione dei dati aziendali produce un archivio che può pesare parecchio: si fa da computer, non da telefono.")}
         </AlertDescription>
       </Alert>
     );
@@ -65,7 +66,7 @@ export default function SettingsEsportaDati() {
     const companyId = effectiveCompany?.id;
     if (!canExportClients) return;
     if (!companyId) {
-      toast.error("Scegli prima un'azienda");
+      toast.error(tr("Scegli prima un'azienda"));
       return;
     }
     setInCorso(true);
@@ -121,15 +122,15 @@ export default function SettingsEsportaDati() {
       setEsiti(risultati);
       const falliti = risultati.filter((r) => r.errore).length;
       if (falliti > 0) {
-        toast.warning("Archivio scaricato, ma incompleto", {
-          description: `${falliti} elenchi non sono stati esportati. Il dettaglio è nel file LEGGIMI.txt.`,
+        toast.warning(tr("Archivio scaricato, ma incompleto"), {
+          description: tr(falliti === 1 ? "{falliti} elenco non è stato esportato. Il dettaglio è nel file LEGGIMI.txt." : "{falliti} elenchi non sono stati esportati. Il dettaglio è nel file LEGGIMI.txt.", { falliti }),
         });
       } else {
-        toast.success("Archivio scaricato");
+        toast.success(tr("Archivio scaricato"));
       }
     } catch (err) {
       logger.error("Export dati azienda fallito:", err);
-      toast.error("Esportazione non riuscita", {
+      toast.error(tr("Esportazione non riuscita"), {
         description: messaggioEsportazioneNonRiuscita(err),
       });
     } finally {
@@ -146,25 +147,15 @@ export default function SettingsEsportaDati() {
       <div>
         {/* Il titolo è già nella testata («Esporta i dati»): qui solo la spiegazione. */}
         <p className="text-muted-foreground">
-          Un archivio zip con un foglio CSV per ogni elenco: contatti, commesse,
-          preventivi, fatture, fornitori, magazzino e gli altri qui sotto. Serve per
-          una copia di sicurezza o per passare a un altro gestionale.
+          {tr("Un archivio zip con un foglio CSV per ogni elenco: contatti, commesse, preventivi, fatture, fornitori, magazzino e gli altri qui sotto. Serve per una copia di sicurezza o per passare a un altro gestionale.")}
         </p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Non ci sono ancora {NON_INCLUSI_TESTO}: se devi consegnare tutto al
-          commercialista, quelli vanno aggiunti a parte.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{tr("Non ci sono ancora {nonInclusi}: se devi consegnare tutto al commercialista, quelli vanno aggiunti a parte.", { nonInclusi: NON_INCLUSI_TESTO })}</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Cosa contiene</CardTitle>
-          <CardDescription>
-            {TABELLE_EXPORT.length} elenchi, con tutte le colonne, anche quelle
-            tecniche. Dentro l'archivio c'è anche un LEGGIMI.txt con quante
-            righe ha ogni elenco e, se qualcosa non si è potuto scaricare, quale
-            e perché.
-          </CardDescription>
+          <CardTitle className="text-base">{tr("Cosa contiene")}</CardTitle>
+          <CardDescription>{tr("{n} elenchi, con tutte le colonne, anche quelle tecniche. Dentro l'archivio c'è anche un LEGGIMI.txt con quante righe ha ogni elenco e, se qualcosa non si è potuto scaricare, quale e perché.", { n: TABELLE_EXPORT.length })}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-1.5">
@@ -178,17 +169,15 @@ export default function SettingsEsportaDati() {
           <Alert>
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             <AlertDescription className="text-xs">
-              L'archivio contiene dati personali di clienti e personale. Trattalo
-              come tratteresti l'anagrafica: non lasciarlo su un computer condiviso
-              e non mandarlo per email senza cifrarlo.
+              {tr("L'archivio contiene dati personali di clienti e personale. Trattalo come tratteresti l'anagrafica: non lasciarlo su un computer condiviso e non mandarlo per email senza cifrarlo.")}
             </AlertDescription>
           </Alert>
 
           {inCorso && (
             <div className="space-y-2">
-              <Progress value={percentuale} className="h-2" aria-label="Avanzamento dell'esportazione" />
+              <Progress value={percentuale} className="h-2" aria-label={tr("Avanzamento dell'esportazione")} />
               <p role="status" className="text-xs text-muted-foreground">
-                {inLavorazione ? `Sto raccogliendo: ${inLavorazione}` : "Preparo l'archivio…"}
+                {inLavorazione ? tr("Sto raccogliendo: {inLavorazione}", { inLavorazione: String(inLavorazione ?? "") }) : tr("Preparo l'archivio…")}
                 {" "}({fatte}/{TABELLE_EXPORT.length})
               </p>
             </div>
@@ -197,12 +186,11 @@ export default function SettingsEsportaDati() {
           {canExportClients ? (
             <Button onClick={esporta} disabled={inCorso} className="gap-2">
               {inCorso ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
-              {inCorso ? "Esportazione in corso…" : `Scarica i ${TABELLE_EXPORT.length} elenchi (zip)`}
+              {inCorso ? tr("Esportazione in corso…") : tr("Scarica i {n} elenchi (zip)", { n: TABELLE_EXPORT.length })}
             </Button>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Per scaricare l'archivio serve anche il permesso «Esporta Clienti»:
-              chiedilo a un amministratore.
+              {tr("Per scaricare l'archivio serve anche il permesso «Esporta Clienti»: chiedilo a un amministratore.")}
             </p>
           )}
         </CardContent>
@@ -215,7 +203,7 @@ export default function SettingsEsportaDati() {
               {falliti.length === 0
                 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
                 : <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />}
-              Ultimo archivio
+              {tr("Ultimo archivio")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
@@ -223,7 +211,7 @@ export default function SettingsEsportaDati() {
               <div key={e.tabella} className="flex items-baseline justify-between gap-3 border-b py-1 last:border-b-0">
                 <span className={e.errore ? "text-destructive" : ""}>{e.etichetta}</span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">
-                  {e.errore ? `non esportato — ${e.errore}` : e.righe === 1 ? "1 riga" : `${e.righe} righe`}
+                  {e.errore ? tr("non esportato — {errore}", { errore: String(e.errore ?? "") }) : e.righe === 1 ? tr("1 riga") : tr("{n} righe", { n: String(e.righe ?? "") })}
                 </span>
               </div>
             ))}

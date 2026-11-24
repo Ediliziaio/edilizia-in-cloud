@@ -15,6 +15,7 @@ import { CompanyProfileForm } from "@/components/settings/CompanyProfileForm";
 import { CustomerPortalToggle } from "@/components/settings/CustomerPortalToggle";
 import { BonusFiscaliToggles } from "@/components/settings/BonusFiscaliToggles";
 import { RecensioniOnlineForm } from "@/components/settings/RecensioniOnlineForm";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Profilo aziendale: i dati dell'azienda che compaiono su preventivi, fatture e documenti.
@@ -34,6 +35,7 @@ const SEZIONI_UFFICIO: VoceIndice[] = [
 ];
 
 export default function SettingsProfile() {
+  const t = useT();
   const { effectiveCompany, refreshAuth } = useAuth();
   const permissions = usePermissions();
   const isMobile = useIsMobile();
@@ -63,7 +65,7 @@ export default function SettingsProfile() {
       {!canEdit && (
         <Alert>
           <AlertDescription>
-            Stai consultando i dati: li cambia chi ha il permesso «Profilo aziendale» in modifica.
+            {t("Stai consultando i dati: li cambia chi ha il permesso «Profilo aziendale» in modifica.")}
           </AlertDescription>
         </Alert>
       )}
@@ -72,8 +74,8 @@ export default function SettingsProfile() {
       <fieldset disabled={!canEdit} className="m-0 min-w-0 space-y-4 border-0 p-0 max-sm:space-y-3">
         {/* Indice e «Salva» restano in vista mentre si scorre: prima il pulsante stava in fondo a un modulo da sei sezioni. */}
         <div className="sticky top-2 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
-          {!isMobile && <nav aria-label="Sezioni del profilo aziendale" className="flex flex-wrap items-center gap-1 rounded-lg bg-muted/60 p-1">
-            {voci.map((voce) => <a key={voce.id} href={`#${voce.id}`} aria-current={attiva === voce.id ? "page" : undefined} className={`inline-flex min-h-9 items-center self-center rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${attiva === voce.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-muted"}`} onClick={(event) => { event.preventDefault(); vai(voce.id); }}>{voce.etichetta}</a>)}
+          {!isMobile && <nav aria-label={t("Sezioni del profilo aziendale")} className="flex flex-wrap items-center gap-1 rounded-lg bg-muted/60 p-1">
+            {voci.map((voce) => <a key={voce.id} href={`#${voce.id}`} aria-current={attiva === voce.id ? "page" : undefined} className={`inline-flex min-h-9 items-center self-center rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${attiva === voce.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-muted"}`} onClick={(event) => { event.preventDefault(); vai(voce.id); }}>{t(voce.etichetta)}</a>)}
           </nav>}
           <div ref={setAzioni} hidden={!isMobile && attiva !== "dati-azienda"} className="ml-auto flex shrink-0 items-center gap-3" />
         </div>
@@ -81,15 +83,15 @@ export default function SettingsProfile() {
         <div hidden={!isMobile && attiva !== "dati-azienda"}>
         <SezioneImpostazione
           id="dati-azienda"
-          titolo="Dati dell'azienda"
+          titolo={t("Dati dell'azienda")}
           descrizione={
             <>
-              Dati fiscali, contatti e sede legale. Le altre sedi (showroom, magazzini, uffici) sono in{" "}
-              <Link to="/azienda/impostazioni/sedi" className="font-medium underline">Sedi</Link>; la fatturazione elettronica in{" "}
-              <Link to="/azienda/impostazioni/fatturazione" className="font-medium underline">Fatturazione</Link>.
+              {t("Dati fiscali, contatti e sede legale. Le altre sedi (showroom, magazzini, uffici) sono in")}{" "}
+              <Link to="/azienda/impostazioni/sedi" className="font-medium underline">{t("Sedi")}</Link>{t("; la fatturazione elettronica in")}{" "}
+              <Link to="/azienda/impostazioni/fatturazione" className="font-medium underline">{t("Fatturazione")}</Link>.
             </>
           }
-          ambito={<AmbitoImpostazione>Tutta l'azienda</AmbitoImpostazione>}
+          ambito={<AmbitoImpostazione>{t("Tutta l'azienda")}</AmbitoImpostazione>}
           evidenziata={evidenziata === "dati-azienda"}
         >
           <CompanyProfileForm canEdit={canEdit} azioniSlot={azioni} evidenziata={evidenziata} />
@@ -100,15 +102,15 @@ export default function SettingsProfile() {
           <div hidden={!isMobile && attiva !== "logo"}>
           <SezioneImpostazione
             id="logo"
-            titolo="Logo"
+            titolo={t("Logo")}
             descrizione={
               <>
-                Il logo compare su preventivi, email e portale clienti. Colori e nome della piattaforma si cambiano in{" "}
-                <Link to="/azienda/impostazioni/branding" className="font-medium underline">Marchio e colori</Link>.
+                {t("Il logo compare su preventivi, email e portale clienti. Colori e nome della piattaforma si cambiano in")}{" "}
+                <Link to="/azienda/impostazioni/branding" className="font-medium underline">{t("Marchio e colori")}</Link>.
               </>
             }
-            ambito={<AmbitoImpostazione>Tutta l'azienda</AmbitoImpostazione>}
-            azione={<span>Si salva subito</span>}
+            ambito={<AmbitoImpostazione>{t("Tutta l'azienda")}</AmbitoImpostazione>}
+            azione={<span>{t("Si salva subito")}</span>}
             evidenziata={evidenziata === "logo"}
           >
             <div className="px-4 py-4 max-sm:px-3">
@@ -123,9 +125,9 @@ export default function SettingsProfile() {
         <div className="max-sm:hidden" hidden={attiva !== "recensioni"}>
           <SezioneImpostazione
             id="recensioni"
-            titolo="Recensioni online"
-            descrizione="Il tuo voto su Google, Trustpilot o altre piattaforme: nei preventivi esce nella pagina «Dicono di noi», accanto alle parole dei clienti scritte nei modelli."
-            ambito={<AmbitoImpostazione>Preventivi</AmbitoImpostazione>}
+            titolo={t("Recensioni online")}
+            descrizione={t("Il tuo voto su Google, Trustpilot o altre piattaforme: nei preventivi esce nella pagina «Dicono di noi», accanto alle parole dei clienti scritte nei modelli.")}
+            ambito={<AmbitoImpostazione>{t("Preventivi")}</AmbitoImpostazione>}
             evidenziata={evidenziata === "recensioni"}
           >
             <div className="px-4 py-4">
@@ -138,9 +140,9 @@ export default function SettingsProfile() {
           <div className="max-sm:hidden" hidden={attiva !== "portale-clienti"}>
             <SezioneImpostazione
               id="portale-clienti"
-              titolo="Portale clienti"
-              descrizione="L'area privata dove i tuoi clienti entrano con email e password."
-              ambito={<AmbitoImpostazione>Clienti</AmbitoImpostazione>}
+              titolo={t("Portale clienti")}
+              descrizione={t("L'area privata dove i tuoi clienti entrano con email e password.")}
+              ambito={<AmbitoImpostazione>{t("Clienti")}</AmbitoImpostazione>}
               evidenziata={evidenziata === "portale-clienti"}
             >
               <div className="px-4 py-4">
@@ -154,9 +156,9 @@ export default function SettingsProfile() {
           <div className="max-sm:hidden" hidden={attiva !== "bonus"}>
             <SezioneImpostazione
               id="bonus"
-              titolo="Bonus edilizi e blocca prezzo"
-              descrizione="Per chi lavora con le detrazioni edilizie: attivali solo se ti servono. Si salvano subito."
-              ambito={<AmbitoImpostazione>Commesse</AmbitoImpostazione>}
+              titolo={t("Bonus edilizi e blocca prezzo")}
+              descrizione={t("Per chi lavora con le detrazioni edilizie: attivali solo se ti servono. Si salvano subito.")}
+              ambito={<AmbitoImpostazione>{t("Commesse")}</AmbitoImpostazione>}
               evidenziata={evidenziata === "bonus"}
             >
               <BonusFiscaliToggles />

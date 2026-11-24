@@ -89,7 +89,9 @@ import {
 import { AccessoNegato, AvvisoSolaLettura, TitoloAvviso } from "./_finanziamenti/pezzi";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export default function SettingsFinanziamentiDetail() {
+  const t = useT();
   const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const { puoVedere, puoModificare } = useAccessoFinanziamenti();
@@ -157,7 +159,7 @@ export default function SettingsFinanziamentiDetail() {
       <Card>
         <CardContent className="py-10 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Caricamento tabella…
+          {t("Caricamento tabella…")}
         </CardContent>
       </Card>
     );
@@ -169,11 +171,11 @@ export default function SettingsFinanziamentiDetail() {
         <AlertTriangle className="h-4 w-4" aria-hidden="true" />
         <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <span>
-            <strong className="block font-medium">Non riesco a leggere la tabella.</strong>
-            {erroreComprensibile(erroreTabella, "Riprova tra poco.")}
+            <strong className="block font-medium">{t("Non riesco a leggere la tabella.")}</strong>
+            {erroreComprensibile(erroreTabella, t("Riprova tra poco."))}
           </span>
           <Button size="sm" variant="outline" onClick={() => void rileggiTabella()}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </AlertDescription>
       </Alert>
@@ -185,10 +187,10 @@ export default function SettingsFinanziamentiDetail() {
       <Card>
         <CardContent className="py-10 text-center space-y-3">
           <Banknote className="h-12 w-12 mx-auto text-muted-foreground" aria-hidden="true" />
-          <p className="font-medium">Tabella non trovata</p>
+          <p className="font-medium">{t("Tabella non trovata")}</p>
           <Button asChild variant="outline">
             <Link to="/azienda/impostazioni/finanziamenti">
-              Torna alle tabelle
+              {t("Torna alle tabelle")}
             </Link>
           </Button>
         </CardContent>
@@ -210,13 +212,13 @@ export default function SettingsFinanziamentiDetail() {
       .from("finanziamenti-tabelle")
       .createSignedUrl(path, 60);
     if (error) {
-      toast.error("Non sono riuscito a scaricare il file", {
-        description: erroreComprensibile(error, "Riprova tra poco."),
+      toast.error(t("Non sono riuscito a scaricare il file"), {
+        description: erroreComprensibile(error, t("Riprova tra poco.")),
       });
       return;
     }
     if (!data?.signedUrl) {
-      toast.error("Non sono riuscito a scaricare il file");
+      toast.error(t("Non sono riuscito a scaricare il file"));
       return;
     }
     const a = document.createElement("a");
@@ -230,11 +232,11 @@ export default function SettingsFinanziamentiDetail() {
     if (!puoModificare) return;
     try {
       await deleteTabella.mutateAsync(tabella.id);
-      toast.success("Tabella eliminata.");
+      toast.success(t("Tabella eliminata."));
       navigate("/azienda/impostazioni/finanziamenti");
     } catch (e) {
-      toast.error("Non sono riuscito a eliminare la tabella", {
-        description: erroreComprensibile(e, "Riprova tra poco."),
+      toast.error(t("Non sono riuscito a eliminare la tabella"), {
+        description: erroreComprensibile(e, t("Riprova tra poco.")),
       });
     }
   };
@@ -246,10 +248,10 @@ export default function SettingsFinanziamentiDetail() {
         id: tabella.id,
         attiva: !tabella.attiva,
       });
-      toast.success(tabella.attiva ? "Tabella disattivata." : "Tabella attivata.");
+      toast.success(tabella.attiva ? t("Tabella disattivata.") : t("Tabella attivata."));
     } catch (e) {
-      toast.error("Non sono riuscito a cambiare lo stato della tabella", {
-        description: erroreComprensibile(e, "Riprova tra poco."),
+      toast.error(t("Non sono riuscito a cambiare lo stato della tabella"), {
+        description: erroreComprensibile(e, t("Riprova tra poco.")),
       });
     }
   };
@@ -283,19 +285,19 @@ export default function SettingsFinanziamentiDetail() {
           }) => row,
         ),
       });
-      toast.success("Tabella duplicata.", {
-        description: "La copia mantiene condizioni, allegati e righe della tabella originale.",
+      toast.success(t("Tabella duplicata."), {
+        description: t("La copia mantiene condizioni, allegati e righe della tabella originale."),
       });
       navigate(`/azienda/impostazioni/finanziamenti/${copia.id}`);
     } catch (e) {
-      toast.error("Non sono riuscito a duplicare la tabella", {
-        description: erroreComprensibile(e, "Riprova tra poco."),
+      toast.error(t("Non sono riuscito a duplicare la tabella"), {
+        description: erroreComprensibile(e, t("Riprova tra poco.")),
       });
     }
   };
 
   const oggi = oggiLocale();
-  const sommario = descriviNumeri(tabella, economicSummary);
+  const sommario = descriviNumeri(tabella, economicSummary, t);
 
   return (
     <div className="space-y-4">
@@ -307,7 +309,7 @@ export default function SettingsFinanziamentiDetail() {
           <Button asChild variant="ghost" size="sm">
             <Link to="/azienda/impostazioni/finanziamenti">
               <ArrowLeft className="h-4 w-4 mr-1" aria-hidden="true" />
-              Tabelle
+              {t("Tabelle")}
             </Link>
           </Button>
           <div>
@@ -315,17 +317,17 @@ export default function SettingsFinanziamentiDetail() {
               {tabella.nome_prodotto}
               {!tabella.attiva && (
                 <Badge variant="outline" className="bg-muted">
-                  Disattivata
+                  {t("Disattivata")}
                 </Badge>
               )}
             </h2>
             <p className="text-sm text-muted-foreground">
               {tabella.finanziaria?.nome ?? "—"}
               {tabella.codice_condizione &&
-                ` · Condizione ${tabella.codice_condizione}`}
+                t(" · Condizione {codice_condizione}", { codice_condizione: String(tabella.codice_condizione ?? "") })}
               {tabella.subtariffa_default &&
-                ` · Subtariffa ${tabella.subtariffa_default}`}
-              {tabella.tan_base != null && ` · TAN base ${formattaPercentuale(tabella.tan_base)}`}
+                t(" · Subtariffa {subtariffa_default}", { subtariffa_default: String(tabella.subtariffa_default ?? "") })}
+              {tabella.tan_base != null && t(" · TAN base {tan_base}", { tan_base: formattaPercentuale(tabella.tan_base) })}
             </p>
           </div>
         </div>
@@ -338,7 +340,7 @@ export default function SettingsFinanziamentiDetail() {
             {...proprietaComandoSpento(puoModificare)}
           >
             <Copy className="h-4 w-4 mr-1" aria-hidden="true" />
-            Duplica
+            {t("Duplica")}
           </Button>
           <Button
             variant="outline"
@@ -348,7 +350,7 @@ export default function SettingsFinanziamentiDetail() {
             {...proprietaComandoSpento(puoModificare)}
           >
             <Power className="h-4 w-4 mr-1" aria-hidden="true" />
-            {tabella.attiva ? "Disattiva" : "Attiva"}
+            {tabella.attiva ? t("Disattiva") : t("Attiva")}
           </Button>
           <Button
             variant="outline"
@@ -358,7 +360,7 @@ export default function SettingsFinanziamentiDetail() {
             {...proprietaComandoSpento(puoModificare)}
           >
             <Trash2 className="h-4 w-4 mr-1 text-destructive" aria-hidden="true" />
-            Elimina
+            {t("Elimina")}
           </Button>
         </div>
       </div>
@@ -374,19 +376,18 @@ export default function SettingsFinanziamentiDetail() {
       />
       <Alert>
         <ShieldAlert className="h-4 w-4" aria-hidden="true" />
-        <TitoloAvviso>Le condizioni non si cambiano</TitoloAvviso>
+        <TitoloAvviso>{t("Le condizioni non si cambiano")}</TitoloAvviso>
         <AlertDescription>
-          Se questa tabella è già stata usata in preventivi, ordini o progetti, non modificarla: duplicala o
-          disattivala, così lo storico resta com&apos;era.
+          {t("Se questa tabella è già stata usata in preventivi, ordini o progetti, non modificarla: duplicala o disattivala, così lo storico resta com'era.")}
         </AlertDescription>
       </Alert>
 
       <Tabs defaultValue="righe">
         <TabsList className="h-auto flex-wrap justify-start">
-          <TabsTrigger value="righe">Righe ({righe.length})</TabsTrigger>
-          <TabsTrigger value="calcolatore">Calcolatore</TabsTrigger>
-          <TabsTrigger value="simulatore">Simulatore multi-durata</TabsTrigger>
-          <TabsTrigger value="allegati">Allegati</TabsTrigger>
+          <TabsTrigger value="righe">{t("Righe ({n})", { n: righe.length })}</TabsTrigger>
+          <TabsTrigger value="calcolatore">{t("Calcolatore")}</TabsTrigger>
+          <TabsTrigger value="simulatore">{t("Simulatore multi-durata")}</TabsTrigger>
+          <TabsTrigger value="allegati">{t("Allegati")}</TabsTrigger>
         </TabsList>
 
         {/* TAB Righe */}
@@ -394,34 +395,30 @@ export default function SettingsFinanziamentiDetail() {
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <Label htmlFor="filtro-durata" className="text-sm">
-                Durata:
+                {t("Durata:")}
               </Label>
               <Select value={filtroDurata} onValueChange={setFiltroDurata}>
                 <SelectTrigger id="filtro-durata" className="w-40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutte</SelectItem>
+                  <SelectItem value="all">{t("Tutte")}</SelectItem>
                   {tabella.durate_disponibili.map((d) => (
-                    <SelectItem key={d} value={String(d)}>
-                      {d} mesi
-                    </SelectItem>
+                    <SelectItem key={d} value={String(d)}>{t("{n} mesi", { n: String(d ?? "") })}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <span className="text-xs text-muted-foreground">
-              {righeFiltrate.length} righe
-            </span>
+            <span className="text-xs text-muted-foreground">{t("{n} righe", { n: righeFiltrate.length })}</span>
           </div>
 
           {righeInErrore && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" aria-hidden="true" />
               <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <span>Non riesco a leggere le righe della tabella.</span>
+                <span>{t("Non riesco a leggere le righe della tabella.")}</span>
                 <Button size="sm" variant="outline" onClick={() => void rileggiRighe()}>
-                  Riprova
+                  {t("Riprova")}
                 </Button>
               </AlertDescription>
             </Alert>
@@ -433,20 +430,20 @@ export default function SettingsFinanziamentiDetail() {
                 <TableHeader>
                   <TableRow>
                     <IntestazioneOrdinabile chiave="importo_erogato" ordine={sortKey} direzione={sortDir} onOrdina={handleSort}>
-                      Importo
+                      {t("Importo")}
                     </IntestazioneOrdinabile>
                     <IntestazioneOrdinabile chiave="numero_rate" ordine={sortKey} direzione={sortDir} onOrdina={handleSort}>
-                      Rate
+                      {t("Rate")}
                     </IntestazioneOrdinabile>
                     <IntestazioneOrdinabile chiave="importo_rata" ordine={sortKey} direzione={sortDir} onOrdina={handleSort} className="text-right">
-                      Rata
+                      {t("Rata")}
                     </IntestazioneOrdinabile>
-                    <TableHead className="text-right">Spese incasso</TableHead>
+                    <TableHead className="text-right">{t("Spese incasso")}</TableHead>
                     <IntestazioneOrdinabile chiave="interessi_cliente" ordine={sortKey} direzione={sortDir} onOrdina={handleSort} className="text-right">
-                      Interessi
+                      {t("Interessi")}
                     </IntestazioneOrdinabile>
                     <IntestazioneOrdinabile chiave="importo_totale_dovuto" ordine={sortKey} direzione={sortDir} onOrdina={handleSort} className="text-right">
-                      Totale dovuto
+                      {t("Totale dovuto")}
                     </IntestazioneOrdinabile>
                     <IntestazioneOrdinabile chiave="tan" ordine={sortKey} direzione={sortDir} onOrdina={handleSort} className="text-right">
                       TAN
@@ -455,7 +452,7 @@ export default function SettingsFinanziamentiDetail() {
                       TAEG
                     </IntestazioneOrdinabile>
                     <TableHead className="text-right">ICC</TableHead>
-                    <TableHead className="text-right">Provvigione</TableHead>
+                    <TableHead className="text-right">{t("Provvigione")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -465,7 +462,7 @@ export default function SettingsFinanziamentiDetail() {
                         colSpan={10}
                         className="text-center py-8 text-muted-foreground"
                       >
-                        {righeInCaricamento ? "Caricamento righe…" : "Nessuna riga."}
+                        {righeInCaricamento ? t("Caricamento righe…") : t("Nessuna riga.")}
                       </TableCell>
                     </TableRow>
                   )}
@@ -515,39 +512,32 @@ export default function SettingsFinanziamentiDetail() {
             <CardContent className="py-5 space-y-4">
               <div className="flex items-center gap-2">
                 <Calculator className="h-5 w-5 text-primary" aria-hidden="true" />
-                <h3 className="font-medium">
-                  Calcolatore — {tabella.nome_prodotto}
-                </h3>
+                <h3 className="font-medium">{t("Calcolatore — {nome_prodotto}", { nome_prodotto: String(tabella.nome_prodotto ?? "") })}</h3>
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="calc-importo">Importo finanziato (€)</Label>
+                  <Label htmlFor="calc-importo">{t("Importo finanziato (€)")}</Label>
                   <Input
                     id="calc-importo"
                     type="text"
                     inputMode="decimal"
-                    placeholder="es. 10000"
+                    placeholder={t("es. 10000")}
                     value={importoCalc}
                     onChange={(e) => setImportoCalc(e.target.value)}
                   />
                   {tabella.importo_min != null && tabella.importo_max != null && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Importi in tabella: da € {formattaEuro(tabella.importo_min)} a €{" "}
-                      {formattaEuro(tabella.importo_max)}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{t("Importi in tabella: da € {importo_min} a € {importo_max}", { importo_min: formattaEuro(tabella.importo_min), importo_max: formattaEuro(tabella.importo_max) })}</p>
                   )}
                 </div>
                 <div>
-                  <Label htmlFor="calc-rate">Numero rate</Label>
+                  <Label htmlFor="calc-rate">{t("Numero rate")}</Label>
                   <Select value={rateCalc} onValueChange={setRateCalc}>
                     <SelectTrigger id="calc-rate">
-                      <SelectValue placeholder="Seleziona durata…" />
+                      <SelectValue placeholder={t("Seleziona durata…")} />
                     </SelectTrigger>
                     <SelectContent>
                       {tabella.durate_disponibili.map((d) => (
-                        <SelectItem key={d} value={String(d)}>
-                          {d} rate ({d} mesi)
-                        </SelectItem>
+                        <SelectItem key={d} value={String(d)}>{t("{d} rate ({d2} mesi)", { d: String(d ?? ""), d2: String(d ?? "") })}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -565,20 +555,19 @@ export default function SettingsFinanziamentiDetail() {
               <div className="flex items-center gap-2">
                 <Calculator className="h-5 w-5 text-primary" aria-hidden="true" />
                 <div>
-                  <h3 className="font-medium">Confronto durate per stesso importo</h3>
+                  <h3 className="font-medium">{t("Confronto durate per stesso importo")}</h3>
                   <p className="text-xs text-muted-foreground">
-                    Inserisci un importo e vedi come cambia la rata su tutte le
-                    durate disponibili. Utile per presentare al cliente.
+                    {t("Inserisci un importo e vedi come cambia la rata su tutte le durate disponibili. Utile per presentare al cliente.")}
                   </p>
                 </div>
               </div>
               <div>
-                <Label htmlFor="sim-importo">Importo finanziato (€)</Label>
+                <Label htmlFor="sim-importo">{t("Importo finanziato (€)")}</Label>
                 <Input
                   id="sim-importo"
                   type="text"
                   inputMode="decimal"
-                  placeholder="es. 10000"
+                  placeholder={t("es. 10000")}
                   value={importoCalc}
                   onChange={(e) => setImportoCalc(e.target.value)}
                   className="max-w-xs"
@@ -603,15 +592,15 @@ export default function SettingsFinanziamentiDetail() {
         <TabsContent value="allegati" className="space-y-3 mt-3">
           <Card>
             <CardContent className="py-5 space-y-3">
-              <h3 className="font-medium">Documenti allegati</h3>
+              <h3 className="font-medium">{t("Documenti allegati")}</h3>
               {!tabella.pdf_url && !tabella.csv_url && (
                 <p className="text-sm text-muted-foreground">
-                  Nessun allegato caricato per questa tabella.
+                  {t("Nessun allegato caricato per questa tabella.")}
                 </p>
               )}
               {isMobile && (tabella.pdf_url || tabella.csv_url) && (
                 <p className="text-sm text-muted-foreground">
-                  Gli allegati si scaricano dal computer.
+                  {t("Gli allegati si scaricano dal computer.")}
                 </p>
               )}
               {!isMobile && tabella.pdf_url && (
@@ -623,7 +612,7 @@ export default function SettingsFinanziamentiDetail() {
                   className="w-full sm:w-auto"
                 >
                   <FileText className="h-4 w-4 mr-2" aria-hidden="true" />
-                  Scarica il PDF originale
+                  {t("Scarica il PDF originale")}
                   {tabella.pdf_filename && (
                     <span className="ml-1 text-xs text-muted-foreground">
                       ({tabella.pdf_filename})
@@ -640,12 +629,12 @@ export default function SettingsFinanziamentiDetail() {
                   className="w-full sm:w-auto"
                 >
                   <Download className="h-4 w-4 mr-2" aria-hidden="true" />
-                  Scarica il file CSV caricato
+                  {t("Scarica il file CSV caricato")}
                 </Button>
               )}
               {tabella.note && (
                 <div>
-                  <p className="text-xs font-medium leading-none">Note interne</p>
+                  <p className="text-xs font-medium leading-none">{t("Note interne")}</p>
                   <p className="text-sm whitespace-pre-wrap mt-1">
                     {tabella.note}
                   </p>
@@ -662,22 +651,16 @@ export default function SettingsFinanziamentiDetail() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare la tabella?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Stai per eliminare «{tabella.nome_prodotto}» con le sue {righe.length} righe, e
-              non si torna indietro. Se l&apos;hai già usata in un preventivo o in un
-              progetto, disattivala invece di eliminarla: non viene più proposta e lo
-              storico resta com&apos;era. Una tabella usata da un progetto fotovoltaico
-              non si può eliminare.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("Eliminare la tabella?")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("Stai per eliminare «{nome_prodotto}» con le sue {n} righe, e non si torna indietro. Se l'hai già usata in un preventivo o in un progetto, disattivala invece di eliminarla: non viene più proposta e lo storico resta com'era. Una tabella usata da un progetto fotovoltaico non si può eliminare.", { nome_prodotto: String(tabella.nome_prodotto ?? ""), n: righe.length })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Elimina tabella
+              {t("Elimina tabella")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -712,24 +695,25 @@ function descriviNumeri(
     data_scadenza: string | null;
   },
   riepilogo: ReturnType<typeof summarizeRows>,
+  t: (testo: string, valori?: Record<string, string | number>) => string,
 ): string {
-  const parti: string[] = [`${tabella.righe_count} ${tabella.righe_count === 1 ? "riga" : "righe"}`];
+  const parti: string[] = [t(tabella.righe_count === 1 ? "{n} riga" : "{n} righe", { n: tabella.righe_count })];
   if (tabella.importo_min != null && tabella.importo_max != null) {
-    parti.push(`importi da € ${formattaEuro(tabella.importo_min)} a € ${formattaEuro(tabella.importo_max)}`);
+    parti.push(t("importi da € {min} a € {max}", { min: formattaEuro(tabella.importo_min), max: formattaEuro(tabella.importo_max) }));
   }
   if (tabella.durate_disponibili.length > 0) {
-    parti.push(`${tabella.durate_disponibili.join(", ")} mesi`);
+    parti.push(t("{durate} mesi", { durate: tabella.durate_disponibili.join(", ") }));
   }
   if (riepilogo) {
-    parti.push(`rata da € ${formattaEuro(riepilogo.rataMin, 2)} a € ${formattaEuro(riepilogo.rataMax, 2)}`);
+    parti.push(t("rata da € {min} a € {max}", { min: formattaEuro(riepilogo.rataMin, 2), max: formattaEuro(riepilogo.rataMax, 2) }));
     parti.push(`TAEG ${formattaPercentuale(riepilogo.taegMin)}–${formattaPercentuale(riepilogo.taegMax)}`);
   }
   if (tabella.data_decorrenza && tabella.data_scadenza) {
-    parti.push(`valida dal ${dataItaliana(tabella.data_decorrenza)} al ${dataItaliana(tabella.data_scadenza)}`);
+    parti.push(t("valida dal {dal} al {al}", { dal: dataItaliana(tabella.data_decorrenza), al: dataItaliana(tabella.data_scadenza) }));
   } else if (tabella.data_decorrenza) {
-    parti.push(`valida dal ${dataItaliana(tabella.data_decorrenza)}`);
+    parti.push(t("valida dal {dal}", { dal: dataItaliana(tabella.data_decorrenza) }));
   } else if (tabella.data_scadenza) {
-    parti.push(`valida fino al ${dataItaliana(tabella.data_scadenza)}`);
+    parti.push(t("valida fino al {al}", { al: dataItaliana(tabella.data_scadenza) }));
   }
   return parti.join(" · ");
 }
@@ -790,14 +774,15 @@ function ValidityAlert({
   attiva: boolean;
   oggi: string;
 }) {
+  const t = useT();
   const stato = statoValidita(decorrenza, scadenza, oggi);
   if (!attiva) {
     return (
       <Alert>
         <CalendarClock className="h-4 w-4" aria-hidden="true" />
-        <TitoloAvviso>Tabella disattivata</TitoloAvviso>
+        <TitoloAvviso>{t("Tabella disattivata")}</TitoloAvviso>
         <AlertDescription>
-          Non viene proposta nei nuovi preventivi. Resta qui per lo storico.
+          {t("Non viene proposta nei nuovi preventivi. Resta qui per lo storico.")}
         </AlertDescription>
       </Alert>
     );
@@ -806,11 +791,8 @@ function ValidityAlert({
     return (
       <Alert variant="destructive">
         <CalendarClock className="h-4 w-4" aria-hidden="true" />
-        <TitoloAvviso>Offerta scaduta</TitoloAvviso>
-        <AlertDescription>
-          Scaduta il {dataItaliana(scadenza)}. Finché la tabella è attiva viene ancora proposta nei preventivi:
-          disattivala, oppure carica la tabella nuova.
-        </AlertDescription>
+        <TitoloAvviso>{t("Offerta scaduta")}</TitoloAvviso>
+        <AlertDescription>{t("Scaduta il {scadenza}. Finché la tabella è attiva viene ancora proposta nei preventivi: disattivala, oppure carica la tabella nuova.", { scadenza: String(dataItaliana(scadenza) ?? "") })}</AlertDescription>
       </Alert>
     );
   }
@@ -818,11 +800,8 @@ function ValidityAlert({
     return (
       <Alert>
         <CalendarClock className="h-4 w-4" aria-hidden="true" />
-        <TitoloAvviso>Offerta non ancora iniziata</TitoloAvviso>
-        <AlertDescription>
-          Vale dal {dataItaliana(decorrenza)}. Finché la tabella è attiva viene già proposta nei preventivi:
-          se non vuoi, disattivala e riattivala da quel giorno.
-        </AlertDescription>
+        <TitoloAvviso>{t("Offerta non ancora iniziata")}</TitoloAvviso>
+        <AlertDescription>{t("Vale dal {decorrenza}. Finché la tabella è attiva viene già proposta nei preventivi: se non vuoi, disattivala e riattivala da quel giorno.", { decorrenza: String(dataItaliana(decorrenza) ?? "") })}</AlertDescription>
       </Alert>
     );
   }

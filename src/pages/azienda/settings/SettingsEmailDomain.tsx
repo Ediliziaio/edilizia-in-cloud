@@ -40,6 +40,7 @@ import {
   type ProvenienzaCanale,
   verificatoPer,
 } from "../../../../supabase/functions/_shared/dominioEmailAzienda";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface DnsRecord {
   type: "TXT" | "CNAME" | "MX";
@@ -93,19 +94,19 @@ interface DomainResponse {
 }
 
 /** Perché un canale non esce dal dominio mostrato: la riga sotto il mittente. */
-function notaProvenienza(provenienza: ProvenienzaCanale, vaiAlMittente: string): ReactNode {
-  const link = <Link to={vaiAlMittente} className="text-primary underline">Mittente e aspetto</Link>;
+function notaProvenienza(provenienza: ProvenienzaCanale, vaiAlMittente: string, t: (testo: string) => string): ReactNode {
+  const link = <Link to={vaiAlMittente} className="text-primary underline">{t("Mittente e aspetto")}</Link>;
   switch (provenienza) {
     case "dal_dominio":
       return null;
     case "altro_dominio":
-      return <>Esce da un altro tuo dominio, scelto in {link}.</>;
+      return <>{t("Esce da un altro tuo dominio, scelto in")} {link}.</>;
     case "canale_non_verificato":
-      return "Passa al tuo dominio quando questo canale risulta verificato.";
+      return t("Passa al tuo dominio quando questo canale risulta verificato.");
     case "dominio_non_attivo":
-      return "Passa al tuo dominio quando il dominio si attiva, cioè con le campagne verificate.";
+      return t("Passa al tuo dominio quando il dominio si attiva, cioè con le campagne verificate.");
     case "non_scelto":
-      return <>Il dominio è pronto: per usarlo sceglilo in {link}.</>;
+      return <>{t("Il dominio è pronto: per usarlo sceglilo in")} {link}.</>;
     default:
       return null;
   }
@@ -170,8 +171,11 @@ function normalizeDomainResponse(resp: unknown): DomainResponse {
 
 // ─── DNS record row with copy-to-clipboard ────────────────────────────────
 function DnsRow({ record, dominio }: { record: DnsRecord; dominio: string }) {
+  const t = useT();
   const [copied, setCopied] = useState<"host" | "value" | null>(null);
-  const { titolo, dettaglio } = etichettaRecord(record.purpose);
+  const etichetta = etichettaRecord(record.purpose);
+  const titolo = t(etichetta.titolo);
+  const dettaglio = etichetta.dettaglio ? t(etichetta.dettaglio) : undefined;
   // Molti registrar (OVH, Aruba…) aggiungono da soli il dominio al nome: da incollare e' la parte breve.
   const breve = nomeBreve(record.host, dominio);
   const mostraBreve = breve !== record.host;
@@ -182,7 +186,7 @@ function DnsRow({ record, dominio }: { record: DnsRecord; dominio: string }) {
       setCopied(which);
       setTimeout(() => setCopied(null), 1500);
     } catch {
-      toast.error("Non sono riuscito a copiare: selezionalo e copialo a mano.");
+      toast.error(t("Non sono riuscito a copiare: selezionalo e copialo a mano."));
     }
   }
 
@@ -198,38 +202,38 @@ function DnsRow({ record, dominio }: { record: DnsRecord; dominio: string }) {
         </div>
         {record.verified ? (
           <span className="flex items-center gap-1 text-xs text-green-600">
-            <CheckCircle2 className="h-3 w-3" /> Verificato
+            <CheckCircle2 className="h-3 w-3" /> {t("Verificato")}
           </span>
         ) : (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <XCircle className="h-3 w-3" /> In attesa
+            <XCircle className="h-3 w-3" /> {t("In attesa")}
           </span>
         )}
       </div>
 
       <div className="grid grid-cols-[80px_1fr_auto] items-center gap-2 text-xs">
-        <span className="text-muted-foreground">Nome</span>
+        <span className="text-muted-foreground">{t("Nome")}</span>
         <code className="font-mono break-all bg-background px-2 py-1 rounded border">{breve}</code>
-        <Button variant="ghost" size="sm" onClick={() => copyText(breve, "host")} className="h-11 w-11 p-0 sm:h-7 sm:w-7" aria-label={`Copia il nome: ${titolo}`}>
+        <Button variant="ghost" size="sm" onClick={() => copyText(breve, "host")} className="h-11 w-11 p-0 sm:h-7 sm:w-7" aria-label={t("Copia il nome: {titolo}", { titolo: String(titolo ?? "") })}>
           {copied === "host" ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
         </Button>
       </div>
       {mostraBreve && (
         <p className="text-[11px] text-muted-foreground pl-[88px] -mt-1">
-          Nome completo: <span className="font-mono">{record.host}</span> — nel pannello del dominio scrivi solo{" "}
-          <span className="font-mono">{breve}</span> (il resto lo aggiunge da solo).
+          {t("Nome completo:")} <span className="font-mono">{record.host}</span> {t("— nel pannello del dominio scrivi solo")}{" "}
+          <span className="font-mono">{breve}</span> {t("(il resto lo aggiunge da solo).")}
         </p>
       )}
 
       <div className="grid grid-cols-[80px_1fr_auto] items-center gap-2 text-xs">
-        <span className="text-muted-foreground">Valore</span>
+        <span className="text-muted-foreground">{t("Valore")}</span>
         <code className="font-mono break-all bg-background px-2 py-1 rounded border">{record.value}</code>
-        <Button variant="ghost" size="sm" onClick={() => copyText(record.value, "value")} className="h-11 w-11 p-0 sm:h-7 sm:w-7" aria-label={`Copia il valore: ${titolo}`}>
+        <Button variant="ghost" size="sm" onClick={() => copyText(record.value, "value")} className="h-11 w-11 p-0 sm:h-7 sm:w-7" aria-label={t("Copia il valore: {titolo}", { titolo: String(titolo ?? "") })}>
           {copied === "value" ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
         </Button>
       </div>
       {typeof record.priority === "number" && (
-        <p className="text-xs text-muted-foreground">Priorità {record.priority}</p>
+        <p className="text-xs text-muted-foreground">{t("Priorità {livello}", { livello: String(record.priority ?? "") })}</p>
       )}
 
       {!record.verified && record.diagnosi && record.diagnosi.stato !== "ok" && (
@@ -275,19 +279,20 @@ function DialogProvaEmail({
   onInvia: () => void;
   conScorrimento?: boolean;
 }) {
+  const t = useT();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={conScorrimento ? "sm:max-w-md max-h-[90vh] overflow-y-auto" : "sm:max-w-md"}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5 text-primary" />
-            Invia email di prova
+            {t("Invia email di prova")}
           </DialogTitle>
           <DialogDescription>{descrizione}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label htmlFor="prova-destinatario">Email destinatario *</Label>
+            <Label htmlFor="prova-destinatario">{t("Email destinatario *")}</Label>
             <Input
               id="prova-destinatario"
               type="email"
@@ -299,23 +304,22 @@ function DialogProvaEmail({
           {/* La prova è sempre una campagna: la scelta del tipo non c'è più (07/11/2026). */}
           {mittenti?.marketing && (
             <p className="text-xs text-muted-foreground">
-              Mittente:{" "}
+              {t("Mittente:")}{" "}
               <code className="text-[11px] break-all">{mittenti.marketing.from}</code>
             </p>
           )}
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Arriva al tuo indirizzo o a quello di un collega dell'azienda e non consuma crediti. Se non la trovi
-              entro un minuto, guarda anche nello spam.
+              {t("Arriva al tuo indirizzo o a quello di un collega dell'azienda e non consuma crediti. Se non la trovi entro un minuto, guarda anche nello spam.")}
             </AlertDescription>
           </Alert>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("Annulla")}</Button>
           <Button onClick={onInvia} disabled={inCorso}>
             {inCorso && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Invia prova
+            {t("Invia prova")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -330,6 +334,7 @@ export default function SettingsEmailDomain({
   /** Dove stanno «Mittente e aspetto» quando questa pagina è montata altrove (es. la scheda «Dominio» della pagina Email admin). */
   linkPreferenze?: string;
 } = {}) {
+  const t = useT();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
@@ -342,7 +347,7 @@ export default function SettingsEmailDomain({
   // Preferenze email è la pagina accanto.
   const { pathname } = useLocation();
   const percorsoPreferenze = linkPreferenze ?? pathname.replace(/dominio-email\/?$/, "preferenze-email");
-  const notaDelCanale = (p: ProvenienzaCanale) => notaProvenienza(p, percorsoPreferenze);
+  const notaDelCanale = (p: ProvenienzaCanale) => notaProvenienza(p, percorsoPreferenze, t);
 
   const [inputDomain, setInputDomain] = useState("");
 
@@ -382,7 +387,7 @@ export default function SettingsEmailDomain({
       const { data: resp, error } = await supabase.functions.invoke("manage-email-domain", {
         body: { action: "get_status", company_id: companyId },
       });
-      if (error) throw new Error(await edgeErrorMessage(error, "Impossibile caricare il dominio email"));
+      if (error) throw new Error(await edgeErrorMessage(error, t("Impossibile caricare il dominio email")));
       return normalizeDomainResponse(resp);
     },
   });
@@ -436,11 +441,11 @@ export default function SettingsEmailDomain({
       return resp;
     },
     onSuccess: () => {
-      toast.success(`Email di prova inviata a ${testEmailTo}. Controlla la casella (anche lo spam).`);
+      toast.success(t("Email di prova inviata a {testEmailTo}. Controlla la casella (anche lo spam).", { testEmailTo: String(testEmailTo ?? "") }));
       setTestDialogOpen(false);
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Errore invio email di test";
+      const msg = err instanceof Error ? err.message : t("Errore invio email di test");
       toast.error(msg);
     },
   });
@@ -456,14 +461,14 @@ export default function SettingsEmailDomain({
       return normalizeDomainResponse(resp);
     },
     onSuccess: (resp) => {
-      toast.success("Dominio registrato. Ora copia le righe nel pannello del dominio.");
+      toast.success(t("Dominio registrato. Ora copia le righe nel pannello del dominio."));
       setDominioScelto(resp.domain?.domain ?? null);
       setAggiungeUnAltro(false);
       setInputDomain("");
       qc.invalidateQueries({ queryKey: ["company-email-domain", companyId] });
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Errore durante l'aggiunta del dominio";
+      const msg = err instanceof Error ? err.message : t("Errore durante l'aggiunta del dominio");
       toast.error(msg);
     },
   });
@@ -473,11 +478,11 @@ export default function SettingsEmailDomain({
       // BUGFIX: l'azione verify_domain RICHIEDE il dominio nel body — prima
       // mancava e la verifica falliva sempre con "domain is required".
       const currentDomain = data?.domain?.domain;
-      if (!currentDomain) throw new Error("Non c'è nessun dominio registrato da verificare");
+      if (!currentDomain) throw new Error(t("Non c'è nessun dominio registrato da verificare"));
       const { data: resp, error } = await supabase.functions.invoke("manage-email-domain", {
         body: { action: "verify_domain", company_id: companyId, domain: currentDomain },
       });
-      if (error) throw new Error(await edgeErrorMessage(error, "Errore durante la verifica"));
+      if (error) throw new Error(await edgeErrorMessage(error, t("Errore durante la verifica")));
       return normalizeDomainResponse(resp);
     },
     onSuccess: (resp) => {
@@ -487,20 +492,20 @@ export default function SettingsEmailDomain({
       // escono le campagne lo mostra la casella, dopo il ricaricamento.
       const collegati = resp.collegati ?? [];
       if (collegati.includes("marketing")) {
-        toast.success("Da adesso le campagne escono dal tuo dominio.");
+        toast.success(t("Da adesso le campagne escono dal tuo dominio."));
       } else if (marketingOk && d?.is_active) {
-        toast.success("Dominio verificato: le campagne possono partire dal tuo dominio.");
+        toast.success(t("Dominio verificato: le campagne possono partire dal tuo dominio."));
       } else if (resp.providerErrors?.elastic_email) {
         // Non sono i record: è il canale marketing che non ha potuto controllare.
         // Prima finiva sotto «record non ancora propagati» e si aspettava per niente.
-        toast.error(`Il controllo del dominio per le campagne non è riuscito: ${resp.providerErrors.elastic_email}`);
+        toast.error(t("Il controllo del dominio per le campagne non è riuscito: {elastic_email}", { elastic_email: String(resp.providerErrors.elastic_email ?? "") }));
       } else {
-        toast.message("Verifica parziale: alcune righe non risultano ancora attive. Ci può volere fino a 48 ore.");
+        toast.message(t("Verifica parziale: alcune righe non risultano ancora attive. Ci può volere fino a 48 ore."));
       }
       qc.invalidateQueries({ queryKey: ["company-email-domain", companyId] });
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Errore durante la verifica";
+      const msg = err instanceof Error ? err.message : t("Errore durante la verifica");
       toast.error(msg);
     },
   });
@@ -509,20 +514,20 @@ export default function SettingsEmailDomain({
     mutationFn: async () => {
       // BUGFIX: anche remove_domain richiede il dominio nel body.
       const currentDomain = data?.domain?.domain;
-      if (!currentDomain) throw new Error("Non c'è nessun dominio da rimuovere");
+      if (!currentDomain) throw new Error(t("Non c'è nessun dominio da rimuovere"));
       const { data: resp, error } = await supabase.functions.invoke("manage-email-domain", {
         body: { action: "remove_domain", company_id: companyId, domain: currentDomain },
       });
-      if (error) throw new Error(await edgeErrorMessage(error, "Errore durante la rimozione"));
+      if (error) throw new Error(await edgeErrorMessage(error, t("Errore durante la rimozione")));
       return resp;
     },
     onSuccess: () => {
-      toast.success("Dominio rimosso");
+      toast.success(t("Dominio rimosso"));
       setDominioScelto(null);
       qc.invalidateQueries({ queryKey: ["company-email-domain", companyId] });
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Errore durante la rimozione";
+      const msg = err instanceof Error ? err.message : t("Errore durante la rimozione");
       toast.error(msg);
     },
   });
@@ -531,7 +536,7 @@ export default function SettingsEmailDomain({
     return (
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>Seleziona un'azienda per registrare un dominio email.</AlertDescription>
+        <AlertDescription>{t("Seleziona un'azienda per registrare un dominio email.")}</AlertDescription>
       </Alert>
     );
   }
@@ -549,9 +554,9 @@ export default function SettingsEmailDomain({
       <Alert variant="destructive" role="alert">
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          <p>Dominio email non caricato</p>
-          <p>{erroreLettura instanceof Error ? erroreLettura.message : "Riprova fra poco."}</p>
-          <Button variant="outline" className="mt-3" onClick={() => void refetch()}>Riprova</Button>
+          <p>{t("Dominio email non caricato")}</p>
+          <p>{erroreLettura instanceof Error ? erroreLettura.message : t("Riprova fra poco.")}</p>
+          <Button variant="outline" className="mt-3" onClick={() => void refetch()}>{t("Riprova")}</Button>
         </AlertDescription>
       </Alert>
     );
@@ -571,16 +576,16 @@ export default function SettingsEmailDomain({
       <div className="max-w-[1600px] space-y-6">
         {!puoModificare && (
           <AvvisoSolaLettura>
-            Stai solo consultando: per registrare o cambiare il dominio serve il permesso «Email Marketing» (o essere amministratore).
+            {t("Stai solo consultando: per registrare o cambiare il dominio serve il permesso «Email Marketing» (o essere amministratore).")}
           </AvvisoSolaLettura>
         )}
         {aggiungeUnAltro && tuttiIDomini.length > 0 && (
           <div className="flex items-center justify-between gap-2 flex-wrap rounded-lg border bg-muted/30 px-3 py-2">
             <p className="text-sm">
-              Stai aggiungendo un altro dominio. Quelli già collegati restano come sono.
+              {t("Stai aggiungendo un altro dominio. Quelli già collegati restano come sono.")}
             </p>
             <Button variant="outline" size="sm" onClick={() => setAggiungeUnAltro(false)}>
-              Annulla
+              {t("Annulla")}
             </Button>
           </div>
         )}
@@ -594,20 +599,19 @@ export default function SettingsEmailDomain({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm text-blue-900">
-                  Le email funzionano già.
+                  {t("Le email funzionano già.")}
                 </p>
                 {/* Solo le campagne: i messaggi di servizio partono sempre dalla piattaforma
                     col nome dell'azienda e non si configurano qui (07/11/2026). */}
                 <p className="text-xs text-blue-800 mt-0.5">
-                  Stai usando il dominio della piattaforma. Le campagne partono come{" "}
+                  {t("Stai usando il dominio della piattaforma. Le campagne partono come")}{" "}
                   <code className="text-[11px] bg-white/60 px-1 rounded border border-blue-200 break-all">
                     {mittenti?.marketing?.from ?? "Tua Azienda via EdiliziaInCloud <no-reply@mkt.eic-mail.com>"}
                   </code>
                   .
                 </p>
                 <p className="text-xs text-blue-800 mt-2">
-                  <strong>Con un dominio tuo</strong> il mittente delle campagne è il tuo, senza «via
-                  EdiliziaInCloud», e finiscono meno spesso in spam.
+                  <strong>{t("Con un dominio tuo")}</strong> {t("il mittente delle campagne è il tuo, senza «via EdiliziaInCloud», e finiscono meno spesso in spam.")}
                 </p>
               </div>
               <Button
@@ -617,7 +621,7 @@ export default function SettingsEmailDomain({
                 onClick={apriTest}
               >
                 <Send className="h-3.5 w-3.5 mr-1.5" />
-                Invia una prova
+                {t("Invia una prova")}
               </Button>
             </div>
           </CardContent>
@@ -627,31 +631,29 @@ export default function SettingsEmailDomain({
           <CardHeader>
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              <CardTitle>Usa il tuo dominio (facoltativo)</CardTitle>
+              <CardTitle>{t("Usa il tuo dominio (facoltativo)")}</CardTitle>
             </div>
             <CardDescription>
-              Le campagne partono da un indirizzo tuo, per esempio <code className="text-xs">info@tuaazienda.it</code>,
-              invece che dal dominio della piattaforma. Ti serve l'accesso al pannello del dominio (Aruba, Register.it,
-              Cloudflare, GoDaddy…): dovrai copiare alcune righe.
+              {t("Le campagne partono da un indirizzo tuo, per esempio")} <code className="text-xs">info@tuaazienda.it</code>{t(", invece che dal dominio della piattaforma. Ti serve l'accesso al pannello del dominio (Aruba, Register.it, Cloudflare, GoDaddy…): dovrai copiare alcune righe.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="domain">Il tuo dominio</Label>
+              <Label htmlFor="domain">{t("Il tuo dominio")}</Label>
               <Input
                 id="domain"
-                placeholder="esempio: tuaazienda.it"
+                placeholder={t("esempio: tuaazienda.it")}
                 value={inputDomain}
                 onChange={(e) => setInputDomain(e.target.value.trim().toLowerCase())}
                 disabled={!puoModificare || addMutation.isPending}
                 aria-describedby="domain-aiuto"
               />
               <p id="domain-aiuto" className="text-xs text-muted-foreground">
-                Solo il nome, senza <code>https://</code> né <code>www.</code>.
+                {t("Solo il nome, senza")} <code>https://</code> {t("né")} <code>www.</code>.
               </p>
               {inputDomain.trim() !== "" && !domainValid && (
                 <p className="text-xs text-destructive">
-                  Scrivi un dominio valido, per esempio azienda.it
+                  {t("Scrivi un dominio valido, per esempio azienda.it")}
                 </p>
               )}
             </div>
@@ -659,11 +661,10 @@ export default function SettingsEmailDomain({
             {/* Qui c'erano «Parte locale email» e «Nome mittente»: add_domain non
                 li ha mai salvati, e la pagina poi mostrava "noreply@". */}
             <p className="text-xs text-muted-foreground">
-              Verificato il dominio, le campagne partiranno da{" "}
-              <code className="text-[11px]">{prefisso}@{inputDomain || "tuaazienda.it"}</code>.
-              Il nome e la parte prima della @ si cambiano in{" "}
-              <Link to={percorsoPreferenze} className="underline">Mittente e aspetto</Link>{" "}
-              e valgono per tutti i tuoi domini.
+              {t("Verificato il dominio, le campagne partiranno da")}{" "}
+              <code className="text-[11px]">{prefisso}@{inputDomain || "tuaazienda.it"}</code>{t(". Il nome e la parte prima della @ si cambiano in")}{" "}
+              <Link to={percorsoPreferenze} className="underline">{t("Mittente e aspetto")}</Link>{" "}
+              {t("e valgono per tutti i tuoi domini.")}
             </p>
 
             <Button
@@ -672,12 +673,11 @@ export default function SettingsEmailDomain({
               className="w-full sm:w-auto"
             >
               {addMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Continua
+              {t("Continua")}
             </Button>
 
             <div className="text-xs text-muted-foreground pt-2 border-t">
-              Dopo il clic ti mostriamo le righe da copiare nel pannello del dominio. Per attivarsi possono servire da
-              pochi minuti a 48 ore.
+              {t("Dopo il clic ti mostriamo le righe da copiare nel pannello del dominio. Per attivarsi possono servire da pochi minuti a 48 ore.")}
             </div>
           </CardContent>
         </Card>
@@ -687,14 +687,14 @@ export default function SettingsEmailDomain({
         <DialogProvaEmail
           open={testDialogOpen}
           onOpenChange={setTestDialogOpen}
-          descrizione="Controlla che le campagne partano. Senza un dominio tuo la prova parte dal dominio della piattaforma, come le campagne vere."
+          descrizione={t("Controlla che le campagne partano. Senza un dominio tuo la prova parte dal dominio della piattaforma, come le campagne vere.")}
           to={testEmailTo}
           onToChange={setTestEmailTo}
           mittenti={mittenti}
           inCorso={testEmailMutation.isPending}
           onInvia={() => {
           if (!testEmailTo || !testEmailTo.includes("@")) {
-            toast.error("L'indirizzo email non è valido");
+            toast.error(t("L'indirizzo email non è valido"));
             return;
           }
           testEmailMutation.mutate({ to: testEmailTo });
@@ -722,7 +722,7 @@ export default function SettingsEmailDomain({
     <div className="max-w-[1600px] space-y-6">
       {!puoModificare && (
         <AvvisoSolaLettura>
-          Stai solo consultando: per registrare o cambiare il dominio serve il permesso «Email Marketing» (o essere amministratore).
+          {t("Stai solo consultando: per registrare o cambiare il dominio serve il permesso «Email Marketing» (o essere amministratore).")}
         </AvvisoSolaLettura>
       )}
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -740,7 +740,7 @@ export default function SettingsEmailDomain({
         </div>
         <Button variant="outline" size="sm" onClick={() => setAggiungeUnAltro(true)} disabled={!puoModificare}>
           <Globe className="h-4 w-4 mr-2" />
-          Aggiungi un altro dominio
+          {t("Aggiungi un altro dominio")}
         </Button>
       </div>
 
@@ -753,7 +753,7 @@ export default function SettingsEmailDomain({
                 <CardTitle className="text-base">{domain.domain}</CardTitle>
                 {mittenteDaQui && (
                   <CardDescription>
-                    Mittente:&nbsp;
+                    {t("Mittente: ")}
                     <code className="text-xs break-all">{mittenteDaQui.from}</code>
                   </CardDescription>
                 )}
@@ -762,12 +762,10 @@ export default function SettingsEmailDomain({
             <div className="flex items-center gap-2 flex-wrap">
               {campagneOk && domain.is_active ? (
                 <Badge className="bg-green-600 hover:bg-green-700">
-                  <CheckCircle2 className="h-3 w-3 mr-1" /> Attivo
+                  <CheckCircle2 className="h-3 w-3 mr-1" /> {t("Attivo")}
                 </Badge>
               ) : (
-                <Badge variant="outline">
-                  {verifiedCount}/{totalCount} righe verificate
-                </Badge>
+                <Badge variant="outline">{t("{verifiedCount}/{totalCount} righe verificate", { verifiedCount: String(verifiedCount ?? ""), totalCount: String(totalCount ?? "") })}</Badge>
               )}
               {campagneOk && domain.is_active && (
                 <Button
@@ -776,7 +774,7 @@ export default function SettingsEmailDomain({
                   onClick={apriTest}
                 >
                   <Send className="h-3.5 w-3.5 mr-1.5" />
-                  Invia una prova
+                  {t("Invia una prova")}
                 </Button>
               )}
               <AlertDialog>
@@ -786,23 +784,22 @@ export default function SettingsEmailDomain({
                     size="sm"
                     className="h-11 w-11 p-0 sm:h-9 sm:w-9"
                     disabled={!puoModificare || removeMutation.isPending}
-                    aria-label={`Rimuovi il dominio ${domain.domain}`}
-                    title="Rimuovi il dominio"
+                    aria-label={t("Rimuovi il dominio {domain}", { domain: String(domain.domain ?? "") })}
+                    title={t("Rimuovi il dominio")}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Rimuovere il dominio?</AlertDialogTitle>
+                    <AlertDialogTitle>{t("Rimuovere il dominio?")}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Le campagne torneranno a partire dal dominio della piattaforma.
-                      Potrai registrarlo di nuovo quando vuoi.
+                      {t("Le campagne torneranno a partire dal dominio della piattaforma. Potrai registrarlo di nuovo quando vuoi.")}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Annulla</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => removeMutation.mutate()}>Rimuovi</AlertDialogAction>
+                    <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => removeMutation.mutate()}>{t("Rimuovi")}</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
@@ -812,12 +809,12 @@ export default function SettingsEmailDomain({
           {/* Solo le campagne: la scheda «Messaggi di servizio» non c'è più (07/11/2026). */}
           <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:max-w-md">
             <ProviderStatusCard
-              label="Campagne e newsletter"
-              sublabel="Email di marketing"
+              label={t("Campagne e newsletter")}
+              sublabel={t("Email di marketing")}
               // SPF+DKIM bastano per inviare; il tracking CNAME è opzionale
               verified={campagneOk}
               added={domain.ee_domain_added}
-              extra={campagneOk && !domain.ee_tracking_verified ? "Conteggio aperture e clic: facoltativo, non attivo" : undefined}
+              extra={campagneOk && !domain.ee_tracking_verified ? t("Conteggio aperture e clic: facoltativo, non attivo") : undefined}
               mittente={mittenti?.marketing?.from}
               nota={mittenti?.marketing ? notaDelCanale(provenienzaCampagne) : null}
             />
@@ -830,18 +827,15 @@ export default function SettingsEmailDomain({
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             <p>
-              Copia le righe qui sotto nel pannello del tuo dominio (Aruba, Register.it, GoDaddy, Cloudflare…). Nel
-              campo «Nome» scrivi solo la parte indicata (per esempio <code>api._domainkey</code>): il pannello aggiunge
-              da solo il tuo dominio.
+              {t("Copia le righe qui sotto nel pannello del tuo dominio (Aruba, Register.it, GoDaddy, Cloudflare…). Nel campo «Nome» scrivi solo la parte indicata (per esempio")} <code>api._domainkey</code>{t("): il pannello aggiunge da solo il tuo dominio.")}
             </p>
             <p className="mt-1">
-              Possono servire da pochi minuti a 48 ore. Quando hai finito, premi «Verifica DNS».
+              {t("Possono servire da pochi minuti a 48 ore. Quando hai finito, premi «Verifica DNS».")}
             </p>
             <details className="mt-1 text-xs text-muted-foreground">
-              <summary className="cursor-pointer">Perché devo premere «Verifica DNS»?</summary>
+              <summary className="cursor-pointer">{t("Perché devo premere «Verifica DNS»?")}</summary>
               <p className="mt-1">
-                L'aggiornamento automatico della pagina legge soltanto quello che è già stato salvato: per far
-                controllare le righe davvero, premi sempre «Verifica DNS».
+                {t("L'aggiornamento automatico della pagina legge soltanto quello che è già stato salvato: per far controllare le righe davvero, premi sempre «Verifica DNS».")}
               </p>
             </details>
           </AlertDescription>
@@ -851,10 +845,9 @@ export default function SettingsEmailDomain({
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <Card className="min-w-0">
         <CardHeader>
-          <CardTitle className="text-base">Righe da copiare nel pannello del dominio</CardTitle>
+          <CardTitle className="text-base">{t("Righe da copiare nel pannello del dominio")}</CardTitle>
           <CardDescription>
-            Le <strong>campagne</strong> si attivano quando risultano verificate «Autorizzazione a spedire» e «Firma di
-            sicurezza».
+            {t("Le")} <strong>{t("campagne")}</strong> {t("si attivano quando risultano verificate «Autorizzazione a spedire» e «Firma di sicurezza».")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -870,7 +863,7 @@ export default function SettingsEmailDomain({
                 className="text-muted-foreground -ml-2"
                 onClick={() => setMostraAltriRecord((v) => !v)}
               >
-                {mostraAltriRecord ? "Nascondi le righe facoltative" : "Mostra anche le righe facoltative"}
+                {mostraAltriRecord ? t("Nascondi le righe facoltative") : t("Mostra anche le righe facoltative")}
               </Button>
               {mostraAltriRecord && records.filter((r) => etichettaRecord(r.purpose).facoltativo).map((r, idx) => (
                 <DnsRow key={idx} record={r} dominio={domain.domain} />
@@ -881,18 +874,16 @@ export default function SettingsEmailDomain({
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex flex-col gap-1">
               <p className="text-xs text-muted-foreground">
-                Hai già copiato le righe? Premi «Verifica DNS»: controlliamo se risultano attive.
+                {t("Hai già copiato le righe? Premi «Verifica DNS»: controlliamo se risultano attive.")}
               </p>
               {!campagneOk && (
                 <label className="flex items-center gap-2 text-xs">
                   <Switch checked={autoPoll} onCheckedChange={setAutoPoll} className="scale-75" />
                   <span className="text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    Controlla da solo ogni 30 secondi
+                    {t("Controlla da solo ogni 30 secondi")}
                     {autoPoll && dataUpdatedAt && (
-                      <span className="text-[10px] opacity-70">
-                        (aggiornato alle {new Date(dataUpdatedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })})
-                      </span>
+                      <span className="text-[10px] opacity-70">{t("(aggiornato alle {valore})", { valore: new Date(dataUpdatedAt).toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit", second: "2-digit" }) })}</span>
                     )}
                   </span>
                 </label>
@@ -901,14 +892,14 @@ export default function SettingsEmailDomain({
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => refetch()} disabled={verifyMutation.isPending}>
                 <RefreshCw className="h-4 w-4 mr-2" />
-                Aggiorna
+                {t("Aggiorna")}
               </Button>
               <Button
                 onClick={() => verifyMutation.mutate()}
                 disabled={!puoModificare || verifyMutation.isPending}
               >
                 {verifyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Verifica DNS
+                {t("Verifica DNS")}
               </Button>
             </div>
           </div>
@@ -923,13 +914,13 @@ export default function SettingsEmailDomain({
           >
             <div className="flex items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-base">Come inserire le righe nel pannello</CardTitle>
+                <CardTitle className="text-base">{t("Come inserire le righe nel pannello")}</CardTitle>
                 <CardDescription>
-                  Scegli dove hai registrato il dominio per vedere le istruzioni passo passo.
+                  {t("Scegli dove hai registrato il dominio per vedere le istruzioni passo passo.")}
                 </CardDescription>
               </div>
               <Button type="button" variant="ghost" size="sm">
-                {mostraGuida ? "Nascondi" : "Mostra la guida"}
+                {mostraGuida ? t("Nascondi") : t("Mostra la guida")}
               </Button>
             </div>
           </CardHeader>
@@ -947,7 +938,7 @@ export default function SettingsEmailDomain({
           <CheckCircle2 className="h-4 w-4 text-green-600" />
           <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
             <span>
-              Dominio attivo: le campagne escono da{" "}
+              {t("Dominio attivo: le campagne escono da")}{" "}
               <code className="text-xs break-all">{mittenti?.marketing?.fromEmail}</code>.
             </span>
             <Button
@@ -956,7 +947,7 @@ export default function SettingsEmailDomain({
               onClick={apriTest}
             >
               <Send className="h-3.5 w-3.5 mr-1.5" />
-              Invia una prova
+              {t("Invia una prova")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -966,14 +957,14 @@ export default function SettingsEmailDomain({
       <DialogProvaEmail
         open={testDialogOpen}
         onOpenChange={setTestDialogOpen}
-        descrizione="Controlla che le campagne partano davvero: la prova usa il mittente vero delle campagne dell'azienda."
+        descrizione={t("Controlla che le campagne partano davvero: la prova usa il mittente vero delle campagne dell'azienda.")}
         to={testEmailTo}
         onToChange={setTestEmailTo}
         mittenti={mittenti}
         inCorso={testEmailMutation.isPending}
         onInvia={() => {
           if (!testEmailTo || !testEmailTo.includes("@")) {
-            toast.error("L'indirizzo email non è valido");
+            toast.error(t("L'indirizzo email non è valido"));
             return;
           }
           testEmailMutation.mutate({ to: testEmailTo });
@@ -996,6 +987,7 @@ function ProviderStatusCard({
   /** Perché il canale non esce da questo dominio (può contenere un link a «Mittente e aspetto»). */
   nota?: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className={`rounded-md border p-2 ${verified ? "border-green-200 bg-green-50/50" : added ? "border-yellow-200 bg-yellow-50/50" : "border-slate-200"}`}>
       <div className="flex items-center gap-1.5">
@@ -1012,7 +1004,7 @@ function ProviderStatusCard({
       {extra && <div className="text-[10px] text-muted-foreground mt-0.5">{extra}</div>}
       {mittente && (
         <div className="text-[10px] mt-1 break-all">
-          <span className="text-muted-foreground">Da: </span>
+          <span className="text-muted-foreground">{t("Da:")} </span>
           <code>{mittente}</code>
         </div>
       )}

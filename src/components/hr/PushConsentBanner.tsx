@@ -5,12 +5,14 @@
 import { Bell, BellOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface PushConsentBannerProps {
   onDismiss?: () => void;
 }
 
 export function PushConsentBanner({ onDismiss }: PushConsentBannerProps) {
+  const t = useT();
   const { permission, isSubscribed, isLoading, subscribe, unsubscribe } = usePushNotifications();
 
   // Non mostrare se non supportato o già deciso
@@ -23,11 +25,11 @@ export function PushConsentBanner({ onDismiss }: PushConsentBannerProps) {
         <Bell className="h-4 w-4 text-blue-600" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-blue-900">Attiva le notifiche</p>
+        <p className="text-sm font-semibold text-blue-900">{t("Attiva le notifiche")}</p>
         {/* Solo quello che parte davvero: gli avvisi di documenti in scadenza per
             la persona non esistono ancora (26/09/2026). */}
         <p className="text-xs text-blue-700 mt-0.5">
-          Gli avvisi arrivano sul telefono anche ad app chiusa.
+          {t("Gli avvisi arrivano sul telefono anche ad app chiusa.")}
         </p>
         <div className="flex items-center gap-2 mt-3">
           <Button
@@ -36,11 +38,11 @@ export function PushConsentBanner({ onDismiss }: PushConsentBannerProps) {
             onClick={subscribe}
             disabled={isLoading}
           >
-            {isLoading ? "Attivazione…" : "Attiva notifiche"}
+            {isLoading ? t("Attivazione…") : t("Attiva notifiche")}
           </Button>
           {onDismiss && (
             <Button size="sm" variant="ghost" className="text-blue-600" onClick={onDismiss}>
-              Non ora
+              {t("Non ora")}
             </Button>
           )}
         </div>
@@ -49,7 +51,7 @@ export function PushConsentBanner({ onDismiss }: PushConsentBannerProps) {
         <button
           onClick={onDismiss}
           className="shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
-          aria-label="Chiudi"
+          aria-label={t("Chiudi")}
         >
           <X className="h-4 w-4" />
         </button>
@@ -60,13 +62,14 @@ export function PushConsentBanner({ onDismiss }: PushConsentBannerProps) {
 
 /** Versione compatta per le impostazioni profilo */
 export function PushNotificationToggle() {
+  const t = useT();
   const { permission, isSubscribed, isLoading, subscribe, unsubscribe } = usePushNotifications();
 
   if (permission === "unsupported") {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <BellOff className="h-3.5 w-3.5" />
-        Notifiche push non supportate su questo dispositivo
+        {t("Notifiche push non supportate su questo dispositivo")}
       </div>
     );
   }
@@ -81,11 +84,11 @@ export function PushNotificationToggle() {
         )}
         <div>
           <p className="text-sm font-medium">
-            Notifiche push {isSubscribed ? "attive" : "disattivate"}
+            {isSubscribed ? t("Notifiche push attive") : t("Notifiche push disattivate")}
           </p>
           {permission === "denied" && (
             <p className="text-xs text-red-600">
-              Permesso negato — abilita il browser nelle impostazioni del dispositivo
+              {t("Permesso negato — abilita il browser nelle impostazioni del dispositivo")}
             </p>
           )}
         </div>
@@ -97,7 +100,7 @@ export function PushNotificationToggle() {
           onClick={isSubscribed ? unsubscribe : subscribe}
           disabled={isLoading}
         >
-          {isLoading ? "…" : isSubscribed ? "Disattiva" : "Attiva"}
+          {isLoading ? "…" : isSubscribed ? t("Disattiva") : t("Attiva")}
         </Button>
       )}
     </div>

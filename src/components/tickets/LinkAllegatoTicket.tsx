@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { allegatoTicket, TICKET_ATTACHMENTS_BUCKET } from "@/lib/tickets/allegato";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function LinkAllegatoTicket({ ticketId, riferimento, inChat, className }: {
   ticketId: string;
@@ -12,6 +13,7 @@ export function LinkAllegatoTicket({ ticketId, riferimento, inChat, className }:
   inChat?: boolean;
   className?: string;
 }) {
+  const t = useT();
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const { path, nome, immagine } = allegatoTicket(riferimento, ticketId);
@@ -29,7 +31,7 @@ export function LinkAllegatoTicket({ ticketId, riferimento, inChat, className }:
 
   const scarica = useMutation({
     mutationFn: async () => {
-      if (!path) throw new Error("Percorso dell’allegato non disponibile.");
+      if (!path) throw new Error(t("Percorso dell’allegato non disponibile."));
       const { data, error } = await supabase.storage.from(TICKET_ATTACHMENTS_BUCKET).download(path);
       if (error) throw error;
       const url = URL.createObjectURL(data);
@@ -40,14 +42,14 @@ export function LinkAllegatoTicket({ ticketId, riferimento, inChat, className }:
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     },
     onError: () => toast({
-      title: "Allegato non disponibile",
-      description: "Verifica di avere ancora accesso al ticket e riprova.",
+      title: t("Allegato non disponibile"),
+      description: t("Verifica di avere ancora accesso al ticket e riprova."),
       variant: "destructive",
     }),
   });
 
   return (
-    <button type="button" aria-label={`Scarica ${nome}`} title={path ? nome : "Percorso dell’allegato non disponibile"}
+    <button type="button" aria-label={t("Scarica {nome}", { nome: String(nome ?? "") })} title={path ? nome : t("Percorso dell’allegato non disponibile")}
       disabled={!path || scarica.isPending} onClick={() => scarica.mutate()}
       className={cn("flex max-w-full items-center gap-2 rounded-md text-left disabled:opacity-60", className)}>
       {anteprima

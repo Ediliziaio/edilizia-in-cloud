@@ -23,6 +23,7 @@ import { CalendariDelTeam } from "@/components/integrations/CompanyCalendarsOver
 import { SquadreTab } from "./SquadreTab";
 import { CalendariStandardTab } from "./CalendariStandardTab";
 import { RisorseCollegate } from "./RisorseCollegate";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TABS = ["squadre", "google"] as const;
 type Tab = (typeof TABS)[number];
@@ -38,12 +39,14 @@ function schedaDaIndirizzo(richiesto: string): Tab {
 }
 
 export default function CalendariLavoriConfig() {
+  const t = useT();
   const { effectiveCompany } = useAuth();
-  if (!effectiveCompany?.id) return <Alert><AlertDescription>Seleziona un’azienda per consultare squadre e calendari lavori.</AlertDescription></Alert>;
+  if (!effectiveCompany?.id) return <Alert><AlertDescription>{t("Seleziona un’azienda per consultare squadre e calendari lavori.")}</AlertDescription></Alert>;
   return <CalendariLavoriAzienda key={effectiveCompany.id} />;
 }
 
 function CalendariLavoriAzienda() {
+  const t = useT();
   const { role } = useAuth();
   const permissions = usePermissions();
   // Stessa regola della RLS: admin o staff con la modifica delle impostazioni commesse.
@@ -79,14 +82,14 @@ function CalendariLavoriAzienda() {
             className="min-w-0 gap-1 px-1 text-xs sm:gap-2 sm:text-sm"
           >
             <HardHat className="h-4 w-4" />
-            Squadre
+            {t("Squadre")}
           </TabsTrigger>
           <TabsTrigger
             value="google"
             className="min-w-0 gap-1 px-1 text-xs sm:gap-2 sm:text-sm"
           >
             <CalendarDays className="h-4 w-4" />
-            Google Calendar
+            {t("Google Calendar")}
           </TabsTrigger>
         </TabsList>
 
@@ -105,20 +108,16 @@ function CalendariLavoriAzienda() {
                 id="google-account-titolo"
                 className="text-base font-semibold leading-tight"
               >
-                Account Google
+                {t("Account Google")}
               </h2>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                L&apos;account Google dell&apos;azienda per le squadre. Il tuo
-                calendario personale si collega dal tuo profilo.
+                {t("L'account Google dell'azienda per le squadre. Il tuo calendario personale si collega dal tuo profilo.")}
               </p>
             </div>
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                L&apos;account Google con i calendari delle squadre va collegato
-                con l&apos;utente <strong>titolare</strong>, non con chi domani
-                potrebbe non esserci: se quella persona esce o cambia password,
-                la sincronizzazione si ferma.
+                {t("L'account Google con i calendari delle squadre va collegato con l'utente titolare, non con chi domani potrebbe non esserci: se quella persona esce o cambia password, la sincronizzazione si ferma.")}
               </AlertDescription>
             </Alert>
             <GoogleCalendarConnectionTab ambito="lavori" />
@@ -130,11 +129,10 @@ function CalendariLavoriAzienda() {
                 id="google-pose-titolo"
                 className="text-base font-semibold leading-tight"
               >
-                Calendario di tutte le pose
+                {t("Calendario di tutte le pose")}
               </h2>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Un solo calendario Google dove finiscono le pose di tutte le
-                squadre. È facoltativo.
+                {t("Un solo calendario Google dove finiscono le pose di tutte le squadre. È facoltativo.")}
               </p>
             </div>
             <CalendariStandardTab canManage={canManage} />
@@ -144,20 +142,19 @@ function CalendariLavoriAzienda() {
           <details className="rounded-lg border bg-card">
             <summary className="cursor-pointer px-4 py-3">
               <h2 className="inline text-base font-semibold leading-tight">
-                Calendari collegati dal team
+                {t("Calendari collegati dal team")}
               </h2>
             </summary>
             <div className="space-y-2 border-t px-4 py-3">
               <p className="text-xs text-muted-foreground">
-                Ogni persona collega il proprio calendario dal suo profilo: qui
-                vedi chi l&apos;ha fatto e con quale indirizzo.
+                {t("Ogni persona collega il proprio calendario dal suo profilo: qui vedi chi l'ha fatto e con quale indirizzo.")}
               </p>
               <CalendariDelTeam />
             </div>
           </details>
         </TabsContent>
       </Tabs>
-      <aside className="min-w-0" aria-label="Collegamenti tra risorse e calendari">
+      <aside className="min-w-0" aria-label={t("Collegamenti tra risorse e calendari")}>
         <RisorseCollegate compact
         vedeCalendario={!permissions.isLoading && permissions.canViewCalendar}
         vedeCommesse={!permissions.isLoading && permissions.canViewOrders}

@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Niente parole tecniche per chi collega la casella (founder, 25/09/2026: un
 // cliente ha pensato che Gmail non funzionasse per un avviso tecnico). Il
@@ -21,10 +22,11 @@ import { useAuth } from "@/contexts/AuthContext";
 const RIPROVA = "Riprova tra qualche minuto; se succede ancora, scrivici e lo sistemiamo noi.";
 
 export default function EmailOAuthCallbackPage() {
+  const t = useT();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<"processing" | "success" | "error">("processing");
-  const [message, setMessage] = useState<string>("Sto completando la connessione…");
+  const [message, setMessage] = useState<string>(() => t("Sto completando la connessione…"));
   const [emailAddress, setEmailAddress] = useState<string | null>(null);
   const [dettaglio, setDettaglio] = useState<string | null>(null);
   const { userRoles } = useAuth();
@@ -38,15 +40,15 @@ export default function EmailOAuthCallbackPage() {
     if (errorParam) {
       setStatus("error");
       setMessage(errorParam === "access_denied"
-        ? "Hai annullato l'accesso, quindi la casella non è stata collegata. Puoi riprovare quando vuoi."
-        : `Non abbiamo ricevuto il permesso di collegare la casella. ${RIPROVA}`);
+        ? t("Hai annullato l'accesso, quindi la casella non è stata collegata. Puoi riprovare quando vuoi.")
+        : t("Non abbiamo ricevuto il permesso di collegare la casella. {riprova}", { riprova: t(RIPROVA) }));
       setDettaglio(`errore dal provider: ${errorParam}`);
       return;
     }
 
     if (!code || !state) {
       setStatus("error");
-      setMessage("Il collegamento non si è completato. Torna al tuo profilo e riprova.");
+      setMessage(t("Il collegamento non si è completato. Torna al tuo profilo e riprova."));
       setDettaglio("parametri code/state mancanti nel ritorno");
       return;
     }
@@ -55,7 +57,7 @@ export default function EmailOAuthCallbackPage() {
     const expectedState = sessionStorage.getItem("oauth_state");
     if (expectedState && expectedState !== state) {
       setStatus("error");
-      setMessage("Il collegamento è scaduto o è stato aperto in un'altra finestra. Torna al tuo profilo e riprova da lì.");
+      setMessage(t("Il collegamento è scaduto o è stato aperto in un'altra finestra. Torna al tuo profilo e riprova da lì."));
       setDettaglio("state diverso da quello salvato all'avvio");
       return;
     }
@@ -91,7 +93,7 @@ export default function EmailOAuthCallbackPage() {
         sessionStorage.removeItem("email_oauth_return_to");
         setStatus("success");
         setEmailAddress(data.email_address ?? null);
-        setMessage(`${data.email_address} collegato. Puoi tornare alla tua area email.`);
+        setMessage(t("{email} collegato. Puoi tornare alla tua area email.", { email: data.email_address ?? "" }));
 
         // Redirect automatico dopo 3s
         setTimeout(() => {
@@ -99,7 +101,7 @@ export default function EmailOAuthCallbackPage() {
         }, 3000);
       } catch (e) {
         setStatus("error");
-        setMessage(`Non siamo riusciti a completare il collegamento. ${RIPROVA}`);
+        setMessage(t("Non siamo riusciti a completare il collegamento. {riprova}", { riprova: t(RIPROVA) }));
         setDettaglio(e instanceof Error ? e.message : String(e));
         console.error("[email-oauth-callback]", e);
       }
@@ -114,35 +116,35 @@ export default function EmailOAuthCallbackPage() {
           {status === "processing" && (
             <>
               <Loader2 className="h-12 w-12 mx-auto animate-spin text-violet-600" />
-              <h2 className="text-lg font-semibold">Sto completando la connessione…</h2>
+              <h2 className="text-lg font-semibold">{t("Sto completando la connessione…")}</h2>
               <p className="text-sm text-muted-foreground">{message}</p>
             </>
           )}
           {status === "success" && (
             <>
               <CheckCircle2 className="h-12 w-12 mx-auto text-emerald-600" />
-              <h2 className="text-lg font-semibold">Account collegato</h2>
+              <h2 className="text-lg font-semibold">{t("Account collegato")}</h2>
               <p className="text-sm text-muted-foreground">
-                <strong>{emailAddress}</strong> è ora collegato.
+                {t("{email} è ora collegato.", { email: emailAddress ?? "" })}
               </p>
               <p className="text-xs text-muted-foreground">
-                Entro 10 minuti le tue email compaiono nell'area email. Ti riportiamo lì tra un attimo…
+                {t("Entro 10 minuti le tue email compaiono nell'area email. Ti riportiamo lì tra un attimo…")}
               </p>
               <Button onClick={() => navigate(sessionStorage.getItem("email_oauth_return_to") || (window.location.pathname.startsWith("/admin/") ? "/admin/email" : "/azienda/email"))} className="mt-2">
-                Torna alle email
+                {t("Torna alle email")}
               </Button>
             </>
           )}
           {status === "error" && (
             <>
               <XCircle className="h-12 w-12 mx-auto text-rose-600" />
-              <h2 className="text-lg font-semibold">Casella non collegata</h2>
+              <h2 className="text-lg font-semibold">{t("Casella non collegata")}</h2>
               <p className="text-sm text-muted-foreground">{message}</p>
               {isSuperAdmin && dettaglio && (
-                <p className="text-xs text-muted-foreground/80">Dettaglio (lo vedi solo tu): {dettaglio}</p>
+                <p className="text-xs text-muted-foreground/80">{t("Dettaglio (lo vedi solo tu): {dettaglio}", { dettaglio: String(dettaglio ?? "") })}</p>
               )}
               <Button onClick={() => navigate(sessionStorage.getItem("email_oauth_return_to") || (window.location.pathname.startsWith("/admin/") ? "/admin/email" : "/azienda/email"))} variant="outline">
-                Torna alle email
+                {t("Torna alle email")}
               </Button>
             </>
           )}

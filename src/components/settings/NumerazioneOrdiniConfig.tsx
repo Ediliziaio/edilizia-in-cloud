@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { RigaInterruttore, SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 import { useAnteprimaNumeroOda, useNumerazioneOda, type NumerazioneOda } from "@/hooks/useNumerazioneOda";
 import { erroreFormatoOda, erroreProssimoOda, formattaNumeroOda, FORMATO_ODA_PREDEFINITO } from "@/lib/acquisti/numerazioneOda";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export default function NumerazioneOrdiniConfig({ puoModificare }: { puoModificare: boolean }) {
   const { numerazione, isLoading, salva } = useNumerazioneOda();
@@ -27,6 +28,7 @@ function Modulo({ salvata, isLoading, salva, anteprima, puoModificare }: {
   anteprima: string | null;
   puoModificare: boolean;
 }) {
+  const t = useT();
   const [attiva, setAttiva] = useState(!!salvata);
   const [formato, setFormato] = useState(salvata?.formato ?? FORMATO_ODA_PREDEFINITO);
   const [prossimo, setProssimo] = useState(salvata ? String(salvata.prossimo) : "");
@@ -55,15 +57,15 @@ function Modulo({ salvata, isLoading, salva, anteprima, puoModificare }: {
   return (
     <SezioneImpostazione
       id="numerazione-ordini"
-      titolo="Numerazione ordini ai fornitori"
-      descrizione="Come si numerano gli ordini ai fornitori. Un fornitore può avere la sua numerazione, dalla sua scheda."
+      titolo={t("Numerazione ordini ai fornitori")}
+      descrizione={t("Come si numerano gli ordini ai fornitori. Un fornitore può avere la sua numerazione, dalla sua scheda.")}
     >
       <RigaInterruttore
         id="numerazione-ordini-propria"
-        titolo="Numerazione scelta dall'azienda"
+        titolo={t("Numerazione scelta dall'azienda")}
         descrizione={attiva
-          ? "Acceso: gli ordini prendono il formato e il prossimo numero scritti qui."
-          : "Spento: ODA-anno-numero, per esempio ODA-2026-0001."}
+          ? t("Acceso: gli ordini prendono il formato e il prossimo numero scritti qui.")
+          : t("Spento: ODA-anno-numero, per esempio ODA-2026-0001.")}
         checked={attiva}
         disabled={bloccato}
         onCheckedChange={accendi}
@@ -71,17 +73,17 @@ function Modulo({ salvata, isLoading, salva, anteprima, puoModificare }: {
         {attiva && (
           <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_9rem]">
             <div className="space-y-1">
-              <Label htmlFor="numerazione-formato" className="text-xs">Formato</Label>
+              <Label htmlFor="numerazione-formato" className="text-xs">{t("Formato")}</Label>
               <Input id="numerazione-formato" value={formato} maxLength={40} disabled={bloccato}
                 aria-invalid={!!erroreF} aria-describedby="numerazione-formato-aiuto"
                 onChange={(e) => setFormato(e.target.value)} />
               <p id="numerazione-formato-aiuto" className="text-[11px] text-muted-foreground">
-                {"{n}"} il numero, {"{n:4}"} con gli zeri davanti, {"{anno}"} 2026, {"{aa}"} 26. Solo il numero: {"{n}"}.
+                {t("{a} il numero, {b} con gli zeri davanti, {c} 2026, {d} 26. Solo il numero: {a}.", { a: "{n}", b: "{n:4}", c: "{anno}", d: "{aa}" })}
               </p>
               {erroreF && <p role="alert" className="text-xs text-destructive">{erroreF}</p>}
             </div>
             <div className="space-y-1">
-              <Label htmlFor="numerazione-prossimo" className="text-xs">Prossimo numero</Label>
+              <Label htmlFor="numerazione-prossimo" className="text-xs">{t("Prossimo numero")}</Label>
               <Input id="numerazione-prossimo" inputMode="numeric" className="text-right tabular-nums" value={prossimo}
                 disabled={bloccato} aria-invalid={!!erroreP} onChange={(e) => setProssimo(e.target.value)} />
               {erroreP && <p role="alert" className="text-xs text-destructive">{erroreP}</p>}
@@ -90,12 +92,12 @@ function Modulo({ salvata, isLoading, salva, anteprima, puoModificare }: {
         )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <p className="text-sm" aria-live="polite">
-            Il prossimo ordine sarà: <span className="font-mono font-semibold">{prossimoNumero ?? "…"}</span>
+            {t("Il prossimo ordine sarà:")} <span className="font-mono font-semibold">{prossimoNumero ?? "…"}</span>
           </p>
           {modificata && puoModificare && (
             <Button type="button" size="sm" className="ml-auto" disabled={bloccato || !!erroreF || !!erroreP}
               onClick={() => salva.mutate({ formato: formato.trim(), prossimo: Number(prossimo) })}>
-              {salva.isPending ? "Salvataggio…" : "Salva numerazione"}
+              {salva.isPending ? t("Salvataggio…") : t("Salva numerazione")}
             </Button>
           )}
         </div>

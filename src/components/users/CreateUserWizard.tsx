@@ -32,6 +32,7 @@ import {
 } from "@/components/users/permissionsDefaults";
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export type { StaffRoleType };
 
@@ -92,15 +93,15 @@ const NOTA_RUOLO: Partial<Record<StaffRoleType, string>> = {
 
 /** Gli importi in parole, per il riassunto del primo passo (anche quando il
  *  preset non coincide con un livello: «personalizzati» non diceva niente). */
-function descriviImporti(p: StaffPermissions): string {
+function descriviImporti(p: StaffPermissions, t: ReturnType<typeof useT>): string {
   const visti = [
-    p.can_view_order_amounts && "vendite",
-    p.can_view_costs && "costi",
-    p.can_view_margins && "margini",
+    p.can_view_order_amounts && t("vendite"),
+    p.can_view_costs && t("costi"),
+    p.can_view_margins && t("margini"),
   ].filter(Boolean) as string[];
-  if (visti.length === 0) return "nessuno";
+  if (visti.length === 0) return t("nessuno");
   if (visti.length === 1) return visti[0];
-  return `${visti.slice(0, -1).join(", ")} e ${visti[visti.length - 1]}`;
+  return t("{elenco} e {ultimo}", { elenco: visti.slice(0, -1).join(", "), ultimo: visti[visti.length - 1] });
 }
 
 const ROLES_WITH_PERMISSIONS: StaffRoleType[] = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"];
@@ -123,6 +124,7 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
   /** Aperto d'ufficio mentre si cerca: si vedono subito i moduli trovati. */
   forzaAperto?: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const aperto = !!forzaAperto || open;
   const activeCount = sections.reduce((c, s) => {
@@ -155,9 +157,9 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
           </button>
         </CollapsibleTrigger>
         <div className="flex items-center gap-2 pl-2">
-          <Switch checked={allActive} onCheckedChange={handleToggleAll} aria-label={`Attiva tutti i permessi di ${label}`} />
+          <Switch checked={allActive} onCheckedChange={handleToggleAll} aria-label={t("Attiva tutti i permessi di {label}", { label: String(label ?? "") })} />
           <CollapsibleTrigger asChild>
-            <button type="button" aria-label={aperto ? `Comprimi ${label}` : `Espandi ${label}`} className="tap-compact text-muted-foreground">
+            <button type="button" aria-label={aperto ? t("Comprimi {label}", { label: String(label ?? "") }) : t("Espandi {label}", { label: String(label ?? "") })} className="tap-compact text-muted-foreground">
               {aperto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </button>
           </CollapsibleTrigger>
@@ -175,13 +177,13 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
                 onCheckedChange={(checked) => onToggle(section.viewKey, checked)}
               />
               <div className="min-w-0">
-                <Label htmlFor={`wiz-${section.viewKey}`} className="cursor-pointer text-sm leading-tight">{section.label}</Label>
+                <Label htmlFor={`wiz-${section.viewKey}`} className="cursor-pointer text-sm leading-tight">{t(section.label)}</Label>
                 {/* Mobile: basta il nome del modulo. */}
                 {section.description && (
-                  <p className="mt-0.5 text-xs leading-snug text-muted-foreground max-sm:hidden">{section.description}</p>
+                  <p className="mt-0.5 text-xs leading-snug text-muted-foreground max-sm:hidden">{t(section.description)}</p>
                 )}
                 {(bloccato(section.viewKey) || (section.editKey && bloccato(section.editKey))) && (
-                  <p className="mt-0.5 text-[11px] text-amber-600">{SOLA_LETTURA_BLOCKED_NOTE}</p>
+                  <p className="mt-0.5 text-[11px] text-amber-600">{t(SOLA_LETTURA_BLOCKED_NOTE)}</p>
                 )}
               </div>
             </div>
@@ -193,7 +195,7 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
                   disabled={bloccato(section.editKey)}
                   onCheckedChange={(checked) => onToggle(section.editKey!, checked)}
                 />
-                <Label htmlFor={`wiz-${section.editKey}`} className="cursor-pointer text-xs text-muted-foreground">Modifica</Label>
+                <Label htmlFor={`wiz-${section.editKey}`} className="cursor-pointer text-xs text-muted-foreground">{t("Modifica")}</Label>
               </div>
             )}
           </div>
@@ -217,6 +219,7 @@ const WIZARD_GROUPS = [
 const WIZARD_ECON_KEYS = new Set<string>(["can_view_order_amounts", "can_view_costs", "can_view_margins"]);
 
 export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, companyId }: CreateUserWizardProps) {
+  const tr = useT();
   const { toast } = useToast();
   // Passi: 1 = chi è (e si può già creare), 2 = permessi (facoltativo), 3 = fatto.
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -339,15 +342,15 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
   /** Nome, cognome ed email: servono sia per creare sia per passare ai permessi. */
   const datiValidi = (): boolean => {
     if (sceltaMancante) {
-      toast({ title: "Scegli il profilo del personale oppure Nuova persona", variant: "destructive" });
+      toast({ title: tr("Scegli il profilo del personale oppure Nuova persona"), variant: "destructive" });
       return false;
     }
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      toast({ title: "Campi obbligatori", description: "Compila nome, cognome e email.", variant: "destructive" });
+      toast({ title: tr("Campi obbligatori"), description: tr("Compila nome, cognome e email."), variant: "destructive" });
       return false;
     }
     if (!EMAIL_VALIDA.test(email.trim())) {
-      toast({ title: "Email non valida", description: "Inserisci un indirizzo email valido.", variant: "destructive" });
+      toast({ title: tr("Email non valida"), description: tr("Inserisci un indirizzo email valido."), variant: "destructive" });
       return false;
     }
     return true;
@@ -432,9 +435,9 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
     }
     try {
       await navigator.clipboard.writeText(testoAccesso);
-      toast({ title: "Accesso copiato", description: "Incollalo in WhatsApp o in una email." });
+      toast({ title: tr("Accesso copiato"), description: tr("Incollalo in WhatsApp o in una email.") });
     } catch {
-      toast({ title: "Copia non riuscita", description: "Seleziona e copia la password a mano.", variant: "destructive" });
+      toast({ title: tr("Copia non riuscita"), description: tr("Seleziona e copia la password a mano."), variant: "destructive" });
     }
   };
 
@@ -459,10 +462,10 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
       >
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>
-            {isSuccessStep ? "Utente creato" : step === 2 ? `Permessi · ${ROLE_LABELS[roleType]}` : "Nuovo utente"}
+            {isSuccessStep ? tr("Utente creato") : step === 2 ? tr("Permessi · {valore}", { valore: String(ROLE_LABELS[roleType] ?? "") }) : tr("Nuovo utente")}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            {isSuccessStep ? "Credenziali del nuovo utente" : step === 2 ? "Permessi del nuovo utente" : "Nome, email e ruolo del nuovo utente"}
+            {isSuccessStep ? tr("Credenziali del nuovo utente") : step === 2 ? tr("Permessi del nuovo utente") : tr("Nome, email e ruolo del nuovo utente")}
           </DialogDescription>
         </DialogHeader>
 
@@ -472,7 +475,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
           {step === 1 && (
             <div className="space-y-4 py-1 max-sm:space-y-3">
               <div className="space-y-1.5">
-                <Label id="nu-ruolo">Ruolo</Label>
+                <Label id="nu-ruolo">{tr("Ruolo")}</Label>
                 <div role="radiogroup" aria-labelledby="nu-ruolo" className="grid gap-1.5 sm:grid-cols-2">
                   {ROLE_OPTIONS.map(opt => {
                     const Icon = opt.icon;
@@ -491,8 +494,8 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                       >
                         <Icon className={cn("h-4 w-4 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium leading-tight">{opt.label}</span>
-                          <span className="block truncate text-[11px] leading-tight text-muted-foreground">{opt.description}</span>
+                          <span className="block text-sm font-medium leading-tight">{tr(opt.label)}</span>
+                          <span className="block truncate text-[11px] leading-tight text-muted-foreground">{tr(opt.description)}</span>
                         </span>
                         {isSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
                       </button>
@@ -500,13 +503,13 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                   })}
                 </div>
                 {NOTA_RUOLO[roleType] && (
-                  <p className="text-[11px] leading-snug text-muted-foreground">{NOTA_RUOLO[roleType]}</p>
+                  <p className="text-[11px] leading-snug text-muted-foreground">{tr(NOTA_RUOLO[roleType])}</p>
                 )}
               </div>
 
               {selezionaPersona && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="nu-personale">Scheda del personale</Label>
+                  <Label htmlFor="nu-personale">{tr("Scheda del personale")}</Label>
                   <UniformSelect id="nu-personale" className="w-full rounded-md border bg-background p-2 text-sm" value={employeeId}
                     disabled={employeeLoading || employeeError}
                     onChange={e => {
@@ -515,23 +518,23 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                       if(employee){setFirstName(employee.first_name);setLastName(employee.last_name);setEmail(employee.email ?? "");}
                       else if (profiloScelto) {setFirstName("");setLastName("");setEmail("");}
                     }}>
-                    <option value="" disabled>Scegli un profilo di Personale &amp; HR</option>
+                    <option value="" disabled>{tr("Scegli un profilo di Personale & HR")}</option>
                     {employeeOptions.map(p=><option key={p.id} value={p.id}>{p.first_name} {p.last_name}{p.mansione ? ` · ${p.mansione}` : ""}{p.email ? ` · ${p.email}` : ""}</option>)}
-                    <option value="nuova">Nuova persona, non ancora presente</option>
+                    <option value="nuova">{tr("Nuova persona, non ancora presente")}</option>
                   </UniformSelect>
-                  <p className="text-xs text-muted-foreground">Se è già nel personale, seleziona la sua scheda: conserverà cantieri, presenze e documenti.</p>
-                  {employeeLoading && <p role="status" className="text-xs">Controllo il personale esistente…</p>}
-                  {employeeError && <p role="alert" className="text-xs text-destructive">Non riesco a verificare il personale. Riapri la finestra prima di creare l’accesso.</p>}
+                  <p className="text-xs text-muted-foreground">{tr("Se è già nel personale, seleziona la sua scheda: conserverà cantieri, presenze e documenti.")}</p>
+                  {employeeLoading && <p role="status" className="text-xs">{tr("Controllo il personale esistente…")}</p>}
+                  {employeeError && <p role="alert" className="text-xs text-destructive">{tr("Non riesco a verificare il personale. Riapri la finestra prima di creare l’accesso.")}</p>}
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="nu-nome">Nome</Label>
-                  <Input id="nu-nome" readOnly={!!profiloScelto} value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Mario" autoComplete="off" />
+                  <Label htmlFor="nu-nome">{tr("Nome")}</Label>
+                  <Input id="nu-nome" readOnly={!!profiloScelto} value={firstName} onChange={e => setFirstName(e.target.value)} placeholder={tr("Mario")} autoComplete="off" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="nu-cognome">Cognome</Label>
-                  <Input id="nu-cognome" readOnly={!!profiloScelto} value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Rossi" autoComplete="off" />
+                  <Label htmlFor="nu-cognome">{tr("Cognome")}</Label>
+                  <Input id="nu-cognome" readOnly={!!profiloScelto} value={lastName} onChange={e => setLastName(e.target.value)} placeholder={tr("Rossi")} autoComplete="off" />
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -551,13 +554,13 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
               {/* Venditore: provvigione accanto al flag «assunto». */}
               {roleType === "salesperson" && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="wiz-commission">Provvigione %</Label>
+                  <Label htmlFor="wiz-commission">{tr("Provvigione %")}</Label>
                   <Input
                     id="wiz-commission"
                     type="number" min="0" max="100" step="0.5" inputMode="decimal"
                     value={commissionPercentage}
                     onChange={(e) => setCommissionPercentage(e.target.value)}
-                    placeholder="Es. 5"
+                    placeholder={tr("Es. 5")}
                     className="max-w-[120px]"
                   />
                 </div>
@@ -567,9 +570,9 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
               {conFlagDipendente && (
                 <label htmlFor="nu-dipendente" className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2">
                   <span className="min-w-0">
-                    <span className="block text-sm font-medium">{roleType === "salesperson" ? "Assunto" : "È anche un dipendente"}</span>
+                    <span className="block text-sm font-medium">{roleType === "salesperson" ? tr("Assunto") : tr("È anche un dipendente")}</span>
                     <span className="block text-[11px] text-muted-foreground">
-                      {roleType === "salesperson" ? "Spento se lavora in P.IVA a provvigione." : "Crea anche la sua scheda in Personale."}
+                      {roleType === "salesperson" ? tr("Spento se lavora in P.IVA a provvigione.") : tr("Crea anche la sua scheda in Personale.")}
                     </span>
                   </span>
                   <Switch id="nu-dipendente" checked={alsoEmployee} onCheckedChange={setAlsoEmployee} />
@@ -579,14 +582,14 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
               {stipendioRilevante && (
                 <div className="space-y-1.5">
                   <Label htmlFor="wiz-salary">
-                    Stipendio lordo mensile (€) <span className="font-normal text-muted-foreground">· facoltativo</span>
+                    {tr("Stipendio lordo mensile (€)")} <span className="font-normal text-muted-foreground">{tr("· facoltativo")}</span>
                   </Label>
                   <Input
                     id="wiz-salary"
                     type="number" min="0" step="50" inputMode="decimal"
                     value={grossSalary}
                     onChange={(e) => setGrossSalary(e.target.value)}
-                    placeholder={roleType === "employee" ? "Es. 1600" : "Es. 1800"}
+                    placeholder={roleType === "employee" ? tr("Es. 1600") : tr("Es. 1800")}
                     className="max-w-[160px]"
                   />
                 </div>
@@ -596,13 +599,13 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
               {scegliPassword ? (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="nu-password">Password</Label>
+                    <Label htmlFor="nu-password">{tr("Password")}</Label>
                     <button
                       type="button"
                       className="tap-compact text-xs text-muted-foreground hover:text-foreground hover:underline"
                       onClick={() => { setScegliPassword(false); setPassword(""); }}
                     >
-                      Generala in automatico
+                      {tr("Generala in automatico")}
                     </button>
                   </div>
                   <div className="relative">
@@ -611,13 +614,13 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={e => setPassword(e.target.value)}
-                      placeholder="Scegli una password"
+                      placeholder={tr("Scegli una password")}
                       autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(p => !p)}
-                      aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                      aria-label={showPassword ? tr("Nascondi password") : tr("Mostra password")}
                       className="tap-compact absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -626,9 +629,9 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  La password la generiamo noi e te la mostriamo alla fine.{" "}
+                  {tr("La password la generiamo noi e te la mostriamo alla fine.")}{" "}
                   <button type="button" className="tap-compact font-medium text-primary hover:underline" onClick={() => setScegliPassword(true)}>
-                    Scegli tu
+                    {tr("Scegli tu")}
                   </button>
                 </p>
               )}
@@ -643,22 +646,22 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                 <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
                   <div className="min-w-0">
                     <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      {permessiPersonalizzati ? "Permessi personalizzati" : `Permessi da ${ROLE_LABELS[roleType]}`}
+                      {permessiPersonalizzati ? tr("Permessi personalizzati") : tr("Permessi da {valore}", { valore: String(ROLE_LABELS[roleType] ?? "") })}
                     </p>
                     <p className="mt-0.5 text-[13px] leading-snug">
                       {permessiPersonalizzati
-                        ? `${totalActive} permessi attivi`
-                        : (currentRoleOption?.preview ?? []).join(" · ")}
+                        ? tr("{totalActive} permessi attivi", { totalActive: String(totalActive ?? "") })
+                        : (currentRoleOption?.preview ?? []).map((v) => tr(v)).join(" · ")}
                     </p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      Importi: {descriviImporti(permissions)}
-                      {permissions.only_assigned ? " · solo i suoi dati" : ""}
-                      {permissions.sola_lettura ? " · sola lettura" : ""}
+                      {tr("Importi: {importi}", { importi: descriviImporti(permissions, tr) })}
+                      {permissions.only_assigned ? ` ${tr("· solo i suoi dati")}` : ""}
+                      {permissions.sola_lettura ? ` ${tr("· sola lettura")}` : ""}
                     </p>
                   </div>
                   <Button type="button" variant="outline" size="sm" className="tap-compact h-8 shrink-0 gap-1.5" onClick={vaiAiPermessi}>
                     <SlidersHorizontal className="h-3.5 w-3.5" />
-                    Personalizza
+                    {tr("Personalizza")}
                   </Button>
                 </div>
               )}
@@ -670,8 +673,8 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
             <div className="space-y-4 py-1 max-sm:space-y-3">
               {/* Le tre scelte che contano, in cima. */}
               <section className="space-y-1.5">
-                <p className="text-sm font-semibold">Importi</p>
-                <div role="radiogroup" aria-label="Importi" className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+                <p className="text-sm font-semibold">{tr("Importi")}</p>
+                <div role="radiogroup" aria-label={tr("Importi")} className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
                   {ECONOMIC_LEVELS.map((lvl) => {
                     const active = economicLevel === lvl.id;
                     return (
@@ -686,13 +689,13 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                           active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
                         )}
                       >
-                        {lvl.label}
+                        {tr(lvl.label)}
                       </button>
                     );
                   })}
                 </div>
                 <p className="text-[11px] leading-snug text-muted-foreground">
-                  {livelloAttivo ? livelloAttivo.desc : "Combinazione personalizzata: la regoli in «Avanzate»."}
+                  {livelloAttivo ? tr(livelloAttivo.desc) : tr("Combinazione personalizzata: la regoli in «Avanzate».")}
                 </p>
               </section>
 
@@ -703,8 +706,8 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
               {roleType === "company_staff" && <OfficeProfileSelector permissions={permissions} onChange={setPermissions} />}
               <label htmlFor="wiz-only_assigned" className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium">Solo il portafoglio CRM assegnato</span>
-                  <span className="block text-[11px] text-muted-foreground">Contatti e opportunità commerciali propri. Le commesse seguono i permessi dell’ufficio.</span>
+                  <span className="block text-sm font-medium">{tr("Solo il portafoglio CRM assegnato")}</span>
+                  <span className="block text-[11px] text-muted-foreground">{tr("Contatti e opportunità commerciali propri. Le commesse seguono i permessi dell’ufficio.")}</span>
                 </span>
                 <Switch
                   id="wiz-only_assigned"
@@ -722,13 +725,13 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
               {/* Cosa vede: moduli in gruppi chiusi, la ricerca li apre. */}
               <section className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold">Cosa vede</p>
-                  <span className="text-xs tabular-nums text-muted-foreground">{totalActive} attivi</span>
+                  <p className="text-sm font-semibold">{tr("Cosa vede")}</p>
+                  <span className="text-xs tabular-nums text-muted-foreground">{tr("{totalActive} attivi", { totalActive: String(totalActive ?? "") })}</span>
                 </div>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Cerca modulo…"
+                    placeholder={tr("Cerca modulo…")}
                     value={permSearch}
                     onChange={(e) => setPermSearch(e.target.value)}
                     className="h-9 pl-8"
@@ -736,28 +739,26 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <Button type="button" variant="outline" size="sm" className="tap-compact h-7 gap-1 px-2 text-xs" onClick={handleSelectAll}>
-                    <Check className="h-3.5 w-3.5" /> Tutti
+                    <Check className="h-3.5 w-3.5" /> {tr("Tutti")}
                   </Button>
                   <Button type="button" variant="outline" size="sm" className="tap-compact h-7 gap-1 px-2 text-xs" onClick={handleDeselectAll}>
-                    <X className="h-3.5 w-3.5" /> Nessuno
+                    <X className="h-3.5 w-3.5" /> {tr("Nessuno")}
                   </Button>
-                  <Button type="button" variant="outline" size="sm" className="tap-compact h-7 px-2 text-xs" onClick={handleResetPreset}>
-                    Come {ROLE_LABELS[roleType]}
-                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="tap-compact h-7 px-2 text-xs" onClick={handleResetPreset}>{tr("Come {valore}", { valore: String(ROLE_LABELS[roleType] ?? "") })}</Button>
                 </div>
                 <div className="space-y-1.5">
                   {WIZARD_GROUPS.map((g) => {
                     const sections = filterWizardSections(g.sections);
                     if (sections.length === 0) return null;
                     return (
-                      <PermGroup key={g.label} label={g.label} icon={g.icon} iconColor={g.iconColor}
+                      <PermGroup key={g.label} label={tr(g.label)} icon={g.icon} iconColor={g.iconColor}
                         sections={sections} permissions={permissions} onToggle={handleToggle}
                         forzaAperto={permSearch.trim() !== ""} />
                     );
                   })}
                 </div>
                 {permSearch.trim() !== "" && WIZARD_GROUPS.every((g) => filterWizardSections(g.sections).length === 0) && (
-                  <p className="py-4 text-center text-sm text-muted-foreground">Nessun modulo corrisponde a "{permSearch}".</p>
+                  <p className="py-4 text-center text-sm text-muted-foreground">{tr("Nessun modulo corrisponde a \"{permSearch}\".", { permSearch: String(permSearch ?? "") })}</p>
                 )}
               </section>
 
@@ -765,27 +766,27 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
               <Collapsible open={avanzateAperte} onOpenChange={setAvanzateAperte}>
                 <CollapsibleTrigger asChild>
                   <button type="button" className="tap-compact flex w-full items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm font-medium">
-                    Avanzate
+                    {tr("Avanzate")}
                     <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", avanzateAperte && "rotate-180")} />
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3 pt-2">
                   <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
                     {([
-                      { key: "can_view_order_amounts" as const, label: "Importi di vendita" },
-                      { key: "can_view_costs" as const, label: "Costi" },
-                      { key: "can_view_margins" as const, label: "Margini" },
+                      { key: "can_view_order_amounts" as const, label: tr("Importi di vendita") },
+                      { key: "can_view_costs" as const, label: tr("Costi") },
+                      { key: "can_view_margins" as const, label: tr("Margini") },
                     ]).map((t) => (
                       <label key={t.key} className="flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-2">
                         <Switch checked={!!permissions[t.key]} onCheckedChange={(c) => handleToggle(t.key, c)} />
-                        <span className="text-xs font-medium">{t.label}</span>
+                        <span className="text-xs font-medium">{tr(t.label)}</span>
                       </label>
                     ))}
                   </div>
                   <label htmlFor="wiz-team_tasks" className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2">
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium">Attività del team</span>
-                      <span className="block text-[11px] text-muted-foreground">Spento vede solo le sue.</span>
+                      <span className="block text-sm font-medium">{tr("Attività del team")}</span>
+                      <span className="block text-[11px] text-muted-foreground">{tr("Spento vede solo le sue.")}</span>
                     </span>
                     <Switch
                       id="wiz-team_tasks"
@@ -795,8 +796,8 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                   </label>
                   <label htmlFor="wiz-team_calendar" className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2">
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium">Calendario del team</span>
-                      <span className="block text-[11px] text-muted-foreground">Spento vede solo i suoi appuntamenti.</span>
+                      <span className="block text-sm font-medium">{tr("Calendario del team")}</span>
+                      <span className="block text-[11px] text-muted-foreground">{tr("Spento vede solo i suoi appuntamenti.")}</span>
                     </span>
                     <Switch
                       id="wiz-team_calendar"
@@ -806,14 +807,14 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                   </label>
                   <div className="space-y-1.5">
                     <p className="text-xs font-medium">
-                      Aree visibili <span className="font-normal text-muted-foreground">· nessuna scelta = tutte</span>
+                      {tr("Aree visibili")} <span className="font-normal text-muted-foreground">{tr("· nessuna scelta = tutte")}</span>
                     </p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {([
-                        { value: "cantiere", label: "Cantiere" },
-                        { value: "commerciale", label: "Commerciale" },
-                        { value: "amministrazione", label: "Amministrazione" },
-                        { value: "tecnico", label: "Tecnico" },
+                        { value: "cantiere", label: tr("Cantiere") },
+                        { value: "commerciale", label: tr("Commerciale") },
+                        { value: "amministrazione", label: tr("Amministrazione") },
+                        { value: "tecnico", label: tr("Tecnico") },
                       ] as const).map(area => {
                         const checked = (permissions.visible_areas || []).includes(area.value);
                         return (
@@ -836,7 +837,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                                 });
                               }}
                             />
-                            {area.label}
+                            {tr(area.label)}
                           </label>
                         );
                       })}
@@ -852,7 +853,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
             <div className="space-y-3 py-1">
               <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
                 <CheckCircle2 className="h-5 w-5 shrink-0" />
-                {firstName.trim()} {lastName.trim()} può entrare.
+                {tr("{nome} può entrare.", { nome: `${firstName.trim()} ${lastName.trim()}` })}
               </p>
               {temporaryPassword && (
                 <div className="divide-y rounded-lg border bg-muted/30 text-sm">
@@ -861,17 +862,17 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                     <span className="truncate font-mono text-xs">{email.trim().toLowerCase()}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 px-3 py-2">
-                    <span className="text-muted-foreground">Password</span>
+                    <span className="text-muted-foreground">{tr("Password")}</span>
                     <span className="flex items-center gap-1">
                       <code className="rounded border bg-background px-2 py-0.5 font-mono text-xs">{temporaryPassword}</code>
-                      <Button variant="ghost" size="icon" className="tap-compact h-7 w-7" onClick={copyPassword} aria-label="Copia la password">
+                      <Button variant="ghost" size="icon" className="tap-compact h-7 w-7" onClick={copyPassword} aria-label={tr("Copia la password")}>
                         {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
                       </Button>
                     </span>
                   </div>
                 </div>
               )}
-              <p className="text-[11px] text-amber-700">La password si vede solo ora: mandala adesso a {firstName.trim() || "chi la usa"}.</p>
+              <p className="text-[11px] text-amber-700">{tr("La password si vede solo ora: mandala adesso a {nome}.", { nome: firstName.trim() || tr("chi la usa") })}</p>
             </div>
           )}
         </div>
@@ -880,10 +881,10 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
         <DialogFooter className="flex-shrink-0 gap-2 sm:gap-2">
           {isSuccessStep ? (
             <>
-              <Button variant="outline" onClick={handleClose}>Chiudi</Button>
+              <Button variant="outline" onClick={handleClose}>{tr("Chiudi")}</Button>
               <Button onClick={() => { void condividiAccesso(); }} className="gap-1.5">
                 {puoCondividere ? <Share2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {puoCondividere ? "Condividi accesso" : "Copia accesso"}
+                {puoCondividere ? tr("Condividi accesso") : tr("Copia accesso")}
               </Button>
             </>
           ) : (
@@ -891,12 +892,12 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
               {step === 2 && (
                 <Button variant="outline" onClick={() => setStep(1)} disabled={isLoading}>
                   <ChevronLeft className="mr-1 h-4 w-4" />
-                  Indietro
+                  {tr("Indietro")}
                 </Button>
               )}
               <Button onClick={() => { void handleSubmit(); }} disabled={isLoading || sceltaMancante || (selezionaPersona && (employeeLoading || employeeError))}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Crea utente
+                {tr("Crea utente")}
               </Button>
             </>
           )}
@@ -908,18 +909,18 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
     <AlertDialog open={showConfirmClose} onOpenChange={setShowConfirmClose}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Annullare la creazione dell'utente?</AlertDialogTitle>
+          <AlertDialogTitle>{tr("Annullare la creazione dell'utente?")}</AlertDialogTitle>
           <AlertDialogDescription>
-            Hai inserito dei dati che non sono ancora stati salvati. Se esci ora, tutte le informazioni verranno perse.
+            {tr("Hai inserito dei dati che non sono ancora stati salvati. Se esci ora, tutte le informazioni verranno perse.")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Continua creazione</AlertDialogCancel>
+          <AlertDialogCancel>{tr("Continua creazione")}</AlertDialogCancel>
           <AlertDialogAction
             onClick={confirmDiscardAndClose}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            Esci e annulla
+            {tr("Esci e annulla")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

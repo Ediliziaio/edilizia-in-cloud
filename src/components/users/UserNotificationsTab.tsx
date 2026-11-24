@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Smartphone, Mail, MonitorSmartphone, AlertCircle, BellOff, BellRing, Save } from "lucide-react";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 type Channel = "in_app" | "email" | "sms";
 
@@ -107,6 +108,7 @@ function prefKey(eventKey: string, channel: Channel): keyof NotifPrefs {
 }
 
 export function UserNotificationsTab() {
+  const t = useT();
   const { userId } = useParams<{ userId: string }>();
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id as string | undefined;
@@ -159,9 +161,9 @@ export function UserNotificationsTab() {
     if (!prefsData || isError) return;
     try {
       await saveMutation.mutateAsync(prefs);
-      toast({ title: "Preferenze salvate", description: "Le impostazioni di notifica sono state aggiornate." });
+      toast({ title: t("Preferenze salvate"), description: t("Le impostazioni di notifica sono state aggiornate.") });
     } catch {
-      toast({ title: "Errore", description: "Impossibile salvare le preferenze.", variant: "destructive" });
+      toast({ title: t("Errore"), description: t("Impossibile salvare le preferenze."), variant: "destructive" });
     }
   };
 
@@ -178,9 +180,9 @@ export function UserNotificationsTab() {
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-          <span>Impossibile caricare le preferenze di notifica.</span>
+          <span>{t("Impossibile caricare le preferenze di notifica.")}</span>
           <Button type="button" variant="outline" size="sm" disabled={isFetching || !userId} onClick={() => void refetch()}>
-            Riprova
+            {t("Riprova")}
           </Button>
         </AlertDescription>
       </Alert>
@@ -196,8 +198,8 @@ export function UserNotificationsTab() {
             <div className="flex items-center gap-3">
               <BellRing className="h-5 w-5 text-primary" />
               <div>
-                <p className="text-sm font-medium">Azioni rapide</p>
-                <p className="text-xs text-muted-foreground">Attiva o disattiva tutte le notifiche in un click</p>
+                <p className="text-sm font-medium">{t("Azioni rapide")}</p>
+                <p className="text-xs text-muted-foreground">{t("Attiva o disattiva tutte le notifiche in un click")}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -214,7 +216,7 @@ export function UserNotificationsTab() {
                 });
                 setPrefs(updated);
               }}>
-                <BellRing className="h-3.5 w-3.5 mr-1.5" /> Attiva tutte
+                <BellRing className="h-3.5 w-3.5 mr-1.5" /> {t("Attiva tutte")}
               </Button>
               <Button variant="outline" size="sm" onClick={() => {
                 const updated = { ...prefs };
@@ -227,7 +229,7 @@ export function UserNotificationsTab() {
                 });
                 setPrefs(updated);
               }}>
-                <BellOff className="h-3.5 w-3.5 mr-1.5" /> Disattiva tutte
+                <BellOff className="h-3.5 w-3.5 mr-1.5" /> {t("Disattiva tutte")}
               </Button>
             </div>
           </div>
@@ -239,8 +241,7 @@ export function UserNotificationsTab() {
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Le notifiche SMS sono disabilitate perché questo utente non ha un numero di telefono configurato.
-            Aggiungilo nel tab <strong>Informazioni Utente</strong>.
+            {t("Le notifiche SMS sono disabilitate perché questo utente non ha un numero di telefono configurato. Aggiungilo nel tab")} <strong>{t("Informazioni Utente")}</strong>.
           </AlertDescription>
         </Alert>
       )}
@@ -249,8 +250,8 @@ export function UserNotificationsTab() {
       {SECTIONS.map((section) => (
         <Card key={section.id}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">{section.title}</CardTitle>
-            <CardDescription>{section.description}</CardDescription>
+            <CardTitle className="text-base">{t(section.title)}</CardTitle>
+            <CardDescription>{t(section.description)}</CardDescription>
           </CardHeader>
           <CardContent>
             {/* Header row */}
@@ -264,7 +265,7 @@ export function UserNotificationsTab() {
                   <div key={ch.id} className="flex flex-col items-center gap-1">
                     <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                       <Icon className="h-3.5 w-3.5" />
-                      {ch.label}
+                      {t(ch.label)}
                     </div>
                     <button
                       type="button"
@@ -276,7 +277,7 @@ export function UserNotificationsTab() {
                       }`}
                       disabled={smsDisabled}
                     >
-                      {allOn ? "Disattiva" : "Attiva"} tutti
+                      {allOn ? t("Disattiva") : t("Attiva")} {t("tutti")}
                     </button>
                   </div>
                 );
@@ -290,7 +291,7 @@ export function UserNotificationsTab() {
                   key={evt.key}
                   className="grid grid-cols-[1fr_80px_80px_80px] gap-2 items-center py-2 border-t border-border"
                 >
-                  <span className="text-sm">{evt.label}</span>
+                  <span className="text-sm">{t(evt.label)}</span>
                   {CHANNELS.map((ch) => {
                     const key = prefKey(evt.key, ch.id);
                     const checked = prefs[key];
@@ -317,7 +318,7 @@ export function UserNotificationsTab() {
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saveMutation.isPending}>
           {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-          Salva Preferenze
+          {t("Salva Preferenze")}
         </Button>
       </div>
     </div>

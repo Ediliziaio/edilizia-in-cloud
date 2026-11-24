@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useInviaSegnalazione } from "@/hooks/useMezzi";
 import type { SegnalazioneTipo } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const MAX_FOTO = 6;
 
@@ -33,6 +34,7 @@ const TIPI_PROBLEMA: { value: SegnalazioneTipo; label: string }[] = [
 ];
 
 export function SegnalaProblemaDialog({ mezzoId, companyId, nome, targa, onClose }: Props) {
+  const tr = useT();
   const invia = useInviaSegnalazione(mezzoId, companyId);
   const [tipo, setTipo] = useState<SegnalazioneTipo>("guasto");
   const [descrizione, setDescrizione] = useState("");
@@ -46,7 +48,7 @@ export function SegnalaProblemaDialog({ mezzoId, companyId, nome, targa, onClose
     if (!lista) return;
     const immagini = [...lista].filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
     const spazio = MAX_FOTO - foto.length;
-    if (immagini.length > spazio) toast.info(`Al massimo ${MAX_FOTO} foto per segnalazione.`);
+    if (immagini.length > spazio) toast.info(tr("Al massimo {MAX_FOTO} foto per segnalazione.", { MAX_FOTO: String(MAX_FOTO ?? "") }));
     setFoto((prev) => [...prev, ...immagini.slice(0, Math.max(0, spazio))]);
   };
 
@@ -66,12 +68,12 @@ export function SegnalaProblemaDialog({ mezzoId, companyId, nome, targa, onClose
     <Dialog open onOpenChange={(o) => !o && !invia.isPending && onClose()}>
       <DialogContent className="max-h-[92vh] max-w-md overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Segnala un problema</DialogTitle>
-          <DialogDescription>{nome}{targa ? ` · ${targa}` : ""}. Arriva subito all'ufficio.</DialogDescription>
+          <DialogTitle>{tr("Segnala un problema")}</DialogTitle>
+          <DialogDescription>{nome}{targa ? ` · ${targa}` : ""}{". "}{tr("Arriva subito all'ufficio.")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Tipo di problema">
+          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={tr("Tipo di problema")}>
             {TIPI_PROBLEMA.map((t) => (
               <button
                 key={t.value}
@@ -84,34 +86,34 @@ export function SegnalaProblemaDialog({ mezzoId, companyId, nome, targa, onClose
                   tipo === t.value ? "border-slate-900 bg-slate-900 text-white" : "bg-background text-foreground hover:bg-muted",
                 )}
               >
-                {t.label}
+                {tr(t.label)}
               </button>
             ))}
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="campo-segnala-testo">Cosa succede</Label>
+            <Label htmlFor="campo-segnala-testo">{tr("Cosa succede")}</Label>
             <Textarea
               id="campo-segnala-testo"
               rows={4}
               value={descrizione}
               onChange={(e) => setDescrizione(e.target.value)}
-              placeholder={tipo === "danno" ? "es. graffio sulla fiancata destra in retromarcia" : "es. spia motore accesa da stamattina"}
+              placeholder={tipo === "danno" ? tr("es. graffio sulla fiancata destra in retromarcia") : tr("es. spia motore accesa da stamattina")}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="campo-segnala-foto">Foto ({foto.length}/{MAX_FOTO})</Label>
+            <Label htmlFor="campo-segnala-foto">{tr("Foto ({n}/{MAX_FOTO})", { n: foto.length, MAX_FOTO: String(MAX_FOTO ?? "") })}</Label>
             {anteprime.length > 0 && (
               <div className="grid grid-cols-3 gap-2">
                 {anteprime.map((u, i) => (
                   <div key={u} className="relative">
-                    <img src={u} alt={`Foto ${i + 1}`} className="aspect-square w-full rounded-lg border object-cover" />
+                    <img src={u} alt={tr("Foto {i}", { i: i + 1 })} className="aspect-square w-full rounded-lg border object-cover" />
                     <button
                       type="button"
                       onClick={() => setFoto((prev) => prev.filter((_, j) => j !== i))}
                       className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white"
-                      aria-label={`Togli la foto ${i + 1}`}
+                      aria-label={tr("Togli la foto {i}", { i: i + 1 })}
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -124,7 +126,7 @@ export function SegnalaProblemaDialog({ mezzoId, companyId, nome, targa, onClose
                 htmlFor="campo-segnala-foto"
                 className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed text-sm font-medium text-foreground hover:bg-muted"
               >
-                <Camera className="h-4 w-4" aria-hidden="true" />Scatta o scegli foto
+                <Camera className="h-4 w-4" aria-hidden="true" />{tr("Scatta o scegli foto")}
               </label>
             )}
             <input
@@ -142,9 +144,9 @@ export function SegnalaProblemaDialog({ mezzoId, companyId, nome, targa, onClose
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose} disabled={invia.isPending}>Annulla</Button>
+          <Button variant="outline" onClick={onClose} disabled={invia.isPending}>{tr("Annulla")}</Button>
           <Button onClick={manda} disabled={!valido || invia.isPending}>
-            {invia.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Invia all'ufficio
+            {invia.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{tr("Invia all'ufficio")}
           </Button>
         </DialogFooter>
       </DialogContent>

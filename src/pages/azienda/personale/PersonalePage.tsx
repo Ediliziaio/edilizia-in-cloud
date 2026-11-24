@@ -29,6 +29,7 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // Mobile: tre schede su tredici (chi c'è oggi, richieste da approvare, persone);
 // il resto dell'HR resta al computer.
@@ -76,6 +77,7 @@ export default function PersonalePage() {
 }
 
 function PersonaleContent() {
+  const t = useT();
   const hasFleetTrack = useFleetTrackAccess();
   const { isScopriPlan } = useSubscriptionLimits();
   const isMobile = useIsMobile();
@@ -137,7 +139,7 @@ function PersonaleContent() {
       <div>
         <div className="flex items-start gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg max-sm:leading-6">Personale & HR</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg max-sm:leading-6">{t("Personale & HR")}</h1>
           </div>
         </div>
       </div>
@@ -145,44 +147,44 @@ function PersonaleContent() {
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="flex flex-nowrap h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm w-full justify-start overflow-x-auto scrollbar-none max-sm:grid max-sm:grid-cols-3 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none max-sm:[&_svg]:hidden">
           <TabsTrigger value="regia" className={trigger("regia")}>
-            <LayoutDashboard className="h-4 w-4" /> Regia HR
+            <LayoutDashboard className="h-4 w-4" /> {t("Regia HR")}
           </TabsTrigger>
           <TabsTrigger value="organigramma" className={cn(trigger("organigramma"), inRiga("organigramma"))}>
-            <Network className="h-4 w-4" /> Organigramma
+            <Network className="h-4 w-4" /> {t("Organigramma")}
           </TabsTrigger>
           <TabsTrigger value="uffici" className={cn(trigger("uffici"), inRiga("uffici"))}>
-            <Building2 className="h-4 w-4" /> Uffici
+            <Building2 className="h-4 w-4" /> {t("Uffici")}
           </TabsTrigger>
           <TabsTrigger value="profili" className={cn(trigger("profili"), "max-sm:order-3")}>
-            <Users className="h-4 w-4" /> <span className="max-sm:hidden">Profili</span><span className="sm:hidden">Persone</span>
+            <Users className="h-4 w-4" /> <span className="max-sm:hidden">{t("Profili")}</span><span className="sm:hidden">{t("Persone")}</span>
           </TabsTrigger>
           <TabsTrigger value="timbrature" className={cn(trigger("timbrature"), "max-sm:order-1")}>
-            <Clock className="h-4 w-4" /> <span className="max-sm:hidden">Timbrature</span><span className="sm:hidden">Oggi</span>
+            <Clock className="h-4 w-4" /> <span className="max-sm:hidden">{t("Timbrature")}</span><span className="sm:hidden">{t("Oggi")}</span>
           </TabsTrigger>
           <TabsTrigger value="presenze" className={trigger("presenze")}>
-            <CalendarDays className="h-4 w-4" /> Presenze
+            <CalendarDays className="h-4 w-4" /> {t("Presenze")}
           </TabsTrigger>
           <TabsTrigger value="richieste" className={cn(trigger("richieste"), "max-sm:order-2")}>
-            <FileText className="h-4 w-4" /> Richieste
+            <FileText className="h-4 w-4" /> {t("Richieste")}
           </TabsTrigger>
           <TabsTrigger value="sedi" className={cn(trigger("sedi"), inRiga("sedi"))}>
-            <MapPin className="h-4 w-4" /> Sedi
+            <MapPin className="h-4 w-4" /> {t("Sedi")}
           </TabsTrigger>
           <TabsTrigger value="festivita" className={cn(trigger("festivita"), inRiga("festivita"))}>
-            <CalendarCheck className="h-4 w-4" /> Festività
+            <CalendarCheck className="h-4 w-4" /> {t("Festività")}
           </TabsTrigger>
           <TabsTrigger value="cedolini" className={cn(trigger("cedolini"), inRiga("cedolini"))}>
-            <Receipt className="h-4 w-4" /> Cedolini
+            <Receipt className="h-4 w-4" /> {t("Cedolini")}
           </TabsTrigger>
           <TabsTrigger value="documenti" className={cn(trigger("documenti"), inRiga("documenti"))}>
-            <FolderOpen className="h-4 w-4" /> Documenti
+            <FolderOpen className="h-4 w-4" /> {t("Documenti")}
           </TabsTrigger>
           <TabsTrigger value="candidati" className={cn(trigger("candidati"), inRiga("candidati"))}>
-            <UserRoundSearch className="h-4 w-4" /> Candidati
+            <UserRoundSearch className="h-4 w-4" /> {t("Candidati")}
           </TabsTrigger>
           {hasFleetTrack && (
             <TabsTrigger value="gps-percorsi" className={cn(trigger("gps-percorsi"), inRiga("gps-percorsi"))}>
-              <Navigation className="h-4 w-4" /> GPS Percorsi
+              <Navigation className="h-4 w-4" /> {t("GPS Percorsi")}
             </TabsTrigger>
           )}
           {/* «Altro»: prende il nome della scheda aperta quando è una delle sue. */}
@@ -197,10 +199,10 @@ function PersonaleContent() {
                   fasciaAltro === "2xl" && "max-2xl:bg-orange-50 max-2xl:text-orange-700",
                 )}
               >
-                {fasciaAltro === "menu" ? schedaAltro?.label
-                  : fasciaAltro === "xl" ? (<><span className="xl:hidden">{schedaAltro?.label}</span><span className="hidden xl:inline">Altro</span></>)
-                  : fasciaAltro === "2xl" ? (<><span className="2xl:hidden">{schedaAltro?.label}</span><span className="hidden 2xl:inline">Altro</span></>)
-                  : "Altro"}
+                {fasciaAltro === "menu" ? t(schedaAltro?.label ?? "")
+                  : fasciaAltro === "xl" ? (<><span className="xl:hidden">{t(schedaAltro?.label ?? "")}</span><span className="hidden xl:inline">{t("Altro")}</span></>)
+                  : fasciaAltro === "2xl" ? (<><span className="2xl:hidden">{t(schedaAltro?.label ?? "")}</span><span className="hidden 2xl:inline">{t("Altro")}</span></>)
+                  : t("Altro")}
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
@@ -212,7 +214,7 @@ function PersonaleContent() {
                   onSelect={() => handleTabChange(x.tab)}
                 >
                   <x.icon className="h-4 w-4" />
-                  {x.label}
+                  {t(x.label)}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>

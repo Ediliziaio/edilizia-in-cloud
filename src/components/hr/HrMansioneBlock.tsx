@@ -20,12 +20,14 @@ import {
 } from "@/components/ui/select";
 import { Plus, X, Loader2, Settings2, Sparkles, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props { profilo: HrProfilo; companyId: string; }
 
 const NONE = "__none__";
 
 export function HrMansioneBlock({ profilo, companyId }: Props) {
+  const t = useT();
   const { data: mansioni = [] } = useHrMansioni(companyId);
   const update = useUpdateHrProfilo();
   const { data: kpis = [] } = useHrKpi(profilo.id);
@@ -84,7 +86,7 @@ export function HrMansioneBlock({ profilo, companyId }: Props) {
       }
       toast.success(`${created} KPI creati${skipped ? `, ${skipped} già presenti` : ""}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore applicazione KPI");
+      toast.error(e instanceof Error ? e.message : t("Errore applicazione KPI"));
     } finally {
       setApplying(false);
     }
@@ -93,20 +95,20 @@ export function HrMansioneBlock({ profilo, companyId }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-muted-foreground">RUOLO / MANSIONE</h4>
+        <h4 className="text-sm font-semibold text-muted-foreground">{t("RUOLO / MANSIONE")}</h4>
         <Button size="sm" variant="ghost" onClick={() => setCatalogOpen(true)}>
-          <Settings2 className="h-4 w-4 mr-1" />Gestisci catalogo
+          <Settings2 className="h-4 w-4 mr-1" />{t("Gestisci catalogo")}
         </Button>
       </div>
 
       <div>
-        <Label>Mansione dal catalogo</Label>
+        <Label>{t("Mansione dal catalogo")}</Label>
         <Select value={profilo.mansione_id ?? NONE} onValueChange={onSelectMansione} disabled={update.isPending}>
           <SelectTrigger>
-            <SelectValue placeholder="Nessuna mansione" />
+            <SelectValue placeholder={t("Nessuna mansione")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NONE}>Nessuna mansione</SelectItem>
+            <SelectItem value={NONE}>{t("Nessuna mansione")}</SelectItem>
             {mansioni.map((m) => (
               <SelectItem key={m.id} value={m.id}>{m.nome}{m.area ? ` · ${m.area}` : ""}</SelectItem>
             ))}
@@ -114,7 +116,7 @@ export function HrMansioneBlock({ profilo, companyId }: Props) {
         </Select>
         {mansioni.length === 0 && (
           <p className="text-xs text-muted-foreground mt-1">
-            Il catalogo è vuoto. Apri "Gestisci catalogo" per creare le mansioni.
+            {t("Il catalogo è vuoto. Apri \"Gestisci catalogo\" per creare le mansioni.")}
           </p>
         )}
       </div>
@@ -124,12 +126,12 @@ export function HrMansioneBlock({ profilo, companyId }: Props) {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-sm font-medium">
               <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-              Responsabilità del ruolo
+              {t("Responsabilità del ruolo")}
             </div>
             {(selected.kpi_suggeriti ?? []).length > 0 && (
               <Button size="sm" variant="outline" onClick={applyKpi} disabled={applying}>
                 {applying ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
-                Applica KPI del ruolo
+                {t("Applica KPI del ruolo")}
               </Button>
             )}
           </div>
@@ -139,19 +141,19 @@ export function HrMansioneBlock({ profilo, companyId }: Props) {
               {selected.responsabilita.map((r, i) => <li key={i}>{r}</li>)}
             </ul>
           ) : (
-            <p className="text-xs text-muted-foreground">Nessuna responsabilità definita per questo ruolo.</p>
+            <p className="text-xs text-muted-foreground">{t("Nessuna responsabilità definita per questo ruolo.")}</p>
           )}
         </div>
       )}
 
       <div>
-        <Label>Responsabilità extra della persona</Label>
+        <Label>{t("Responsabilità extra della persona")}</Label>
         <div className="flex gap-2 mt-1">
           <Input
             value={extraInput}
             onChange={(e) => setExtraInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addExtra(); } }}
-            placeholder="Aggiungi una responsabilità specifica e premi Invio"
+            placeholder={t("Aggiungi una responsabilità specifica e premi Invio")}
             disabled={update.isPending}
           />
           <Button type="button" variant="outline" onClick={addExtra} disabled={update.isPending || !extraInput.trim()}>
@@ -165,7 +167,7 @@ export function HrMansioneBlock({ profilo, companyId }: Props) {
               <button type="button" onClick={() => removeExtra(i)} disabled={update.isPending}><X className="h-3 w-3" /></button>
             </Badge>
           ))}
-          {extra.length === 0 && <span className="text-xs text-muted-foreground">Nessuna responsabilità extra.</span>}
+          {extra.length === 0 && <span className="text-xs text-muted-foreground">{t("Nessuna responsabilità extra.")}</span>}
         </div>
       </div>
 
