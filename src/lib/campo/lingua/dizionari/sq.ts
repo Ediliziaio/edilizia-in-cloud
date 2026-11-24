@@ -68855,5 +68855,13 @@ const dizionario: Dizionario = {
   "il computo supera il piano di": "preventivi e tejkalon planin me",
   "differenza": "diferencë",
   "Il computo comprende solo le lavorazioni che si ricavano dalla pianta: piscine, sistemazioni del lotto, opere da fabbro e forniture a parte vanno aggiunte.": "Preventivi përfshin vetëm punimet që dalin nga planimetria: pishinat, rregullimet e truallit, punimet e farkëtarit dhe furnizimet më vete duhen shtuar.",
+  "Clic dentro le pareti: la stanza si chiude da sola lungo il filo interno": "Klikoni brenda mureve: dhoma mbyllet vetë përgjatë faqes së brendshme",
+  "Conferma: torna alla versione {n}": "Konfirmo: kthehu te versioni {n}",
+  "Il ripristino non è riuscito.": "Rikthimi nuk u krye.",
+  "Qui c'è già una stanza: selezionala per cambiarla.": "Këtu ka tashmë një dhomë: zgjidheni për ta ndryshuar.",
+  "Ripristina questa versione": "Rikthe këtë version",
+  "Ripristinata la versione {n}: ora è la corrente.": "Versioni {n} u rikthye: tani është aktuali.",
+  "Stanza chiusa ({mq} m²): ho chiuso un varco nelle pareti fino a {cm} cm. Controlla il contorno.": "Dhoma u mbyll ({mq} m²): mbylla një hapje në mure deri në {cm} cm. Kontrolloni konturin.",
+  "Stanza dai muri": "Dhomë nga muret",
 };
 export default dizionario;

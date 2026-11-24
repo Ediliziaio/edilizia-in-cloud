@@ -68855,5 +68855,13 @@ const dizionario: Dizionario = {
   "il computo supera il piano di": "antemăsurătoarea depășește planul cu",
   "differenza": "diferență",
   "Il computo comprende solo le lavorazioni che si ricavano dalla pianta: piscine, sistemazioni del lotto, opere da fabbro e forniture a parte vanno aggiunte.": "Antemăsurătoarea cuprinde doar lucrările care rezultă din plan: piscinele, amenajările terenului, lucrările de fierărie și furniturile separate trebuie adăugate.",
+  "Clic dentro le pareti: la stanza si chiude da sola lungo il filo interno": "Clic în interiorul pereților: camera se închide singură pe fața interioară",
+  "Conferma: torna alla versione {n}": "Confirmă: revino la versiunea {n}",
+  "Il ripristino non è riuscito.": "Restaurarea nu a reușit.",
+  "Qui c'è già una stanza: selezionala per cambiarla.": "Aici există deja o cameră: selecteaz-o pentru a o modifica.",
+  "Ripristina questa versione": "Restaurează această versiune",
+  "Ripristinata la versione {n}: ora è la corrente.": "Versiunea {n} a fost restaurată: acum este cea curentă.",
+  "Stanza chiusa ({mq} m²): ho chiuso un varco nelle pareti fino a {cm} cm. Controlla il contorno.": "Cameră închisă ({mq} m²): am închis o deschidere în pereți de până la {cm} cm. Verifică conturul.",
+  "Stanza dai muri": "Cameră din pereți",
 };
 export default dizionario;
