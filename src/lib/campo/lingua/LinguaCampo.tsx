@@ -22,17 +22,26 @@ import "./rtlCampo.css";
 export type Dizionario = Readonly<Record<string, string>>;
 type Valori = Readonly<Record<string, string | number>>;
 
+/**
+ * Nella build ogni dizionario è un file JSON che si scarica con `carica` (plugin `dizionariComeJson` in
+ * vite.config.ts: 50 MB di dizionari come codice mandavano la build fuori memoria); in sviluppo e nei
+ * test è il modulo con l'oggetto in `default`. Qui le due forme diventano la stessa.
+ */
+type ModuloDizionario = { default: Dizionario | null; carica?: () => Promise<Dizionario> };
+const daModulo = async (m: ModuloDizionario): Promise<{ default: Dizionario }> =>
+  ({ default: m.carica ? await m.carica() : (m.default ?? {}) });
+
 const CARICA: Record<Exclude<CodiceLingua, "it">, () => Promise<{ default: Dizionario }>> = {
-  ro: () => import("./dizionari/ro"),
-  sq: () => import("./dizionari/sq"),
-  "ar-MA": () => import("./dizionari/arMA"),
-  "ar-EG": () => import("./dizionari/arEG"),
-  de: () => import("./dizionari/de"),
-  fr: () => import("./dizionari/fr"),
-  en: () => import("./dizionari/en"),
-  es: () => import("./dizionari/es"),
-  "es-AR": () => import("./dizionari/esAR"),
-  "es-PE": () => import("./dizionari/esPE"),
+  ro: () => import("./dizionari/ro").then(daModulo),
+  sq: () => import("./dizionari/sq").then(daModulo),
+  "ar-MA": () => import("./dizionari/arMA").then(daModulo),
+  "ar-EG": () => import("./dizionari/arEG").then(daModulo),
+  de: () => import("./dizionari/de").then(daModulo),
+  fr: () => import("./dizionari/fr").then(daModulo),
+  en: () => import("./dizionari/en").then(daModulo),
+  es: () => import("./dizionari/es").then(daModulo),
+  "es-AR": () => import("./dizionari/esAR").then(daModulo),
+  "es-PE": () => import("./dizionari/esPE").then(daModulo),
 };
 
 /**
