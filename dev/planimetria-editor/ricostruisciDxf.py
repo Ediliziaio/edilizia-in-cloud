@@ -1762,6 +1762,69 @@ class PianoLetto:
     altezze: list = field(default_factory=list)
 
 
+def muri_esterni(muri, distanza=60):
+    """Le pareti sul perimetro: quelle vicine all'involucro convesso dell'edificio."""
+    if not muri:
+        return []
+    linee = [LineString(m.estremi()) for m in muri]
+    bordo = union_all(linee).convex_hull.boundary
+    return [m for m, l in zip(muri, linee) if l.interpolate(0.5, normalized=True).distance(bordo) <= distanza]
+
+
+def spostamento_per_correlazione(muri_rif, muri, fisso=None, passo=10):
+    """Lo spostamento d (cm, nel DXF) che porta le pareti esterne di `muri` su quelle di `muri_rif`.
+
+    Si disegnano le due sagome su una griglia di 10 cm e si cerca il massimo della correlazione;
+    `fisso` = "y" o "x" tiene ferma quella componente (piante messe in fila sulla tavola: stessa
+    quota y, si cerca solo x). Restituisce (dx, dy, quota sovrapposta) o None.
+    Callimaco, 24/11/2026: i piani superiori stavano 8 m fuori dal piano terra e nel 3D i muri
+    sembravano scollegati e i muri della cantina spuntavano dal prato.
+    """
+    import numpy as np  # noqa: PLC0415
+    a, b = muri_esterni(muri_rif), muri_esterni(muri)
+    if len(a) < 3 or len(b) < 3:
+        return None
+    ba = union_all([LineString(m.estremi()) for m in a]).bounds
+    bb = union_all([LineString(m.estremi()) for m in b]).bounds
+    lato = int(max(ba[2] - ba[0], ba[3] - ba[1], bb[2] - bb[0], bb[3] - bb[1]) / passo) * 2 + 8
+    if lato > 4000:
+        return None
+
+    def griglia(pareti, x0, y0):
+        g = np.zeros((lato, lato), np.float32)
+        for m in pareti:
+            p, q = m.estremi()
+            n = int(max(abs(q[0] - p[0]), abs(q[1] - p[1])) / passo) + 1
+            for t in np.linspace(0, 1, n + 1):
+                x = int((p[0] + (q[0] - p[0]) * t - x0) / passo) + 4
+                y = int((p[1] + (q[1] - p[1]) * t - y0) / passo) + 4
+                if 0 <= x < lato and 0 <= y < lato:
+                    g[max(0, y - 2):y + 3, max(0, x - 2):x + 3] = 1
+        return g
+    ga, gb = griglia(a, ba[0], ba[1]), griglia(b, bb[0], bb[1])
+    c = np.real(np.fft.ifft2(np.fft.fft2(ga) * np.conj(np.fft.fft2(gb))))
+    base = (ba[0] - bb[0], ba[1] - bb[1])  # spostamento che fa coincidere gli angoli in basso a sinistra
+    if fisso:
+        # La componente fissa resta quasi quella della tavola: entro 3 m (le piante in fila non
+        # sono mai allineate al centimetro; a Callimaco il primo piano scarta di 47 cm).
+        centro = -base[1 if fisso == "y" else 0] / passo
+        fascia = [int(round(centro + j)) % lato for j in range(-30, 31)]
+        sotto = c[fascia, :] if fisso == "y" else c[:, fascia].T
+        j, k = np.unravel_index(int(np.argmax(sotto)), sotto.shape)
+        k = k if k < lato / 2 else k - lato
+        scarto = (fascia[j] if fascia[j] < lato / 2 else fascia[j] - lato)
+        if fisso == "y":
+            dx, dy = base[0] + k * passo, base[1] + scarto * passo
+        else:
+            dx, dy = base[0] + scarto * passo, base[1] + k * passo
+        massimo = float(sotto.max())
+    else:
+        iy, ix = np.unravel_index(int(np.argmax(c)), c.shape)
+        iy, ix = (iy if iy < lato / 2 else iy - lato), (ix if ix < lato / 2 else ix - lato)
+        dx, dy, massimo = base[0] + ix * passo, base[1] + iy * passo, float(c.max())
+    return dx, dy, round(massimo / max(float(gb.sum()), 1), 3)
+
+
 def leggi_piano(entita, regione, cm, layer, controllo=False):
     zona = box(*(x * cm for x in regione["rettangolo"]))
     tratti, linee, archi, fonti = [], [], [], []
@@ -2055,6 +2118,33 @@ def ricostruisci(documento, opzioni):
             "nomiInStanze": len({id(p) for l in piano.locali for p, _, _ in l.etichette}),
         })
 
+    # I piani che né gli assi né le pareti hanno allineato si mettono sul piano terra per
+    # correlazione delle pareti esterne. Le piante in fila sulla tavola hanno la stessa y: si cerca
+    # solo x (e viceversa per le piante in colonna).
+    quote = [r["quota"] for _, r, _, _, _ in letti]
+    terra = min((q for q in quote if q >= 0), default=None)
+    if terra is not None:
+        # Dal piano terra verso l'alto e verso il basso: ogni piano si allinea al più vicino già a posto
+        # (il secondo piano di Callimaco è più piccolo del terra, ma sta sopra il primo).
+        a_posto = {k for k, l in enumerate(letti) if l[1]["quota"] == terra or l[4] in ("assi", "pareti")}
+        for k in sorted(range(len(letti)), key=lambda k: abs(letti[k][1]["quota"] - terra)):
+            numero, regione, piano, (ox, oy), allineamento = letti[k]
+            if k in a_posto:
+                continue
+            vicino = min(a_posto, key=lambda j: abs(letti[j][1]["quota"] - regione["quota"]))
+            _, r_rif, p_rif, (ox_r, oy_r), _ = letti[vicino]
+            x_r, y_r, X_r, Y_r = [v * cm for v in r_rif["rettangolo"]]
+            x, y, X, Y = [v * cm for v in regione["rettangolo"]]
+            in_fila = min(Y, Y_r) - max(y, y_r) >= 0.5 * min(Y - y, Y_r - y_r)
+            in_colonna = min(X, X_r) - max(x, x_r) >= 0.5 * min(X - x, X_r - x_r)
+            esito = spostamento_per_correlazione(p_rif.muri, piano.muri, "y" if in_fila else "x" if in_colonna else None)
+            if esito and esito[2] >= 0.3:
+                dx, dy, _ = esito
+                ox, oy = ox_r - dx, oy_r - dy
+                letti[k] = (numero, regione, piano, (ox, oy), "correlazione")
+                riepilogo[numero]["origine"] = [round(x - ox, 3), round(Y - oy, 3)]
+                riepilogo[numero]["allineamento"] = "correlazione"
+                a_posto.add(k)
     scale = leggi_scale(letti, altezza)
     try:
         tavola = registra_tavola(documento)

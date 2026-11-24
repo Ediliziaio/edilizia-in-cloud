@@ -371,6 +371,19 @@ class LegendaEStanzeDaiNomiTest(unittest.TestCase):
         self.assertEqual(esito[1], "Int. 04")
 
 
+class AllineamentoDeiPianiTest(unittest.TestCase):
+    def test_ritrova_lo_spostamento_fra_due_piante_della_stessa_sagoma(self):
+        from ricostruisciDxf import spostamento_per_correlazione
+        def sagoma(x0, y0):
+            return [Asse(0, y0, x0, x0 + 1200, 30), Asse(0, y0 + 900, x0, x0 + 1200, 30), Asse(0, y0 + 500, x0, x0 + 700, 30),
+                    Asse(90, -x0, y0, y0 + 900, 30), Asse(90, -(x0 + 1200), y0, y0 + 900, 30), Asse(90, -(x0 + 700), y0 + 500, y0 + 900, 30)]
+        # La seconda pianta sta 40 m più a destra sulla tavola e 50 cm più in basso.
+        dx, dy, quota = spostamento_per_correlazione(sagoma(0, 0), sagoma(4000, -50), "y")
+        self.assertAlmostEqual(dx, -4000, delta=10)
+        self.assertAlmostEqual(dy, 50, delta=10)
+        self.assertGreater(quota, .8)
+
+
 class AltezzeDeiLocaliTest(unittest.TestCase):
     def test_legge_h_nelle_stanze_e_scarta_porte_e_sigle(self):
         from ricostruisciDxf import leggi_altezze_locali
