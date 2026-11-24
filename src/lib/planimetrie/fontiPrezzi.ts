@@ -14,7 +14,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { regioneAzienda } from "@/lib/geo/provinceRegioni";
-import { abbinamentiPerRegione, unitaDelPrezzario } from "../../../shared/planimetrie/abbinamentiPrezzario.ts";
+import { abbinamentiPerRegione, PROVINCE_TOSCANA, regioneDelPrezzario, unitaDelPrezzario } from "../../../shared/planimetrie/abbinamentiPrezzario.ts";
 import { FONTI_VUOTE, REGOLE_LAVORAZIONI, type FontiPrezzi, type TipoLavorazione, type VoceDiPrezzo } from "./prezziProposti";
 
 // La tabella del listino non è nei tipi generati.
@@ -37,10 +37,18 @@ async function listinoAzienda(companyId: string): Promise<VoceDiPrezzo[]> {
 async function prezzarioAbbinato(companyId: string): Promise<Pick<FontiPrezzi, "prezzario" | "prezzarioNome">> {
   const vuoto = { prezzario: {}, prezzarioNome: null };
   const { data: azienda } = await sb().from("companies").select("region, operational_province, legal_province").eq("id", companyId).maybeSingle();
-  const abbinamenti = abbinamentiPerRegione(regioneAzienda(azienda));
+  // La provincia che decide la regione è quella da cui `regioneAzienda` l'ha dedotta: prima l'operativa.
+  const provincia = (azienda?.operational_province || azienda?.legal_province || "").trim().toUpperCase();
+  const abbinamenti = abbinamentiPerRegione(regioneDelPrezzario(regioneAzienda(azienda), provincia));
   if (!abbinamenti) return vuoto;
-  const { data: fonte } = await sb().from("prezzario_fonte").select("id")
-    .eq("regione", abbinamenti.regione).eq("anno", abbinamenti.anno).eq("stato", "pubblicato").limit(1).maybeSingle();
+  const { data: fonti } = await sb().from("prezzario_fonte").select("id, nome")
+    .eq("regione", abbinamenti.regione).eq("anno", abbinamenti.anno).eq("stato", "pubblicato").limit(20);
+  const elenco = (fonti ?? []) as { id: string; nome: string | null }[];
+  // Un prezzario per provincia: solo quello della provincia dell'azienda, mai uno a caso.
+  const nomeProvincia = abbinamenti.perProvincia ? PROVINCE_TOSCANA[provincia] : null;
+  const fonte = abbinamenti.perProvincia
+    ? (nomeProvincia ? elenco.find((f) => (f.nome ?? "").trim().endsWith(nomeProvincia)) : undefined)
+    : elenco.length === 1 ? elenco[0] : undefined;
   if (!fonte?.id) return vuoto;
   const perCodice = new Map(Object.entries(abbinamenti.voci).map(([tipo, v]) => [v.codice, tipo as TipoLavorazione]));
   const { data, error } = await sb().from("prezzario_voce").select("codice, descrizione, unita_misura, prezzo")
@@ -54,7 +62,8 @@ async function prezzarioAbbinato(companyId: string): Promise<Pick<FontiPrezzi, "
     if (!tipo || !(tipo in REGOLE_LAVORAZIONI) || righe.filter((x) => x.codice === v.codice).length > 1) continue;
     prezzario[tipo] = { codice: v.codice, descrizione: v.descrizione, unita: unitaDelPrezzario(v.unita_misura), prezzo: Number(v.prezzo) };
   }
-  return { prezzario, prezzarioNome: `${abbinamenti.regione} ${abbinamenti.anno}` };
+  const nome = abbinamenti.regione.replace(/^Trentino — /, "");
+  return { prezzario, prezzarioNome: `${nome} ${abbinamenti.anno}${nomeProvincia ? ` (${nomeProvincia})` : ""}` };
 }
 
 export async function caricaFontiPrezzi(companyId: string, tipi: readonly TipoLavorazione[]): Promise<FontiPrezzi> {

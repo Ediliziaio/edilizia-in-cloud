@@ -12,7 +12,7 @@
  * Un codice che non torna, o che torna due volte, è un abbinamento da rifare.
  */
 import { describe, expect, it } from "vitest";
-import { ABBINAMENTI_PREZZARIO, abbinamentiPerRegione, unitaDelPrezzario } from "../../../shared/planimetrie/abbinamentiPrezzario";
+import { ABBINAMENTI_PREZZARIO, abbinamentiPerRegione, PROVINCE_TOSCANA, regioneDelPrezzario, unitaDelPrezzario } from "../../../shared/planimetrie/abbinamentiPrezzario";
 import { FONTE_INDICATIVA, proponiPrezzo, REGOLE_LAVORAZIONI, type FontiPrezzi, type TipoLavorazione } from "@/lib/planimetrie/prezziProposti";
 import { unitaCompatibili } from "@/lib/prezzario/confronto";
 import riscontro from "../fixtures/prezzarioVociAbbinate.json";
@@ -49,8 +49,15 @@ const RIGA: Record<TipoLavorazione, { id: string; descrizione: string }> = {
   radiante_collettore: { id: "l1-radiante-collettore", descrizione: "Collettore per pavimento radiante" },
 };
 
-const voceNelDb = (regione: string, anno: number, codice: string) =>
-  riscontro.voci.filter((v) => v.regione === regione && v.anno === anno && v.codice === codice);
+type VoceRiscontro = { regione: string; anno: number; codice: string; unita_misura: string; prezzo: number; descrizione: string; provincia?: string };
+const voci = riscontro.voci as VoceRiscontro[];
+/** La voce nel database; per un prezzario a province, quella di Firenze. */
+const voceNelDb = (regione: string, anno: number, codice: string, provincia: string | undefined = abbinamentiPerRegione(regione)?.perProvincia ? "Firenze" : undefined) =>
+  voci.filter((v) => v.regione === regione && v.anno === anno && v.codice === codice && v.provincia === provincia);
+const nomeMostrato = (regione: string) => {
+  const a = abbinamentiPerRegione(regione)!;
+  return `${a.regione.replace(/^Trentino — /, "")} ${a.anno}${a.perProvincia ? " (Firenze)" : ""}`;
+};
 
 const abbinate = ABBINAMENTI_PREZZARIO.flatMap((a) => Object.entries(a.voci).map(([tipo, v]) => ({ a, tipo: tipo as TipoLavorazione, v })));
 
@@ -62,7 +69,7 @@ const fontiDa = (regione: string): FontiPrezzi => {
     const db = voceNelDb(a.regione, a.anno, v.codice)[0];
     prezzario[tipo as TipoLavorazione] = { codice: db.codice, descrizione: db.descrizione, unita: unitaDelPrezzario(db.unita_misura), prezzo: db.prezzo };
   }
-  return { listino: [], prezzario, prezzarioNome: `${a.regione} ${a.anno}` };
+  return { listino: [], prezzario, prezzarioNome: nomeMostrato(regione) };
 };
 
 describe("abbinamenti al prezzario regionale: ogni codice è verificato", () => {
@@ -89,23 +96,57 @@ describe("abbinamenti al prezzario regionale: ogni codice è verificato", () => 
     }
   });
 
-  it("almeno dieci lavorazioni coperte in Lombardia", () => {
+  it("almeno dieci lavorazioni coperte in Lombardia, e tutte le fonti pubblicate hanno abbinamenti", () => {
     expect(Object.keys(abbinamentiPerRegione("Lombardia")!.voci).length).toBeGreaterThanOrEqual(10);
     expect(abbinamentiPerRegione(" lombardia ")?.regione).toBe("Lombardia");
-    expect(abbinamentiPerRegione("Molise")).toBeNull();
+    expect(abbinamentiPerRegione("Atlantide")).toBeNull();
+    // Le 21 regioni (Trentino in due) con un prezzario pubblicato il 24/11/2026.
+    expect(ABBINAMENTI_PREZZARIO.map((a) => a.regione).sort()).toEqual(["Abruzzo", "Basilicata", "Calabria", "Campania",
+      "Emilia-Romagna", "Friuli-Venezia Giulia", "Lazio", "Liguria", "Lombardia", "Marche", "Molise", "Piemonte", "Puglia",
+      "Sardegna", "Sicilia", "Toscana", "Trentino — P.A. Bolzano", "Trentino — P.A. Trento", "Umbria", "Valle d'Aosta", "Veneto"]);
+  });
+
+  it("una lavorazione è o abbinata o esclusa col motivo, mai tutte e due", () => {
+    for (const a of ABBINAMENTI_PREZZARIO) {
+      for (const tipo of Object.keys(a.escluse ?? {})) {
+        expect(tipo in REGOLE_LAVORAZIONI).toBe(true);
+        expect(a.voci[tipo]).toBeUndefined();
+      }
+    }
+  });
+
+  it("Toscana: ogni codice c'è, uguale, in tutte e dieci le province", () => {
+    const a = abbinamentiPerRegione("Toscana")!;
+    expect(a.perProvincia).toBe(true);
+    for (const v of Object.values(a.voci)) {
+      for (const provincia of Object.values(PROVINCE_TOSCANA)) {
+        const db = voceNelDb("Toscana", a.anno, v.codice, provincia);
+        expect(db, `${v.codice} · ${provincia}`).toHaveLength(1);
+        expect(unitaCompatibili(unitaDelPrezzario(db[0].unita_misura), v.unita)).toBe(true);
+      }
+    }
+  });
+
+  it("la regione del prezzario: il Trentino si sceglie per Provincia autonoma", () => {
+    expect(regioneDelPrezzario("Trentino-Alto Adige", "TN")).toBe("Trentino — P.A. Trento");
+    expect(regioneDelPrezzario("Trentino-Alto Adige", "bz")).toBe("Trentino — P.A. Bolzano");
+    expect(regioneDelPrezzario("Trentino-Alto Adige", null)).toBeNull();
+    expect(regioneDelPrezzario("Lombardia", "LO")).toBe("Lombardia");
+    expect(regioneDelPrezzario(null, "LO")).toBeNull();
   });
 });
 
 describe("prezzo proposto dal prezzario della regione", () => {
-  it.each(["Lombardia", "Piemonte", "Veneto", "Emilia-Romagna"])("%s: le lavorazioni abbinate prendono la voce, col codice nella fonte", (regione) => {
+  it.each(ABBINAMENTI_PREZZARIO.map((a) => a.regione))("%s: le lavorazioni abbinate prendono la voce, col codice nella fonte", (regione) => {
     const fonti = fontiDa(regione), a = abbinamentiPerRegione(regione)!;
     for (const [tipo, v] of Object.entries(a.voci) as [TipoLavorazione, (typeof a.voci)[string]][]) {
       const prezzo = proponiPrezzo({ ...RIGA[tipo], unita: UNITA_RIGA[tipo] as "m²" }, fonti);
       expect(prezzo).toEqual({ importo: fonti.prezzario[tipo]!.prezzo, unita: UNITA_RIGA[tipo], tariffa: v.codice,
-        fonte: `Prezzario ${regione} 2026 · ${v.codice}, da confermare` });
-      // Plausibile per fornitura e posa: nello stesso ordine di grandezza del prezzo indicativo.
+        fonte: `Prezzario ${nomeMostrato(regione)} · ${v.codice}, da confermare`.slice(0, 300) });
+      // Plausibile per fornitura e posa: nello stesso ordine di grandezza del prezzo indicativo
+      // (sotto: un quarto, perché la demolizione a mano senza trasporto sta a 8–10 € in Lazio e Molise).
       const indicativo = REGOLE_LAVORAZIONI[tipo].indicativo;
-      expect(prezzo!.importo).toBeGreaterThan(indicativo / 3);
+      expect(prezzo!.importo).toBeGreaterThan(indicativo / 4);
       expect(prezzo!.importo).toBeLessThan(indicativo * 3);
     }
   });

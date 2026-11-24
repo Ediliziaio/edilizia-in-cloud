@@ -230,11 +230,12 @@ Non fatto, con il motivo:
   Una correzione calcolata così sarebbe un numero inventato. Serve prima salvare la
   previsione insieme alla commessa, poi confrontarla alla chiusura.
 - **Prezzario regionale in automatico** — vedi sopra. Fatto il 24/11, per codice e non per
-  parole: `shared/planimetrie/abbinamentiPrezzario.ts` (Lombardia 2026: 10 lavorazioni;
-  Piemonte 2026: 3), ogni voce letta per intero, opera compiuta e nell'unità della riga. La
-  fonte mostrata è «Prezzario Lombardia 2026 · <codice>, da confermare». Restano fuori, con il
-  motivo nel file: demolizione di muratura (m³), finestre e rimozioni (m² contro cad), macerie,
-  radiante. Le altre regioni non hanno ancora abbinamenti.
+  parole: `shared/planimetrie/abbinamentiPrezzario.ts`, tutte le 21 fonti pubblicate (Trentino
+  in due Province autonome, Toscana per provincia), 170 voci; da 3 (Piemonte) a 10 lavorazioni
+  per regione. Ogni voce letta per intero, fornitura e posa, nell'unità della riga; quelle
+  lasciate fuori sono in `escluse` col motivo. La fonte mostrata è «Prezzario Lombardia 2026 ·
+  <codice>, da confermare». Fuori ovunque: demolizione di muratura (m³), finestre e rimozioni
+  (m² contro cad), macerie, radiante.
 - **Lotto F (una sola chat)** e **Lotto I (telefono)** — non iniziati.
 
 Regola presa dopo un errore: prima del push il controllo dei tipi dei file toccati deve

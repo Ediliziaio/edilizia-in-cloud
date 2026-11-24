@@ -13,11 +13,20 @@ function risposta(tabella: string, filtri: [string, string, unknown][]) {
   const f = (nome: string) => filtri.find((x) => x[1] === nome)?.[2];
   if (tabella === "companies") return { data: azienda, error: null };
   if (tabella === "prezzario_fonte") {
-    return { data: f("regione") === "Lombardia" && f("anno") === 2026 && f("stato") === "pubblicato" ? { id: "fonte-lom" } : null, error: null };
+    if (f("stato") !== "pubblicato") return { data: [], error: null };
+    if (f("regione") === "Lombardia" && f("anno") === 2026) return { data: [{ id: "fonte-lom", nome: "Prezzario Regione Lombardia 2026" }], error: null };
+    if (f("regione") === "Toscana" && f("anno") === 2026) {
+      return { data: ["Firenze", "Massa Carrara", "Prato"].map((p) => ({ id: `fonte-tos-${p}`, nome: `Prezzario Toscana 2026 – ${p}` })), error: null };
+    }
+    if (f("regione") === "Trentino — P.A. Bolzano") return { data: [{ id: "fonte-bz", nome: "Prezzario Trentino — P.A. Bolzano 2026" }], error: null };
+    return { data: [], error: null };
   }
   if (tabella === "prezzario_voce") {
-    const codici = f("codice") as string[];
-    return { data: f("fonte_id") === "fonte-lom" ? riscontro.voci.filter((v) => v.regione === "Lombardia" && codici.includes(v.codice)) : [], error: null };
+    const codici = f("codice") as string[], fonte = f("fonte_id") as string;
+    const regione = fonte === "fonte-lom" ? "Lombardia" : fonte === "fonte-bz" ? "Trentino — P.A. Bolzano" : fonte?.startsWith("fonte-tos-") ? "Toscana" : "";
+    const provincia = fonte?.startsWith("fonte-tos-") ? fonte.slice("fonte-tos-".length) : undefined;
+    return { data: (riscontro.voci as { regione: string; codice: string; provincia?: string }[])
+      .filter((v) => v.regione === regione && codici.includes(v.codice) && v.provincia === provincia), error: null };
   }
   if (tabella === "rst_listino_voci") return { data: [{ codice: "DEMO-RST-011", descrizione: "Tinteggiatura di pareti e soffitti con idropittura lavabile", unita_misura: "mq", prezzo_unitario: 9.6 }], error: null };
   return { data: null, error: { message: "tabella inattesa" } };
@@ -65,9 +74,25 @@ describe("caricaFontiPrezzi: prezzario della regione dell'azienda", () => {
     expect(voci.filtri.map((x) => x[0]).sort()).toEqual(["eq", "in"]);
   });
 
-  it("regione senza abbinamenti o sconosciuta: nessuna voce di prezzario, nessuna lettura", async () => {
-    azienda = { region: null, operational_province: "CB", legal_province: null };
-    expect(await caricaFontiPrezzi("x", ["intonaco"])).toMatchObject({ prezzario: {}, prezzarioNome: null });
+  it("Toscana: la fonte della provincia dell'azienda, non una qualunque", async () => {
+    azienda = { region: null, operational_province: "MS", legal_province: null };
+    const fonti = await caricaFontiPrezzi("t", ["intonaco"]);
+    expect(fonti.prezzarioNome).toBe("Toscana 2026 (Massa Carrara)");
+    expect(chiamate.find((c) => c.tabella === "prezzario_voce")!.filtri).toContainEqual(["eq", "fonte_id", "fonte-tos-Massa Carrara"]);
+    expect(Object.keys(fonti.prezzario).length).toBe(6);
+    // Grosseto non è fra le fonti del database finto: niente prezzario, non quello di Firenze.
+    azienda = { region: null, operational_province: "GR", legal_province: null };
+    expect(await caricaFontiPrezzi("t", ["intonaco"])).toMatchObject({ prezzario: {}, prezzarioNome: null });
+  });
+
+  it("Trentino-Alto Adige: la Provincia autonoma della sede", async () => {
+    azienda = { region: null, operational_province: "BZ", legal_province: null };
+    const fonti = await caricaFontiPrezzi("b", ["intonaco"]);
+    expect(fonti.prezzarioNome).toBe("P.A. Bolzano 2026");
+    expect(Object.keys(fonti.prezzario).sort()).toEqual(["battiscopa", "chiusura_vano", "demolizione_tramezzo", "nuovo_tramezzo", "pavimento", "tinteggiatura"]);
+  });
+
+  it("regione sconosciuta: nessuna voce di prezzario, nessuna lettura", async () => {
     azienda = { region: null, operational_province: null, legal_province: null };
     expect(await caricaFontiPrezzi("x", ["intonaco"])).toMatchObject({ prezzario: {}, prezzarioNome: null });
     expect(chiamate.some((c) => c.tabella === "prezzario_voce")).toBe(false);
