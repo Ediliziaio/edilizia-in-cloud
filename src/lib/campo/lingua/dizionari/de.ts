@@ -3820,5 +3820,6 @@ const dizionario: Dizionario = {
   "Tutti ({n})": "Alle ({n})",
   "Ore di ognuno ({n})": "Stunden pro Person ({n})",
   "{n} senza ore": "{n} ohne Stunden",
+  "facoltative": "freiwillig",
 };
 export default dizionario;

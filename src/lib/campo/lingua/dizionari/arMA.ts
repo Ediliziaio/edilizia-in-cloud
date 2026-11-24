@@ -3820,5 +3820,6 @@ const dizionario: Dizionario = {
   "Tutti ({n})": "كلشي ({n})",
   "Ore di ognuno ({n})": "سوايع كل واحد ({n})",
   "{n} senza ore": "{n} بلا سوايع",
+  "facoltative": "ماشي ضروريين",
 };
 export default dizionario;

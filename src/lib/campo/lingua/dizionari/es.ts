@@ -3820,5 +3820,6 @@ const dizionario: Dizionario = {
   "Tutti ({n})": "Todos ({n})",
   "Ore di ognuno ({n})": "Horas de cada uno ({n})",
   "{n} senza ore": "{n} sin horas",
+  "facoltative": "opcionales",
 };
 export default dizionario;

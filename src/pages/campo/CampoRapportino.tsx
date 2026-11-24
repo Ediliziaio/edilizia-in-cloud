@@ -1995,7 +1995,8 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             {!soloOreAllOperaio && parti.foto && (
             <section className="space-y-2 rounded-2xl border bg-background p-3 shadow-sm sm:p-4" aria-label={t("Foto del rapportino")}>
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-[15px] font-semibold md:text-sm">{t("Foto cantiere")}</h3>
+                {/* Le foto non sono mai obbligatorie (founder, 24/11/2026): si dice, così nessuno si ferma a cercarle. */}
+                <h3 className="text-[15px] font-semibold md:text-sm">{t("Foto cantiere")} <span className="text-xs font-normal text-muted-foreground">· {t("facoltative")}</span></h3>
                 <p className="text-xs tabular-nums text-muted-foreground">{fotoUrls.length}/{MAX_FOTO_PER_RAPPORTINO}</p>
               </div>
               <div className="grid grid-cols-2 gap-2">

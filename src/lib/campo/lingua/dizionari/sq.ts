@@ -3820,5 +3820,6 @@ const dizionario: Dizionario = {
   "Tutti ({n})": "Të gjithë ({n})",
   "Ore di ognuno ({n})": "Orët e secilit ({n})",
   "{n} senza ore": "{n} pa orë",
+  "facoltative": "opsionale",
 };
 export default dizionario;

@@ -3820,5 +3820,6 @@ const dizionario: Dizionario = {
   "Tutti ({n})": "Toți ({n})",
   "Ore di ognuno ({n})": "Orele fiecăruia ({n})",
   "{n} senza ore": "{n} fără ore",
+  "facoltative": "opționale",
 };
 export default dizionario;
