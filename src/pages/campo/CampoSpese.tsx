@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Camera, CheckCircle2, Clock, Loader2, Receipt, Trash2, X, XCircle } from "lucide-react";
+import { Camera, CheckCircle2, Clock, Loader2, Receipt, Sparkles, Trash2, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { CHIP, RIQUADRO, TITOLO_RIQUADRO } from "@/lib/campo/stileCampo";
 import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { senzaRete } from "@/lib/campo/timbra";
+import { compressImage } from "@/lib/campo/compressImage";
+import { pulisciScontrino } from "@/lib/campo/scontrinoLetto";
 import {
   COLONNE_SPESA, STATI_SPESA, TIPI_SPESA, euro, leggiImporto, percorsoScontrino, totaliSpese,
   type PagataCon, type Spesa, type TipoSpesa,
@@ -51,6 +53,10 @@ export default function CampoSpese() {
   const [orderId, setOrderId] = useState("");
   const [pagataCon, setPagataCon] = useState<PagataCon>("soldi_miei");
   const [nota, setNota] = useState("");
+  const oggi = format(new Date(), "yyyy-MM-dd");
+  const [giorno, setGiorno] = useState(oggi);
+  // La foto dello scontrino compila la spesa (24/11): importo, data e tipo letti dall'AI, poi controlla l'operaio.
+  const [lettura, setLettura] = useState<"no" | "leggo" | "letto" | "non_letto">("no");
   const importo = leggiImporto(importoTesto);
   const cantiereScelto = orderId || (cantieri.length === 1 ? cantieri[0].id : "");
 
@@ -81,7 +87,7 @@ export default function CampoSpese() {
       }
       const { error } = await supabase.from("campo_spese").insert({
         id, company_id: companyId, user_id: user.id, order_id: cantiereScelto || null,
-        tipo, importo, descrizione: nota.trim() || null, foto_path: fotoPath, pagata_con: pagataCon,
+        tipo, importo, descrizione: nota.trim() || null, foto_path: fotoPath, pagata_con: pagataCon, giorno,
       });
       if (error) {
         if (fotoPath) void supabase.storage.from("campo-spese").remove([fotoPath]);
@@ -90,11 +96,40 @@ export default function CampoSpese() {
     },
     onSuccess: () => {
       toast.success(t("Spesa inviata all'ufficio"));
-      setFoto(null); setImportoTesto(""); setNota("");
+      setFoto(null); setImportoTesto(""); setNota(""); setGiorno(oggi); setLettura("no");
       void qc.invalidateQueries({ queryKey: ["campo-mie-spese"] });
     },
     onError: (e: unknown) => toast.error(e instanceof Error && e.message ? e.message : t("Non sono riuscito a inviare. Riprova.")),
   });
+
+  const scegliFoto = async (f: File) => {
+    let file = f;
+    try {
+      const ridotta = await compressImage(f, 1600, 0.8);
+      file = new File([ridotta], f.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+    } catch { /* si tiene l'originale */ }
+    setFoto(file);
+    if (senzaRete()) return;
+    setLettura("leggo");
+    try {
+      const base64 = await new Promise<string>((ok, ko) => {
+        const r = new FileReader();
+        r.onload = () => ok(String(r.result).split(",")[1] ?? "");
+        r.onerror = () => ko(r.error);
+        r.readAsDataURL(file);
+      });
+      const { data, error } = await supabase.functions.invoke("campo-scontrino-leggi", { body: { base64, mime: file.type || "image/jpeg" } });
+      if (error) throw error;
+      const letto = pulisciScontrino(data, oggi);
+      if (letto.importo) setImportoTesto(String(letto.importo).replace(".", ","));
+      if (letto.tipo) setTipo(letto.tipo);
+      if (letto.giorno) setGiorno(letto.giorno);
+      if (letto.esercente) setNota(n => n || letto.esercente!);
+      setLettura(letto.importo ? "letto" : "non_letto");
+    } catch {
+      setLettura("non_letto");
+    }
+  };
 
   const togli = useMutation({
     mutationFn: async (s: Spesa) => {
@@ -117,7 +152,7 @@ export default function CampoSpese() {
         <div className="flex gap-3">
           <label className="relative flex size-24 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-2 border-dashed text-xs font-semibold text-muted-foreground">
             <input type="file" accept="image/*" capture="environment" aria-label={t("Foto dello scontrino")} className="sr-only"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) setFoto(f); e.target.value = ""; }} />
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void scegliFoto(f); e.target.value = ""; }} />
             {foto ? <AnteprimaScontrino file={foto} /> : <><Camera className="size-6" aria-hidden="true" />{t("Scontrino")}</>}
           </label>
           <div className="min-w-0 flex-1 space-y-1">
@@ -129,12 +164,25 @@ export default function CampoSpese() {
                 className="min-w-0 flex-1 bg-transparent px-2 text-2xl font-bold outline-none" />
             </div>
             {foto && (
-              <button type="button" onClick={() => setFoto(null)} className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-muted-foreground">
+              <button type="button" onClick={() => { setFoto(null); setLettura("no"); }} className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-muted-foreground">
                 <X className="size-3.5" aria-hidden="true" />{t("Togli la foto")}
               </button>
             )}
           </div>
         </div>
+
+        {lettura !== "no" && (
+          <p role="status" className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            {lettura === "leggo" ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="size-3.5 text-primary" aria-hidden="true" />}
+            {lettura === "leggo" ? t("Leggo lo scontrino…") : lettura === "letto" ? t("Letto dallo scontrino: controlla e invia") : t("Non sono riuscito a leggerlo: scrivi l'importo")}
+          </p>
+        )}
+
+        <label className="flex items-center justify-between gap-3 text-xs font-semibold text-muted-foreground">
+          {t("Data dello scontrino")}
+          <input type="date" value={giorno} max={oggi} onChange={(e) => setGiorno(e.target.value || oggi)}
+            className="min-h-11 rounded-xl border bg-background px-3 text-sm text-foreground" />
+        </label>
 
         <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("Che spesa è")}>
           {TIPI_SPESA.map(x => (

@@ -117,10 +117,10 @@ function statusBadge(status: string, t: FnT) {
 
 function appointmentTypeLabel(type: string, t: FnT) {
   const map: Record<string, { label: string; cls: string; emoji: string }> = {
-    sopralluogo:      { label: t("Sopralluogo"),       cls: "bg-violet-100 text-violet-700",  emoji: "🔍" },
-    sopralluogo_tecnico: { label: t("Sopralluogo Tecnico"), cls: "bg-violet-100 text-violet-700", emoji: "🔍" },
+    sopralluogo:      { label: t("Sopralluogo"),       cls: "bg-sky-100 text-sky-800",  emoji: "🔍" },
+    sopralluogo_tecnico: { label: t("Sopralluogo Tecnico"), cls: "bg-sky-100 text-sky-800", emoji: "🔍" },
     consegna:         { label: t("Consegna"),           cls: "bg-teal-100 text-teal-700",     emoji: "📦" },
-    riunione:         { label: t("Riunione"),           cls: "bg-indigo-100 text-indigo-700", emoji: "👥" },
+    riunione:         { label: t("Riunione"),           cls: "bg-slate-100 text-slate-700", emoji: "👥" },
     misura:           { label: t("Presa misure"),       cls: "bg-cyan-100 text-cyan-700",     emoji: "📏" },
     installazione:    { label: t("Installazione"),      cls: "bg-emerald-100 text-emerald-700", emoji: "🔧" },
     manutenzione:     { label: t("Manutenzione"),       cls: "bg-amber-100 text-amber-700",   emoji: "🛠" },
@@ -764,7 +764,7 @@ function SummaryTile({
 }) {
   const tones = {
     blue: "bg-blue-50 text-blue-700 border-blue-100",
-    indigo: "bg-indigo-50 text-indigo-700 border-indigo-100",
+    indigo: "bg-slate-50 text-slate-700 border-slate-200",
     emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
     amber: "bg-amber-50 text-amber-700 border-amber-100",
   };
@@ -829,7 +829,7 @@ function AppuntamentoCard({
         description: item.description ?? item.title,
         indirizzo_lavori: item.formatted_address,
       })) : null)}
-      className="w-full bg-background border-l-4 border-l-violet-400 border border-border/80 rounded-2xl p-4 text-left active:scale-[0.98] transition-all shadow-sm mb-3"
+      className="w-full bg-background border-l-4 border-l-primary border border-border/80 rounded-2xl p-4 text-left active:scale-[0.98] transition-all shadow-sm mb-3"
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="flex-1 min-w-0">

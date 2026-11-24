@@ -225,7 +225,7 @@ const TIPI_DOCUMENTO: FirmaDocumentoConfig[] = [
     label: "Verbale sopralluogo",
     description: "Documento con esito del sopralluogo tecnico",
     icon: ClipboardSignature,
-    color: "text-violet-600 bg-violet-50",
+    color: "text-sky-700 bg-sky-50",
   },
   {
     tipo: "presa_misure",
@@ -1040,7 +1040,7 @@ export default function CampoLavoroDetail() {
                     return (
                       <div
                         key={fase.id}
-                        className={miaDavvero ? "-mx-2 rounded-xl border border-violet-200 bg-violet-50/70 px-2 py-2 dark:border-violet-900 dark:bg-violet-950/30" : undefined}
+                        className={miaDavvero ? "-mx-2 rounded-xl border border-primary/25 bg-primary/5 px-2 py-2" : undefined}
                       >
                         <div className="mb-1 flex items-center justify-between gap-2">
                           <div className="flex min-w-0 items-center gap-2">
@@ -1060,7 +1060,7 @@ export default function CampoLavoroDetail() {
                               {(mia?.dal || mia?.al || miaDavvero) && (
                                 <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                                   {(mia?.dal || mia?.al) && <span className="tabular-nums">{periodoFase(mia!, t)}</span>}
-                                  {mia?.tu && <span className="font-semibold text-violet-700 dark:text-violet-300">{t("Tu")}</span>}
+                                  {mia?.tu && <span className="font-semibold text-primary">{t("Tu")}</span>}
                                   {mia?.squadra && <span className="font-semibold text-orange-700 dark:text-orange-300">{mia.squadra}</span>}
                                 </p>
                               )}

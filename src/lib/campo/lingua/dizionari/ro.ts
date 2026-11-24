@@ -3938,5 +3938,16 @@ const dizionario: Dizionario = {
   "L'ufficio ci sta lavorando": "Biroul se ocupă",
   "Spese": "Cheltuieli",
   "Prendi un mezzo (QR)": "Ia un utilaj (QR)",
+  "Metri quadri lavorati oggi": "Metri pătrați lucrați azi",
+  "m²": "m²",
+  "Area di lavoro lasciata pulita e in sicurezza": "Zona de lucru lăsată curată și în siguranță",
+  "Problemi o ritardi da segnalare": "Probleme sau întârzieri de semnalat",
+  "Materiale mancante": "Material lipsă",
+  "Meteo": "Vremea",
+  "Cliente assente": "Client absent",
+  "Leggo lo scontrino…": "Citesc bonul…",
+  "Letto dallo scontrino: controlla e invia": "Citit de pe bon: verifică și trimite",
+  "Non sono riuscito a leggerlo: scrivi l'importo": "Nu am reușit să-l citesc: scrie suma",
+  "Data dello scontrino": "Data bonului",
 };
 export default dizionario;

@@ -28,8 +28,8 @@ const STATUS_COLORS: Record<string, string> = {
   ferie: "bg-blue-400",
   permesso: "bg-amber-400",
   malattia: "bg-orange-400",
-  smart_working: "bg-indigo-400",
-  trasferta: "bg-purple-400",
+  smart_working: "bg-sky-400",
+  trasferta: "bg-teal-500",
   festivita: "bg-sky-300",
   infortunio: "bg-red-600",
 };

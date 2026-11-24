@@ -70,3 +70,20 @@ describe("Fine giornata guidata del caposquadra", () => {
     expect(passi.find(p => p.chiave === "uscita")?.fatto).toBe(true);
   });
 });
+
+describe("Scontrino letto dall'AI: si scrive solo quello che ha senso", () => {
+  it("tiene importo, data, tipo ed esercente puliti", async () => {
+    const { pulisciScontrino } = await import("@/lib/campo/scontrinoLetto");
+    expect(pulisciScontrino({ importo: 45.237, data: "2026-11-22", tipo: "carburante", esercente: " Q8 Bergamo " }, "2026-11-24"))
+      .toEqual({ importo: 45.24, giorno: "2026-11-22", tipo: "carburante", esercente: "Q8 Bergamo" });
+    expect(pulisciScontrino({ importo: "12,50" }, "2026-11-24").importo).toBe(12.5);
+  });
+
+  it("scarta date future o troppo vecchie, tipi inventati, importi assurdi", async () => {
+    const { pulisciScontrino } = await import("@/lib/campo/scontrinoLetto");
+    expect(pulisciScontrino({ importo: 0, data: "2026-12-01", tipo: "benzina" }, "2026-11-24"))
+      .toEqual({ importo: null, giorno: null, tipo: null, esercente: null });
+    expect(pulisciScontrino({ data: "2024-01-01" }, "2026-11-24").giorno).toBeNull();
+    expect(pulisciScontrino(null, "2026-11-24").importo).toBeNull();
+  });
+});

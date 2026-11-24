@@ -401,7 +401,7 @@ function AssistenteCampoOperaio() {
             <Button
               type="button"
               variant="secondary"
-              className="h-10 gap-2 bg-violet-100 text-violet-800 hover:bg-violet-200"
+              className="h-10 gap-2 bg-primary/10 text-primary hover:bg-primary/15"
               onClick={() => navigate(`/campo/lavoro/${focusRapportino.order_id}/rapportino?data=${focusRapportino.data_lavoro}`)}
             >
               <Send className="h-4 w-4" />

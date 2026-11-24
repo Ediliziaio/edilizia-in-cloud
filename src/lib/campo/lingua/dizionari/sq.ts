@@ -3938,5 +3938,16 @@ const dizionario: Dizionario = {
   "L'ufficio ci sta lavorando": "Zyra po punon për këtë",
   "Spese": "Shpenzime",
   "Prendi un mezzo (QR)": "Merr një mjet (QR)",
+  "Metri quadri lavorati oggi": "Metra katrorë të punuar sot",
+  "m²": "m²",
+  "Area di lavoro lasciata pulita e in sicurezza": "Zona e punës u la e pastër dhe e sigurt",
+  "Problemi o ritardi da segnalare": "Probleme ose vonesa për të sinjalizuar",
+  "Materiale mancante": "Material që mungon",
+  "Meteo": "Moti",
+  "Cliente assente": "Klienti mungon",
+  "Leggo lo scontrino…": "Po lexoj kuponin…",
+  "Letto dallo scontrino: controlla e invia": "Lexuar nga kuponi: kontrollo dhe dërgo",
+  "Non sono riuscito a leggerlo: scrivi l'importo": "Nuk arrita ta lexoj: shkruaj shumën",
+  "Data dello scontrino": "Data e kuponit",
 };
 export default dizionario;

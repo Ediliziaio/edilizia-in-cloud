@@ -465,3 +465,6 @@ Dati di prova in Demo 2: DEMO2-0025 con indirizzo, date, 2 fasi in corso, operai
 
 Dati di prova creati (Demo 2, da tenere o cancellare): spesa «Carburante 12,50 €» di Marco Operaio (`campo_spese` 4306dd97…), ticket «DEMO prova: 20 sacchi di collante per il cappotto» (af7bc584…).
 | Spesa approvata → costo del cantiere + nota spese del mese in Tesoreria (scelta del founder 24/11) | Personale › Richieste → Tesoreria › Note spese | transazione annullata: costo 12,50 € su DEMO2-0025 (costo_diretto 0 → 12,50), nota «Spese dal cantiere · Marco Operaio · 11/2026» in bozza; inviata, approvata e rimborsata con movimento finto → spesa «rimborsata» e avviso all'operaio |
+| Scontrino letto dalla foto (importo, data, tipo) — funzione `campo-scontrino-leggi`, compito router `campo_scontrino` | /campo/spese | test di logica; prova dal vivo dopo il deploy della funzione |
+| Niente viola nell'area operai (scelta del founder): «tu/la tua» in blu dell'app, sopralluoghi in azzurro | Home, scheda cantiere, calendario, presenze | giro di 30 pagine a 443 px: nessuno scorrimento laterale, nessun errore |
+| Voci del modulo rapportino dell'azienda tradotte (Meteo, Materiale mancante, Cliente assente…) | rapportino | giro in rumeno: in italiano restano solo i dati scritti dall'ufficio |

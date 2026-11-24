@@ -3938,5 +3938,16 @@ const dizionario: Dizionario = {
   "L'ufficio ci sta lavorando": "The office is working on it",
   "Spese": "Expenses",
   "Prendi un mezzo (QR)": "Take a vehicle (QR)",
+  "Metri quadri lavorati oggi": "Square metres done today",
+  "m²": "m²",
+  "Area di lavoro lasciata pulita e in sicurezza": "Work area left clean and safe",
+  "Problemi o ritardi da segnalare": "Problems or delays to report",
+  "Materiale mancante": "Missing material",
+  "Meteo": "Weather",
+  "Cliente assente": "Customer not present",
+  "Leggo lo scontrino…": "Reading the receipt…",
+  "Letto dallo scontrino: controlla e invia": "Read from the receipt: check and send",
+  "Non sono riuscito a leggerlo: scrivi l'importo": "Couldn't read it: enter the amount",
+  "Data dello scontrino": "Receipt date",
 };
 export default dizionario;

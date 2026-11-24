@@ -3938,5 +3938,16 @@ const dizionario: Dizionario = {
   "L'ufficio ci sta lavorando": "Le bureau s'en occupe",
   "Spese": "Dépenses",
   "Prendi un mezzo (QR)": "Prendre un engin (QR)",
+  "Metri quadri lavorati oggi": "Mètres carrés réalisés aujourd'hui",
+  "m²": "m²",
+  "Area di lavoro lasciata pulita e in sicurezza": "Zone de travail laissée propre et sécurisée",
+  "Problemi o ritardi da segnalare": "Problèmes ou retards à signaler",
+  "Materiale mancante": "Matériel manquant",
+  "Meteo": "Météo",
+  "Cliente assente": "Client absent",
+  "Leggo lo scontrino…": "Je lis le ticket…",
+  "Letto dallo scontrino: controlla e invia": "Lu sur le ticket : vérifie et envoie",
+  "Non sono riuscito a leggerlo: scrivi l'importo": "Je n'ai pas pu le lire : écris le montant",
+  "Data dello scontrino": "Date du ticket",
 };
 export default dizionario;

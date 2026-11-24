@@ -3938,5 +3938,16 @@ const dizionario: Dizionario = {
   "L'ufficio ci sta lavorando": "La oficina se está ocupando",
   "Spese": "Gastos",
   "Prendi un mezzo (QR)": "Coger una máquina (QR)",
+  "Metri quadri lavorati oggi": "Metros cuadrados hechos hoy",
+  "m²": "m²",
+  "Area di lavoro lasciata pulita e in sicurezza": "Zona de trabajo dejada limpia y segura",
+  "Problemi o ritardi da segnalare": "Problemas o retrasos que avisar",
+  "Materiale mancante": "Material que falta",
+  "Meteo": "Tiempo",
+  "Cliente assente": "Cliente ausente",
+  "Leggo lo scontrino…": "Leyendo el tique…",
+  "Letto dallo scontrino: controlla e invia": "Leído del tique: revisa y envía",
+  "Non sono riuscito a leggerlo: scrivi l'importo": "No he podido leerlo: escribe el importe",
+  "Data dello scontrino": "Fecha del tique",
 };
 export default dizionario;

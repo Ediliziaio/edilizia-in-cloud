@@ -52,6 +52,7 @@ const CON_REGOLE_CONDIVISE = [
   "ai-importa-condizioni",
   "ai-listino-extract",
   "ai-rapportini-da-documento",
+  "campo-scontrino-leggi", // 24/11/2026: la foto dello scontrino dell'operaio
   "ai-tabella-finanziamento-extract",
   "ddt-ai-extract",
   "document-ai-router",

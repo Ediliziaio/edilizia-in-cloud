@@ -3938,5 +3938,16 @@ const dizionario: Dizionario = {
   "L'ufficio ci sta lavorando": "المكتب شغال عليها",
   "Spese": "المصاريف",
   "Prendi un mezzo (QR)": "خد معدة (QR)",
+  "Metri quadri lavorati oggi": "الأمتار المربعة اللي اتعملت النهارده",
+  "m²": "m²",
+  "Area di lavoro lasciata pulita e in sicurezza": "مكان الشغل اتساب نضيف وآمن",
+  "Problemi o ritardi da segnalare": "مشاكل أو تأخير لازم تبلغ عنه",
+  "Materiale mancante": "خامات ناقصة",
+  "Meteo": "الجو",
+  "Cliente assente": "العميل مش موجود",
+  "Leggo lo scontrino…": "بقرا الإيصال…",
+  "Letto dallo scontrino: controlla e invia": "اتقرا من الإيصال: راجع وابعت",
+  "Non sono riuscito a leggerlo: scrivi l'importo": "معرفتش أقراه: اكتب المبلغ",
+  "Data dello scontrino": "تاريخ الإيصال",
 };
 export default dizionario;
