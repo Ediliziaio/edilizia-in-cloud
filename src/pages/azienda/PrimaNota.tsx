@@ -363,7 +363,7 @@ function PrimaNotaInner() {
                 <RefreshCw className="h-4 w-4" />
                 {t("Allinea banca e fatture")}
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2 sm:hidden" onSelect={() => navigate("/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture")}>
+              <DropdownMenuItem className="gap-2 sm:hidden" onSelect={() => navigate("/azienda/contabilita-generale?vista=scritture")}>
                 <BookOpen className="h-4 w-4" />
                 {t("Scritture Dare/Avere")}
               </DropdownMenuItem>
@@ -389,7 +389,7 @@ function PrimaNotaInner() {
           <DropdownMenu><DropdownMenuTrigger asChild><Button className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm max-lg:h-11 max-sm:px-3 max-sm:text-sm"><Plus className="mr-1 h-4 w-4" />{t("Nuova registrazione")}</Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72">
               <DropdownMenuItem onSelect={() => setNewOpen(true)}>{t("Movimento di cassa o banca")}</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => navigate(`/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture&nuova=scrittura&anno=${fromDate.slice(0, 4)}`)}>{t("Scrittura Dare/Avere · stipendi e altri costi")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => navigate(`/azienda/contabilita-generale?vista=scritture&nuova=scrittura&anno=${fromDate.slice(0, 4)}`)}>{t("Scrittura Dare/Avere · stipendi e altri costi")}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -399,7 +399,7 @@ function PrimaNotaInner() {
       {/* Sul telefono questo riquadro (una frase e tre bottoni, ~200 px) sta nel menu «⋯». */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3 text-sm max-sm:hidden">
         <p className="text-muted-foreground">{t("Per rilevare un costo prima del pagamento, registrare gli stipendi o gestire più conti usa le scritture Dare/Avere.")}</p>
-        <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => navigate("/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture")}>{t("Scritture Dare/Avere")}</Button><Button size="sm" variant="outline" onClick={() => setAllineaAperto(true)}>{t("Verifica allineamento")}</Button><Button size="sm" variant="outline" onClick={() => navigate("/azienda/tesoreria")}>{t("Banca e riconciliazione")}</Button></div>
+        <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => navigate("/azienda/contabilita-generale?vista=scritture")}>{t("Scritture Dare/Avere")}</Button><Button size="sm" variant="outline" onClick={() => setAllineaAperto(true)}>{t("Verifica allineamento")}</Button><Button size="sm" variant="outline" onClick={() => navigate("/azienda/tesoreria")}>{t("Banca e riconciliazione")}</Button></div>
       </div>
 
       {stampa && (

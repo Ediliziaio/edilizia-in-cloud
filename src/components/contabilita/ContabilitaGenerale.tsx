@@ -55,7 +55,7 @@ import { RimanenzeFineAnno } from "@/components/contabilita/RimanenzeFineAnno";
 import { FiscalPeriodFilters } from "@/components/fatturazione/FiscalPeriodFilters";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { csvLiquidazioneContabile, differenzaLipe, htmlLiquidazioneContabile, importiPeriodo, righeLiquidazione, type EsitoLiquidazione } from "@/lib/contabilita/liquidazioneContabile";
+import { csvLiquidazioneContabile, differenzaLipe, htmlLiquidazioneContabile, importiPerPeriodo, righeLiquidazione, type EsitoLiquidazione } from "@/lib/contabilita/liquidazioneContabile";
 import { avvisoPeriodo, incompletiPerPeriodo, type DocumentoSenzaImporti } from "@/lib/contabilita/controlloIva";
 import { useControlloIva } from "@/hooks/useControlloIva";
 import { PercorsoIva } from "@/components/contabilita/ControlloIva";
@@ -468,7 +468,10 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   const g = costruisciGiornale(elenco, conti, 0, filtroGiornale);
   const nGiornale = useMemo(() => numeriGiornale(scritture.data ?? []), [scritture.data]);
   // Il filtro dell'origine vale per l'elenco delle scritture; ricerca e mese valgono anche nel libro giornale.
-  const visibili = filtro === "tutte" ? filtrate : filtrate.filter((s) => gruppoDi(s.origine) === filtro);
+  // In ordine di data (la più recente in alto), poi di numero: per numero le date saltavano avanti e indietro
+  // perché le fatture importate si registrano dopo, non nell'ordine in cui sono arrivate.
+  const visibili = (filtro === "tutte" ? filtrate : filtrate.filter((s) => gruppoDi(s.origine) === filtro))
+    .slice().sort((a, b) => b.data_registrazione.localeCompare(a.data_registrazione) || b.numero - a.numero);
   const selezione = useSelezioneRighe(visibili.slice(0, mostra), JSON.stringify([companyId, anno, filtro, mese, cerca, mostra, giornale]));
   const stornabili = selezione.selezionate.filter((s) => !percheScritturaNonRettificabile(s, stornate));
   const escluse = selezione.selezionate.flatMap((s) => {
@@ -1614,7 +1617,7 @@ function LiquidazioneIva({ companyId, anno, senzaImporti = [], periodicita, onAp
     },
   });
   // Un periodo registrato mostra gli importi della sua scrittura: i saldi, dopo il giroconto, sono a zero.
-  const mostrati = useMemo(() => esiti.data?.map(importiPeriodo), [esiti.data]);
+  const mostrati = useMemo(() => esiti.data ? importiPerPeriodo(esiti.data) as EsitoLiquidazione[] : undefined, [esiti.data]);
   const registra = useMutation({
     mutationFn: async (per: { dal: string; al: string }) => {
       const { data, error } = await db.rpc("contabilita_liquida_iva", { p_company: companyId, p_dal: per.dal, p_al: per.al, p_anteprima: false });
@@ -1756,8 +1759,11 @@ function DaGuardare({ esito }: { esito: StatoEsercizioRiga["generato_esito"] }) 
   return (
     <details className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
       <summary className="cursor-pointer font-medium">
-        {tr(avvisi.length === 1 ? "Da guardare: {n} cosa" : "Da guardare: {n} cose", { n: avvisi.length })}{errori.length ? ` · ${tr("{n} non registrati", { n: errori.length })}` : ""}
-        {incompleti > 0 ? ` · ${tr("{n} documenti incompleti", { n: incompleti })}` : ""}
+        {tr("Da guardare:")} {[
+          avvisi.length ? tr(avvisi.length === 1 ? "{n} avviso" : "{n} avvisi", { n: avvisi.length }) : "",
+          errori.length ? tr("{n} non registrati", { n: errori.length }) : "",
+          incompleti ? tr("{n} documenti incompleti", { n: incompleti }) : "",
+        ].filter(Boolean).join(" · ")}
       </summary>
       <ul className="mt-2 max-h-64 list-disc space-y-0.5 overflow-y-auto pl-5 text-xs">
         {incompleti > 0 && <li>{tr("{incompleti} documenti non hanno dati sufficienti o dipendono da una fattura non ancora registrata. Completa imponibile, IVA e righe nelle fatture ricevute o emesse, poi aggiorna le scritture.", { incompleti })}</li>}

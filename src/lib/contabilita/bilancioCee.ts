@@ -114,9 +114,11 @@ const sezioneDi = (c: ContoContabile): "SPA" | "SPP" | "CE" =>
 
 function vociDi(saldi: readonly SaldoConto[], sezione: "SPA" | "SPP" | "CE", schema: Array<[string, string]>) {
   const perVoce = new Map<string, number>();
+  const contiPerVoce = new Map<string, string[]>();
   for (const s of saldi) {
     if (sezioneDi(s.conto) !== sezione) continue;
     const v = s.conto.voce_cee?.trim() || "?";
+    if (cent(s.saldo) !== 0) contiPerVoce.set(v, [...(contiPerVoce.get(v) ?? []), `${s.conto.codice} ${s.conto.descrizione}`.trim()]);
     // Il segno lo decide la sezione, non la natura: nell'attivo il saldo dare,
     // nel passivo il saldo avere (un fondo ammortamento nell'attivo riduce la
     // sua voce); nel conto economico i ricavi (A, C.16) in avere, i costi in dare.
@@ -126,7 +128,9 @@ function vociDi(saldi: readonly SaldoConto[], sezione: "SPA" | "SPP" | "CE", sch
     perVoce.set(v, (perVoce.get(v) ?? 0) + cent(valore));
   }
   const conosciute = new Set(schema.map(([c]) => c));
-  const sconosciute = [...perVoce.keys()].filter((v) => !conosciute.has(v));
+  // Si dice QUALI conti mancano di voce, non solo «?»: è il conto che si corregge nel piano.
+  const sconosciute = [...perVoce.keys()].filter((v) => !conosciute.has(v) && perVoce.get(v) !== 0)
+    .map((v) => { const conti = contiPerVoce.get(v) ?? []; return `${v === "?" ? "senza voce" : `voce ${v}`}${conti.length ? ` (${conti.join("; ")})` : ""}`; });
   return { perVoce, sconosciute };
 }
 

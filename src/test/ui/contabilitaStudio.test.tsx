@@ -118,7 +118,7 @@ it("le scritture si filtrano per origine: fatture ricevute, emesse, incassi", as
 
 it("quello che la generazione non sa classificare si vede: «Da guardare»", async () => {
   apri("scritture");
-  const riquadro = await screen.findByText(/Da guardare: 2 cose/);
+  const riquadro = await screen.findByText(/Da guardare: 2 avvisi/);
   fireEvent.click(riquadro);
   expect(screen.getByText(/40.00 € fra totale e imponibile più IVA/)).toBeTruthy();
   expect(screen.getByText(/va classificato/)).toBeTruthy();

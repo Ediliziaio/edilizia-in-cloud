@@ -587,7 +587,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           </p>
           <div className="rounded-lg border p-3 text-sm">
             <p>{t("Per un pagamento con commissioni, arrotondamenti o sconti usa una scrittura con più righe Dare/Avere.")}</p>
-            <a className="mt-1 inline-block text-primary underline" href="/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture&nuova=scrittura">{t("Apri scrittura con più conti")}</a>
+            <a className="mt-1 inline-block text-primary underline" href="/azienda/contabilita-generale?vista=scritture&nuova=scrittura">{t("Apri scrittura con più conti")}</a>
           </div>
           </>}
 

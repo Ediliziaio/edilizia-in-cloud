@@ -73,7 +73,8 @@ describe("bilancio dalle scritture", () => {
     expect(b.totaleAttivo).toBe(b.totalePassivo);
     expect(b.contoEconomico.find((r) => r.codice === "?")?.valore).toBe(-150);
     expect(b.contoEconomico.find((r) => r.codice === "ANTE")?.valore).toBe(5250);
-    expect(b.vociNonIndicate).toEqual(expect.arrayContaining(["C.E. ?", "C.E. B7"]));
+    // Si dice quale conto, non solo «?» (24/11/2026: a Scavolo il messaggio era «C.E. ?.»).
+    expect(b.vociNonIndicate).toEqual(expect.arrayContaining([expect.stringMatching(/^C\.E\. senza voce \(30\.99 /), "C.E. voce B7 (30.98 strano)"]));
   });
 });
 

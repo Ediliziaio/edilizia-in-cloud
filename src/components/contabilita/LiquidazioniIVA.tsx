@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +41,8 @@ export interface CalcoloLiquidazioneIVA {
   manuali?: Record<string, number | boolean>;
   avvisi?: string[];
   righi?: RighiLipe;
+  /** Stima dalle fatture quando il periodo non si può ancora confermare: solo da leggere. */
+  anteprima?: Pick<RighiLipe, "vp2" | "vp3" | "vp4" | "vp5">;
 }
 export interface LiquidazioneIVAConfermata {
   id: string;
@@ -182,6 +184,19 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
   return (
     <div className="space-y-3 border-t bg-muted/20 p-3">
       {r && !r.calcolabile && <p role="alert" className="text-sm text-amber-800">{r.motivo}</p>}
+      {!bloccata && !righi && r?.anteprima && !usaRegistro && (
+        <div className="rounded-md border border-dashed bg-white p-2">
+          <p className="text-xs text-muted-foreground">{t("Stima dalle fatture del periodo: serve a leggere i numeri, non si conferma da qui.")}</p>
+          <table className="mt-1 w-full text-sm"><tbody className="divide-y">
+            {RIGHI_REGISTRO.map(({ k, rigo, nome }) => (
+              <tr key={k}><td className="w-12 py-1 font-mono text-xs text-muted-foreground">{rigo}</td><td className="py-1">{nome}</td>
+                <td className="py-1 text-right tabular-nums">{formatCurrency(Number(r.anteprima![k as keyof NonNullable<CalcoloLiquidazioneIVA["anteprima"]>] ?? 0))}</td></tr>
+            ))}
+            <tr className="font-medium"><td className="py-1 font-mono text-xs text-muted-foreground">VP6</td><td className="py-1">{r.anteprima.vp4 - r.anteprima.vp5 >= 0 ? t("IVA dovuta (stima)") : t("IVA a credito (stima)")}</td>
+              <td className="py-1 text-right tabular-nums">{formatCurrency(Math.abs(r.anteprima.vp4 - r.anteprima.vp5))}</td></tr>
+          </tbody></table>
+        </div>
+      )}
       {!bloccata && puoScrivere && (usaRegistro || r?.richiede_registro || r?.calcolabile) && (
         <div className="space-y-1">
           <Button type="button" size="sm" variant="outline" onClick={() => setUsaRegistro((v) => !v)}>
@@ -205,7 +220,7 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
                       inputMode="decimal"
                       aria-invalid={sbagliati.includes(k)}
                       className={cn("ml-auto h-7 w-28 text-right text-xs", sbagliati.includes(k) && "border-destructive")}
-                      placeholder={righi?.[k] != null ? String(righi[k]).replace(".", ",") : undefined}
+                      placeholder={righi?.[k] != null ? String(righi[k]).replace(".", ",") : r?.anteprima && k in r.anteprima ? String(r.anteprima[k as keyof typeof r.anteprima]).replace(".", ",") : undefined}
                       value={manuali[k] ?? ""}
                       onChange={(e) => setManuali((p) => ({ ...p, [k]: e.target.value }))}
                     />
@@ -292,6 +307,28 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
     void qc.invalidateQueries({ queryKey: ["cashflow"] });
   };
 
+  // Il calcolo di ogni periodo non confermato, per vedere i numeri in tabella senza aprire il mese
+  // (stessa chiave del dettaglio, quindi una sola chiamata). Senza conferma è una stima: la riga lo dice.
+  const confermatiDal = new Set((lista.data ?? []).map((c) => c.dal));
+  const periodiStima = impostazioni && lista.isSuccess
+    ? periodiAnno(anno, impostazioni.periodicita === "mensile").filter((p) => !confermatiDal.has(p.dal) && p.dal <= new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" }))
+    : [];
+  const stime = useQueries({
+    queries: periodiStima.map((p) => ({
+      queryKey: ["liquidazione-righi", company, anno, p.periodo, {}],
+      staleTime: 60_000,
+      queryFn: async () => {
+        const { data, error } = await db.rpc("liquidazione_iva_righi", { p_company: company, p_anno: anno, p_periodo: p.periodo, p_manuali: {} });
+        if (error) throw error;
+        return data as CalcoloLiquidazioneIVA;
+      },
+    })),
+  });
+  const stimaDi = new Map(periodiStima.map((p, i) => {
+    const d = stime[i]?.data;
+    return [p.dal, d?.righi ? { vp2: d.righi.vp2, vp3: d.righi.vp3, vp4: d.righi.vp4, vp5: d.righi.vp5 } : d?.anteprima] as const;
+  }));
+
   if (isLoading) return <p className="p-4 text-sm text-muted-foreground">{tr("Caricamento…")}</p>;
   if (isError) return <p role="alert" className="p-4 text-sm text-destructive">
     {tr("Impossibile leggere le impostazioni IVA.")} <button type="button" className="underline" onClick={() => void refetch()}>{tr("Riprova")}</button>
@@ -368,16 +405,17 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
               ? { testo: tr("Saldo in dichiarazione annuale"), cls: "text-muted-foreground" }
               : esito(c?.dati.righi, tr);
             const isAperto = apertoOra === p.periodo;
+            const st = c ? undefined : stimaDi.get(p.dal);
             return (
               <div key={p.periodo}>
                 <button type="button" aria-expanded={isAperto} onClick={() => setAperto(isAperto ? null : p.periodo)}
                   className="grid w-full grid-cols-[1.25rem_1fr_auto] items-center gap-2 px-4 py-1.5 text-left text-sm hover:bg-accent/40 md:grid-cols-[1.25rem_8rem_repeat(4,minmax(0,1fr))_minmax(0,1.2fr)_7rem]">
                   <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", isAperto && "rotate-180")} />
                   <span className="font-medium">{mensile ? tr(p.nome) : tr("{q}° trimestre", { q: p.periodo })}</span>
-                  {([c?.dati.righi?.vp2, c?.dati.righi?.vp3, c?.dati.righi?.vp4, c?.dati.righi?.vp5] as Array<number | undefined>).map((v, i) => (
-                    <span key={i} className="hidden text-right tabular-nums text-muted-foreground md:block">{v === undefined ? "—" : formatCurrency(Number(v))}</span>
+                  {([c?.dati.righi?.vp2 ?? st?.vp2, c?.dati.righi?.vp3 ?? st?.vp3, c?.dati.righi?.vp4 ?? st?.vp4, c?.dati.righi?.vp5 ?? st?.vp5] as Array<number | undefined>).map((v, i) => (
+                    <span key={i} title={!c && st ? tr("Stima dalle fatture, non confermata") : undefined} className={cn("hidden text-right tabular-nums text-muted-foreground md:block", !c && st && "italic opacity-70")}>{v === undefined ? "—" : formatCurrency(Number(v))}</span>
                   ))}
-                  <span className={cn("hidden text-right text-xs tabular-nums md:block", es?.cls)}>{es?.testo ?? "—"}</span>
+                  <span className={cn("hidden text-right text-xs tabular-nums md:block", es?.cls ?? "italic text-muted-foreground")}>{es?.testo ?? (st ? tr(st.vp4 - st.vp5 >= 0 ? "Stima: da versare {importo}" : "Stima: a credito {importo}", { importo: formatCurrency(Math.abs(st.vp4 - st.vp5)) }) : "—")}</span>
                   <span className="text-right">{c ? (
                     <Badge variant="outline" className="gap-1 border-emerald-300 font-normal text-emerald-700">
                       <CheckCircle2 className="h-3 w-3" />{tr(statoLiquidazione(c))}

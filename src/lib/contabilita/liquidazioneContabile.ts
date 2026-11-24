@@ -84,13 +84,35 @@ export function statoLiquidazione(r: EsitoLiquidazione): string {
   return "Da registrare dalla LIPE";
 }
 
+/**
+ * Gli importi di ogni periodo, presi uno per uno (24/11/2026). L'anteprima di un periodo non registrato
+ * è il SALDO dei conti IVA a fine periodo: dopo un altro periodo non registrato contiene anche quello
+ * (a Scavolo novembre mostrava ottobre + novembre, e dicembre lo ripeteva). Qui si toglie il saldo del
+ * periodo prima, se anche quello è un'anteprima, così ogni riga dice solo il suo periodo.
+ */
+export function importiPerPeriodo(esiti: readonly (EsitoLiquidazione | undefined)[]): (EsitoLiquidazione | undefined)[] {
+  return esiti.map((e, i) => {
+    if (!e) return e;
+    const prec = i > 0 ? esiti[i - 1] : undefined;
+    // Un periodo senza movimenti resta a zero: non è un saldo da cui togliere il precedente.
+    if (statoLiquidazione(e) === "Senza movimenti") return importiPeriodo(e);
+    if (e.gia_liquidato || e.fonte === "lipe" || !prec || prec.gia_liquidato || prec.fonte === "lipe") return importiPeriodo(e);
+    const vendite = cent(e.iva_vendite - prec.iva_vendite) / 100;
+    const acquisti = cent(e.iva_acquisti - prec.iva_acquisti) / 100;
+    const saldo = cent(vendite - acquisti) / 100;
+    return { ...e, iva_vendite: vendite, iva_acquisti: acquisti, saldo, compensato: 0, interessi: 0,
+      da_versare: Math.max(saldo, 0), a_credito: Math.max(-saldo, 0) };
+  });
+}
+
 /** Le righe da stampare: i periodi con l'esito accanto, senza quelli che non hanno esito. */
 export function righeLiquidazione(
   periodi: readonly PeriodoLiquidazione[],
   esiti: readonly (EsitoLiquidazione | undefined)[],
   incompleti: readonly (IncompletiPeriodo | undefined)[] = [],
 ): RigaLiquidazione[] {
-  return periodi.flatMap((p, i) => (esiti[i] ? [{ ...importiPeriodo(esiti[i]!), periodo: p.nome, avviso: avvisoPeriodo(incompleti[i]) || undefined }] : []));
+  const uno = importiPerPeriodo(esiti);
+  return periodi.flatMap((p, i) => (uno[i] ? [{ ...uno[i]!, periodo: p.nome, avviso: avvisoPeriodo(incompleti[i]) || undefined }] : []));
 }
 
 /** Lo stato più l'avviso dei documenti incompleti: sul foglio e nel file va detto, non solo a video. */
