@@ -53,6 +53,7 @@ import { OperationalViewSwitch } from "@/components/orders/OperationalViewSwitch
 import { OperationalBoard } from "@/components/orders/OperationalBoard";
 import { usePipelineTransition } from "@/hooks/usePipelineTransition";
 import { PianificaSopralluogoDialog } from "@/components/sopralluoghi/PianificaSopralluogoDialog";
+import { TipoSopralluogoBadge } from "@/components/sopralluoghi/TipoSopralluogoBadge";
 import {
   FASI,
   contaPerFase,
@@ -142,6 +143,7 @@ function Scheda({ s, adesso }: { s: SopralluogoBacheca; adesso: Date }) {
             >
               {s.code}
             </Link>
+            <TipoSopralluogoBadge tipo={s.tipo} soloCommerciale />
           </PipelineCardHeading>
           <Link
             to={`/azienda/sopralluoghi/${s.id}`}
@@ -272,6 +274,7 @@ export default function SopralluoghiList() {
     "sop_fase",
     "sop_periodo", "sop_da", "sop_a",
     "sop_tecnico",
+    "sop_tipo",
     "sop_senza_preventivo",
     "sop_ferme",
   ], { restoreView: false });
@@ -477,6 +480,9 @@ export default function SopralluoghiList() {
           </div><Select value={filtri.fase} onValueChange={value => imposta({fase:value as FasePratica | "tutte"})}>
           <SelectTrigger aria-label="Fase dei sopralluoghi" className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:text-sm"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="tutte">Tutte le fasi</SelectItem>{FASI.map(f => <SelectItem key={f.fase} value={f.fase}>{f.etichetta}</SelectItem>)}</SelectContent>
+        </Select><Select value={filtri.ambito ?? "tutti"} onValueChange={value => imposta({ambito:value as FiltriBacheca["ambito"]})}>
+          <SelectTrigger aria-label="Tipo di sopralluogo" className="h-8 w-[150px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="tutti">Commerciali e tecnici</SelectItem><SelectItem value="commerciali">Commerciali</SelectItem><SelectItem value="tecnici">Tecnici</SelectItem></SelectContent>
         </Select>{!telefono && <OperationalViewSwitch
             value={vista}
             label="Vista sopralluoghi"
@@ -715,6 +721,7 @@ export default function SopralluoghiList() {
                         >
                           {s.code}
                         </Link>
+                        <TipoSopralluogoBadge tipo={s.tipo} soloCommerciale />
                       </td>
                       <td>
                         <Link

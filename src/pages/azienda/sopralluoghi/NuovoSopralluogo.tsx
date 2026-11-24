@@ -112,9 +112,12 @@ export function SurveyCreateForm({
     commessa?.clientId ?? params.get("client") ?? null,
   );
   /* Dalla commessa si va a prendere le misure per ordinare; prima del contratto sono di massima. */
-  const [ruoloMisure, setRuoloMisure] = useState<"preliminare" | "definitivo">(
-    commessa?.orderId || params.get("order") ? "definitivo" : "preliminare",
+  // Commerciale (misure di massima per l'offerta) o tecnico (misure precise, da ordinare):
+  // il tipo decide anche le misure. Piano sopralluoghi, lotto 2.
+  const [tipo, setTipo] = useState<"commerciale" | "tecnico">(
+    commessa?.orderId || params.get("order") || params.get("tipo") === "tecnico" ? "tecnico" : "commerciale",
   );
+  const ruoloMisure = tipo === "commerciale" ? "preliminare" : "definitivo";
   const [technicianId, setTechnicianId] = useState<string | null>(commessa?.appointment?.assigned_to ?? null);
   const [address, setAddress] = useState(commessa?.address ?? params.get("address") ?? "");
   const [city, setCity] = useState(params.get("city") ?? "");
@@ -509,6 +512,7 @@ export function SurveyCreateForm({
           zip: zip.trim() || null,
           notes: notes.trim() || null,
           ruolo_misure: ruoloMisure,
+          tipo,
         },
         companyId,
       );
@@ -1109,25 +1113,25 @@ export function SurveyCreateForm({
                   className="space-y-3 rounded-2xl border bg-white p-4 sm:p-5"
                 >
                   <div>
-                    <h3 className="font-semibold">A cosa servono le misure?</h3>
+                    <h3 className="font-semibold">Che sopralluogo è?</h3>
                     <p className="text-xs text-slate-500">
-                      Si ordina solo dalle misure definitive.
+                      Si ordina ai fornitori solo dalle misure del tecnico.
                     </p>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Tipo di misure">
+                  <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Tipo di sopralluogo">
                     {([
-                      ["preliminare", "Preliminare", "Misure di massima, per fare il preventivo."],
-                      ["definitivo", "Definitivo", "Misure da mandare al fornitore."],
+                      ["commerciale", "Commerciale", "Misure di massima, per fare l'offerta."],
+                      ["tecnico", "Tecnico", "Misure precise: computo, preventivo e ordini."],
                     ] as const).map(([valore, titolo, testo]) => (
                       <button
                         key={valore}
                         type="button"
                         role="radio"
-                        aria-checked={ruoloMisure === valore}
-                        onClick={() => setRuoloMisure(valore)}
+                        aria-checked={tipo === valore}
+                        onClick={() => setTipo(valore)}
                         className={cn(
                           "min-h-11 rounded-xl border p-3 text-left",
-                          ruoloMisure === valore
+                          tipo === valore
                             ? "border-blue-500 bg-blue-50/60 ring-1 ring-blue-500"
                             : "border-slate-200 hover:bg-slate-50",
                         )}

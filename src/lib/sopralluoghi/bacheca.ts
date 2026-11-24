@@ -20,6 +20,8 @@ export interface SopralluogoBacheca {
   id: string;
   code: string;
   status: string;
+  /** commerciale o tecnico (piano sopralluoghi, lotto 2). Assente nei dati vecchi = tecnico. */
+  tipo?: "commerciale" | "tecnico" | null;
   scheduled_at: string | null;
   address: string | null;
   city: string | null;
@@ -125,6 +127,8 @@ export interface FiltriBacheca {
   da?: string;
   a?: string;
   tecnico?: string; // id, "nessuno" o vuoto
+  /** «commerciali» o «tecnici»; vuoto o «tutti» = entrambi. */
+  ambito?: "tutti" | "commerciali" | "tecnici";
   testo?: string;
   soloSenzaPreventivo?: boolean;
   soloBozzeFerme?: boolean;
@@ -139,6 +143,8 @@ export function filtraBacheca(righe: SopralluogoBacheca[], f: FiltriBacheca, ade
     if (fase === null) return false; // archiviati e annullati non stanno nella bacheca
     if (f.soloBozzeFerme && (fase !== "da_pianificare" || (adesso.getTime() - new Date(s.created_at).getTime()) / GIORNO <= GIORNI_BOZZA_FERMA)) return false;
     if (f.fase && f.fase !== "tutte" && fase !== f.fase) return false;
+    if (f.ambito === "commerciali" && s.tipo !== "commerciale") return false;
+    if (f.ambito === "tecnici" && s.tipo === "commerciale") return false;
     if (f.tecnico === "nessuno" ? !!s.technician_id : f.tecnico && f.tecnico !== "tutti" && s.technician_id !== f.tecnico) return false;
     if (f.soloSenzaPreventivo && (fase === "preventivo" || fase === "da_pianificare" || fase === "pianificato" || fase === "in_corso")) return false;
     if (f.periodo && f.periodo !== "tutti") {

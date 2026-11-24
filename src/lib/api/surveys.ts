@@ -6,6 +6,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { withSurveyDoorProducts } from "@/lib/surveys/doorSurvey";
+import { schemaPerTipo } from "@/lib/surveys/sezioniPerTipo";
 import { withEnergySurveyProducts, shouldEnrichEnergySurvey } from "@/lib/surveys/energySurvey";
 import type {
   SurveyRow,
@@ -14,6 +15,7 @@ import type {
   SurveyElementRow,
   SurveyMediaRow,
   SurveyMediaType,
+  TemplateSchema,
 } from "@/types/surveys";
 
 /**
@@ -87,6 +89,7 @@ export interface CreateSurveyInput {
   notes?: string | null;
   mode?: "structured" | "express";
   ruolo_misure?: "preliminare" | "definitivo" | null;
+  tipo?: TipoSopralluogo;
 }
 
 export async function createSurvey(
@@ -150,6 +153,8 @@ export async function createSurvey(
       mode: input.mode ?? "structured",
       status: "draft",
       ruolo_misure: input.ruolo_misure ?? null,
+      // Senza tipo: commerciale se le misure sono di massima, altrimenti tecnico (come il database).
+      tipo: input.tipo ?? (input.ruolo_misure === "preliminare" ? "commerciale" : "tecnico"),
     })
     .select("*")
     .single();
@@ -264,9 +269,12 @@ export async function getSurvey(id: string, field = false): Promise<SurveyDetail
     return m;
   }));
 
+  // Commerciale: il modello senza le parti «solo tecnico» (lotto 2 del piano sopralluoghi).
+  const riga = survey as SurveyRow & { template_schema_snapshot?: TemplateSchema | null };
+  const tipo = riga.tipo;
   return {
-    survey: survey as SurveyRow,
-    template,
+    survey: { ...riga, template_schema_snapshot: schemaPerTipo(riga.template_schema_snapshot, tipo) } as SurveyRow,
+    template: { ...template, schema: schemaPerTipo(template.schema, tipo) },
     areas: (areas ?? []) as SurveyAreaRow[],
     elements: (elements ?? []) as SurveyElementRow[],
     media: refreshed,
@@ -325,7 +333,7 @@ export async function listSurveysByOrder(orderId: string, companyId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("surveys")
-    .select("id, code, status, scheduled_at, completed_at, address, city, client_id, contact_id, opportunity_id, order_id, estimate_id, technician_id, template_id, created_at, updated_at, ruolo_misure, appointment_id")
+    .select("id, code, status, scheduled_at, completed_at, address, city, client_id, contact_id, opportunity_id, order_id, estimate_id, technician_id, template_id, created_at, updated_at, ruolo_misure, appointment_id, tipo")
     .eq("order_id", orderId)
     .eq("company_id", companyId)
     .is("deleted_at", null)
@@ -947,5 +955,18 @@ export async function rilievoDaAppuntamento(
     { p_appointment: appointmentId, p_template: templateId, p_tipo: tipo, p_app_operai: appOperai } as never,
   );
   if (error || !data) throw new Error(error?.message || "Rilievo non preparato");
+  return data as unknown as string;
+}
+
+/**
+ * Crea il rilievo tecnico dal sopralluogo commerciale (copia testata, ambienti, elementi).
+ * Se c'è già, restituisce quello (piano sopralluoghi, lotto 2).
+ */
+export async function tecnicoDaCommerciale(surveyId: string): Promise<string> {
+  const { data, error } = await supabase.rpc(
+    "sopralluogo_tecnico_da_commerciale" as never,
+    { p_survey: surveyId } as never,
+  );
+  if (error || !data) throw new Error(error?.message || "Rilievo tecnico non creato");
   return data as unknown as string;
 }

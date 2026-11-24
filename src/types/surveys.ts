@@ -80,6 +80,9 @@ export interface FieldDefinition {
   pattern?: string;       // regex per text
   max_length?: number;
 
+  /** Solo nel sopralluogo tecnico: il commerciale non lo vede (piano sopralluoghi, lotto 2). */
+  solo_tecnico?: boolean;
+
   // --- UI hints ---
   placeholder?: string;
   default_value?: unknown;
@@ -98,6 +101,8 @@ export interface FieldSection {
   icon?: string;
   /** Campi della sezione */
   fields: FieldDefinition[];
+  /** Solo nel sopralluogo tecnico: il commerciale non la vede (piano sopralluoghi, lotto 2). */
+  solo_tecnico?: boolean;
   /** Sezione collassabile (default: true) */
   collapsible?: boolean;
   /** Aperta di default */
@@ -267,6 +272,8 @@ export interface SurveyRow {
   code: string;
   mode: SurveyMode;
   status: SurveyStatus;
+  /** commerciale: misure di massima per l'offerta; tecnico: misure precise (lotto 1 del piano sopralluoghi). */
+  tipo?: "commerciale" | "tecnico";
   header_data: Record<string, unknown>;
   address: string | null;
   address_number: string | null;

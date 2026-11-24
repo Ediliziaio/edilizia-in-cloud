@@ -138,12 +138,34 @@ rispetto al database; rigenerarlo porta dentro il lavoro di altre sessioni, quin
 funzioni nuove passano da `assegnaTecnicoSopralluogo` e `rilievoDaAppuntamento` con il cast,
 e `surveys.tipo` non è ancora nei tipi. Va rigenerato a parte.
 
-### Lotto 2 — Commerciale e tecnico
+### Lotto 2 — Commerciale e tecnico *(fatto 24/11/2026)*
 - Scelta del tipo in «Nuovo sopralluogo»; badge in bacheca, commessa, campo, PDF.
 - Filtro «Commerciali / Tecnici» in bacheca.
 - Sezioni «solo tecnico» nei modelli (`FieldSection.solo_tecnico`), spunta nell'editor, segnate
   nei modelli di serie (sistemi, controtelaio, dettagli posa…).
 - «Crea il tecnico da questo commerciale»: copia ambienti ed elementi, il tecnico completa.
+
+Fatto:
+- «Nuovo sopralluogo» chiede «Che sopralluogo è?»: Commerciale (misure di massima, preliminari)
+  o Tecnico (precise, definitive). Il tipo decide le misure.
+- Etichetta «Commerciale» in bacheca ed elenco, «Commerciale/Tecnico» nella scheda del rilievo,
+  «Sopralluogo commerciale» nella commessa. Filtro «Commerciali e tecnici / Commerciali / Tecnici»
+  in bacheca, nell'indirizzo come `sop_tipo` (`sop_ambito` è già dell'archivio).
+- Sezioni e campi «solo tecnico» (`solo_tecnico` su sezione o campo, spunta nell'editor dei
+  modelli). Il commerciale carica il modello senza quelle parti (`lib/surveys/sezioniPerTipo.ts`,
+  in `getSurvey`), quindi completezza, PDF e righe del preventivo seguono. Sono «solo tecnico» anche
+  le sezioni del programma fatte solo di campi `rv_…` (abaco e misure di dettaglio). Segnati nei
+  modelli di serie (migrazione 20290530100000): Infissi (telaio, extra, spessore muro, mazzette,
+  cilindro del cassonetto, profilo della zanzariera) e Bagno (impianti idraulico ed elettrico).
+- «Crea il rilievo tecnico» sul commerciale (`sopralluogo_tecnico_da_commerciale`, migrazione
+  20290530100100): copia testata, ambienti ed elementi; il commerciale resta com'era; un
+  commerciale ha al massimo un tecnico (`surveys.origine_id`, indice univoco). Dal tecnico si torna
+  al commerciale. Provato su un rilievo vero della Demo 2 in transazione annullata: 6 ambienti e
+  16 elementi su 16, valori uguali.
+
+Resta: le foto del commerciale non passano al tecnico (si vedono aprendo il commerciale); le
+sezioni aggiunte a runtime dai pannelli infissi/porte che non sono fatte solo di campi `rv_` restano
+visibili anche al commerciale.
 
 ### Lotto 3 — Il sopralluogo nelle Vendite
 - Riquadro «Sopralluoghi» in opportunità e scheda contatto (stessa tabella della commessa).

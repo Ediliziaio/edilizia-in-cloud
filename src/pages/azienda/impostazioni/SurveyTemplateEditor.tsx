@@ -379,6 +379,7 @@ function SectionListEditor({
                 <Badge variant="outline" className="text-[10px] ml-1">
                   {sec.fields?.length ?? 0} campi
                 </Badge>
+                {sec.solo_tecnico && <Badge variant="outline" className="ml-1 border-orange-200 bg-orange-50 text-[10px] text-orange-700">Solo tecnico</Badge>}
               </button>
               <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => move(idx, -1)} disabled={idx === 0}>
                 <ChevronUp className="h-3.5 w-3.5" />
@@ -406,6 +407,10 @@ function SectionListEditor({
                     onChange={(e) => updateSection(idx, { description: e.target.value })}
                   />
                 </div>
+                <label className="flex min-h-9 items-center gap-2 text-sm">
+                  <Switch checked={!!sec.solo_tecnico} onCheckedChange={(v) => updateSection(idx, { solo_tecnico: v || undefined })} aria-label={`Sezione solo nel sopralluogo tecnico: ${sec.label}`} />
+                  Solo nel sopralluogo tecnico (il commerciale non vede la sezione)
+                </label>
                 <FieldsEditor
                   fields={sec.fields ?? []}
                   onChange={(f) => updateSection(idx, { fields: f })}
@@ -563,6 +568,10 @@ function FieldsEditor({
                   className="h-7 text-xs"
                 />
               </div>
+              <label className="col-span-12 flex min-h-9 items-center gap-2 text-xs">
+                <Switch checked={!!f.solo_tecnico} onCheckedChange={(v) => updateField(idx, { solo_tecnico: v || undefined })} aria-label={`Solo nel sopralluogo tecnico: ${f.label}`} />
+                Solo nel sopralluogo tecnico (il commerciale non lo vede)
+              </label>
               <div className="col-span-12">
                 <Label className="text-[10px]">Testo di esempio nel campo</Label>
                 <Input

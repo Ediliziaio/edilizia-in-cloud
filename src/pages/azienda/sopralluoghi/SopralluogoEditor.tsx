@@ -59,6 +59,8 @@ import { PosizioniCommessaPanel } from "@/components/sopralluoghi/PosizioniComme
 import type { TemplateSchema } from "@/types/surveys";
 import {SurveyPdfTools} from "@/components/sopralluoghi/SurveyPdfTools";
 import { DocumentoDalRilievo } from "@/components/sopralluoghi/DocumentoDalRilievo";
+import { TipoSopralluogoBadge } from "@/components/sopralluoghi/TipoSopralluogoBadge";
+import { TecnicoDalCommerciale } from "@/components/sopralluoghi/TecnicoDalCommerciale";
 import {SurveyElementEditDialog} from "@/components/sopralluoghi/SurveyElementEditDialog";
 import { useSurveyAccess } from "@/contexts/SurveyAccessContext";
 import { submitFieldSurvey } from "@/lib/surveys/fieldAccess";
@@ -432,6 +434,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-sm font-bold text-orange-700">{survey.code}</span>
+              <TipoSopralluogoBadge tipo={(survey as { tipo?: string | null }).tipo} />
               <Badge variant="outline" className={cn("text-[10px]", statusCfg.color)}>
                 {tr(statusCfg.label)}
               </Badge>
@@ -481,6 +484,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
             <SurveyPdfTools detail={detail} companyName={effectiveCompany?.name || "Azienda"} references={references.data} disabled={unsaved||references.isPending}/>
             {!access.field && <Button variant="outline" className="min-h-10 rounded-xl gap-2" onClick={()=>navigate(`/azienda/sopralluoghi/${id}/firma`)} disabled={unsaved}><FileSignature className="h-4 w-4"/>Firma</Button>}
             {!access.field && <DocumentoDalRilievo detail={detail} disabled={unsaved} />}
+            {!access.field && <TecnicoDalCommerciale survey={survey} disabled={unsaved} />}
             {!access.field && <Button variant="ghost" className="min-h-10 rounded-xl gap-2 text-blue-700" disabled={aiSummaryMut.isPending||unsaved} onClick={()=>aiSummaryMut.mutate()}>{aiSummaryMut.isPending?<Loader2 className="h-4 w-4 animate-spin"/>:<Sparkles className="h-4 w-4"/>}Riassunto AI</Button>}
             {unsaved&&<span className="text-xs text-orange-800">{tr("Attendi il salvataggio prima di esportare o uscire.")}</span>}
           </div>

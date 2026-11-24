@@ -17,7 +17,7 @@ const nomePersona = (p: { first_name?: string | null; last_name?: string | null 
 export async function listaSopralluoghiBacheca(companyId: string): Promise<SopralluogoBacheca[]> {
   const { data, error } = await db
     .from("surveys")
-    .select("id, code, status, scheduled_at, address, city, contact_id, client_id, technician_id, estimate_id, order_id, appointment_id, created_at, updated_at")
+    .select("id, code, status, tipo, scheduled_at, address, city, contact_id, client_id, technician_id, estimate_id, order_id, appointment_id, created_at, updated_at")
     .eq("company_id", companyId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })

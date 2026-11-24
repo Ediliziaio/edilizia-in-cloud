@@ -5,6 +5,7 @@ export const FILTRI_SOPRALLUOGHI: FiltriBacheca = {
   fase: "tutte",
   periodo: "tutti",
   tecnico: "tutti",
+  ambito: "tutti",
   testo: "",
   soloSenzaPreventivo: false,
   soloBozzeFerme: false,
@@ -22,6 +23,8 @@ const CHIAVI = {
   fase: "sop_fase",
   periodo: "sop_periodo",
   tecnico: "sop_tecnico",
+  // «sop_ambito» è già dell'archivio (attivi/tutti): il tipo usa «sop_tipo».
+  ambito: "sop_tipo",
   testo: "sop_cerca",
   soloSenzaPreventivo: "sop_senza_preventivo",
   soloBozzeFerme: "sop_ferme",
@@ -37,6 +40,7 @@ export function leggiFiltriBacheca(params: URLSearchParams): FiltriBacheca {
       ? (periodo as PeriodoFiltro)
       : "tutti",
     tecnico: params.get(CHIAVI.tecnico) || "tutti",
+    ambito: (["commerciali", "tecnici"] as const).find((v) => v === params.get(CHIAVI.ambito)) ?? "tutti",
     testo: params.get(CHIAVI.testo) ?? "",
     soloSenzaPreventivo: params.get(CHIAVI.soloSenzaPreventivo) === "1",
     soloBozzeFerme: params.get(CHIAVI.soloBozzeFerme) === "1",
