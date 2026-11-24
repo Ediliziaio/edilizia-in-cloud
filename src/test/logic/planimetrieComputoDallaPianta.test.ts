@@ -14,7 +14,7 @@ import { piantaCollaudoConVariante } from "../fixtures/piantaCollaudo";
 
 const origine: OrigineComputoPianta = { id: "00000000-0000-4000-8000-000000000001", livelloId: "pt", propostaId: "A", titolo: "Collaudo", versione: 1 };
 const doc = piantaCollaudoConVariante();
-const UNITA = { "m²": "mq", m: "ml", cad: "pz", "a corpo": "a corpo" } as const;
+const UNITA = { "m²": "mq", "m³": "mc", m: "ml", cad: "pz", "a corpo": "a corpo" } as const;
 
 /** Le voci del computo come lo studio le conta: descrizione, unità, quantità, prezzo, importo. */
 function dalComputo(fonti: FontiPrezzi) {
