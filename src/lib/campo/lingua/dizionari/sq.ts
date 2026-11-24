@@ -68863,5 +68863,6 @@ const dizionario: Dizionario = {
   "Ripristinata la versione {n}: ora è la corrente.": "Versioni {n} u rikthye: tani është aktuali.",
   "Stanza chiusa ({mq} m²): ho chiuso un varco nelle pareti fino a {cm} cm. Controlla il contorno.": "Dhoma u mbyll ({mq} m²): mbylla një hapje në mure deri në {cm} cm. Kontrolloni konturin.",
   "Stanza dai muri": "Dhomë nga muret",
+  "Dislivello (cm)": "Diferenca e lartësisë (cm)",
 };
 export default dizionario;

@@ -68863,5 +68863,6 @@ const dizionario: Dizionario = {
   "Ripristinata la versione {n}: ora è la corrente.": "Versiunea {n} a fost restaurată: acum este cea curentă.",
   "Stanza chiusa ({mq} m²): ho chiuso un varco nelle pareti fino a {cm} cm. Controlla il contorno.": "Cameră închisă ({mq} m²): am închis o deschidere în pereți de până la {cm} cm. Verifică conturul.",
   "Stanza dai muri": "Cameră din pereți",
+  "Dislivello (cm)": "Diferență de nivel (cm)",
 };
 export default dizionario;

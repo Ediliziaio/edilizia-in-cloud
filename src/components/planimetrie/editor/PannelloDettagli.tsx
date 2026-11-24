@@ -206,6 +206,9 @@ function DettaglioElemento({ vista, elemento: e, azioni, essenziale }: { vista: 
         <CampoMisura etichetta={e.tipo === "piscina" || e.tipo === "auto" ? tr("Lunghezza (cm)") : tr("Profondità (cm)")} valore={e.profondita} centimetri disabled={!ok} onConferma={(cm) => azioni.modificaElemento(e.id, { profondita: cm })} />
         {e.tipo === "piscina" && <CampoMisura etichetta={tr("Profondità vasca (cm)")} valore={e.altezza || 140} centimetri disabled={!ok}
           onConferma={cm => { if (cm > 0) azioni.modificaElemento(e.id, { altezza: cm }); }} />}
+        {/* Quanto sale la scala: fino al piano sopra, o pochi gradini (un ingresso, una rampa di due). */}
+        {e.tipo.startsWith("scala") && <CampoMisura etichetta={tr("Dislivello (cm)")} valore={e.altezza || 0} centimetri disabled={!ok}
+          onConferma={cm => { if (cm > 0) azioni.modificaElemento(e.id, { altezza: cm }); }} />}
       </div>
       <div className="space-y-1">
         <span className="text-xs text-muted-foreground">{tr("Rotazione: {rotazione}°", { rotazione: String(e.rotazione ?? "") })}</span>
