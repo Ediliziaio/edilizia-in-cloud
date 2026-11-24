@@ -4,6 +4,7 @@
  * Tutte le query rispettano il pattern Supabase con error handling esplicito.
  * Tabelle sr_* (mirror in src/types/serramenti.ts).
  */
+import { registraMemoria } from "@/lib/memorieDaSvuotare";
 import { supabase } from "@/integrations/supabase/client";
 import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { CAMPI_IMMAGINE_SERRAMENTI, normalizzaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
@@ -227,18 +228,27 @@ export async function getProgetto(id: string): Promise<SrProgettoDetail> {
     && !m.url.startsWith("http"),
   );
 
-  // A) Batch sign media bucket sr-progetti
+  // A) Batch sign media bucket sr-progetti. Le firme durano 7 giorni: quelle
+  // fatte da meno di un'ora si riusano, invece di rifirmare tutte le foto a
+  // ogni rilettura del preventivo (e cambiare ogni volta il loro indirizzo).
   if (mediaSrProgetti.length > 0) {
     try {
-      const paths = mediaSrProgetti.map((m) => m.storage_path as string);
-      const { data: signedList, error: signErr } = await supabase.storage
-        .from("sr-progetti")
-        .createSignedUrls(paths, SR_MEDIA_TTL_SEC);
+      const tutti = mediaSrProgetti.map((m) => m.storage_path as string);
+      const paths = tutti.filter((path) => !firmaRecente(`sr-progetti:${path}`));
+      type EsitoFirme = { data: Array<{ signedUrl: string; error: string | null }> | null; error: unknown };
+      const nienteDaFirmare: EsitoFirme = { data: [], error: null };
+      const { data: signedList, error: signErr }: EsitoFirme = paths.length > 0
+        ? await supabase.storage.from("sr-progetti").createSignedUrls(paths, SR_MEDIA_TTL_SEC)
+        : nienteDaFirmare;
       if (!signErr && signedList) {
-        const urlByPath = new Map<string, string>();
         signedList.forEach((s, i) => {
-          if (s.signedUrl && !s.error) urlByPath.set(paths[i], s.signedUrl);
+          if (s.signedUrl && !s.error) ricordaFirma(`sr-progetti:${paths[i]}`, s.signedUrl);
         });
+        const urlByPath = new Map<string, string>();
+        for (const path of tutti) {
+          const firmata = firmaRecente(`sr-progetti:${path}`);
+          if (firmata) urlByPath.set(path, firmata);
+        }
         // Sostituisce l'url in memoria (NON salvato in DB: la signed URL
         // resta valida per 7gg dal page load; al prossimo getProgetto si
         // rigenera). Lasciamo il DB pulito.
@@ -265,10 +275,11 @@ export async function getProgetto(id: string): Promise<SrProgettoDetail> {
       await Promise.all(mediaRenderLegacy.map(async (m) => {
         if (!m.url) return;
         try {
-          const fresh = await createRenderOriginalSignedUrl(
+          const chiaveFirma = `render-originals:${m.url}`;
+          const fresh = firmaRecente(chiaveFirma) ?? await createRenderOriginalSignedUrl(
             "render-originals", m.url, SR_MEDIA_TTL_SEC,
           );
-          if (fresh) m.url = fresh;
+          if (fresh) { ricordaFirma(chiaveFirma, fresh); m.url = fresh; }
         } catch (e) {
           console.warn("[serramenti] getProgetto legacy render orig sign failed", m.id, e);
         }
@@ -343,7 +354,15 @@ const SR_PROGETTO_UPDATABLE_KEYS: ReadonlySet<keyof SrProgettoRow> = new Set([
   "note_interne", "note_cliente",
 ]);
 
-export async function updateProgetto(id: string, patch: Partial<SrProgettoRow>): Promise<void> {
+/**
+ * Salva i campi del preventivo e restituisce la riga com'è rimasta nel database
+ * (con quello che i trigger hanno deciso: data di modifica, modello congelato).
+ * Chi salva la mette nei dati aperti invece di rileggere tutto il preventivo:
+ * prima ogni salvataggio automatico costava altre sei letture (24/11/2026).
+ * `null` quando non c'era niente da scrivere o la riga non è tornata indietro
+ * (regole di accesso): lì chi chiama rilegge come prima.
+ */
+export async function updateProgetto(id: string, patch: Partial<SrProgettoRow>): Promise<SrProgettoRow | null> {
   if (patch.analisi_intervento != null) schemaAnalisiIntervento.parse(patch.analisi_intervento);
   // Allowlist: scarta silenziosamente le chiavi non in whitelist.
   // Protegge da:
@@ -360,11 +379,11 @@ export async function updateProgetto(id: string, patch: Partial<SrProgettoRow>):
       safePatch[k] = patch[k];
     }
   }
-  if (Object.keys(safePatch).length === 0) return;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const query = (supabase as any).from("sr_progetti").update(safePatch).eq("id", id);
+  if (Object.keys(safePatch).length === 0) return null;
   const verificaValutazione = Object.prototype.hasOwnProperty.call(safePatch, "analisi_intervento");
-  const { data, error } = await (verificaValutazione ? query.select("id").single() : query);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const query = (supabase as any).from("sr_progetti").update(safePatch).eq("id", id).select("*");
+  const { data, error } = await (verificaValutazione ? query.single() : query.maybeSingle());
   if (error) {
     console.error("[serramenti] updateProgetto failed", error);
     if (verificaValutazione && error.code === "PGRST116") throw new Error("Valutazione non salvata: preventivo non disponibile o accesso negato.");
@@ -373,6 +392,7 @@ export async function updateProgetto(id: string, patch: Partial<SrProgettoRow>):
     throw new Error("Salvataggio progetto fallito");
   }
   if (verificaValutazione && !data?.id) throw new Error("Valutazione non salvata: preventivo non disponibile o accesso negato.");
+  return (data as SrProgettoRow | null) ?? null;
 }
 
 export async function deleteProgetto(id: string): Promise<void> {
@@ -1271,6 +1291,26 @@ export async function importRender(input: {
 // ─── MEDIA ──────────────────────────────────────────────────────────────────
 
 const SR_MEDIA_TTL_SEC = 60 * 60 * 24 * 7;
+
+/** Le firme delle foto fatte da poco, per percorso: valgono 7 giorni, si riusano per un'ora. */
+const FIRME_FOTO = new Map<string, { url: string; fatta: number }>();
+const FIRMA_RIUSABILE_MS = 60 * 60 * 1000;
+const FIRME_FOTO_MAX = 500;
+registraMemoria(() => FIRME_FOTO.clear());
+
+function firmaRecente(chiave: string): string | null {
+  const voce = FIRME_FOTO.get(chiave);
+  return voce && Date.now() - voce.fatta < FIRMA_RIUSABILE_MS ? voce.url : null;
+}
+
+function ricordaFirma(chiave: string, url: string): void {
+  if (FIRME_FOTO.has(chiave) && firmaRecente(chiave) === url) return;
+  if (FIRME_FOTO.size >= FIRME_FOTO_MAX) {
+    const piuVecchia = FIRME_FOTO.keys().next();
+    if (!piuVecchia.done) FIRME_FOTO.delete(piuVecchia.value);
+  }
+  FIRME_FOTO.set(chiave, { url, fatta: Date.now() });
+}
 
 export interface UploadMediaInput {
   progetto_id: string;

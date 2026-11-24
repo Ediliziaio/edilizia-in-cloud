@@ -59,6 +59,30 @@ function rileggiAFineSalvataggi(qc: QueryClient, progettoId: string | undefined)
 }
 
 /**
+ * Il salvataggio dei campi del preventivo restituisce la riga salvata: la si
+ * mette nei dati aperti, senza rileggere posizioni, accessori, servizi, foto e
+ * risparmio, che quel salvataggio non tocca. Misurato il 23/11/2026: 31
+ * riletture complete (186 richieste) in sei minuti di lavoro su un preventivo.
+ *
+ * Si rilegge tutto, come prima, quando la riga non è tornata, quando non c'è
+ * un preventivo aperto in memoria, o quando una lettura era già in viaggio
+ * (porterebbe i valori di prima sopra quelli appena salvati). Una risposta
+ * arrivata in ritardo, più vecchia di quello che c'è già, si scarta.
+ */
+function mettiRigaSalvata(qc: QueryClient, progettoId: string | undefined, riga: SrProgettoRow | null | undefined) {
+  if (!progettoId) return;
+  const chiave = SR_QK.progetto(progettoId);
+  const aperto = qc.getQueryData<SrProgettoDetail>(chiave);
+  if (!riga || !aperto || qc.isFetching({ queryKey: chiave }) > 0) {
+    rileggiAFineSalvataggi(qc, progettoId);
+    return;
+  }
+  const quando = (r: { updated_at?: string | null }) => (r.updated_at ? new Date(r.updated_at).getTime() : 0);
+  if (quando(riga) < quando(aperto.progetto)) return;
+  qc.setQueryData<SrProgettoDetail>(chiave, (dati) => (dati ? { ...dati, progetto: riga } : dati));
+}
+
+/**
  * La modifica di una riga entra subito nei dati del preventivo. Prima due
  * modifiche rapide (la quantità e poi la posa, il colore e poi il vetro)
  * partivano entrambe dai dati di prima, e la seconda cancellava la prima.
@@ -140,12 +164,16 @@ export function useUpdateProgetto(id: string | undefined) {
       if (!id) throw new Error("Progetto id mancante");
       return updateProgetto(id, patch);
     },
-    onSuccess: () => {
+    onSuccess: (riga) => {
       qc.invalidateQueries({ queryKey: ["sr-progetti"] });
+      mettiRigaSalvata(qc, id, riga);
     },
-    onSettled: () => rileggiAFineSalvataggi(qc, id),
     // Il motivo in italiano (mai «Error: Failed to fetch»); lo stesso id dell'avviso della freccia «Esci», che lo sostituisce con «Esci comunque».
-    onError: (e) => toast.error("Salvataggio fallito", { id: ID_AVVISO_SALVATAGGIO_FALLITO, description: motivoSalvataggioNonRiuscito(e) }),
+    onError: (e) => {
+      // Salvataggio non riuscito: si rilegge, per non lasciare a schermo dati mai scritti.
+      rileggiAFineSalvataggi(qc, id);
+      toast.error("Salvataggio fallito", { id: ID_AVVISO_SALVATAGGIO_FALLITO, description: motivoSalvataggioNonRiuscito(e) });
+    },
   });
 }
 
