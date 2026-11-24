@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import test from 'node:test';
 import JSZip from 'jszip';
+import { extractDocuments } from '../../server/gare-ai/extract.mjs';
+import { execFile, python } from '../../server/gare-ai/runtime.mjs';
 import { fixture } from '../../server/gare-journey/fixtures.mjs';
 import { createGareAiHandler, pilotCompanyId } from '../../supabase/functions/gare-pilot-ai/handler.ts';
 
@@ -317,4 +323,58 @@ test('Worker HTTP locale, tenant, bridge strutturato e saldo nella normale rotta
     }
     assert.deepEqual(events, ['credito', 'modello', 'registro']);
   });
+});
+
+
+test('OCR di una scansione PDF senza invio al modello', {
+  skip: process.env.GARE_DOC_SMOKE !== '1',
+}, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'gare-scan-test-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const file = join(directory, 'scansione.pdf');
+  const font = process.platform === 'darwin'
+    ? '/System/Library/Fonts/Supplemental/Arial.ttf'
+    : '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
+  const exec = promisify(execFile);
+  await exec(python, ['-c', `
+import sys
+from PIL import Image, ImageDraw, ImageFont
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+image = Image.new('RGB', (1400,500), 'white')
+draw = ImageDraw.Draw(image)
+font = ImageFont.truetype(sys.argv[2], 48)
+draw.text((60,70), 'GARA DIMOSTRATIVA - AVVISO SINTETICO', fill='black', font=font)
+draw.text((60,170), 'Manutenzione edifici comunali in Lombardia', fill='black', font=font)
+draw.text((60,270), 'Scadenza 12 dicembre 2026 alle ore 12:30', fill='black', font=font)
+document = canvas.Canvas(sys.argv[1], pagesize=(595,405))
+document.drawImage(ImageReader(image), 15, 30, width=560, height=200)
+document.save()
+`, file, font], { timeout: 20_000 });
+  const original = await readFile(file);
+  const document = {
+    id: randomUUID(),
+    name: 'scansione.pdf',
+    version: 1,
+    storage_path: 'sintetico/scansione.pdf',
+    sha256: createHash('sha256').update(original).digest('hex'),
+  };
+  const query = {
+    select: () => query,
+    eq: () => query,
+    maybeSingle: async () => ({ data: null, error: null }),
+  };
+  const parsed = await extractDocuments({
+    companyId: pilotCompanyId,
+    client: {
+      from: () => query,
+      storage: { from: () => ({ download: async () => ({ data: new Blob([original]), error: null }) }) },
+    },
+    service: { from: () => ({ upsert: async () => ({ error: null }) }) },
+  }, [document], randomUUID());
+  assert.equal(parsed.coverage[0].pages_read, 1);
+  assert.equal(parsed.coverage[0].needs_visual_review, true);
+  assert.match(parsed.pages[0].text, /edifici comunali/i);
+  assert.match(parsed.pages[0].text, /12 dicembre 2026/i);
+  assert.match(parsed.pages[0].method, /Apple Vision|Tesseract/);
 });
