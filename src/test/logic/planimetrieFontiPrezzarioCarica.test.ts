@@ -9,7 +9,7 @@ import riscontro from "../fixtures/prezzarioVociAbbinate.json";
 const chiamate: { tabella: string; filtri: [string, string, unknown][] }[] = [];
 let azienda: Record<string, string | null> = {};
 
-function risposta(tabella: string, filtri: [string, string, unknown][]) {
+function risposta(tabella: string, filtri: [string, string, unknown][]): { data: unknown; error: { message: string } | null } {
   const f = (nome: string) => filtri.find((x) => x[1] === nome)?.[2];
   if (tabella === "companies") return { data: azienda, error: null };
   if (tabella === "prezzario_fonte") {

@@ -34,8 +34,11 @@ async function listinoAzienda(companyId: string): Promise<VoceDiPrezzo[]> {
  * («Lombardia 2026»). Vuoto se la regione non si conosce, non ha abbinamenti o la sua fonte non
  * è pubblicata. Si caricano tutte (sono una decina): il risultato non dipende dalle righe.
  */
-async function prezzarioAbbinato(companyId: string): Promise<Pick<FontiPrezzi, "prezzario" | "prezzarioNome">> {
-  const vuoto = { prezzario: {}, prezzarioNome: null };
+type PrezzarioCaricato = Pick<FontiPrezzi, "prezzario" | "prezzarioNome">;
+const PREZZARIO_VUOTO: PrezzarioCaricato = { prezzario: {}, prezzarioNome: null };
+
+async function prezzarioAbbinato(companyId: string): Promise<PrezzarioCaricato> {
+  const vuoto = PREZZARIO_VUOTO;
   const { data: azienda } = await sb().from("companies").select("region, operational_province, legal_province").eq("id", companyId).maybeSingle();
   // La provincia che decide la regione è quella da cui `regioneAzienda` l'ha dedotta: prima l'operativa.
   const provincia = (azienda?.operational_province || azienda?.legal_province || "").trim().toUpperCase();
@@ -69,8 +72,8 @@ async function prezzarioAbbinato(companyId: string): Promise<Pick<FontiPrezzi, "
 export async function caricaFontiPrezzi(companyId: string, tipi: readonly TipoLavorazione[]): Promise<FontiPrezzi> {
   if (!tipi.length) return FONTI_VUOTE;
   const [listino, prezzario] = await Promise.all([
-    listinoAzienda(companyId).catch(() => []),
-    prezzarioAbbinato(companyId).catch(() => ({ prezzario: {}, prezzarioNome: null })),
+    listinoAzienda(companyId).catch((): VoceDiPrezzo[] => []),
+    prezzarioAbbinato(companyId).catch(() => PREZZARIO_VUOTO),
   ]);
   return { listino, ...prezzario };
 }
