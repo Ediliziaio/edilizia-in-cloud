@@ -11,6 +11,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 export function useSlotAzioniSezione(soglia = 1024): HTMLElement | null {
   const sottoComputer = useIsMobile(soglia);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
-  useEffect(() => { setSlot(document.getElementById("slot-azioni-sezione")); }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlot(document.getElementById("slot-azioni-sezione")), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   return sottoComputer ? slot : null;
 }

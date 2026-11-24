@@ -1,8 +1,18 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFile } from "node:fs/promises";
 
-const migrazione = nome => readFile(new URL("../../../supabase/migrations/" + nome, import.meta.url), "utf8");
-export async function databaseRiservaMaterialiOperazione({ company, user, generale, ordine, fornitore, deposito, stock, articolo, unita }) {
+const migrazione = (nome: string) => readFile(new URL("../../../supabase/migrations/" + nome, import.meta.url), "utf8");
+export async function databaseRiservaMaterialiOperazione({ company, user, generale, ordine, fornitore, deposito, stock, articolo, unita }: {
+  company: string;
+  user: string;
+  generale: string;
+  ordine: string;
+  fornitore: string;
+  deposito: string;
+  stock: string;
+  articolo: string;
+  unita: string;
+}) {
   const db = new PGlite();
   await db.exec(`
     create role anon; create role authenticated; create schema auth;

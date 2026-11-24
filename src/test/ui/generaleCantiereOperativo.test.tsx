@@ -7,7 +7,7 @@ import { totaliGenerale, type RiepilogoGenerale } from "@/lib/orders/commesseGen
 import { CantiereGenerale } from "@/components/orders/generali/moduli/CantiereScheda";
 import type { ReactNode } from "react";
 
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: null }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: (): { effectiveCompany: null } => ({ effectiveCompany: null }) }));
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({ canViewCosts: true, canViewOrders: true, canEditOrders: true }),
 }));

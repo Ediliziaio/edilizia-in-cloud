@@ -5,7 +5,7 @@ import { nellaCodaMateriali, quoteGiacenzaMateriali } from "@/lib/distinta/regis
 import { planMaterial, type ProcurementCoverage } from "@/lib/orders/materialProcurement";
 
 function materiale(id: string, modifica: Partial<RegistroMateriale> = {}, ordini: ProcurementCoverage[] = []): RegistroMateriale {
-  const riga = {
+  const riga: Omit<RegistroMateriale, "piano" | "acquisto" | "oda"> = {
     id, order_id: id, name: "Acciaio armatura", quantity: 100, status: "da_ordinare", unita_misura: "kg",
     supplier_id: "ditta", stock_item_id: null, phase_id: null, origini: [], supplier_rfq_item_id: null, data_fabbisogno: null,
     quantity_reserved: null, auto_deducted: null, fase: null, fornitore: { name: "Ditta" },

@@ -116,7 +116,7 @@ describe("da computer", () => {
     disegna();
     expect(casella("A1")).toHaveAccessibleName("A1, Libera");
     expect(casella("A2")).toHaveAccessibleName("A2, Compromesso, Mario Rossi");
-    const tabellone = screen.getByRole("region", { name: "Unità", exact: true });
+    const tabellone = screen.getByRole("region", { name: "Unità" });
     const piani = within(tabellone).getAllByText(/° piano|Piano terra/).map(n => n.textContent);
     expect(piani).toEqual(["2° piano", "1° piano", "Piano terra"]);
     const legenda = screen.getByRole("list", { name: "Unità per stato" });

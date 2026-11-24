@@ -5,7 +5,7 @@ import { credenzialiNonValide, messaggioErroreLogin } from "@/lib/auth/erroriLog
 describe("messaggi e tentativi di accesso", () => {
   it("conta il rifiuto delle credenziali anche con la vecchia risposta senza codice", () => {
     const moderno = new AuthApiError("Invalid login credentials", 400, "invalid_credentials");
-    const precedente = new AuthApiError("Invalid login credentials", 400);
+    const precedente = new AuthApiError("Invalid login credentials", 400, undefined);
     for (const errore of [moderno, precedente]) {
       expect(credenzialiNonValide(errore)).toBe(true);
       expect(messaggioErroreLogin(errore)).toMatch(/Email o password non validi/);

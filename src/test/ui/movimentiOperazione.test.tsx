@@ -26,7 +26,7 @@ vi.mock("@/hooks/useMovimentiOperazione", () => ({
 }));
 vi.mock("@/hooks/useDettagliPrioritaOperazione", () => ({
   useEdificiPriorita: (id?: string) => ({ data: id ? [{ edificio: "Palazzina B", order_id: "f1" }] : undefined }),
-  useReferentiPriorita: () => ({ data: { f1: "Giulia Rossi", g: null } }),
+  useReferentiPriorita: (): { data: Record<string, string | null> } => ({ data: { f1: "Giulia Rossi", g: null } }),
   useFasiConsegna: () => ({ data: [{ id: "fase-a", order_id: "f1", name: "Fondazioni e struttura" }] }),
 }));
 vi.mock("@/hooks/useMaterialiOperazione", () => ({
@@ -38,7 +38,7 @@ vi.mock("@/hooks/useCassaOperazione", () => ({
       { id: "costo:saldo", costId: "saldo", orderId: "f1", description: "Saldo fornitore", direction: "out", date: "2026-11-20", cents: 68300, href: "/azienda/costi" },
       { id: "anticipo", description: "Incasso duplicato", direction: "in", date: "2026-11-20", cents: 98000, possibleDuplicate: true },
     ],
-    avvisi: [], isError: false, isLoading: false,
+    avvisi: [] as never[], isError: false, isLoading: false,
   }),
 }));
 import type { VistaOperazione } from "@/hooks/useMovimentiOperazione";
@@ -110,8 +110,8 @@ describe("tutta l'operazione nel cantiere", () => {
     expect(screen.getByText("2 rapportini · 12,5 ore")).toBeInTheDocument();
     const righe = screen.getAllByRole("row").slice(1);
     expect(within(righe[0]).getByText("Generale")).toBeInTheDocument();
-    expect(within(righe[0]).getByRole("cell", { name: "1,5", exact: true })).toBeInTheDocument();
-    expect(within(righe[0]).getByRole("cell", { name: "2", exact: true })).toBeInTheDocument();
+    expect(within(righe[0]).getByRole("cell", { name: "1,5" })).toBeInTheDocument();
+    expect(within(righe[0]).getByRole("cell", { name: "2" })).toBeInTheDocument();
     expect(within(righe[0]).getByRole("cell", { name: "12/11/2026" })).toBeInTheDocument();
     expect(within(righe[1]).getByText("Unità 1")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Edificio" })).toBeInTheDocument();
@@ -153,7 +153,7 @@ describe("tutta l'operazione nel cantiere", () => {
     expect(screen.getByRole("link", { name: "55" })).toHaveAttribute("href", "/azienda/ddt/d1");
     expect(screen.getByText("SPRING SRL")).toBeInTheDocument();
     expect(screen.getByText("Senza ordine")).toBeInTheDocument();
-    expect(screen.getByRole("cell", { name: "Cantiere", exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "Cantiere" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "Trasporti Demo" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "Antonio Verdi" })).toBeInTheDocument();
   });

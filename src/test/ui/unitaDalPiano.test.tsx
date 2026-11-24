@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ElencoUnita } from "@/lib/orders/generali/unita";
+import type { ElencoUnita, MovimentoUnita } from "@/lib/orders/generali/unita";
 import { leggiElencoUnita } from "@/lib/orders/generali/unita";
 import type { RiepilogoGenerale, TotaliGenerale } from "@/lib/orders/commesseGenerali";
 import { unitaDalPiano, type UnitaDalPiano } from "@/lib/orders/generali/unitaDalPiano";
@@ -18,8 +18,8 @@ const m = vi.hoisted(() => ({
   serie: vi.fn(),
 }));
 vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: () => m.dalPiano }));
-vi.mock("@/hooks/useGeneraleRendiconto", () => ({ useAziendaDossier: () => ({ data: undefined }) }));
-vi.mock("@/hooks/useGeneraleVendita", () => ({ useFileVenditaUnita: () => ({ file: null, isLoading: false }) }));
+vi.mock("@/hooks/useGeneraleRendiconto", () => ({ useAziendaDossier: (): { data: undefined } => ({ data: undefined }) }));
+vi.mock("@/hooks/useGeneraleVendita", () => ({ useFileVenditaUnita: (): { file: null; isLoading: boolean } => ({ file: null, isLoading: false }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/useCommesseGenerali", () => ({ messaggioGenerale: (_e: unknown, cosa: string) => `errore ${cosa}`, useCriterioRipartizione: () => ({ data: { criterio: "auto", disponibile: false } }) }));
 vi.mock("@/hooks/useGeneraleFatture", () => ({ useFattureGenerale: () => ({ data: undefined as undefined }) }));
@@ -32,7 +32,7 @@ vi.mock("@/hooks/useGeneraleUnita", () => {
   };
 });
 vi.mock("@/components/orders/generali/vendita/BottoneListino", () => ({ BottoneListino: () => <button type="button">Listino</button> }));
-vi.mock("@/components/orders/generali/vendita/MaterialeUnita", () => ({ MaterialeUnita: () => null }));
+vi.mock("@/components/orders/generali/vendita/MaterialeUnita", () => ({ MaterialeUnita: (): null => null }));
 
 import { SchedaUnita } from "@/components/orders/generali/unita/SchedaUnita";
 
@@ -121,7 +121,7 @@ describe("unità dalle vendite del piano", () => {
         const sigla = `U${String(i + 1).padStart(2, "0")}`;
         return { order_id: sigla, nome: `Interno ${sigla}`, codice: sigla, unita: {
           id: `scheda-${sigla}`, sigla, edificio: i < 24 ? "Palazzina A" : "Palazzina B", piano: "2",
-          stato: "libera", mq_commerciali: 80, movimenti: [],
+          stato: "libera", mq_commerciali: 80, movimenti: [] as MovimentoUnita[],
         } };
       }),
     });

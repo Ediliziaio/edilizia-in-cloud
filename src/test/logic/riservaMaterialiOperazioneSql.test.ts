@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
-import { databaseRiservaMaterialiOperazione } from "../fixtures/riservaMaterialiOperazione.mjs";
+import { databaseRiservaMaterialiOperazione } from "../fixtures/riservaMaterialiOperazione";
 
 const id = (n: number) => `88000000-0000-4000-a000-${String(n).padStart(12, "0")}`;
 const [company, user, generale, ordine, fornitore, deposito, stock, articolo] = Array.from({ length: 8 }, (_, i) => id(i + 1));
