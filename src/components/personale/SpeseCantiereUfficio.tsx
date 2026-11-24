@@ -68,7 +68,7 @@ export function SpeseCantiereUfficio() {
     const finestra = window.open("", "_blank");
     const { data, error } = await supabase.storage.from("campo-spese").createSignedUrl(path, 300);
     if (error || !data?.signedUrl) { finestra?.close(); toast.error("Foto non disponibile"); return; }
-    if (finestra) finestra.location.href = data.signedUrl; else window.location.href = data.signedUrl;
+    (finestra ?? window).location.assign(data.signedUrl);
   };
 
   const righe = spese.data ?? [];

@@ -122,7 +122,9 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
   };
   // Il pannello resta lo stesso quando cambia la stanza (la conversazione e i comandi del disegno
   // non si perdono): il gruppo riparte da quello che il genitore conserva («Tutto il piano»).
-  useEffect(()=>{ setAltri(gruppoIniziale ?? []); },[localeId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Si aggiorna durante il render, non in un effetto: niente secondo giro di render.
+  const [localeDelGruppo,setLocaleDelGruppo]=useState(localeId);
+  if (localeDelGruppo!==localeId) { setLocaleDelGruppo(localeId); setAltri(gruppoIniziale ?? []); }
   useEffect(()=>{
     attivo.current=true;
     return ()=>{attivo.current=false;};

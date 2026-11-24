@@ -3,7 +3,7 @@
  * Foto dello scontrino (facoltativa, come ogni foto), importo, tipo e cantiere: un invio. L'ufficio la approva
  * o la rifiuta e l'operaio riceve l'avviso; qui vede lo stato e la nota dell'ufficio.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Camera, CheckCircle2, Clock, Loader2, Receipt, Sparkles, Trash2, X, XCircle } from "lucide-react";
@@ -26,13 +26,14 @@ const PILL = "min-h-11 rounded-full border px-4 text-sm font-semibold";
 const PILL_ON = "border-primary bg-primary text-primary-foreground";
 
 function AnteprimaScontrino({ file }: { file: File }) {
-  const [url, setUrl] = useState<string | null>(null);
+  // L'indirizzo della foto va sull'immagine direttamente: è un oggetto del browser da liberare.
+  const foto = useRef<HTMLImageElement>(null);
   useEffect(() => {
     const u = URL.createObjectURL(file);
-    setUrl(u);
+    if (foto.current) foto.current.src = u;
     return () => URL.revokeObjectURL(u);
   }, [file]);
-  return url ? <img src={url} alt="" className="h-full w-full object-cover" /> : null;
+  return <img ref={foto} alt="" className="h-full w-full object-cover" />;
 }
 
 export default function CampoSpese() {

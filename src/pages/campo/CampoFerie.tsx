@@ -4,7 +4,7 @@
  */
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
 import {
   Plus, CalendarDays, Loader2, CheckCircle, XCircle, AlertCircle,
 } from "lucide-react";
@@ -53,7 +53,7 @@ export default function CampoFerie() {
   // Permesso o ROL a ore (24/11): «2 ore domani mattina» è la richiesta più comune in cantiere.
   const [ore, setOre] = useState<number | null>(null);
   const aOre = tipo === "permesso" || tipo === "rol";
-  const giorno = (spostamento: number) => format(new Date(Date.now() + spostamento * 86_400_000), "yyyy-MM-dd");
+  const giorno = (spostamento: number) => format(addDays(new Date(), spostamento), "yyyy-MM-dd");
 
   // Le mie richieste
   const { data: richieste = [], isLoading } = useQuery({
