@@ -14,7 +14,7 @@
  * capitolo per lavorazione (scavi, fondazioni, strutture…).
  */
 import { COSTRUZIONE_PREDEFINITA, geometriaPiano, modoPiano, type Costruzione, type GeometriaPiano, type ModoPiano } from "../../../shared/planimetrie/costruzione.ts";
-import { eAmbienteInterno, type Livello, type Locale, type Planimetria, type Proposta } from "../../../shared/planimetrie/modello.ts";
+import { eAmbienteInterno, type AreaEsterna, type Livello, type Locale, type Planimetria, type Proposta } from "../../../shared/planimetrie/modello.ts";
 import { areaPoligono, perimetroPoligono } from "../../../shared/planimetrie/geometria.ts";
 import type { RigaStudio } from "./studioImmobiliare";
 
@@ -25,6 +25,7 @@ export const TIPI_COSTRUZIONE = [
   "copertura", "terrazzo", "scala", "tamponatura", "cappotto", "intonaco_esterno", "massetto", "isolamento_pavimento",
   "impianto_elettrico", "bagno_completo", "attacchi_cucina", "riscaldamento_radiante", "riscaldamento_radiatori",
   "pompa_di_calore", "caldaia", "portoncino", "marciapiede", "allacciamenti",
+  "prato", "pavimentazione_esterna", "vialetto", "ghiaia", "parcheggio_esterno", "aiuola", "recinzione", "piscina", "pergola", "idromassaggio",
 ] as const;
 export type TipoCostruzione = typeof TIPI_COSTRUZIONE[number];
 
@@ -51,6 +52,9 @@ const CAPITOLO: Record<TipoCostruzione, typeof CAPITOLI_COSTRUZIONE[number]> = {
   massetto: "10 Massetti, pavimenti e rivestimenti",
   portoncino: "11 Serramenti",
   marciapiede: "12 Sistemazioni esterne", allacciamenti: "12 Sistemazioni esterne",
+  prato: "12 Sistemazioni esterne", pavimentazione_esterna: "12 Sistemazioni esterne", vialetto: "12 Sistemazioni esterne",
+  ghiaia: "12 Sistemazioni esterne", parcheggio_esterno: "12 Sistemazioni esterne", aiuola: "12 Sistemazioni esterne",
+  recinzione: "12 Sistemazioni esterne", piscina: "12 Sistemazioni esterne", pergola: "12 Sistemazioni esterne", idromassaggio: "12 Sistemazioni esterne",
 };
 
 /** Il capitolo delle righe che lo studio fa già (pareti, aperture, finiture) in una nuova costruzione. */
@@ -79,7 +83,7 @@ const arrotonda = (n: number) => Math.round(n * 100) / 100;
 interface PianoCostruito {
   livello: Livello;
   modo: ModoPiano;
-  stato: Pick<Proposta, "muri" | "aperture" | "locali">;
+  stato: Pick<Proposta, "muri" | "aperture" | "locali" | "elementi" | "aree">;
   geo: GeometriaPiano;
   interni: Locale[];
   nettaMq: number;
@@ -264,6 +268,35 @@ export function righeNuovaCostruzione(doc: Planimetria, variante: string | null,
   if (c.marciapiedeCm > 0) voce(base, "marciapiede", "Marciapiede perimetrale con cordolo", "m²", base.geo.perimetroM * c.marciapiedeCm / 100,
     `${it(base.geo.perimetroM)} m × ${it(c.marciapiedeCm / 100)} m`);
   voce(null, "allacciamenti", "Allacciamenti alle reti (acqua, fognatura, energia elettrica) e pozzetti", "a corpo", 1, "Ordine di grandezza: dipende dalle distanze dalle reti");
+
+  // ── Esterni disegnati: aree del lotto, recinzione, piscine e arredi da giardino.
+  const AREE: Partial<Record<string, [TipoCostruzione, string]>> = {
+    prato: ["prato", "Sistemazione a prato: terra vegetale, semina e irrigazione"],
+    pavimentato: ["pavimentazione_esterna", "Pavimentazione esterna su massetto"],
+    vialetto: ["vialetto", "Vialetto pedonale pavimentato"],
+    ghiaia: ["ghiaia", "Area in ghiaia su telo"],
+    parcheggio: ["parcheggio_esterno", "Parcheggio e passo carraio: sottofondo e pavimentazione drenante"],
+    aiuola: ["aiuola", "Aiuola: terra vegetale, bordure e piantumazione"],
+  };
+  const perTipo = new Map<TipoCostruzione, { mq: number; descrizione: string }>();
+  let recinzioneM = 0;
+  for (const p of piani) {
+    for (const a of (p.stato as { aree?: AreaEsterna[] }).aree ?? []) {
+      if (a.stato === "da_demolire" || a.stato === "esistente" || a.contorno.length < 3) continue;
+      if (a.tipo === "lotto") { if (a.recinzione !== false) recinzioneM += perimetroPoligono(a.contorno) / 100; continue; }
+      const regola = AREE[a.tipo];
+      if (!regola) continue;
+      const prima = perTipo.get(regola[0]) ?? { mq: 0, descrizione: regola[1] };
+      perTipo.set(regola[0], { ...prima, mq: prima.mq + areaPoligono(a.contorno) / 10_000 });
+    }
+  }
+  for (const [tipo, { mq, descrizione }] of perTipo) voce(base, tipo, descrizione, "m²", mq, "Superficie delle aree disegnate nel lotto");
+  voce(base, "recinzione", "Recinzione del lotto: muretto, paletti e rete o pannelli", "m", recinzioneM, "Perimetro del lotto recintato");
+  const elementi = piani.flatMap((p) => p.stato.elementi ?? []).filter((e) => e.stato !== "da_demolire" && e.stato !== "esistente");
+  elementi.filter((e) => e.tipo === "piscina").forEach((e, n) => voce(base, "piscina", "Piscina interrata: scavo, vasca in c.a., impermeabilizzazione, bordo e impianto di filtrazione", "m²",
+    e.larghezza * e.profondita / 10_000, `Vasca ${it(e.larghezza / 100)} × ${it(e.profondita / 100)} m`, n + 1));
+  voce(base, "pergola", "Pergola in legno o alluminio, fornitura e posa", "cad", elementi.filter((e) => e.tipo === "pergola").length, "Pergole disegnate");
+  voce(base, "idromassaggio", "Minipiscina idromassaggio, fornitura e posa", "cad", elementi.filter((e) => e.tipo === "idromassaggio").length, "Minipiscine disegnate");
   return { righe, perimetro };
 }
 

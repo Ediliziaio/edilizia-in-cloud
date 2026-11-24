@@ -529,6 +529,91 @@ def leggi_sigle_infissi(entita, zona, cm):
     return sigle
 
 
+SIGLA_UNITA = re.compile(r"^\s*int\.?\s*0*(\d{1,2})\s*$", re.IGNORECASE)
+COMUNI = re.compile(r"atrio|scal[ae]\b|condomin|androne|parti comuni|pianerottol", re.IGNORECASE)
+
+
+def leggi_sigle_unita(entita, zona, cm):
+    """Le sigle delle unità («int. 04») scritte sulla tavola, di solito accanto all'ingresso."""
+    sigle = []
+    for e in entita:
+        if e.dxftype() not in ("TEXT", "MTEXT"):
+            continue
+        p = e.dxf.insert
+        posizione = Point(p.x * cm, p.y * cm)
+        testo = " ".join((e.plain_text() if e.dxftype() == "MTEXT" else e.dxf.text).split())
+        m = SIGLA_UNITA.match(testo)
+        if m and zona.covers(posizione):
+            sigle.append((posizione, f"Int. {int(m.group(1)):02d}"))
+    return sigle
+
+
+def altezza_del_piano(quota, quote, richiesta, solaio=30):
+    """L'altezza netta di un piano dalla quota del piano sopra (interpiano meno il solaio), se è
+    plausibile; altrimenti quella indicata nella richiesta. L'ultimo piano prende quella del
+    piano sotto, se c'è."""
+    sopra = [q for q in quote if q > quota]
+    sotto = [q for q in quote if q < quota]
+    if sopra:
+        netta = min(sopra) - quota - solaio
+    elif sotto:
+        netta = quota - max(sotto) - solaio
+    else:
+        return richiesta
+    return round(netta) if 240 <= netta <= 450 else richiesta
+
+
+def unita_dei_locali(locali, muri, aperture, sigle, sottile=16, distanza=600):
+    """Raggruppa le stanze in unità e dà a ogni gruppo la sigla più vicina.
+
+    Due stanze stanno nella stessa unità se le separa un tramezzo sottile (fino a 16 cm), niente,
+    o una porta; i muri spessi fra unità e i vani comuni (atrio, scala) separano. Una sigla per
+    gruppo, la più vicina, entro 6 m. Un gruppo senza sigla resta da assegnare: attaccarlo al
+    vicino sbagliava (Callimaco, 24/11/2026: la camera dell'int. 04 finiva nell'int. 06).
+    """
+    if not sigle:
+        return {}
+    nomi = [" ".join(n for _, n, _ in l.etichette) for l in locali]
+    privati = [i for i, n in enumerate(nomi) if not COMUNI.search(n)]
+    padre = {i: i for i in privati}
+
+    def radice(i):
+        while padre[i] != i:
+            padre[i] = padre[padre[i]]
+            i = padre[i]
+        return i
+
+    vani = [LineString((punto(a, m.centro, m.angolo), punto(b, m.centro, m.angolo))) for m, a, b, tipo in aperture if tipo != "finestra"]
+    assi = [(LineString(m.estremi()), m.spessore) for m in muri]
+    for x, i in enumerate(privati):
+        for j in privati[x + 1:]:
+            a, b = locali[i].contorno, locali[j].contorno
+            g = a.distance(b)
+            if g > 40:
+                continue
+            fascia = a.buffer(g / 2 + 3).intersection(b.buffer(g / 2 + 3))
+            if fascia.is_empty or fascia.area / (g + 6) < 40:
+                continue
+            spessori = [sp for linea, sp in assi if linea.intersects(fascia)]
+            porta = any(v.intersects(fascia) for v in vani)
+            if porta or not spessori or min(spessori) <= sottile:
+                padre[radice(i)] = radice(j)
+    gruppi = defaultdict(list)
+    for i in privati:
+        gruppi[radice(i)].append(i)
+    poligoni = {r: union_all([locali[i].contorno for i in idx]) for r, idx in gruppi.items()}
+    coppie = sorted((poligoni[r].distance(p), r, k) for r in poligoni for k, (p, _) in enumerate(sigle))
+    presi_g, presi_s, esito = set(), set(), {}
+    for d, r, k in coppie:
+        if d > distanza or r in presi_g or k in presi_s:
+            continue
+        presi_g.add(r)
+        presi_s.add(k)
+        for i in gruppi[r]:
+            esito[i] = sigle[k][1]
+    return esito
+
+
 def misure_da_sigle(vani, sigle, distanza=250):
     """A ogni vano la sigla più vicina con una larghezza compatibile, una sigla per vano."""
     coppie = []
@@ -1381,6 +1466,7 @@ class PianoLetto:
     riscontri: list
     fonti: list
     sigle: list = field(default_factory=list)
+    sigle_unita: list = field(default_factory=list)
 
 
 def leggi_piano(entita, regione, cm, layer, controllo=False):
@@ -1485,7 +1571,7 @@ def leggi_piano(entita, regione, cm, layer, controllo=False):
         mq == l.superficie and l.contorno.covers(p) for l in locali
     ))
     return PianoLetto(muri, pertinenti, locali, testi, leggi_quote(entita, zona, cm), assi_vicini(entita, zona, cm), linee, archi, riscontri[:48], fonti,
-                      leggi_sigle_infissi(entita, zona, cm))
+                      leggi_sigle_infissi(entita, zona, cm), leggi_sigle_unita(entita, zona, cm))
 
 
 def leggi_scale(letti, altezza):
@@ -1675,9 +1761,12 @@ def ricostruisci(documento, opzioni):
         tavola = registra_tavola(documento)
     except (ezdxf.DXFError, ValueError, IndexError, TypeError, OverflowError):
         tavola = None
+    altezza_richiesta = altezza
+    quote_piani = sorted({r["quota"] for _, r, _, _, _ in letti})
     for numero, regione, piano, (ox, oy), _ in letti:
         # I riscontri tra piani usano i tratti della tavola prima della normalizzazione per l’editor.
         accorpa_assi_sovrapposti(piano.muri, piano.aperture)
+        altezza = altezza_del_piano(regione["quota"], quote_piani, altezza_richiesta)
 
         def pos(p):
             return {"x": round(p[0] - ox, 2), "y": round(p[1] - oy, 2)}
@@ -1719,6 +1808,7 @@ def ricostruisci(documento, opzioni):
                 **({"ante": 2} if tipo == "porta_doppia" else {}),
                 "stato": "esistente", "origine": "da_documento", **({"origineMisure": misure} if misure else {}),
             })
+        unita = unita_dei_locali(piano.locali, piano.muri, piano.aperture, piano.sigle_unita)
         for i, l in enumerate(piano.locali, 1):
             etichette = sorted(l.etichette, key=lambda e: (e[0].x, -e[0].y))
             nome = " / ".join(dict.fromkeys(n for _, n, _ in etichette)) if etichette else (
@@ -1731,6 +1821,8 @@ def ricostruisci(documento, opzioni):
             }
             if l.superficie is not None:
                 locale["superficieDichiarataMq"] = l.superficie
+            if i - 1 in unita:
+                locale["unita"] = unita[i - 1]
             if l.aperto:
                 locale["aperto"] = True
             stato["locali"].append(locale)

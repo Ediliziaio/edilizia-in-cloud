@@ -93,6 +93,16 @@ export const REGOLE_LAVORAZIONI: Record<TipoLavorazione, Regola> = {
   portoncino: { parole: [["portoncin", "porta blindat", "blindat"]], cerca: "portoncino blindato ingresso", indicativo: 1700 },
   marciapiede: { parole: [["marciapied"]], cerca: "marciapiede perimetrale", indicativo: 60 },
   allacciamenti: { parole: [["allacciament", "allacci"]], cerca: "allacciamento reti acqua fognatura", indicativo: 6500 },
+  prato: { parole: [["prato", "tappeto erboso", "semina"]], cerca: "tappeto erboso terra vegetale", indicativo: 14 },
+  pavimentazione_esterna: { parole: [["paviment"], ["estern", "esterni", "cortil"]], evita: ["intern", "demoliz"], cerca: "pavimentazione esterna gres massetto", indicativo: 75 },
+  vialetto: { parole: [["vialett", "camminament", "percorso pedonal"]], cerca: "vialetto pedonale pavimentato", indicativo: 70 },
+  ghiaia: { parole: [["ghiaia", "ghiaietto", "brecciolin"]], cerca: "ghiaia stesa telo", indicativo: 18 },
+  parcheggio_esterno: { parole: [["parchegg", "passo carr", "autobloccant", "betonell"]], cerca: "pavimentazione drenante autobloccanti parcheggio", indicativo: 60 },
+  aiuola: { parole: [["aiuol", "piantumaz"]], cerca: "aiuola terra vegetale piantumazione", indicativo: 25 },
+  recinzione: { parole: [["recinzion"]], evita: ["cantiere", "provvisor"], cerca: "recinzione muretto rete", indicativo: 85 },
+  piscina: { parole: [["piscin"]], evita: ["pulizia", "manutenz"], cerca: "piscina interrata vasca calcestruzzo", indicativo: 900 },
+  pergola: { parole: [["pergol"]], cerca: "pergola legno alluminio", indicativo: 3500 },
+  idromassaggio: { parole: [["idromassagg", "minipiscin", "spa"]], cerca: "minipiscina idromassaggio", indicativo: 8000 },
 };
 
 export const FONTE_INDICATIVA = "Prezzo indicativo 2026, da confermare";

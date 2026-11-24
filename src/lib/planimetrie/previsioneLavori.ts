@@ -92,6 +92,16 @@ export const REGOLE_POSA: Record<TipoLavorazione, RegolaPosa> = {
   portoncino: { resa: 2, manodopera: 0.15, fase: "Serramenti" },
   marciapiede: { resa: 15, manodopera: 0.5, fase: "Esterni" },
   allacciamenti: { resa: 0.3, manodopera: 0.5, fase: "Esterni" },
+  prato: { resa: 150, manodopera: 0.5, fase: "Esterni" },
+  pavimentazione_esterna: { resa: 15, manodopera: 0.5, fase: "Esterni" },
+  vialetto: { resa: 15, manodopera: 0.5, fase: "Esterni" },
+  ghiaia: { resa: 80, manodopera: 0.4, fase: "Esterni" },
+  parcheggio_esterno: { resa: 25, manodopera: 0.45, fase: "Esterni" },
+  aiuola: { resa: 30, manodopera: 0.55, fase: "Esterni" },
+  recinzione: { resa: 15, manodopera: 0.5, fase: "Esterni" },
+  piscina: { resa: 1.5, manodopera: 0.45, fase: "Esterni" },
+  pergola: { resa: 0.5, manodopera: 0.4, fase: "Esterni" },
+  idromassaggio: { resa: 1, manodopera: 0.3, fase: "Esterni" },
 };
 
 interface Attesa { dopo: FasePrevisione; giorni: number; perche: string }

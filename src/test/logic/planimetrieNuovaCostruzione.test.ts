@@ -131,3 +131,21 @@ describe("sopraelevazione su un edificio esistente", () => {
     expect(costruzioneValida({ ...s, piani: { pt: "demolito" } })).toBe(false);
   });
 });
+
+describe("esterni disegnati nel computo della costruzione", () => {
+  it("aree per tipo, recinzione del lotto e piscina a m² di vasca", () => {
+    const d = disegnoDaCostruire(casa());
+    const p = d.livelli[0].proposte[0] as unknown as { aree: unknown[]; elementi: unknown[] };
+    p.aree = [
+      { id: "lotto", tipo: "lotto", contorno: [{ x: -1000, y: -1000 }, { x: 2000, y: -1000 }, { x: 2000, y: 2000 }, { x: -1000, y: 2000 }], stato: "nuovo" },
+      { id: "prato", tipo: "prato", contorno: [{ x: 1200, y: 0 }, { x: 1700, y: 0 }, { x: 1700, y: 800 }, { x: 1200, y: 800 }], stato: "nuovo" },
+    ];
+    p.elementi = [{ id: "pisc", tipo: "piscina", posizione: { x: 1450, y: 1400 }, rotazione: 0, larghezza: 500, profondita: 800, stato: "nuovo", origine: "rilevata" }];
+    const righe = conPrezziProposti(studioVariante({ ...d, costruzione: COSTRUZIONE_PREDEFINITA }, "A").righe);
+    const q = (t: string) => righe.find((r) => tipoCostruzione(r.id) === t);
+    expect(q("prato")!.quantita).toBe(40);
+    expect(q("recinzione")!.quantita).toBe(120);
+    expect(q("piscina")).toMatchObject({ quantita: 40, unita: "m²", gruppo: "12 Sistemazioni esterne" });
+    expect(q("piscina")!.prezzo!.importo).toBe(900);
+  });
+});

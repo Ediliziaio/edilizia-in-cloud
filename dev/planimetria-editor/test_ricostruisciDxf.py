@@ -9,7 +9,7 @@ from ricostruisciDxf import (
     Asse, LocaleLetto, abbina_aperture, accorpa_assi_sovrapposti, allinea_pareti, candidato_finestra,
     combina_vani_comunicanti, completa_ingressi_aperti, contorni_facce, contorni_senza_etichette, finestre_tra_stipiti, includi_battuta_portone,
     layer_del_piano, leggi_piano, leggi_quote, portoni_garage, raccordi_muratura, registra_tavola, riconosci_locali, riscontri_chiusure, riscontri_sovrapposizioni,
-    scale_da_riscontrare, vani_senza_segno, varchi_tra_stipiti, leggi_testi, leggi_sigle_infissi, misure_da_sigle,
+    scale_da_riscontrare, vani_senza_segno, varchi_tra_stipiti, leggi_testi, leggi_sigle_infissi, misure_da_sigle, unita_dei_locali, altezza_del_piano,
 )
 
 
@@ -301,6 +301,31 @@ class SigleInfissiTest(unittest.TestCase):
         self.assertEqual(esito[0]["hp"], 210)
         self.assertEqual(esito[1]["hs"], 94)
         self.assertNotIn(2, esito)
+
+
+class UnitaDaSigleTest(unittest.TestCase):
+    def test_stanze_di_una_unita_insieme_il_muro_spesso_separa_la_sigla_va_al_gruppo_vicino(self):
+        stanza = lambda x0, x1, nome: LocaleLetto(box(x0, 0, x1, 400), [(Point((x0 + x1) / 2, 200), nome, "altro")])
+        # Soggiorno e camera divisi da un tramezzo da 10 cm; muro da 30 cm verso l'altra unità.
+        locali = [stanza(0, 400, "soggiorno"), stanza(410, 700, "letto"), stanza(730, 1100, "soggiorno")]
+        muri = [Asse(90, -405, 0, 400, 10), Asse(90, -715, 0, 400, 30)]
+        sigle = [(Point(200, -50), "Int. 01"), (Point(900, -50), "Int. 02")]
+        esito = unita_dei_locali(locali, muri, [], sigle)
+        self.assertEqual(esito, {0: "Int. 01", 1: "Int. 01", 2: "Int. 02"})
+
+    def test_i_vani_comuni_non_entrano_in_nessuna_unita(self):
+        locali = [LocaleLetto(box(0, 0, 300, 300), [(Point(150, 150), "atrio condominiale", "ingresso")])]
+        self.assertEqual(unita_dei_locali(locali, [], [], [(Point(150, 150), "Int. 01")]), {})
+
+
+class AltezzaDelPianoTest(unittest.TestCase):
+    def test_dall_interpiano_meno_il_solaio_altrimenti_quella_chiesta(self):
+        quote = [-300, 0, 349, 698]
+        self.assertEqual(altezza_del_piano(0, quote, 300), 319)
+        self.assertEqual(altezza_del_piano(698, quote, 300), 319)
+        self.assertEqual(altezza_del_piano(-300, quote, 300), 270)
+        self.assertEqual(altezza_del_piano(0, [0], 280), 280)
+        self.assertEqual(altezza_del_piano(0, [0, 1000], 280), 280)
 
 
 if __name__ == "__main__":
