@@ -323,11 +323,10 @@ export function buildSurveyReport(detail: SurveyDetail) {
     missingFields,
     requiredPhotos,
     missingPhotos: requiredPhotos.filter((p) => !p.present).length,
-    requiredCount: requiredFields.length + requiredPhotos.length,
-    completedCount:
-      requiredFields.length -
-      missingFields +
-      requiredPhotos.filter((p) => p.present).length,
+    // Le foto non sono mai obbligatorie (founder, 24/11/2026): quelle «richieste» dal modello restano un promemoria
+    // (missingPhotos, elenco nel controllo dati) ma non tolgono punti al completamento.
+    requiredCount: requiredFields.length,
+    completedCount: requiredFields.length - missingFields,
   };
 }
 export type SurveyReferences = {

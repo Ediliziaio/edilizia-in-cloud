@@ -63694,8 +63694,8 @@ export type Database = {
           installer_id: string | null
           notes: string | null
           order_item_id: string
-          photo_after_url: string
-          photo_before_url: string
+          photo_after_url: string | null
+          photo_before_url: string | null
           site_delivery_id: string | null
           started_at: string | null
           status: string | null
@@ -63710,8 +63710,8 @@ export type Database = {
           installer_id?: string | null
           notes?: string | null
           order_item_id: string
-          photo_after_url: string
-          photo_before_url: string
+          photo_after_url?: string | null
+          photo_before_url?: string | null
           site_delivery_id?: string | null
           started_at?: string | null
           status?: string | null
@@ -63726,8 +63726,8 @@ export type Database = {
           installer_id?: string | null
           notes?: string | null
           order_item_id?: string
-          photo_after_url?: string
-          photo_before_url?: string
+          photo_after_url?: string | null
+          photo_before_url?: string | null
           site_delivery_id?: string | null
           started_at?: string | null
           status?: string | null

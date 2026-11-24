@@ -13,7 +13,9 @@ describe("Sintesi e modifiche del sopralluogo", () => {
       r = buildSurveyReport(d),
       e = r.areas[0].elements[0];
     expect(surveyElementSummary(e)).toBe("120 cm × 140 cm");
-    expect(surveyElementQuality(d, e).missing).toBe(1);
+    // La foto «richiesta» manca ma non rende incompleto l'elemento: le foto non sono mai obbligatorie.
+    expect(surveyElementQuality(d, e).missing).toBe(0);
+    expect(surveyElementQuality(d, e).missingPhotos).toHaveLength(1);
     expect(surveyTechnicalIssues(r)).toHaveLength(3);
   });
   it("funziona con un elemento fotovoltaico e campi diversi dagli infissi", () => {
@@ -49,7 +51,8 @@ describe("Sintesi e modifiche del sopralluogo", () => {
     expect(patch.values.larghezza).toBe(135);
     expect(patch).not.toHaveProperty("survey_id");
     expect(patch).not.toHaveProperty("area_id");
-    expect(patch.is_complete).toBe(false);
+    expect(patch.is_complete).toBe(true); // solo la foto manca: non blocca
+
     expect(e.values.larghezza).toBe(120);
   });
   it.each([0, -1, 1.5, NaN])("rifiuta quantità non valida %s", (quantity) => {

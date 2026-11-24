@@ -8,8 +8,9 @@ export interface RecordInstallationInput {
   order_item_id: string;
   site_delivery_id?: string;
   installation_location?: string;
-  photo_before: File;
-  photo_after: File;
+  /** Le foto non sono mai obbligatorie (founder, 24/11/2026): si caricano se ci sono. */
+  photo_before?: File | null;
+  photo_after?: File | null;
   notes?: string;
 }
 
@@ -25,9 +26,6 @@ export function useInstallation() {
       const user = await supabase.auth.getUser();
       if (!user.data.user?.id) throw new Error('Not authenticated');
 
-      if (!input.photo_before) throw new Error('Photo before is required');
-      if (!input.photo_after) throw new Error('Photo after is required');
-
       // Get order_id from order_item
       const { data: orderItem, error: fetchError } = await supabase
         .from('order_items')
@@ -37,51 +35,19 @@ export function useInstallation() {
 
       if (fetchError || !orderItem) throw new Error('Order item not found');
 
-      let photo_before_url: string;
-      let photo_after_url: string;
-
-      // Upload before photo (MANDATORY)
-      try {
-        setUploadProgress(10);
-        const fileName = `${Date.now()}_before_${input.photo_before.name}`;
-        const filePath = `${effectiveCompany.id}/${orderItem.order_id}/before/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('installations')
-          .upload(filePath, input.photo_before, { upsert: false });
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage.from('installations').getPublicUrl(filePath);
-        photo_before_url = data?.publicUrl;
-        if (!photo_before_url) throw new Error('No URL for before photo');
-
-        setUploadProgress(40);
-      } catch (error) {
-        console.error('Before photo error:', error);
-        throw new Error('Errore nel caricamento foto prima', { cause: error });
-      }
-
-      // Upload after photo (MANDATORY)
-      try {
-        const fileName = `${Date.now()}_after_${input.photo_after.name}`;
-        const filePath = `${effectiveCompany.id}/${orderItem.order_id}/after/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('installations')
-          .upload(filePath, input.photo_after, { upsert: false });
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage.from('installations').getPublicUrl(filePath);
-        photo_after_url = data?.publicUrl;
-        if (!photo_after_url) throw new Error('No URL for after photo');
-
-        setUploadProgress(70);
-      } catch (error) {
-        console.error('After photo error:', error);
-        throw new Error('Errore nel caricamento foto dopo', { cause: error });
-      }
+      // Foto facoltative: si carica quella che c'è.
+      const carica = async (file: File | null | undefined, quando: "before" | "after"): Promise<string | null> => {
+        if (!file) return null;
+        const filePath = `${effectiveCompany.id}/${orderItem.order_id}/${quando}/${Date.now()}_${quando}_${file.name}`;
+        const { error: uploadError } = await supabase.storage.from('installations').upload(filePath, file, { upsert: false });
+        if (uploadError) throw new Error(quando === "before" ? 'Errore nel caricamento foto prima' : 'Errore nel caricamento foto dopo', { cause: uploadError });
+        return supabase.storage.from('installations').getPublicUrl(filePath).data?.publicUrl ?? null;
+      };
+      setUploadProgress(10);
+      const photo_before_url = await carica(input.photo_before, "before");
+      setUploadProgress(40);
+      const photo_after_url = await carica(input.photo_after, "after");
+      setUploadProgress(70);
 
       // Create installation record
       setUploadProgress(85);
@@ -121,7 +87,7 @@ export function useInstallation() {
           company_id: effectiveCompany.id,
           event_type: 'installation_completed',
           event_by: user.data.user.id,
-          photo_url: photo_after_url,
+          photo_url: photo_after_url ?? photo_before_url,
           document_ref: installation.id,
           notes: `Installato presso ${input.installation_location || 'cantiere'}`,
           location: 'Cantiere',

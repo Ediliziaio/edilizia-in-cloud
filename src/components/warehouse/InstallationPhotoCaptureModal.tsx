@@ -95,8 +95,7 @@ export function InstallationPhotoCaptureModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!photoBefore) { toast.error("La foto PRIMA dell'installazione è obbligatoria"); return; }
-    if (!photoAfter) { toast.error("La foto DOPO l'installazione è obbligatoria"); return; }
+    // Le foto non sono mai obbligatorie (founder, 24/11/2026): si registra anche senza.
 
     try {
       await recordInstallation({
@@ -142,9 +141,9 @@ export function InstallationPhotoCaptureModal({
             />
           </div>
 
-          {/* Foto PRIMA (OBBLIGATORIO) */}
+          {/* Foto PRIMA (facoltativa) */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium">📷 Foto PRIMA *</label>
+            <label className="block text-sm font-medium">📷 Foto PRIMA <span className="font-normal text-muted-foreground">· facoltativa</span></label>
 
             {photoBeforePreview ? (
               <div className="relative w-full bg-gray-100 rounded border">
@@ -213,9 +212,9 @@ export function InstallationPhotoCaptureModal({
             </div>
           )}
 
-          {/* Foto DOPO (OBBLIGATORIO) */}
+          {/* Foto DOPO (facoltativa) */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium">📷 Foto DOPO *</label>
+            <label className="block text-sm font-medium">📷 Foto DOPO <span className="font-normal text-muted-foreground">· facoltativa</span></label>
 
             {photoAfterPreview ? (
               <div className="relative w-full bg-gray-100 rounded border">
@@ -306,7 +305,7 @@ export function InstallationPhotoCaptureModal({
             >
               Annulla
             </Button>
-            <Button type="submit" disabled={isRecording || !photoBefore || !photoAfter}>
+            <Button type="submit" disabled={isRecording}>
               {isRecording ? 'Registrando...' : '✓ Installazione completata'}
             </Button>
           </div>

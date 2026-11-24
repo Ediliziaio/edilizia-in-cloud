@@ -39,12 +39,12 @@ describe("Contratto comune rilievo campo/ufficio", () => {
     d.media = [];
     expect(surveyCompletion(d)).toBeLessThan(100);
   });
-  it("include le foto obbligatorie della stanza nella completezza", () => {
+  it("le foto non sono mai obbligatorie: mancare una foto «richiesta» non abbassa il completamento", () => {
     const d = makeSurveyDetail();
     d.media = [surveyMedia({ area_id: "area1", checklist_key: "panoramica" })];
-    const full = surveyCompletion(d);
+    const conFoto = surveyCompletion(d);
     d.media = [];
-    expect(surveyCompletion(d)).toBeLessThan(full);
+    expect(surveyCompletion(d)).toBe(conFoto);
   });
   it("gli avvisi dell’ufficio aprono il percorso campo senza portare parametri di modifica", () => {
     const id = "00000000-0000-4000-a000-000000000001";

@@ -73,7 +73,8 @@ export function surveyElementQuality(
     missingFields,
     missingPhotos,
     media,
-    missing: missingFields.length + missingPhotos.length + (type ? energyIssues(type, element.values).length + energyGeometryIssues(type, element.values).length : 0),
+    // Le foto mancanti si mostrano ma non rendono incompleto l'elemento (foto mai obbligatorie, 24/11/2026).
+    missing: missingFields.length + (type ? energyIssues(type, element.values).length + energyGeometryIssues(type, element.values).length : 0),
   };
 }
 export function surveyTechnicalIssues(report: SurveyReport) {

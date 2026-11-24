@@ -94,7 +94,8 @@ export function ElementCard({
       );
   }, [elementType, elementMedia]);
 
-  const isComplete = missingFields.length === 0 && missingPhotos.length === 0;
+  // Le foto consigliate non rendono incompleto l'elemento (foto mai obbligatorie, 24/11/2026).
+  const isComplete = missingFields.length === 0;
 
   return (
     <Card
