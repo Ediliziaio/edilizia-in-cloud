@@ -23,7 +23,7 @@ import { eAmbienteInterno, funzionePareteDaVerificare, NOMI_AREA, TIPI_AREA, typ
 import { baricentro, STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type Ref } from "react";
 import { flushSync } from "react-dom";
-import { AppWindow, Armchair, Eraser, Grid3x3, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Magnet, Maximize2, MessageSquare, Minus, Mountain, MousePointer2, MoveHorizontal, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PenLine, Play, Plus, Redo2, Ruler, Scissors, SlidersHorizontal, Square, StretchHorizontal, Type, Undo2 } from "lucide-react";
+import { AppWindow, Armchair, Ellipsis, Eraser, Grid3x3, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Magnet, Maximize2, MessageSquare, Minus, Mountain, MousePointer2, MoveHorizontal, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PenLine, Play, Plus, Redo2, Ruler, Scissors, SlidersHorizontal, Square, StretchHorizontal, Type, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -253,6 +253,10 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   const [chatAperta, setChatAperta] = useState(() => Boolean(inSilvio && !compatto && ambitoComputo?.propostaId && !soloVista));
   const [strumentiAperti, setStrumentiAperti] = useState(false);
   const strumentiVisibili = !ambitoComputo || strumentiAperti;
+  // Sul telefono resta una sola riga in alto: piani, varianti, sfondo, comandi CAD e abachi stanno dietro «Altro».
+  const [altroAperto, setAltroAperto] = useState(false);
+  const idAltro = useId();
+  const altroNascosto = telefono && !altroAperto;
   const [chatInCorso, setChatInCorso] = useState(false);
   const [passoChat, setPassoChat] = useState<PassoChatDisegno | null>(null);
   const [confrontoChat, setConfrontoChat] = useState<(typeof VISTE_CONFRONTO_CHAT)[number][0]>("differenze");
@@ -1977,10 +1981,12 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
           type="button"
           role="radio"
           aria-checked={vista === v}
+          aria-label={telefono ? etichetta : undefined}
           onClick={() => cambiaVista(v)}
-          className={cn("rounded px-2.5 py-1.5 font-medium transition-colors", vista === v ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
+          className={cn("rounded px-2.5 py-1.5 font-medium transition-colors", telefono && "h-10 whitespace-nowrap px-2 py-0", vista === v ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
         >
-          {etichetta}
+          {/* sul telefono la riga è una sola: «Oggi» al posto di «Com'è oggi» */}
+          {telefono && v === "fatto" ? "Oggi" : etichetta}
         </button>
       ))}
     </div>
@@ -1988,13 +1994,13 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
 
   const zoom = (
     <div className="flex items-center gap-1">
-      <Button size="icon" variant="outline" className="h-9 w-9" aria-label="Rimpicciolisci" onClick={() => zoomAttorno(1 / 1.25, { x: dimensioni.w / 2, y: dimensioni.h / 2 })}>
+      <Button size="icon" variant="outline" className={telefono ? "min-h-10 min-w-10" : "h-9 w-9"} aria-label="Rimpicciolisci" onClick={() => zoomAttorno(1 / 1.25, { x: dimensioni.w / 2, y: dimensioni.h / 2 })}>
         <Minus />
       </Button>
-      <Button size="icon" variant="outline" className="h-9 w-9" aria-label="Ingrandisci" onClick={() => zoomAttorno(1.25, { x: dimensioni.w / 2, y: dimensioni.h / 2 })}>
+      <Button size="icon" variant="outline" className={telefono ? "min-h-10 min-w-10" : "h-9 w-9"} aria-label="Ingrandisci" onClick={() => zoomAttorno(1.25, { x: dimensioni.w / 2, y: dimensioni.h / 2 })}>
         <Plus />
       </Button>
-      <Button size="sm" variant="outline" onClick={() => { setPiantaRipiegata(false); adatta(); }} aria-label="Vedi tutta la pianta">
+      <Button size="sm" variant="outline" className={telefono ? "min-h-10 min-w-10 px-0" : undefined} onClick={() => { setPiantaRipiegata(false); adatta(); }} aria-label="Vedi tutta la pianta">
         <Maximize2 /> <span className="hidden lg:inline">Tutta</span>
       </Button>
     </div>
@@ -2002,10 +2008,10 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
 
   const annullaRipeti = (
     <div className="flex items-center gap-1">
-      <Button size="sm" variant="outline" onClick={annullaPasso} disabled={!storia.passato.length} aria-label="Annulla">
+      <Button size="sm" variant="outline" className={telefono ? "min-h-10 min-w-10 px-0" : undefined} onClick={annullaPasso} disabled={!storia.passato.length} aria-label="Annulla">
         <Undo2 /> <span className="hidden sm:inline">Annulla</span>
       </Button>
-      <Button size="sm" variant="outline" onClick={ripetiPasso} disabled={!storia.futuro.length} aria-label="Ripeti">
+      <Button size="sm" variant="outline" className={telefono ? "min-h-10 min-w-10 px-0" : undefined} onClick={ripetiPasso} disabled={!storia.futuro.length} aria-label="Ripeti">
         <Redo2 /> <span className="hidden sm:inline">Ripeti</span>
       </Button>
     </div>
@@ -2033,18 +2039,23 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   return (
     <div className={cn("flex h-full min-h-[480px] flex-col overflow-hidden rounded-xl border bg-background shadow-sm", confrontoAperto && "max-lg:min-h-[800px]", chatAperta && "max-lg:min-h-[830px]", className)}>
       <div className="flex shrink-0 flex-col border-b bg-background">
-        <div className="flex flex-wrap items-start justify-between gap-2 px-2.5 py-2.5">
+        <div className={cn("flex flex-wrap items-start justify-between gap-2 px-2.5 py-2.5", telefono && "flex-nowrap items-center gap-1 px-2 py-1.5")}>
           {telefono && soloVista === undefined && (
-            <Button size="sm" variant={modificaTelefono ? "default" : "outline"} disabled={chatAperta} onClick={() => { setModificaTelefono((v) => !v); setStrumento("seleziona"); }}>
-              <PenLine /> {modificaTelefono ? "Fine modifica" : "Modifica"}
+            <Button size="sm" variant={modificaTelefono ? "default" : "outline"} className="min-h-10 shrink-0 px-2.5" disabled={chatAperta}
+              aria-label={modificaTelefono ? "Fine modifica" : "Modifica"} onClick={() => { setModificaTelefono((v) => !v); setStrumento("seleziona"); }}>
+              <PenLine /> {modificaTelefono ? "Fine" : "Modifica"}
             </Button>
           )}
           {ambitoComputo && !sola && <Button type="button" size="sm" variant={strumentiAperti ? "secondary" : "outline"}
+            className={telefono ? "min-h-10 min-w-10 shrink-0 px-0" : undefined} aria-label={telefono ? "Strumenti del disegno" : undefined}
             aria-expanded={strumentiAperti} onClick={() => setStrumentiAperti(aperti => !aperti)}>
-            <SlidersHorizontal aria-hidden="true" /> Strumenti del disegno
+            <SlidersHorizontal aria-hidden="true" /> {!telefono && "Strumenti del disegno"}
           </Button>}
+          {telefono && sola && barraVista}
           {!sola && strumentiVisibili && (
-            <fieldset disabled={bloccoChat} className="flex min-w-0 flex-1 flex-wrap items-center gap-1" aria-label="Strumenti di disegno">
+            <fieldset disabled={bloccoChat} aria-label="Strumenti di disegno"
+              className={cn("flex min-w-0 flex-1 flex-wrap items-center gap-1",
+                telefono && "flex-nowrap overflow-x-auto [scrollbar-width:none] [&_button]:min-h-10 [&_button]:shrink-0 [&>div]:shrink-0 [&>div]:flex-nowrap")}>
               <div className="flex flex-wrap items-center gap-1">
                 <BottoneStrumento attivo={strumento === "seleziona"} onClick={() => setStrumento("seleziona")} icona={<MousePointer2 />} etichetta="Seleziona" />
                 <BottoneStrumento attivo={strumento === "stanza"} onClick={() => setStrumento("stanza")} icona={<Square />} etichetta="Stanza" />
@@ -2106,13 +2117,20 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
               </div>
             </fieldset>
           )}
+          {telefono && <Button type="button" size="icon" variant={altroAperto ? "secondary" : "outline"} className="ml-auto min-h-10 min-w-10 shrink-0"
+            aria-label="Altri comandi" title="Piani, varianti, sfondo, comandi delle pareti e abachi"
+            aria-controls={`${idAltro}-piano ${idAltro}-pareti`} aria-expanded={altroAperto} onClick={() => setAltroAperto(v => !v)}>
+            <Ellipsis aria-hidden="true" />
+          </Button>}
           {soloVista !== true && <Button ref={bottoneChat} type="button" size="sm" variant={(inSilvio ? !chatAperta : chatAperta) ? "default" : "outline"}
-            className={cn("ml-auto shrink-0 gap-2", !inSilvio && !chatAperta && "border-primary/25 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary")}
+            className={cn("ml-auto shrink-0 gap-2", !inSilvio && !chatAperta && "border-primary/25 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary", telefono && "ml-0 min-h-10 min-w-10 px-0")}
             aria-controls={idChat} aria-expanded={chatAperta} disabled={inSilvio && bloccoChat} onClick={chatAperta ? chiudiChatDisegno : apriChatDisegno}>
-            <MessageSquare aria-hidden="true" className="h-4 w-4" /> {inSilvio ? chatAperta ? "Nascondi Silvio" : "Chiedi a Silvio" : "Chat del disegno"}
+            <MessageSquare aria-hidden="true" className="h-4 w-4" /> {telefono
+              ? <span className="sr-only">{inSilvio ? chatAperta ? "Nascondi Silvio" : "Chiedi a Silvio" : "Chat del disegno"}</span>
+              : inSilvio ? chatAperta ? "Nascondi Silvio" : "Chiedi a Silvio" : "Chat del disegno"}
           </Button>}
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t bg-slate-50/70 px-2.5 py-2">
+        <div id={`${idAltro}-piano`} className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t bg-slate-50/70 px-2.5 py-2", telefono && "[&_button]:min-h-10", altroNascosto && "hidden")}>
           <fieldset disabled={bloccoChat} className="flex min-w-0 flex-wrap items-center gap-1.5" aria-label="Piano e visualizzazione">
             {!sola && !ambitoComputo && (
               <BarraPiani
@@ -2125,7 +2143,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
                 onTogli={togliPiano}
               />
             )}
-            {barraVista}
+            {!(telefono && sola) && barraVista}
             {!sola && strumentiVisibili && (
               <SfondoDaRicalcare
                 ricalco={ricalco}
@@ -2251,7 +2269,8 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
               </UniformSelect>
             </div>}
           </fieldset>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* sul telefono annulla/ripeti stanno sulla pianta, accanto allo zoom */}
+          {!telefono && <div className="ml-auto flex flex-wrap items-center gap-2">
             <fieldset className="min-w-0" disabled={bloccoChat} aria-label="Cronologia">{annullaRipeti}</fieldset>
             {!telefono && zoom}
             {compatto && !telefono && !chatAperta && (
@@ -2259,9 +2278,9 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
                 {pannelloAperto ? <PanelRightClose /> : <PanelRightOpen />} Stanze
               </Button>
             )}
-          </div>
+          </div>}
         </div>
-        {strumentiVisibili && <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-2.5 py-1.5">
+        {strumentiVisibili && <div id={`${idAltro}-pareti`} className={cn("flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-2.5 py-1.5", telefono && "[&_button]:min-h-10", altroNascosto && "hidden")}>
           {!sola && <fieldset disabled={bloccoChat} className="flex flex-wrap items-center gap-1" aria-label="Modifica pareti">
             {(Object.keys(NOMI_COMANDI_CAD) as ComandoCad[]).map(comando => {
               const Icona = ICONE_COMANDI_CAD[comando];
@@ -2551,7 +2570,9 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
             {confrontoVisteChat}
           </div>}
 
-          {telefono && <div className={cn("absolute right-2", propostaPronta ? "bottom-14" : "bottom-2")}>{zoom}</div>}
+          {telefono && <div className={cn("absolute right-2 flex items-center gap-1", propostaPronta ? "bottom-14" : "bottom-2")}>
+            <fieldset className="min-w-0" disabled={bloccoChat} aria-label="Cronologia">{annullaRipeti}</fieldset>{zoom}
+          </div>}
           </>}
         </div>
         {anteprimaAffiancata && !piantaNascosta && <DivisoreAnteprima3D idPianta={idPianta2D} quota={quotaPianta} onCambia={setQuotaPianta}
