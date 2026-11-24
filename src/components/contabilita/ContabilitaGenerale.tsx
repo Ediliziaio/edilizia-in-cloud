@@ -24,6 +24,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
+import { Popover, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useSelezioneRighe } from "@/hooks/useSelezioneRighe";
@@ -845,6 +848,39 @@ function VersamentoCollegato({ companyId, id }: { companyId: string; id: string 
   </details>;
 }
 
+/** Conto con ricerca per codice o descrizione: i conti movimentabili sono centinaia. */
+function SceltaConto({ conti, value, onChange }: { conti: ContoContabile[]; value: string; onChange: (id: string) => void }) {
+  const t = useT();
+  const [aperto, setAperto] = useState(false);
+  const [q, setQ] = useState("");
+  const scelto = conti.find((c) => c.id === value);
+  const parole = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const trovati = conti.filter((c) => { const t = `${c.codice} ${c.descrizione}`.toLowerCase(); return parole.every((p) => t.includes(p)); }).slice(0, 80);
+  return (
+    <Popover open={aperto} onOpenChange={(v) => { setAperto(v); if (!v) setQ(""); }}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" role="combobox" aria-expanded={aperto} className="w-full justify-between truncate font-normal">
+          <span className="truncate">{scelto ? `${scelto.codice} ${scelto.descrizione}` : <span className="text-muted-foreground">{t("Scegli il conto")}</span>}</span>
+        </Button>
+      </PopoverTrigger>
+      {/* Senza Portal: dentro il Dialog il focus resta nella ricerca (vedi filtri dei Contatti). */}
+      <PopoverPrimitive.Content align="start" sideOffset={4} onEscapeKeyDown={(e) => { e.preventDefault(); setAperto(false); }} className="z-50 w-[min(460px,calc(100vw-2rem))] rounded-md border bg-popover p-0 text-popover-foreground shadow-md">
+        <Command shouldFilter={false}>
+          <CommandInput placeholder={t("Cerca codice o nome del conto…")} value={q} onValueChange={setQ} />
+          <CommandList className="max-h-72">
+            <CommandEmpty>{t("Nessun conto trovato")}</CommandEmpty>
+            {trovati.map((c) => (
+              <CommandItem key={c.id} value={c.id} onSelect={() => { onChange(c.id); setAperto(false); setQ(""); }}>
+                <span className="mr-2 font-mono text-xs text-muted-foreground">{c.codice}</span>{c.descrizione}
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverPrimitive.Content>
+    </Popover>
+  );
+}
+
 function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto, daRettificare, modificaProvvisoria = false }: {
   open: boolean; onOpenChange: (v: boolean) => void; companyId: string; conti: ContoContabile[]; onFatto: () => void; daRettificare?: Scrittura | null; modificaProvvisoria?: boolean;
 }) {
@@ -883,8 +919,15 @@ function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto, daRetti
             <div className="space-y-1"><Label>{t("Data")}</Label><Input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
             <div className="space-y-1">
               <Label>{t("Causale")}</Label>
-              <Input list="causali-contabili" value={causale} onChange={(e) => setCausale(e.target.value)} />
-              <datalist id="causali-contabili">{CAUSALI.map((c) => <option key={c} value={c} />)}</datalist>
+              {/* Un Select, non un datalist: col valore già scritto il browser mostrava solo «Giroconto». */}
+              <Select value={CAUSALI.includes(causale) ? causale : "__altra"} onValueChange={(v) => setCausale(v === "__altra" ? "" : v)}>
+                <SelectTrigger aria-label={t("Causale")}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CAUSALI.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  <SelectItem value="__altra">{t("Altra causale…")}</SelectItem>
+                </SelectContent>
+              </Select>
+              {!CAUSALI.includes(causale) ? <Input autoFocus value={causale} onChange={(e) => setCausale(e.target.value)} placeholder={t("Scrivi la causale")} aria-label={t("Altra causale")} /> : null}
             </div>
             <div className="space-y-1"><Label>{t("Documento")}</Label><Input value={docNumero} onChange={(e) => setDocNumero(e.target.value)} placeholder="n." /></div>
             <div className="space-y-1"><Label>{t("Descrizione")}</Label><Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} /></div>
@@ -894,12 +937,7 @@ function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto, daRetti
               <div key={i} className="grid grid-cols-12 items-end gap-2">
                 <div className="col-span-12 space-y-1 sm:col-span-5">
                   {i === 0 ? <Label>{t("Conto")}</Label> : null}
-                  <Select value={r.conto_id || undefined} onValueChange={(v) => cambia(i, "conto_id", v)}>
-                    <SelectTrigger><SelectValue placeholder={t("Scegli il conto")} /></SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {movimentabili.map((c) => <SelectItem key={c.id} value={c.id}>{c.codice} {c.descrizione}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <SceltaConto conti={movimentabili} value={r.conto_id} onChange={(v) => cambia(i, "conto_id", v)} />
                 </div>
                 <div className="col-span-4 space-y-1 sm:col-span-2">{i === 0 ? <Label>{t("Dare")}</Label> : null}<Input inputMode="decimal" value={r.dare} onChange={(e) => cambia(i, "dare", e.target.value)} /></div>
                 <div className="col-span-4 space-y-1 sm:col-span-2">{i === 0 ? <Label>{t("Avere")}</Label> : null}<Input inputMode="decimal" value={r.avere} onChange={(e) => cambia(i, "avere", e.target.value)} /></div>

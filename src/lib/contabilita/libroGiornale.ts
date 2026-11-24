@@ -64,7 +64,8 @@ const cent = (n: number) => Math.round(n * 100);
 export function importo(testo: string): number {
   const t = testo.trim();
   if (!t) return 0;
-  const n = /,/.test(t) ? Number(t.replace(/\./g, "").replace(",", ".")) : Number(t);
+  // «1.000» scritto all'italiana è mille, non uno: i punti seguiti da gruppi di tre cifre sono migliaia.
+  const n = /,/.test(t) || /^\d{1,3}(\.\d{3})+$/.test(t) ? Number(t.replace(/\./g, "").replace(",", ".")) : Number(t);
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : NaN;
 }
 

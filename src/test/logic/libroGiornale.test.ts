@@ -127,3 +127,14 @@ describe("libro giornale", () => {
     expect(csvPianoDeiConti(conti).split("\r\n")[0]).toContain("Voce CEE");
   });
 });
+
+describe("importo scritto all'italiana", () => {
+  it("1.000 è mille, 1.234,56 e 12.5 restano come sono", async () => {
+    const { importo } = await import("@/lib/contabilita/libroGiornale");
+    expect(importo("1.000")).toBe(1000);
+    expect(importo("12.500.000")).toBe(12500000);
+    expect(importo("1.234,56")).toBe(1234.56);
+    expect(importo("12.5")).toBe(12.5);
+    expect(importo("250")).toBe(250);
+  });
+});
