@@ -1243,3 +1243,6 @@ verify_jwt = false
 # vale la firma HMAC; il biglietto vero richiede comunque la sessione (requireAuth).
 [functions.planimetria-motore]
 verify_jwt = false
+
+[functions.gare-pilot-ai]
+verify_jwt = true

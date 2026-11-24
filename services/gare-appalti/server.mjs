@@ -35,7 +35,7 @@ const server = createServer((request, response) => {
     });
 });
 
-server.listen(8081, '0.0.0.0');
+server.listen(config.port, config.host);
 for (const event of ['SIGTERM', 'SIGINT']) {
   process.once(event, () => server.close(() => process.exit(0)));
 }

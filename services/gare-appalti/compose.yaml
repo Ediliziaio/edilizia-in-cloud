@@ -18,27 +18,9 @@ services:
       GARE_SUPABASE_PUBLISHABLE_KEY: ${GARE_SUPABASE_PUBLISHABLE_KEY:?}
       GARE_SUPABASE_SERVICE_KEY: ${GARE_SUPABASE_SERVICE_KEY:?}
       GARE_PROXY_SECRET: ${GARE_PROXY_SECRET:?}
-      GARE_AI_ORIGIN: http://ollama:11434
-      GARE_AI_MODEL: ${GARE_AI_MODEL:-qwen3.5:4b}
+      GARE_AI_BRIDGE_SECRET: ${GARE_AI_BRIDGE_SECRET:?}
+      GARE_BIND_ALL: "1"
+      GARE_AI_BACKEND: openrouter
+      GARE_AI_MODEL: ${GARE_AI_MODEL:-openrouter/free}
     ports:
       - "127.0.0.1:9081:8081"
-    networks: [egress, model]
-    depends_on: [ollama]
-  ollama:
-    image: ollama/ollama:0.17.7
-    restart: unless-stopped
-    pids_limit: 192
-    environment:
-      OLLAMA_NO_CLOUD: "1"
-      OLLAMA_NUM_PARALLEL: "1"
-      OLLAMA_MAX_LOADED_MODELS: "1"
-    volumes:
-      - weights:/root/.ollama
-    networks: [model]
-networks:
-  egress:
-  model:
-    internal: true
-volumes:
-  weights:
-    name: eic-gare-ollama
