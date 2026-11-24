@@ -19,6 +19,7 @@ import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
+import { getCompanyAdminContact } from "../_shared/systemEmail.ts";
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -211,11 +212,12 @@ Deno.serve(async (req) => {
         const n = s.billing_period === "yearly" ? Number(plan?.price_yearly ?? 0) : Number(plan?.price_monthly ?? 0);
         if (n > 0) amount = eur(n);
       }
-      const { data: prof } = await admin.from("profiles").select("id, first_name").eq("company_id", s.company_id).order("id", { ascending: true }).limit(1).maybeSingle();
-      if (!prof) continue;
-      const { data: ud } = await admin.auth.admin.getUserById(prof.id);
-      const adminEmail = ud?.user?.email;
-      if (!adminEmail) continue;
+      // Titolare o amministratore: il «primo profilo per id» poteva essere un
+      // cliente senza login (getUserById 404 ogni ora, email mai partita).
+      const contatto = await getCompanyAdminContact(admin, s.company_id);
+      if (!contatto) continue;
+      const prof = { id: contatto.userId, first_name: contatto.firstName };
+      const adminEmail = contatto.email;
       const renewalDate = new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(s.current_period_end));
       const ok = await guardedSend("renewal_upcoming", refId, s.company_id, adminEmail, () =>
         renderEmailTemplate({

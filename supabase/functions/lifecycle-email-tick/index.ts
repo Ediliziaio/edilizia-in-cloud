@@ -21,6 +21,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
+import { getCompanyAdminContact } from "../_shared/systemEmail.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -177,19 +178,11 @@ async function runD3NoActivation(
       .eq("template_key", "lifecycle_d3_no_activation");
     if ((alreadySent ?? 0) > 0) continue;
 
-    // Trova admin email (deterministic: order by id per stabilità)
-    const { data: profile } = await supa
-      .from("profiles")
-      .select("id, first_name")
-      .eq("company_id", c.id)
-      .order("id", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (!profile) continue;
-
-    const { data: userData } = await supa.auth.admin.getUserById((profile as AnyRecord).id);
-    const email = userData.user?.email;
-    if (!email) continue;
+    // Titolare o amministratore dell'azienda, mai il primo profilo per id.
+    const contatto = await getCompanyAdminContact(supa, c.id as string);
+    if (!contatto) continue;
+    const profile = { id: contatto.userId, first_name: contatto.firstName || null };
+    const email = contatto.email;
 
     const vars = {
       recipientName: (profile as AnyRecord).first_name ?? (c.name as string) ?? "ciao",
@@ -238,11 +231,10 @@ async function runD7Features(supa: ReturnType<typeof createClient>): Promise<Sen
       .eq("template_key", "lifecycle_d7_features");
     if ((already ?? 0) > 0) continue;
 
-    const { data: profile } = await supa.from("profiles").select("id, first_name").eq("company_id", c.id).order("id", { ascending: true }).limit(1).maybeSingle();
-    if (!profile) continue;
-    const { data: ud } = await supa.auth.admin.getUserById((profile as AnyRecord).id);
-    const email = ud.user?.email;
-    if (!email) continue;
+    const contatto = await getCompanyAdminContact(supa, c.id as string);
+    if (!contatto) continue;
+    const profile = { id: contatto.userId, first_name: contatto.firstName || null };
+    const email = contatto.email;
 
     const vars = {
       recipientName: (profile as AnyRecord).first_name ?? (c.name as string) ?? "ciao",
@@ -295,11 +287,10 @@ async function runTrialEnding(supa: ReturnType<typeof createClient>): Promise<Se
     const trialEnd = new Date(c.trial_ends_at as string);
     const daysRemaining = Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
 
-    const { data: profile } = await supa.from("profiles").select("id, first_name").eq("company_id", c.id).order("id", { ascending: true }).limit(1).maybeSingle();
-    if (!profile) continue;
-    const { data: ud } = await supa.auth.admin.getUserById((profile as AnyRecord).id);
-    const email = ud.user?.email;
-    if (!email) continue;
+    const contatto = await getCompanyAdminContact(supa, c.id as string);
+    if (!contatto) continue;
+    const profile = { id: contatto.userId, first_name: contatto.firstName || null };
+    const email = contatto.email;
 
     const vars = {
       recipientName: (profile as AnyRecord).first_name ?? (c.name as string) ?? "ciao",
@@ -373,11 +364,10 @@ async function runMonthlySummary(supa: ReturnType<typeof createClient>): Promise
       ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(revenue)
       : "—";
 
-    const { data: profile } = await supa.from("profiles").select("id, first_name").eq("company_id", c.id).order("id", { ascending: true }).limit(1).maybeSingle();
-    if (!profile) continue;
-    const { data: ud } = await supa.auth.admin.getUserById((profile as AnyRecord).id);
-    const email = ud.user?.email;
-    if (!email) continue;
+    const contatto = await getCompanyAdminContact(supa, c.id as string);
+    if (!contatto) continue;
+    const profile = { id: contatto.userId, first_name: contatto.firstName || null };
+    const email = contatto.email;
 
     const vars = {
       recipientName: (profile as AnyRecord).first_name ?? (c.name as string) ?? "ciao",

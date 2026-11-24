@@ -1,3 +1,4 @@
+import { platformCompanyAdmin } from "./platformCompanyAdmin.ts";
 // ============================================================================
 // systemEmail — invio best-effort delle email di sistema (template builder)
 // ============================================================================
@@ -88,26 +89,32 @@ export async function sendSystemEmail(admin: any, opts: {
 }
 
 /**
- * Primo profilo della company (di norma l'admin, pattern lifecycle-email-tick)
- * con email risolta via auth. null se non trovato.
+ * A chi scrivere per l'azienda: il titolare, altrimenti un company_admin.
+ * Mai «il primo profilo per id»: tra i profili ci sono clienti senza login e
+ * operai, e fino al 24/11/2026 rinnovi, pagamenti falliti ed email di benvenuto
+ * finivano a loro (o non partivano: system-emails-tick cercava ogni ora un
+ * utente auth inesistente). null se nessuno dei due ha un'email.
  */
 export async function getCompanyAdminContact(
   admin: any,
   companyId: string,
 ): Promise<{ email: string; firstName: string; userId: string } | null> {
   try {
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("id, first_name")
-      .eq("company_id", companyId)
-      .order("id", { ascending: true })
-      .limit(1)
+    const { data: company } = await admin
+      .from("companies")
+      .select("titolare_user_id")
+      .eq("id", companyId)
       .maybeSingle();
-    if (!profile) return null;
-    const { data: ud } = await admin.auth.admin.getUserById(profile.id);
-    const email = ud?.user?.email;
-    if (!email) return null;
-    return { email, firstName: profile.first_name || "", userId: profile.id };
+    const titolareId = company?.titolare_user_id as string | null | undefined;
+    if (titolareId) {
+      const { data: ud } = await admin.auth.admin.getUserById(titolareId);
+      const email = ud?.user?.email;
+      if (email) {
+        const { data: profile } = await admin.from("profiles").select("first_name").eq("id", titolareId).maybeSingle();
+        return { email, firstName: profile?.first_name || "", userId: titolareId };
+      }
+    }
+    return await platformCompanyAdmin(admin, companyId);
   } catch {
     return null;
   }
