@@ -270,9 +270,9 @@ export default function SerramentiWizard() {
     const input = { ...form, tipo_intervento: (form.tipo_intervento as SrTipoIntervento) ?? "sostituzione" };
     if (!requestedModel) return input;
     if (!isSrQuoteModelId(requestedModel) || !modelSupport.supported || !effectiveCompany?.id) {
-      throw new Error("Questo modello non è ancora collegato al salvataggio. Usa il preventivatore generale oppure completa l'attivazione.");
+      throw new Error(tr("Questo modello non è ancora collegato al salvataggio. Usa il preventivatore generale oppure completa l'attivazione."));
     }
-    if (loadingPdfTemplate || templateError) throw new Error("Attendi il caricamento del modello aziendale prima di creare il preventivo.");
+    if (loadingPdfTemplate || templateError) throw new Error(tr("Attendi il caricamento del modello aziendale prima di creare il preventivo."));
     const snapshot = await modelloAttualeSr(effectiveCompany.id, requestedModel);
     const definition = findSerramentiTemplateModule(requestedModel)!;
     return { ...srModelProjectDefaults(snapshot), intervento_titolo: definition.title, intervento_sintesi: definition.summary,

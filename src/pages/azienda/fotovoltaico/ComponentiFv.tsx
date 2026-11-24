@@ -367,12 +367,12 @@ export default function ComponentiFv() {
               <div key={tipo.value}>
                 <div className="flex items-center gap-2 mb-2">
                   <Icon className="h-4 w-4 text-orange-500" />
-                  <h2 className="text-sm font-semibold text-slate-700">{tipo.plural}</h2>
+                  <h2 className="text-sm font-semibold text-slate-700">{tr(tipo.plural)}</h2>
                   <span className="text-xs text-slate-400">({items.length})</span>
                 </div>
                 {items.length === 0 ? (
                   <Card className="p-4 text-sm text-slate-500 border-dashed">
-                    {tr("Nessun")} {tipo.label.toLowerCase()} {tr("nel catalogo.")}{puoModificare && ` ${tr("Aggiungine uno per renderlo selezionabile nel wizard.")}`}
+                    {tr("Nessun componente «{tipo}» nel catalogo.", { tipo: tr(tipo.label) })}{puoModificare && ` ${tr("Aggiungine uno per renderlo selezionabile nel wizard.")}`}
                   </Card>
                 ) : (
                   <div className="space-y-2">
@@ -488,7 +488,7 @@ export default function ComponentiFv() {
             <div className="grid grid-cols-2 gap-3">
               {specMeta.specField && (
                 <div>
-                  <Label className="mb-1.5 block">{specMeta.specLabel}</Label>
+                  <Label className="mb-1.5 block">{tr(specMeta.specLabel)}</Label>
                   <Input inputMode="decimal" value={form.spec} onChange={(e) => setForm((f) => ({ ...f, spec: e.target.value }))} placeholder={specMeta.unit} />
                 </div>
               )}
@@ -729,7 +729,7 @@ function CollegaListinoDialog({
                       <SelectContent>
                         <SelectItem value={SELECT_NONE}>{tr("— Nessuna tipologia —")}</SelectItem>
                         {TIPOLOGIE_LISTINO.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                          <SelectItem key={t.value} value={t.value}>{tr(t.label)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -746,7 +746,7 @@ function CollegaListinoDialog({
                         <SelectContent>
                           <SelectItem value={SELECT_NONE}>{tr("— Scegli componente —")}</SelectItem>
                           {CATEGORIE_FV_LISTINO.map((c) => (
-                            <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                            <SelectItem key={c.value} value={c.value}>{tr(c.label)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -761,7 +761,7 @@ function CollegaListinoDialog({
         {macros.length > 0 && (
           <p className="text-xs text-slate-500">
             {fvCollegate.length > 0
-              ? `${fvCollegate.length} macrocategorie collegate al preventivatore FV (${fvCollegate.reduce((s, m) => s + m.prodottiAttivi, 0)} prodotti totali).`
+              ? tr("{n} macrocategorie collegate al preventivatore FV ({prodotti} prodotti totali).", { n: fvCollegate.length, prodotti: fvCollegate.reduce((s, m) => s + m.prodottiAttivi, 0) })
               : tr("Nessuna macrocategoria collegata al fotovoltaico: assegna tipologia e componente.")}
             {daCollegare.length > 0 ? tr(" {n} modifiche da salvare.", { n: daCollegare.length }) : ""}
           </p>

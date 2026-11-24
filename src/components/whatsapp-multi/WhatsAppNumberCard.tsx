@@ -136,7 +136,7 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
                   number.quality_rating === "GREEN" ? "border-green-300 text-green-700 dark:border-green-800 dark:text-green-400"
                   : number.quality_rating === "YELLOW" ? "border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-400"
                   : "border-red-300 text-red-700 dark:border-red-800 dark:text-red-400"
-                } title={`${t("Qualità Meta: {valore}", { valore: number.quality_rating })}${number.messaging_limit_tier ? ` · tier ${number.messaging_limit_tier}` : ""}`}>
+                } title={`${t("Qualità Meta: {valore}", { valore: String(number.quality_rating ?? "") })}${number.messaging_limit_tier ? ` · tier ${number.messaging_limit_tier}` : ""}`}>
                   {number.quality_rating === "GREEN" ? t("Qualità ✓") : number.quality_rating === "YELLOW" ? t("Qualità ⚠") : t("Qualità ✗")}
                 </Badge>
               )}

@@ -60,6 +60,7 @@ import {
   type FasciaMargine,
 } from "@/lib/marginalita/fasceMargine";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { italiano, type Traduttore } from "@/lib/campo/lingua/traduttore";
 
 const MARGINALITA_FETCH_LIMIT = 1000;
 
@@ -562,81 +563,86 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
     };
   }, [anomaliesByOrder]);
 
-  const getMarginDecision = useCallback((row: MarginalitaRow) => {
+  // tr: senza traduttore resta l'italiano (serve al CSV); a schermo si passa la t della pagina.
+  const getMarginDecision = useCallback((row: MarginalitaRow, tr: Traduttore = italiano) => {
     const preventivoTotale = safeNumber(row.preventivo_totale);
     const consuntivo = safeNumber(row.consuntivo);
     const adjusted = getAdjustedMargin(row);
     const margineNetto = adjusted.adjustedMarginPct;
-    const riferimento = adjusted.source === "none" ? "" : " dopo struttura";
+    const conStruttura = adjusted.source !== "none";
     const anomaly = getOrderAnomalySummary(row.id);
     const targetGapPct = Math.max(0, targetMarginPct - margineNetto);
     const recoveryAmount = preventivoTotale * (targetGapPct / 100);
 
     if (preventivoTotale <= 0) {
       return {
-        label: "Ricavo mancante",
-        detail: "Ordine senza valore contrattuale: margine non affidabile.",
+        label: tr("Ricavo mancante"),
+        detail: tr("Ordine senza valore contrattuale: margine non affidabile."),
         tone: "red" as const,
         recoveryAmount,
       };
     }
     if (!hasReliableMargin(row)) {
       return {
-        label: "Costi da completare",
+        label: tr("Costi da completare"),
         detail: safeNumber(row.movimenti_magazzino_senza_costo) > 0
-          ? `${row.movimenti_magazzino_senza_costo} ${safeNumber(row.movimenti_magazzino_senza_costo) === 1 ? "prelievo di magazzino senza costo" : "prelievi di magazzino senza costo"}: completa la valorizzazione.`
-          : t("Nessun costo registrato: il margine non è ancora calcolabile."),
+          ? tr(safeNumber(row.movimenti_magazzino_senza_costo) === 1 ? "{n} prelievo di magazzino senza costo: completa la valorizzazione." : "{n} prelievi di magazzino senza costo: completa la valorizzazione.", { n: safeNumber(row.movimenti_magazzino_senza_costo) })
+          : tr("Nessun costo registrato: il margine non è ancora calcolabile."),
         tone: "orange" as const,
         recoveryAmount: 0,
       };
     }
     if (margineNetto < 0) {
       return {
-        label: "Perdita netta",
+        label: tr("Perdita netta"),
         detail: anomaly?.topCause
-          ? t("Prima causa da chiudere: {topCause}.", { topCause: String(anomaly.topCause ?? "") })
+          ? tr("Prima causa da chiudere: {causa}.", { causa: String(anomaly.topCause ?? "") })
           : adjusted.source === "none"
-            ? t("I costi diretti superano il ricavo.")
-            : t("Costi diretti e struttura stimata superano il ricavo."),
+            ? tr("I costi diretti superano il ricavo.")
+            : tr("Costi diretti e struttura stimata superano il ricavo."),
         tone: "red" as const,
         recoveryAmount,
       };
     }
     if ((anomaly?.openCount ?? 0) > 0) {
       return {
-        label: "Anomalie aperte",
-        detail: `${anomaly?.openCount} anomalie non chiuse impattano per ${formatCurrency(anomaly?.openTotal ?? 0)}.`,
+        label: tr("Anomalie aperte"),
+        detail: tr("{n} anomalie non chiuse impattano per {importo}.", { n: anomaly?.openCount ?? 0, importo: formatCurrency(anomaly?.openTotal ?? 0) }),
         tone: "orange" as const,
         recoveryAmount,
       };
     }
     if (margineNetto < targetMarginPct) {
       return {
-        label: "Sotto target",
-        detail: `Mancano ${formatCurrency(recoveryAmount)} per arrivare al target${riferimento} ${targetMarginPct.toFixed(1)}%.`,
+        label: tr("Sotto target"),
+        detail: conStruttura
+          ? tr("Mancano {importo} per arrivare al target dopo struttura {percento}%.", { importo: formatCurrency(recoveryAmount), percento: targetMarginPct.toFixed(1) })
+          : tr("Mancano {importo} per arrivare al target {percento}%.", { importo: formatCurrency(recoveryAmount), percento: targetMarginPct.toFixed(1) }),
         tone: "amber" as const,
         recoveryAmount,
       };
     }
     if (fasciaMargine({ affidabile: true, nettoPct: margineNetto, targetPct: targetMarginPct }) === "da_monitorare") {
       return {
-        label: "Da monitorare",
-        detail: `Margine${riferimento} ${margineNetto.toFixed(1)}%: controlla costi e varianti per mantenere il margine.`,
+        label: tr("Da monitorare"),
+        detail: conStruttura
+          ? tr("Margine dopo struttura {percento}%: controlla costi e varianti per mantenere il margine.", { percento: margineNetto.toFixed(1) })
+          : tr("Margine {percento}%: controlla costi e varianti per mantenere il margine.", { percento: margineNetto.toFixed(1) }),
         tone: "amber" as const,
         recoveryAmount,
       };
     }
     if (consuntivo > preventivoTotale * 0.75) {
       return {
-        label: "Costi alti",
-        detail: "Consuntivo oltre il 75% del ricavo: controlla acquisti e varianti.",
+        label: tr("Costi alti"),
+        detail: tr("Consuntivo oltre il 75% del ricavo: controlla acquisti e varianti."),
         tone: "amber" as const,
         recoveryAmount,
       };
     }
     return {
-      label: "Sano",
-      detail: `Margine${riferimento} sopra target nella vista corrente.`,
+      label: tr("Sano"),
+      detail: conStruttura ? tr("Margine dopo struttura sopra target nella vista corrente.") : tr("Margine sopra target nella vista corrente."),
       tone: "green" as const,
       recoveryAmount,
     };
@@ -855,7 +861,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
   const marginControl = useMemo(() => {
     const riskRows = filtered
       .map((row) => {
-        const decision = getMarginDecision(row);
+        const decision = getMarginDecision(row, t);
         const margineNetto = getAdjustedMargin(row).adjustedMarginPct;
         return { row, decision, margineNetto };
       })
@@ -863,13 +869,13 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
       .sort((a, b) => b.decision.recoveryAmount - a.decision.recoveryAmount || a.margineNetto - b.margineNetto);
 
     const insight = filtered.length === 0
-      ? "Nessuna commessa nella vista corrente. Modifica i filtri per visualizzare i risultati."
+      ? t("Nessuna commessa nella vista corrente. Modifica i filtri per visualizzare i risultati.")
       : riskRows.length > 0
-      ? `${riskRows.length} ${riskRows.length === 1 ? "commessa richiede" : "commesse richiedono"} attenzione. ${kpi.reliableCount > 0 ? `Gap economico calcolabile rispetto al target dopo struttura ${targetMarginPct.toFixed(1)}%: ${formatCurrency(kpi.targetRecovery)}.` : "Gap non calcolabile con dati incompleti."}${kpi.incompleteCount > 0 ? ` ${kpi.incompleteCount} senza costi completi.` : ""}`
-      : `Le commesse filtrate sono sopra il target dopo struttura ${targetMarginPct.toFixed(1)}%.`;
+      ? `${t(riskRows.length === 1 ? "{n} commessa richiede attenzione." : "{n} commesse richiedono attenzione.", { n: riskRows.length })} ${kpi.reliableCount > 0 ? t("Gap economico calcolabile rispetto al target dopo struttura {percento}%: {importo}.", { percento: targetMarginPct.toFixed(1), importo: formatCurrency(kpi.targetRecovery) }) : t("Gap non calcolabile con dati incompleti.")}${kpi.incompleteCount > 0 ? ` ${t("{n} senza costi completi.", { n: kpi.incompleteCount })}` : ""}`
+      : t("Le commesse filtrate sono sopra il target dopo struttura {percento}%.", { percento: targetMarginPct.toFixed(1) });
 
     return { riskRows: riskRows.slice(0, 5), insight };
-  }, [filtered, targetMarginPct, kpi.incompleteCount, kpi.reliableCount, kpi.targetRecovery, getAdjustedMargin, getMarginDecision]);
+  }, [filtered, targetMarginPct, kpi.incompleteCount, kpi.reliableCount, kpi.targetRecovery, getAdjustedMargin, getMarginDecision, t]);
 
   const { sediSelezionate, periodo, tipoSede } = useSedeFilter();
   const { data: sediData, error: sediError, refetch: refetchSediData } = useSediAnalytics({
@@ -968,29 +974,29 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
             <h2 className="text-base font-semibold">{t("Marginalità della vista")}</h2>
             <p className="mt-0.5 text-xs text-blue-100/80">{t("Importi imponibili · percentuali ponderate sui ricavi")}</p>
           </div>
-          <Badge className="border border-white/20 bg-white/10 text-white hover:bg-white/10">{t("Target dopo struttura {targetMarginPct}%", { targetMarginPct: targetMarginPct.toLocaleString(intlCampo(), {maximumFractionDigits:1}) })}</Badge>
+          <Badge className="border border-white/20 bg-white/10 text-white hover:bg-white/10">{t("Target dopo struttura {percento}%", { percento: targetMarginPct.toLocaleString(intlCampo(), {maximumFractionDigits:1}) })}</Badge>
         </div>
         {error && <p role="alert" className="mb-3 rounded-lg bg-red-400/10 px-3 py-2 text-sm text-red-100">{t("Dati non caricati: premi Aggiorna dati per riprovare.")}</p>}
         {anomaliesError && <p role="alert" className="mb-2 text-xs text-amber-100">{t("Anomalie non caricate: premi Aggiorna dati per riprovare.")}</p>}
         <div className="grid gap-2 min-[420px]:grid-cols-2 xl:grid-cols-4">
           <OrdersSummaryCard id="margine-diretto" title={t("Margine diretto")} icon={BarChart3}
             value={error || kpi.reliableCount === 0 ? "—" : formatCurrency(kpi.totMargine)} loading={isLoading}
-            note={t("{reliableCount} commesse calcolabili", { reliableCount: String(kpi.reliableCount ?? "") })}
-            ring={!error && kpi.reliableCount > 0 ? {value:kpi.avgMarginePerc,label:"Margine diretto ponderato",color:kpi.avgMarginePerc < 0 ? "amber" : "green"} : undefined}
-            info="Ricavi contrattuali meno costi diretti registrati, senza IVA. La percentuale è ponderata sui ricavi. Le commesse senza costi completi sono escluse; sulle commesse aperte il dato è provvisorio." />
+            note={t("{n} commesse calcolabili", { n: String(kpi.reliableCount ?? "") })}
+            ring={!error && kpi.reliableCount > 0 ? {value:kpi.avgMarginePerc,label:t("Margine diretto ponderato"),color:kpi.avgMarginePerc < 0 ? "amber" : "green"} : undefined}
+            info={t("Ricavi contrattuali meno costi diretti registrati, senza IVA. La percentuale è ponderata sui ricavi. Le commesse senza costi completi sono escluse; sulle commesse aperte il dato è provvisorio.")} />
           <OrdersSummaryCard id="margine-struttura" title={t("Dopo struttura")} icon={HardHat}
             value={error || kpi.structuredCount === 0 ? "—" : formatCurrency(kpi.adjustedMarginTotal)} loading={isLoading}
-            note={kpi.structuredCount === 0 ? (kpi.reliableCount === 0 ? t("margine non calcolabile") : t("struttura non disponibile")) : t("{structuredCount} commesse con quota di struttura", { structuredCount: String(kpi.structuredCount ?? "") })}
-            ring={!error && kpi.structuredCount > 0 ? {value:kpi.avgMargineNettoPerc,label:"Margine dopo struttura ponderato",color:kpi.avgMargineNettoPerc < 0 ? "amber" : "green"} : undefined}
-            info="Margine diretto meno quota di struttura stimata. Si usano soltanto le commesse con una quota calcolabile. La struttura e i mezzi stimati restano separati dal consuntivo contabile." />
+            note={kpi.structuredCount === 0 ? (kpi.reliableCount === 0 ? t("margine non calcolabile") : t("struttura non disponibile")) : t("{n} commesse con quota di struttura", { n: String(kpi.structuredCount ?? "") })}
+            ring={!error && kpi.structuredCount > 0 ? {value:kpi.avgMargineNettoPerc,label:t("Margine dopo struttura ponderato"),color:kpi.avgMargineNettoPerc < 0 ? "amber" : "green"} : undefined}
+            info={t("Margine diretto meno quota di struttura stimata. Si usano soltanto le commesse con una quota calcolabile. La struttura e i mezzi stimati restano separati dal consuntivo contabile.")} />
           <OrdersSummaryCard id="gap-target" title={t("Gap dal target")} icon={Target}
             value={error || kpi.reliableCount === 0 ? "—" : formatCurrency(kpi.targetRecovery)} loading={isLoading}
             note={t("da recuperare o compensare")}
-            info="Somma degli importi da recuperare per raggiungere il target dopo struttura sulle commesse della vista. È una distanza gestionale dal target, non un debito o un costo già sostenuto." />
+            info={t("Somma degli importi da recuperare per raggiungere il target dopo struttura sulle commesse della vista. È una distanza gestionale dal target, non un debito o un costo già sostenuto.")} />
           <OrdersSummaryCard id="commesse-controllare" title={t("Da controllare")} icon={ShieldAlert}
             value={error ? "—" : String(kpi.riskCount)} loading={isLoading}
-            note={t("{incompleteCount} con dati incompleti", { incompleteCount: String(kpi.incompleteCount ?? "") })}
-            info={error ? "Dati non caricati: premi Aggiorna dati per riprovare." : `${marginControl.insight}${isFetchingAnomalies ? " Aggiornamento anomalie in corso." : ""}${anomaliesError ? " Anomalie non caricate: premi Aggiorna dati per riprovare." : ""}`} />
+            note={t("{n} con dati incompleti", { n: String(kpi.incompleteCount ?? "") })}
+            info={error ? t("Dati non caricati: premi Aggiorna dati per riprovare.") : `${marginControl.insight}${isFetchingAnomalies ? ` ${t("Aggiornamento anomalie in corso.")}` : ""}${anomaliesError ? ` ${t("Anomalie non caricate: premi Aggiorna dati per riprovare.")}` : ""}`} />
         </div>
       </section>
 
@@ -1079,13 +1085,13 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
             <p className="text-xs text-muted-foreground">
               {vehicleEstimatesError ? t("dati non caricati: premi Aggiorna dati") : vehicleDataHidden
                 ? t("non visibili con i tuoi permessi")
-                : `margine con i mezzi ${formatCurrency(kpi.margineConMezzi)} · ${kpi.vehiclesUsed} assegnazioni${kpi.vehiclesWithoutCost > 0 ? ` · ${kpi.vehiclesWithoutCost} senza costo` : ""}`}
+                : `${t("margine con i mezzi {importo} · {n} assegnazioni", { importo: formatCurrency(kpi.margineConMezzi), n: kpi.vehiclesUsed })}${kpi.vehiclesWithoutCost > 0 ? ` · ${t("{n} senza costo", { n: kpi.vehiclesWithoutCost })}` : ""}`}
             </p>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase text-red-700">{t("Errori e anomalie")}</p>
             <p className="mt-1 font-semibold">{formatCurrency(kpi.errorCost)}</p>
-            <p className="text-xs text-muted-foreground">{anomaliesError ? t("Anomalie non caricate") : t("{openAnomalyCount} ancora da verificare", { openAnomalyCount: String(kpi.openAnomalyCount ?? "") })}</p>
+            <p className="text-xs text-muted-foreground">{anomaliesError ? t("Anomalie non caricate") : t("{n} ancora da verificare", { n: String(kpi.openAnomalyCount ?? "") })}</p>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase text-blue-700">{t("Struttura mensile")}</p>
@@ -1100,7 +1106,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
           <div className="sm:col-span-2">
             <p className="text-xs font-semibold uppercase text-muted-foreground">{t("Metodo")}</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              {t("La struttura viene ripartita automaticamente nel tempo.")} {overheadPct === null ? t("Se mancano date o dati la quota non viene calcolata: puoi impostare una percentuale aziendale.") : t("Se mancano date o dati viene applicata la percentuale del {overheadPct}%.", { overheadPct: overheadPct.toFixed(1) })} {t("Mezzi e struttura sono letture gestionali e non modificano il consuntivo contabile.")}
+              {t("La struttura viene ripartita automaticamente nel tempo.")} {overheadPct === null ? t("Se mancano date o dati la quota non viene calcolata: puoi impostare una percentuale aziendale.") : t("Se mancano date o dati viene applicata la percentuale del {percento}%.", { percento: overheadPct.toFixed(1) })} {t("Mezzi e struttura sono letture gestionali e non modificano il consuntivo contabile.")}
             </p>
           </div>
         </div>
@@ -1108,7 +1114,9 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
 
       {hasMoreRows && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {t("Vista limitata alle prime")} {rows.length.toLocaleString(intlCampo())} {t("commesse")}{totalRows > rows.length ? t(" su {totalRows}", { totalRows: totalRows.toLocaleString(intlCampo()) }) : t(": potrebbero esserci altre commesse")}{t(". Ricerca, filtri e CSV riguardano solo queste commesse caricate.")}
+          {totalRows > rows.length
+            ? t("Vista limitata alle prime {n} commesse su {totale}. Ricerca, filtri e CSV riguardano solo queste commesse caricate.", { n: rows.length.toLocaleString(intlCampo()), totale: totalRows.toLocaleString(intlCampo()) })
+            : t("Vista limitata alle prime {n} commesse: potrebbero esserci altre commesse. Ricerca, filtri e CSV riguardano solo queste commesse caricate.", { n: rows.length.toLocaleString(intlCampo()) })}
         </div>
       )}
 
@@ -1212,7 +1220,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <p role="status">{filtered.length} {filtered.length === 1 ? t("commessa visualizzata") : t("commesse visualizzate")} {t("su")} {rows.length} {t("caricate")}</p>
+        <p role="status">{t(filtered.length === 1 ? "{n} commessa visualizzata su {totale} caricate" : "{n} commesse visualizzate su {totale} caricate", { n: filtered.length, totale: rows.length })}</p>
         <div className="flex flex-wrap items-center gap-2">
           {(search || annoFilter !== "tutti" || healthFilter !== "tutti") && <Button variant="ghost" size="sm" onClick={() => {setSearch(""); setAnnoFilter("tutti"); setHealthFilter("tutti");}}>{t("Azzera filtri")}</Button>}
           {(overheadPctOverride !== null || targetMarginPctOverride !== null) && <>
@@ -1300,7 +1308,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                   const margineNetto = adjusted.adjustedMarginPct;
                   const margineNettoAbs = adjusted.adjustedMargin;
                   const overheadAllocato = adjusted.structureAmount;
-                  const decision = getMarginDecision(row);
+                  const decision = getMarginDecision(row, t);
                   const anomaly = getOrderAnomalySummary(row.id);
                   const reliable = hasReliableMargin(row);
                   return (
@@ -1311,7 +1319,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                     >
                       <TableCell className="min-w-[155px]">
                         <div className="flex items-center gap-1 font-medium text-primary">
-                          <button type="button" className="text-left hover:underline focus-visible:underline" aria-label={`Dettaglio margine ${row.order_code ?? row.description}`} onClick={(event) => { event.stopPropagation(); setDrillRow(row); }}>{row.order_code ? `#${row.order_code}` : "–"}</button>
+                          <button type="button" className="text-left hover:underline focus-visible:underline" aria-label={t("Dettaglio margine {commessa}", { commessa: String(row.order_code ?? row.description ?? "") })} onClick={(event) => { event.stopPropagation(); setDrillRow(row); }}>{row.order_code ? `#${row.order_code}` : "–"}</button>
                           <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                         <p title={row.description} className="max-w-[160px] truncate text-[11px] text-muted-foreground">{row.description}</p>
@@ -1322,7 +1330,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                           {reliable
                             ? <MarginHealthBadge perc={margineNetto} target={targetMarginPct} />
                             : <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">{t("Dati incompleti")}</Badge>}
-                          {anomaly?.openCount ? <p className="text-[10px] text-amber-700">{t("{openCount} anomalie aperte", { openCount: String(anomaly.openCount ?? "") })}</p> : null}
+                          {anomaly?.openCount ? <p className="text-[10px] text-amber-700">{t("{n} anomalie aperte", { n: String(anomaly.openCount ?? "") })}</p> : null}
                           {reliable && notaAvanzamento(avanzamentoPerCommessa.get(row.id)) && <p className="max-w-[150px] truncate text-[10px] text-muted-foreground" title={notaAvanzamento(avanzamentoPerCommessa.get(row.id)) ?? undefined}>{notaAvanzamento(avanzamentoPerCommessa.get(row.id))}</p>}
                         </div>
                       </TableCell>
@@ -1331,7 +1339,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                       <TableCell className={cn("border-l border-sky-100 bg-sky-50/50 text-right font-semibold tabular-nums whitespace-nowrap", MargineColorClass(marginePerc))}>
                         {reliable ? formatCurrency(margine) : "—"}
                         {reliable && quotaMezzi(row.id) > 0 && (
-                          <div className="whitespace-nowrap text-xs font-normal text-muted-foreground">{t("con i mezzi {valore}", { valore: formatCurrency(margine - quotaMezzi(row.id)) })}</div>
+                          <div className="whitespace-nowrap text-xs font-normal text-muted-foreground">{t("con i mezzi {importo}", { importo: formatCurrency(margine - quotaMezzi(row.id)) })}</div>
                         )}
                       </TableCell>
                       <TableCell className="bg-sky-50/50 text-center">
@@ -1346,8 +1354,8 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                         ) : (
                           <>
                             <span title={adjusted.source === "automatic"
-                              ? `${adjusted.months?.toFixed(1) ?? "—"} mesi × quota mensile automatica`
-                              : t("Percentuale aziendale del {structurePct}% sul ricavo", { structurePct: adjusted.structurePct.toFixed(1) })}>
+                              ? t("{mesi} mesi × quota mensile automatica", { mesi: adjusted.months?.toFixed(1) ?? "—" })
+                              : t("Percentuale aziendale del {percento}% sul ricavo", { percento: adjusted.structurePct.toFixed(1) })}>
                               {formatCurrency(overheadAllocato)}
                             </span>
                             <span className="mt-0.5 block text-[9px] uppercase text-slate-500">
@@ -1363,7 +1371,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                       {showCostColumns && <>
                       <TableCell className="text-right text-sm text-muted-foreground">
                         {costoAcquisti + costoMagazzino > 0 ? (
-                          <span title={t("{costoAcquisti} ODA · {costoMagazzino} scorta", { costoAcquisti: formatCurrency(costoAcquisti), costoMagazzino: formatCurrency(costoMagazzino) })}>
+                          <span title={t("{acquisti} ODA · {scorta} scorta", { acquisti: formatCurrency(costoAcquisti), scorta: formatCurrency(costoMagazzino) })}>
                             {formatCurrency(costoAcquisti + costoMagazzino)}
                           </span>
                         ) : "–"}
@@ -1412,7 +1420,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
             return (
             // Da telefono la scheda è stretta: si tocca e si apre il dettaglio dei costi.
             <Card key={row.id} role="button" tabIndex={0} onClick={() => setDrillRow(row)}
-              onKeyDown={(e) => { if (e.key === "Enter") setDrillRow(row); }} aria-label={`Dettaglio costi ${row.order_code ?? ""}`}>
+              onKeyDown={(e) => { if (e.key === "Enter") setDrillRow(row); }} aria-label={t("Dettaglio costi {commessa}", { commessa: String(row.order_code ?? "") })}>
               <CardContent className="space-y-1.5 px-3 py-2.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">

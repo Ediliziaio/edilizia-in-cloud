@@ -34,7 +34,7 @@ export function SmsRicaricaModal({ open, onOpenChange }: SmsRicaricaModalProps) 
       const sessione = await creaRicarica({ pacchetto_id: pacchetto, operazione_id: tentativo.current.id });
       const url = new URL(sessione.url);
       if (url.protocol !== "https:" || url.hostname !== "checkout.stripe.com") {
-        throw new Error("Indirizzo del pagamento non valido. Riprova.");
+        throw new Error(t("Indirizzo del pagamento non valido. Riprova."));
       }
       safeRedirect(url.href);
     } catch (err) {

@@ -149,7 +149,7 @@ export default function RistrutturazioneWizard() {
       import("@/lib/moduli-vendita/fullRstModules"), import("@/lib/moduli-vendita/localRstTemplates"),
       import("@/lib/moduli-vendita/archivioModelli"),
     ]);
-    if (!isFullRstModuleId(model.id)) throw new Error("Questo intervento non ha un modello completo. Nessuna offerta generica è stata creata.");
+    if (!isFullRstModuleId(model.id)) throw new Error(tr("Questo intervento non ha un modello completo. Nessuna offerta generica è stata creata."));
     // Il modello personalizzato è dell'azienda: può averlo salvato un collega da
     // un altro computer. Se il database non risponde resta la copia di questo browser.
     await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
@@ -159,7 +159,7 @@ export default function RistrutturazioneWizard() {
   };
   const createInput = async (): Promise<RstFormPatch> => {
     if (!requestedModel) return form;
-    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
+    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error(tr("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata."));
     return { ...form, tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.ristrutturazione[model.id], modello_snapshot: await modelloAttuale(effectiveCompany.id, model) };
   };
   // L'ultimo form a video. Quando un salvataggio torna, «salvato» vale solo se

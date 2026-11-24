@@ -520,13 +520,13 @@ function FotovoltaicoWizard() {
     if (!progettoEsistente) return null;
     const stato = (progettoEsistente as { stato?: string }).stato;
     if (stato === "firmato")
-      return "Progetto firmato dal cliente. I dati non sono più modificabili. Puoi clonarlo per creare una nuova versione.";
+      return t("Progetto firmato dal cliente. I dati non sono più modificabili. Puoi clonarlo per creare una nuova versione.");
     if (stato === "annullato")
-      return "Progetto annullato. Sola consultazione.";
+      return t("Progetto annullato. Sola consultazione.");
     if (stato === "emesso")
-      return "Preventivo emesso. Per modificare clona il progetto e crea una nuova versione.";
+      return t("Preventivo emesso. Per modificare clona il progetto e crea una nuova versione.");
     return null;
-  }, [progettoEsistente]);
+  }, [progettoEsistente, t]);
 
   // Carica progetto esistente nello state in MODIFICA. La verità è il DB:
   // sovrascrive sempre il draft locale (eventualmente stale/vuoto) al primo
@@ -1255,10 +1255,10 @@ function FotovoltaicoWizard() {
       // Fix #16 Sprint 3: traccia se i dati sono mock per warning persistente
       update("tetto_mock", isMock);
       // F10: toast difensivo contro null + nota quando la geometria è stimata.
-      const oreTxt = ore != null ? `${ore.toFixed(0)} h sole/anno` : "ore sole non disponibili";
-      const maxTxt = numMax != null ? `max ${numMax} pannelli` : "geometria da definire";
-      const stimaTxt = isMock ? " (dati dimostrativi)" : "";
-      toast.success(t("Tetto analizzato: {oreTxt} · {maxTxt}{stimaTxt}", { oreTxt: String(oreTxt ?? ""), maxTxt: String(maxTxt ?? ""), stimaTxt: String(stimaTxt ?? "") }));
+      const oreTxt = ore != null ? t("{n} h sole/anno", { n: ore.toFixed(0) }) : t("ore sole non disponibili");
+      const maxTxt = numMax != null ? t("max {n} pannelli", { n: numMax }) : t("geometria da definire");
+      const stimaTxt = isMock ? ` ${t("(dati dimostrativi)")}` : "";
+      toast.success(t("Tetto analizzato: {oreTxt} · {maxTxt}{stimaTxt}", { oreTxt, maxTxt, stimaTxt }));
     } catch (e) {
       if (!mountedRef.current || versione !== versioneAnalisiTetto.current) return;
       toast.error(
@@ -1356,7 +1356,7 @@ function FotovoltaicoWizard() {
           const netto = Number(r.tariffa_oraria_netta) || 0;
           return {
             tariffa_id: r.tariffa_id,
-            descrizione: r.descrizione || t("Manodopera"),
+            descrizione: r.descrizione || "Manodopera",
             ore: Number(r.ore) || 0,
             tariffa_oraria_netta: netto,
             tariffa_oraria_vendita: vendita,
@@ -1370,7 +1370,7 @@ function FotovoltaicoWizard() {
         replace: true,
         righe: data.servizi_righe.map((r, i) => ({
           tipo: tipoServizioFv(r.tipo),
-          descrizione: r.descrizione || t("Servizio"),
+          descrizione: r.descrizione || "Servizio",
           quantita: Number(r.quantita) || 1,
           prezzo_netto: Number(r.prezzo_netto) || 0,
           prezzo_vendita: Number(r.prezzo_vendita) || 0,
@@ -1914,16 +1914,16 @@ function FotovoltaicoWizard() {
   // Il codice c'è già nel badge sopra il titolo (07/11/2026): il titolo dice per chi è, il sottotitolo dove.
   const nomeCliente = [data.cliente_nome, data.cliente_cognome].filter(Boolean).join(" ").trim();
   const titoloHeader = progettoId
-    ? nomeCliente || `Progetto ${numero ?? "fotovoltaico"}`
-    : modelloRichiesto ? `Nuovo preventivo · ${modelloRichiesto.title}` : "Nuovo progetto fotovoltaico";
+    ? nomeCliente || t("Progetto {numero}", { numero: numero ?? t("fotovoltaico") })
+    : modelloRichiesto ? t("Nuovo preventivo · {titolo}", { titolo: modelloRichiesto.title }) : t("Nuovo progetto fotovoltaico");
   const subtitleHeader = progettoId && nomeCliente
-    ? data.indirizzo || "Indirizzo dell'impianto da scrivere nella fase 2"
+    ? data.indirizzo || t("Indirizzo dell'impianto da scrivere nella fase 2")
     : nomeCliente || data.indirizzo
       ? `${nomeCliente}${data.indirizzo ? `${nomeCliente ? " · " : ""}${data.indirizzo}` : ""}`
-      : "Compila la fase 1 per iniziare";
+      : t("Compila la fase 1 per iniziare");
 
   const lastSaveText = lastSaveAt
-    ? `Ultima modifica ${lastSaveAt.toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" })}`
+    ? t("Ultima modifica {valore}", { valore: lastSaveAt.toLocaleTimeString(intlCampo(), { hour: "2-digit", minute: "2-digit" }) })
     : undefined;
 
   // ─── Anteprima live a destra ─────────────────────────────────────────────
@@ -1960,13 +1960,13 @@ function FotovoltaicoWizard() {
   // Stato display nell'header
   const statoHeader = readOnlyMode
     ? (progettoEsistente as { stato?: string } | undefined)?.stato === "firmato"
-      ? "Firmato"
+      ? t("Firmato")
       : (progettoEsistente as { stato?: string } | undefined)?.stato === "annullato"
-        ? "Annullato"
-        : "Emesso"
+        ? t("Annullato")
+        : t("Emesso")
     : progettoId
-      ? "In compilazione"
-      : "Bozza";
+      ? t("In compilazione")
+      : t("Bozza");
 
   if (modelloSalvato.error || (!id && requestedModel && !modelloRichiesto)) return <div role="alert" className="space-y-3 p-6"><h1 className="text-xl font-semibold">{t("Intervento non disponibile")}</h1><p>{modelloSalvato.error ?? t("Il tipo di intervento richiesto non è riconosciuto.")}</p><Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=fotovoltaico")}>{t("Scegli un intervento")}</Button></div>;
 
@@ -2016,7 +2016,7 @@ function FotovoltaicoWizard() {
               aria-label={readOnlyMode ? t("Chiudi") : t("Salva e chiudi")}
               className="px-3 py-1.5 text-sm font-semibold text-slate-500 hover:text-slate-700 inline-flex items-center gap-1.5 max-md:px-2.5"
             >
-              <X className="h-4 w-4" /> <span className="max-md:hidden">{readOnlyMode ? "Chiudi" : "Salva e chiudi"}</span>
+              <X className="h-4 w-4" /> <span className="max-md:hidden">{readOnlyMode ? t("Chiudi") : t("Salva e chiudi")}</span>
             </button>
             {progettoId && (
               <button
@@ -2035,7 +2035,7 @@ function FotovoltaicoWizard() {
           <>
             <FvChip variant={readOnlyMode ? "yellow" : "green"}>
               {readOnlyMode ? "🔒" : <Sun className="h-3 w-3" />}
-              {readOnlyMode ? "Sola lettura" : (progettoId && intervento?.title) || "Fotovoltaico"}
+              {readOnlyMode ? t("Sola lettura") : (progettoId && intervento?.title) || t("Fotovoltaico")}
             </FvChip>
             {readOnlyMode && intervento && <span>{intervento.title}</span>}
           </>
@@ -2362,7 +2362,7 @@ function FotovoltaicoWizard() {
         onNext={step < TOTAL_STEPS && !readOnlyMode ? goNext : undefined}
         prevDisabled={step === 1}
         nextDisabled={!stepValido || analizzandoTetto || calcolandoFinanziario}
-        nextLabel={step === 7 ? "Vai a generazione" : "Avanti"}
+        nextLabel={step === 7 ? t("Vai a generazione") : t("Avanti")}
         saving={salvando}
         telefono={<BottoneTotale valore={totaleTesto ?? "—"} onClick={() => setAnteprimaMobileAperta(true)} />}
       />
@@ -2602,7 +2602,7 @@ function Step2Immobile({
       if (res.regione) update("regione", res.regione);
       toast.success(
         res.comune
-          ? `Trovato: ${res.comune}${res.provincia ? ` (${res.provincia})` : ""} — coordinate impostate`
+          ? t("Trovato: {comune} — coordinate impostate", { comune: `${res.comune}${res.provincia ? ` (${res.provincia})` : ""}` })
           : t("Coordinate trovate: {lat}, {lng}", { lat: res.lat.toFixed(5), lng: res.lng.toFixed(5) }),
       );
     } catch (e) {
@@ -3017,7 +3017,7 @@ export function Step4Tetto({
             title={t("Google Solar API")}
             titleBreve="Google"
             description={t("Potenziale solare del tetto, dove coperto. Foto e quote nel pannello della mappa.")}
-            badge="Consigliato"
+            badge={t("Consigliato")}
           />
           <SourceTile
             active={data.fonte_dati_tetto === "pvgis"}
@@ -3791,10 +3791,10 @@ export function Step5Configurazione({
         : "success";
   const readinessLabel =
     readiness.status === "blocked"
-      ? "Blocchi da correggere"
+      ? tr("Blocchi da correggere")
       : readiness.status === "review"
-        ? "Da rivedere"
-        : "Pronto offerta";
+        ? tr("Da rivedere")
+        : tr("Pronto offerta");
 
   // Specifiche modulo derivate dal pannello scelto (catalogo) → dimensionamento stringhe
   const pannelloSelStringhe = pannelli.find((p) => (p as { id?: string }).id === data.pannello_id);
@@ -4081,7 +4081,7 @@ export function Step5Configurazione({
             value={disegnoBozza}
             modulo={moduloDisegno}
             potenzaModuloW={wattDisegno>0?wattDisegno:0}
-            nomeModulo={String(pannelli.find(p => p.id === data.pannello_id)?.descrizione || "Scegli il pannello dal listino")}
+            nomeModulo={String(pannelli.find(p => p.id === data.pannello_id)?.descrizione || tr("Scegli il pannello dal listino"))}
             localita={data.latitudine!=null&&data.longitudine!=null?{lat:data.latitudine,lng:data.longitudine}:null}
             riepilogoProposta={p=>{if(!(wattDisegno>0))return{kwp:0,totale:null};const d={...data,...datiDalDisegno(p,wattDisegno,data.prodotti_extra)};return{kwp:d.potenza_kwp,totale:anteprimaFotovoltaico(d,{listino:{pannelli,inverter,accumuli},regoleSconto:regoleDisegno,impiantoConfigurato:true}).totaleDocumento??null};}}
             quantitaIniziale={data.numero_pannelli_scelti}
@@ -4368,7 +4368,7 @@ export function Step5Configurazione({
                         {serviziCatalogo.length === 0 && <SelectItem value="__none__" disabled>{tr("Catalogo servizi vuoto")}</SelectItem>}
                         {serviziCatalogo.map((s) => (
                           // L'importo qui è il costo del servizio (prezzo_netto_default): lo vede solo chi può vedere costi e margini.
-                          <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.descrizione ?? "Servizio")}{puoVedereImpresa ? ` — ${Number(s.prezzo_netto_default ?? 0).toFixed(0)}€` : ""}</SelectItem>
+                          <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.descrizione ?? tr("Servizio"))}{puoVedereImpresa ? ` — ${Number(s.prezzo_netto_default ?? 0).toFixed(0)}€` : ""}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -4724,6 +4724,7 @@ export function Step5Configurazione({
  * calcolo è server-side e dura sempre lo stesso tempo).
  */
 function FvCalcoloProgress() {
+  const tr = useT();
   const fasi = [
     "Energy flows: produzione, autoconsumo, ceduto rete…",
     "NPV 25 anni + IRR + payback…",
@@ -4737,7 +4738,7 @@ function FvCalcoloProgress() {
   }, [fasi.length]);
   return (
     <p className="text-sm text-slate-500 max-w-md mx-auto min-h-[1.5em] transition-opacity">
-      {fasi[idx]}
+      {tr(fasi[idx])}
     </p>
   );
 }
@@ -4910,7 +4911,7 @@ function ModalitaPagamentoCard({
         title={cardTitle}
         action={
           <FvChip variant={modalita === "zero" ? "purple" : "green"}>
-            {modalita === "zero" ? "Tasso zero" : "Finanziato a rate"}
+            {modalita === "zero" ? tr("Tasso zero") : tr("Finanziato a rate")}
           </FvChip>
         }
         className="mt-4"
@@ -5021,7 +5022,7 @@ function ModalitaPagamentoCard({
       }
       action={
         <FvChip variant={sumOk ? "green" : "yellow"}>
-          {sumOk ? "✓ Totale 100%" : `⚠ Totale ${sommaPct.toFixed(0)}%`}
+          {sumOk ? tr("✓ Totale 100%") : tr("⚠ Totale {n}%", { n: sommaPct.toFixed(0) })}
         </FvChip>
       }
       className="mt-4"
@@ -5144,7 +5145,7 @@ function Step6FinanziarioPrivato({
   fvTemplate: Record<string, unknown> | null | undefined;
   onRicalcola: () => void;
 }) {
-  const tTesto = useT();
+  const tr = useT();
   // Confronto varianti (gap vs Reonic/Autarc): profili autoconsumo per stimare
   // il delta delle varianti con/senza accumulo. Hook prima di ogni early-return.
   const { data: profiliAutoconsumo } = useProfiliAutoconsumo();
@@ -5154,11 +5155,11 @@ function Step6FinanziarioPrivato({
       <FvCard>
         <div className="py-12 text-center space-y-3">
           <Loader2 className="h-12 w-12 mx-auto animate-spin text-orange-500" />
-          <p className="font-semibold text-slate-900">{tTesto("Sto calcolando il tuo scenario finanziario…")}</p>
+          <p className="font-semibold text-slate-900">{tr("Sto calcolando il tuo scenario finanziario…")}</p>
           {/* Fix #18 Sprint 3: progress indicator step-by-step (cycling) */}
           <FvCalcoloProgress />
           <p className="text-xs text-slate-400 max-w-md mx-auto mt-3">
-            {tTesto("Tipicamente 2-5 secondi. Se richiede più di 30 secondi prova \"Ricalcola\".")}
+            {tr("Tipicamente 2-5 secondi. Se richiede più di 30 secondi prova \"Ricalcola\".")}
           </p>
         </div>
       </FvCard>
@@ -5167,9 +5168,9 @@ function Step6FinanziarioPrivato({
 
   if (error || !scenario) {
     return (
-      <FvCard title={tTesto("Calcolo finanziario")}>
-        <FvCallout variant="error" title={error ? tTesto("Calcolo non riuscito") : tTesto("Nessun calcolo eseguito")}>
-          {error ?? tTesto("Premi ricalcola per generare lo scenario finanziario completo (NPV, IRR, sensitivity, what-if).")}
+      <FvCard title={tr("Calcolo finanziario")}>
+        <FvCallout variant="error" title={error ? tr("Calcolo non riuscito") : tr("Nessun calcolo eseguito")}>
+          {error ?? tr("Premi ricalcola per generare lo scenario finanziario completo (NPV, IRR, sensitivity, what-if).")}
         </FvCallout>
         <div className="mt-4 text-center">
           <button
@@ -5178,7 +5179,7 @@ function Step6FinanziarioPrivato({
             className="px-5 py-2.5 text-sm font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-eic-amber shadow-md hover:shadow-lg transition-all inline-flex items-center gap-2"
           >
             <RefreshCw className="h-4 w-4" />
-            {error ? tTesto("Riprova calcolo") : tTesto("Calcola scenario")}
+            {error ? tr("Riprova calcolo") : tr("Calcola scenario")}
           </button>
         </div>
       </FvCard>
@@ -5257,20 +5258,20 @@ function Step6FinanziarioPrivato({
   let durataInfoMesi = 0;
   if (data.finanziamento_modalita === "cash") {
     rataMensilePrestito = 0;
-    rataInfoLabel = "Pagamento immediato";
+    rataInfoLabel = tr("Pagamento immediato");
   } else if (data.finanziamento_modalita === "zero") {
     const dur = data.durata_mesi_scelta ?? 60;
     rataMensilePrestito = Math.round((investimento / dur) * 100) / 100; // al centesimo, come si salva
     durataInfoMesi = dur;
     _taegInfoPct = 0;
-    rataInfoLabel = `Tasso 0% · ${dur} mesi`;
+    rataInfoLabel = tr("Tasso 0% · {n} mesi", { n: dur });
   } else if (data.finanziamento_modalita === "noleggio") {
     rataMensilePrestito = noleggioScenario.canone_mensile;
     durataInfoMesi = noleggioScenario.durata_mesi;
     _taegInfoPct = 0;
     rataInfoLabel = noleggioScenario.eligible
-      ? `Noleggio operativo · ${noleggioScenario.durata_mesi} mesi · manutenzione inclusa`
-      : "Disponibile per aziende, condomini e CER";
+      ? tr("Noleggio operativo · {n} mesi · manutenzione inclusa", { n: noleggioScenario.durata_mesi })
+      : tr("Disponibile per aziende, condomini e CER");
   } else {
     // rate
     const dur = data.durata_mesi_scelta ?? 84;
@@ -5281,18 +5282,18 @@ function Step6FinanziarioPrivato({
       if (tabRata) {
         rataMensilePrestito = tabRata.importo_rata;
         _taegInfoPct = tabRata.taeg;
-        rataInfoLabel = `${tabellaScelta.finanziaria_nome ?? ""} · ${dur} mesi · TAEG ${tabRata.taeg.toFixed(2)}%`;
+        rataInfoLabel = tr("{finanziaria} · {n} mesi · TAEG {taeg}%", { finanziaria: tabellaScelta.finanziaria_nome ?? "", n: dur, taeg: tabRata.taeg.toFixed(2) });
       } else {
         rataMensilePrestito = Math.round((investimento * 1.2) / dur);
-        rataInfoLabel = `${tabellaScelta.finanziaria_nome ?? ""} · ${dur} mesi (stima)`;
+        rataInfoLabel = tr("{finanziaria} · {n} mesi (stima)", { finanziaria: tabellaScelta.finanziaria_nome ?? "", n: dur });
       }
     } else if (topAuto) {
       rataMensilePrestito = topAuto.rata.importo_rata;
       _taegInfoPct = topAuto.rata.taeg;
-      rataInfoLabel = `${topAuto.finanziaria_nome ?? ""} · ${dur} mesi · TAEG ${topAuto.rata.taeg.toFixed(2)}% (top consigliata)`;
+      rataInfoLabel = tr("{finanziaria} · {n} mesi · TAEG {taeg}% (top consigliata)", { finanziaria: topAuto.finanziaria_nome ?? "", n: dur, taeg: topAuto.rata.taeg.toFixed(2) });
     } else {
       rataMensilePrestito = Math.round((investimento * 1.2) / dur);
-      rataInfoLabel = `${dur} mesi · stima generica`;
+      rataInfoLabel = tr("{n} mesi · stima generica", { n: dur });
     }
   }
   // Con un anticipo in contanti alla firma (riquadro «Modalità di pagamento») si finanzia solo il
@@ -5336,10 +5337,10 @@ function Step6FinanziarioPrivato({
         : "success";
   const economicsTitle =
     economicsGuard.status === "blocked"
-      ? "Offerta non scalabile ancora"
+      ? tr("Offerta non scalabile ancora")
       : economicsGuard.status === "review"
-        ? "Economia da rivedere"
-        : "Economia pronta per vendita e campagne";
+        ? tr("Economia da rivedere")
+        : tr("Economia pronta per vendita e campagne");
 
   // ─── Confronto varianti (stima indicativa client-side) ────────────────────
   const profiloRow =
@@ -5381,10 +5382,10 @@ function Step6FinanziarioPrivato({
       <FvPanelTitle
         step={6}
         totalSteps={TOTAL_STEPS}
-        title={tTesto("Anteprima finanziaria per il cliente")}
+        title={tr("Anteprima finanziaria per il cliente")}
         subtitle={
           <>
-            {tTesto("Quello che vedrà il cliente nel preventivo PDF. Cambia modalità di pagamento per simulare gli scenari finanziari.")}
+            {tr("Quello che vedrà il cliente nel preventivo PDF. Cambia modalità di pagamento per simulare gli scenari finanziari.")}
           </>
         }
       />
@@ -5402,28 +5403,28 @@ function Step6FinanziarioPrivato({
       {/* Sprint 4: Modalità rateale dettagli + confronto top 3 finanziarie */}
       {data.finanziamento_modalita === "rate" && (
         <FvCard
-          title={tTesto("Modalità rateale — dettagli e confronto")}
+          title={tr("Modalità rateale — dettagli e confronto")}
           action={
             tabelleFinanziamento.length > 0 ? (
-              <FvChip variant="green">{tTesto("✓ Configurato in Impostazioni Azienda")}</FvChip>
+              <FvChip variant="green">{tr("✓ Configurato in Impostazioni Azienda")}</FvChip>
             ) : (
-              <FvChip variant="yellow">{tTesto("⚠ Nessuna tabella attiva")}</FvChip>
+              <FvChip variant="yellow">{tr("⚠ Nessuna tabella attiva")}</FvChip>
             )
           }
           className="mt-4"
         >
           {tabelleFinanziamento.length === 0 ? (
             <FvCallout variant="warn">
-              <strong>{tTesto("Nessuna tabella finanziamento attiva")}</strong> {tTesto("per l'importo")}{" "}
-              {formatEur(investimento)}{tTesto(". L'amministratore può caricare nuove tabelle in")}{" "}
-              <em>{tTesto("Impostazioni → Finanziamenti")}</em>.
+              <strong>{tr("Nessuna tabella finanziamento attiva")}</strong> {tr("per l'importo")}{" "}
+              {formatEur(investimento)}{tr(". L'amministratore può caricare nuove tabelle in")}{" "}
+              <em>{tr("Impostazioni → Finanziamenti")}</em>.
             </FvCallout>
           ) : (
             <>
               {/* Dropdown durata + finanziaria scelta */}
               <div className="grid sm:grid-cols-2 gap-3 mb-4">
                 <div>
-                  <Label>{tTesto("Durata finanziamento")}</Label>
+                  <Label>{tr("Durata finanziamento")}</Label>
                   <Select
                     value={String(data.durata_mesi_scelta ?? 84)}
                     onValueChange={(v) => update("durata_mesi_scelta", Number(v))}
@@ -5438,13 +5439,13 @@ function Step6FinanziarioPrivato({
                       )
                         .sort((a, b) => a - b)
                         .map((d) => (
-                          <SelectItem key={d} value={String(d)}>{tTesto("{d} mesi ({valore} anni)", { d: String(d ?? ""), valore: (d / 12).toFixed(0) })}</SelectItem>
+                          <SelectItem key={d} value={String(d)}>{tr("{d} mesi ({valore} anni)", { d: String(d ?? ""), valore: (d / 12).toFixed(0) })}</SelectItem>
                         ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label>{tTesto("Finanziaria scelta")}</Label>
+                  <Label>{tr("Finanziaria scelta")}</Label>
                   <Select
                     value={data.tabella_finanziamento_id ?? "__top__"}
                     onValueChange={(v) =>
@@ -5454,7 +5455,7 @@ function Step6FinanziarioPrivato({
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__top__">
-                        {tTesto("★ Top consigliata (best TAEG)")}
+                        {tr("★ Top consigliata (best TAEG)")}
                       </SelectItem>
                       {tabelleFinanziamento.map((t) => (
                         <SelectItem key={t.id} value={t.id}>
@@ -5470,8 +5471,8 @@ function Step6FinanziarioPrivato({
               {topFinanziamenti.length > 0 && (
                 <div className="space-y-2 mb-3">
                   <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    {tTesto("Confronto top")} {topFinanziamenti.length} {tTesto("per importo")} {formatEur(investimento)} ×{" "}
-                    {data.durata_mesi_scelta ?? 84} {tTesto("mesi")}
+                    {tr("Confronto top")} {topFinanziamenti.length} {tr("per importo")} {formatEur(investimento)} ×{" "}
+                    {data.durata_mesi_scelta ?? 84} {tr("mesi")}
                   </div>
                   {topFinanziamenti.map((t, i) => {
                     const isSelected =
@@ -5488,7 +5489,7 @@ function Step6FinanziarioPrivato({
                       >
                         {i === 0 && (
                           <span className="absolute -top-2 right-3 bg-orange-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                            {tTesto("★ Consigliata")}
+                            {tr("★ Consigliata")}
                           </span>
                         )}
                         <div className="flex justify-between items-center">
@@ -5497,11 +5498,11 @@ function Step6FinanziarioPrivato({
                               {t.finanziaria_nome ?? "—"} · {t.nome_prodotto}
                             </div>
                             <div className="text-[11px] text-slate-500">
-                              {t.rata.durata_mesi} {tTesto("mesi · TAEG")}{" "}
-                              <strong>{t.rata.taeg.toFixed(2)}%</strong> {tTesto("· TAN")}{" "}
+                              {t.rata.durata_mesi} {tr("mesi · TAEG")}{" "}
+                              <strong>{t.rata.taeg.toFixed(2)}%</strong> {tr("· TAN")}{" "}
                               {t.rata.tan.toFixed(2)}%
                               {t.rata.spese_istruttoria
-                                ? tTesto(" · spese istruttoria {spese_istruttoria}", { spese_istruttoria: formatEur(t.rata.spese_istruttoria) })
+                                ? tr(" · spese istruttoria {spese_istruttoria}", { spese_istruttoria: formatEur(t.rata.spese_istruttoria) })
                                 : ""}
                             </div>
                           </div>
@@ -5530,29 +5531,29 @@ function Step6FinanziarioPrivato({
                     <table className="w-full text-sm">
                       <tbody>
                         <tr>
-                          <td className="text-slate-600 py-1">{tTesto("Importo finanziato")}</td>
+                          <td className="text-slate-600 py-1">{tr("Importo finanziato")}</td>
                           <td className="text-right font-semibold tabular-nums">
                             {formatEur(r.importo_erogato)}
                           </td>
                         </tr>
                         <tr>
-                          <td className="text-slate-600 py-1">{tTesto("Numero rate")}</td>
-                          <td className="text-right font-semibold tabular-nums">{tTesto("{numero_rate} mensili", { numero_rate: String(r.numero_rate ?? "") })}</td>
+                          <td className="text-slate-600 py-1">{tr("Numero rate")}</td>
+                          <td className="text-right font-semibold tabular-nums">{tr("{numero_rate} mensili", { numero_rate: String(r.numero_rate ?? "") })}</td>
                         </tr>
                         <tr>
-                          <td className="text-slate-600 py-1">{tTesto("Importo rata")}</td>
+                          <td className="text-slate-600 py-1">{tr("Importo rata")}</td>
                           <td className="text-right font-bold text-orange-600 tabular-nums">
                             {formatEur(r.importo_rata)}/mese
                           </td>
                         </tr>
                         <tr>
-                          <td className="text-slate-600 py-1">{tTesto("Totale dovuto")}</td>
+                          <td className="text-slate-600 py-1">{tr("Totale dovuto")}</td>
                           <td className="text-right font-semibold tabular-nums">
                             {formatEur(r.importo_totale_dovuto)}
                           </td>
                         </tr>
                         <tr>
-                          <td className="text-slate-600 py-1">{tTesto("Costo del credito")}</td>
+                          <td className="text-slate-600 py-1">{tr("Costo del credito")}</td>
                           <td className="text-right font-semibold tabular-nums text-slate-700">
                             {formatEur(r.interessi_cliente ?? r.importo_totale_dovuto - r.importo_erogato)}
                           </td>
@@ -5564,7 +5565,7 @@ function Step6FinanziarioPrivato({
               })()}
 
               <FvCallout variant="info" >
-                {tTesto("Calcolato dal")} <strong>{tTesto("modulo Finanziamenti EiC")}</strong> {tTesto("con tabelle reali. Il TAEG include spese istruttoria. Validato server-side contro le soglie ARERA antiusura.")}
+                {tr("Calcolato dal")} <strong>{tr("modulo Finanziamenti EiC")}</strong> {tr("con tabelle reali. Il TAEG include spese istruttoria. Validato server-side contro le soglie ARERA antiusura.")}
               </FvCallout>
             </>
           )}
@@ -5573,10 +5574,10 @@ function Step6FinanziarioPrivato({
 
       {/* Tasso zero: la durata si sceglie qui, subito sotto la modalità. */}
       {data.finanziamento_modalita === "zero" && (
-        <FvCard title={tTesto("Tasso zero — durata")} className="mt-4">
+        <FvCard title={tr("Tasso zero — durata")} className="mt-4">
           <div className="grid sm:grid-cols-2 gap-3 items-end">
             <div>
-              <Label>{tTesto("Numero di rate")}</Label>
+              <Label>{tr("Numero di rate")}</Label>
               <Select
                 value={String(data.durata_mesi_scelta ?? 60)}
                 onValueChange={(v) => update("durata_mesi_scelta", Number(v))}
@@ -5584,12 +5585,12 @@ function Step6FinanziarioPrivato({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {[12, 24, 36, 48, 60, 84, 120].map((d) => (
-                    <SelectItem key={d} value={String(d)}>{tTesto("{n} rate", { n: String(d ?? "") })}</SelectItem>
+                    <SelectItem key={d} value={String(d)}>{tr("{n} rate", { n: String(d ?? "") })}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-xs text-slate-500">{tTesto("La rata, con l'anticipo, è qui sotto in «Modalità di pagamento».")}</p>
+            <p className="text-xs text-slate-500">{tr("La rata, con l'anticipo, è qui sotto in «Modalità di pagamento».")}</p>
           </div>
         </FvCard>
       )}
@@ -5609,7 +5610,7 @@ function Step6FinanziarioPrivato({
 
       {/* Confronto varianti — affianca configurazioni alternative (gap vs Reonic/Autarc) */}
       {!data.analisi_consumi&&<FvConfrontoVarianti ctx={ctxVarianti} className="mb-4" />}
-      {data.analisi_consumi&&<p className="mb-4 text-sm text-slate-600">{tTesto("Le configurazioni con quantità, spazio e prezzi del listino si confrontano nella fase Impianto.")}</p>}
+      {data.analisi_consumi&&<p className="mb-4 text-sm text-slate-600">{tr("Le configurazioni con quantità, spazio e prezzi del listino si confrontano nella fase Impianto.")}</p>}
 
       {/* Simulatore interattivo — il cliente muove i parametri e vede i numeri live.
           Telefono: da qui in giù è la presentazione al cliente (grafici a 25 anni, scenari,
@@ -5640,10 +5641,10 @@ function Step6FinanziarioPrivato({
         </div>
         <div className="relative">
           <div className="text-xs uppercase tracking-widest font-semibold mb-2 text-orange-200">
-            {tTesto("★ L'INVESTIMENTO")}
+            {tr("★ L'INVESTIMENTO")}
           </div>
           <h2 className="text-xl sm:text-2xl font-bold mb-3 max-w-[80%]">
-            {tTesto("Il tuo impianto fotovoltaico in 25 anni")}
+            {tr("Il tuo impianto fotovoltaico in 25 anni")}
           </h2>
           <div className="flex flex-wrap items-baseline gap-6 sm:gap-8 mt-4">
             <span
@@ -5656,20 +5657,20 @@ function Step6FinanziarioPrivato({
               {formatEur(guadagnoNetto25Anni)}
             </span>
             <div className="text-sm space-y-1.5 max-w-xs">
-              <div>{tTesto("guadagno netto in 25 anni vs senza FV")}</div>
+              <div>{tr("guadagno netto in 25 anni vs senza FV")}</div>
               <div>
-                {tTesto("Investimento:")}{" "}
+                {tr("Investimento:")}{" "}
                 <strong className="text-orange-200">{formatEur(investimento)}</strong>
               </div>
               <div>
-                {tTesto("Detrazione IRPEF:")}{" "}
+                {tr("Detrazione IRPEF:")}{" "}
                 <strong className="text-orange-200">
                   {formatEur(detrazione10anni)}
                 </strong>{" "}
-                {tTesto("in 10 anni")}
+                {tr("in 10 anni")}
               </div>
               <div>
-                {tTesto("Costo netto effettivo:")}{" "}
+                {tr("Costo netto effettivo:")}{" "}
                 <strong className="text-orange-200">{formatEur(costoNettoReale)}</strong>
               </div>
             </div>
@@ -5679,15 +5680,15 @@ function Step6FinanziarioPrivato({
 
       {/* 4 KPI HERO */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <FvKpi label={tTesto("Investimento")} value={formatEur(investimento)} />
-        <FvKpi label={tTesto("Risparmio anno 1")} value={formatEur(risparmioAnno1)} variant="green" />
+        <FvKpi label={tr("Investimento")} value={formatEur(investimento)} />
+        <FvKpi label={tr("Risparmio anno 1")} value={formatEur(risparmioAnno1)} variant="green" />
         <FvKpi
-          label={tTesto("Payback")}
+          label={tr("Payback")}
           value={(scenario.payback_anni as number | null) ?? "—"}
           unit="anni"
           variant="orange"
         />
-        <FvKpi label={tTesto("Risparmio 25 anni")} value={formatEur(risparmio25Anni)} variant="green" />
+        <FvKpi label={tr("Risparmio 25 anni")} value={formatEur(risparmio25Anni)} variant="green" />
       </div>
 
       {/* 3 NUM CARDS — Rata vs Risparmio vs Costo netto reale (Sprint 4: rata REALE) */}
@@ -5695,12 +5696,12 @@ function Step6FinanziarioPrivato({
         <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-5 text-center transition-all hover:-translate-y-0.5 hover:shadow-lg">
           <div className="text-xs uppercase tracking-wider font-semibold text-blue-900 mb-1.5">
             {data.finanziamento_modalita === "cash"
-              ? tTesto("Pagamento cash")
+              ? tr("Pagamento cash")
               : data.finanziamento_modalita === "zero"
-                ? tTesto("Rata mensile (tasso 0%)")
+                ? tr("Rata mensile (tasso 0%)")
                 : data.finanziamento_modalita === "noleggio"
-                  ? tTesto("Canone operativo")
-                  : tTesto("Rata mensile finanziata")}
+                  ? tr("Canone operativo")
+                  : tr("Rata mensile finanziata")}
           </div>
           <div className="text-3xl font-extrabold text-blue-900 tabular-nums">
             {formatEur(rataMensile)}
@@ -5711,26 +5712,26 @@ function Step6FinanziarioPrivato({
         </div>
         <div className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-5 text-center transition-all hover:-translate-y-0.5 hover:shadow-lg">
           <div className="text-xs uppercase tracking-wider font-semibold text-emerald-900 mb-1.5">
-            {tTesto("Risparmio bolletta")}
+            {tr("Risparmio bolletta")}
           </div>
           <div className="text-3xl font-extrabold text-emerald-700 tabular-nums">
             {formatEur(risparmioMensile)}
           </div>
-          <div className="text-xs text-emerald-700 mt-1">{tTesto("ogni mese, primo anno")}</div>
+          <div className="text-xs text-emerald-700 mt-1">{tr("ogni mese, primo anno")}</div>
         </div>
         <div className="rounded-2xl border-2 border-orange-300 bg-gradient-to-br from-orange-50 to-orange-200 p-5 text-center relative transition-all hover:-translate-y-0.5 hover:shadow-lg">
           {/* Sul bordo in alto, al centro: nelle carte strette (con la colonna dell'anteprima) in un angolo copriva il titolo. */}
           <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[9px] font-bold tracking-wider text-orange-700 shadow-sm">
-            {tTesto("★ COSTO REALE")}
+            {tr("★ COSTO REALE")}
           </div>
           <div className="text-xs uppercase tracking-wider font-semibold text-orange-900 mb-1.5">
-            {tTesto("Costo netto reale")}
+            {tr("Costo netto reale")}
           </div>
           <div className="text-4xl font-extrabold tabular-nums text-orange-700 animate-fv-pulse-scale">
             {formatEur(costoNettoMensile)}
           </div>
           <div className="text-xs text-orange-800 mt-1">
-            {tTesto("/mese · dopo risparmio")}{data.finanziamento_modalita === "noleggio" ? ` ${tTesto("e beneficio fiscale")}` : ""}
+            {tr("/mese · dopo risparmio")}{data.finanziamento_modalita === "noleggio" ? ` ${tr("e beneficio fiscale")}` : ""}
           </div>
         </div>
       </div>
@@ -5739,11 +5740,11 @@ function Step6FinanziarioPrivato({
       {cassaAnni.length > 0 && (
         <FvCard
           className="max-md:hidden"
-          title={tTesto("Cassa cumulata 25 anni")}
+          title={tr("Cassa cumulata 25 anni")}
           action={
             <div className="flex gap-2">
-              <FvChip variant="green">{tTesto("★ Breakeven anno")} {(scenario.payback_anni as number | null) ?? "—"}</FvChip>
-              <FvChip variant="orange">{tTesto("{guadagnoNetto25Anni} a fine vita", { guadagnoNetto25Anni: formatEur(guadagnoNetto25Anni) })}</FvChip>
+              <FvChip variant="green">{tr("★ Breakeven anno")} {(scenario.payback_anni as number | null) ?? "—"}</FvChip>
+              <FvChip variant="orange">{tr("{guadagnoNetto25Anni} a fine vita", { guadagnoNetto25Anni: formatEur(guadagnoNetto25Anni) })}</FvChip>
             </div>
           }
         >
@@ -5755,23 +5756,23 @@ function Step6FinanziarioPrivato({
           capienza è tema da commercialista del cliente, non entriamo nel merito. */}
 
       {/* Sensitivity */}
-      <FvCard title={tTesto("Cosa succede se cambia il prezzo dell'energia")} className="mt-4 max-md:hidden">
+      <FvCard title={tr("Cosa succede se cambia il prezzo dell'energia")} className="mt-4 max-md:hidden">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <ScenarioBox
-            label={tTesto("Pessimistico (-15%)")}
+            label={tr("Pessimistico (-15%)")}
             payback={sens_minus15?.payback_anni}
             npv={sens_minus15?.npv}
             icon={<TrendingDown className="h-4 w-4 text-red-600" />}
           />
           <ScenarioBox
-            label={tTesto("Base")}
+            label={tr("Base")}
             payback={scenario.payback_anni as number | null}
             npv={scenario.npv_25_anni as number}
             icon={<Award className="h-4 w-4 text-amber-500" />}
             highlight
           />
           <ScenarioBox
-            label={tTesto("Ottimistico (+15%)")}
+            label={tr("Ottimistico (+15%)")}
             payback={sens_plus15?.payback_anni}
             npv={sens_plus15?.npv}
             icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
@@ -5780,27 +5781,27 @@ function Step6FinanziarioPrivato({
       </FvCard>
 
       {/* What-if scenari */}
-      <FvCard title={tTesto("Se tra 2-3 anni…")} className="mt-4 max-md:hidden">
+      <FvCard title={tr("Se tra 2-3 anni…")} className="mt-4 max-md:hidden">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <ScenarioBox
-            label={tTesto("…compri auto elettrica")}
+            label={tr("…compri auto elettrica")}
             payback={auto_ev?.payback_anni}
             npv={auto_ev?.npv}
-            subtitle={tTesto("autoconsumo {valore}%", { valore: (auto_ev?.autoconsumo * 100 || 0).toFixed(0) })}
+            subtitle={tr("autoconsumo {valore}%", { valore: (auto_ev?.autoconsumo * 100 || 0).toFixed(0) })}
           />
           <ScenarioBox
-            label={tTesto("…installi pompa calore")}
+            label={tr("…installi pompa calore")}
             payback={pdc?.payback_anni}
             npv={pdc?.npv}
-            subtitle={tTesto("sostituisci caldaia gas")}
+            subtitle={tr("sostituisci caldaia gas")}
           />
         </div>
       </FvCard>
 
       {/* Incentivi applicati */}
       {incentivi.length > 0 && (
-        <FvCard title={tTesto("Incentivi considerati nello scenario")} className="mt-4">
-          <p className="mb-3 text-sm text-slate-600">{tTesto("Importi stimati: requisiti, condizioni e capienza fiscale da verificare sul caso concreto.")}</p>
+        <FvCard title={tr("Incentivi considerati nello scenario")} className="mt-4">
+          <p className="mb-3 text-sm text-slate-600">{tr("Importi stimati: requisiti, condizioni e capienza fiscale da verificare sul caso concreto.")}</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {incentivi.map((inc) => (
               <div
@@ -5809,7 +5810,7 @@ function Step6FinanziarioPrivato({
               >
                 <div className="font-semibold text-sm text-slate-900">{inc.nome}</div>
                 <div className="text-xl font-bold mt-1 text-orange-600 tabular-nums">
-                  {inc.importo_eur != null ? formatEur(inc.importo_eur) : tTesto("Da verificare")}
+                  {inc.importo_eur != null ? formatEur(inc.importo_eur) : tr("Da verificare")}
                 </div>
               </div>
             ))}
@@ -5819,7 +5820,7 @@ function Step6FinanziarioPrivato({
 
       {data.finanziamento_modalita === "noleggio" && (
         <FvCard
-          title={tTesto("Noleggio operativo fotovoltaico per aziende")}
+          title={tr("Noleggio operativo fotovoltaico per aziende")}
           action={
             <FvChip
               variant={
@@ -5830,13 +5831,13 @@ function Step6FinanziarioPrivato({
                     : "red"
               }
             >
-              {noleggioScenario.eligible ? "B2B" : "Non adatto"}
+              {noleggioScenario.eligible ? "B2B" : tr("Non adatto")}
             </FvChip>
           }
           className="mt-4"
         >
           {!noleggioScenario.eligible ? (
-            <FvCallout variant="warn" title={tTesto("Scenario pensato per aziende")}>
+            <FvCallout variant="warn" title={tr("Scenario pensato per aziende")}>
               {noleggioScenario.nextAction}
             </FvCallout>
           ) : (
@@ -5851,48 +5852,48 @@ function Step6FinanziarioPrivato({
                 }
                 title={
                   noleggioScenario.status === "recommended"
-                    ? tTesto("Canone sostenibile per proposta B2B")
-                    : tTesto("Verifica sostenibilità del canone")
+                    ? tr("Canone sostenibile per proposta B2B")
+                    : tr("Verifica sostenibilità del canone")
                 }
               >
                 {noleggioScenario.nextAction}
               </FvCallout>
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 text-sm">
                 <div className="rounded-lg bg-slate-50 border p-3">
-                  <div className="text-xs text-slate-500">{tTesto("Anticipo")}</div>
+                  <div className="text-xs text-slate-500">{tr("Anticipo")}</div>
                   <div className="font-extrabold text-slate-900">{formatEur(noleggioScenario.anticipo_eur)}</div>
                 </div>
                 <div className="rounded-lg bg-slate-50 border p-3">
-                  <div className="text-xs text-slate-500">{tTesto("Canone")}</div>
+                  <div className="text-xs text-slate-500">{tr("Canone")}</div>
                   <div className="font-extrabold text-slate-900">{formatEur(noleggioScenario.canone_mensile)}/mese</div>
                 </div>
                 <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
-                  <div className="text-xs text-emerald-700">{tTesto("Risparmio energia")}</div>
+                  <div className="text-xs text-emerald-700">{tr("Risparmio energia")}</div>
                   <div className="font-extrabold text-emerald-800">{formatEur(noleggioScenario.risparmio_mensile)}/mese</div>
                 </div>
                 <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
-                  <div className="text-xs text-blue-700">{tTesto("Beneficio fiscale stimato")}</div>
+                  <div className="text-xs text-blue-700">{tr("Beneficio fiscale stimato")}</div>
                   <div className="font-extrabold text-blue-800">{formatEur(noleggioScenario.beneficio_fiscale_mensile)}/mese</div>
                 </div>
                 <div className="rounded-lg bg-orange-50 border border-orange-200 p-3">
-                  <div className="text-xs text-orange-700">{tTesto("Costo effettivo")}</div>
+                  <div className="text-xs text-orange-700">{tr("Costo effettivo")}</div>
                   <div className="font-extrabold text-orange-800">{formatEur(noleggioScenario.costo_effettivo_mensile)}/mese</div>
                 </div>
               </div>
               <div className="grid md:grid-cols-3 gap-2 text-xs text-slate-600">
                 <div className="rounded-md bg-white border p-2">
-                  {tTesto("Durata:")} <strong>{tTesto("{n} mesi", { n: String(noleggioScenario.durata_mesi ?? "") })}</strong>
+                  {tr("Durata:")} <strong>{tr("{n} mesi", { n: String(noleggioScenario.durata_mesi ?? "") })}</strong>
                 </div>
                 <div className="rounded-md bg-white border p-2">
-                  {tTesto("Manutenzione inclusa stimata:")}{" "}
+                  {tr("Manutenzione inclusa stimata:")}{" "}
                   <strong>{formatEur(noleggioScenario.manutenzione_inclusa_mensile)}/mese</strong>
                 </div>
                 <div className="rounded-md bg-white border p-2">
-                  {tTesto("Copertura canone:")} <strong>{(noleggioScenario.copertura_canone_pct * 100).toFixed(0)}%</strong>
+                  {tr("Copertura canone:")} <strong>{(noleggioScenario.copertura_canone_pct * 100).toFixed(0)}%</strong>
                 </div>
               </div>
               <p className="text-[11px] text-slate-500">
-                {tTesto("Stima commerciale: deducibilita e trattamento fiscale vanno confermati con consulente e contratto del provider.")}
+                {tr("Stima commerciale: deducibilita e trattamento fiscale vanno confermati con consulente e contratto del provider.")}
               </p>
             </div>
           )}
@@ -5908,37 +5909,37 @@ function Step6FinanziarioPrivato({
       >
         <div className="text-center mb-5">
           <div className="inline-block bg-white text-orange-700 px-4 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase mb-3">
-            {tTesto("★ Perché farlo ADESSO")}
+            {tr("★ Perché farlo ADESSO")}
           </div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 mb-2 leading-tight">
-            {tTesto("Negli ultimi 10 anni le bollette sono salite del")}{" "}
+            {tr("Negli ultimi 10 anni le bollette sono salite del")}{" "}
             <span className="text-orange-600">+240%</span>
           </h2>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 leading-tight">
-            {tTesto("Il tuo stipendio? Solo")} <span className="text-red-600">+11,5%</span>
+            {tr("Il tuo stipendio? Solo")} <span className="text-red-600">+11,5%</span>
           </h2>
           <p className="text-sm text-slate-700 mt-3 max-w-xl mx-auto">
-            {tTesto("Dati Codacons + ISTAT. La differenza è una mazzata che peggiora ogni anno. Il fotovoltaico è l'unico modo concreto per")} <strong>{tTesto("uscire da questa forbice")}</strong>.
+            {tr("Dati Codacons + ISTAT. La differenza è una mazzata che peggiora ogni anno. Il fotovoltaico è l'unico modo concreto per")} <strong>{tr("uscire da questa forbice")}</strong>.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
           {[
             {
               val: "+240%",
-              lbl: "Bolletta luce",
-              sub: tTesto("2012 → 2022 · Codacons"),
+              lbl: tr("Bolletta luce"),
+              sub: tr("2012 → 2022 · Codacons"),
               color: "text-red-600",
             },
             {
               val: "+107%",
-              lbl: "In soli 5 anni",
-              sub: tTesto("2019 → 2024 · Confcommercio"),
+              lbl: tr("In soli 5 anni"),
+              sub: tr("2019 → 2024 · Confcommercio"),
               color: "text-orange-600",
             },
             {
               val: "+11,5%",
-              lbl: "Reddito famiglie",
-              sub: tTesto("Stesso periodo · ISTAT"),
+              lbl: tr("Reddito famiglie"),
+              sub: tr("Stesso periodo · ISTAT"),
               color: "text-slate-500",
             },
           ].map((k) => (
@@ -5974,18 +5975,18 @@ function Step6FinanziarioPrivato({
               const bollette25Anni = proiezioneSpesaFv(spesaAnnuaAttuale, variazione);
               return bollette25Anni != null ? (
                 <>
-                  {tTesto("Spesa stimata in 25 anni senza impianto:")}{" "}
-                  <strong className="text-orange-400">~{formatEur(bollette25Anni)}</strong> {tTesto("di")}{" "}
-                  {spesaLetta != null ? tTesto("bollette") : tTesto("acquisti di energia, escluse le quote fisse")} {tTesto("(variazione ipotizzata")} {new Intl.NumberFormat(intlCampo(), { style: "percent", maximumFractionDigits: 2 }).format(variazione as number)}{tTesto("/anno, come nel calcolo)")}
+                  {tr("Spesa stimata in 25 anni senza impianto:")}{" "}
+                  <strong className="text-orange-400">~{formatEur(bollette25Anni)}</strong> {tr("di")}{" "}
+                  {spesaLetta != null ? tr("bollette") : tr("acquisti di energia, escluse le quote fisse")} {tr("(variazione ipotizzata")} {new Intl.NumberFormat(intlCampo(), { style: "percent", maximumFractionDigits: 2 }).format(variazione as number)}{tr("/anno, come nel calcolo)")}
                   <br />
                 </>
               ) : null;
             })()}
-            {`${tTesto("Investimento")} `}<strong className="text-orange-400">{formatEur(investimento)}</strong>.{" "}
-            <strong className="text-emerald-400">{tTesto("Saldo cumulato stimato a 25 anni: {guadagnoNetto25Anni}", { guadagnoNetto25Anni: formatEur(guadagnoNetto25Anni) })}</strong>.
+            {`${tr("Investimento")} `}<strong className="text-orange-400">{formatEur(investimento)}</strong>.{" "}
+            <strong className="text-emerald-400">{tr("Saldo cumulato stimato a 25 anni: {guadagnoNetto25Anni}", { guadagnoNetto25Anni: formatEur(guadagnoNetto25Anni) })}</strong>.
           </div>
           <div className="relative text-sm opacity-85 mt-3">
-            {tTesto("Stima legata a produzione, consumi, tariffe, manutenzione e benefici fiscali effettivamente utilizzabili.")}
+            {tr("Stima legata a produzione, consumi, tariffe, manutenzione e benefici fiscali effettivamente utilizzabili.")}
           </div>
         </div>
       </div>
@@ -5997,7 +5998,7 @@ function Step6FinanziarioPrivato({
           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1.5"
         >
           <RefreshCw className="h-3 w-3" />
-          {tTesto("Ricalcola")}
+          {tr("Ricalcola")}
         </button>
       </div>
     </>

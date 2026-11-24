@@ -263,7 +263,7 @@ export default function FotovoltaicoDettaglio() {
       );
     } catch (e) {
       toast.error(
-        `Stampa PDF fallita: ${e instanceof Error ? e.message : String(e)}`,
+        t("Stampa PDF fallita: {errore}", { errore: e instanceof Error ? e.message : String(e) }),
         { id: tid },
       );
     } finally {
@@ -290,7 +290,7 @@ export default function FotovoltaicoDettaglio() {
         onPrint={() => { if (anteprimaHtml) void stampaPreventivoNativo(anteprimaHtml, "Preventivo-" + progetto.numero).catch(e => toast.error(e instanceof Error ? e.message : t("Stampa non disponibile"))); }}
         loading={scaricando !== null}/>
       <FvIntestazioneProgetto titolo={progetto.titolo} numero={progetto.numero} indirizzo={progetto.indirizzo}
-        stato={<FvChip variant={stato.variant}>{stato.label}</FvChip>}
+        stato={<FvChip variant={stato.variant}>{t(stato.label)}</FvChip>}
         azioni={<>
               {((progettoApribile && progetto.pdf_vendita_url) || puoAnnullare || puoRichiedereFirma) && (
                 <DropdownMenu>
@@ -341,7 +341,7 @@ export default function FotovoltaicoDettaglio() {
                   className={cn("bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow border-0 max-lg:min-h-11", puoRichiedereFirma && "max-lg:hidden")}
                 >
                   <Link to={`/azienda/marketing/fotovoltaico/${progetto.id}/modifica`}>
-                    <Pencil className="h-4 w-4 mr-1.5" /> {progetto.stato === "emesso" ? "Apri progetto" : "Modifica"}
+                    <Pencil className="h-4 w-4 mr-1.5" /> {progetto.stato === "emesso" ? t("Apri progetto") : t("Modifica")}
                   </Link>
                 </Button>
               )}
@@ -383,9 +383,9 @@ export default function FotovoltaicoDettaglio() {
             ordineId={(progetto as { ordine_id?: string | null }).ordine_id ?? null}
             bloccoMotivo={
               !canManagePreventivo
-                ? "Serve il permesso di gestire i preventivi."
+                ? t("Serve il permesso di gestire i preventivi.")
                 : (importoPreventivoFv(progetto as ImportoPreventivoFvInput) ?? 0) <= 0
-                  ? "Il preventivo non ha ancora un prezzo di vendita."
+                  ? t("Il preventivo non ha ancora un prezzo di vendita.")
                   : null
             }
             onConvertito={() => queryClient.invalidateQueries({ queryKey: ["fv", "progetto", progetto.company_id, progetto.id] })}

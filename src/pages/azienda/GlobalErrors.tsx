@@ -1194,7 +1194,7 @@ export default function GlobalErrors() {
               className="h-10 w-full rounded-md border border-slate-200 bg-background pl-9 pr-3 text-sm shadow-none outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
-          <Select value={statusFilter} onValueChange={value => {setStatusFilter(value);setPage(1);}}><SelectTrigger aria-label={t("Stato anomalie")} className="h-10 w-full sm:w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{t("Tutti gli stati")}</SelectItem><SelectItem value="open">{t("Da gestire")}</SelectItem><SelectItem value="overdue">{t("Interventi scaduti")}</SelectItem>{Object.entries(REVIEW_STATUS_META).map(([key, meta]) => <SelectItem key={key} value={key}>{meta.label}</SelectItem>)}</SelectContent></Select>
+          <Select value={statusFilter} onValueChange={value => {setStatusFilter(value);setPage(1);}}><SelectTrigger aria-label={t("Stato anomalie")} className="h-10 w-full sm:w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{t("Tutti gli stati")}</SelectItem><SelectItem value="open">{t("Da gestire")}</SelectItem><SelectItem value="overdue">{t("Interventi scaduti")}</SelectItem>{Object.entries(REVIEW_STATUS_META).map(([key, meta]) => <SelectItem key={key} value={key}>{t(meta.label)}</SelectItem>)}</SelectContent></Select>
           {canEdit && <Button className="h-10 shrink-0" onClick={() => setCreating(true)}>{t("Nuova anomalia")}</Button>}
           <Button variant="outline" className="h-10 shrink-0" onClick={exportFilteredCsv} disabled={filtered.length === 0}>{t("Esporta")}</Button>
           <Button
@@ -1222,7 +1222,7 @@ export default function GlobalErrors() {
       </OperationalSummary>}
       <div className="flex items-center justify-between gap-3 overflow-x-auto"><div className="flex shrink-0 gap-1 rounded-lg border p-1"><Button size="sm" variant={view === "register" ? "secondary" : "ghost"} aria-pressed={view === "register"} onClick={() => setView("register")}>{t("Registro anomalie")}</Button><Button size="sm" variant={view === "analytics" ? "secondary" : "ghost"} aria-pressed={view === "analytics"} onClick={() => setView("analytics")}>{t("Analisi e statistiche")}</Button></div><p className="whitespace-nowrap text-sm text-muted-foreground">{t("{n} anomalie · Importi riferiti ai filtri attivi", { n: filtered.length })}</p></div>
       {view === "analytics" && <div className="space-y-5">
-      <div><h2 className="text-base font-semibold">{t("Impatto economico")}</h2><p className="mt-1 mb-3 text-xs text-muted-foreground">{t("Importo complessivo: {totalLoss} · comprende stime e costi finali netti. I tre valori sotto distinguono solo i costi confermati e non vanno sommati.", { totalLoss: formatCurrency(stats.totalLoss) })}</p><div className="grid gap-3 sm:grid-cols-3">
+      <div><h2 className="text-base font-semibold">{t("Impatto economico")}</h2><p className="mt-1 mb-3 text-xs text-muted-foreground">{t("Importo complessivo: {importo} · comprende stime e costi finali netti. I tre valori sotto distinguono solo i costi confermati e non vanno sommati.", { importo: formatCurrency(stats.totalLoss) })}</p><div className="grid gap-3 sm:grid-cols-3">
         <OperationalKpiCard label={t("Costi finali confermati")} value={formatCurrency(filtered.reduce((sum, e) => sum + (anomalyNotes(e).finalCost ?? 0), 0))} hint={t("Solo casi con costo finale registrato")} icon={TrendingDown} tone="orange" />
         <OperationalKpiCard label={t("Importi recuperati")} value={formatCurrency(filtered.reduce((sum, e) => sum + anomalyNotes(e).recovered, 0))} hint={t("Recuperi già sottratti ai costi finali")} icon={CheckCircle2} tone="green" />
         <OperationalKpiCard label={t("Perdita finale netta")} value={formatCurrency(filtered.reduce((sum, e) => { const n = anomalyNotes(e); return sum + (n.finalCost == null ? 0 : n.finalCost - n.recovered); }, 0))} hint={t("Costo finale meno recuperi; stime escluse")} icon={Target} tone="red" />
@@ -1230,13 +1230,13 @@ export default function GlobalErrors() {
       <div className="flex flex-wrap items-center gap-2 border-y py-3" aria-label={t("Priorità e azioni anomalie")}>
         <span className="mr-1 text-xs font-semibold text-muted-foreground">{t("Vai ai casi")}</span>
         <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({severity:"high"}); setView("register"); }}>{t("{n} critiche", { n: stats.critical.length })}</Button>
-        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({responsibility:"supplier"}); setView("register"); }}>{t("{supplierCount} fornitori da verificare", { supplierCount: String(supplierCount ?? "") })}</Button>
-        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({responsibility:"unassigned"}); setView("register"); }}>{t("{unassignedCount} da assegnare", { unassignedCount: String(unassignedCount ?? "") })}</Button>
-        <Button size="sm" variant="ghost" onClick={() => applyQuickFilter({dateFrom:startOfMonth(new Date()),dateTo:new Date()})}>{t("Questo mese · {thisMonth}", { thisMonth: formatCurrency(stats.thisMonth) })}</Button>
-        {highestLoss && <Button size="sm" variant="ghost" onClick={() => setSelectedId(highestLoss.id)}>{t("Caso più costoso · {valore}", { valore: formatCurrency(getErrorAmount(highestLoss.amount)) })}</Button>}
+        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({responsibility:"supplier"}); setView("register"); }}>{t("{n} fornitori da verificare", { n: String(supplierCount ?? "") })}</Button>
+        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({responsibility:"unassigned"}); setView("register"); }}>{t("{n} da assegnare", { n: String(unassignedCount ?? "") })}</Button>
+        <Button size="sm" variant="ghost" onClick={() => applyQuickFilter({dateFrom:startOfMonth(new Date()),dateTo:new Date()})}>{t("Questo mese · {importo}", { importo: formatCurrency(stats.thisMonth) })}</Button>
+        {highestLoss && <Button size="sm" variant="ghost" onClick={() => setSelectedId(highestLoss.id)}>{t("Caso più costoso · {importo}", { importo: formatCurrency(getErrorAmount(highestLoss.amount)) })}</Button>}
       </div>
       <section aria-label={t("Stato gestione anomalie")} className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-        {(Object.entries(REVIEW_STATUS_META) as [ReviewStatus, typeof REVIEW_STATUS_META[ReviewStatus]][]).map(([status, meta]) => <button key={status} className="rounded-md px-2 py-1 hover:bg-muted" onClick={() => {setStatusFilter(status);setPage(1);setView("register");}}>{meta.label} <strong className="ml-1 tabular-nums">{stats.statusTotals[status]}</strong></button>)}
+        {(Object.entries(REVIEW_STATUS_META) as [ReviewStatus, typeof REVIEW_STATUS_META[ReviewStatus]][]).map(([status, meta]) => <button key={status} className="rounded-md px-2 py-1 hover:bg-muted" onClick={() => {setStatusFilter(status);setPage(1);setView("register");}}>{t(meta.label)} <strong className="ml-1 tabular-nums">{stats.statusTotals[status]}</strong></button>)}
       </section>
       <details className="rounded-lg border px-4 py-2 text-sm"><summary className="cursor-pointer font-medium">{t("Lettura dei dati e suggerimenti")}</summary><p className="mt-2 text-muted-foreground">{aiExecutiveInsight}</p></details>
 
@@ -1263,7 +1263,7 @@ export default function GlobalErrors() {
                         style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">{t("{count} casi · {percentage}% degli importi filtrati", { count: String(item.count ?? ""), percentage: String(percentage ?? "") })}</p>
+                    <p className="text-xs text-muted-foreground">{t("{n} casi · {percento}% degli importi filtrati", { n: String(item.count ?? ""), percento: String(percentage ?? "") })}</p>
                   </div>
                 );
               })
@@ -1309,7 +1309,7 @@ export default function GlobalErrors() {
                 return (
                   <div key={item.key} className="space-y-1.5">
                     <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="font-medium">{item.label}</span>
+                      <span className="font-medium">{t(item.label)}</span>
                       <span className="text-muted-foreground">{formatCurrency(item.amount)}</span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -1318,7 +1318,7 @@ export default function GlobalErrors() {
                         style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">{t("{count} casi · {percentage}% degli importi filtrati", { count: String(item.count ?? ""), percentage: String(percentage ?? "") })}</p>
+                    <p className="text-xs text-muted-foreground">{t("{n} casi · {percento}% degli importi filtrati", { n: String(item.count ?? ""), percento: String(percentage ?? "") })}</p>
                   </div>
                 );
               })
@@ -1392,13 +1392,13 @@ export default function GlobalErrors() {
                           <Icon className="h-3.5 w-3.5" />
                         </div>
                         <div>
-                          <p className="text-xs font-semibold text-slate-800">{meta.label}</p>
-                          <p className="text-[11px] text-muted-foreground">{t("{actors} soggetti", { actors: String(role.actors ?? "") })}</p>
+                          <p className="text-xs font-semibold text-slate-800">{t(meta.label)}</p>
+                          <p className="text-[11px] text-muted-foreground">{t("{n} soggetti", { n: String(role.actors ?? "") })}</p>
                         </div>
                       </div>
                       <div className="mt-2 flex items-end justify-between gap-2">
                         <p className="text-sm font-bold text-slate-950">{formatCurrency(role.amount)}</p>
-                        <p className={cn("text-xs font-semibold", role.high > 0 ? "text-red-600" : "text-slate-500")}>{t("{count} casi", { count: String(role.count ?? "") })}</p>
+                        <p className={cn("text-xs font-semibold", role.high > 0 ? "text-red-600" : "text-slate-500")}>{t("{n} casi", { n: String(role.count ?? "") })}</p>
                       </div>
                     </div>
                   );
@@ -1428,7 +1428,7 @@ export default function GlobalErrors() {
                           </div>
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-slate-950">{item.actor.name}</p>
-                            <p className="text-xs text-muted-foreground">{meta.label}</p>
+                            <p className="text-xs text-muted-foreground">{t(meta.label)}</p>
                           </div>
                         </div>
                         <Badge variant="outline" className={cn("shrink-0 border", meta.color)}>
@@ -1442,7 +1442,7 @@ export default function GlobalErrors() {
                         </div>
                         <div>
                           <p className={cn("text-lg font-bold", item.high > 0 ? "text-red-600" : "text-slate-950")}>{item.count}</p>
-                          <p className="text-[11px] text-muted-foreground">{t("casi · {high} critici", { high: String(item.high ?? "") })}</p>
+                          <p className="text-[11px] text-muted-foreground">{t("casi · {n} critici", { n: String(item.high ?? "") })}</p>
                         </div>
                       </div>
                       <div className="mt-3 rounded-xl bg-white/75 p-2 text-xs text-slate-600">
@@ -1507,7 +1507,7 @@ export default function GlobalErrors() {
                     </span>
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-slate-900">{item.title}</span>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">{t("{impact} · {cases} casi", { impact: formatCurrency(item.impact), cases: String(item.cases ?? "") })}</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">{t("{importo} · {n} casi", { importo: formatCurrency(item.impact), n: String(item.cases ?? "") })}</span>
                       <span className="mt-1 block text-xs text-slate-600">{item.action}</span>
                     </span>
                   </button>
@@ -1551,7 +1551,7 @@ export default function GlobalErrors() {
               <TableBody>{isLoading ? <TableRow><TableCell colSpan={9}>{t("Caricamento anomalie…")}</TableCell></TableRow> : filtered.length === 0 ? <TableRow><TableCell colSpan={9} className="py-10 text-center">{t("Nessuna anomalia per questi filtri.")}</TableCell></TableRow> : visibleRows.map(e => <TableRow key={e.id}>
                 <TableCell className="whitespace-nowrap">{formatErrorDate(e.error_date)}</TableCell>
                 <TableCell><Link className="whitespace-nowrap font-medium text-primary hover:underline" to={`/azienda/ordini/${e.order_id}`}>{e.orders?.order_code || t("Apri commessa")}</Link></TableCell>
-                <TableCell className="max-w-[280px]"><button className="line-clamp-1 text-left font-medium hover:underline" onClick={() => setSelectedId(e.id)}>{e.operationalDetail || CATEGORY_META[e.normalizedCategory].label}</button></TableCell>
+                <TableCell className="max-w-[280px]"><button className="line-clamp-1 text-left font-medium hover:underline" onClick={() => setSelectedId(e.id)}>{e.operationalDetail || t(CATEGORY_META[e.normalizedCategory].label)}</button></TableCell>
                 <TableCell>{e.confirmed_responsibility_name || <span className="text-muted-foreground">{t("Da assegnare")}</span>}</TableCell>
                 <TableCell><Badge variant="outline" className={SEVERITY_META[e.severity].color}>{t(SEVERITY_META[e.severity].label)}</Badge></TableCell>
                 <TableCell className={cn("whitespace-nowrap", !anomalyClosed(e.reviewStatus) && e.corrective_due_date && e.corrective_due_date < format(new Date(), "yyyy-MM-dd") && "font-medium text-destructive")}>{e.corrective_due_date ? formatErrorDate(e.corrective_due_date) : t("Da definire")}</TableCell>
@@ -1561,7 +1561,7 @@ export default function GlobalErrors() {
               </TableRow>)}</TableBody>
             </Table>
           </div>
-          {pageCount > 1 && <div className="mt-4 flex items-center justify-between gap-3 text-sm"><span>{t("Pagina {currentPage} di {pageCount}", { currentPage: String(currentPage ?? ""), pageCount: String(pageCount ?? "") })}</span><div className="flex gap-2"><Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t("Precedente")}</Button><Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>{t("Successiva")}</Button></div></div>}
+          {pageCount > 1 && <div className="mt-4 flex items-center justify-between gap-3 text-sm"><span>{t("Pagina {n} di {totale}", { n: currentPage, totale: pageCount })}</span><div className="flex gap-2"><Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t("Precedente")}</Button><Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>{t("Successiva")}</Button></div></div>}
         </CardContent>
       </Card>}
 
@@ -1582,7 +1582,7 @@ export default function GlobalErrors() {
                 <SelectItem value="all">{t("Tutte")}</SelectItem>
                 {Object.entries(TYPE_META).map(([k, v]) => (
                   <SelectItem key={k} value={k}>
-                    {v.label}
+                    {t(v.label)}
                   </SelectItem>
                 ))}
               </FilterSelect>
@@ -1597,7 +1597,7 @@ export default function GlobalErrors() {
                 <SelectItem value="all">{t("Tutte")}</SelectItem>
                 {Object.entries(CATEGORY_META).map(([k, v]) => (
                   <SelectItem key={k} value={k}>
-                    {v.label}
+                    {t(v.label)}
                   </SelectItem>
                 ))}
               </FilterSelect>
@@ -1612,7 +1612,7 @@ export default function GlobalErrors() {
                 <SelectItem value="all">{t("Tutte")}</SelectItem>
                 {Object.entries(RESPONSIBILITY_META).map(([k, v]) => (
                   <SelectItem key={k} value={k}>
-                    {v.label}
+                    {t(v.label)}
                   </SelectItem>
                 ))}
               </FilterSelect>
@@ -1627,7 +1627,7 @@ export default function GlobalErrors() {
                 <SelectItem value="all">{t("Tutte")}</SelectItem>
                 {Object.entries(SEVERITY_META).map(([k, v]) => (
                   <SelectItem key={k} value={k}>
-                    {v.label}
+                    {t(v.label)}
                   </SelectItem>
                 ))}
               </FilterSelect>

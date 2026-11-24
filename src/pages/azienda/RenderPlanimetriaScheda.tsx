@@ -297,7 +297,7 @@ export default function RenderPlanimetriaScheda() {
             aria-current={scheda===id ? "page" : undefined}
             className={cn("flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors sm:px-4",
               scheda===id ? "border-blue-700 text-blue-800 dark:text-blue-300" : "border-transparent text-muted-foreground hover:text-foreground")}>
-            <Icona className="h-4 w-4"/>{nome}
+            <Icona className="h-4 w-4"/>{t(nome)}
           </button>)}
         </nav>
       </header>

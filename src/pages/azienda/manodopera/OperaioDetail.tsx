@@ -137,11 +137,11 @@ function Scheda({ s }: { s: SchedaOperaio }) {
           toast.success(fatto);
           // Chi esce con un furgone o un attrezzo in carico: lo si dice subito.
           if (dati.attivo === false && s.mezzi.length > 0) {
-            toast.warning(`Ha ancora in carico: ${s.mezzi.map((m) => m.nome).join(", ")}. Riassegnali o riportali in magazzino.`);
+            toast.warning(t("Ha ancora in carico: {mezzi}. Riassegnali o riportali in magazzino.", { mezzi: s.mezzi.map((m) => m.nome).join(", ") }));
           }
           poi?.();
         },
-        onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito a salvare. Riprova tra qualche secondo.")),
+        onError: (err) => toast.error(messaggioErroreOperai(err, t("Non sono riuscito a salvare. Riprova tra qualche secondo."))),
       },
     );
   };
@@ -201,11 +201,11 @@ function Scheda({ s }: { s: SchedaOperaio }) {
                   <DropdownMenuItem onSelect={() => setLinkAperto(true)}>{t("Manda di nuovo il link")}</DropdownMenuItem>
                 )}
                 {p.attivo ? (
-                  <DropdownMenuItem onSelect={() => cambia({ attivo: false }, `${p.nome} non è più attivo`)}>
+                  <DropdownMenuItem onSelect={() => cambia({ attivo: false }, t("{nome} non è più attivo", { nome: p.nome }))}>
                     {t("Non lavora più con noi")}
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem onSelect={() => cambia({ attivo: true }, `${p.nome} è di nuovo attivo`)}>
+                  <DropdownMenuItem onSelect={() => cambia({ attivo: true }, t("{nome} è di nuovo attivo", { nome: p.nome }))}>
                     {t("È tornato a lavorare con noi")}
                   </DropdownMenuItem>
                 )}
@@ -261,7 +261,7 @@ function Scheda({ s }: { s: SchedaOperaio }) {
             <Button disabled={!sceltaSquadra || sceltaSquadra === (s.squadra?.id ?? "nessuna") || !squadre.isSuccess || sposta.isPending}
               onClick={() => sposta.mutate({profiloId: p.id, squadraId: sceltaSquadra === "nessuna" ? null : sceltaSquadra}, {
                 onSuccess: () => {setSceltaSquadra(null); toast.success(t("Squadra aggiornata"));},
-                onError: e => toast.error(messaggioErroreOperai(e, "Impossibile aggiornare la squadra.")),
+                onError: e => toast.error(messaggioErroreOperai(e, t("Impossibile aggiornare la squadra."))),
               })}>{t("Salva squadra")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -305,7 +305,7 @@ function Scheda({ s }: { s: SchedaOperaio }) {
           <AlertDialogFooter>
             <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => cambia({ lavora_in_cantiere: false }, `${p.nome} non è più fra gli operai`, () => navigate(ELENCO))}
+              onClick={() => cambia({ lavora_in_cantiere: false }, t("{nome} non è più fra gli operai", { nome: p.nome }), () => navigate(ELENCO))}
             >
               {t("Togli dagli operai")}
             </AlertDialogAction>
@@ -362,7 +362,7 @@ function Cantieri({ cantieri, linkCommesse, children }: { children: ReactNode; c
       {cantieri.length > 0 && (
         <ul className="divide-y">
           {[...cantieri].sort((a, b) => Number(b.in_corso) - Number(a.in_corso)).map((c, i) => {
-            const testo = [c.codice, c.cliente].filter(Boolean).join(" · ") || "Commessa";
+            const testo = [c.codice, c.cliente].filter(Boolean).join(" · ") || t("Commessa");
             return (
               <li key={`${c.order_id}-${i}`} className={cn("flex items-start justify-between gap-3 py-2", !c.in_corso && "opacity-60")}>
                 <div className="min-w-0">
@@ -424,9 +424,9 @@ function Documenti({ documenti, linkPersonale }: { documenti: SchedaOperaio["doc
           }).map((d) => (
             <li key={d.id} className="flex items-center justify-between gap-3 py-2 text-sm">
               <div className="min-w-0">
-                <span className="block truncate font-medium text-slate-900">{d.titolo || CATEGORIE_DOCUMENTO[d.categoria] || t("Documento")}</span>
+                <span className="block truncate font-medium text-slate-900">{d.titolo || t(CATEGORIE_DOCUMENTO[d.categoria] || "Documento")}</span>
                 <span className="block truncate text-xs text-muted-foreground">
-                  {[CATEGORIE_DOCUMENTO[d.categoria], d.ente].filter(Boolean).join(" · ")}
+                  {[CATEGORIE_DOCUMENTO[d.categoria] ? t(CATEGORIE_DOCUMENTO[d.categoria]) : null, d.ente].filter(Boolean).join(" · ")}
                 </span>
               </div>
               <div className="shrink-0 text-right text-xs">

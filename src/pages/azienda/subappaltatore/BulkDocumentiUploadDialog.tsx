@@ -195,7 +195,7 @@ export default function BulkDocumentiUploadDialog({
             note: "Caricato via import multiplo",
           });
         if (insErr) {
-          throw new Error(insErr.message || insErr.details || insErr.hint || "Errore inserimento");
+          throw new Error(insErr.message || insErr.details || insErr.hint || tr("Errore inserimento"));
         }
         patchRow(row.key, { status: "done" });
         ok++;

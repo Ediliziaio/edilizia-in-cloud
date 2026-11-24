@@ -1335,8 +1335,8 @@ export default function ContenutiMultimediali() {
   const isInitialMediaLoading = isLoading && rawItems.length === 0;
   const sourceWarnings = [
     ...mediaLoadResult.warnings,
-    ...(foldersError ? [`Cartelle personalizzate: ${foldersError.message}`] : []),
-    ...(archivioCompleto.isError && anteprimaArchivio.altre ? ["Pagine precedenti dell’archivio"] : []),
+    ...(foldersError ? [t("Cartelle personalizzate: {motivo}", { motivo: foldersError.message })] : []),
+    ...(archivioCompleto.isError && anteprimaArchivio.altre ? [t("Pagine precedenti dell’archivio")] : []),
   ];
 
   const visibleItems = useMemo(
@@ -1393,8 +1393,8 @@ export default function ContenutiMultimediali() {
 
   const activeFolderTitle = activeCustomFolder?.name ?? TAB_LABELS[activeTab];
   const activeFolderDescription = activeCustomFolder
-    ? activeCustomFolder.description || (activeCustomFolder.mode === "manual" ? "File aggiunti a questa cartella" : activeCustomFolder.match_query || "Raccolta per parole chiave")
-    : TAB_DESCRIPTIONS[activeTab];
+    ? activeCustomFolder.description || (activeCustomFolder.mode === "manual" ? t("File aggiunti a questa cartella") : activeCustomFolder.match_query || t("Raccolta per parole chiave"))
+    : t(TAB_DESCRIPTIONS[activeTab]);
   const azzeraFiltriAggiuntivi = () => { setOrigineFiltro(""); setTipoFiltro(""); setDal(""); setAl(""); setPaginaMobile(1); };
   const filtriAggiuntivi = Number(!!origineFiltro) + Number(!!tipoFiltro) + Number(!!(dal || al));
   const [filtriDesktopAperti, setFiltriDesktopAperti] = useState(false);
@@ -1440,7 +1440,7 @@ export default function ContenutiMultimediali() {
   const scelteCartelleMobili = [
     ...TABS.filter((tab) => tab === "tutti" || tab === activeTab || (countsByTab[tab] ?? 0) > 0).map((tab) => ({
       value: tab as string,
-      label: TAB_LABELS[tab],
+      label: t(TAB_LABELS[tab]),
       n: countsByTab[tab] ?? 0,
     })),
     ...customFolders.map((folder) => ({
@@ -1496,7 +1496,7 @@ export default function ContenutiMultimediali() {
         ? tabella.update(values).eq("id", cartellaInModifica.id).eq("company_id", companyId).eq("updated_at", cartellaInModifica.updated_at).is("archived_at", null)
         : tabella.insert({ ...values, mode: modalitaCartella, slug: createMediaLibraryFolderSlug(name), company_id: companyId, created_by: user?.id ?? null });
       const { data, error } = await query.select(CAMPI_CARTELLA).maybeSingle();
-      if (error || !data) throw error ?? new Error("La cartella è stata modificata nel frattempo.");
+      if (error || !data) throw error ?? new Error(t("La cartella è stata modificata nel frattempo."));
       toast.success(cartellaInModifica ? t("Cartella aggiornata") : t("Cartella creata"));
       resetNewFolderForm();
       setShowFolderDialog(false);
@@ -1517,7 +1517,7 @@ export default function ContenutiMultimediali() {
       const { data, error } = await supabase.from("media_library_folders")
         .update({ archived_at: archivia ? new Date().toISOString() : null, archived_by: archivia ? user?.id : null })
         .eq("company_id", companyId).eq("id", folder.id).eq("updated_at", folder.updated_at).select("id").maybeSingle();
-      if (error || !data) throw error ?? new Error("La cartella è stata modificata nel frattempo.");
+      if (error || !data) throw error ?? new Error(t("La cartella è stata modificata nel frattempo."));
       if (archivia && activeCustomFolderId === folder.id) mostraTutti();
       toast.success(archivia ? t("Cartella archiviata") : t("Cartella ripristinata"));
       setNuovaCartellaDaArchiviare(null);
@@ -1539,7 +1539,7 @@ export default function ContenutiMultimediali() {
       const comando = supabase.from("media_library_files").update({ folder_id: spostamento.cartella || null })
         .eq("company_id", companyId).eq("id", spostamento.item.id.slice("drive:".length));
       const { data, error } = await (precedente ? comando.eq("folder_id", precedente) : comando.is("folder_id", null)).select("id").maybeSingle();
-      if (error || !data) throw error ?? new Error("Il file è già stato spostato da un altro utente.");
+      if (error || !data) throw error ?? new Error(t("Il file è già stato spostato da un altro utente."));
       setSpostamento(null);
       toast.success(t("File spostato"));
     } catch (err) { toast.error(t("File non spostato"), { description: (err as { message?: string })?.message }); }
@@ -1573,7 +1573,7 @@ export default function ContenutiMultimediali() {
           maxAttempts: 3,
           onRetry: (attempt, _err, nextMs) => {
             if (attempt === 1) {
-              toast.info(t("Riprovo ad aprire il file..."), { description: t("Tentativo {attempt} tra {valore}s", { attempt: attempt + 1, valore: Math.round(nextMs / 1000) }) });
+              toast.info(t("Riprovo ad aprire il file..."), { description: t("Tentativo {n} tra {secondi}s", { n: attempt + 1, secondi: Math.round(nextMs / 1000) }) });
             }
           },
         },
@@ -1602,7 +1602,7 @@ export default function ContenutiMultimediali() {
     try {
       const { data, error } = await supabase.storage.from(target.storageBucket)
         .createSignedUrl(target.storagePath, 60, { download: item.fileName });
-      if (error || !data) throw error ?? new Error("File non disponibile");
+      if (error || !data) throw error ?? new Error(t("File non disponibile"));
       const link = document.createElement("a");
       link.href = data.signedUrl;
       link.rel = "noreferrer";
@@ -1647,7 +1647,7 @@ export default function ContenutiMultimediali() {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight max-sm:text-lg max-sm:leading-6">{t("EiC Drive")}</h1>
+              <h1 className="text-2xl font-bold tracking-tight max-sm:text-lg max-sm:leading-6">EiC Drive</h1>
             </div>
           </div>
         </div>
@@ -1692,9 +1692,9 @@ export default function ContenutiMultimediali() {
       <KpiMobili
         className="sm:hidden"
         voci={[
-          { label: "Documenti", valore: isInitialMediaLoading ? "…" : String(summary.total) },
+          { label: t("Documenti"), valore: isInitialMediaLoading ? "…" : String(summary.total) },
           {
-            label: "Da classificare",
+            label: t("Da classificare"),
             valore: isInitialMediaLoading ? "…" : String(countsByTab.da_classificare ?? 0),
             tono: (countsByTab.da_classificare ?? 0) > 0 ? "text-amber-600" : undefined,
             onClick: () => scegliCartellaMobile(!activeCustomFolder && activeTab === "da_classificare" ? "tutti" : "da_classificare"),
@@ -1709,7 +1709,7 @@ export default function ContenutiMultimediali() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <div className="font-medium">{t("Archivio caricato parzialmente")}</div>
-              <p className="mt-1 text-xs leading-relaxed max-sm:hidden">{t("Alcune fonti non hanno risposto: {sourceWarnings}. I documenti disponibili restano consultabili.", { sourceWarnings: sourceWarnings.join(" · ") })}</p>
+              <p className="mt-1 text-xs leading-relaxed max-sm:hidden">{t("Alcune fonti non hanno risposto: {fonti}. I documenti disponibili restano consultabili.", { fonti: sourceWarnings.join(" · ") })}</p>
             </div>
           </div>
         </div>
@@ -1753,7 +1753,7 @@ export default function ContenutiMultimediali() {
               {puoScrivere && cartelleArchiviate.length > 0 && <details className="rounded-md border px-2">
                 <summary className="cursor-pointer py-2 text-xs text-muted-foreground">{t("Archiviate ({n})", { n: cartelleArchiviate.length })}</summary>
                 {cartelleArchiviate.map(folder => <div key={folder.id} className="flex items-center gap-1 text-xs"><span className="flex-1 truncate">{folder.name}</span>
-                  <Button variant="ghost" size="icon" aria-label={t("Ripristina {name}", { name: String(folder.name ?? "") })} disabled={isCreatingFolder} onClick={() => void cambiaArchivioCartella(folder, false)}><RotateCcw className="h-3.5 w-3.5" /></Button></div>)}
+                  <Button variant="ghost" size="icon" aria-label={t("Ripristina {nome}", { nome: String(folder.name ?? "") })} disabled={isCreatingFolder} onClick={() => void cambiaArchivioCartella(folder, false)}><RotateCcw className="h-3.5 w-3.5" /></Button></div>)}
               </details>}
             </div>
           </CardContent>
@@ -1807,7 +1807,7 @@ export default function ContenutiMultimediali() {
             {filtriDesktopAperti && <div className="space-y-2 rounded-lg border bg-muted/25 p-3"><FiltriDrive {...impostazioniFiltro} />
               {filtriAggiuntivi > 0 && <Button size="sm" variant="ghost" onClick={azzeraFiltriAggiuntivi}>{t("Azzera filtri")}</Button>}
             </div>}
-            <p role="status" className="text-xs text-muted-foreground">{estensioneArchivio ? t("Caricamento delle pagine precedenti…") : `${filteredItems.length} ${filteredItems.length === 1 ? "risultato" : "risultati"}`}</p>
+            <p role="status" className="text-xs text-muted-foreground">{estensioneArchivio ? t("Caricamento delle pagine precedenti…") : t(filteredItems.length === 1 ? "{n} risultato" : "{n} risultati", { n: filteredItems.length })}</p>
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
@@ -1835,15 +1835,15 @@ export default function ContenutiMultimediali() {
                 icon={AlertTriangle}
                 title={t("Sessione scaduta")}
                 description={t("La tua sessione è terminata. Accedi di nuovo per continuare a vedere i tuoi documenti.")}
-                action={{ label: "Vai al login", onClick: () => navigate("/login?redirect=/azienda/contenuti-multimediali"), variant: "default" }}
+                action={{ label: t("Vai al login"), onClick: () => navigate("/login?redirect=/azienda/contenuti-multimediali"), variant: "default" }}
               />
             ) : error ? (
               <EmptyState
                 inline
                 icon={AlertTriangle}
                 title={t("Archivio non caricato")}
-                description={`Non riesco a leggere una o più fonti documentali. ${error instanceof Error ? error.message : ""}`.trim()}
-                action={{ label: "Riprova", onClick: () => refetch(), variant: "outline" }}
+                description={`${t("Non riesco a leggere una o più fonti documentali.")} ${error instanceof Error ? error.message : ""}`.trim()}
+                action={{ label: t("Riprova"), onClick: () => refetch(), variant: "outline" }}
               />
             ) : filteredItems.length === 0 && estensioneArchivio ? (
               <p role="status" className="p-4 text-sm text-muted-foreground">{t("Cerco anche nelle pagine precedenti…")}</p>
@@ -1898,7 +1898,7 @@ export default function ContenutiMultimediali() {
                   icon={FileText}
                   title={t("Nessun contenuto in questa vista")}
                   description={t("Cambia filtro o tab per visualizzare gli allegati già presenti nell'archivio.")}
-                  action={{ label: activeCustomFolder?.mode === "manual" && !query && !filtriAggiuntivi && puoScrivere ? "Carica in questa cartella" : "Mostra tutti",
+                  action={{ label: activeCustomFolder?.mode === "manual" && !query && !filtriAggiuntivi && puoScrivere ? t("Carica in questa cartella") : t("Mostra tutti"),
                     onClick: activeCustomFolder?.mode === "manual" && !query && !filtriAggiuntivi && puoScrivere ? () => apriCaricamento() : mostraTutti, variant: "outline" }}
                 />
               )
@@ -1937,7 +1937,7 @@ export default function ContenutiMultimediali() {
         <CercaConFiltri
           valore={query}
           onCambia={(v) => { setQuery(v); setPaginaMobile(1); }}
-          segnaposto={activeCustomFolder || activeTab !== "tutti" ? t("Cerca in {activeFolderTitle}", { activeFolderTitle: String(activeFolderTitle ?? "") }) : t("Cerca documento")}
+          segnaposto={activeCustomFolder || activeTab !== "tutti" ? t("Cerca in {cartella}", { cartella: String(activeFolderTitle ?? "") }) : t("Cerca documento")}
           filtriAttivi={Number(Boolean(activeCustomFolder || activeTab !== "tutti")) + filtriAggiuntivi}
           onApriFiltri={() => setFiltriMobiliAperti(true)}
         />
@@ -1955,14 +1955,14 @@ export default function ContenutiMultimediali() {
             inline
             icon={AlertTriangle}
             title={t("Sessione scaduta")}
-            action={{ label: "Vai al login", onClick: () => navigate("/login?redirect=/azienda/contenuti-multimediali"), variant: "default" }}
+            action={{ label: t("Vai al login"), onClick: () => navigate("/login?redirect=/azienda/contenuti-multimediali"), variant: "default" }}
           />
         ) : error ? (
           <EmptyState
             inline
             icon={AlertTriangle}
             title={t("Archivio non caricato")}
-            action={{ label: "Riprova", onClick: () => refetch(), variant: "outline" }}
+            action={{ label: t("Riprova"), onClick: () => refetch(), variant: "outline" }}
           />
         ) : filteredItems.length === 0 ? (
           <div className="space-y-1 py-3 text-center text-xs text-muted-foreground">
@@ -1991,7 +1991,7 @@ export default function ContenutiMultimediali() {
         )}
         {pagineMobili > 1 && (
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground">{t("{paginaMobileValida}–{valore} di {n}", { paginaMobileValida: (paginaMobileValida - 1) * PER_PAGINA_MOBILE + 1, valore: Math.min(paginaMobileValida * PER_PAGINA_MOBILE, filteredItems.length), n: filteredItems.length })}</span>
+            <span className="text-[11px] text-muted-foreground">{t("{da}–{a} di {totale}", { da: (paginaMobileValida - 1) * PER_PAGINA_MOBILE + 1, a: Math.min(paginaMobileValida * PER_PAGINA_MOBILE, filteredItems.length), totale: filteredItems.length })}</span>
             <div className="flex gap-1">
               <Button
                 variant="outline"
@@ -2034,7 +2034,7 @@ export default function ContenutiMultimediali() {
             <Button size="sm" variant="ghost" onClick={() => { setFiltriMobiliAperti(false); setNuovaCartellaDaArchiviare(activeCustomFolder); }}>{t("Archivia cartella")}</Button>
           </>}
           {cartelleArchiviate.length > 0 && <details className="w-full rounded-md border px-2 py-1"><summary className="text-sm">{t("Cartelle archiviate")}</summary>
-            {cartelleArchiviate.map(folder => <Button key={folder.id} size="sm" variant="ghost" onClick={() => void cambiaArchivioCartella(folder, false)} disabled={isCreatingFolder}>{t("Ripristina {name}", { name: String(folder.name ?? "") })}</Button>)}
+            {cartelleArchiviate.map(folder => <Button key={folder.id} size="sm" variant="ghost" onClick={() => void cambiaArchivioCartella(folder, false)} disabled={isCreatingFolder}>{t("Ripristina {nome}", { nome: String(folder.name ?? "") })}</Button>)}
           </details>}
         </div>}
       </PannelloFiltri>
@@ -2072,7 +2072,7 @@ export default function ContenutiMultimediali() {
                       </Link>
                     </>
                   ) : (
-                    t(" · collegato a {linkedEntityLabel}", { linkedEntityLabel: String(dettaglioMobile.linkedEntityLabel ?? "") })
+                    ` · ${t("collegato a {nome}", { nome: String(dettaglioMobile.linkedEntityLabel ?? "") })}`
                   )
                 ) : ""}
                 {dettaglioMobile.actorLabel ? ` · ${dettaglioMobile.actorLabel}` : ""}
@@ -2171,7 +2171,7 @@ export default function ContenutiMultimediali() {
       </Dialog>
 
       {nuovaCartellaDaArchiviare && <Dialog open onOpenChange={open => { if (!open && !isCreatingFolder) setNuovaCartellaDaArchiviare(null); }}>
-        <DialogContent><DialogHeader><DialogTitle>{t("Archivia «{name}»?", { name: String(nuovaCartellaDaArchiviare.name ?? "") })}</DialogTitle><DialogDescription>{t("I file restano in Tutti. Puoi ripristinare la cartella da Archiviate.")}</DialogDescription></DialogHeader>
+        <DialogContent><DialogHeader><DialogTitle>{t("Archivia «{nome}»?", { nome: String(nuovaCartellaDaArchiviare.name ?? "") })}</DialogTitle><DialogDescription>{t("I file restano in Tutti. Puoi ripristinare la cartella da Archiviate.")}</DialogDescription></DialogHeader>
           <DialogFooter><Button variant="outline" disabled={isCreatingFolder} onClick={() => setNuovaCartellaDaArchiviare(null)}>{t("Annulla")}</Button>
             <Button disabled={isCreatingFolder} onClick={() => void cambiaArchivioCartella(nuovaCartellaDaArchiviare, true)}>{t("Archivia cartella")}</Button></DialogFooter></DialogContent>
       </Dialog>}
@@ -2403,7 +2403,7 @@ function IntegrationCoveragePanel({
     : missingRequired === 0
       ? "border-emerald-200 bg-emerald-50 text-emerald-700"
       : "border-amber-200 bg-amber-50 text-amber-700";
-  const badgeLabel = loading ? "Verifica in corso" : missingRequired === 0 ? "Copertura completa" : `${missingRequired} da collegare`;
+  const badgeLabel = loading ? t("Verifica in corso") : missingRequired === 0 ? t("Copertura completa") : t("{n} da collegare", { n: missingRequired });
 
   return (
     <Card className={cn("border-dashed bg-muted/20 shadow-none", className)}>
@@ -2426,7 +2426,7 @@ function IntegrationCoveragePanel({
               <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {loading
                   ? t("Sto verificando fonti, permessi e documenti collegati.")
-                  : t("{connected} fonti attive · {connectedCount} documenti mappati nelle fonti monitorate.", { connected: String(connected ?? ""), connectedCount: String(connectedCount ?? "") })}
+                  : t("{n} fonti attive · {documenti} documenti mappati nelle fonti monitorate.", { n: String(connected ?? ""), documenti: String(connectedCount ?? "") })}
               </p>
             </div>
           </div>
@@ -2572,7 +2572,7 @@ function MediaRow({
       </button>
       {(item.statusTone === "warning" || item.statusTone === "error" || item.statusTone === "processing") &&
         <Badge variant="outline" className={cn("hidden shrink-0 lg:inline-flex", STATUS_TONE_CLASS[item.statusTone])}><IconaStatoDrive tono={item.statusTone} />{statusLabel(item)}</Badge>}
-      <Button type="button" size="icon" variant="ghost" className="h-9 w-9 shrink-0" aria-label={t("Apri {fileName}", { fileName: String(item.fileName ?? "") })} title={t("Anteprima")}
+      <Button type="button" size="icon" variant="ghost" className="h-9 w-9 shrink-0" aria-label={t("Apri {nome}", { nome: String(item.fileName ?? "") })} title={t("Anteprima")}
         onClick={onOpen} disabled={opening || !canOpen}>
         {opening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
       </Button>
@@ -2610,7 +2610,7 @@ function MediaDetailPanel({
             icon={FolderOpen}
             title={t("Seleziona un contenuto")}
             description={t("Qui vedrai sicurezza, collegamenti, origine e azioni rapide sul file.")}
-            action={onImport ? { label: "Carica file", onClick: onImport } : undefined}
+            action={onImport ? { label: t("Carica file"), onClick: onImport } : undefined}
           />
         </CardContent>
       </Card>

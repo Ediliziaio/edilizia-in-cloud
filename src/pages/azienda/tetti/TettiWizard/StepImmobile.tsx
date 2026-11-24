@@ -291,7 +291,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
                 <span className="max-sm:hidden">
                   {conPezzi(tr("Copertura con amianto: obbligo di {obbligo} (D.Lgs. 81/08) e smaltimento da ditta autorizzata. Nel listino trovi il capitolo {capitolo} da aggiungere al computo."), {
                     obbligo: <strong>{tr("piano di lavoro e notifica all'ASL")}</strong>,
-                    capitolo: <strong>"Bonifica e smaltimento amianto"</strong>,
+                    capitolo: <strong>{"\"Bonifica e smaltimento amianto\""}</strong>,
                   })}
                 </span>
                 <span className="sm:hidden">{conPezzi(tr("Servono {cosa} e smaltimento da ditta autorizzata."), { cosa: <strong>{tr("piano di lavoro, notifica all'ASL")}</strong> })}</span>

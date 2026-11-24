@@ -154,7 +154,7 @@ export default function TermoidraulicoWizard() {
       import("@/lib/moduli-vendita/fullIdrModules"), import("@/lib/moduli-vendita/localIdrTemplates"),
       import("@/lib/moduli-vendita/archivioModelli"),
     ]);
-    if (!isFullIdrModuleId(model.id)) throw new Error("Questo intervento non ha un modello completo. Nessuna offerta generica è stata creata.");
+    if (!isFullIdrModuleId(model.id)) throw new Error(tr("Questo intervento non ha un modello completo. Nessuna offerta generica è stata creata."));
     // Il modello personalizzato è dell'azienda: può averlo salvato un collega da
     // un altro computer. Se il database non risponde resta la copia di questo browser.
     await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
@@ -164,7 +164,7 @@ export default function TermoidraulicoWizard() {
   };
   const createInput = async (): Promise<IdrFormPatch> => {
     if (!requestedModel) return form;
-    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
+    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error(tr("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata."));
     // Conto Termico: il contributo non è una detrazione. Senza azzerarla, il
     // predefinito dell'azienda (spesso 50%) finiva nel documento.
     // Casa Full Electric: gli incentivi (detrazione sul fotovoltaico, Conto Termico
