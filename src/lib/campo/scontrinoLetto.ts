@@ -14,7 +14,9 @@ export function pulisciScontrino(grezzo: unknown, oggiIso: string): ScontrinoLet
   const r = (grezzo && typeof grezzo === "object" ? grezzo : {}) as Record<string, unknown>;
   const n = typeof r.importo === "number" ? r.importo : typeof r.importo === "string" ? Number(r.importo.replace(",", ".")) : NaN;
   const importo = Number.isFinite(n) && n > 0 && n < 100_000 ? Math.round(n * 100) / 100 : null;
-  const g = typeof r.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.data) ? r.data : null;
+  // «data» dal modello, «giorno» quando la pagina ripulisce la risposta già ripulita dal server.
+  const d = typeof r.data === "string" ? r.data : typeof r.giorno === "string" ? r.giorno : null;
+  const g = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
   // Niente date future, né più vecchie di un anno (sono quasi sempre letture sbagliate).
   const unAnnoFa = `${Number(oggiIso.slice(0, 4)) - 1}${oggiIso.slice(4)}`;
   const giorno = g && g <= oggiIso && g >= unAnnoFa ? g : null;

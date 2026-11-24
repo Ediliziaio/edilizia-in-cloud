@@ -121,7 +121,7 @@ export default function CampoSpese() {
       const { data, error } = await supabase.functions.invoke("campo-scontrino-leggi", { body: { base64, mime: file.type || "image/jpeg" } });
       if (error) throw error;
       const letto = pulisciScontrino(data, oggi);
-      if (letto.importo) setImportoTesto(String(letto.importo).replace(".", ","));
+      if (letto.importo) setImportoTesto(letto.importo.toFixed(2).replace(".", ","));
       if (letto.tipo) setTipo(letto.tipo);
       if (letto.giorno) setGiorno(letto.giorno);
       if (letto.esercente) setNota(n => n || letto.esercente!);

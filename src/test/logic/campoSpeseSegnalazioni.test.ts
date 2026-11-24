@@ -77,6 +77,9 @@ describe("Scontrino letto dall'AI: si scrive solo quello che ha senso", () => {
     expect(pulisciScontrino({ importo: 45.237, data: "2026-11-22", tipo: "carburante", esercente: " Q8 Bergamo " }, "2026-11-24"))
       .toEqual({ importo: 45.24, giorno: "2026-11-22", tipo: "carburante", esercente: "Q8 Bergamo" });
     expect(pulisciScontrino({ importo: "12,50" }, "2026-11-24").importo).toBe(12.5);
+    // La pagina ripulisce di nuovo la risposta del server, che usa «giorno»: la data non si perde.
+    const dalServer = pulisciScontrino({ importo: 55.5, data: "2026-11-22", tipo: "carburante" }, "2026-11-24");
+    expect(pulisciScontrino(dalServer, "2026-11-24").giorno).toBe("2026-11-22");
   });
 
   it("scarta date future o troppo vecchie, tipi inventati, importi assurdi", async () => {
