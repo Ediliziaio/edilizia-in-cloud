@@ -432,7 +432,7 @@ export const OrdersTable = React.memo(function OrdersTable({
             aria per riga; con gli a-capo le righe arrivavano a 93px. Ora ~52px,
             in linea con l'estimateSize=56 del virtualizer (prima mentiva). */}
         {/* Sotto i 1280px celle più strette: la tabella deve stare nella pagina. */}
-        <Table wrapperRef={setScrollContainer} className="[&_thead_th]:h-10 [&_thead_th]:whitespace-nowrap [&_thead_th]:px-2 xl:[&_thead_th]:px-3 [&_tbody_td]:whitespace-nowrap [&_tbody_td]:px-2 xl:[&_tbody_td]:px-3 [&_tbody_td]:py-2">
+        <Table wrapperRef={setScrollContainer} className="text-[13px] [&_.text-sm]:text-[13px] [&_thead_th]:text-[13px] [&_thead_th]:h-10 [&_thead_th]:whitespace-nowrap [&_thead_th]:px-2 xl:[&_thead_th]:px-3 [&_tbody_td]:whitespace-nowrap [&_tbody_td]:px-2 xl:[&_tbody_td]:px-3 [&_tbody_td]:py-2">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[40px]">
@@ -445,7 +445,7 @@ export const OrdersTable = React.memo(function OrdersTable({
               <SortableTableHead column="order_code" label="Codice" sortConfig={sortConfig} onSort={toggleSort} />
               {visibleColumns.has("date") && <SortableTableHead column="created_at" label="Data" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell" />}
               <SortableTableHead column="description" label="Descrizione" sortConfig={sortConfig} onSort={toggleSort} />
-              {visibleColumns.has("customer") && <SortableTableHead column="customer" label="Cliente" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell" />}
+              {visibleColumns.has("customer") && <SortableTableHead column="customer" label="Nome Cliente" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
               {visibleColumns.has("totalIvato") && <SortableTableHead column="totalIvato" label="Tot. Ivato" sortConfig={sortConfig} onSort={toggleSort} className="hidden sm:table-cell text-right" />}
               {visibleColumns.has("imponibile") && <SortableTableHead column="total_amount" label="Imponibile con varianti" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
               {visibleColumns.has("collected") && <SortableTableHead column="collected" label="Incassato" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
@@ -548,15 +548,15 @@ export const OrdersTable = React.memo(function OrdersTable({
                     </TableCell>
                   )}
                   <TableCell className="min-w-[160px] max-w-[240px] xl:max-w-[300px]" title={order.description ?? undefined}>
-                    <span className="line-clamp-2 whitespace-normal text-sm font-medium leading-5 text-slate-800">{order.description}</span>
+                    <span className="line-clamp-2 lg:line-clamp-1 whitespace-normal text-sm font-medium leading-5 text-slate-800">{order.description}</span>
                     {visibleColumns.has("customer") && order.customer && (
-                      <span className="block truncate text-xs text-muted-foreground 2xl:hidden">
+                      <span className="block truncate text-xs text-muted-foreground lg:hidden">
                         {order.customer.first_name} {order.customer.last_name}
                       </span>
                     )}
                   </TableCell>
                   {visibleColumns.has("customer") && (
-                    <TableCell className="hidden 2xl:table-cell">
+                    <TableCell className="hidden lg:table-cell">
                       <span className="block max-w-[160px] truncate" title={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}>
                         {order.customer
                           ? `${order.customer.first_name} ${order.customer.last_name}`

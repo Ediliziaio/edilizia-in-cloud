@@ -2,7 +2,8 @@ import { percorsoDocumentoGenerale, useAspettoOperativo } from "./generali/desig
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
-import { CaricaFatturaCommessaButton, collegaFatturaACommessa } from "./CaricaFatturaCommessa";
+import { collegaFatturaACommessa } from "./CaricaFatturaCommessa";
+import { CollegaFatturaRicevutaDialog } from "./CollegaFatturaRicevutaDialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
@@ -18,7 +19,7 @@ import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
  */
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { ChevronDown, FileText, Plus, Receipt, Truck } from "lucide-react";
+import { ChevronDown, FileText, Link2, Plus, Receipt, Truck } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useDDTRicezioneMutations, type DDTStato } from "@/hooks/useDDTRicezione";
 import { useSegnaRicevutaPagata } from "@/components/fatturazione/PagamentoRicevuta";
@@ -657,6 +658,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
   const [paymentCostId, setPaymentCostId] = useState<string | null>(null);
   const [riepilogoId, setRiepilogoId] = useState<string | null>(null);
   const [daDividere, setDaDividere] = useState<RigaFattura | null>(null);
+  const [collegaRicevuta, setCollegaRicevuta] = useState(false);
   const { effectiveCompany } = useAuth();
   const segnaPagata = useSegnaRicevutaPagata();
   const [occupata, setOccupata] = useState<string | null>(null);
@@ -796,6 +798,9 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
   return (
     <>
     {paymentCostId && <ExpensePaymentDialog key={paymentCostId} costId={paymentCostId} onClose={() => { setPaymentCostId(null); void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] }); }} />}
+    {collegaRicevuta && effectiveCompany?.id && (
+      <CollegaFatturaRicevutaDialog open onOpenChange={setCollegaRicevuta} orderId={orderId} companyId={effectiveCompany.id} mostraImporti={mostraImporti} />
+    )}
     {daDividere && effectiveCompany?.id && (
       <CollegaFatturaCommesseDialog companyId={effectiveCompany.id} commessaIniziale={orderId} onChiudi={() => { setDaDividere(null); void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] }); }}
         fattura={{ id: daDividere.id, numero: daDividere.numero, fornitore: daDividere.fornitore, imponibile: daDividere.imponibileDocumento, totale: daDividere.totaleDocumento ?? daDividere.totale, companyCostId: daDividere.costId, purchaseOrderId: daDividere.purchaseOrderId }} />
@@ -816,7 +821,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
       descrizione="Fatture, quote della commessa, controlli e pagamenti della stessa spesa."
       titolo="Fatture dei fornitori" conteggio={collegate.length}
       riassunto={mostraImporti && collegate.length > 0 ? `${formatCurrency(costoCommessa)} di costo sulla commessa · ${formatCurrency(totale)} IVA inclusa` : undefined}
-      azioni={puoModificare ? <CaricaFatturaCommessaButton orderId={orderId} /> : undefined}
+      azioni={puoModificare ? <Button size="sm" onClick={() => setCollegaRicevuta(true)}><Link2 className="mr-1.5 h-4 w-4" aria-hidden="true" />Collega fattura</Button> : undefined}
       numeri={!isLoading && !isError && (data.length > 0 || costiSenzaFattura > 0) ? (
         <ContatoriFiltro etichetta="Fatture per stato" attivo={filtro} onScegli={(c) => {
           if (c === "costi") { onApriCosti?.(); return; }
@@ -838,7 +843,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
       ) : (
         <div className="space-y-3">
           {data.length === 0
-            ? <p className="commessa-empty text-sm text-muted-foreground">Nessuna fattura collegata. Caricala da qui, oppure collegala dalla fattura ricevuta scegliendo l’ordine d’acquisto o la commessa.</p>
+            ? <p className="commessa-empty text-sm text-muted-foreground">Nessuna fattura collegata. Con «Collega fattura» la scegli fra le fatture ricevute, o carichi il file se non c’è.</p>
             : <TabellaCommessa etichetta="Fatture dei fornitori" colonne={colonne} righe={visibili} chiave={(f) => f.id} />}
           {suggerite.length > 0 && <p className="text-xs text-muted-foreground">Le fatture «Da collegare» le ha riconosciute l’AI: finché non le colleghi non entrano nei costi.</p>}
           {puoAprireFatture && <Link to="/azienda/documenti/fatture-ricevute" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline underline-offset-4">
