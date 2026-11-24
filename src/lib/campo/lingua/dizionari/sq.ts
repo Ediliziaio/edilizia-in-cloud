@@ -68864,5 +68864,10 @@ const dizionario: Dizionario = {
   "Stanza chiusa ({mq} m²): ho chiuso un varco nelle pareti fino a {cm} cm. Controlla il contorno.": "Dhoma u mbyll ({mq} m²): mbylla një hapje në mure deri në {cm} cm. Kontrolloni konturin.",
   "Stanza dai muri": "Dhomë nga muret",
   "Dislivello (cm)": "Diferenca e lartësisë (cm)",
+  "torna col disegno": "përputhet me vizatimin",
+  "disegnata {mq}": "e vizatuar {mq}",
+  "Per farla tornare con la tavola cambia un lato (l'opposto lo segue):": "Që të përputhet me tabelën, ndrysho një brinjë (e kundërta e ndjek):",
+  "Lato {i}: {da} → {a} m": "Brinja {i}: {da} → {a} m",
+  "Correggi i lati qui sotto scrivendo le misure della tavola.": "Korrigjo brinjët më poshtë duke shkruar masat e tabelës.",
 };
 export default dizionario;

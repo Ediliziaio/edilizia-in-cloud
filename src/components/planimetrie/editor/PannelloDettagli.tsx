@@ -22,7 +22,7 @@ import { altezzaCassonettoConsigliata, anteDi, cassonettoDi, eAvvolgibile, manov
 import { TIPI_SU_TUTTI_I_PIANI } from "@/lib/planimetrie/copiaSuiPiani";
 import { contaStimate, modificabile, prossimaStimata, visibile, type Vista } from "./comandi";
 import { lunghezzaMuro } from "./geometria";
-import { leggiMisura, scriviCentimetri, scriviMetri, scriviMq } from "./misure";
+import { correzioniDallaTavola, leggiMisura, scriviCentimetri, scriviMetri, scriviMq, tornaConLaTavola } from "./misure";
 import type { Selezione } from "./TelaPlanimetria";
 import { funzionePareteDaVerificare, NOMI_AREA, TIPI_AREA, TIPI_CASSONETTO, TIPI_MURO, TIPI_ZANZARIERA, type SistemaApertura, type TipoArea, type TipoCassonetto, type TipoMuro, type TipoOscurante, type TipoZanzariera } from "../../../../shared/planimetrie/modello.ts";
 import { areaPoligono } from "../../../../shared/planimetrie/geometria.ts";
@@ -504,9 +504,34 @@ function DettaglioStanza({
           </div>
         </div>
       </div>
-      {q.superficieDichiarataMq !== undefined && (
-        <p className="text-xs text-muted-foreground">{t("Superficie indicata nella tavola DWG")} <strong className="tabular-nums text-foreground">{scriviMq(q.superficieDichiarataMq)}</strong></p>
-      )}
+      {q.superficieDichiarataMq !== undefined && (() => {
+        const dichiarata = q.superficieDichiarataMq;
+        const torna = tornaConLaTavola(q.mq, dichiarata);
+        const correzioni = misurabile ? correzioniDallaTavola(q.lati, q.mq, dichiarata) : [];
+        return (
+          <div className={cn("space-y-1.5 rounded-md border p-2 text-xs", torna ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-amber-200 bg-amber-50 text-amber-950")}>
+            <p>
+              {t("Superficie indicata nella tavola DWG")} <strong className="tabular-nums">{scriviMq(dichiarata)}</strong>
+              {torna ? <> · <Check className="inline size-3" /> {t("torna col disegno")}</> : <> · {t("disegnata {mq}", { mq: scriviMq(q.mq) })}</>}
+            </p>
+            {correzioni.length > 0 && (
+              <>
+                <p className="text-[11px]">{t("Per farla tornare con la tavola cambia un lato (l'opposto lo segue):")}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {correzioni.map((c) => (
+                    <Button key={c.lato} size="sm" variant="outline" className="h-7 bg-background px-2 text-xs tabular-nums" onClick={() => azioni.latoStanza(locale.id, c.lato, c.a)}>
+                      {t("Lato {i}: {da} → {a} m", { i: c.lato + 1, da: scriviMetri(c.da), a: scriviMetri(c.a) })}
+                    </Button>
+                  ))}
+                </div>
+              </>
+            )}
+            {!torna && !correzioni.length && misurabile && (
+              <p className="text-[11px]">{t("Correggi i lati qui sotto scrivendo le misure della tavola.")}</p>
+            )}
+          </div>
+        );
+      })()}
       {q.aperto && <p className="text-xs text-muted-foreground">{t("Zona comunicante. Il contorno serve a misurare il pavimento.")}</p>}
       <div className="space-y-1">
         <Label>{t("Misure interne (da muro a muro)")}</Label>

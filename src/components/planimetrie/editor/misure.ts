@@ -62,6 +62,30 @@ export function scriviMq(mq: number): string {
   return `${mq.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} mq`;
 }
 
+/** La superficie disegnata torna con quella scritta sulla tavola: entro il 2%, o 0,2 m². */
+export function tornaConLaTavola(mq: number, dichiarataMq: number): boolean {
+  return Math.abs(mq - dichiarataMq) <= Math.max(0.2, dichiarataMq * 0.02);
+}
+
+/**
+ * Come far tornare una stanza rettangolare con la superficie scritta sulla tavola
+ * (24/11/2026): si cambia un lato solo, e l'opposto lo segue. Un lato per proposta,
+ * in cm, arrotondato al mezzo centimetro. Vuoto se la stanza torna già, se non è un
+ * rettangolo (lì il lato da toccare non si indovina) o se la correzione sarebbe
+ * enorme (più della metà: è la tavola che conta un'altra cosa, non un errore di disegno).
+ */
+export function correzioniDallaTavola(lati: number[], mq: number, dichiarataMq: number): Array<{ lato: number; da: number; a: number }> {
+  if (lati.length !== 4 || mq <= 0 || dichiarataMq <= 0 || tornaConLaTavola(mq, dichiarataMq)) return [];
+  const uguale = (a: number, b: number) => Math.abs(a - b) <= Math.max(2, Math.max(a, b) * 0.02);
+  if (!uguale(lati[0], lati[2]) || !uguale(lati[1], lati[3])) return [];
+  const fattore = dichiarataMq / mq;
+  if (fattore < 0.5 || fattore > 1.5) return [];
+  return [0, 1].flatMap((lato) => {
+    const a = Math.round(lati[lato] * fattore * 2) / 2;
+    return a >= 30 ? [{ lato, da: lati[lato], a }] : [];
+  });
+}
+
 /** Legge «3,50 x 4» / «3.5 per 4,20» / «350×420». */
 export function leggiDueMisure(testo: string): [number, number] | null {
   const parti = testo.toLowerCase().split(/\s*(?:x|×|\*|per)\s*/);

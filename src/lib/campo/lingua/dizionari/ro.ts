@@ -68864,5 +68864,10 @@ const dizionario: Dizionario = {
   "Stanza chiusa ({mq} m²): ho chiuso un varco nelle pareti fino a {cm} cm. Controlla il contorno.": "Cameră închisă ({mq} m²): am închis o deschidere în pereți de până la {cm} cm. Verifică conturul.",
   "Stanza dai muri": "Cameră din pereți",
   "Dislivello (cm)": "Diferență de nivel (cm)",
+  "torna col disegno": "se potrivește cu desenul",
+  "disegnata {mq}": "desenată {mq}",
+  "Per farla tornare con la tavola cambia un lato (l'opposto lo segue):": "Ca să se potrivească cu planșa, schimbă o latură (cea opusă o urmează):",
+  "Lato {i}: {da} → {a} m": "Latura {i}: {da} → {a} m",
+  "Correggi i lati qui sotto scrivendo le misure della tavola.": "Corectează laturile de mai jos scriind măsurile din planșă.",
 };
 export default dizionario;
