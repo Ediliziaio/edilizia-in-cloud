@@ -423,3 +423,49 @@ Corretti tre difetti:
   locale»: ora dice in quale stanza resta e cosa fare.
 Da fare con il login: le stesse prove su Demo 2 con i prezzi, il salvataggio nel database e il
 computo del preventivo.
+
+## 10. Nuova costruzione (24/11/2026, richiesta del titolare dopo Callimaco)
+
+Lo studio della variante contava solo cosa cambia fra «com'è oggi» e progetto: su un edificio da
+fare da zero (Callimaco, Urban Vision) uscivano pareti, intonaci e serramenti, e mancava tutto il
+resto. Ora una pianta può essere **nuova costruzione** (`doc.costruzione`, `shared/planimetrie/costruzione.ts`):
+- **Scelte dell'edificio** con valori di partenza dichiarati: fondazioni (travi rovesce, platea,
+  plinti), struttura (telaio in c.a., muratura portante, X-Lam), solai, riscaldamento (radiante e
+  pompa di calore, radiatori e caldaia), scavo, cappotto, marciapiede. Pannello «Nuova costruzione»
+  nella scheda della planimetria; con «tutto il disegno è da costruire» lo stato di oggi passa
+  nella variante «Costruzione» con elementi nuovi (`disegnoDaCostruire`).
+- **Geometria dei piani** (`geometriaPiano`): superficie lorda, perimetro e pareti di perimetro da
+  pareti e stanze su una griglia di 5 cm, con chiusura dei varchi (40 cm) e senza le sporgenze
+  sottili (60 cm). Funziona anche sulle pareti dei DWG che non si toccano agli incroci. Su
+  Callimaco: piano primo 166 m² contro 171 di SUL scritta, secondo 59 contro 60.
+- **Voci** (`src/lib/planimetrie/nuovaCostruzione.ts`), ognuna con la sua formula: ponteggio,
+  scavo, rinterro e trasporto terre, magrone, fondazioni, muri controterra e impermeabilizzazione
+  (se c'è un interrato), vespaio, struttura in elevazione (stima parametrica 0,12 m³/m² finché non
+  ci sono i calcoli), solai, scale, copertura (con la pendenza del tetto), terrazzi dove il piano
+  sopra è più piccolo, cappotto o intonaco esterno sulle pareti di perimetro (che diventano
+  «Tamponatura esterna», intonacate dentro su una faccia), massetti, isolamento a terra, pavimenti
+  e rivestimenti per stanza, impianto elettrico, bagni e cucine, riscaldamento, generatore e
+  portoncino per alloggio, marciapiede, allacciamenti.
+- **Computo metrico** per capitoli: 01 Opere provvisionali … 12 Sistemazioni esterne.
+- **Prezzi** indicativi 2026 per ogni nuova lavorazione (listino aziendale prima, se c'è).
+  Mancano gli abbinamenti al prezzario regionale per queste voci: si fanno come per le altre,
+  per codice verificato.
+- **Previsione**: fasi Opere provvisionali, Scavi, Fondazioni, Strutture, Solai e copertura,
+  Isolamenti e facciate, Impianti, Massetti, Esterni; attese (7 giorni dopo le fondazioni, 28 per il
+  disarmo dei solai, 21 sul massetto); squadre in parallelo su murature, impianti e finiture; oneri
+  tecnici (progetto e permesso di costruire 7%, strutturale e collaudo 2,5%, oneri comunali 3%,
+  impianto di cantiere 2,5%) al posto di CILA e protezioni.
+- Callimaco come nuova costruzione: 567.285 € di lavori, 715.029 € con gli oneri (circa
+  1.560 €/m² lordi), 448 giorni di calendario.
+
+**Sopraelevazione** (stesso giorno: Callimaco è un prefabbricato su cui si costruisce sopra).
+Ogni piano ha il suo modo (`costruzione.piani`): da costruire, esistente da rifare dentro
+(si tengono struttura e pareti di perimetro, si rifanno tramezzi, impianti e finiture, con lo
+svuotamento), esistente che non si tocca. Con piani nuovi sopra piani esistenti il computo toglie
+scavi e fondazioni nuove e aggiunge micropali (uno ogni 1,50 m di perimetro, 12 m), cordolo di
+collegamento, adeguamento sismico della struttura esistente (stima per m², dipende dalla verifica
+di vulnerabilità) e rimozione della copertura dove si costruisce sopra. Il cappotto vale anche sui
+piani esistenti da rifare (perimetro × altezza × 0,85).
+
+Resta: abbinamenti al prezzario regionale delle voci nuove; struttura dai calcoli strutturali
+invece della stima per m²; prospetti e sezioni del DWG (altezze vere dei piani).

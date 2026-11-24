@@ -51,12 +51,21 @@ export function previsioneSalvata(valore: unknown): Previsione | null {
 
 const PAROLE: Record<FasePrevisione, RegExp> = {
   Demolizioni: /demoli|rimozion|smontagg|sgombero/,
-  Murature: /muratur|murari|tramezz|cartongess|tavolat/,
+  "Opere provvisionali": /ponteggi|provvisional|impianto di cantiere/,
+  Scavi: /scav|sbancament|movimento terra|movimenti di terra/,
+  Fondazioni: /fondazion|platea|plint|vespaio/,
+  Strutture: /struttur|pilastr|cemento armato|\bc\.?a\.?\b|elevazion/,
+  "Solai e copertura": /solai|copertur|tetto|lastrico/,
+  Murature: /muratur|murari|tramezz|cartongess|tavolat|tamponat/,
+  "Isolamenti e facciate": /cappott|isolament|facciat/,
   Serramenti: /serrament|infiss|finestr|porte\b|porta\b/,
+  Impianti: /impiant|idraulic|elettric|termoidraul/,
   Intonaci: /intonac|rasatur/,
-  "Pavimento radiante": /radiant|massett/,
+  "Pavimento radiante": /radiant/,
+  Massetti: /massett|sottofond/,
   "Pavimenti e rivestimenti": /paviment|rivestiment|piastrell|battiscop/,
   Tinteggiature: /tinteggi|pittur|imbianc|verniciat/,
+  Esterni: /sistemazion|marciapied|allacci|esterni/,
 };
 
 /** A quale fase della previsione corrisponde una fase della commessa, dal nome. */

@@ -9,7 +9,7 @@ from ricostruisciDxf import (
     Asse, LocaleLetto, abbina_aperture, accorpa_assi_sovrapposti, allinea_pareti, candidato_finestra,
     combina_vani_comunicanti, completa_ingressi_aperti, contorni_facce, contorni_senza_etichette, finestre_tra_stipiti, includi_battuta_portone,
     layer_del_piano, leggi_piano, leggi_quote, portoni_garage, raccordi_muratura, registra_tavola, riconosci_locali, riscontri_chiusure, riscontri_sovrapposizioni,
-    scale_da_riscontrare, vani_senza_segno, varchi_tra_stipiti, leggi_testi,
+    scale_da_riscontrare, vani_senza_segno, varchi_tra_stipiti, leggi_testi, leggi_sigle_infissi, misure_da_sigle,
 )
 
 
@@ -285,6 +285,22 @@ class TavoleSenzaAnteTest(unittest.TestCase):
         nomi, aree = leggi_testi(spazio, box(0, 0, 100, 100), 1)
         self.assertEqual([d for _, _, d in nomi], ["soggiorno", "camera", "disimpegno", "ripostiglio", "cantina"])
         self.assertEqual([m for _, m in aree], [27.4])
+
+
+class SigleInfissiTest(unittest.TestCase):
+    def test_legge_le_sigle_e_le_abbina_al_vano_piu_vicino_di_larghezza_compatibile(self):
+        doc = ezdxf.new()
+        spazio = doc.modelspace()
+        spazio.add_mtext("L 170\\PHf 140\\PHs 94", dxfattribs={"insert": (100, 60)})
+        spazio.add_mtext("L 99\\PHp 210", dxfattribs={"insert": (400, 60)})
+        spazio.add_mtext("soggiorno", dxfattribs={"insert": (250, 200)})
+        sigle = leggi_sigle_infissi(spazio, box(0, 0, 600, 300), 1)
+        self.assertEqual([(s["larghezza"], s["hf"], s["hp"], s["hs"]) for s in sigle], [(170, 140, None, 94), (99, None, 210, None)])
+        vani = [(Point(400, 0), 100), (Point(100, 0), 168), (Point(250, 0), 60)]
+        esito = misure_da_sigle(vani, sigle)
+        self.assertEqual(esito[0]["hp"], 210)
+        self.assertEqual(esito[1]["hs"], 94)
+        self.assertNotIn(2, esito)
 
 
 if __name__ == "__main__":

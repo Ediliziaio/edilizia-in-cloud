@@ -110,6 +110,7 @@ export function PrevisioneLavori({ righe, fonte }: { righe: readonly RigaStudio[
           <p className="flex justify-between gap-3 font-medium"><span>{f.fase}</span><span className="tabular-nums">{euro().format(f.importo)}</span></p>
           <p className="flex justify-between gap-3 text-muted-foreground"><span>{t("Manodopera {manodopera} · materiali {materiali}", { manodopera: String(euro().format(f.manodopera) ?? ""), materiali: String(euro().format(f.materiali) ?? "") })}</span><span className="shrink-0 tabular-nums">{giorni(f.giorni)}{f.correzione ? ` (${t("tipiche {giorni}", { giorni: giorni(f.giorniBase) })})` : ""}</span></p>
           {f.attesa > 0 && <p className="text-muted-foreground">{t("Dopo {attesa} giorni: {perche}", { attesa: String(f.attesa ?? ""), perche: String(f.perche ?? "") })}</p>}
+          {f.squadre && <p className="text-muted-foreground">{t("{n} squadre in parallelo", { n: f.squadre })}</p>}
         </li>)}
         {p.fuori.nonStimate > 0 && <li className="flex justify-between gap-3 py-2 text-muted-foreground"><span>{t("Altre voci quotate, senza stima dei tempi")}</span>
           <span className="shrink-0 font-medium tabular-nums text-foreground">{euro().format(p.lavori - p.fasi.reduce((s, f) => s + f.importo, 0))}</span></li>}
@@ -119,7 +120,7 @@ export function PrevisioneLavori({ righe, fonte }: { righe: readonly RigaStudio[
         <thead><tr className="text-left text-muted-foreground"><th className="py-1 font-medium">{t("Fase")}</th><th className="px-2 text-right font-medium">{t("Manodopera")}</th><th className="px-2 text-right font-medium">{t("Materiali")}</th><th className="px-2 text-right font-medium">{t("Importo")}</th><th className="text-right font-medium">{t("Durata")}</th></tr></thead>
         <tbody className="divide-y">
           {p.fasi.map((f) => <tr key={f.fase} className="align-top">
-            <th scope="row" className="py-1.5 text-left font-medium">{f.fase}{f.attesa > 0 && <span className="block font-normal text-muted-foreground">{t("dopo {attesa} giorni: {perche}", { attesa: String(f.attesa ?? ""), perche: String(f.perche ?? "") })}</span>}</th>
+            <th scope="row" className="py-1.5 text-left font-medium">{f.fase}{f.attesa > 0 && <span className="block font-normal text-muted-foreground">{t("dopo {attesa} giorni: {perche}", { attesa: String(f.attesa ?? ""), perche: String(f.perche ?? "") })}</span>}{f.squadre && <span className="block font-normal text-muted-foreground">{t("{n} squadre in parallelo", { n: f.squadre })}</span>}</th>
             <td className="px-2 py-1.5 text-right tabular-nums">{euro().format(f.manodopera)}</td>
             <td className="px-2 py-1.5 text-right tabular-nums">{euro().format(f.materiali)}</td>
             <td className="px-2 py-1.5 text-right font-medium tabular-nums">{euro().format(f.importo)}</td>

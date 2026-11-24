@@ -9,13 +9,14 @@
  */
 import { ePrezzoProposto, FONTE_INDICATIVA, tipoLavorazione, type TipoLavorazione } from "./prezziProposti";
 import type { RigaStudio } from "./studioImmobiliare";
+import { tipoCostruzione } from "./nuovaCostruzione";
 
 /**
  * Quando cambiano rese, quote di manodopera, attese o extra, cambia questa data: le previsioni
  * salvate con la commessa (commessa_previsioni_lavori) dicono con quali regole sono nate, e il
  * confronto col consuntivo non mescola regole diverse.
  */
-export const VERSIONE_REGOLE_PREVISIONE = "2026-11-23";
+export const VERSIONE_REGOLE_PREVISIONE = "2026-11-24";
 
 interface RegolaPosa {
   /** Quantità al giorno per una squadra di due persone (nell'unità della voce). */
@@ -25,8 +26,12 @@ interface RegolaPosa {
   fase: FasePrevisione;
 }
 
-export type FasePrevisione = "Demolizioni" | "Murature" | "Serramenti" | "Intonaci" | "Pavimento radiante" | "Pavimenti e rivestimenti" | "Tinteggiature";
-export const FASI_PREVISIONE: readonly FasePrevisione[] = ["Demolizioni", "Murature", "Serramenti", "Intonaci", "Pavimento radiante", "Pavimenti e rivestimenti", "Tinteggiature"];
+export type FasePrevisione = "Demolizioni" | "Opere provvisionali" | "Scavi" | "Fondazioni" | "Strutture" | "Solai e copertura"
+  | "Murature" | "Isolamenti e facciate" | "Serramenti" | "Impianti" | "Intonaci" | "Pavimento radiante" | "Massetti"
+  | "Pavimenti e rivestimenti" | "Tinteggiature" | "Esterni";
+/** L'ordine del cantiere: le fasi di una nuova costruzione stanno prima e dopo quelle di sempre. */
+export const FASI_PREVISIONE: readonly FasePrevisione[] = ["Demolizioni", "Opere provvisionali", "Scavi", "Fondazioni", "Strutture", "Solai e copertura",
+  "Murature", "Isolamenti e facciate", "Serramenti", "Impianti", "Intonaci", "Pavimento radiante", "Massetti", "Pavimenti e rivestimenti", "Tinteggiature", "Esterni"];
 
 export const REGOLE_POSA: Record<TipoLavorazione, RegolaPosa> = {
   demolizione_tramezzo: { resa: 20, manodopera: 0.85, fase: "Demolizioni" },
@@ -49,12 +54,74 @@ export const REGOLE_POSA: Record<TipoLavorazione, RegolaPosa> = {
   rivestimento: { resa: 12, manodopera: 0.45, fase: "Pavimenti e rivestimenti" },
   battiscopa: { resa: 40, manodopera: 0.5, fase: "Pavimenti e rivestimenti" },
   tinteggiatura: { resa: 60, manodopera: 0.75, fase: "Tinteggiature" },
+  // Nuova costruzione: rese di una squadra di due persone, con i mezzi dove servono (escavatore, autopompa).
+  ponteggio: { resa: 120, manodopera: 0.6, fase: "Opere provvisionali" },
+  svuotamento: { resa: 20, manodopera: 0.75, fase: "Demolizioni" },
+  rimozione_copertura: { resa: 30, manodopera: 0.7, fase: "Demolizioni" },
+  micropali: { resa: 40, manodopera: 0.4, fase: "Fondazioni" },
+  adeguamento_sismico: { resa: 8, manodopera: 0.55, fase: "Strutture" },
+  scavo: { resa: 80, manodopera: 0.35, fase: "Scavi" },
+  rinterro: { resa: 80, manodopera: 0.35, fase: "Scavi" },
+  trasporto_terre: { resa: 100, manodopera: 0.3, fase: "Scavi" },
+  magrone: { resa: 60, manodopera: 0.4, fase: "Fondazioni" },
+  fondazioni_ca: { resa: 6, manodopera: 0.45, fase: "Fondazioni" },
+  muri_controterra: { resa: 4, manodopera: 0.45, fase: "Fondazioni" },
+  impermeabilizzazione_controterra: { resa: 30, manodopera: 0.5, fase: "Fondazioni" },
+  vespaio: { resa: 40, manodopera: 0.35, fase: "Fondazioni" },
+  struttura_ca: { resa: 2.5, manodopera: 0.5, fase: "Strutture" },
+  cordoli_ca: { resa: 3, manodopera: 0.5, fase: "Strutture" },
+  struttura_legno: { resa: 4, manodopera: 0.35, fase: "Strutture" },
+  solaio_laterocemento: { resa: 25, manodopera: 0.45, fase: "Solai e copertura" },
+  solaio_predalles: { resa: 35, manodopera: 0.4, fase: "Solai e copertura" },
+  solaio_legno: { resa: 25, manodopera: 0.4, fase: "Solai e copertura" },
+  copertura: { resa: 15, manodopera: 0.45, fase: "Solai e copertura" },
+  terrazzo: { resa: 15, manodopera: 0.45, fase: "Solai e copertura" },
+  scala: { resa: 0.25, manodopera: 0.55, fase: "Solai e copertura" },
+  tamponatura: { resa: 12, manodopera: 0.5, fase: "Murature" },
+  cappotto: { resa: 15, manodopera: 0.55, fase: "Isolamenti e facciate" },
+  intonaco_esterno: { resa: 25, manodopera: 0.7, fase: "Isolamenti e facciate" },
+  isolamento_pavimento: { resa: 80, manodopera: 0.35, fase: "Massetti" },
+  massetto: { resa: 70, manodopera: 0.45, fase: "Massetti" },
+  impianto_elettrico: { resa: 20, manodopera: 0.55, fase: "Impianti" },
+  bagno_completo: { resa: 0.35, manodopera: 0.5, fase: "Impianti" },
+  attacchi_cucina: { resa: 1.5, manodopera: 0.55, fase: "Impianti" },
+  riscaldamento_radiante: { resa: 40, manodopera: 0.35, fase: "Pavimento radiante" },
+  riscaldamento_radiatori: { resa: 25, manodopera: 0.45, fase: "Impianti" },
+  pompa_di_calore: { resa: 0.5, manodopera: 0.3, fase: "Impianti" },
+  caldaia: { resa: 1, manodopera: 0.3, fase: "Impianti" },
+  portoncino: { resa: 2, manodopera: 0.15, fase: "Serramenti" },
+  marciapiede: { resa: 15, manodopera: 0.5, fase: "Esterni" },
+  allacciamenti: { resa: 0.3, manodopera: 0.5, fase: "Esterni" },
 };
 
-/** Giorni di attesa obbligata prima che parta la fase: l'intonaco deve asciugare prima della pittura. */
-export const ATTESE: Partial<Record<FasePrevisione, { dopo: FasePrevisione; giorni: number; perche: string }>> = {
+interface Attesa { dopo: FasePrevisione; giorni: number; perche: string }
+/**
+ * Giorni di attesa obbligata prima che parta la fase: l'intonaco deve asciugare prima della pittura.
+ * Con più possibilità vale la prima la cui fase precedente c'è.
+ */
+export const ATTESE: Partial<Record<FasePrevisione, Attesa | readonly Attesa[]>> = {
   Tinteggiature: { dopo: "Intonaci", giorni: 14, perche: "asciugatura dell'intonaco prima della pittura" },
-  "Pavimenti e rivestimenti": { dopo: "Pavimento radiante", giorni: 21, perche: "maturazione del massetto sopra il radiante prima di posare" },
+  "Pavimenti e rivestimenti": [
+    { dopo: "Pavimento radiante", giorni: 21, perche: "maturazione del massetto sopra il radiante prima di posare" },
+    { dopo: "Massetti", giorni: 21, perche: "maturazione del massetto prima di posare" },
+  ],
+  Strutture: { dopo: "Fondazioni", giorni: 7, perche: "maturazione del calcestruzzo delle fondazioni prima di caricarle" },
+  Murature: { dopo: "Solai e copertura", giorni: 28, perche: "disarmo e maturazione dei solai prima delle murature" },
+};
+
+/** L'attesa che vale davanti a questa fase, date le fasi presenti. */
+export function attesaPer(fase: FasePrevisione, presenti: { has(f: FasePrevisione): boolean }): Attesa | undefined {
+  const regola = ATTESE[fase];
+  const candidate = !regola ? [] : Array.isArray(regola) ? regola : [regola as Attesa];
+  return candidate.find((a) => presenti.has(a.dopo));
+}
+
+/**
+ * Squadre in parallelo per fase in una nuova costruzione: murature, impianti e finiture li fanno
+ * più squadre (spesso ditte diverse) insieme. Nelle ristrutturazioni resta una squadra.
+ */
+export const SQUADRE_COSTRUZIONE: Partial<Record<FasePrevisione, number>> = {
+  Murature: 3, "Isolamenti e facciate": 2, Impianti: 3, Intonaci: 3, "Pavimenti e rivestimenti": 2, Tinteggiature: 2,
 };
 
 export type RegolaExtra = { tipo: "a_corpo"; importo: number } | { tipo: "percentuale"; percento: number };
@@ -62,14 +129,21 @@ export interface CostoExtra {
   id: string;
   nome: string;
   regola: RegolaExtra;
-  /** Si accende da solo solo quando serve (pratica edilizia: se si toccano le pareti). */
-  quando?: "pareti";
+  /**
+   * Si accende da solo solo quando serve: «pareti» se si toccano le pareti (pratica edilizia),
+   * «costruzione» per una nuova costruzione, «ristrutturazione» per tutto il resto.
+   */
+  quando?: "pareti" | "costruzione" | "ristrutturazione";
   perche: string;
 }
 
 export const COSTI_EXTRA: readonly CostoExtra[] = [
-  { id: "cantiere", nome: "Allestimento del cantiere e protezioni", regola: { tipo: "a_corpo", importo: 450 }, perche: "Teli, protezione di pavimenti e parti comuni, quadro di cantiere" },
+  { id: "cantiere", nome: "Allestimento del cantiere e protezioni", regola: { tipo: "a_corpo", importo: 450 }, quando: "ristrutturazione", perche: "Teli, protezione di pavimenti e parti comuni, quadro di cantiere" },
   { id: "pratica", nome: "Pratica edilizia (CILA) e direzione lavori", regola: { tipo: "a_corpo", importo: 1500 }, quando: "pareti", perche: "Spostare o demolire pareti cambia la distribuzione: serve un tecnico" },
+  { id: "cantiere_costruzione", nome: "Impianto di cantiere: recinzione, baraccamenti, gru e allacci provvisori", regola: { tipo: "percentuale", percento: 2.5 }, quando: "costruzione", perche: "Un edificio nuovo ha bisogno di un cantiere attrezzato per tutta la durata dei lavori" },
+  { id: "progetto_costruzione", nome: "Progetto, permesso di costruire e direzione lavori", regola: { tipo: "percentuale", percento: 7 }, quando: "costruzione", perche: "Progetto architettonico, pratica comunale e direzione dei lavori" },
+  { id: "strutturale", nome: "Calcoli strutturali, deposito sismico e collaudo statico", regola: { tipo: "percentuale", percento: 2.5 }, quando: "costruzione", perche: "Obbligatori per strutture nuove; sostituiscono anche le stime parametriche della struttura" },
+  { id: "oneri_comunali", nome: "Oneri di urbanizzazione e costo di costruzione", regola: { tipo: "percentuale", percento: 3 }, quando: "costruzione", perche: "Ordine di grandezza: li calcola il Comune sulla superficie e sulla zona" },
   { id: "sicurezza", nome: "Oneri della sicurezza", regola: { tipo: "percentuale", percento: 3 }, perche: "Dispositivi, apprestamenti e coordinamento" },
   { id: "pulizia", nome: "Pulizia di fine cantiere", regola: { tipo: "a_corpo", importo: 250 }, perche: "Pulizia fine e sgombero prima della consegna" },
   { id: "imprevisti", nome: "Imprevisti", regola: { tipo: "percentuale", percento: 8 }, perche: "Impianti nelle pareti, sottofondi da rifare, misure diverse dal rilievo" },
@@ -88,6 +162,8 @@ export interface FaseStimata {
   correzione?: number;
   /** Giorni di attesa obbligata prima di questa fase. */
   attesa: number;
+  /** Squadre in parallelo (nuova costruzione); assente se una. */
+  squadre?: number;
   perche?: string;
   voci: number;
 }
@@ -116,8 +192,10 @@ const mezzoGiorno = (g: number) => Math.max(0.5, Math.ceil(g * 2) / 2);
 
 /** Gli extra accesi in partenza per queste lavorazioni. */
 export function extraPredefiniti(righe: readonly Pick<RigaStudio, "id" | "descrizione">[]): string[] {
-  const pareti = righe.some((r) => ["demolizione_tramezzo", "demolizione_muratura", "nuovo_tramezzo", "nuova_muratura", "varco", "chiusura_vano"].includes(tipoLavorazione(r) ?? ""));
-  return COSTI_EXTRA.filter((e) => e.quando !== "pareti" || pareti).map((e) => e.id);
+  const costruzione = righe.some((r) => tipoCostruzione(r.id));
+  const pareti = !costruzione && righe.some((r) => ["demolizione_tramezzo", "demolizione_muratura", "nuovo_tramezzo", "nuova_muratura", "varco", "chiusura_vano"].includes(tipoLavorazione(r) ?? ""));
+  return COSTI_EXTRA.filter((e) => e.quando === undefined || (e.quando === "pareti" && pareti)
+    || (e.quando === "costruzione" && costruzione) || (e.quando === "ristrutturazione" && !costruzione)).map((e) => e.id);
 }
 
 export function previsioneLavori(
@@ -145,15 +223,18 @@ export function previsioneLavori(
     f.voci++;
     perFase.set(regola.fase, f);
   }
+  const costruzione = righe.some((r) => tipoCostruzione(r.id));
   const fasi = FASI_PREVISIONE.flatMap((nome) => {
     const f = perFase.get(nome);
     if (!f) return [];
-    const attesa = ATTESE[nome];
-    const { giorniEsatti, ...resto } = f;
+    const attesa = attesaPer(nome, perFase);
+    const squadre = costruzione ? SQUADRE_COSTRUZIONE[nome] ?? 1 : 1;
+    const { giorniEsatti: giorniUnaSquadra, ...resto } = f;
+    const giorniEsatti = giorniUnaSquadra / squadre;
     const k = correzione[nome];
     return [{ ...resto, importo: euro2(f.importo), manodopera: euro2(f.manodopera), materiali: euro2(f.importo - f.manodopera),
       giorni: mezzoGiorno(giorniEsatti * (k ?? 1)), giorniBase: mezzoGiorno(giorniEsatti), ...(k ? { correzione: k } : {}),
-      attesa: attesa && perFase.has(attesa.dopo) ? attesa.giorni : 0, perche: attesa && perFase.has(attesa.dopo) ? attesa.perche : undefined }];
+      attesa: attesa?.giorni ?? 0, perche: attesa?.perche, ...(squadre > 1 ? { squadre } : {}) }];
   });
   const stimati = fasi.reduce((s, f) => s + f.importo, 0);
   const lavori = euro2(stimati + altriLavori);

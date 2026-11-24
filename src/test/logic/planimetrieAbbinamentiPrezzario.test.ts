@@ -17,8 +17,11 @@ import { FONTE_INDICATIVA, proponiPrezzo, REGOLE_LAVORAZIONI, type FontiPrezzi, 
 import { unitaCompatibili } from "@/lib/prezzario/confronto";
 import riscontro from "../fixtures/prezzarioVociAbbinate.json";
 
-/** L'unità della riga che la pianta genera per ogni lavorazione (studioImmobiliare). */
-const UNITA_RIGA: Record<TipoLavorazione, string> = {
+/**
+ * L'unità della riga che la pianta genera per ogni lavorazione abbinabile al prezzario
+ * (studioImmobiliare). Le lavorazioni della nuova costruzione non hanno ancora abbinamenti.
+ */
+const UNITA_RIGA: Partial<Record<TipoLavorazione, string>> & Record<string, string> = {
   demolizione_tramezzo: "m²", demolizione_muratura: "m²", nuovo_tramezzo: "m²", nuova_muratura: "m²",
   macerie: "a corpo", ripristino: "m²", intonaco: "m²", tinteggiatura: "m²", battiscopa: "m",
   porta: "cad", finestra: "cad", portafinestra: "cad", varco: "cad", chiusura_vano: "m²", rimozione_serramento: "cad",
@@ -26,7 +29,7 @@ const UNITA_RIGA: Record<TipoLavorazione, string> = {
 };
 
 /** Una riga della pianta di quel tipo, come la scrive lo studio. */
-const RIGA: Record<TipoLavorazione, { id: string; descrizione: string }> = {
+const RIGA: Partial<Record<TipoLavorazione, { id: string; descrizione: string }>> & Record<string, { id: string; descrizione: string }> = {
   demolizione_tramezzo: { id: "m1", descrizione: "Demolizione tramezzo" },
   demolizione_muratura: { id: "m1", descrizione: "Demolizione parete" },
   nuovo_tramezzo: { id: "m1", descrizione: "Nuovo tramezzo" },

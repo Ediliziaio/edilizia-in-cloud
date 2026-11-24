@@ -2,6 +2,7 @@ import { FabbisognoMateriali } from "@/components/planimetrie/FabbisognoMaterial
 import { StatoVerificaDocumento } from "@/components/planimetrie/ControlloPrimaDellUso";
 import { useControlloPrimaDellUso } from "@/hooks/useVerificaPlanimetria";
 import { MaterialiProgetto } from "@/components/planimetrie/MaterialiProgetto";
+import { NuovaCostruzione } from "@/components/planimetrie/NuovaCostruzione";
 import { AssociazioniPiantaPanel, CollegamentiProgetto } from "@/components/planimetrie/CollegamentiPianta";
 import { accessiCollegamenti, useCollegamentiPiante, type TipoCollegamento } from "@/lib/planimetrie/collegamenti";
 import { controlliDalDocumento } from "../../../shared/planimetrie/letturaDocumento.ts";
@@ -153,7 +154,10 @@ export default function RenderPlanimetriaScheda() {
   // Render in serie: null chiuso, "" tutte le stanze, altrimenti più stili per quella stanza.
   const [serie, setSerie] = useState<string | null>(null);
 
-  const livello = documento?.livelli.find((l) => l.id === livelloId) ?? documento?.livelli[0];
+  // Senza un piano scelto si apre il primo con delle stanze (una cantina vuota non dice niente).
+  const livello = documento?.livelli.find((l) => l.id === livelloId)
+    ?? documento?.livelli.find((l) => l.fatto.locali.length || l.proposte.some((p) => p.locali.length))
+    ?? documento?.livelli[0];
   const percorsoTavola = percorsoTavolaOriginale(data?.riga.company_id,livello,documento);
   const sovrapponibile = !!percorsoTavolaDaRicalcare(data?.riga.company_id,livello,true);
   const { data: urlTavola, isLoading: tavolaInCaricamento } = useUrlTavolaOriginale(data?.riga.company_id,livello,documento);
@@ -454,6 +458,7 @@ export default function RenderPlanimetriaScheda() {
       {scheda==="dettagli" && <div className="space-y-6">
         <StatoVerificaDocumento documento={documento} modifica={percorsoEditor} />
         {!storico && <CollegamentiProgetto riga={data.riga} mappa={collegamenti.data} onAssocia={tipo=>setGestisciCollegamenti({tipo})} />}
+        <NuovaCostruzione key={"costruzione:"+data.versione.numero} documento={documento} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} />
         <MaterialiProgetto key={ambito+":"+data.versione.numero} documento={documento} ambito={ambito} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} />
         {controlliDalDocumento(documento).length > 0 && <section aria-label={t("Controlli dal documento originale")} className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           <h2 className="mb-2 font-semibold">{t("Controlli dal documento originale")}</h2>

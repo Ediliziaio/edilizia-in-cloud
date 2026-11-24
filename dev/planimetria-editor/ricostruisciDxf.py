@@ -9,7 +9,7 @@ import re
 import sys
 import unicodedata
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from math import atan2, cos, degrees, hypot, isfinite, radians, sin
 from statistics import median
 
@@ -504,6 +504,47 @@ def leggi_testi(entita, zona, cm):
             if 0.8 <= m2 <= 220:
                 aree.append((posizione, m2))
     return nomi, aree
+
+
+SIGLA_INFISSO = re.compile(r"^\s*L\s*(\d{2,3})\b")
+
+
+def leggi_sigle_infissi(entita, zona, cm):
+    """Le sigle degli infissi scritte accanto ai vani: «L 170 / Hf 140 / Hs 94» (larghezza, altezza
+    della finestra, davanzale) o «L 99 / Hp 210» (altezza della porta o portafinestra), in cm."""
+    sigle = []
+    for e in entita:
+        if e.dxftype() not in ("TEXT", "MTEXT"):
+            continue
+        p = e.dxf.insert
+        posizione = Point(p.x * cm, p.y * cm)
+        if not zona.covers(posizione):
+            continue
+        testo = e.plain_text() if e.dxftype() == "MTEXT" else e.dxf.text
+        larghezza = SIGLA_INFISSO.match(testo)
+        if not larghezza:
+            continue
+        valore = lambda nome: (m := re.search(rf"\b{nome}\s*(\d{{2,3}})", testo)) and int(m.group(1))
+        sigle.append({"punto": posizione, "larghezza": int(larghezza.group(1)), "hf": valore("Hf"), "hp": valore("Hp"), "hs": valore("Hs")})
+    return sigle
+
+
+def misure_da_sigle(vani, sigle, distanza=250):
+    """A ogni vano la sigla più vicina con una larghezza compatibile, una sigla per vano."""
+    coppie = []
+    for i, (centro, larghezza) in enumerate(vani):
+        for j, s in enumerate(sigle):
+            d = centro.distance(s["punto"])
+            if d <= distanza and abs(s["larghezza"] - larghezza) <= max(20, 0.2 * larghezza):
+                coppie.append((d, i, j))
+    presi_v, presi_s, esito = set(), set(), {}
+    for d, i, j in sorted(coppie):
+        if i in presi_v or j in presi_s:
+            continue
+        presi_v.add(i)
+        presi_s.add(j)
+        esito[i] = sigle[j]
+    return esito
 
 
 def varchi_tra_stipiti(linee, tratti, minimo=130):
@@ -1339,6 +1380,7 @@ class PianoLetto:
     archi: list
     riscontri: list
     fonti: list
+    sigle: list = field(default_factory=list)
 
 
 def leggi_piano(entita, regione, cm, layer, controllo=False):
@@ -1442,7 +1484,8 @@ def leggi_piano(entita, regione, cm, layer, controllo=False):
     testi.extend((p, f"{mq:g} m²".replace(".", ",")) for p, mq in aree if not any(
         mq == l.superficie and l.contorno.covers(p) for l in locali
     ))
-    return PianoLetto(muri, pertinenti, locali, testi, leggi_quote(entita, zona, cm), assi_vicini(entita, zona, cm), linee, archi, riscontri[:48], fonti)
+    return PianoLetto(muri, pertinenti, locali, testi, leggi_quote(entita, zona, cm), assi_vicini(entita, zona, cm), linee, archi, riscontri[:48], fonti,
+                      leggi_sigle_infissi(entita, zona, cm))
 
 
 def leggi_scale(letti, altezza):
@@ -1655,17 +1698,26 @@ def ricostruisci(documento, opzioni):
                 "tipo": "esterno" if esterno else "tramezzo", "stato": "esistente", "origine": "da_documento",
                 "origineMisure": {"altezza": "stimata"}, "funzioneDaVerificare": True,
             })
+        # Le sigle scritte accanto ai vani danno altezza e davanzale veri.
+        sigle = misure_da_sigle([(Point(punto((a + b) / 2, m.centro, m.angolo)), b - a) for m, a, b, _ in piano.aperture], piano.sigle)
         for i, (m, a, b, tipo) in enumerate(piano.aperture, 1):
             larghezza = round(b - a, 2)
             if larghezza <= 0:
                 continue
+            sigla = sigle.get(i - 1)
+            alta = sigla and (sigla["hf"] or sigla["hp"])
+            if sigla and tipo == "finestra" and sigla["hp"] and not sigla["hs"]:
+                tipo = "portafinestra"
+            davanzale = (sigla["hs"] if sigla and sigla["hs"] and tipo == "finestra" else None)
+            misure = {k: v for k, v in {"altezza": None if alta else "stimata", "davanzale": None if davanzale is not None or tipo != "finestra" and alta else "stimata"}.items() if v}
             stato["aperture"].append({
                 "id": f"{prefisso}-a{i}", "muroId": id_muri[id(m)], "tipo": "porta" if tipo == "porta_doppia" else tipo,
                 "offset": max(0, round(a - m.inizio, 2)), "larghezza": larghezza,
-                "altezza": min(120, altezza - 90) if tipo == "finestra" else min(210, altezza),
-                "davanzale": 90 if tipo == "finestra" else 0, "manovra": "battente" if tipo in ("porta", "porta_doppia", "portafinestra") else "nessuna",
+                "altezza": min(alta, altezza) if alta else min(120, altezza - 90) if tipo == "finestra" else min(210, altezza),
+                "davanzale": davanzale if davanzale is not None else 90 if tipo == "finestra" else 0,
+                "manovra": "battente" if tipo in ("porta", "porta_doppia", "portafinestra") else "nessuna",
                 **({"ante": 2} if tipo == "porta_doppia" else {}),
-                "stato": "esistente", "origine": "da_documento", "origineMisure": {"altezza": "stimata", "davanzale": "stimata"},
+                "stato": "esistente", "origine": "da_documento", **({"origineMisure": misure} if misure else {}),
             })
         for i, l in enumerate(piano.locali, 1):
             etichette = sorted(l.etichette, key=lambda e: (e[0].x, -e[0].y))

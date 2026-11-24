@@ -25,6 +25,7 @@
  * arriva al browser. Fanno eccezione il DXF (pianta vuota, da ricalcare) e il
  * sopralluogo, che passano comunque dal controllo nei test.
  * (24/11/2026: il controllo dice anche quando una porta resta dentro una stanza sola.)
+ * (24/11/2026: il modello conosce la nuova costruzione e la sopraelevazione, shared/planimetrie/costruzione.ts.)
  *
  * Crediti: come i render (deductRenderCreditSafe), rimborsati se la pianta non
  * viene. Le chiamate al modello non si addebitano una seconda volta

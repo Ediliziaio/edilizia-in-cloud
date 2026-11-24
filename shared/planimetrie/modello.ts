@@ -29,6 +29,7 @@ import { letturaAssistitaValida, type LetturaAssistita } from "./letturaAssistit
 import { controlloDwgValido, type RiscontroDwg } from "./controlloDwg.ts";
 import { tavolaDwgValida, type TavolaDwg } from "./tavolaDwg.ts";
 import { urbanisticaValida, type DatiUrbanistici } from "./urbanistica.ts";
+import { costruzioneValida, type Costruzione } from "./costruzione.ts";
 
 export const VERSIONE_SCHEMA = 1 as const;
 
@@ -495,6 +496,8 @@ export interface Planimetria {
   rilievo?: Rilievo;
   /** Avanzamento: per ogni proposta, le chiavi dei lavori già fatti (vedi chiaveLavoro). */
   lavoriFatti?: Record<string, string[]>;
+  /** Nuova costruzione: l'edificio si fa da zero e il computo comprende scavi, strutture e impianti (costruzione.ts). */
+  costruzione?: Costruzione;
 }
 
 export type StatoVendita = "libera" | "prenotata" | "venduta";
@@ -642,6 +645,7 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
     errori.push("La pianta: l'avanzamento dei lavori non è valido.");
   }
   if (dato.rilievo !== undefined && !rilievoValido(dato.rilievo)) errori.push("La pianta: il rilievo del terreno non è valido.");
+  if (dato.costruzione !== undefined && !costruzioneValida(dato.costruzione)) errori.push("La pianta: le scelte della nuova costruzione non sono valide.");
   if (dato.vendite !== undefined) {
     if (!eOggetto(dato.vendite)) errori.push("La pianta: il listino delle unità non è valido.");
     else for (const [sigla, v] of Object.entries(dato.vendite)) {

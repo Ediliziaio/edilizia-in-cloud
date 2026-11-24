@@ -295,3 +295,18 @@ export function useAggiornaDatiPlanimetria() {
     ]),
   });
 }
+
+/**
+ * La pianta collegata a una commessa e la sua prima variante, per le operazioni create senza
+ * il simulatore (che scrive il collegamento nei dati dell'area). La più recente vince.
+ */
+export async function fonteStudioDellaCommessa(companyId: string, orderId: string): Promise<{ planimetriaId: string; versione: number; varianteId: string } | null> {
+  const { data, error } = await supabase.from("planimetrie" as never).select("id")
+    .eq("company_id", companyId).eq("order_id", orderId).is("deleted_at", null).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error("Pianta della commessa non disponibile: riprova tra qualche secondo.");
+  const id = (data as { id?: string } | null)?.id;
+  if (!id) return null;
+  const { versione } = await caricaPlanimetria(id);
+  const varianteId = versione.documento.livelli.flatMap((l) => l.proposte.map((p) => p.id))[0];
+  return varianteId ? { planimetriaId: id, versione: versione.numero, varianteId } : null;
+}
