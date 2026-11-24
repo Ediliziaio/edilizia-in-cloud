@@ -2,7 +2,7 @@
  * Scelte rapide nel rapportino anche coi cantieri grandi (24/11/2026, founder: «immagina 20 operai e 200 fasi»).
  * Un muro di 200 bottoni non si usa dal telefono: in vista restano le poche probabili, il resto si trova cercando.
  *
- * Fasi: quelle già scelte, poi quelle in corso, poi le prossime da iniziare, fino a `max`. Con un testo da cercare,
+ * Fasi: quelle già scelte, poi quelle in corso, poi le prossime da iniziare, fino a `max`; in vista le in corso stanno prima. Con un testo da cercare,
  * tutte quelle che lo contengono (anche le altre parole del nome, senza accenti né maiuscole).
  */
 export interface FaseScelta { id: string; name: string; status: string }
@@ -38,8 +38,9 @@ export function fasiInVista<F extends FaseScelta>(fasi: F[], scelte: ReadonlySet
     prese.add(f.id);
     inVista.push(f);
   }
-  // Nell'ordine del cantiere, non in quello della scelta: chi le conosce le ritrova dove se le aspetta.
+  // In corso per prime (sono quelle di oggi, founder 24/11/2026), poi le altre nell'ordine del cantiere.
   const posizione = new Map(fasi.map((f, i) => [f.id, i]));
-  inVista.sort((a, b) => posizione.get(a.id)! - posizione.get(b.id)!);
+  const peso = (f: F) => (f.status === "in_corso" ? 0 : 1);
+  inVista.sort((a, b) => peso(a) - peso(b) || posizione.get(a.id)! - posizione.get(b.id)!);
   return { inVista, altre: fasi.length - inVista.length };
 }

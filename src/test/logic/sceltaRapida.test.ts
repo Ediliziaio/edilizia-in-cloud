@@ -7,10 +7,10 @@ const fasi = Array.from({ length: 200 }, (_, i) => ({
 }));
 
 describe("Fasi del rapportino con un cantiere grande", () => {
-  it("con 200 fasi ne mostra 8: in corso prima, poi le prossime, nell'ordine del cantiere", () => {
+  it("con 200 fasi ne mostra 8: le in corso in cima, poi le prossime nell'ordine del cantiere", () => {
     const { inVista, altre } = fasiInVista(fasi, new Set());
     expect(inVista).toHaveLength(8);
-    expect(inVista.map(f => f.id)).toEqual(["f0", "f1", "f2", "f3", "f4", "f5", "f120", "f121"]);
+    expect(inVista.map(f => f.id)).toEqual(["f120", "f121", "f0", "f1", "f2", "f3", "f4", "f5"]);
     expect(altre).toBe(192);
   });
 

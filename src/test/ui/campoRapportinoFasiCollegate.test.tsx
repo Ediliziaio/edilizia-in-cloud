@@ -106,7 +106,7 @@ async function compila({ fasi, foto = 0 }: { fasi: string[]; foto?: number }) {
   changeFormControl(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "3" } });
   if (foto) {
     const file = (n: number) => new File(["x"], `f${n}.jpg`, { type: "image/jpeg" });
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = container.querySelector('input[type="file"][aria-label="Scatta una foto"]') as HTMLInputElement;
     await waitFor(() => expect(input).toBeEnabled());
     changeFormControl(input, { target: { files: Array.from({ length: foto }, (_, i) => file(i)) } });
     await waitFor(() => expect(screen.getAllByRole("button", { name: /^Ingrandisci foto \d+$/ })).toHaveLength(foto));

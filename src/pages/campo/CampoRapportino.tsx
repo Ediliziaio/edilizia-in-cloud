@@ -14,7 +14,7 @@ import { UniformSelect } from "@/components/ui/uniform-select";
  * Le ore vanno confermate: 0 per sole foto/note; nessuna presenza implicita.
  */
 import { COLONNE_RAPPORTINO } from "@/lib/campo/colonneRapportino";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useCallback, useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -42,6 +42,8 @@ import { FirmaPad } from "@/components/campo/FirmaPad";
 import { CampiModulo } from "@/components/campo/CampiModulo";
 import { ScegliDalRullino } from "@/components/campo/ScegliDalRullino";
 import { RegistraGiornata } from "@/components/campo/RegistraGiornata";
+import { FotoRapportinoCarta } from "@/components/campo/FotoRapportinoCarta";
+import type { RapportinoLetto } from "../../../supabase/functions/ai-rapportini-da-documento/mappa";
 import { chiParlaCera, presenzeDaVoce } from "@/lib/campo/presenzeDaVoce";
 import { MAX_FASI_IN_VISTA, corrisponde, fasiInVista } from "@/lib/campo/sceltaRapida";
 import type { RapportinoVocaleDraft } from "@/hooks/campo/useRapportinoVocale";
@@ -599,6 +601,20 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   // Solo le fasi non completate sono dichiarabili
   const fasiDichiarabili = fasiCommessa.filter(f => f.status !== "completata");
   const [cercaFase, setCercaFase] = useState("");
+  // Spazio sotto il modulo = altezza vera della barra in basso (24/11/2026): con un valore fisso restava una fascia
+  // bianca vuota sopra «Avanti», o la barra copriva l'ultima riga quando va su due righe.
+  const [altezzaBarra, setAltezzaBarra] = useState(0);
+  const osservaBarra = useRef<ResizeObserver | null>(null);
+  // Ref a funzione: la barra può comparire dopo il primo giro (verifiche in corso, pagine di sola timbratura).
+  const barraInBasso = useCallback((el: HTMLDivElement | null) => {
+    osservaBarra.current?.disconnect();
+    osservaBarra.current = null;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const misura = () => setAltezzaBarra(getComputedStyle(el).position === "fixed" ? Math.ceil(el.getBoundingClientRect().height) : 0);
+    misura();
+    osservaBarra.current = new ResizeObserver(misura);
+    osservaBarra.current.observe(el);
+  }, []);
   const [cercaPersona, setCercaPersona] = useState("");
   // Le fasi su cui si è lavorato oggi, nell'ordine in cui compaiono nel cantiere. Con più di una, accanto a ogni
   // materiale e a ogni foto compare «Fase»; con una sola, tutto si collega lì senza chiedere niente.
@@ -1618,7 +1634,13 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   const rilevazioniMezziInVista = Object.values(moduloCantiere.rilevazioni_mezzi ?? {}).some(Boolean);
   const numeroMezziUsati = Object.values(mezziSel).filter(m => m.usato).length;
   const arrivoInAltro = semplice && !daRifare;
-  const bloccoArrivo = <ArrivoRapportino valore={arrivo} onChange={setArrivo}
+  // Il mezzo scelto per il trasporto è un mezzo usato oggi: si segna anche tra i mezzi del giorno (24/11/2026).
+  const cambiaArrivo = (righe: typeof arrivo) => {
+    setArrivo(righe);
+    const nuovi = righe.map(r => r.mezzoId).filter(id => id && !(id in mezziSel));
+    if (nuovi.length) setMezziSel(p => ({ ...p, ...Object.fromEntries(nuovi.map(id => [id, { usato: true, dove: "invariato" as const }])) }));
+  };
+  const bloccoArrivo = <ArrivoRapportino valore={arrivo} onChange={cambiaArrivo}
     mezzi={(mezziPerArrivo.data ?? []).filter(mezzoStradale)} caricamento={mezziPerArrivo.isLoading}
     suggeriti={(mezziPerArrivo.data ?? []).filter(m => mezziSel[m.id]?.usato || (workDay === campoWorkDay() && m.dove_ora === "con_te")).map(m => m.id)}
     errore={mezziPerArrivo.isError} riprova={() => void mezziPerArrivo.refetch()} />;
@@ -1688,7 +1710,10 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     const testo = [e.lavorazione, e.note].filter(Boolean).join(" — ") || draft.trascrizione;
     if (testo) { setDescrizione(d => accodaTesto(d, testo)); voci.push(t("descrizione")); }
     const ore = typeof e.ore_lavorate === "number" ? e.ore_lavorate : null;
-    if (puoSuggerireOre && ore !== null) { modificaOre(ore); voci.push(t("{ore} ordinarie", { ore: oreInTesto(ore) })); }
+    // Con la squadra le ore vanno sulle persone (chi parla compreso): scriverle anche come ore personali le contava
+    // due volte (prova del 24/11/2026). Le ore personali solo se la voce non ha segnato nessuno.
+    const segneraPersone = registraSquadra && !!e.team_presenti?.length;
+    if (puoSuggerireOre && ore !== null && !segneraPersone) { modificaOre(ore); voci.push(t("{ore} ordinarie", { ore: oreInTesto(ore) })); }
     const materiali = (e.materiali ?? []).filter(m => m.nome?.trim() && m.quantita > 0);
     if (puoSuggerireMateriali && materiali.length) {
       setMaterialiSel(restoreRapportinoMaterials(materiali));
@@ -1714,6 +1739,47 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       }
     }
     if (!voci.length) { toast.error(t("Non ho capito abbastanza: riprova parlando un po' di più.")); return; }
+    setRiepilogoVoce({ voci, prima });
+  };
+  // Dal foglio fotografato: stessi campi della voce, più fasi e mezzi (il foglio li nomina coi nomi del cantiere).
+  const applicaDaCarta = (r: RapportinoLetto, avvisi: string[]) => {
+    if (!puoCompilareAVoce) return;
+    const prima = { descrizione, oreLavorate, materialiSel, presenzeSel };
+    const voci: string[] = [];
+    if (r.descrizione) { setDescrizione(d => accodaTesto(d, r.descrizione)); voci.push(t("descrizione")); }
+    const fasiNuove = r.fasi.filter(id => fasiDichiarabili.some(f => f.id === id) && !(id in fasiDichiarate));
+    if (fasiNuove.length) {
+      setFasiDichiarate(p => ({ ...p, ...Object.fromEntries(fasiNuove.map(id => [id, fasiDichiarabili.find(f => f.id === id)!.percentuale])) }));
+      voci.push(t(fasiNuove.length === 1 ? "{n} fase" : "{n} fasi", { n: fasiNuove.length }));
+    }
+    if (registraSquadra) {
+      const liberi = squadra.filter(m => !giaCoperto(m) && !(m.key in presenzeSel));
+      const trovate = r.persone.flatMap(p => {
+        const m = (p.employee_id && liberi.find(x => x.employee_id === p.employee_id))
+          || liberi.find(x => presenzeDaVoce([p.nome], [{ key: x.key, nome: x.nome }]).length > 0);
+        return m ? [{ key: m.key, ore: p.ore }] : [];
+      });
+      if (trovate.length) {
+        segnaPresenzeModificate(trovate.map(x => x.key));
+        setPresenzeSel(p => ({ ...p, ...Object.fromEntries(trovate.map(x => [x.key, x.ore > 0 ? x.ore : ""])) }));
+        voci.push(t(trovate.length === 1 ? "{n} persona" : "{n} persone", { n: trovate.length }));
+      }
+    } else if (puoSuggerireOre) {
+      const mie = r.persone.find(p => p.ore > 0);
+      if (mie) { modificaOre(mie.ore); voci.push(t("{ore} ordinarie", { ore: oreInTesto(mie.ore) })); }
+    }
+    if (puoSuggerireMateriali && r.materiali.length) {
+      setMaterialiSel(restoreRapportinoMaterials(r.materiali.map(m => ({ nome: m.nome, quantita: m.quantita, unita: "" }))));
+      voci.push(t(r.materiali.length === 1 ? "{n} materiale" : "{n} materiali", { n: r.materiali.length }));
+    }
+    const ammessi = new Set((mezziPerArrivo.data ?? []).map(m => m.id));
+    const mezziUsati = r.mezzi.filter(m => ammessi.has(m.mezzo_id));
+    if (parti.mezzi && mezziUsati.length) {
+      setMezziSel(p => ({ ...p, ...Object.fromEntries(mezziUsati.map(m => [m.mezzo_id, { ...(p[m.mezzo_id] ?? { dove: "invariato" as const }), usato: true }])) }));
+      voci.push(t(mezziUsati.length === 1 ? "{n} mezzo" : "{n} mezzi", { n: mezziUsati.length }));
+    }
+    if (avvisi.length) toast.warning(avvisi.slice(0, 2).join(" · "));
+    if (!voci.length) { toast.error(t("Non ho trovato niente da compilare nel foglio.")); return; }
     setRiepilogoVoce({ voci, prima });
   };
   const annullaVoce = () => {
@@ -1786,7 +1852,8 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   }
 
   return (
-    <div ref={inizioRapportino} className="mx-auto flex w-full max-w-3xl flex-col rounded-t-2xl bg-background pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div ref={inizioRapportino} style={altezzaBarra ? { paddingBottom: altezzaBarra + 8 } : undefined}
+      className="mx-auto flex w-full max-w-3xl flex-col rounded-t-2xl bg-background pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:!pb-0">
       {/* Header */}
       <div className="flex items-start gap-3 rounded-t-2xl border-b border-border bg-background px-3 py-3 shadow-sm md:sticky md:top-0 md:z-10 md:px-4">
         <button type="button"
@@ -1893,6 +1960,10 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             {puoCompilareAVoce && orderId && !riepilogoVoce && (
               <RegistraGiornata orderId={orderId} workDay={workDay} disabilitato={saving} onCompilato={applicaDaVoce}
                 suggerimento={t("Tocca e parla: {cosa}. Compilo io.", { cosa: cosaDireAVoce })} />
+            )}
+            {/* Il rapportino scritto sul foglio: una foto e si compila (24/11/2026). */}
+            {puoCompilareAVoce && orderId && companyId && !riepilogoVoce && (
+              <FotoRapportinoCarta orderId={orderId} companyId={companyId} workDay={workDay} disabilitato={saving} onLetto={applicaDaCarta} />
             )}
             {riepilogoVoce && (
               <section role="status" aria-label={t("Compilato dalla voce")} className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
@@ -2104,7 +2175,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
               {bloccoMateriali}
             </details>}
             {parti.mezzi && bloccoMezzi && <details className="rounded-2xl border px-3 py-1 [&[open]]:pb-3">
-              <summary className="min-h-11 cursor-pointer py-2.5 text-sm font-semibold">{t("Mezzi e attrezzi")} · {numeroMezziUsati ?
+              <summary className="min-h-11 cursor-pointer py-2.5 text-sm font-semibold">{t("Mezzi e attrezzature")} · {numeroMezziUsati ?
                 (numeroMezziUsati === 1 ? t("1 usato") : t("{n} usati", { n: numeroMezziUsati })) : t("facoltativo")}</summary>
               {bloccoMezzi}
             </details>}
@@ -2264,7 +2335,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       {/* On mobile the actions stay at the viewport bottom, even when the
           outer page and main have different scroll heights. The pb-24 above
           keeps the last field visible; CampoLayout hides the app bottom nav. */}
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] md:sticky md:inset-x-auto md:z-20 md:px-4 md:pb-3">
+      <div ref={barraInBasso} className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] md:sticky md:inset-x-auto md:z-20 md:px-4 md:pb-3">
         {/* Avanti grigio senza spiegazione (collaudo 24/11): ora si dice cosa manca. */}
         {!saving && !ripresaDecisa && !daRifare && !bloccatoDaEsistente && (
           <p role="status" className="mb-1.5 text-xs font-semibold text-primary">{t("Prima scegli in alto: riprendi la bozza o parti da un modulo vuoto.")}</p>

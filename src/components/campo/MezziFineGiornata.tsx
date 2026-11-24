@@ -88,7 +88,8 @@ export function MezziFineGiornata({
   const { data: mezzi = [], isPending, isError, refetch } = useMezziDellaGiornata(orderId);
   if (isPending) return <p role="status" className="py-2 text-xs text-muted-foreground">{t("Caricamento mezzi assegnati…")}</p>;
   if (isError) return <p className="py-2 text-sm">{t("Mezzi temporaneamente indisponibili.")} <button type="button" className="underline" onClick={() => void refetch()}>{t("Riprova")}</button></p>;
-  if (mezzi.length === 0) return null;
+  // Prima, senza niente assegnato, il riquadro spariva senza dire niente: l'operaio non sapeva dove segnare
+  // l'escavatore o il trapano (collaudo 24/11/2026). Ora i tre gruppi ci sono sempre e dicono chi li assegna.
 
   const mieiVeicoli = mezzi.filter((m) => m.veicolo && m.dove_ora === "con_te");
   const veicoli = mezzi.filter((m) => m.veicolo);
@@ -107,18 +108,18 @@ export function MezziFineGiornata({
   ];
 
   const gruppi = [
-    { titolo: t("Mezzi da cantiere"), risorse: macchine, icona: Construction, rileva: true },
-    { titolo: t("Attrezzature"), risorse: attrezzi, icona: Wrench, rileva: false },
+    { titolo: t("Mezzi in cantiere"), risorse: macchine, icona: Construction, rileva: true, vuoto: t("Escavatori, sollevatori, betoniere… Nessuno assegnato a te o a questo cantiere.") },
+    { titolo: t("Attrezzature"), risorse: attrezzi, icona: Wrench, rileva: false, vuoto: t("Trapani, demolitori, ponteggi… Nessuna assegnata a te o a questo cantiere.") },
   ];
 
   return (
     <div className="rounded-xl border bg-background p-4 shadow-sm">
-      <p className="text-sm font-semibold text-foreground">{t("Mezzi e attrezzi di oggi")}</p>
-      <p className="mb-3 text-xs text-muted-foreground">{t("Seleziona i mezzi usati e aggiorna dove lasci le attrezzature.")}</p>
+      <p className="text-[15px] font-semibold text-foreground">{t("Mezzi e attrezzature di oggi")}</p>
+      <p className="mb-3 text-xs text-muted-foreground">{t("Tocca quelli usati e dove restano stasera.")}</p>
 
       <div className="space-y-2">
         {veicoli.length > 0 && <div className="divide-y rounded-lg border">
-          <p className="flex items-center gap-2 bg-muted/40 px-3 py-2 text-xs font-semibold"><Truck className="size-4" /> {t("Trasporto")}</p>
+          <p className="flex items-center gap-2 bg-muted/40 px-3 py-2 text-xs font-semibold"><Truck className="size-4" /> {t("Mezzi di trasporto · km a fine giornata")}</p>
           {veicoli.map((m) => {
           const r = riga(m);
           return (
@@ -157,9 +158,10 @@ export function MezziFineGiornata({
           })}
         </div>}
 
-        {gruppi.filter(g => g.risorse.length > 0).map(({ titolo, risorse, icona: Icona, rileva }) => (
+        {gruppi.map(({ titolo, risorse, icona: Icona, rileva, vuoto }) => (
           <div key={titolo} className="divide-y rounded-lg border">
             <p className="flex items-center gap-2 bg-muted/40 px-3 py-2 text-xs font-semibold"><Icona className="size-4" /> {titolo}</p>
+            {risorse.length === 0 && <p className="px-3 py-2.5 text-xs text-muted-foreground">{vuoto} {t("Li assegna l'ufficio dalla scheda Mezzi.")}</p>}
             {risorse.map(m => {
               const r = riga(m);
               const ubicazione = r.dove === "invariato" ? QUI[m.dove_ora] : r.dove;
@@ -196,28 +198,36 @@ export function MezziFineGiornata({
                     </label>;
                   })}
                 </div>}
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <label className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="text-muted-foreground">{t("Dove resta")}</span>
-                    <select aria-label={t("Dove resta {nome}", { nome: m.nome })} value={ubicazione}
-                      onChange={e => {
-                        const dove = e.target.value as DoveStasera;
-                        cambia(m, { dove: dove === QUI[m.dove_ora] ? "invariato" : dove,
-                          su_mezzo_id: dove === "furgone" && mieiVeicoli.length === 1 ? mieiVeicoli[0].id : null });
-                      }}
-                      className="h-10 max-w-full rounded-md border bg-background px-2 text-sm">
-                      {opzioni(m).map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-                    </select>
-                  </label>
-                  {ubicazione === "furgone" && mieiVeicoli.length > 0 && <select aria-label={t("Mezzo su cui caricare {nome}", { nome: m.nome })}
-                    value={r.su_mezzo_id ?? (r.dove === "invariato" ? "" : mieiVeicoli.length === 1 ? mieiVeicoli[0].id : "")}
-                    onChange={e => cambia(m, { dove: e.target.value ? "furgone" : m.dove_ora === "a_bordo" ? "invariato" : "furgone",
-                      su_mezzo_id: e.target.value || null })}
-                    className="h-10 max-w-full rounded-md border bg-background px-2 text-sm">
-                    <option value="">{m.dove_ora === "a_bordo" ? m.su_mezzo ?? t("Mezzo già assegnato") : t("Scegli mezzo")}</option>
-                    {mieiVeicoli.map(v => <option key={v.id} value={v.id}>{v.nome}</option>)}
-                  </select>}
-                </div>
+                {/* «Dove resta» a bottoni (24/11/2026): un tocco invece di due tendine. Toccare il posto dove sta già
+                    non sposta niente. */}
+                {(() => {
+                  const scelte: { key: string; label: string; dove: DoveStasera; su?: string | null }[] = [
+                    { key: "cantiere", label: t("In cantiere"), dove: "cantiere" },
+                    ...(m.dove_ora === "a_bordo" && m.su_mezzo && !mieiVeicoli.some(v => v.nome === m.su_mezzo)
+                      ? [{ key: "a_bordo", label: t("Sul {mezzo}", { mezzo: m.su_mezzo }), dove: "furgone" as const, su: null }] : []),
+                    ...mieiVeicoli.map(v => ({ key: `su:${v.id}`, label: t("Sul {mezzo}", { mezzo: v.nome }), dove: "furgone" as const, su: v.id })),
+                    { key: "magazzino", label: t("In magazzino"), dove: "magazzino" },
+                    { key: "con_me", label: t("Lo tengo io"), dove: "con_me" },
+                  ];
+                  const attuale = r.dove === "invariato"
+                    ? (m.dove_ora === "a_bordo" ? (mieiVeicoli.find(v => v.nome === m.su_mezzo) ? `su:${mieiVeicoli.find(v => v.nome === m.su_mezzo)!.id}` : "a_bordo") : QUI[m.dove_ora] === "con_me" ? "con_me" : "cantiere")
+                    : r.dove === "furgone" ? (r.su_mezzo_id ? `su:${r.su_mezzo_id}` : "a_bordo") : r.dove;
+                  const giaQui = (k: string) => r.dove === "invariato" ? k === attuale
+                    : (m.dove_ora === "cantiere" && k === "cantiere") || (m.dove_ora === "con_te" && k === "con_me")
+                      || (m.dove_ora === "a_bordo" && (k === "a_bordo" || (k.startsWith("su:") && mieiVeicoli.find(v => `su:${v.id}` === k)?.nome === m.su_mezzo)));
+                  return (
+                    <div role="radiogroup" aria-label={t("Dove resta {nome} stasera", { nome: m.nome })} className="flex flex-wrap gap-1.5">
+                      {scelte.map(o => (
+                        <button key={o.key} type="button" role="radio" aria-checked={attuale === o.key}
+                          onClick={() => cambia(m, giaQui(o.key) ? { dove: "invariato", su_mezzo_id: null } : { dove: o.dove, su_mezzo_id: o.su ?? null })}
+                          className={cn("min-h-9 rounded-full border px-3 text-xs font-semibold",
+                            attuale === o.key ? "border-primary bg-primary text-primary-foreground" : "bg-background text-foreground")}>
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>;
             })}
           </div>

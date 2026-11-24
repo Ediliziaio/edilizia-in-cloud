@@ -23,6 +23,8 @@ export interface RapportinoCardRiga {
   approvato?: boolean | null;
   motivo_rifiuto?: string | null;
   ore_lavorate: number | null;
+  /** Le ore della squadra (rapportino del capo): le sue ore personali sono lì, non in ore_lavorate. */
+  presenze?: unknown;
   percentuale_avanzamento?: number | null;
   descrizione_lavori: string | null;
   foto_urls?: string[] | null;
@@ -95,7 +97,14 @@ export function RapportinoCardCampo({ r, autore, pdfOccupato, onPdf, onFirma, on
 
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
         {/* Il database manda «3.50»: all'operaio si scrive «3h 30», mai col punto. */}
-        {r.ore_lavorate != null && Number.isFinite(Number(r.ore_lavorate)) && <span>{t("{ore} lavorate", { ore: oreInTesto(Number(r.ore_lavorate)) })}</span>}
+        {/* Rapportino di squadra: «3 presenze · 24 h», non «0 min lavorate» (collaudo 24/11/2026: le ore sono sulle persone). */}
+        {(() => {
+          const presenze = Array.isArray(r.presenze) ? (r.presenze as { ore?: unknown }[]) : [];
+          const oreSquadra = presenze.reduce((tot, p) => tot + (Number(p?.ore) || 0), 0);
+          if (presenze.length) return <span>{t(presenze.length === 1 ? "{n} presenza · {ore}" : "{n} presenze · {ore}", { n: presenze.length, ore: oreInTesto(oreSquadra) })}</span>;
+          const ore = Number(r.ore_lavorate);
+          return r.ore_lavorate != null && Number.isFinite(ore) && ore > 0 && <span>{t("{ore} lavorate", { ore: oreInTesto(ore) })}</span>;
+        })()}
         {r.percentuale_avanzamento != null && r.percentuale_avanzamento > 0 && <span>{t("{n}% avanzamento", { n: r.percentuale_avanzamento })}</span>}
         {foto.length > 0 && <span>{t("{n} foto", { n: foto.length })}</span>}
       </div>

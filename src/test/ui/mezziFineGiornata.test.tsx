@@ -8,6 +8,7 @@ import {
 const state = vi.hoisted(() => ({ mezzi: [] as unknown[] }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: state.mezzi }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" }, profile: { company_id: "c1" }, effectiveCompany: null as { id: string } | null }) }));
 vi.mock("@/components/mezzi/ViaggioDialog",()=>({ViaggioDialog:({mezzoId,defaultOrderId,onClose}:{mezzoId:string;defaultOrderId:string;onClose:()=>void})=><div role="dialog" aria-label="Registra viaggio">{mezzoId} · {defaultOrderId}<button onClick={onClose}>Chiudi viaggio</button></div>}));
 
 const mezzo = (id: string, nome: string, extra: Record<string, unknown> = {}) => ({
@@ -26,10 +27,12 @@ afterEach(cleanup);
 beforeEach(() => { ultimo = {}; });
 
 describe("Rapportino: mezzi e attrezzi a fine giornata", () => {
-  it("senza mezzi non occupa spazio", () => {
+  it("senza mezzi lo dice, invece di sparire: chi li assegna e cosa si intende", () => {
     state.mezzi = [];
-    const { container } = render(<Prova />);
-    expect(container).toBeEmptyDOMElement();
+    render(<Prova />);
+    expect(screen.getByText("Mezzi in cantiere")).toBeInTheDocument();
+    expect(screen.getByText("Attrezzature")).toBeInTheDocument();
+    expect(screen.getAllByText(/Li assegna l'ufficio dalla scheda Mezzi/)).toHaveLength(2);
   });
 
   it("furgone: usato oggi e km; attrezzo: dove resta stasera", () => {
@@ -46,7 +49,7 @@ describe("Rapportino: mezzi e attrezzi a fine giornata", () => {
     const livella = screen.getByRole("radiogroup", { name: "Dove resta Livella laser stasera" });
     expect(within(livella).getByRole("radio", { name: "Sul Ducato bianco" })).toHaveAttribute("aria-checked", "true");
     fireEvent.click(within(livella).getByRole("radio", { name: "In cantiere" }));
-    fireEvent.click(screen.getAllByRole("button", { name: "Usato?" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Usato oggi · Livella laser" }));
     // il miniescavatore torna in magazzino, non usato
     fireEvent.click(within(screen.getByRole("radiogroup", { name: "Dove resta Miniescavatore stasera" })).getByRole("radio", { name: "In magazzino" }));
 

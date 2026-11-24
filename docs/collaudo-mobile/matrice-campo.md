@@ -413,3 +413,28 @@ Provato da telefono (390 e 360 px) nella Demo 2 come operaio2 in tre ruoli: capo
 - Chi ha lavorato: «Tutta la squadra (N)» e «Togli tutti», «Tutti (N)» per ogni squadra o ditta, spunta sui nomi scelti, «Stesse ore per tutti» 4/6/8/9/10 h già con una persona. Con più di 12 persone compare «Cerca tra le N persone». Con più di 6 persone scelte le ore una per una si chiudono in «Ore di ognuno (N)» (si apre da sola se a qualcuno mancano le ore).
 - Fasi: con più di 8 fasi in vista solo quelle già scelte, in corso e le prossime (`fasiInVista`), con «Cerca tra le N fasi» (senza accenti né maiuscole, parole in ordine sparso); quella scelta resta in vista. «Lavorazioni e avanzamento» aperto da subito, spunta sulle fasi scelte.
 - Test: `presenzeDaVoce` (3), `sceltaRapida` (4), rapportino 48 (nuovi: voce che compila e si annulla, voce che segna chi c'era, «Tutta la squadra», 200 fasi). Aggiornati i test del vecchio «Compila parlando». Test del rapportino 200/201 (rosso solo flussiUfficioAudit, già rosso prima). Tipi e lint puliti.
+
+## Prova vera del capo squadra su un cantiere grande e analisi (24/11/2026)
+Cantiere DEMO2-0025 (20 fasi, voci del computo come sottofasi: fino a 36 per fase), capo squadra operaio2 con 3 persone, 3 mezzi assegnati. Voce vera (frase detta dal Mac al posto del microfono) → compilazione → fasi → mezzi → invio. **Arrivato nel database**: stato «inviato», 3 presenze da 8 h, 2 fasi lavorate, 2 materiali, campi dell'azienda, PDF, «Miscelatore e aspiratore 1» usato.
+
+Bug trovati e corretti:
+- La voce scriveva 8 h sia sulle presenze sia come «ore ordinarie» del capo: ore contate due volte. Ora con la squadra le ore vanno solo sulle persone.
+- «Eravamo io, Davide e Matteo»: «io» non veniva segnato. Ora sì (`chiParlaCera`).
+- Con 2 fasi del computo scelte la pagina era alta 10.438 px (42 voci con «Ci ho lavorato / Finita»). Ora 5 voci per fase (le toccate oggi prima), «Mostra le altre N voci», descrizioni su 2 righe: 3.738 px.
+- Fasi in corso in fondo all'elenco: ora in cima.
+- Scheda del rapportino inviato: «0 min lavorate» per il rapportino di squadra. Ora «3 presenze · 24 h».
+- Mezzi: senza niente assegnato il riquadro spariva in silenzio. Ora tre gruppi sempre visibili (Mezzi di trasporto · km a fine giornata / Mezzi in cantiere / Attrezzature) con «Li assegna l'ufficio dalla scheda Mezzi». «Dove resta stasera» a bottoni (era una tendina; il test lo chiedeva già ed era rosso anche su main, insieme a una sessione finta mancante nel test).
+- Il furgone scelto come «Trasporto al cantiere» risultava «Non usato» nei mezzi: ora risulta usato.
+- Campo «Sì/No» obbligatorio dell'azienda: l'interruttore spento valeva «non risposto», per dire «No» bisognava accenderlo e spegnerlo. Ora due bottoni «Sì» e «No» (vale anche per i sopralluoghi, stesso componente).
+- Spazio bianco in fondo al rapportino: lo spazio sotto il modulo ora è l'altezza vera della barra in basso.
+- Foto: «Foto cantiere · facoltative» (le foto non sono mai obbligatorie).
+
+Nuovo: «Hai il foglio di carta? Fotografalo»: la foto del rapportino scritto a mano la legge `ai-rapportini-da-documento` (la stessa lettura dei documenti dell'ufficio) e compila descrizione, fasi, persone, ore, materiali e mezzi. La funzione ora accetta anche chi è assegnato al cantiere (prima solo chi ha «modifica commesse»). **Da provare dopo la pubblicazione**: la versione sul server è ancora la vecchia.
+
+Restano (non fatti):
+- Installazione dal magazzino: foto «prima/dopo» obbligatorie (colonne NOT NULL su `installations`).
+- Sopralluogo: le «foto richieste» contano nella completezza.
+- Materiali della voce/foglio entrano come testo libero se il cantiere non ha articoli a computo collegati al magazzino.
+- Mezzi: l'operaio vede solo quelli assegnati a lui o al cantiere; un mezzo preso al volo dal deposito non si può segnare finché l'ufficio non lo assegna.
+
+Dati di prova in Demo 2: DEMO2-0025 con indirizzo, date, 2 fasi in corso, operaio2 assegnato, squadra demo sul cantiere, 3 mezzi assegnati (Miscelatori 1 e 2, Laser); su RIS01 Piattaforma aerea, Tagliapiastrelle, Trapani; Furgone squadra 1 a operaio2; un rapportino di prova inviato su DEMO2-0025 (24/11).

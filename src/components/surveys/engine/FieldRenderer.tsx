@@ -221,13 +221,24 @@ function FieldInput({
     }
 
     case "boolean":
+      // Sì / No espliciti (24/11/2026): con l'interruttore, lasciato spento voleva dire «non risposto» e per dire
+      // «No» a una domanda obbligatoria bisognava accenderlo e rispegnerlo. Un tocco su «No» è una risposta.
       return (
-        <div className="flex items-center justify-between border rounded-md p-2.5">
+        <div className={cn("flex flex-wrap items-center justify-between gap-2 border rounded-md p-2.5", hasError && "border-rose-400")}>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium">{etichetta}</p>
+            <p className="text-sm font-medium">{etichetta}{field.required && <span className="ms-1 text-rose-500">*</span>}</p>
             {field.help && <p className="text-[11px] text-muted-foreground mt-0.5">{t(field.help)}</p>}
           </div>
-          <Switch checked={!!value} onCheckedChange={(v) => onChange(field.key, v)} />
+          <div role="group" aria-label={t(field.label)} className="flex shrink-0 gap-1.5">
+            {([true, false] as const).map(v => (
+              <button key={String(v)} type="button" aria-pressed={value === v}
+                onClick={() => onChange(field.key, value === v && !field.required ? undefined : v)}
+                className={cn("min-h-10 min-w-14 rounded-full border px-4 text-sm font-semibold",
+                  value === v ? (v ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-700 bg-slate-700 text-white") : "bg-background")}>
+                {v ? t("Sì") : t("No")}
+              </button>
+            ))}
+          </div>
         </div>
       );
 

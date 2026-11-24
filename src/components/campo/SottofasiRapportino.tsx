@@ -27,6 +27,8 @@ interface SottofasiRapportinoProps {
 const PASSI = [25, 50, 75];
 /** Oltre queste righe servono ricerca e filtro: su un cantiere grande una fase ne ha decine. */
 const TANTE = 8;
+/** Con un computo grande (29 voci in una fase) in vista ne restano poche: le altre si aprono o si cercano (24/11/2026). */
+const IN_VISTA = 5;
 
 /**
  * Nel rapportino del capocantiere: le sottofasi di una fase, al posto dello slider.
@@ -36,6 +38,7 @@ export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta, lav
   const t = useT();
   const [cerca, setCerca] = useState("");
   const [tutte, setTutte] = useState(false);
+  const [espanse, setEspanse] = useState(false);
   const fatta = (s: Sottofase) => s.fatta || spunte.includes(s.id);
   // La percentuale che la sottofase avrà con quello che si sta dichiarando.
   const puntoDi = (s: Sottofase) => {
@@ -69,14 +72,21 @@ export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta, lav
   };
   const tante = sottofasi.length > TANTE;
   const daFare = sottofasi.filter((s) => !s.fatta).length;
-  const viste = useMemo(() => {
-    const q = cerca.trim().toLocaleLowerCase("it-IT");
+  const filtrate = useMemo(() => {
+    const parole = cerca.trim().toLocaleLowerCase("it-IT").split(/\s+/).filter(Boolean);
     return sottofasi.filter((s) => {
-      if (q) return s.name.toLocaleLowerCase("it-IT").includes(q);
+      if (parole.length) return parole.every(p => s.name.toLocaleLowerCase("it-IT").includes(p));
       // Con tante righe partono solo quelle da fare, in ordine: quelle già toccate oggi non spariscono.
       return !tante || tutte || !s.fatta || spunte.includes(s.id);
     });
   }, [cerca, tante, tutte, sottofasi, spunte]);
+  // In vista: prima quelle toccate oggi, poi le prime da fare. Il resto con «Mostra le altre».
+  const toccata = (s: Sottofase) => spunte.includes(s.id) || lavorate.includes(s.id) || !!avanzate[s.id];
+  const ridotta = tante && !espanse && !cerca.trim() && filtrate.length > IN_VISTA;
+  const viste = ridotta
+    ? [...filtrate.filter(toccata), ...filtrate.filter(s => !toccata(s))].slice(0, Math.max(IN_VISTA, filtrate.filter(toccata).length))
+    : filtrate;
+  const nascoste = filtrate.length - viste.length;
 
   return (
     <div className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
@@ -91,7 +101,7 @@ export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta, lav
             <input type="search" value={cerca} onChange={(e) => setCerca(e.target.value)} aria-label={t("Cerca nelle sottofasi di {fase}", { fase: nomeFase })} placeholder={t("Cerca una lavorazione…")}
               className="h-10 w-full rounded-lg border border-border bg-background pl-8 pr-2 text-sm" />
           </label>
-          <button type="button" onClick={() => setTutte((v) => !v)} className="text-xs text-primary underline underline-offset-2">
+          <button type="button" onClick={() => { setTutte((v) => !v); setEspanse(!tutte); }} className="text-xs text-primary underline underline-offset-2">
             {tutte ? t("Solo da fare ({n})", { n: daFare }) : t("Mostra anche le fatte ({n})", { n: sottofasi.length - daFare })}
           </button>
         </div>
@@ -106,7 +116,7 @@ export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta, lav
           return (
             <li key={s.id} className="rounded-lg bg-background px-2.5 py-2">
               <div className="flex items-start justify-between gap-2">
-                <p className={cn("min-w-0 text-sm", fatta(s) && "text-muted-foreground line-through")}>{s.name}</p>
+                <p title={s.name} className={cn("line-clamp-2 min-w-0 text-sm", fatta(s) && "text-muted-foreground line-through")}>{s.name}</p>
                 {!fatta(s) && punto > 0 && <span className="shrink-0 text-xs font-medium tabular-nums text-primary">{punto}%</span>}
               </div>
               {(piano || inRitardo(s)) && (
@@ -163,6 +173,12 @@ export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta, lav
         })}
         {viste.length === 0 && <li className="px-1 py-2 text-xs text-muted-foreground">{cerca ? t("Nessuna lavorazione con questo nome.") : t("Tutte fatte.")}</li>}
       </ul>
+      {(nascoste > 0 || (espanse && tante && !cerca.trim())) && (
+        <button type="button" onClick={() => setEspanse(v => !v)}
+          className="mt-2 flex min-h-10 w-full items-center justify-center rounded-full border bg-background text-[13px] font-semibold text-primary">
+          {espanse ? t("Mostra meno") : t("Mostra le altre {n} voci", { n: nascoste })}
+        </button>
+      )}
       <p className="mt-2 text-xs text-muted-foreground">{t("Valgono quando il rapportino viene approvato, con la data di questo rapportino.")}</p>
     </div>
   );

@@ -78,7 +78,16 @@ Deno.serve(async (req: Request) => {
       .eq("id", order_id).eq("company_id", company_id).is("deleted_at", null).maybeSingle();
     if (!ordine) return errorResponse("Commessa non trovata", 404, cors);
     const { data: puo } = await supabaseAdmin.rpc("has_permission_for_company", { _user_id: userId, _permission: "can_edit_orders", _company_id: company_id });
-    if (puo !== true) return errorResponse("Non hai il permesso di scrivere rapportini su questa commessa", 403, cors);
+    // 24/11/2026: anche dal telefono. Chi lavora sul cantiere (capo, caposquadra, operaio) fotografa il rapportino di
+    // carta e il suo rapportino si compila. Non salva niente: restituisce la bozza, che si controlla e si manda come
+    // ogni rapportino (con le regole e i permessi di sempre).
+    let assegnato = false;
+    if (puo !== true) {
+      const { data: accesso } = await supabaseAdmin.from("order_campo_assignments").select("id")
+        .eq("order_id", order_id).eq("user_id", userId).limit(1).maybeSingle();
+      assegnato = !!accesso;
+    }
+    if (puo !== true && !assegnato) return errorResponse("Non hai il permesso di scrivere rapportini su questa commessa", 403, cors);
 
     const elenco = (Array.isArray(files) ? files : []).filter((f) => f?.base64).slice(0, MAX_FILE);
     const testoLibero = String(testo ?? "").slice(0, 60_000);

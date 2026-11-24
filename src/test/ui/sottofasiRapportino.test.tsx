@@ -34,6 +34,14 @@ describe("Sottofasi nel rapportino", () => {
     fireEvent.change(screen.getByLabelText("Cerca nelle sottofasi di F"), { target: { value: "d3" } });
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
   });
+  it("computo grande: in vista 5 voci, le toccate oggi per prime; le altre con un tocco", () => {
+    const tante = Array.from({ length: 29 }, (_, i) => sf(`v${i}`));
+    render(<SottofasiRapportino nomeFase="F" sottofasi={tante} spunte={["v20"]} {...azioni} />);
+    expect(screen.getAllByRole("listitem")).toHaveLength(5);
+    expect(screen.getByRole("button", { name: "Lavorazione v20: finita" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mostra le altre 24 voci" }));
+    expect(screen.getAllByRole("listitem")).toHaveLength(29);
+  });
   it("«Finita» toglie la quantità scritta: non contano due volte", () => {
     render(<SottofasiRapportino nomeFase="F" sottofasi={[sf("a")]} spunte={[]} lavorate={["a"]} avanzate={{ a: { percentuale: 50 } }} {...azioni} />);
     fireEvent.click(screen.getByRole("button", { name: "Lavorazione a: finita" }));
