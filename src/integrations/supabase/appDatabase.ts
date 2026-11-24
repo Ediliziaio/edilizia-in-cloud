@@ -13,6 +13,7 @@ type BankPermissions = { can_view_bank_balances: boolean; can_reconcile_bank_tra
 type OrderAttachment = Database["public"]["Tables"]["order_attachments"];
 type CantiereFields = { cantiere_tipo: string | null };
 type QrCantiereRow = { order_id: string; token: string; documento_ids: string[]; revisione: string };
+import type { RigaDriveCliente } from "@/lib/driveClienti";
 type MediaFolder = Database["public"]["Tables"]["media_library_folders"];
 export type DriveFolderMode = "automatic" | "manual";
 export type DriveFileRow = { id: string; company_id: string; folder_id: string | null; name: string; mime_type: string; size_bytes: number; storage_path: string; shared: boolean; created_by: string | null; created_at: string };
@@ -83,6 +84,7 @@ export type SicurezzaEvento = {
 export type AppDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Views" | "Tables"> & {
     Functions: Database["public"]["Functions"] & {
+      drive_documenti_clienti: { Args: Record<string, never>; Returns: RigaDriveCliente[] };
       registra_dispositivo_push: { Args: { p_utente: string; p_chiave: string; p_token: string; p_piattaforma: "ios" | "android" }; Returns: undefined };
       disattiva_dispositivo_push: { Args: { p_utente: string; p_chiave: string }; Returns: undefined };
       campo_cantieri_tecnici: { Args: { p_azienda: string }; Returns: CantiereTecnico[] };
@@ -272,9 +274,9 @@ export type AppDatabase = Omit<Database, "public"> & {
         Relationships: [];
       };
       media_library_folders: Omit<MediaFolder, "Row" | "Insert" | "Update"> & {
-        Row: MediaFolder["Row"] & { mode: DriveFolderMode };
-        Insert: MediaFolder["Insert"] & { mode?: DriveFolderMode };
-        Update: MediaFolder["Update"] & { mode?: DriveFolderMode };
+        Row: MediaFolder["Row"] & { mode: DriveFolderMode; parent_id: string | null };
+        Insert: MediaFolder["Insert"] & { mode?: DriveFolderMode; parent_id?: string | null };
+        Update: MediaFolder["Update"] & { mode?: DriveFolderMode; parent_id?: string | null };
       };
       media_library_files: {
         Row: DriveFileRow;
