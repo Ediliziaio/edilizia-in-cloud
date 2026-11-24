@@ -315,3 +315,5 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+// 24/11/2026: ripubblicata per getCompanyAdminContact (titolare/amministratore, non il primo profilo).

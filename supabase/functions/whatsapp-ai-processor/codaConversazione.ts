@@ -62,3 +62,5 @@ export async function avviaProssimoMessaggio(db: SupabaseClient, c: Conversazion
   const prossimo = await primoMessaggioInAttesa(db, c);
   if (prossimo) await invoca(prossimo.id);
 }
+
+// 24/11/2026: ripubblicata per getCompanyAdminContact (titolare/amministratore, non il primo profilo).
