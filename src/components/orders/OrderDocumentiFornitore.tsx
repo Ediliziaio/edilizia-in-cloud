@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
 import { collegaFatturaACommessa } from "./CaricaFatturaCommessa";
-import { CollegaFatturaRicevutaDialog } from "./CollegaFatturaRicevutaDialog";
+import { CollegaFatturaRicevutaDialog, FattureProbabiliCommessa } from "./CollegaFatturaRicevutaDialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
@@ -24,7 +24,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useDDTRicezioneMutations, type DDTStato } from "@/hooks/useDDTRicezione";
 import { useSegnaRicevutaPagata } from "@/components/fatturazione/PagamentoRicevuta";
 import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
-import { CollegaFatturaCommesseDialog } from "@/components/fatturazione/CollegaFatturaCommesseDialog";
+import { CollegaFatturaCommesseDialog, type FatturaDaCollegare } from "@/components/fatturazione/CollegaFatturaCommesseDialog";
 import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
 import { fatturaVerificata, quoteDelCosto, vociFattura } from "@/lib/fatturazione/ripartizioneFattura";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
@@ -666,6 +666,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
   const [riepilogoId, setRiepilogoId] = useState<string | null>(null);
   const [daDividere, setDaDividere] = useState<RigaFattura | null>(null);
   const [collegaRicevuta, setCollegaRicevuta] = useState(false);
+  const [daProbabile, setDaProbabile] = useState<FatturaDaCollegare | null>(null);
   const { effectiveCompany } = useAuth();
   const segnaPagata = useSegnaRicevutaPagata();
   const [occupata, setOccupata] = useState<string | null>(null);
@@ -812,6 +813,14 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
       <CollegaFatturaCommesseDialog companyId={effectiveCompany.id} commessaIniziale={orderId} onChiudi={() => { setDaDividere(null); void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] }); }}
         fattura={{ id: daDividere.id, numero: daDividere.numero, fornitore: daDividere.fornitore, imponibile: daDividere.imponibileDocumento, totale: daDividere.totaleDocumento ?? daDividere.totale, companyCostId: daDividere.costId, purchaseOrderId: daDividere.purchaseOrderId }} />
     )}
+    {daProbabile && effectiveCompany?.id && (
+      <CollegaFatturaCommesseDialog companyId={effectiveCompany.id} commessaIniziale={orderId} fattura={daProbabile}
+        onChiudi={() => {
+          setDaProbabile(null);
+          void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] });
+          void queryClient.invalidateQueries({ queryKey: ["fatture-candidate-commessa"] });
+        }} />
+    )}
     {riepilogoId && (
       <RiepilogoFatturaRicevuta fatturaId={riepilogoId} companyId={effectiveCompany?.id} onClose={() => { setRiepilogoId(null); void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] }); }}
         azioni={(() => {
@@ -849,6 +858,10 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
         <Skeleton className="h-24 w-full" />
       ) : (
         <div className="space-y-3">
+          {puoModificare && effectiveCompany?.id && (
+            <FattureProbabiliCommessa orderId={orderId} companyId={effectiveCompany.id} mostraImporti={mostraImporti}
+              giaMostrate={new Set(data.map((f) => f.id))} onCollega={setDaProbabile} onVediTutte={() => setCollegaRicevuta(true)} />
+          )}
           {data.length === 0
             ? <p className="commessa-empty text-sm text-muted-foreground">{t("Nessuna fattura collegata. Con «Collega fattura» la scegli fra le fatture ricevute, o carichi il file se non c’è.")}</p>
             : <TabellaCommessa etichetta={t("Fatture dei fornitori")} colonne={colonne} righe={visibili} chiave={(f) => f.id} />}
