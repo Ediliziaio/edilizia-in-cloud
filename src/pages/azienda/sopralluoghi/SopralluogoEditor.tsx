@@ -56,6 +56,7 @@ import {useSurveyDetail,useSurveyReferences} from "@/hooks/useSurveyDetail";
 import {surveyAddress} from "@/lib/surveys/report";
 import {SurveyWorkspace} from "@/components/sopralluoghi/SurveyWorkspace";
 import { PosizioniCommessaPanel } from "@/components/sopralluoghi/PosizioniCommessaPanel";
+import { RigheDelRilievo } from "@/components/sopralluoghi/RigheDelRilievo";
 import type { TemplateSchema } from "@/types/surveys";
 import {SurveyPdfTools} from "@/components/sopralluoghi/SurveyPdfTools";
 import { DocumentoDalRilievo } from "@/components/sopralluoghi/DocumentoDalRilievo";
@@ -551,6 +552,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
           />
         ))}
 
+        {!access.field && <RigheDelRilievo surveyId={survey.id} orderId={survey.order_id} />}
         {survey.order_id && (
           <PosizioniCommessaPanel
             surveyId={survey.id}

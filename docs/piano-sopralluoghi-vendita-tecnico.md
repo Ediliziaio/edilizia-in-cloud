@@ -213,10 +213,23 @@ Resta: i prezzi dal listino (oggi si scrivono a mano), il «Rilievo per posizion
 riempito dal rilievo, `quotes.survey_id` con chiave esterna e il link «Apri il rilievo» dal
 preventivo e dal computo (oggi l'origine è scritta nella descrizione di ogni riga).
 
-### Lotto 5 — Dal rilievo agli ordini
+### Lotto 5 — Dal rilievo agli ordini *(fatto 24/11/2026)*
 - Collaudo vero di «Porta le misure in commessa» → righe su misura → offerta/ordine al fornitore,
   con un rilievo tecnico e una commessa veri (mai fatto in produzione).
 - Dalla scheda del rilievo, stato delle sue righe: in commessa, in ordine, arrivate.
+
+Fatto:
+- Collaudo nel database (Demo 2, rilievo infissi, transazione annullata), come ufficio:
+  1. «Porta le misure in commessa» crea 3 righe con le misure in mm, stato «rilevato»;
+  2. rifarlo non crea doppioni (3 «invariate»);
+  3. l'ordine al fornitore con quelle righe non parte: «Misure da confermare su 1 posizioni (F01)…»;
+  4. confermate le misure (`misure_conferma`), l'ordine parte e la riga d'ordine porta
+     «Rif. F01 — L 1200 × H 1400 mm — misura foro — misure definitive».
+  La catena regge; in produzione resta da farla con un cliente vero.
+- Riquadro «Dalla misura all'ordine» nella scheda del rilievo (ufficio): per ogni riga nata dal
+  rilievo, misure da confermare / da ordinare / in ordine / in arrivo / arrivata, con l'ordine
+  e quanto è arrivato. Dati da `sopralluogo_stato_righe` (migrazione 20290530100300), senza
+  prezzi.
 
 ### Lotto 6 — Modelli più facili da costruire
 - Editor: condizioni («mostra se»), campi annidati, minimi e massimi, mappatura verso il

@@ -7,6 +7,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { PosizioniCommessaPanel } from "@/components/sopralluoghi/PosizioniCommessaPanel";
+import { RigheDelRilievo } from "@/components/sopralluoghi/RigheDelRilievo";
 import type { TemplateSchema } from "@/types/surveys";
 import {
   ArrowLeft,
@@ -653,6 +654,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
               )}
               <TabsContent value="rilievo" className="mt-0 space-y-4">
                 <SurveyOfficeReview detail={detail}/>
+                {!access.field && <RigheDelRilievo surveyId={survey.id} orderId={survey.order_id} />}
                 {survey.order_id && (
                   <PosizioniCommessaPanel
                     surveyId={survey.id}
