@@ -2241,7 +2241,8 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
               setBaseDisegno({ documento: { ...documentoConfermato, nord }, pianta: storia.presente });
             }} />}
             {strumentiVisibili && <div className="flex items-center gap-1.5 pl-0.5 text-xs">
-              <label htmlFor="ambito-documento-pianta" className="font-medium text-muted-foreground">Ambito</label>
+              {/* Sul telefono resta la sola tendina: la parola «Ambito» mandava la barra a capo. */}
+              <label htmlFor="ambito-documento-pianta" className="font-medium text-muted-foreground max-md:sr-only">Ambito</label>
               <UniformSelect id="ambito-documento-pianta" aria-label="Cosa rappresenta la pianta?"
                 title={documento.ambitoDocumento === "ambiente" ? "Verifiche sui locali rappresentati" : documento.ambitoDocumento === "alloggio" ? "Verifiche sui locali e sull’intero alloggio" : "Specifica se la tavola mostra un ambiente o tutto l’alloggio."}
                 className="h-8 rounded-md border bg-background px-2 font-normal" value={documento.ambitoDocumento ?? ""}

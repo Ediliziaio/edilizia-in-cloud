@@ -289,9 +289,10 @@ export function EditorConSalvataggio({
       </Button>}
       {!nelComputo && <EffettoPrezzo effetti={effetti} collegati={collegate.data?.length ?? 0} />}
       {!nelComputo && companyId && perPrezzo && allApertura && <span className="rounded-md border border-teal-200 bg-teal-50 px-2 py-1 empty:hidden dark:border-teal-900 dark:bg-teal-950/25 max-md:hidden" title="Costo dei lavori della variante, ricalcolato dopo ogni modifica"><CostoProposta documento={allApertura} proposta={perPrezzo} ambito={ambitoPrezzo} companyId={companyId} /></span>}
-      <Button ref={bottoneAnteprima3D} size="sm" variant={affiancata3D ? "secondary" : "outline"} aria-pressed={affiancata3D}
-        onClick={() => setAffiancata3D(aperta => !aperta)} disabled={salvando} className="gap-2" title="Mostra la pianta e il 3D insieme">
-        <Box className="h-4 w-4" aria-hidden="true" /> Anteprima 3D
+      {/* Sul telefono resta la sola icona: il nome della pianta ha bisogno di quello spazio. */}
+      <Button ref={bottoneAnteprima3D} size="sm" variant={affiancata3D ? "secondary" : "outline"} aria-pressed={affiancata3D} aria-label="Anteprima 3D"
+        onClick={() => setAffiancata3D(aperta => !aperta)} disabled={salvando} className="gap-2 max-md:px-2.5" title="Mostra la pianta e il 3D insieme">
+        <Box className="h-4 w-4" aria-hidden="true" /> <span className="max-md:hidden">Anteprima 3D</span>
       </Button>
       {nelComputo?.annulla && modificata && <Button type="button" variant="ghost" size="sm" disabled={salvando || anteprimaChat} onClick={nelComputo.annulla}>Annulla modifiche</Button>}
       {puoModificareDisegno && !nelComputo?.onRivediNelComputo && <Button size="sm" onClick={() => void salva()} disabled={salvando || anteprimaChat || (!modificata && !nuova) || (nuova && !titolo.trim())}
@@ -308,7 +309,7 @@ export function EditorConSalvataggio({
         {statoPianta && (!nelComputo.inSilvio || anteprimaChat || modificata) && <p role="status" className="text-xs text-muted-foreground">{statoPianta}</p>}
         <div className="ml-auto flex flex-wrap items-center gap-1.5">{azioni}</div>
       </div> : <div className="shrink-0 rounded-xl border bg-background px-2.5 py-2.5 shadow-sm sm:px-3">
-        <TestataPlanimetrie indietro={indietro} titolo={titoloPagina}
+        <TestataPlanimetrie compatta indietro={indietro} titolo={titoloPagina}
           sottotitolo={[sottotitoloPagina, statoPianta].filter(Boolean).join(" · ")} azioni={azioni} />
       </div>}
 

@@ -1,5 +1,7 @@
 import { FabbisognoMateriali } from "./FabbisognoMateriali";
 import { PrevisioneLavori } from "./PrevisioneLavori";
+import { previsioneLavori } from "@/lib/planimetrie/previsioneLavori";
+import { CorreggiPrezzoLavorazione } from "./CorreggiPrezzoLavorazione";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -67,6 +69,8 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
   const titolo = varianti.find(v => v.propostaId === variante)?.nome ?? "Variante";
   const abilitata = effectiveCompany?.id === companyId && !!user?.id && !permessi.solaLettura;
   const puoComputo = abilitata && permessi.canEditPreventivi;
+  // Il prezzo corretto a mano va nel listino dell'azienda: vale anche per le altre piante.
+  const puoCorreggerePrezzi = puoComputo && permessi.canViewPreventivi;
   const puoSimulare = abilitata && (permessi.isAdmin || permessi.canViewMargins);
   const fonte = { planimetriaId, versione, varianteId:variante };
   const bozzaEsistente = useQuery({
@@ -132,6 +136,9 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
     if (studio?.esterniComuni || altro?.esterniComuni) colonne.push({etichetta:"Spazi comuni esterni e cavedi",formatta:sup,valori:[studio?.esterniComuni??0,altro?.esterniComuni??0]});
     if (studio?.senzaUnita || altro?.senzaUnita) colonne.push({etichetta:"Superficie da assegnare",formatta:sup,valori:[studio?.senzaUnita??0,altro?.senzaUnita??0]});
   }
+  // Costo completo e durata delle due soluzioni a confronto: solo a chi vede i prezzi.
+  const previsioni = useMemo(() => [studio, altro].map(s => s?.righe.length && permessi.canViewPreventivi ? previsioneLavori(s.righe) : null),
+    [studio, altro, permessi.canViewPreventivi]);
   const importoVariante = importiLavorazioni(studio?.righe ?? []);
   const importoConfronto = importiLavorazioni(altro?.righe ?? []);
   const costiParziali = [importoVariante, importoConfronto].some(i => i.daQuotare || i.daMisurare);
@@ -143,6 +150,13 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
     const indicative = (s: typeof studio) => s?.righe.filter(r => r.quantita !== null && r.stimata).length ?? 0;
     const valoriIndicativi: [number,number] = [indicative(studio),indicative(altro)];
     if (valoriIndicativi.some(Boolean)) colonne.push({etichetta:"Quantità indicative",valori:valoriIndicativi});
+    // Confronto fra due soluzioni: non basta l'importo dei lavori, servono il costo con gli
+    // extra (cantiere, pratica, sicurezza, imprevisti) e i giorni. Stesse regole del pannello.
+    if (previsioni.some(p => p && p.lavori > 0)) {
+      colonne.push({etichetta:"Costo previsto, con i costi in più",formatta:euro.format,
+        valori:[previsioni[0]?.totale ?? null,previsioni[1]?.totale ?? null],parziale:costiParziali});
+      colonne.push({etichetta:"Durata prevista in giorni",valori:[previsioni[0]?.giorniCalendario ?? null,previsioni[1]?.giorniCalendario ?? null]});
+    }
   }
   const statoVerifica = (id: string) => id === "fatto" ? "—"
     : verificaUrbanisticaAperta(documento.urbanistica,id,versione) ? "Da completare" : "Verificate sulla fonte";
@@ -312,6 +326,7 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
                 return <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-2 text-sm">
                 <div><p className="font-medium">{r.descrizione}</p><p className="text-xs text-muted-foreground">{/* senza unità assegnate (un appartamento solo) «Parti comuni» confonde: si omette */}{studio.unita.length ? `${r.gruppo} · ` : ""}{r.fase} · {r.criterio}</p>
                   {r.prezzo && <p className="text-xs text-muted-foreground">{euro.format(r.prezzo.importo)}/{r.unita} · {r.prezzo.fonte}{r.prezzo.tariffa && ` · ${r.prezzo.tariffa}`}</p>}
+                  {puoCorreggerePrezzi && <CorreggiPrezzoLavorazione companyId={companyId} riga={r} />}
                   {percorso && <Link to={percorso} className="text-xs font-medium text-primary underline-offset-2 hover:underline">Vedi sulla pianta</Link>}</div>
                 <p className="whitespace-nowrap text-right text-xs tabular-nums">
                   {r.quantita === null ? <span className="text-amber-800 dark:text-amber-200">Da completare · {r.unita}</span> : <>{r.stimata && "≈ "}{num(r.quantita)} {r.unita}</>}

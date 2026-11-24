@@ -7,6 +7,9 @@ import { numeroEditor } from "@/lib/computo/editorNativo";
 import { unitaCompatibili } from "@/lib/prezzario/confronto";
 import { differenzeLavorazioni, studioVariante, type RigaStudio } from "@/lib/planimetrie/studioImmobiliare";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { messaggioListino, salvaPrezzoNelListino } from "@/lib/planimetrie/salvaNelListino";
 import { useFontiPrezzi } from "@/lib/planimetrie/fontiPrezzi";
 import { conPrezziProposti, tipiDaCercare } from "@/lib/planimetrie/prezziProposti";
 import type { PrezzoVocePlanimetria } from "../../../../shared/planimetrie/modello.ts";
@@ -131,6 +134,8 @@ function CostiInterventi({ proposta, revisione, contesto, consentiListino, onMod
 }) {
   const [rigaAttiva, setRigaAttiva] = useState<string | null>(null);
   const [manuale, setManuale] = useState("");
+  const [nelListino, setNelListino] = useState(true);
+  const qc = useQueryClient();
   const [daListino, setDaListino] = useState(false);
   const [errore, setErrore] = useState("");
   const titolo = useRef<HTMLHeadingElement>(null);
@@ -205,13 +210,21 @@ function CostiInterventi({ proposta, revisione, contesto, consentiListino, onMod
     </table>
     {attiva && <div className="space-y-1.5 rounded-md bg-muted/50 p-2">
       <p className="font-medium">{attiva.descrizione}</p>
+      {consentiListino && <label className="flex cursor-pointer items-start gap-2"><input type="checkbox" className="mt-0.5 size-3.5 shrink-0 accent-primary" checked={nelListino}
+        onChange={e => setNelListino(e.target.checked)} />Salvalo anche nel listino dell’azienda, così vale per le altre piante e per i preventivi</label>}
       <label className="block">Prezzo unitario in €/{attiva.unita}<Input aria-label="Prezzo unitario" type="text" inputMode="decimal" value={manuale} autoFocus
         onChange={e => { setManuale(e.target.value); setErrore(""); }} className="mt-1 h-7 bg-background" /></label>
       <div className="flex flex-wrap gap-1.5">
         <Button type="button" size="sm" className="h-7" variant="outline" onClick={() => {
           const importo = numeroEditor(manuale);
           if (importo === null || importo < 0) return setErrore("Inserisci un prezzo unitario valido.");
-          assegna(attiva, { importo, unita: attiva.unita, fonte: "Prezzo inserito", tariffa: "" });
+          // Il prezzo corretto a mano vale per tutta l'azienda: va nel listino, non solo in questa variante.
+          if (nelListino && effectiveCompany?.id) {
+            salvaPrezzoNelListino(effectiveCompany.id, { descrizione: attiva.descrizione, unita: attiva.unita, importo, riga: attiva })
+              .then(esito => { void qc.invalidateQueries({ queryKey: ["planimetrie", "fonti-prezzi"] }); toast.success(messaggioListino(esito, attiva.descrizione)); },
+                (e: unknown) => toast.error(e instanceof Error ? e.message : "Prezzo non salvato nel listino."));
+          }
+          assegna(attiva, { importo, unita: attiva.unita, fonte: nelListino ? "Listino aziendale" : "Prezzo inserito", tariffa: "" });
         }}>Usa prezzo</Button>
         {consentiListino && <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => { setErrore(""); setDaListino(true); }}>Scegli dal listino</Button>}
         <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => { setRigaAttiva(null); setErrore(""); }}>Chiudi</Button>

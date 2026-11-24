@@ -345,3 +345,22 @@ ha almeno una decina di commesse chiuse con previsione salvata e fasi abbinate: 
 fase il rapporto medio reale/previsto (costo e giorni) diventa un coefficiente dell'azienda
 che `previsioneLavori` applica alle rese, mostrato come tale («le tue demolizioni durano in
 media il 40% in più»). Prima di allora sarebbe un numero inventato.
+
+## 8 septies. Prezzo che resta all'azienda, confronto con i costi, editor sul telefono (24/11/2026)
+
+- **Lotto B, l'ultimo pezzo.** «Correggi prezzo» su ogni lavorazione dello studio della
+  variante e nella chat del disegno: il prezzo scritto va nel **listino dell'azienda**
+  (`rst_listino_voci`, le stesse voci delle pagine del listino), quindi vale anche per le
+  altre piante e per i preventivi. La stessa lavorazione aggiorna la voce invece di creare
+  un doppione; manodopera e materiali si dividono con la quota tipica della lavorazione e
+  il ricarico resta a zero, così il prezzo salvato è esattamente quello scritto.
+  Provato su Demo 2: una voce a «Prezzo indicativo» corretta a 22,50 €/m² è diventata
+  «Listino aziendale» e previsione e totali si sono rifatti da soli.
+- **Lotto H.** Il confronto fra due soluzioni mostra ora anche **costo previsto con i costi
+  in più** e **durata in giorni**, con le stesse regole del pannello della previsione.
+  Prima si fermava all'importo delle voci valorizzate.
+- **Lotto I, editor sul telefono.** A 375 px l'editor dava 245 px al disegno e 365 alle
+  barre. Tolto il superfluo (titolo su una riga, sottotitolo e scritta del pulsante 3D solo
+  da tablet in su, parola «Ambito» solo per i lettori di schermo): testata da 138 a 58 px,
+  barre degli strumenti da 227 a 189, disegno da 245 a 363 px. Resta da rivedere la barra
+  degli strumenti di disegno, che sul telefono occupa ancora tre righe.
