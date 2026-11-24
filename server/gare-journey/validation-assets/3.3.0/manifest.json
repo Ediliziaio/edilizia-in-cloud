@@ -1,0 +1,148 @@
+{
+  "source": "OP-TED/ESPD-EDM",
+  "version": "3.3.0",
+  "commit": "2ca5376a79db86c2b3a1200490fae68d1f0ee2ae",
+  "files": [
+    {
+      "file": "validation/ESPDRequest/xsl/01-ESPD-codelist-values.xsl",
+      "sha256": "7d6172d2e8660a883d495f9b97edde1dce392e55a2be2f73fa99afb276877312",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDRequest/xsl/01-ESPD-codelist-values.xsl"
+    },
+    {
+      "file": "validation/ESPDRequest/xsl/01-ESPD-common-cl-attributes.xsl",
+      "sha256": "db8f62de8cd3dd988f35bd4acbdeed251677ecac6a7e3bd1bbcceb47467611f2",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDRequest/xsl/01-ESPD-common-cl-attributes.xsl"
+    },
+    {
+      "file": "validation/ESPDRequest/xsl/01-ESPD-common-cl-values-restrictions.xsl",
+      "sha256": "45ed2a25febe7d7714194c2ddeef13b7713c8143262007c98a153a116c4a9d8f",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDRequest/xsl/01-ESPD-common-cl-values-restrictions.xsl"
+    },
+    {
+      "file": "validation/ESPDRequest/xsl/02-ESPD-req-cardinality-br.xsl",
+      "sha256": "b4a33a036c9a1165115b563d197e111a7c0d3e8119243f31bfeb8da7b8893649",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDRequest/xsl/02-ESPD-req-cardinality-br.xsl"
+    },
+    {
+      "file": "validation/ESPDRequest/xsl/03-ESPD-common-criterion-br.xsl",
+      "sha256": "7538017afb75671ccd5845d6c939742779018660c54371467f5a1ad45a014ddf",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDRequest/xsl/03-ESPD-common-criterion-br.xsl"
+    },
+    {
+      "file": "validation/ESPDRequest/xsl/03-ESPD-req-criterion-br.xsl",
+      "sha256": "e5bb18ca37b7ad052e3d8c24dbd876a759e0c7ff7f0d34971abdb86cac7bb452",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDRequest/xsl/03-ESPD-req-criterion-br.xsl"
+    },
+    {
+      "file": "validation/ESPDRequest/xsl/04-ESPD-common-other-br.xsl",
+      "sha256": "ec816fb1e9af57af49a09b3b15223231876cc2df939b53630e974498194ed29f",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDRequest/xsl/04-ESPD-common-other-br.xsl"
+    },
+    {
+      "file": "validation/ESPDRequest/xsl/04-ESPD-req-other-br.xsl",
+      "sha256": "18f34a2df9045d0465930254aa985e440ff5b2d45135df0b099bcb543dc5061c",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDRequest/xsl/04-ESPD-req-other-br.xsl"
+    },
+    {
+      "file": "validation/ESPDRequest/xsl/05-ESPD-req-procurer-br.xsl",
+      "sha256": "aa58cc8df1e8e831ab0ffc6a1d5097c2a0dd8dda3189a1c830a52d1fbec68b15",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDRequest/xsl/05-ESPD-req-procurer-br.xsl"
+    },
+    {
+      "file": "validation/ESPDRequest/xsl/05-ESPD-req-specific-br.xsl",
+      "sha256": "1ea7cb0c7c8a8e237ef96ded0c17df9b6b51792f2b32436c3def36e608f5905c",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDRequest/xsl/05-ESPD-req-specific-br.xsl"
+    },
+    {
+      "file": "validation/ESPDRequest/xsl/ESPD-criterion.xml",
+      "sha256": "0b97ce2c8c18a71e5fbe3b63f9d9cf5c64ebea8d11f819f85397213c7bfbdc62",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDRequest/xsl/ESPD-criterion.xml"
+    },
+    {
+      "file": "validation/ESPDRequest/xsl/criterionList.xml",
+      "sha256": "b85267ef2e0e68e0b831bdd3076339e20589ec08b34243b1f02864bc4af92b43",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDRequest/xsl/criterionList.xml"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/01-ESPD-codelist-values.xsl",
+      "sha256": "7d6172d2e8660a883d495f9b97edde1dce392e55a2be2f73fa99afb276877312",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/01-ESPD-codelist-values.xsl"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/01-ESPD-common-cl-attributes.xsl",
+      "sha256": "db8f62de8cd3dd988f35bd4acbdeed251677ecac6a7e3bd1bbcceb47467611f2",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/01-ESPD-common-cl-attributes.xsl"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/01-ESPD-common-cl-values-restrictions.xsl",
+      "sha256": "45ed2a25febe7d7714194c2ddeef13b7713c8143262007c98a153a116c4a9d8f",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/01-ESPD-common-cl-values-restrictions.xsl"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/02-ESPD-resp-cardinality-br.xsl",
+      "sha256": "59c108feb00526732efc8ddb18fa9a47864ed893b511f14564f27bca0dd3f1c2",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/02-ESPD-resp-cardinality-br.xsl"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/03-ESPD-common-criterion-br.xsl",
+      "sha256": "7538017afb75671ccd5845d6c939742779018660c54371467f5a1ad45a014ddf",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/03-ESPD-common-criterion-br.xsl"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/03-ESPD-resp-criterion-br.xsl",
+      "sha256": "85df13d3e12959e3aa798bcafde00f83f720ad6f1e8db83bb19f01eca575a526",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/03-ESPD-resp-criterion-br.xsl"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/04-ESPD-common-other-br.xsl",
+      "sha256": "ec816fb1e9af57af49a09b3b15223231876cc2df939b53630e974498194ed29f",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/04-ESPD-common-other-br.xsl"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/04-ESPD-resp-other-br.xsl",
+      "sha256": "6d19917c71935897b1b8f4668103830c58a787bffec946c6093c1fa8ed23b73b",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/04-ESPD-resp-other-br.xsl"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/05-ESPD-resp-eo-br.xsl",
+      "sha256": "bb552b2c36fd77682bffb85470083aba25d4c55ebcb15877a5cd617226498d4e",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/05-ESPD-resp-eo-br.xsl"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/05-ESPD-resp-qualification-br.xsl",
+      "sha256": "74a53cc4eb19a49783a61549f814a9285ba119e7495274bc2e23024e7ebc7863",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/05-ESPD-resp-qualification-br.xsl"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/05-ESPD-resp-role-br.xsl",
+      "sha256": "49d3f5e272386dde4314716a8378fec6723473c2c3de57f2d848c626941c9f16",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/05-ESPD-resp-role-br.xsl"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/05-ESPD-resp-specific-br.xsl",
+      "sha256": "f9b76476453a6bc9947906c45e30d6c4356066ea67719bd21d79f17115664f73",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/05-ESPD-resp-specific-br.xsl"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/ESPD-criterion.xml",
+      "sha256": "0b97ce2c8c18a71e5fbe3b63f9d9cf5c64ebea8d11f819f85397213c7bfbdc62",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/ESPD-criterion.xml"
+    },
+    {
+      "file": "validation/ESPDResponse/xsl/criterionList.xml",
+      "sha256": "66c65275e08cb32857faabaa7786ccc100e40c6b2627b0bcee0db6fe4fb2b3c0",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/validation/ESPDResponse/xsl/criterionList.xml"
+    },
+    {
+      "file": "examples/ESPD-Request.xml",
+      "sha256": "0b97ce2c8c18a71e5fbe3b63f9d9cf5c64ebea8d11f819f85397213c7bfbdc62",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/xml-examples/ESPD-Request.xml"
+    },
+    {
+      "file": "examples/ESPD-Response.xml",
+      "sha256": "2bd11599161e6b63090ade3de533cfcc106cfe394932a71ed7209134e249f746",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/2ca5376a79db86c2b3a1200490fae68d1f0ee2ae/xml-examples/ESPD-Response.xml"
+    }
+  ],
+  "license_reference": "https://github.com/OP-TED/ESPD-EDM#licence"
+}

@@ -1,0 +1,3 @@
+import{ok}from'./data.mjs';
+export async function replacedProofs(ctx){const replaced=new Set();for(let offset=0;offset<50000;offset+=1000){const rows=await ok(ctx.client.from('gare_evidence_files').select('id,previous_id').eq('company_id',ctx.companyId).not('previous_id','is',null).order('id').range(offset,offset+999));for(const f of rows)replaced.add(f.previous_id);if(rows.length<1000)return replaced;}throw Error('Archivio delle prove molto esteso: restringere il perimetro, nessun controllo parziale viene dichiarato concluso');}
+export async function assetProofs(ctx,assets,replaced){replaced??=await replacedProofs(ctx);return assets.map(a=>({...a,source_replaced:!!a.source_file_id&&replaced.has(a.source_file_id)}));}
