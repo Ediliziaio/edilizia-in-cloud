@@ -279,3 +279,17 @@ durata per fase e margine, e cambiando una parete cambiano tutti insieme.
 - **Lotto I — telefono.** Scheda e studio della variante stanno in 375 px senza scorrere di
   lato; la previsione dei lavori ha una disposizione a righe per il telefono. L'editor sul
   telefono non è stato rivisto.
+
+## 8 quinquies. Riparatore degli accessi (24/11/2026, mattina)
+
+Indagine sul trilocale senza misure (33 generazioni dal vivo): il controllore aveva ragione,
+il difetto è del modello, che lascia stanze senza porta o con la porta verso uno spazio che
+non ha disegnato, e al secondo giro spesso non migliora (3 casi su 6).
+`shared/planimetrie/riparaAccessi.ts` apre a codice la porta sulla parete in comune con una
+stanza di passaggio e toglie la porta verso fuori di bagni e camere; il modello riceve solo
+ciò che il codice non sa riparare. Non passa da bagni e ripostigli, non apre un bagno sulla
+cucina.
+Misura dal vivo dopo la pubblicazione: 10 piante riuscite, 9 senza difetti (4 grazie al
+riparatore), 1 con una camera isolata. Prima: circa una su tre con 6-8 stanze isolate.
+Due chiamate su dodici hanno risposto 402 del provider perché lanciate in parallelo: le prove
+dal vivo vanno fatte una alla volta.
