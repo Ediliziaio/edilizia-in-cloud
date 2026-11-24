@@ -68775,5 +68775,11 @@ const dizionario: Dizionario = {
   "Nessuna fattura in arrivo": "Asnjë faturë në pritje",
   "La fattura, quando arriva, si aggancia qui": "Fatura, kur të vijë, lidhet këtu",
   "+ Aggiungi una nota": "+ Shto një shënim",
+  "{nome} aggiunto ai fornitori": "{nome} u shtua te furnitorët",
+  "Completa la scheda (indirizzo, pagamento) dalla rubrica quando serve.": "Plotëso skedën (adresa, pagesa) nga adresari kur të duhet.",
+  "L'imponibile torna con il documento ({importo}).": "Imponibili përputhet me dokumentin ({importo}).",
+  "Il totale torna con il documento ({importo}).": "Totali përputhet me dokumentin ({importo}).",
+  "Sul documento l'imponibile è {documento}, le righe fanno {righe}: controlla quantità, prezzi o righe mancanti.": "Në dokument imponibili është {documento}, rreshtat bëjnë {righe}: kontrollo sasitë, çmimet ose rreshtat që mungojnë.",
+  "Sul documento il totale è {documento}, le righe fanno {righe}: controlla quantità, prezzi o righe mancanti.": "Në dokument totali është {documento}, rreshtat bëjnë {righe}: kontrollo sasitë, çmimet ose rreshtat që mungojnë.",
 };
 export default dizionario;

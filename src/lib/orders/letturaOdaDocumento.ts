@@ -122,3 +122,41 @@ export function propostaDaLettura(
     avvisi,
   };
 }
+
+export interface ConfrontoTotaleDocumento {
+  /** «imponibile» se il documento lo scrive (o si ricava da totale − IVA), altrimenti «totale». */
+  voce: "imponibile" | "totale";
+  documento: number;
+  righe: number;
+  /** Le righe fanno la stessa cifra del documento, a meno di arrotondamenti. */
+  torna: boolean;
+}
+
+/**
+ * Il totale scritto sul documento contro quello delle righe del popup (24/11/2026): una riga
+ * letta male o saltata si vede qui, prima di creare la bozza. Tolleranza: 1 € o lo 0,5%.
+ */
+export function confrontoTotaleDocumento(
+  letto: Pick<OrdineFornitoreLetto, "imponibile" | "iva" | "totale">,
+  righe: { imponibile: number; totale: number },
+): ConfrontoTotaleDocumento | null {
+  const imponibile = letto.imponibile ?? (letto.totale !== null && letto.iva !== null ? letto.totale - letto.iva : null);
+  const voce: "imponibile" | "totale" | null = imponibile !== null && imponibile > 0 ? "imponibile" : letto.totale !== null && letto.totale > 0 ? "totale" : null;
+  if (!voce) return null;
+  const documento = Math.round((voce === "imponibile" ? imponibile! : letto.totale!) * 100) / 100;
+  const nostre = Math.round((voce === "imponibile" ? righe.imponibile : righe.totale) * 100) / 100;
+  return { voce, documento, righe: nostre, torna: Math.abs(documento - nostre) <= Math.max(1, documento * 0.005) };
+}
+
+/** Il fornitore letto sul documento come nuova scheda in rubrica: solo i dati scritti lì. */
+export function fornitoreDaDocumento(letto: Pick<OrdineFornitoreLetto, "fornitore">, companyId: string) {
+  const nome = letto.fornitore.nome?.trim();
+  if (!nome) return null;
+  const piva = letto.fornitore.partita_iva?.toUpperCase().replace(/[^A-Z0-9]/g, "") || null;
+  return {
+    company_id: companyId,
+    name: nome,
+    vat_number: piva && /^IT\d{11}$/.test(piva) ? piva.slice(2) : piva,
+    fiscal_code: letto.fornitore.codice_fiscale?.toUpperCase().replace(/\s/g, "") || null,
+  };
+}

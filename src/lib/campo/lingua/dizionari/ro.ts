@@ -68775,5 +68775,11 @@ const dizionario: Dizionario = {
   "Nessuna fattura in arrivo": "Nicio factură în așteptare",
   "La fattura, quando arriva, si aggancia qui": "Factura, când sosește, se asociază aici",
   "+ Aggiungi una nota": "+ Adaugă o notă",
+  "{nome} aggiunto ai fornitori": "{nome} adăugat la furnizori",
+  "Completa la scheda (indirizzo, pagamento) dalla rubrica quando serve.": "Completează fișa (adresă, plată) din agendă când e nevoie.",
+  "L'imponibile torna con il documento ({importo}).": "Baza impozabilă corespunde cu documentul ({importo}).",
+  "Il totale torna con il documento ({importo}).": "Totalul corespunde cu documentul ({importo}).",
+  "Sul documento l'imponibile è {documento}, le righe fanno {righe}: controlla quantità, prezzi o righe mancanti.": "Pe document baza impozabilă este {documento}, rândurile fac {righe}: verifică cantitățile, prețurile sau rândurile lipsă.",
+  "Sul documento il totale è {documento}, le righe fanno {righe}: controlla quantità, prezzi o righe mancanti.": "Pe document totalul este {documento}, rândurile fac {righe}: verifică cantitățile, prețurile sau rândurile lipsă.",
 };
 export default dizionario;
