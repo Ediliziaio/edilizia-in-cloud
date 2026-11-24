@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  MASSIMO_PIANI_DWG, METRI_PER_UNITA_DWG, UNITA_DWG, direzioniDistinteDwg, ritaglioInCoordinateDwg, unitaCompatibiliDwg, unitaDwgValida,
+  MASSIMO_PIANI_DWG, METRI_PER_UNITA_DWG, UNITA_DWG, direzioniDistinteDwg, rettangoloInRitaglio, ritaglioInCoordinateDwg, unitaCompatibiliDwg, unitaDwgValida,
   type QuotaDwg, type RiferimentoDwg, type RichiestaModelloDwg, type RiscontroQuotaDwg,
 } from "@/lib/planimetrie/coordinateDwg";
 import type { RitaglioPianta } from "@/lib/planimetrie/documentoImmagine";
@@ -103,6 +103,23 @@ export function PianiDaDwg({ riferimento, ritaglio, occupato, onAggiunto, onRico
     };
     onRicostruisci(richiesta, piani.map((p) => p.ritaglio), quoteConfermate);
   };
+  const proposta = riferimento.pianiProposti;
+  const selezioniProposte = (): SelezionePiano[] => proposta?.piani.map((p) => ({
+    id: crypto.randomUUID(), nome: p.nome, quotaMetri: String(p.quota / 100), ritaglio: rettangoloInRitaglio(riferimento.rettangolo, p.rettangolo),
+  })) ?? [];
+  // Un clic: i piani trovati, con l'unità e il layer letti, vanno direttamente alla ricostruzione.
+  const ricavaProposti = () => {
+    if (!proposta || !(metri >= 2 && metri <= 8)) return;
+    const selezioni = selezioniProposte();
+    onRicostruisci({ unita: proposta.unita, altezza: Math.round(metri * 100), layerMuri: proposta.layerMuri, piani: proposta.piani },
+      selezioni.map((p) => p.ritaglio), []);
+  };
+  const correggiProposti = () => {
+    if (!proposta) return;
+    setPiani(selezioniProposte());
+    setUnita(String(proposta.unita));
+    setLayerMuri(proposta.layerMuri);
+  };
   const modifica = (id: string, patch: Partial<Pick<SelezionePiano, "nome" | "quotaMetri">>) =>
     setPiani((correnti) => correnti.map((p) => p.id === id ? { ...p, ...patch } : p));
   const selezioneAggiunta = ritaglio && piani.some((p) => stessoRitaglio(p.ritaglio, ritaglio));
@@ -123,6 +140,26 @@ export function PianiDaDwg({ riferimento, ritaglio, occupato, onAggiunto, onRico
           {selezioneAggiunta ? t("Ritaglio aggiunto") : t("Aggiungi ritaglio come piano")}
         </Button>
       </div>
+
+      {proposta && numero === 0 && (
+        <div role="status" className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <p className="text-sm font-medium">{proposta.piani.length === 1 ? t("Ho trovato 1 pianta nella tavola") : t("Ho trovato {n} piante nella tavola", { n: proposta.piani.length })}</p>
+          <ul className="text-sm text-muted-foreground">
+            {proposta.piani.map((p) => <li key={p.quota}>{p.nome} · {t("quota {m} m", { m: (p.quota / 100).toLocaleString(intlCampo(), { maximumFractionDigits: 2 }) })}</li>)}
+          </ul>
+          <p className="text-xs text-muted-foreground">
+            {t("Muri dal layer «{layer}», misure in {unita}.", { layer: proposta.layerMuri, unita: t(UNITA_DWG[proposta.unita]).toLowerCase() })}
+            {riferimento.unita !== null && riferimento.unita !== proposta.unita && ` ${t("Il file dichiara {unita}, ma le stanze tornano solo così.", { unita: t(UNITA_DWG[riferimento.unita]).toLowerCase() })}`}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" className="gap-1.5" disabled={occupato || metri < 2 || metri > 8} onClick={ricavaProposti}>
+              <Box className="h-4 w-4" aria-hidden="true" />
+              {proposta.piani.length === 1 ? t("Ricava la pianta trovata") : t("Ricava i {n} piani trovati", { n: proposta.piani.length })}
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={occupato} onClick={correggiProposti}>{t("Correggi prima")}</Button>
+          </div>
+        </div>
+      )}
 
       {numero > 0 && (
         <ul className="space-y-2">

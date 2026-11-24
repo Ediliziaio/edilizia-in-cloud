@@ -371,5 +371,31 @@ class LegendaEStanzeDaiNomiTest(unittest.TestCase):
         self.assertEqual(esito[1], "Int. 04")
 
 
+class PianiPropostiTest(unittest.TestCase):
+    def test_trova_le_piante_con_i_nomi_e_scarta_il_prospetto(self):
+        from anteprimaDxf import proponi_piani
+        doc = ezdxf.new()
+        doc.units = 4  # dichiara i millimetri, ma è disegnato in metri
+        spazio = doc.modelspace()
+
+        def rettangolo(x0, y0, x1, y1, passo=0.5):
+            for (ax, ay), (bx, by) in [((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))]:
+                n = max(1, int(hypot(bx - ax, by - ay) / passo))
+                for i in range(n):
+                    spazio.add_line((ax + (bx - ax) * i / n, ay + (by - ay) * i / n), (ax + (bx - ax) * (i + 1) / n, ay + (by - ay) * (i + 1) / n), dxfattribs={"layer": "MRT"})
+        for x in (0, 30, 60):  # terra, primo, prospetto
+            rettangolo(x, 0, x + 12, 10)
+            rettangolo(x + 0.3, 0.3, x + 11.7, 9.7)
+        spazio.add_text("soggiorno", dxfattribs={"insert": (4, 5)})
+        spazio.add_text("bagno", dxfattribs={"insert": (9, 5)})
+        spazio.add_text("letto", dxfattribs={"insert": (34, 5)})
+        spazio.add_text("+3.20", dxfattribs={"insert": (36, 2)})
+        esito = proponi_piani(doc)
+        self.assertEqual(esito["unita"], 6)
+        self.assertEqual(esito["layerMuri"], "MRT")
+        self.assertEqual([(p["nome"], p["quota"]) for p in esito["piani"]], [("Piano terra", 0), ("Piano primo", 320)])
+        self.assertLess(esito["piani"][0]["rettangolo"][2], 30)
+
+
 if __name__ == "__main__":
     unittest.main()

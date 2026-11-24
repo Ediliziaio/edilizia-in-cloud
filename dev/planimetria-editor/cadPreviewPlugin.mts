@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import type { Plugin } from "vite";
 import { CAD_MAX_BYTES, cadSignature } from "../../src/lib/preventivi/quoteCad.ts";
 import { localPlanRequestAllowed } from "../preventivatore-ai/planOcrPlugin.mts";
-import { leggiQuoteDwg, rettangoloDwgValido, unitaDwgValida, validaRichiestaModelloDwg, type RichiestaModelloDwg, type RiferimentoDwg } from "../../src/lib/planimetrie/coordinateDwg.ts";
+import { leggiPropostaPianiDwg, leggiQuoteDwg, rettangoloDwgValido, unitaDwgValida, validaRichiestaModelloDwg, type RichiestaModelloDwg, type RiferimentoDwg } from "../../src/lib/planimetrie/coordinateDwg.ts";
 
 const exec = promisify(execFile);
 const preparatore = fileURLToPath(new URL("./anteprimaDxf.py", import.meta.url));
@@ -98,10 +98,11 @@ export function convertiTavolaDwg(stream: AsyncIterable<Uint8Array>, signal: Abo
     if ((await stat(svg)).size > MAX_SVG) throw new Error("La tavola è troppo complessa. Esporta la singola pianta in PDF.");
     const { png, coordinate: [x, y, w, h] } = await rasterizzaTavola(await readFile(svg, "utf8"));
     if (png.length > MAX_PNG) throw new Error("L’anteprima supera 10 MB. Esporta la singola tavola in PDF.");
-    const { trasformazione: [dx, dy, sx, sy], unita, quote } = JSON.parse(await readFile(metadata, "utf8"));
+    const { trasformazione: [dx, dy, sx, sy], unita, quote, pianiProposti } = JSON.parse(await readFile(metadata, "utf8"));
     const rettangolo = [(x - dx) / sx, (y + h - dy) / sy, (x + w - dx) / sx, (y - dy) / sy];
+    const proposta = leggiPropostaPianiDwg(pianiProposti);
     const riferimento: RiferimentoDwg | null = rettangoloDwgValido(rettangolo)
-      ? { unita: unitaDwgValida(unita) ? unita : null, rettangolo, quote: leggiQuoteDwg(quote) }
+      ? { unita: unitaDwgValida(unita) ? unita : null, rettangolo, quote: leggiQuoteDwg(quote), ...(proposta && { pianiProposti: proposta }) }
       : null;
     signal.throwIfAborted();
     return { png, riferimento };

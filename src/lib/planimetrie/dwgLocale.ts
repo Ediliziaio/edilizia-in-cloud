@@ -1,6 +1,6 @@
 import { CAD_MAX_BYTES, cadSignature } from "@/lib/preventivi/quoteCad";
 import { MASSIMO_DOCUMENTO_BYTES } from "./documentoImmagine";
-import { leggiQuoteDwg, rettangoloDwgValido, unitaDwgValida, type RiferimentoDwg, type RichiestaModelloDwg } from "./coordinateDwg";
+import { leggiPropostaPianiDwg, leggiQuoteDwg, rettangoloDwgValido, unitaDwgValida, type RiferimentoDwg, type RichiestaModelloDwg } from "./coordinateDwg";
 import { validaPlanimetria, type Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { chiamaMotoreOnline, motoreOnlineAttivo } from "./motoreOnline";
 
@@ -45,9 +45,10 @@ async function erroreRisposta(response: Response, fallback: string): Promise<Err
 function riferimentoDwg(header: string | null): RiferimentoDwg | null {
   if (!header) return null;
   try {
-    const dato = JSON.parse(header) as { unita?: unknown; rettangolo?: unknown; quote?: unknown } | null;
+    const dato = JSON.parse(header) as { unita?: unknown; rettangolo?: unknown; quote?: unknown; pianiProposti?: unknown } | null;
+    const proposta = leggiPropostaPianiDwg(dato?.pianiProposti);
     return rettangoloDwgValido(dato?.rettangolo)
-      ? { unita: unitaDwgValida(dato?.unita) ? dato.unita : null, rettangolo: dato.rettangolo, quote: leggiQuoteDwg(dato.quote) }
+      ? { unita: unitaDwgValida(dato?.unita) ? dato.unita : null, rettangolo: dato.rettangolo, quote: leggiQuoteDwg(dato.quote), ...(proposta && { pianiProposti: proposta }) }
       : null;
   } catch { return null; }
 }
