@@ -31,6 +31,7 @@ import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { cn } from "@/lib/utils";
 import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 import { messaggioErroreLogin } from "@/lib/auth/erroriLogin";
+import { leggiAccountSenzaAzienda, MESSAGGIO_ACCOUNT_SENZA_AZIENDA } from "@/lib/auth/accountSenzaAzienda";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 type ViewMode = "login" | "forgot" | "2fa" | "email-otp";
@@ -54,6 +55,8 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   const [isLoading, setIsLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // Account senza azienda (di solito entrato con Google): messaggio + link demo.
+  const [senzaAzienda, setSenzaAzienda] = useState<boolean>(false);
   const { signIn } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -67,6 +70,15 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   const loginBgColor = domainBranding?.login_bg_color || undefined;
   const loginLogoUrl = domainBranding?.login_logo_url || domainBranding?.logo_url || null;
   const isWhiteLabel = !!domainBranding;
+
+  // Chi è stato disconnesso perché senza azienda arriva qui: glielo diciamo.
+  useEffect(() => {
+    const segnalata = leggiAccountSenzaAzienda();
+    if (segnalata === null) return;
+    if (segnalata) setEmail(segnalata);
+    setSenzaAzienda(true);
+    setFormError(MESSAGGIO_ACCOUNT_SENZA_AZIENDA);
+  }, []);
 
   // Apply favicon from branding
   useEffect(() => {
@@ -140,6 +152,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+    setSenzaAzienda(false);
     setIsLoading(true);
     // Hard-stop: anche se TUTTE le promise sotto pendono indefinitamente
     // (es. iOS Safari + ITP + SW intercept che congela un fetch), questo
@@ -189,6 +202,30 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         }
       } catch {
         // If blocked check fails, proceed normally
+      }
+
+      // Account senza azienda (nessun ruolo): niente codice email, che lo
+      // farebbe solo girare a vuoto. Si chiude la sessione e si spiega perché.
+      // Solo se la lettura riesce davvero: un errore o un timeout non è «nessun ruolo».
+      try {
+        const { data: sessione } = await supabase.auth.getSession();
+        const uid = sessione.session?.user.id;
+        if (uid) {
+          const ruoliCheck = supabase.from("user_roles").select("role").eq("user_id", uid).limit(1);
+          (ruoliCheck as unknown as Promise<unknown>).catch(() => {});
+          const esito = await Promise.race([
+            ruoliCheck,
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
+          ]);
+          if (esito && !esito.error && Array.isArray(esito.data) && esito.data.length === 0) {
+            await supabase.auth.signOut({ scope: "local" });
+            setSenzaAzienda(true);
+            setFormError(MESSAGGIO_ACCOUNT_SENZA_AZIENDA);
+            return;
+          }
+        }
+      } catch {
+        // lettura non riuscita: si prosegue come prima
       }
 
       // 2FA status — anche questa è una edge function (può andare in cold-start
@@ -522,7 +559,15 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                 {formError && (
                   <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
                     <AlertCircle className="h-4 w-4 shrink-0" />
-                    {formError}
+                    <span>
+                      {formError}
+                      {senzaAzienda && (
+                        <>
+                          {" "}
+                          <a href="https://www.ediliziaincloud.com/demo/" className="font-semibold underline">Richiedi la demo</a>
+                        </>
+                      )}
+                    </span>
                   </div>
                 )}
 

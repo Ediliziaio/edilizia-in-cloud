@@ -22,9 +22,19 @@ import { userErrorMessage } from "@/lib/userErrorMessage";
 import { quandoSiRiapre } from "@/lib/sicurezza/accessiBloccati";
 import { credenzialiNonValide } from "@/lib/auth/erroriLogin";
 import { erroreImpersonazione } from "@/lib/auth/erroreImpersonazione";
+import { segnalaAccountSenzaAzienda } from "@/lib/auth/accountSenzaAzienda";
 import { avvisaAltreSchede } from "@/lib/auth/aziendaServer";
 import { avviaIntervalloVisibile } from "@/lib/intervalloVisibile";
 import { isNative } from "@/lib/mobile/platform";
+
+// Sessione valida ma nessun ruolo (letto davvero, non in errore): è un account
+// senza azienda, tipicamente nato da «Continua con Google». Si chiude la
+// sessione e la pagina di accesso spiega perché, invece di rimandarlo al
+// login in silenzio con la sessione ancora aperta (24/11/2026).
+function chiudiAccountSenzaAzienda(email: string | null | undefined): void {
+  segnalaAccountSenzaAzienda(email);
+  void supabase.auth.signOut({ scope: "local" }).catch((): void => undefined);
+}
 
 /**
  * Velocity Protocol — V1/V2
@@ -697,6 +707,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (userData.role === null) {
           clearProfileCache();
           resolvedRoleRef.current = null;
+          chiudiAccountSenzaAzienda(user.email);
           setState({
             user: null,
             profile: null,
@@ -987,6 +998,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
             clearProfileCache();
             resolvedRoleRef.current = null;
+            chiudiAccountSenzaAzienda(session.user.email);
             setIsImpersonationReady(false);
             setState({
               user: null,
