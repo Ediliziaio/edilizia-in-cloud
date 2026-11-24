@@ -63,7 +63,7 @@ describe("La lista della tendina", () => {
 
   it("sopra le 12 voci ha il campo di ricerca, e una lettera scritta ci finisce dentro", () => {
     expect(select).toContain("export const SOGLIA_RICERCA_TENDINA = 12;");
-    expect(select).toContain('aria-label="Cerca nella tendina"');
+    expect(select).toMatch(/aria-label=(?:"Cerca nella tendina"|\{(?:t|tr|tTesto)\("Cerca nella tendina"\)\})/);
     expect(select).toContain("onKeyDownCapture");
   });
 

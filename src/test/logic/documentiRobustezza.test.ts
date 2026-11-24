@@ -229,7 +229,10 @@ describe("modulo di recesso e pagina della firma in tutti i documenti", () => {
       "idr_template_pdf", "pav_template_pdf", "pis_template_pdf", "sr_template_pdf", "fv_template_pdf", "quote_templates",
     ]) expect(sql).toContain(`'${tabella}'`);
     expect(sql).toContain("add column if not exists modulo_recesso_attivo boolean not null default false");
-    expect(leggi("src/components/preventivi/CondizioniContratto.tsx")).toContain('aria-label="Allega il modulo di recesso"');
+    // La frase può passare dal sistema di traduzione: vanno bene sia il letterale sia t("…").
+    expect(leggi("src/components/preventivi/CondizioniContratto.tsx")).toMatch(
+      /aria-label=(?:"Allega il modulo di recesso"|\{t\("Allega il modulo di recesso"\)\})/,
+    );
     // 07/11/2026: serramenti, fotovoltaico e il preventivo generico mostrano lo stesso pannello, col suo interruttore.
     for (const editor of [
       "src/components/serramenti/SerramentiTemplateEditor.tsx",

@@ -27,6 +27,8 @@ function statoDdt(doc: { ddt_fattura_id: string | null; ddt_fatturato: boolean }
       view: createElement("span"),
       React: { createElement }, doc, isDdt: true, isTrash: false, ddtFatturato: doc.ddt_fatturato,
       cn: (...classi: string[]) => classi.join(" "),
+      // I testi passano dal traduttore: nella prova rende la frase italiana.
+      t: (frase: string) => frase, tr: (frase: string) => frase, tTesto: (frase: string) => frase,
       Badge: "span",
     };
     runInNewContext(compiled, context);

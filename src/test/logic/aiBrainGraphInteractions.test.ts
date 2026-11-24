@@ -11,6 +11,17 @@ const semanticSearchSource = readFileSync(
   "utf8",
 );
 
+/**
+ * I testi visibili possono essere letterali oppure passare dal sistema di
+ * traduzione (t/tr/tTesto). Il contratto resta lo stesso: l'etichetta c'è.
+ */
+function expectAriaLabel(src: string, testo: string) {
+  const re = new RegExp(
+    `aria-label=(?:"${testo}"|\\{(?:t|tr|tTesto)\\("${testo}"\\)\\})`,
+  );
+  expect(src).toMatch(re);
+}
+
 describe("AI brain graph interaction contract", () => {
   it("keeps the SVG brain graph zoomable and pannable", () => {
     expect(source).toContain("handleWheelZoom");
@@ -25,12 +36,12 @@ describe("AI brain graph interaction contract", () => {
   it("exposes explicit controls for zoom, fit, reset, fullscreen, and settings", () => {
     expect(source).toContain("zoomIn:");
     expect(source).toContain("zoomOut:");
-    expect(source).toContain("aria-label=\"Zoom avanti\"");
-    expect(source).toContain("aria-label=\"Zoom indietro\"");
-    expect(source).toContain("aria-label=\"Adatta grafo alla vista\"");
-    expect(source).toContain("aria-label=\"Reset vista grafo\"");
-    expect(source).toContain("aria-label=\"Modalita fullscreen grafo\"");
-    expect(source).toContain("aria-label=\"Opzioni avanzate grafo\"");
+    expectAriaLabel(source, "Zoom avanti");
+    expectAriaLabel(source, "Zoom indietro");
+    expectAriaLabel(source, "Adatta grafo alla vista");
+    expectAriaLabel(source, "Reset vista grafo");
+    expectAriaLabel(source, "Modalita fullscreen grafo");
+    expectAriaLabel(source, "Opzioni avanzate grafo");
   });
 
   it("keeps node selection separate from canvas pan gestures", () => {

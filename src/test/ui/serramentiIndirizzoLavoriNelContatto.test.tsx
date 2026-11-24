@@ -229,7 +229,8 @@ describe("anteprima a destra", () => {
 describe("lista di controllo del PDF", () => {
   it("«Indirizzo dei lavori» rimanda al passo Contatto, dove ora si scrive", () => {
     const sorgente = readFileSync(resolve(process.cwd(), "src/components/serramenti/StepPdf.tsx"), "utf8");
-    expect(sorgente).toMatch(/label: "Indirizzo dei lavori",[\s\S]{0,200}passo: "cliente"/);
-    expect(sorgente).not.toMatch(/label: "Indirizzo cantiere"/);
+    // L'etichetta può essere letterale o tradotta: label: t("Indirizzo dei lavori").
+    expect(sorgente).toMatch(/label: (?:"|(?:t|tr|tTesto)\(")Indirizzo dei lavori"\)?,[\s\S]{0,200}passo: "cliente"/);
+    expect(sorgente).not.toMatch(/label: (?:"|(?:t|tr|tTesto)\(")Indirizzo cantiere"/);
   });
 });

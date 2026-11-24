@@ -46,7 +46,8 @@ describe("HR Ruolo/Task/KPI — UI wiring", () => {
     expect(src).toContain('value="ruolo"');
     expect(src).toContain("HrRuoloObiettiviTab");
     // La tab è etichettata "Ruolo" (icona Target) dopo il polish del header/tab.
-    expect(src).toContain('label: "Ruolo"');
+    // L'etichetta può passare dal sistema di traduzione: va bene sia il letterale sia t("Ruolo").
+    expect(src).toMatch(/label: (?:"Ruolo"|t\("Ruolo"\))/);
   });
 
   it("esistono i 3 blocchi + il tab contenitore + il dialog catalogo", () => {

@@ -69,8 +69,9 @@ describe("nella pagina", () => {
     expect(dati).not.toMatch(/T00:00:00`/);
     const pagina = leggi("src/pages/azienda/CruscottoAziendale.tsx");
     expect(pagina).toMatch(/<ComeStiamoAndandoVista\s+comeSezione\s+dati=\{cruscotto\}/);
-    expect(pagina).toContain('label: "Incassato periodo (IVA incl.)"');
-    expect(pagina).not.toContain('label: "Saldo scadenze mese"');
+    // L'etichetta può essere letterale o passare dal sistema di traduzione.
+    expect(pagina).toMatch(/label: (?:"Incassato periodo \(IVA incl\.\)"|(?:t|tr|tTesto)\("Incassato periodo \(IVA incl\.\)"\))/);
+    expect(pagina).not.toMatch(/label: (?:"Saldo scadenze mese"|(?:t|tr|tTesto)\("Saldo scadenze mese"\))/);
   });
 
 });
@@ -119,6 +120,13 @@ describe("scaduto per età", () => {
   });
 });
 
+/**
+ * I testi visibili possono essere letterali o passare dal sistema di traduzione
+ * (t/tr/tTesto): la prop c'è comunque, con la stessa frase.
+ */
+const propTradotta = (prop: string, testo: string) =>
+  new RegExp(`${prop}=(?:"${testo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"|\\{(?:t|tr|tTesto)\\("${testo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\)\\})`);
+
 describe("schede del cruscotto (08/11/2026)", () => {
   const pagina = leggi("src/pages/azienda/CruscottoAziendale.tsx");
   const inCima = leggi("src/pages/azienda/ComeStiamoAndando.tsx");
@@ -139,19 +147,19 @@ describe("schede del cruscotto (08/11/2026)", () => {
       expect(pagina).not.toContain(copia);
     }
     // in cima solo soldi: ritardi e ticket stanno nella Dashboard Operativa
-    expect(inCima).not.toContain('etichetta="Cantieri in ritardo"');
+    expect(inCima).not.toMatch(propTradotta("etichetta", "Cantieri in ritardo"));
     expect(inCima).not.toContain('id: "cantieri-ritardo"');
     expect(inCima).not.toContain('id: "ticket"');
-    expect(inCima).toContain('etichetta="Saldo delle scadenze"');
+    expect(inCima).toMatch(propTradotta("etichetta", "Saldo delle scadenze"));
     // 14/11/2026: da oggi a fine mese, così le rate già scadute stanno solo nello scaduto.
-    expect(inCima).toContain(`periodo="Da oggi a fine mese"`);
+    expect(inCima).toMatch(propTradotta("periodo", "Da oggi a fine mese"));
   });
 
   it("si chiamano Cruscotto Economico e Dashboard Operativa, anche nel selettore", () => {
     const selettore = leggi("src/components/dashboard/DashboardSelectorBar.tsx");
     expect(selettore).toContain('label: "Cruscotto Economico"');
     expect(selettore).toContain('label: "Dashboard Operativa"');
-    expect(pagina).toContain('title="Cruscotto Economico"');
+    expect(pagina).toMatch(propTradotta("title", "Cruscotto Economico"));
   });
 });
 

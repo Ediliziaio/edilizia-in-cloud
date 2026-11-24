@@ -38,6 +38,13 @@ function gestoriVeri(file: string, nomi: string[], contesto: Record<string, unkn
     ts.forEachChild(nodo, visita);
   };
   visita(sorgente);
+  // I testi visibili passano dal sistema di traduzione (`t`/`tr`): nella sandbox il
+  // traduttore è quello italiano di riserva (frase così com'è, valori sostituiti).
+  const traduttoreItaliano = (testo: string, valori?: Record<string, unknown>) =>
+    valori
+      ? String(testo).replace(/\{(\w+)\}/g, (tutto, nome: string) => (nome in valori ? String(valori[nome]) : tutto))
+      : String(testo);
+  for (const nome of ["t", "tr", "tTesto"]) contesto[nome] ??= traduttoreItaliano;
   vm.createContext(contesto);
   for (const nome of nomi) {
     const inizializzatore = trovati.get(nome);

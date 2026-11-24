@@ -21,6 +21,16 @@ export function gestoriVeri(file: string, nomi: string[], contesto: Record<strin
     ts.forEachChild(nodo, visita);
   };
   visita(sorgente);
+  // I testi visibili passano dal sistema di traduzione (`t`, `tr`, `tTesto`). Nella sandbox
+  // il traduttore è quello italiano di riserva: restituisce la frase così com'è, con i
+  // valori sostituiti (come `sostituisci` in LinguaCampo). Il test può sempre darne uno suo.
+  const traduttoreItaliano = (testo: string, valori?: Record<string, unknown>) =>
+    valori
+      ? String(testo).replace(/\{(\w+)\}/g, (tutto, nome: string) => (nome in valori ? String(valori[nome]) : tutto))
+      : String(testo);
+  for (const nome of ["t", "tr", "tTesto"]) {
+    if (!(nome in contesto)) contesto[nome] = traduttoreItaliano;
+  }
   vm.createContext(contesto);
   for (const nome of nomi) {
     const inizializzatore = trovati.get(nome);

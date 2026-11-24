@@ -54,7 +54,11 @@ describe("protocollo interno delle fatture ricevute", () => {
 
   it("la lista mostra la colonna accanto al numero e il pulsante per numerare l'anno", () => {
     const pagina = readFileSync("src/pages/azienda/fatturazione/FattureRicevutePage.tsx", "utf8");
-    expect(pagina).toMatch(/<TableHead>Numero<\/TableHead>\s*\{protocolli\.visibile && <TableHead[^>]*>Prot\.<\/TableHead>\}/);
+    // I testi possono essere letterali o tradotti: <TableHead>{t("Numero")}</TableHead>.
+    const testo = (frase: string) => String.raw`(?:${frase}|\{(?:t|tr|tTesto)\("${frase}"\)\})`;
+    expect(pagina).toMatch(new RegExp(
+      `<TableHead>${testo("Numero")}</TableHead>\\s*\\{protocolli\\.visibile && <TableHead[^>]*>${testo("Prot\\.")}</TableHead>\\}`,
+    ));
     expect(pagina).toContain("<NumeraProtocolliRicevute");
   });
 });

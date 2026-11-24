@@ -344,14 +344,16 @@ describe("form dei moduli tecnici: le miniature vengono dal motore", () => {
 
   it("preset e opzioni mostrano la foto che il motore allega (fotoDelPreset / fotoDellOpzione), con alt", () => {
     expect(pagina).toMatch(/spec\.presets\.map\(\(p\) => \[p\.value, fotoDelPreset\(spec\.id, p\.value\)\]\)/);
-    expect(pagina).toMatch(/<RigaConFoto foto=\{fotoPreset\[preset\.value\] \?\? null\} label=\{preset\.label\} \/>/);
-    expect(pagina).toMatch(/<RigaConFoto foto=\{fotoDellOpzione\(spec\.id, config\.interventionPreset, opzione\.chiave, v\.value\)\} label=\{v\.label\} \/>/);
-    expect(pagina).toMatch(/<ReferenceThumb photo=\{foto\} alt=\{`Esempio: \$\{label\}`\} \/>/);
+    // label e alt possono passare dal traduttore: label={t(preset.label)}.
+    expect(pagina).toMatch(/<RigaConFoto foto=\{fotoPreset\[preset\.value\] \?\? null\} label=\{(?:t\()?preset\.label\)?\} \/>/);
+    expect(pagina).toMatch(/<RigaConFoto foto=\{fotoDellOpzione\(spec\.id, config\.interventionPreset, opzione\.chiave, v\.value\)\} label=\{(?:t\()?v\.label\)?\} \/>/);
+    expect(pagina).toMatch(/<ReferenceThumb photo=\{foto\} alt=\{(?:`Esempio: \$\{label\}`|t\("Esempio: \{label\}", \{ label: String\(label \?\? ""\) \}\))\} \/>/);
   });
 
   it("il campo chiuso mostra solo il testo: l'immagine resta nella lista", () => {
-    expect(pagina).toMatch(/<SelectValue>\{presetCorrente\?\.label \?\? config\.interventionPreset\}<\/SelectValue>/);
-    expect(pagina).toMatch(/<SelectValue>\{scelto\?\.label \?\? opzione\.nonSpecificato\}<\/SelectValue>/);
+    // Con il traduttore: {presetCorrente?.label ? t(presetCorrente.label) : config.interventionPreset}
+    expect(pagina).toMatch(/<SelectValue>\{presetCorrente\?\.label (?:\?\? config\.interventionPreset|\? t\(presetCorrente\.label\) : config\.interventionPreset)\}<\/SelectValue>/);
+    expect(pagina).toMatch(/<SelectValue>\{(?:t\()?scelto\?\.label \?\? opzione\.nonSpecificato\)?\}<\/SelectValue>/);
   });
 
   it("cambiare preset o opzione passa dalle funzioni che tengono coerenti i testi", () => {

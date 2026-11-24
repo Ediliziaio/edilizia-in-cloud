@@ -33,14 +33,15 @@ describe("altezza del pop-up", () => {
 
 describe("un posto solo: gli Appunti", () => {
   it("la sezione si chiama Appunti, e non ha più il riquadro della scheda", () => {
-    expect(sezioneNote).toContain('<span className="text-xs font-medium">Appunti</span>');
+    // I testi visibili passano dal sistema di traduzione: va bene sia il letterale sia tr("…").
+    expect(sezioneNote).toMatch(/<span className="text-xs font-medium">(?:Appunti|\{tr\("Appunti"\)\})<\/span>/);
     expect(sezioneNote).toContain("handleAddNote");
     expect(sezioneNote).not.toContain("Nota dell'opportunità");
     expect(sezioneNote).not.toContain("oppNotes");
   });
 
   it("«Registro» resta al registro attività, non agli appunti", () => {
-    expect(sorgente).toContain('label: "Registro attività"');
+    expect(sorgente).toMatch(/label: (?:"Registro attività"|tr\("Registro attività"\))/);
     expect(sorgente).not.toContain("Registro note");
   });
 
@@ -54,13 +55,17 @@ describe("un posto solo: gli Appunti", () => {
 
   it("dai Dettagli si vede l'ultimo appunto, e un clic porta a tutti", () => {
     expect(sorgente).toContain('onClick={() => setTab("notes")}');
-    expect(sorgente).toContain("Appunti: {notes.length}");
-    expect(sorgente).toContain("Nessun appunto · <span className=\"text-primary\">scrivine uno</span>");
+    expect(sorgente).toMatch(/Appunti: \{notes\.length\}|tr\("Appunti: \{n\}", \{ n: notes\.length \}\)/);
+    expect(sorgente).toMatch(
+      /Nessun appunto · <span className="text-primary">scrivine uno<\/span>|\{tr\("Nessun appunto ·"\)\} <span className="text-primary">\{tr\("scrivine uno"\)\}<\/span>/,
+    );
   });
 
   it("la voce laterale conta gli appunti", () => {
     expect(sorgente).toContain("const totaleNote = notes.length;");
-    expect(sorgente).toContain("label: totaleNote ? `Appunti (${totaleNote})` : \"Appunti\"");
+    expect(sorgente).toMatch(
+      /label: totaleNote \? (?:`Appunti \(\$\{totaleNote\}\)` : "Appunti"|tr\("Appunti \(\{n\}\)", \{ n: totaleNote \}\) : tr\("Appunti"\))/,
+    );
   });
 });
 

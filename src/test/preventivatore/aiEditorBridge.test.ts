@@ -102,7 +102,8 @@ describe('Passaggio al vero editor classico, senza conferme implicite', () => {
     const visit = (node: ts.Node) => { if (ts.isVariableDeclaration(node) && node.name.getText(source) === 'handleSave') expression = node.initializer; ts.forEachChild(node, visit); };
     visit(source);
     expect(expression).toBeDefined();
-    const info = vi.fn(); const context = vm.createContext({ localEditor: { initial: {} }, toast: { info } });
+    const info = vi.fn(); const traduci = (frase: string) => frase;
+    const context = vm.createContext({ localEditor: { initial: {} }, toast: { info }, t: traduci, tr: traduci, tTesto: traduci });
     vm.runInContext(ts.transpileModule(`globalThis.save = ${expression!.getText(source)}`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText, context);
     // No company/user/remote services in this sandbox: reaching them would throw.
     await context.save('bozza', { anteprima: true });

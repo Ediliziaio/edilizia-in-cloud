@@ -32,6 +32,10 @@ function scenario(name: string, succeeds = false) {
     queryClient: { getQueryData: () => cache, setQueryData: (_key: unknown, update: unknown): void => { cache = typeof update === "function" ? update(cache) : update as Row[]; }, invalidateQueries: (): void => {} },
     supabase: db, toast, rollbackAppointmentTiming, addMinutesToTimeStr, timeToMin, refetchAppointments: refetch, onRefresh: refresh,
     syncExternalCalendarsForAppointment: sync, syncExternalCalendarsForStatus: sync, useCallback: (fn: unknown) => fn,
+    // I testi visibili passano dal sistema di traduzione: in italiano la chiave
+    // è la frase stessa, quindi lo stub rende la chiave con i valori sostituiti.
+    tr: (testo: string, valori?: Record<string, unknown>) =>
+      testo.replace(/\{(\w+)\}/g, (tutto, nome: string) => (valori && nome in valori ? String(valori[nome]) : tutto)),
   });
   vm.runInContext(ts.transpileModule(`globalThis.handler = ${initializer.getText(source)}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
   return { run: (...args: unknown[]) => context.handler(...args) as Promise<void>, cache: () => cache, setCache: (rows: Row[]): void => { cache = rows; }, stored: () => stored, setStored: (patch: Partial<Row>): void => { stored = { ...stored, ...patch }; }, before: (fn: () => void): void => { beforeReply = fn; }, sync, refetch, refresh, toast };

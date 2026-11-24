@@ -43,7 +43,8 @@ describe.each(MODULI)("$slug: indirizzo dei lavori nel passo Cliente", ({ slug, 
 
   it("la lista di controllo del PDF dice «Indirizzo dei lavori» e rimanda al passo Cliente", () => {
     const pdf = leggi(slug, cart, "StepPdf.tsx");
-    expect(pdf).toContain('label: "Indirizzo dei lavori"');
+    // L'etichetta può passare dal sistema di traduzione: va bene sia il letterale sia t("…").
+    expect(pdf).toMatch(/label: (?:"Indirizzo dei lavori"|t\("Indirizzo dei lavori"\))/);
     expect(pdf).toContain("Aggiungilo nello step Cliente");
     expect(pdf).toContain('mancano.push({ etichetta: "indirizzo dei lavori", passo: "cliente" });');
     expect(pdf).not.toContain("Aggiungilo nello step Immobile");

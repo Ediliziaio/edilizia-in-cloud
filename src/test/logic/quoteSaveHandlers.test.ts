@@ -25,6 +25,13 @@ function actualHandler(file: string, name: string, context: Record<string, unkno
   const code = ts.transpileModule(`globalThis.handler = ${initializer.getText(source)}`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   }).outputText;
+  // I testi visibili passano dal sistema di traduzione (`t`/`tr`): nella sandbox il
+  // traduttore è quello italiano di riserva (frase così com'è, valori sostituiti).
+  const traduttoreItaliano = (testo: string, valori?: Record<string, unknown>) =>
+    valori
+      ? String(testo).replace(/\{(\w+)\}/g, (tutto, nome: string) => (nome in valori ? String(valori[nome]) : tutto))
+      : String(testo);
+  for (const nome of ["t", "tr", "tTesto"]) context[nome] ??= traduttoreItaliano;
   vm.createContext(context); vm.runInContext(code, context);
   return context.handler as (...args: unknown[]) => Promise<void>;
 }

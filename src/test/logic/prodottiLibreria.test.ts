@@ -142,7 +142,10 @@ describe("la pagina", () => {
     expect(pagina).toContain("«Importa → Modelli pronti»");
     expect(pagina).not.toContain("«Importa da template»");
     // Il nome che l'azienda vede davvero, nel menu Importa del suo listino.
-    expect(leggi("src/components/listino/FamilyCatalog.tsx")).toContain('etichetta: "Modelli pronti"');
+    // L'etichetta può passare dal sistema di traduzione: va bene sia il letterale sia tr("…").
+    expect(leggi("src/components/listino/FamilyCatalog.tsx")).toMatch(
+      /etichetta: (?:"Modelli pronti"|tr\("Modelli pronti"\))/,
+    );
   });
 
   it("il selettore dell'azienda usa gli stessi elenchi del super admin", () => {

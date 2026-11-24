@@ -70,7 +70,10 @@ describe("la copia di firma di un preventivo di modulo", () => {
     // e niente se il preventivo ha già la sua commessa (6/10/2026: una commessa sola per preventivo).
     expect(dettaglio.match(/\{quote\.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && \(/g) ?? []).toHaveLength(3);
     expect(dettaglio).toContain("{!rigaDiModulo && (");
-    expect(dettaglio).toContain("Apri il preventivo {moduloDellaRiga.nome}");
+    // Il nome del modulo resta dentro la frase, anche passando dal sistema di traduzione.
+    expect(dettaglio).toMatch(
+      /Apri il preventivo \{moduloDellaRiga\.nome\}|t\("Apri il preventivo \{nome\}", \{ nome: String\(moduloDellaRiga\.nome ?\?\? ""\) \}\)/,
+    );
   });
 
   it("il server non la rigenera come preventivo classico e non la converte in cantiere", () => {

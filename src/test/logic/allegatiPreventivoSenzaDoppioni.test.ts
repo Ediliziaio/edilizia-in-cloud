@@ -285,6 +285,10 @@ function creazioneRapida(selectedMaterials = ["m-buona", "m-copiata"]) {
     supabase, allegaSchedeTecniche, avvisoSchedeNonAllegate,
     toast, resetForm, navigate, routePrefix: "/azienda/marketing",
     setSaving: () => {}, queryClient: { invalidateQueries: () => {} },
+    // I testi visibili passano dal sistema di traduzione: in italiano la chiave
+    // è la frase stessa, quindi lo stub rende la chiave con i valori sostituiti.
+    t: (testo: string, valori?: Record<string, unknown>) =>
+      testo.replace(/\{(\w+)\}/g, (tutto, nome: string) => (valori && nome in valori ? String(valori[nome]) : tutto)),
   });
   return { salva, toast, resetForm, navigate };
 }

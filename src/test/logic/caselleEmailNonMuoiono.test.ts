@@ -55,7 +55,8 @@ describe("Rimettere in piedi una casella costa un clic", () => {
 
   it("la card spiega il perché in italiano e offre il pulsante", () => {
     expect(card).toContain('c.status !== "active"');
-    expect(card).toContain("Ricollega {c.email_address}");
+    // Il pulsante nomina la casella: testo letterale o tradotto.
+    expect(card).toMatch(/(?:Ricollega|\{(?:t|tr|tTesto)\("Ricollega"\)\}) \{c\.email_address\}/);
     // Il testo grezzo del provider non finisce più in faccia all'utente.
     expect(card).not.toContain("Errore: {c.last_sync_error}");
   });

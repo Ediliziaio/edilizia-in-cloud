@@ -99,7 +99,10 @@ describe("Firma elettronica: tre sezioni, un solo titolo di pagina", () => {
 describe("Firma elettronica: l'interruttore dei preventivi dice la stessa cosa che in «Prezzo e margini»", () => {
   it("stesso nome e stessa frase (è la stessa colonna, firma_digitale_abilitata)", async () => {
     const margini = leggi("src/pages/azienda/settings/SettingsMargini.tsx");
-    const nelleMargini = margini.match(/id="firma-digitale"\s+titolo="([^"]+)"\s+descrizione="([^"]+)"/);
+    // Titolo e descrizione possono essere letterali o passare dal traduttore: titolo={t("…")}.
+    const testo = String.raw`(?:"([^"]+)"|\{(?:t|tr|tTesto)\("([^"]+)"\)\})`;
+    const trovato = margini.match(new RegExp(`id="firma-digitale"\\s+titolo=${testo}\\s+descrizione=${testo}`));
+    const nelleMargini = trovato && [trovato[0], trovato[1] ?? trovato[2], trovato[3] ?? trovato[4]];
     expect(nelleMargini, "la riga della firma non si trova più in SettingsMargini.tsx").not.toBeNull();
     open(); await caricata();
     const interruttore = screen.getByRole("switch", { name: nelleMargini![1] });

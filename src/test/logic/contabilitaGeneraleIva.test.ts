@@ -129,8 +129,9 @@ describe("Contabilità generale: l'IVA con gli stessi strumenti di Fatture → F
   });
 
   it("l'elenco delle scritture ha la colonna del documento accanto al numero di scrittura", () => {
-    expect(pagina).toContain(">N. scrittura</th>");
-    expect(pagina).toContain(">Documento</th>");
+    // Le colonne ci sono: testo letterale o passato dal sistema di traduzione.
+    expect(pagina).toMatch(/>(?:N\. scrittura|\{(?:t|tr|tTesto)\("N\. scrittura"\)\})<\/th>/);
+    expect(pagina).toMatch(/>(?:Documento|\{(?:t|tr|tTesto)\("Documento"\)\})<\/th>/);
     expect(pagina).toContain("riferimentoDocumento(s)");
   });
 });

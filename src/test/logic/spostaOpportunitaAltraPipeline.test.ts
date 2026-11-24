@@ -19,7 +19,8 @@ describe("sposta opportunità in un'altra pipeline", () => {
 
   it("il pannello «Sposta» fa scegliere la pipeline", () => {
     expect(lista).toContain("usePipelines");
-    expect(lista).toMatch(/Pipeline<\/Label>/);
+    // L'etichetta può essere letterale o tradotta: {t("Pipeline")}</Label>.
+    expect(lista).toMatch(/(?:Pipeline|\{(?:t|tr|tTesto)\("Pipeline"\)\})<\/Label>/);
     expect(lista).toContain("setMovePipelineId");
     // Le fasi mostrate sono quelle della pipeline scelta, non solo di quella aperta.
     expect(lista).toContain("fasiDaMostrare.map");
@@ -43,7 +44,7 @@ describe("scheda opportunità: cambio pipeline", () => {
     // solo scritta, e non c'era modo di spostare l'opportunità (Il Bagno
     // Group, 18/09/2026).
     expect(scheda).toContain("const [pipelineId, setPipelineId]");
-    expect(scheda).toMatch(/Sequenza<\/Label>\s*\n\s*\{canEditOpportunity && pipelines\.length > 1 \?/);
+    expect(scheda).toMatch(/(?:Sequenza|\{(?:t|tr|tTesto)\("Sequenza"\)\})<\/Label>\s*\n\s*\{canEditOpportunity && pipelines\.length > 1 \?/);
   });
 
   it("cambiando pipeline le fasi diventano quelle nuove", () => {

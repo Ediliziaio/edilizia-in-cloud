@@ -42,12 +42,17 @@ describe("Lingue dell'area operai (23/11/2026)", () => {
   });
 
   it("ogni traduzione ha gli stessi segnaposto dell'italiano", () => {
+    // Mezzo milione di voci: si raccolgono i difetti e si asserisce una volta
+    // sola (un expect per voce fa scadere il tempo del test).
+    const difetti: string[] = [];
     for (const [nome, d] of Object.entries(DIZIONARI)) {
       for (const [chiave, valore] of Object.entries(d)) {
-        expect(segnaposti(valore), `${nome}: ${chiave}`).toEqual(segnaposti(chiave));
-        expect(valore.trim(), `${nome}: ${chiave}`).not.toBe("");
+        if (valore.trim() === "") { difetti.push(`${nome}: traduzione vuota per «${chiave}»`); continue; }
+        const attesi = segnaposti(chiave).join(","), trovati = segnaposti(valore).join(",");
+        if (attesi !== trovati) difetti.push(`${nome}: «${chiave}» → segnaposto [${trovati}] invece di [${attesi}]`);
       }
     }
+    expect(difetti.slice(0, 20)).toEqual([]);
   });
 
   it("le frasi delle schermate tradotte ci sono in tutte le lingue", () => {

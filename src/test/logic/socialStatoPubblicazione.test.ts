@@ -154,9 +154,10 @@ describe("la pagina Social", () => {
   });
 
   it("tre passi visibili, il resto nelle opzioni avanzate", () => {
-    expect(pagina).toContain('titolo="Dove"');
-    expect(pagina).toContain('titolo="Cosa"');
-    expect(pagina).toContain('titolo="Quando"');
+    // Il testo può essere letterale o passato dal traduttore: titolo={t("Dove")} / {tr("Dove")}.
+    expect(pagina).toMatch(/titolo=(?:"Dove"|\{(?:t|tr|tTesto)\("Dove"\)\})/);
+    expect(pagina).toMatch(/titolo=(?:"Cosa"|\{(?:t|tr|tTesto)\("Cosa"\)\})/);
+    expect(pagina).toMatch(/titolo=(?:"Quando"|\{(?:t|tr|tTesto)\("Quando"\)\})/);
     expect(pagina).toContain("Opzioni avanzate");
     expect(pagina).toContain("const [opzioniAperte, setOpzioniAperte] = useState(avvio.opzioniAperte);");
     expect(pagina).toContain('opzioniAperte: Boolean(post && (tipo !== "post" || perPiattaforma || post.firstComment || post.argomento)),');

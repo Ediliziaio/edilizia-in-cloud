@@ -42,7 +42,8 @@ describe("Admin Portale — UI polish round 3", () => {
 
     it("InfoTile 'Accesso' wrapped in {!hideAudienceUi}", () => {
       expect(portalPageSource).toMatch(
-        /\{!hideAudienceUi && \(\s*<InfoTile label="Accesso"/,
+        // Il testo può essere letterale o passare dal sistema di traduzione: t("Accesso")
+        /\{!hideAudienceUi && \(\s*<InfoTile label=(?:"Accesso"|\{(?:t|tr|tTesto)\("Accesso"\)\})/,
       );
     });
 
@@ -56,7 +57,8 @@ describe("Admin Portale — UI polish round 3", () => {
   describe("Dialog 'Crea corso': Audience select nascosta in admin", () => {
     it("select audience wrapped in {!isAdminContext}", () => {
       expect(portalPageSource).toMatch(
-        /\{!isAdminContext && \(\s*<div className="space-y-2">\s*<label className="text-sm font-medium text-slate-700"[^>]*>Accesso<\/label>/,
+        // Il testo dell'etichetta può essere letterale o tradotto: {t("Accesso")}
+        /\{!isAdminContext && \(\s*<div className="space-y-2">\s*<label className="text-sm font-medium text-slate-700"[^>]*>(?:Accesso|\{(?:t|tr|tTesto)\("Accesso"\)\})<\/label>/,
       );
     });
   });

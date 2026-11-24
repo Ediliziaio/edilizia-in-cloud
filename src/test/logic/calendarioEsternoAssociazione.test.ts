@@ -92,7 +92,8 @@ describe("Si capisce dove finiscono gli appuntamenti, e di chi e' l'account", ()
   const overview = leggi("src/components/integrations/CompanyCalendarsOverview.tsx");
 
   it("l'elenco dei calendari mostra nome del calendario e indirizzo dell'account", () => {
-    expect(config).toContain("Calendario esterno</TableHead>");
+    // La colonna c'è: testo letterale oppure passato dal sistema di traduzione.
+    expect(config).toMatch(/(?:Calendario esterno|\{(?:t|tr|tTesto)\("Calendario esterno"\)\})<\/TableHead>/);
     expect(config).toContain("emailAccount(cal.external_connection_id)");
   });
 
