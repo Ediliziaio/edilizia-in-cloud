@@ -20,8 +20,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { useTecniciAzienda } from "@/hooks/useTecniciAzienda";
+import { ETICHETTA_GRUPPO, gruppiTecnici, ordinaPerTecnico } from "@/lib/sopralluoghi/sceltaTecnico";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, UserPlus, X, Check } from "lucide-react";
 import { toast } from "sonner";
@@ -53,21 +56,11 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
     queryFn: () => listAssignees(surveyId),
   });
 
-  const { data: members = [] } = useQuery({
-    queryKey: ["company-assignable-members", companyId],
-    enabled: open && !!companyId,
-    queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
-        .from("profiles")
-        .select("id, first_name, last_name, email")
-        // Le persone di QUESTA azienda: senza filtro il super admin vedeva gli
-        // utenti di tutta la piattaforma.
-        .eq("company_id", companyId)
-        .order("first_name");
-      return (data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>;
-    },
-  });
+  // Solo lo staff (mai i clienti, che sono anch'essi profili dell'azienda), tecnici in cima:
+  // stessa regola di «Pianifica» e dell'appuntamento (lib/sopralluoghi/sceltaTecnico).
+  const { data: staff = [] } = useCompanyStaffUsers(open ? companyId : null);
+  const tecnici = useTecniciAzienda(companyId, open);
+  const members = ordinaPerTecnico(staff, tecnici);
 
   const assignedIds = new Set((assignees as Array<{ user_id: string }>).map((a) => a.user_id));
 
@@ -189,13 +182,16 @@ export function SurveyAssignDialog({ surveyId, open, onOpenChange }: SurveyAssig
                 <SelectValue placeholder="Scegli utente…" />
               </SelectTrigger>
               <SelectContent>
-                {members
-                  .filter((m) => !assignedIds.has(m.id))
-                  .map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {[m.first_name, m.last_name].filter(Boolean).join(" ") || m.email}
-                    </SelectItem>
-                  ))}
+                {gruppiTecnici(members.filter((m) => !assignedIds.has(m.id)), tecnici).map((g) => (
+                  <SelectGroup key={g.gruppo}>
+                    <SelectLabel>{ETICHETTA_GRUPPO[g.gruppo]}</SelectLabel>
+                    {g.persone.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {[m.first_name, m.last_name].filter(Boolean).join(" ") || m.email}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
               </SelectContent>
             </Select>
           </div>

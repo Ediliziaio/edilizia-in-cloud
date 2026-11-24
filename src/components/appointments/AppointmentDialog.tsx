@@ -26,6 +26,9 @@ import AddressAutocomplete, { emptyAddress, type AddressData } from "@/component
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 import { RilievoAppuntamentoCampo } from "@/components/sopralluoghi/RilievoAppuntamento";
 import { useRilievoAppuntamento } from "@/hooks/useRilievoAppuntamento";
+import { useTecniciAzienda } from "@/hooks/useTecniciAzienda";
+import { ordinaPerTecnico } from "@/lib/sopralluoghi/sceltaTecnico";
+import { appuntamentoConRilievo } from "@/lib/surveys/rilievoAppuntamento";
 
 export interface AppointmentData {
   id?: string;
@@ -617,8 +620,13 @@ export function AppointmentDialog({
     staleTime: 60 * 1000,
   });
 
+  // Sopralluogo: tecnici (area «Tecnico» in Utenti e permessi) in cima e sempre ammessi,
+  // anche quando l'appuntamento operativo mostra solo gli operai.
+  const eSopralluogo = appuntamentoConRilievo(appointmentType);
+  const tecnici = useTecniciAzienda(companyId, open && eSopralluogo);
   const assignableUsers = useMemo(() => {
     const allowed = new Set(workEmployeeUserIds);
+    if (eSopralluogo) tecnici.forEach((id) => allowed.add(id));
     orderOperationalUserIds.forEach((id) => allowed.add(id));
     const perTipo = !isOperationalAppointment ? staffUsers : staffUsers.filter((u) => {
       if (allowed.has(u.id)) return true;
@@ -626,10 +634,11 @@ export function AppointmentDialog({
       if (roles.includes("employee") || roles.includes("worker") || roles.includes("subcontractor")) return true;
       return roles.length === 0 && workEmployeeUserIds.length === 0 && orderOperationalUserIds.length === 0;
     });
-    if (!onlyAssigned || membriSquadra.length === 0) return perTipo;
+    const ordinati = eSopralluogo ? ordinaPerTecnico(perTipo, tecnici) : perTipo;
+    if (!onlyAssigned || membriSquadra.length === 0) return ordinati;
     const ammessi = new Set([user?.id, ...membriSquadra]);
-    return perTipo.filter((u) => ammessi.has(u.id));
-  }, [isOperationalAppointment, orderOperationalUserIds, staffUsers, workEmployeeUserIds, onlyAssigned, membriSquadra, user?.id]);
+    return ordinati.filter((u) => ammessi.has(u.id));
+  }, [isOperationalAppointment, orderOperationalUserIds, staffUsers, workEmployeeUserIds, onlyAssigned, membriSquadra, user?.id, eSopralluogo, tecnici]);
 
   const selectedDateStr = appointmentDate ? format(appointmentDate, "yyyy-MM-dd") : null;
   const { data: dayAppointments = [] } = useQuery<AvailabilityAppointment[]>({
@@ -797,9 +806,9 @@ export function AppointmentDialog({
       value: persona.id,
       label: getUserName(persona),
       description: persona.roles?.map((ruolo) => RUOLI_LEGGIBILI[ruolo] ?? etichettaCodice(ruolo)).join(", ") || undefined,
-      badge: persona.roles?.includes("subcontractor") ? "Subapp." : persona.roles?.includes("employee") ? "Operaio" : undefined,
+      badge: eSopralluogo && tecnici.has(persona.id) ? "Tecnico" : persona.roles?.includes("subcontractor") ? "Subapp." : persona.roles?.includes("employee") ? "Operaio" : undefined,
     })),
-  ], [assignableUsers, mioId]);
+  ], [assignableUsers, mioId, eSopralluogo, tecnici]);
 
   const orderOptions = useMemo<SearchableOption[]>(() => [
     { value: "none", label: "Nessuna commessa" },

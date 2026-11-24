@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useTecniciAzienda } from "@/hooks/useTecniciAzienda";
+import { ETICHETTA_GRUPPO, gruppiTecnici } from "@/lib/sopralluoghi/sceltaTecnico";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
@@ -32,6 +34,7 @@ export function PianificaSopralluogoDialog({
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const { data: staff = [] } = useCompanyStaffUsers(sopralluogo ? companyId : null);
+  const tecnici = useTecniciAzienda(companyId, !!sopralluogo);
   const google = useGoogleCalendarSync();
   const apple = useAppleCalendarSync();
 
@@ -129,8 +132,13 @@ export function PianificaSopralluogoDialog({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={SENZA_TECNICO}>Nessuno</SelectItem>
-                  {staff.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>{[u.first_name, u.last_name].filter(Boolean).join(" ") || "Utente"}</SelectItem>
+                  {gruppiTecnici(staff, tecnici).map((g) => (
+                    <SelectGroup key={g.gruppo}>
+                      <SelectLabel>{ETICHETTA_GRUPPO[g.gruppo]}</SelectLabel>
+                      {g.persone.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>{[u.first_name, u.last_name].filter(Boolean).join(" ") || "Utente"}</SelectItem>
+                      ))}
+                    </SelectGroup>
                   ))}
                 </SelectContent>
               </Select>

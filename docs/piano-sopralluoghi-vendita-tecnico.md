@@ -126,6 +126,12 @@ Fatto:
   `rilievo_tecnico` per i tecnici (prima sempre «preventivo»).
 - «Nuovo sopralluogo» con tecnico: anche l'assegnazione.
 - Test: `rilievoAppuntamento`, `pianificaSopralluogoTecnico`, `appuntamentoPreparaRilievo`.
+- Chi si può scegliere come tecnico (24/11): una regola sola in appuntamento, «Pianifica» e
+  «Assegna sopralluogo» (`lib/sopralluoghi/sceltaTecnico.ts`): in cima l'area «Tecnico» di Utenti
+  e permessi (letta con `tecnici_azienda`, migrazione 20290528100200), poi operai e
+  subappaltatori, poi il resto dello staff. «Assegna sopralluogo» leggeva `profiles` e mostrava
+  anche i clienti. Nell'appuntamento di sopralluogo i tecnici sono ammessi anche quando la lista
+  operativa mostrerebbe solo gli operai. L'area «Tecnico» oggi è segnata su 7 persone in tutto.
 
 Da sapere: `src/integrations/supabase/types.ts` su main è indietro di circa 300 oggetti
 rispetto al database; rigenerarlo porta dentro il lavoro di altre sessioni, quindi le due
