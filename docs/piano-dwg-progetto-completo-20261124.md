@@ -29,6 +29,22 @@ L'altro Claude ha disegnato (immagini dalle linee del DWG): niente si perde ma n
 Il gestionale costruisce un modello (pareti, porte, stanze, unità) da cui escono computo, tempi e
 varianti. La strada è fare entrambe le cose: modello per i conti, disegno del DWG per le tavole.
 
+## Stato al 24/11/2026 sera
+
+| Lotto | Stato | Dove |
+|---|---|---|
+| 0 Banco di prova | Fatto: `dev/planimetria-editor/bancoProvaDwg.py` misura il DWG contro i dati scritti sulla tavola. Callimaco: nomi nelle stanze 30/33 (erano 23/34), superfici 93%, unità 3/7, finestre misurate 85% | soglie in `scratchpad/callimaco/minimi.json` (il DWG del cliente non va nel repository) |
+| 1 DWG online | Da fare: serve il token Cloudflare del titolare per pubblicare `services/planimetria-motore` | — |
+| 2 Piante trovate da sole | Fatto: `anteprimaDxf.proponi_piani` (layer, unità vera, quote); «Ricava i 4 piani trovati» in `PianiDaDwg` | provato sul server locale con `callimaco.dwg` |
+| 3 Stanze dal nome scritto | Fatto: `stanze_dai_nomi` (spazio fra le pareti dentro la sagoma, area che torna) | |
+| 4 Legenda delle unità | Fatto: `unitaDichiarate`, vincolo della legenda nell'assegnazione, riepilogo dichiarato/misurato | resta: unità del piano terra mal raggruppate (int. 01-03) |
+| 5 Lotto dal DWG | Fatto: `leggi_sistemazioni` (blocco dell'edificio, verde, piscine, alberi, confine) | Callimaco: 2.594 m², 2 piscine, 21 alberi |
+| 6 Altezze | Fatto per le stanze («H 313»); copertura da sezioni: da fare quando arriva un DWG con sezioni | |
+| 7 Tavole PDF | Fatto: stile «zone», pagina unità e superfici, dati del lotto nel fascicolo | |
+| 8 3D e video | Fatto: inquadrature pronte, «Foto», «Video del giro» (12 s); render fotorealistico esterno resta sul motore online | da vedere a schermo su Urban Vision |
+| 9 Silvio guida | Fatto con regole (gratis): `guidaProgetto.ts` nella chat; le risposte portano al punto della scheda | resta: la scelta del tipo di lavori fatta da Silvio senza passare dal pannello |
+| 10 Prezzi | Excel del computo già c'è (Esporta del computo); codici del prezzario Lazio per le voci nuove: alla sessione del prezzario abbinato | |
+
 ## Lotti
 
 ### Lotto 0 — Callimaco come banco di prova (1 giorno)
