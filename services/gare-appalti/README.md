@@ -18,6 +18,18 @@ GARE_DOC_SMOKE=1 GARE_PYTHON=/percorso/python node --test services/gare-appalti/
 
 L’ultima prova avvia il worker su loopback e simula Supabase e OpenRouter. Esegue la rotta Filtri AI, compila un Word e genera due DGUE sintetici distinti. Usa il compilatore documentale reale. Per una prova AI offline con il modello già installato sul Mac, configurare nel worker `GARE_AI_BACKEND=ollama` e `GARE_AI_MODEL=qwen3.5:4b`. L’opzione Ollama è separata dalla configurazione OpenRouter.
 
+## Collaudo su un altro computer
+
+Apri sul computer di destinazione il repository al tag di verifica indicato per il rilascio. Con Docker Engine disponibile, esegui dalla radice del repository:
+
+```sh
+bash services/gare-appalti/verify-container.sh
+```
+
+Il comando costruisce l’immagine del servizio e la prova con rete esterna disabilitata e dati sintetici. Verifica il filtro AI, il blocco delle sessioni esterne al pilota, l’OCR di una scansione, la compilazione Word e due DGUE distinti. Il test usa risposte OpenRouter simulate. Per un primo collaudo su Windows usa una distribuzione Linux in WSL 2. Su Linux il worker può partire direttamente con Node e Python, oppure con il container. Su macOS la lettura delle scansioni può usare Apple Vision con l’avvio diretto.
+
+Per collegare il computer all’app ufficiale occorrono un processo che riparta dopo il riavvio e un’origine HTTPS raggiungibile da Cloudflare Pages. Installa i segreti della macchina durante la configurazione autorizzata. Per il primo test lascia il servizio su loopback. La verifica online deve confermare l’accesso dall’app e il rifiuto delle richieste senza sessione aziendale.
+
 ## Modalità OpenRouter
 
 - `free` usa `openrouter/free` o un modello esplicito `:free`. Le richieste impongono prezzo massimo zero, JSON strutturato, raccolta dati negata e Zero Data Retention. Se il catalogo o le quote non permettono la richiesta, l’utente riceve un errore recuperabile. Non parte un modello a pagamento.
