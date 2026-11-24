@@ -66,34 +66,50 @@ describe("coordinatore della generazione: disegnatore, controllore, correttore",
     if (esito.ok) expect(esito.pianta.generazione.controllo_disposizione).toBeUndefined();
   });
 
-  it("bagno con la porta verso fuori: il correttore riceve il difetto e la seconda versione è quella consegnata", async () => {
+  // Dal 24/11 una porta che manca o dà fuori la sistema il riparatore a codice, senza chiamare
+  // il modello. Al correttore arrivano i difetti che il codice non sa riparare: qui una superficie
+  // diversa da quella dettata (bagno largo 3,60 invece di 2,40).
+  const GRANDE = 3.6;
+
+  it("bagno con la porta verso fuori: lo ripara il codice, con una sola chiamata al modello", async () => {
+    const chiamate: number[] = [];
+    const chiama: Chiama = async (_m, n) => { chiamate.push(n); return { testo: risposta(FUORI), modello: "finto" }; };
+    const esito = await generaPlanimetria(req, chiama);
+    expect(chiamate).toEqual([1]);
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) return;
+    expect(esito.pianta.generazione.avvisi.join(" ")).toMatch(/Ho aperto una porta interna che mancava \(Bagno–Soggiorno\) e tolto una porta/);
+    expect(controllaDisposizione(esito.pianta.planimetria, req.attese)).toEqual([]);
+  });
+
+  it("superficie diversa da quella dettata: il correttore riceve il difetto e la seconda versione è quella consegnata", async () => {
     const messaggiVisti: string[] = [];
-    const chiama: Chiama = async (m, n) => { messaggiVisti.push(String(m.at(-1)!.content)); return { testo: risposta(n === 1 ? FUORI : DENTRO), modello: "finto" }; };
+    const chiama: Chiama = async (m, n) => { messaggiVisti.push(String(m.at(-1)!.content)); return { testo: risposta(DENTRO, n === 1 ? GRANDE : 2.4), modello: "finto" }; };
     const esito = await generaPlanimetria(req, chiama);
     expect(messaggiVisti).toHaveLength(2);
-    expect(messaggiVisti[1]).toMatch(/«Bagno».*esterno.*«Soggiorno»/s);
+    expect(messaggiVisti[1]).toMatch(/«Bagno».*5,04 m²/s);
     expect(esito.ok).toBe(true);
     if (!esito.ok) return;
     expect(esito.pianta.generazione.controllo_disposizione).toEqual({ giri: 2, rimasti: 0 });
     expect(esito.pianta.generazione.avvisi.join(" ")).toMatch(/ricontrollato porte/);
-    expect(esito.tentativi[0].errori).toContain("porta_su_esterno");
+    expect(esito.tentativi[0].errori).toContain("misura_diversa");
   });
 
   it("se il correttore non ci riesce, si consegna la versione con meno difetti e si dice cosa resta", async () => {
-    const chiama: Chiama = async () => ({ testo: risposta(FUORI, 3.6), modello: "finto" });
+    const chiama: Chiama = async () => ({ testo: risposta(DENTRO, GRANDE), modello: "finto" });
     const esito = await generaPlanimetria(req, chiama);
     expect(esito.ok).toBe(true);
     if (!esito.ok) return;
-    expect(esito.pianta.generazione.controllo_disposizione).toEqual({ giri: 2, rimasti: 2 });
+    expect(esito.pianta.generazione.controllo_disposizione).toEqual({ giri: 2, rimasti: 1 });
     const avvisi = esito.pianta.generazione.avvisi.join(" ");
-    expect(avvisi).toMatch(/Da sistemare nell'editor \(2\)/);
+    expect(avvisi).toMatch(/Da sistemare nell'editor \(1\)/);
     expect(avvisi).toMatch(/5,04 m²/);
   });
 
   it("prima chiamata persa per un errore di geometria: la pianta rifatta passa comunque dal correttore", async () => {
     const incrociata = JSON.stringify({ ...JSON.parse(risposta(DENTRO)), locali: [{ nome: "Soggiorno", destinazione: "soggiorno", contorno: [[0, 0], [5, 4], [5, 0], [0, 4]], misure_lette: false }] });
     const chiamate: number[] = [];
-    const chiama: Chiama = async (_m, n) => { chiamate.push(n); return { testo: n === 1 ? incrociata : n === 2 ? risposta(FUORI) : risposta(DENTRO), modello: "finto" }; };
+    const chiama: Chiama = async (_m, n) => { chiamate.push(n); return { testo: n === 1 ? incrociata : risposta(DENTRO, n === 2 ? GRANDE : 2.4), modello: "finto" }; };
     const esito = await generaPlanimetria(req, chiama);
     expect(chiamate).toEqual([1, 2, 3]);
     expect(esito.ok).toBe(true);
@@ -101,7 +117,7 @@ describe("coordinatore della generazione: disegnatore, controllore, correttore",
   });
 
   it("se la correzione rompe la pianta, resta la prima versione invece di un errore", async () => {
-    const chiama: Chiama = async (_m, n) => ({ testo: n === 1 ? risposta(FUORI) : "non è json", modello: "finto" });
+    const chiama: Chiama = async (_m, n) => ({ testo: n === 1 ? risposta(DENTRO, GRANDE) : "non è json", modello: "finto" });
     const esito = await generaPlanimetria(req, chiama);
     expect(esito.ok).toBe(true);
     if (esito.ok) expect(esito.pianta.generazione.controllo_disposizione?.rimasti).toBe(1);

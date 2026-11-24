@@ -15,6 +15,7 @@ import { estraiJson, leggiRispostaAI } from "./rispostaAI.ts";
 import { controllaScala, controllaSuperfici, pulisciLocali } from "./pulizia.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { controllaDisposizione, type MisuraAttesa, type ProblemaDisposizione } from "../../../shared/planimetrie/controlloDisposizione.ts";
+import { riparaAccessiPianta } from "../../../shared/planimetrie/riparaAccessi.ts";
 import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, PROMPT_RILIEVO, PROMPT_SCHIZZO, promptCorrezione, promptCorrezioneDisposizione, promptScalaSospetta } from "./prompt.ts";
 
 export type ParteContenuto =
@@ -216,6 +217,13 @@ export async function generaPlanimetria(
       return { ok: false, codice: "non_leggibile", messaggio: MESSAGGI_UTENTE.non_leggibile, tentativi };
     }
     if (disposizioneDaControllare && lettura.pianta && !lettura.errori.length) {
+      // Prima il riparatore a codice (gratis e immediato): apre le porte interne che mancano
+      // sulle pareti in comune. Solo quello che resta va al correttore, cioè al modello.
+      const riparata = riparaAccessiPianta(lettura.pianta.planimetria);
+      if (riparata.nota) {
+        lettura.pianta.planimetria = riparata.pianta;
+        lettura.pianta.generazione.avvisi.push(riparata.nota);
+      }
       const problemi = controllaDisposizione(lettura.pianta.planimetria, req.attese);
       const dopoUnErrore = n === 2 && !conDifetti;
       const tempoPerCorreggere = !opzioni.tempoMassimoMs || ora() - inizio <= opzioni.tempoMassimoMs * (dopoUnErrore ? 2 / 3 : 1 / 2);
