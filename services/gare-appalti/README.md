@@ -20,13 +20,35 @@ L’ultima prova avvia il worker su loopback e simula Supabase e OpenRouter. Ese
 
 ## Collaudo su un altro computer
 
-Apri sul computer di destinazione il repository al tag di verifica indicato per il rilascio. Con Docker Engine disponibile, esegui dalla radice del repository:
+Apri sul computer di destinazione il repository al tag di verifica indicato per il rilascio.
+
+### macOS, senza Docker
+
+Con Homebrew disponibile, installa gli strumenti che mancano:
+
+```sh
+xcode-select --install
+brew install node@24 python@3.12 poppler nss openssl@3
+brew install --cask libreoffice
+```
+
+Dalla radice del repository, avvia il collaudo:
+
+```sh
+bash services/gare-appalti/verify-macos.sh
+```
+
+Il comando installa le versioni Node e Python del worker in una directory temporanea, avvia il servizio su una porta di loopback libera ed esegue le prove di filtro AI, scansione, Word e DGUE sintetici. Se hai già un ambiente Python con le dipendenze del worker, puoi indicarlo con `GARE_PYTHON=/percorso/bin/python`. Il test usa risposte simulate e termina il servizio di prova.
+
+### Linux o Windows con WSL 2
+
+Con Docker Engine disponibile, esegui dalla radice del repository:
 
 ```sh
 bash services/gare-appalti/verify-container.sh
 ```
 
-Il comando costruisce l’immagine del servizio e la prova con rete esterna disabilitata e dati sintetici. Verifica il filtro AI, il blocco delle sessioni esterne al pilota, l’OCR di una scansione, la compilazione Word e due DGUE distinti. Il test usa risposte OpenRouter simulate. Per un primo collaudo su Windows usa una distribuzione Linux in WSL 2. Su Linux il worker può partire direttamente con Node e Python, oppure con il container. Su macOS la lettura delle scansioni può usare Apple Vision con l’avvio diretto.
+Il comando costruisce l’immagine del servizio ed esegue le stesse prove nel container, con la rete esterna disabilitata.
 
 Per collegare il computer all’app ufficiale occorrono un processo che riparta dopo il riavvio e un’origine HTTPS raggiungibile da Cloudflare Pages. Installa i segreti della macchina durante la configurazione autorizzata. Per il primo test lascia il servizio su loopback. La verifica online deve confermare l’accesso dall’app e il rifiuto delle richieste senza sessione aziendale.
 
