@@ -464,7 +464,6 @@ export const BLOCCHI_UFFICIO: Record<string, string[]> = {
     "src/components/orders/generali/documenti/SchedaDocumenti.tsx",
     "src/components/orders/generali/fatture/BottoneFattura.tsx",
     "src/components/orders/generali/fatture/FatturaDialog.tsx",
-    "src/components/orders/generali/investitori/ConfermaMovimentoDialog.tsx",
     "src/components/orders/generali/investitori/FonteDialog.tsx",
     "src/components/orders/generali/investitori/GraficoFonti.tsx",
     "src/components/orders/generali/investitori/Investitori.tsx",
