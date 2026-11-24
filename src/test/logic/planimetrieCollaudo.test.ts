@@ -72,13 +72,10 @@ describe("progetto di collaudo: spostare il tramezzo di 40 cm", () => {
     ],
     prezzarioNome: "Lombardia 2026",
     prezzario: {
-      intonaco: [
-        { codice: "A.1", descrizione: "Intonaco civile per interni, a due strati", unita: "m²", prezzo: 21 },
-        { codice: "A.2", descrizione: "Intonaco civile per interni premiscelato", unita: "m²", prezzo: 26 },
-        { codice: "A.3", descrizione: "Intonaco deumidificante per murature umide", unita: "m²", prezzo: 61 },
-        { codice: "A.4", descrizione: "Demolizione di intonaco interno", unita: "m²", prezzo: 9 },
-        { codice: "A.5", descrizione: "Intonaco rustico interno", unita: "m²", prezzo: 18 },
-      ],
+      // Una sola voce per lavorazione, abbinata per codice (shared/planimetrie/abbinamentiPrezzario.ts).
+      intonaco: { codice: "A.1", descrizione: "Intonaco civile per interni, a due strati", unita: "m²", prezzo: 21 },
+      // Abbinata con l'unità sbagliata: non deve quotare niente.
+      battiscopa: { codice: "B.1", descrizione: "Battiscopa in gres", unita: "m²", prezzo: 14 },
     },
   };
 
@@ -90,9 +87,9 @@ describe("progetto di collaudo: spostare il tramezzo di 40 cm", () => {
     expect(attinenza("pavimento", "Fornitura e posa massetto di sottofondo")).toBe(0);
   });
 
-  it("dove il listino non arriva usa il prezzario di zona: la voce di mezzo fra quelle pertinenti", () => {
-    // pertinenti: 18, 21, 26 (non il deumidificante né la demolizione) → mediana 21
-    expect(proponiPrezzo(riga("n1-intonaco"), fonti)).toEqual({ importo: 21, unita: "m²", tariffa: "A.1", fonte: "Prezzario Lombardia 2026 · voce mediana di 3, da confermare" });
+  it("dove il listino non arriva usa la voce di prezzario abbinata, col suo codice", () => {
+    expect(proponiPrezzo(riga("n1-intonaco"), fonti)).toEqual({ importo: 21, unita: "m²", tariffa: "A.1", fonte: "Prezzario Lombardia 2026 · A.1, da confermare" });
+    expect(proponiPrezzo(riga("n1-battiscopa"), fonti)?.fonte).toBe(FONTE_INDICATIVA);
     expect(proponiPrezzo(riga("n1-tinteggiatura"), fonti)?.fonte).toBe(FONTE_INDICATIVA);
   });
 

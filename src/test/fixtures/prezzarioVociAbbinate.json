@@ -1,0 +1,229 @@
+{
+ "_nota": "Estratto il 24/11/2026 da prezzario_voce (fonti pubblicate 2026 di Lombardia, Piemonte, Veneto, Emilia-Romagna) per i codici di shared/planimetrie/abbinamentiPrezzario.ts. Ogni codice compariva una sola volta. Per rifarlo: la query in testa a src/test/logic/planimetrieAbbinamentiPrezzario.test.ts.",
+ "voci": [
+  {
+   "regione": "Lombardia",
+   "anno": 2026,
+   "codice": "LOM261.OC.EEA.Mc01.C0100.Za001.0010.b",
+   "unita_misura": "1 m²",
+   "prezzo": 15.54,
+   "descrizione": "OPERA: Sistema di muratura, in blocchi forati; finitura: intonacato | rivestito; impiego: interno | tramezzi; spessore [cm] ≤ 11. LAVORO: Demolizione. Incluso: movimentazione con mezzo manuale/meccanico delle macerie nell'ambito del cantiere. Escluso: carico e trasporto ad impianti di stoccaggio/di recupero o a discarica; oneri di smaltimento; piani di lavoro; opere provvisionali/protezione. SPECIFICHE TECNICHE: blocchi in conglomerato cementizio/laterizio o materiali assimilabili."
+  },
+  {
+   "regione": "Lombardia",
+   "anno": 2026,
+   "codice": "LOM261.OC.EEA.Pa02.C0102.L0011.0290.-",
+   "unita_misura": "1 m²",
+   "prezzo": 27.83,
+   "descrizione": "OPERA: Strato di muratura, in blocchi forati di ceramica terracotta/laterizio; funzione: divisorio; impiego: interno | tramezzi; spessore [cm] = 8. Incluso: malta di cemento. LAVORO: Posa. Incluso: formazione elementi di raccordo (spalle, voltini, spigoli, lesene). Escluso: piani di lavoro. SPECIFICHE TECNICHE: formato blocco [cm] = 24x8x24."
+  },
+  {
+   "regione": "Lombardia",
+   "anno": 2026,
+   "codice": "LOM261.OC.EEA.Pa02.C0102.L0011.0295.-",
+   "unita_misura": "1 m²",
+   "prezzo": 36.71,
+   "descrizione": "OPERA: Strato di muratura, in blocchi forati di ceramica terracotta/laterizio; funzione: divisorio; impiego: interno | tramezzi; spessore [cm] = 12. Incluso: malta di cemento. LAVORO: Posa. Incluso: formazione elementi di raccordo (spalle, voltini, spigoli, lesene). Escluso: piani di lavoro. SPECIFICHE TECNICHE: formato blocco [cm] = 24x12x24."
+  },
+  {
+   "regione": "Lombardia",
+   "anno": 2026,
+   "codice": "LOM261.OC.EEA.Pa02.C1206.L0005.0260.-",
+   "unita_misura": "1 m²",
+   "prezzo": 42.17,
+   "descrizione": "OPERA: Strato di pavimentazione, in piastrelle di ceramica gres porcellanato; finitura: colore chiaro | liscio; impiego: interno; lato x [cm] = 30 | lato y [cm] = 30 | spessore [cm] = 0,8 ÷ 1. Incluso: boiacca di puro cemento. LAVORO: Posa. Incluso: pulizia finale. Escluso: formazione sottofondo/letto di posa; assistenza muraria. SPECIFICHE TECNICHE: su letto in malta di legante idraulico."
+  },
+  {
+   "regione": "Lombardia",
+   "anno": 2026,
+   "codice": "LOM261.OC.EEA.Pa02.C1220.L0005.0015.-",
+   "unita_misura": "1 m²",
+   "prezzo": 49.34,
+   "descrizione": "OPERA: Strato di rivestimento, in piastrelle di ceramica gres porcellanato; finitura: liscio | colore chiaro; lato x [cm] = 30 | lato y [cm] = 30 | spessore [cm] = 0,8 ÷ 1. Incluso: pezzi speciali (jolly, pie d'oca, gusce); malta/collante; cemento bianco/colorato. LAVORO: Posa. Incluso: tagli/sfridi; stuccatura giunti; pulitura. Escluso: assistenza muraria. SPECIFICHE TECNICHE: di prima scelta. Su idoneo intonaco."
+  },
+  {
+   "regione": "Lombardia",
+   "anno": 2026,
+   "codice": "LOM261.OC.EEA.Pa02.C1240.L0005.0005.-",
+   "unita_misura": "1 m",
+   "prezzo": 14.87,
+   "descrizione": "OPERA: Strato di zoccolatura di ceramica gres porcellanato; geometria: piano; impiego: battiscopa; altezza [cm] = 10 | lunghezza [cm] = 10. Incluso: malta/collante. LAVORO: Posa. Incluso: tagli; sfridi; pulizia finale. Escluso: assistenza muraria."
+  },
+  {
+   "regione": "Lombardia",
+   "anno": 2026,
+   "codice": "LOM261.OC.EEA.Pa02.C3310.Qa006.0005.-",
+   "unita_misura": "1 cad",
+   "prezzo": 403.38,
+   "descrizione": "OPERA: Sistema porta, a battente di legno naturale abete; finitura: legno noce tanganika | lucido; geometria: tamburato | singola anta; impiego: interno; larghezza [cm] = 60 ÷ 90 | altezza [cm] = 210 ÷ 220. Incluso: viteria. LAVORO: Posa. Incluso: fissaggio controtelaio; pulizia; allontanamento materiali di risulta. Escluso: assistenza muraria. SPECIFICHE TECNICHE: dimensioni standard."
+  },
+  {
+   "regione": "Lombardia",
+   "anno": 2026,
+   "codice": "LOM261.OC.EEA.Pa02.E0100.L0011.0260.a",
+   "unita_misura": "1 m²",
+   "prezzo": 83.24,
+   "descrizione": "OPERA: Strato di muratura, in blocchi forati di ceramica terracotta/laterizio; geometria: tipo \"svizzero\"; funzione: portante; spessore [cm] = 25; foratura [%] < 55. Incluso: malta di cemento. LAVORO: Posa. Incluso: formazione di spalle, voltini, spigoli, lesene. Escluso: piani di lavoro. SPECIFICHE TECNICHE: formato blocco [cm] = 30x25x13."
+  },
+  {
+   "regione": "Lombardia",
+   "anno": 2026,
+   "codice": "LOM261.OC.EEA.Pa06.C1234.Ca012.0005.-",
+   "unita_misura": "1 m²",
+   "prezzo": 6.11,
+   "descrizione": "OPERA: Strato di pitturazione, idropittura di resina sintetica acrilica; funzione: traspirante | lavabile; impiego: interno | murature intonacate; lavabilità [n.colpi spazzola] > 10000. LAVORO: Applicazione manuale. Escluso: assistenza muraria; piani di lavoro. SPECIFICHE TECNICHE: resina in emulsione con battericidi e fungicidi; lavabile con sapone. Stesura n.2 mani; su superfici in intonaco civile/lisciate a gesso già preparate ed isolate."
+  },
+  {
+   "regione": "Lombardia",
+   "anno": 2026,
+   "codice": "LOM261.OC.EEA.Pa16.C0900.Za001.0510.-",
+   "unita_misura": "1 m²",
+   "prezzo": 31.46,
+   "descrizione": "OPERA: Strato di intonacatura, completo; finitura: civile fine; impiego: interno | superfici verticali. LAVORO: Stesura con mezzo meccanico. Incluso: rinzaffo; intonaco rustico; arricciatura. Escluso: piani di lavoro. SPECIFICHE TECNICHE: intonaco rustico con premiscelato a base di leganti aerei ed idraulici; arricciatura eseguita sotto staggia con rasante a base di cemento, calce, inerti selezionati, additivi."
+  },
+  {
+   "regione": "Piemonte",
+   "anno": 2026,
+   "codice": "PIE26_01.A02.A25.010",
+   "unita_misura": "m²",
+   "prezzo": 15.94,
+   "descrizione": "Demolizione di tramezzi o tavolati interni o volte in mattoni forati, in qualunque piano di fabbricato, compresa la salita o discesa a terra dei materiali, lo sgombero, computando le superfici prima della demolizione ed escluso ogni eventuale puntellamento che si rendesse necessario o anche solo consigliabile — Con spessore da cm 10 a cm 15 e per superfici di m² 0,50 e oltre, con trasporto in cantiere"
+  },
+  {
+   "regione": "Piemonte",
+   "anno": 2026,
+   "codice": "PIE26_01.A06.A20.045",
+   "unita_misura": "m²",
+   "prezzo": 73.33,
+   "descrizione": "Tramezzi in mattoni legati con malta cementizia — In mattoni forati dello spessore di cm 12 e per una superficie complessiva di almeno m² 1"
+  },
+  {
+   "regione": "Piemonte",
+   "anno": 2026,
+   "codice": "PIE26_01.A06.A20.055",
+   "unita_misura": "m²",
+   "prezzo": 59,
+   "descrizione": "Tramezzi in mattoni legati con malta cementizia — In mattoni forati dello spessore di cm 8 e per una superficie complessiva di almeno m² 1"
+  },
+  {
+   "regione": "Emilia-Romagna",
+   "anno": 2026,
+   "codice": "A05.013.005.a",
+   "unita_misura": "mq",
+   "prezzo": 30.05,
+   "descrizione": "TRAMEZZATURE IN BLOCCHI IN LATERIZIO ALLEGGERITO — Tramezzatura di laterizio alleggerito in pasta in blocchi di lunghezza 50 cm, con incastri verticali maschio-femmina, rispondenti ai requisiti CAM (Criteri Ambientali Minimi), percentuale di foratura ≤ 55%, con incastri verticali maschio-femmina sui lati, in opera a qualsiasi altezza, compresi oneri e magisteri per l'esecuzione di ammorsature e quanto altro si renda necessario a realizzare l'opera a perfetta regola d'arte: — spessore 8 cm"
+  },
+  {
+   "regione": "Emilia-Romagna",
+   "anno": 2026,
+   "codice": "A05.013.005.c",
+   "unita_misura": "mq",
+   "prezzo": 44.37,
+   "descrizione": "TRAMEZZATURE IN BLOCCHI IN LATERIZIO ALLEGGERITO — Tramezzatura di laterizio alleggerito in pasta in blocchi di lunghezza 50 cm, con incastri verticali maschio-femmina, rispondenti ai requisiti CAM (Criteri Ambientali Minimi), percentuale di foratura ≤ 55%, con incastri verticali maschio-femmina sui lati, in opera a qualsiasi altezza, compresi oneri e magisteri per l'esecuzione di ammorsature e quanto altro si renda necessario a realizzare l'opera a perfetta regola d'arte: — spessore 12 cm"
+  },
+  {
+   "regione": "Emilia-Romagna",
+   "anno": 2026,
+   "codice": "A08.004.005.c",
+   "unita_misura": "mq",
+   "prezzo": 27.75,
+   "descrizione": "INTONACI CIVILI — per interni su pareti verticali: — con malta bastarda di calce grassa, sabbia e cemento"
+  },
+  {
+   "regione": "Emilia-Romagna",
+   "anno": 2026,
+   "codice": "A15.016.120.b",
+   "unita_misura": "mq",
+   "prezzo": 60.97,
+   "descrizione": "PAVIMENTI IN GRES — Pavimento in gres porcellanato colorato in massa in piastrelle, ottenute per pressatura, per spazi ad intenso calpestio, rispondenti alla norma UNI EN 14411, tinta unita compatta, posto in opera con idoneo collante, previa preparazione del piano superiore del massetto di sottofondo da pagarsi a parte, compresi tagli, sfridi, pulitura finale e sigillatura dei giunti: — 20 x 20 cm, classe assorbimento acqua BIb H, spessore 8 mm"
+  },
+  {
+   "regione": "Emilia-Romagna",
+   "anno": 2026,
+   "codice": "A16.022.020.a",
+   "unita_misura": "m",
+   "prezzo": 15.68,
+   "descrizione": "ZOCCOLINI — Zoccolino di legno impiallacciato, con superficie preverniciata, dimensioni 75 x 10 mm, posto in opera mediante inchiodatura: — rovere"
+  },
+  {
+   "regione": "Emilia-Romagna",
+   "anno": 2026,
+   "codice": "A20.010.005.b",
+   "unita_misura": "mq",
+   "prezzo": 8.71,
+   "descrizione": "TINTEGGIATURE CON IDROPITTURE — su superfici interne: — vinilacrilica traspirante"
+  },
+  {
+   "regione": "Emilia-Romagna",
+   "anno": 2026,
+   "codice": "B01.004.015.b",
+   "unita_misura": "mq",
+   "prezzo": 9.43,
+   "descrizione": "DEMOLIZIONI DI MURATURE — Demolizione di muratura di qualsiasi genere, anche voltata, di spessore fino ad una testa, eseguita a mano, compresa la cernita ed accantonamento del materiale di recupero da riutilizzare: — muratura in mattoni forati"
+  },
+  {
+   "regione": "Veneto",
+   "anno": 2026,
+   "codice": "VEN26-01.05.14.a",
+   "unita_misura": "m²",
+   "prezzo": 24.21,
+   "descrizione": "Tavolati in laterizio — Demolizione parziale o totale di tavolati in laterizio (tramezze) od assimilabili dello spessore complessivo uguale od inferiore a 20 cm, compresi gli intonaci e gli eventuali rivestimenti di qualsiasi tipo. Nel prezzo si intendono compresi e compensati gli oneri per le necessarie opere provvisionali e di sicurezza, l'abbassamento, lo sgombero, la raccolta differenziata del materiale di risulta, il conferimento con trasportoin discarica autorizzata del materiale di risulta,l'indennità di discarica e quanto altro necessario per dare il lavoro finito a regola d'arte."
+  },
+  {
+   "regione": "Veneto",
+   "anno": 2026,
+   "codice": "VEN26-01.12.09.a",
+   "unita_misura": "m²",
+   "prezzo": 49.92,
+   "descrizione": "TRAMEZZA IN MATTONI FORATI di spessore cm 8 — Tramezzo di mattoni forati, in opera con malta bastarda."
+  },
+  {
+   "regione": "Veneto",
+   "anno": 2026,
+   "codice": "VEN26-01.12.09.b",
+   "unita_misura": "m²",
+   "prezzo": 55.58,
+   "descrizione": "TRAMEZZA IN MATTONI FORATI di spessore cm 12 — Tramezzo di mattoni forati, in opera con malta bastarda."
+  },
+  {
+   "regione": "Veneto",
+   "anno": 2026,
+   "codice": "VEN26-01.14.08.00",
+   "unita_misura": "m",
+   "prezzo": 15.12,
+   "descrizione": "FORNITURA E POSA IN OPERA DI BATTISCOPA CERAMICO PRESSATO SMALTATO — Fornitura e posa in opera di battiscopa costituito da piastrelle ceramiche monocottura di prima scelta, pressate a secco, smaltate, comunemente denominate grés ceramico, conformi alle norme UNI EN, di forma rettangolare con bordo superiore a becco di civetta, nel colore ed aspetto a scelta della D.L., posate a correre a giunto sia unito che aperto mediante spalmatura con spatola dentata di collante a base cementizia additivato con lattice resinoso. Nel prezzo si intendono compresi e compensati gli oneri per la pulizia del fondo di appoggio, la fornitura e posa del collante, la sigillatura degli interstizi eseguita con malta premiscelata per fughe nel colore a scelta della D.L., le riprese e le stuccature di intonaco, la finitura contro i telai delle porte anche in tempi successivi, la pulitura superficiale, il taglio, lo sfrido, la pulizia e l'asporto del materiale di risulta a fine lavoro, la raccolta differenziata del materiale di risulta, il conferimento con trasporto in discarica autorizzata del materiale di risulta, l'indennità di discarica e quanto altro necessario per dare il lavoro finito a regola d'arte."
+  },
+  {
+   "regione": "Veneto",
+   "anno": 2026,
+   "codice": "VEN26-01.14.43.b",
+   "unita_misura": "m²",
+   "prezzo": 65.02,
+   "descrizione": "Dimensioni 30 x 30 cm, naturale — Pavimento in gres porcellanato colorato in massa in piastrelle rettificate, ottenute per pressatura, per zone ad intenso calpestio, rispondenti alla norma UNI EN 14411, classe assorbimento acqua BIa UGL, posto in opera con idoneo collante, previa preparazione del piano superiore del massetto di sottofondo da pagarsi a parte, compresi tagli, sfridi, pulitura. Pavimento in possesso di un coefficiente di attrito conforme a quanto previsto dal DPR 24 luglio 1996, n.503 recante norme per l'eliminazione delle barriere architettoniche negli edifici, spazi e servizi pubblici, distinto secondo la norma DIN 51130 con superficie antiscivolo R10 A, ad effetto cemento."
+  },
+  {
+   "regione": "Veneto",
+   "anno": 2026,
+   "codice": "VEN26-01.18.02.a",
+   "unita_misura": "m²",
+   "prezzo": 25.38,
+   "descrizione": "INTONACO CIVILE su superfici interne — Intonaco civile, in opera su pareti e soffitti, di spessore fino a mm 15, in malta di cemento dosata a q 3 a due mani con ultimo strato in malta di cemento dosata a q 6 tirato a frattazzo fino, compresi paraspigoli zincati, esclusa la rete porta intonaco."
+  },
+  {
+   "regione": "Veneto",
+   "anno": 2026,
+   "codice": "VEN26-01.28.01.a",
+   "unita_misura": "m²",
+   "prezzo": 10.22,
+   "descrizione": "DIPINTURA DI EDIFICI DI CIVILE ABITAZIONE Bianche per interni — Dipintura con idropittura murale lavabile per interno/esterno. Nel prezzo si intendono compresi e compensati gli oneri per la fornitura della pittura, gli eventuali ponteggi fino ad una altezza massima di 4 ml da piano di appoggio, gli oneri per la protezione di arredi impianti fissi o la protezione di pavimenti, la pulitura delle superfici da trattare mediante uso di stracci o scopi netti al fine di togliere i residui asportabili facilmente. E’ da ritenersi inoltre compreso e compensato l’onere per la stuccatura saltuaria e parziale di superfici, onde eliminare eventuali piccole scalfitture, compresa la carteggiatura delle parti stuccate. Per 2 mani a pennello o a rullo."
+  },
+  {
+   "regione": "Veneto",
+   "anno": 2026,
+   "codice": "VEN26-01.23.02.a",
+   "unita_misura": "cad",
+   "prezzo": 489.42,
+   "descrizione": "PORTE TAMBURATE LISCE IMPIALLACCIATE tanganica: ad un battente fino a mq 1,60 — Fornitura e posa in opera di porte interne tamburate lisce impiallacciate, composte dai seguenti elementi principali: - falso telaio in legno di abete dello spessore minimo di 20 mm, posto in opera mediante zanche in lamiera d'acciaio e/o zocchetti in numero e dimensioni sufficienti per dare stabilità e tenuta all'intero serramento; - telaio fisso in legno di abete di prima scelta dello spessore minimo di 30 mm, rivestito sulle parti in vista da impiallacciatura pregiata, completo di mostre (normali o maggiorate per locali piastrellati) fissate con incastri e collanti od altro sistema idoneo (sono escluse le chiodature in vista); falso telaio e telaio fisso di larghezza idonea per muri finiti fino a 15 cm; - battente con ossatura in legno duro con elementi uniti mediante incastro o sistema di analoghe caratteristiche, anima costituita da nido d'ape in cartone plastificato dello spessore di 35 mm e maglie da 10 mm, rivestito sulle due facce con pannelli in MDF (mediumdensity) o con compensato di pioppo di prima scelta dello spessore di 4 mm, con impiallacciatura in legno pregiato; - ferramenta di portata, manovra e bloccaggio con caratteristiche e qualità idonee all'uso cui è destinata composta da tre cerniere in acciaio bronzato del tipo incassato od a tre gambi filettati, serratura con relative chiavi, gruppo maniglie in alluminio anodizzato del tipo antinfortunistico con eventuale sblocco di emergenza esterno, complete di placche, di tipo e colore a scelta della D.L.; - finitura superficiale del telaio e del battente mediante applicazione di due mani successive di vernice poliuretanica trasparente (neutra o colorata), nell'aspetto a scelta della D.L., previa opportuna preparazione del fondo in modo da ottenere un supporto idoneo al successivo trattamento. Nel prezzo si intende compreso e compensato l'onere per le guarnizioni di tenuta, le sigillature, l'idonea campionatura completa di accessori che l'Appaltatore dovrà presentare prima dell'inizio dei lavori e quanto altro necessario per dare il lavoro finito a regola d'arte. Misurazione per luce netta di passaggio."
+  }
+ ]
+}

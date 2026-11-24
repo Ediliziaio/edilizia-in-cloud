@@ -81,8 +81,11 @@ export interface VoceDiPrezzo { codice: string | null; descrizione: string; unit
 export interface FontiPrezzi {
   /** Il listino dell'azienda. */
   listino: readonly VoceDiPrezzo[];
-  /** Le voci del prezzario pubblico trovate per ogni lavorazione. */
-  prezzario: Partial<Record<TipoLavorazione, readonly VoceDiPrezzo[]>>;
+  /**
+   * La voce del prezzario pubblico abbinata per codice a ogni lavorazione
+   * (`shared/planimetrie/abbinamentiPrezzario.ts`): già verificata, non si filtra per parole.
+   */
+  prezzario: Partial<Record<TipoLavorazione, VoceDiPrezzo>>;
   /** «Lombardia 2026»; null se l'azienda non ha un prezzario di zona. */
   prezzarioNome: string | null;
 }
@@ -116,12 +119,11 @@ export function proponiPrezzo(r: Pick<RigaStudio, "id" | "descrizione" | "unita"
   }
   const delListino = adatte(tipo, r.unita, fonti.listino).sort((a, b) => b.punti - a.punti)[0];
   if (delListino) return { importo: delListino.v.prezzo, unita: r.unita, fonte: "Listino aziendale", tariffa: (delListino.v.codice ?? "").slice(0, 120) };
-  const pubbliche = adatte(tipo, r.unita, fonti.prezzario[tipo] ?? []).map((x) => x.v).sort((a, b) => a.prezzo - b.prezzo);
-  if (pubbliche.length && fonti.prezzarioNome) {
-    // Il prezzario ha molte varianti della stessa lavorazione: si prende la voce di mezzo, non la prima.
-    const v = pubbliche[Math.floor((pubbliche.length - 1) / 2)];
+  // Il prezzario: solo la voce abbinata per codice, e solo se l'unità è quella della riga.
+  const v = fonti.prezzario[tipo];
+  if (v && fonti.prezzarioNome && Number.isFinite(v.prezzo) && v.prezzo > 0 && unitaCompatibili(v.unita, r.unita)) {
     return { importo: v.prezzo, unita: r.unita, tariffa: (v.codice ?? "").slice(0, 120),
-      fonte: `Prezzario ${fonti.prezzarioNome}${pubbliche.length > 1 ? ` · voce mediana di ${pubbliche.length}` : ""}, da confermare`.slice(0, 300) };
+      fonte: `Prezzario ${fonti.prezzarioNome} · ${v.codice ?? ""}, da confermare`.slice(0, 300) };
   }
   // «A corpo» non ha un ordine di grandezza che valga per tutti, tranne le macerie di una parete.
   if (r.unita === "a corpo" && tipo !== "macerie") return null;
